@@ -12,7 +12,7 @@ use crate::views::config::pending_diff_rail::pending_diff_rail;
 use crate::views::config::rules_editor::{default_hba_rules, rules_editor, HbaRuleDef};
 use crate::views::fleet::{fleet_overview_view, fleet_setup_view};
 use crate::views::lock::{
-    vault_lock_view, vault_setup_view, LockFieldFocus, LockState, SetupFieldFocus, SetupState,
+    vault_lock_view, vault_setup_view, LockFieldFocus, LockState, SetupFieldFocus, SetupState, SetupStep,
 };
 use crate::views::onboard::onboard_view;
 use crate::views::overview::log_tail::log_tail;
@@ -30,6 +30,7 @@ pub enum Screen {
     Settings,
     Onboard,
     FleetSetup,
+    VaultSetup,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -109,13 +110,21 @@ host    all             all             10.0.4.0/24             scram-sha-256
     }
 
     pub fn lock(&mut self, cx: &mut Context<Self>) {
-        self.vault.lock();
-        self.lock_state.password_input.clear();
-        self.lock_state.totp_input.clear();
-        self.lock_state.error_message = None;
-        self.menu_open = false;
-        self.palette_open = false;
-        cx.notify();
+        if self.vault.is_password_auth_enabled() {
+            self.vault.lock();
+            self.lock_state.password_input.clear();
+            self.lock_state.totp_input.clear();
+            self.lock_state.error_message = None;
+            self.menu_open = false;
+            self.palette_open = false;
+            cx.notify();
+        } else {
+            self.screen = Screen::Settings;
+            self.settings_section = SettingsSection::Security;
+            self.menu_open = false;
+            self.palette_open = false;
+            cx.notify();
+        }
     }
 
     pub fn submit_unlock(&mut self, cx: &mut Context<Self>) {
@@ -125,11 +134,12 @@ host    all             all             10.0.4.0/24             scram-sha-256
             cx.notify();
             return;
         }
-        let totp = if !self.lock_state.totp_input.trim().is_empty() {
-            Some(self.lock_state.totp_input.trim())
-        } else {
-            None
-        };
+        let totp = self.lock_state.totp_input.trim();
+        if totp.is_empty() {
+            self.lock_state.error_message = Some("6-digit 2FA code is required".into());
+            cx.notify();
+            return;
+        }
 
         match self.vault.unlock(&pwd, totp) {
             Ok(_) => {
@@ -160,26 +170,22 @@ host    all             all             10.0.4.0/24             scram-sha-256
             return;
         }
 
-        let totp_secret = if self.setup_state.enable_totp {
-            let code = self.setup_state.totp_confirm_input.trim();
-            if code.is_empty() {
-                self.setup_state.error_message = Some("Please enter the 6-digit confirmation code from your authenticator".into());
-                cx.notify();
-                return;
-            }
-            if !crate::vault::verify_totp_code(&self.setup_state.totp_secret, code) {
-                self.setup_state.error_message = Some("Invalid 6-digit code. Check your authenticator and try again".into());
-                cx.notify();
-                return;
-            }
-            Some(self.setup_state.totp_secret.as_str())
-        } else {
-            None
-        };
+        let code = self.setup_state.totp_confirm_input.trim();
+        if code.is_empty() {
+            self.setup_state.error_message = Some("Please enter the 6-digit confirmation code from your authenticator".into());
+            cx.notify();
+            return;
+        }
+        if !crate::vault::verify_totp_code(&self.setup_state.totp_secret, code) {
+            self.setup_state.error_message = Some("Invalid 6-digit code. Check your authenticator and try again".into());
+            cx.notify();
+            return;
+        }
 
-        match self.vault.initialize(&pwd, totp_secret) {
+        match self.vault.initialize(&pwd, &self.setup_state.totp_secret) {
             Ok(_) => {
                 self.setup_state = SetupState::default();
+                self.screen = Screen::Fleet;
                 cx.notify();
             }
             Err(e) => {
@@ -319,124 +325,138 @@ impl Render for CrowApp {
                 let is_shift = ev.keystroke.modifiers.shift;
                 let key = ev.keystroke.key.to_lowercase();
 
-                match this.vault.status() {
-                    VaultStatus::Uninitialized => {
-                        if key == "tab" {
-                            if this.setup_state.enable_totp {
+                // If vault is locked, keyboard events are dedicated to unlocking
+                if this.vault.status() == VaultStatus::Locked {
+                    if key == "tab" {
+                        this.lock_state.active_focus = match this.lock_state.active_focus {
+                            LockFieldFocus::Password => LockFieldFocus::Totp,
+                            LockFieldFocus::Totp => LockFieldFocus::Password,
+                        };
+                        cx.notify();
+                    } else if key == "enter" {
+                        this.submit_unlock(cx);
+                    } else if key == "backspace" {
+                        match this.lock_state.active_focus {
+                            LockFieldFocus::Password => { this.lock_state.password_input.pop(); }
+                            LockFieldFocus::Totp => { this.lock_state.totp_input.pop(); }
+                        }
+                        this.lock_state.error_message = None;
+                        cx.notify();
+                    } else if !is_mod {
+                        let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
+                            Some(ev.keystroke.key.as_str())
+                        } else {
+                            None
+                        });
+                        if let Some(c) = char_to_insert {
+                            match this.lock_state.active_focus {
+                                LockFieldFocus::Password => { this.lock_state.password_input.push_str(c); }
+                                LockFieldFocus::Totp => {
+                                    if this.lock_state.totp_input.len() < 6 && c.chars().all(|d| d.is_ascii_digit()) {
+                                        this.lock_state.totp_input.push_str(c);
+                                    }
+                                }
+                            }
+                            this.lock_state.error_message = None;
+                            cx.notify();
+                        }
+                    }
+                    return;
+                }
+
+                // If on Vault Setup Screen
+                if this.screen == Screen::VaultSetup {
+                    match this.setup_state.step {
+                        SetupStep::WarningNotice => {
+                            if ev.keystroke.key == "escape" {
+                                this.setup_state = SetupState::default();
+                                this.set_screen(Screen::Settings, cx);
+                            } else if key == "enter" {
+                                this.setup_state.step = SetupStep::ConfigureCredentials;
+                                if this.setup_state.totp_secret.is_empty() {
+                                    this.setup_state.totp_secret = crate::vault::generate_totp_secret();
+                                }
+                                cx.notify();
+                            }
+                        }
+                        SetupStep::ConfigureCredentials => {
+                            if ev.keystroke.key == "escape" {
+                                this.setup_state.step = SetupStep::WarningNotice;
+                                cx.notify();
+                            } else if key == "tab" {
                                 this.setup_state.active_focus = match this.setup_state.active_focus {
                                     SetupFieldFocus::Password => SetupFieldFocus::ConfirmPassword,
                                     SetupFieldFocus::ConfirmPassword => SetupFieldFocus::TotpConfirm,
                                     SetupFieldFocus::TotpConfirm => SetupFieldFocus::Password,
                                 };
-                            } else {
-                                this.setup_state.active_focus = match this.setup_state.active_focus {
-                                    SetupFieldFocus::Password => SetupFieldFocus::ConfirmPassword,
-                                    SetupFieldFocus::ConfirmPassword => SetupFieldFocus::Password,
-                                    SetupFieldFocus::TotpConfirm => SetupFieldFocus::Password,
-                                };
-                            }
-                            cx.notify();
-                        } else if key == "enter" {
-                            this.submit_setup(cx);
-                        } else if key == "backspace" {
-                            match this.setup_state.active_focus {
-                                SetupFieldFocus::Password => { this.setup_state.password_input.pop(); }
-                                SetupFieldFocus::ConfirmPassword => { this.setup_state.confirm_input.pop(); }
-                                SetupFieldFocus::TotpConfirm => { this.setup_state.totp_confirm_input.pop(); }
-                            }
-                            this.setup_state.error_message = None;
-                            cx.notify();
-                        } else if !is_mod {
-                            let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
-                                Some(ev.keystroke.key.as_str())
-                            } else {
-                                None
-                            });
-                            if let Some(c) = char_to_insert {
+                                cx.notify();
+                            } else if key == "enter" {
+                                this.submit_setup(cx);
+                            } else if key == "backspace" {
                                 match this.setup_state.active_focus {
-                                    SetupFieldFocus::Password => { this.setup_state.password_input.push_str(c); }
-                                    SetupFieldFocus::ConfirmPassword => { this.setup_state.confirm_input.push_str(c); }
-                                    SetupFieldFocus::TotpConfirm => {
-                                        if this.setup_state.totp_confirm_input.len() < 6 && c.chars().all(|d| d.is_ascii_digit()) {
-                                            this.setup_state.totp_confirm_input.push_str(c);
-                                        }
-                                    }
+                                    SetupFieldFocus::Password => { this.setup_state.password_input.pop(); }
+                                    SetupFieldFocus::ConfirmPassword => { this.setup_state.confirm_input.pop(); }
+                                    SetupFieldFocus::TotpConfirm => { this.setup_state.totp_confirm_input.pop(); }
                                 }
                                 this.setup_state.error_message = None;
                                 cx.notify();
-                            }
-                        }
-                    }
-                    VaultStatus::Locked { totp_enabled } => {
-                        if key == "tab" && totp_enabled {
-                            this.lock_state.active_focus = match this.lock_state.active_focus {
-                                LockFieldFocus::Password => LockFieldFocus::Totp,
-                                LockFieldFocus::Totp => LockFieldFocus::Password,
-                            };
-                            cx.notify();
-                        } else if key == "enter" {
-                            this.submit_unlock(cx);
-                        } else if key == "backspace" {
-                            match this.lock_state.active_focus {
-                                LockFieldFocus::Password => { this.lock_state.password_input.pop(); }
-                                LockFieldFocus::Totp => { this.lock_state.totp_input.pop(); }
-                            }
-                            this.lock_state.error_message = None;
-                            cx.notify();
-                        } else if !is_mod {
-                            let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
-                                Some(ev.keystroke.key.as_str())
-                            } else {
-                                None
-                            });
-                            if let Some(c) = char_to_insert {
-                                match this.lock_state.active_focus {
-                                    LockFieldFocus::Password => { this.lock_state.password_input.push_str(c); }
-                                    LockFieldFocus::Totp => {
-                                        if this.lock_state.totp_input.len() < 6 && c.chars().all(|d| d.is_ascii_digit()) {
-                                            this.lock_state.totp_input.push_str(c);
+                            } else if !is_mod {
+                                let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
+                                    Some(ev.keystroke.key.as_str())
+                                } else {
+                                    None
+                                });
+                                if let Some(c) = char_to_insert {
+                                    match this.setup_state.active_focus {
+                                        SetupFieldFocus::Password => { this.setup_state.password_input.push_str(c); }
+                                        SetupFieldFocus::ConfirmPassword => { this.setup_state.confirm_input.push_str(c); }
+                                        SetupFieldFocus::TotpConfirm => {
+                                            if this.setup_state.totp_confirm_input.len() < 6 && c.chars().all(|d| d.is_ascii_digit()) {
+                                                this.setup_state.totp_confirm_input.push_str(c);
+                                            }
                                         }
                                     }
+                                    this.setup_state.error_message = None;
+                                    cx.notify();
                                 }
-                                this.lock_state.error_message = None;
-                                cx.notify();
                             }
                         }
                     }
-                    VaultStatus::Unlocked => {
-                        if ev.keystroke.key == "escape" {
-                            if this.menu_open {
-                                this.menu_open = false;
-                                cx.notify();
-                            } else if this.palette_open {
-                                this.palette_open = false;
-                                cx.notify();
-                            } else if this.screen != Screen::Server && this.screen != Screen::Fleet {
-                                this.set_screen(Screen::Fleet, cx);
-                            }
-                        } else if key == "l" && is_mod && is_shift {
-                            this.lock(cx);
-                        } else if key == "k" && is_mod {
-                            this.toggle_palette(cx);
-                        } else if key == "\\" && is_mod {
-                            this.sidebar_collapsed = !this.sidebar_collapsed;
-                            cx.notify();
-                        } else if key == "1" && is_mod {
-                            this.set_screen(Screen::Fleet, cx);
-                        } else if key == "2" && is_mod {
-                            this.set_screen(Screen::Server, cx);
-                            this.set_view("overview", cx);
-                        } else if key == "3" && is_mod {
-                            this.set_screen(Screen::Server, cx);
-                            this.set_view("config", cx);
-                        } else if key == "," && is_mod {
-                            this.set_screen(Screen::Settings, cx);
-                        } else if key == "n" && is_mod {
-                            this.set_screen(Screen::Onboard, cx);
-                        } else if key == "f" && is_mod && is_shift {
-                            this.set_screen(Screen::FleetSetup, cx);
-                        }
+                    return;
+                }
+
+                // Normal Screens shortcuts
+                if ev.keystroke.key == "escape" {
+                    if this.menu_open {
+                        this.menu_open = false;
+                        cx.notify();
+                    } else if this.palette_open {
+                        this.palette_open = false;
+                        cx.notify();
+                    } else if this.screen != Screen::Server && this.screen != Screen::Fleet {
+                        this.set_screen(Screen::Fleet, cx);
                     }
+                } else if key == "l" && is_mod && is_shift {
+                    this.lock(cx);
+                } else if key == "k" && is_mod {
+                    this.toggle_palette(cx);
+                } else if key == "\\" && is_mod {
+                    this.sidebar_collapsed = !this.sidebar_collapsed;
+                    cx.notify();
+                } else if key == "1" && is_mod {
+                    this.set_screen(Screen::Fleet, cx);
+                } else if key == "2" && is_mod {
+                    this.set_screen(Screen::Server, cx);
+                    this.set_view("overview", cx);
+                } else if key == "3" && is_mod {
+                    this.set_screen(Screen::Server, cx);
+                    this.set_view("config", cx);
+                } else if key == "," && is_mod {
+                    this.set_screen(Screen::Settings, cx);
+                } else if key == "n" && is_mod {
+                    this.set_screen(Screen::Onboard, cx);
+                } else if key == "f" && is_mod && is_shift {
+                    this.set_screen(Screen::FleetSetup, cx);
                 }
             }))
             .size_full()
@@ -450,16 +470,16 @@ impl Render for CrowApp {
             .border_1()
             .border_color(BORDER_DEFAULT)
             .relative()
-            .children(match vault_status {
-                VaultStatus::Uninitialized => Some(
-                    div().size_full().child(vault_setup_view(app_view.clone(), &self.setup_state))
-                ),
-                VaultStatus::Locked { totp_enabled } => Some(
-                    div().size_full().child(vault_lock_view(app_view.clone(), &self.lock_state, totp_enabled))
-                ),
-                VaultStatus::Unlocked => None,
+            // If locked, show full lock screen
+            .children(if vault_status == VaultStatus::Locked {
+                Some(
+                    div().size_full().child(vault_lock_view(app_view.clone(), &self.lock_state))
+                )
+            } else {
+                None
             })
-            .children(if vault_status == VaultStatus::Unlocked {
+            // If not locked (Disabled or Unlocked), show normal app
+            .children(if vault_status != VaultStatus::Locked {
                 Some(
                     div()
                         .size_full()
@@ -585,7 +605,7 @@ impl Render for CrowApp {
                                     Screen::Settings => Some(
                                         div()
                                             .size_full()
-                                            .child(settings_view(app_view.clone(), self.settings_section)),
+                                            .child(settings_view(app_view.clone(), self.settings_section, self.vault.is_password_auth_enabled())),
                                     ),
                                     Screen::Onboard => Some(
                                         div()
@@ -596,6 +616,11 @@ impl Render for CrowApp {
                                         div()
                                             .size_full()
                                             .child(fleet_setup_view(app_view.clone())),
+                                    ),
+                                    Screen::VaultSetup => Some(
+                                        div()
+                                            .size_full()
+                                            .child(vault_setup_view(app_view.clone(), &self.setup_state)),
                                     ),
                                 }),
                         )

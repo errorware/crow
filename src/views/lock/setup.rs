@@ -1,6 +1,12 @@
 use gpui_kit::*;
-use crate::app::CrowApp;
+use crate::app::{CrowApp, Screen};
 use crate::theme::*;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SetupStep {
+    WarningNotice,
+    ConfigureCredentials,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SetupFieldFocus {
@@ -11,9 +17,9 @@ pub enum SetupFieldFocus {
 
 #[derive(Clone, Debug)]
 pub struct SetupState {
+    pub step: SetupStep,
     pub password_input: String,
     pub confirm_input: String,
-    pub enable_totp: bool,
     pub totp_secret: String,
     pub totp_confirm_input: String,
     pub active_focus: SetupFieldFocus,
@@ -24,9 +30,9 @@ pub struct SetupState {
 impl Default for SetupState {
     fn default() -> Self {
         Self {
+            step: SetupStep::WarningNotice,
             password_input: String::new(),
             confirm_input: String::new(),
-            enable_totp: false,
             totp_secret: String::new(),
             totp_confirm_input: String::new(),
             active_focus: SetupFieldFocus::Password,
@@ -37,6 +43,249 @@ impl Default for SetupState {
 }
 
 pub fn vault_setup_view(app: Entity<CrowApp>, state: &SetupState) -> impl IntoElement {
+    div()
+        .size_full()
+        .children(match state.step {
+            SetupStep::WarningNotice => Some(render_warning_step(app.clone())),
+            SetupStep::ConfigureCredentials => None,
+        })
+        .children(match state.step {
+            SetupStep::ConfigureCredentials => Some(render_credentials_step(app, state)),
+            SetupStep::WarningNotice => None,
+        })
+}
+
+fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
+    let app_cancel = app.clone();
+    let app_proceed = app.clone();
+
+    div()
+        .size_full()
+        .bg(BG_APP)
+        .flex()
+        .items_center()
+        .justify_center()
+        .p(px(20.0))
+        .child(
+            div()
+                .w(px(560.0))
+                .bg(BG_OVERLAY_PANEL)
+                .border_1()
+                .border_color(CRIT)
+                .shadow_lg()
+                .flex()
+                .flex_col()
+                .overflow_hidden()
+                // Header
+                .child(
+                    div()
+                        .h(px(52.0))
+                        .px(px(20.0))
+                        .bg(CRIT_BG)
+                        .border_b_1()
+                        .border_color(CRIT)
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(px(10.0))
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(18.0))
+                                        .text_color(CRIT)
+                                        .child("⚠"),
+                                )
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(13.5))
+                                        .font_weight(FontWeight::BOLD)
+                                        .text_color(TEXT_PRIMARY)
+                                        .child("SECURITY NOTICE · ENABLING PASSWORD LOGON"),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .px(px(7.0))
+                                .py(px(2.0))
+                                .bg(BG_KEY)
+                                .border_1()
+                                .border_color(CRIT)
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.5))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(CRIT)
+                                .child("MANDATORY 2FA"),
+                        ),
+                )
+                // Body
+                .child(
+                    div()
+                        .p(px(22.0))
+                        .flex()
+                        .flex_col()
+                        .gap(px(16.0))
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(12.0))
+                                .text_color(TEXT_SECONDARY)
+                                .line_height(px(18.0))
+                                .child("You are about to activate local encrypted vault protection for Crow. Before proceeding, please review these essential security rules:"),
+                        )
+                        // Warning 1: Password means password AND 2FA
+                        .child(
+                            div()
+                                .p(px(12.0))
+                                .bg(BG_PANEL)
+                                .border_1()
+                                .border_color(BORDER_PANEL)
+                                .flex()
+                                .flex_col()
+                                .gap(px(4.0))
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(11.5))
+                                        .font_weight(FontWeight::BOLD)
+                                        .text_color(TEXT_PRIMARY)
+                                        .child("1. PASSWORD MEANS PASSWORD AND 2FA"),
+                                )
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(11.0))
+                                        .text_color(TEXT_MUTED)
+                                        .line_height(px(16.0))
+                                        .child("There is no password-only logon. Crow requires two-factor authentication (RFC 6238 TOTP) on every unlock. You will pair an authenticator app (1Password, Google Authenticator, YubiKey) in the next step."),
+                                ),
+                        )
+                        // Warning 2: Zero-Knowledge
+                        .child(
+                            div()
+                                .p(px(12.0))
+                                .bg(BG_PANEL)
+                                .border_1()
+                                .border_color(BORDER_PANEL)
+                                .flex()
+                                .flex_col()
+                                .gap(px(4.0))
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(11.5))
+                                        .font_weight(FontWeight::BOLD)
+                                        .text_color(TEXT_PRIMARY)
+                                        .child("2. ZERO-KNOWLEDGE ENCRYPTION AT REST"),
+                                )
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(11.0))
+                                        .text_color(TEXT_MUTED)
+                                        .line_height(px(16.0))
+                                        .child("Your database (~/.config/crow/crow.db) will be encrypted using Argon2id (64MB memory, 3 iterations) and ChaCha20-Poly1305. The master encryption key is never written to disk and is wiped from RAM upon lock."),
+                                ),
+                        )
+                        // Warning 3: No Cloud Recovery
+                        .child(
+                            div()
+                                .p(px(12.0))
+                                .bg(BG_PANEL)
+                                .border_1()
+                                .border_color(BORDER_PANEL)
+                                .flex()
+                                .flex_col()
+                                .gap(px(4.0))
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(11.5))
+                                        .font_weight(FontWeight::BOLD)
+                                        .text_color(CRIT_INK_DIM)
+                                        .child("3. NO CLOUD BACKUP OR PASSWORD RESET"),
+                                )
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(11.0))
+                                        .text_color(TEXT_MUTED)
+                                        .line_height(px(16.0))
+                                        .child("This is a local-only, single-user system with zero telemetry. If you lose either your master password or your 2FA authenticator, your local credentials and host configs are permanently lost."),
+                                ),
+                        )
+                        // Buttons
+                        .child(
+                            div()
+                                .mt(px(8.0))
+                                .flex()
+                                .items_center()
+                                .justify_between()
+                                .child(
+                                    div()
+                                        .id("btn-cancel-setup-warning")
+                                        .h(px(36.0))
+                                        .px(px(16.0))
+                                        .bg(BG_KEY)
+                                        .border_1()
+                                        .border_color(BORDER_DEFAULT)
+                                        .cursor_pointer()
+                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .flex()
+                                        .items_center()
+                                        .on_click(move |_ev, _window, cx| {
+                                            app_cancel.update(cx, |this, cx| {
+                                                this.setup_state = SetupState::default();
+                                                this.set_screen(Screen::Settings, cx);
+                                            });
+                                        })
+                                        .child(
+                                            div()
+                                                .font_family(FONT_MONO)
+                                                .text_size(px(11.5))
+                                                .text_color(TEXT_SECONDARY)
+                                                .child("CANCEL"),
+                                        ),
+                                )
+                                .child(
+                                    div()
+                                        .id("btn-proceed-to-credentials")
+                                        .h(px(36.0))
+                                        .px(px(20.0))
+                                        .bg(CRIT)
+                                        .hover(|s| s.bg(rgb(0xf87171)))
+                                        .cursor_pointer()
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(8.0))
+                                        .on_click(move |_ev, _window, cx| {
+                                            app_proceed.update(cx, |this, cx| {
+                                                this.setup_state.step = SetupStep::ConfigureCredentials;
+                                                if this.setup_state.totp_secret.is_empty() {
+                                                    this.setup_state.totp_secret = crate::vault::generate_totp_secret();
+                                                }
+                                                cx.notify();
+                                            });
+                                        })
+                                        .child(
+                                            div()
+                                                .font_family(FONT_MONO)
+                                                .text_size(px(12.0))
+                                                .font_weight(FontWeight::BOLD)
+                                                .text_color(rgb(0x050507))
+                                                .child("I UNDERSTAND · SETUP PASSWORD & 2FA →"),
+                                        ),
+                                ),
+                        ),
+                ),
+        )
+}
+
+fn render_credentials_step(app: Entity<CrowApp>, state: &SetupState) -> impl IntoElement {
     let has_error = state.error_message.is_some();
     let error_text = state.error_message.clone().unwrap_or_default();
 
@@ -57,7 +306,6 @@ pub fn vault_setup_view(app: Entity<CrowApp>, state: &SetupState) -> impl IntoEl
     };
 
     let show_pwd = state.show_password;
-    let enable_totp = state.enable_totp;
     let totp_secret = state.totp_secret.clone();
     let totp_display = state.totp_confirm_input.clone();
 
@@ -65,7 +313,7 @@ pub fn vault_setup_view(app: Entity<CrowApp>, state: &SetupState) -> impl IntoEl
     let app_confirm_focus = app.clone();
     let app_totp_focus = app.clone();
     let app_toggle_show = app.clone();
-    let app_toggle_totp = app.clone();
+    let app_back = app.clone();
     let app_submit = app.clone();
 
     div()
@@ -77,7 +325,7 @@ pub fn vault_setup_view(app: Entity<CrowApp>, state: &SetupState) -> impl IntoEl
         .p(px(20.0))
         .child(
             div()
-                .w(px(520.0))
+                .w(px(540.0))
                 .bg(BG_OVERLAY_PANEL)
                 .border_1()
                 .border_color(BORDER_STRONG)
@@ -85,7 +333,7 @@ pub fn vault_setup_view(app: Entity<CrowApp>, state: &SetupState) -> impl IntoEl
                 .flex()
                 .flex_col()
                 .overflow_hidden()
-                // Top accent header
+                // Header
                 .child(
                     div()
                         .h(px(50.0))
@@ -114,7 +362,7 @@ pub fn vault_setup_view(app: Entity<CrowApp>, state: &SetupState) -> impl IntoEl
                                         .text_size(px(14.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("INITIALIZE MASTER VAULT"),
+                                        .child("CONFIGURE PASSWORD & MANDATORY 2FA"),
                                 ),
                         )
                         .child(
@@ -127,7 +375,7 @@ pub fn vault_setup_view(app: Entity<CrowApp>, state: &SetupState) -> impl IntoEl
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
                                 .text_color(OK)
-                                .child("FIRST RUN · LOCAL ONLY"),
+                                .child("STEP 2 OF 2"),
                         ),
                 )
                 // Body
@@ -136,16 +384,7 @@ pub fn vault_setup_view(app: Entity<CrowApp>, state: &SetupState) -> impl IntoEl
                         .p(px(22.0))
                         .flex()
                         .flex_col()
-                        .gap(px(16.0))
-                        // Explanatory note
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(11.0))
-                                .text_color(TEXT_MUTED)
-                                .line_height(px(16.0))
-                                .child("Crow uses a zero-knowledge local SQLite database (~/.config/crow/crow.db). Your master password derives an encryption key via Argon2id and ChaCha20-Poly1305 to secure all SSH credentials, agent keys, and fleet configs."),
-                        )
+                        .gap(px(15.0))
                         // Error banner if any
                         .children(if has_error {
                             Some(
@@ -225,7 +464,7 @@ pub fn vault_setup_view(app: Entity<CrowApp>, state: &SetupState) -> impl IntoEl
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(13.0))
                                                 .text_color(if pwd_display.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY })
-                                                .child(if pwd_display.is_empty() { "Enter strong master password…".to_string() } else { pwd_display }),
+                                                .child(if pwd_display.is_empty() { "Enter master password (min 8 characters)…".to_string() } else { pwd_display }),
                                         )
                                         .children(if is_pwd_focused {
                                             Some(div().w(px(2.0)).h(px(16.0)).bg(OK).ml(px(2.0)))
@@ -279,157 +518,106 @@ pub fn vault_setup_view(app: Entity<CrowApp>, state: &SetupState) -> impl IntoEl
                                         }),
                                 ),
                         )
-                        // 2FA TOTP Toggle Box
+                        // Mandatory 2FA TOTP Card
                         .child(
                             div()
-                                .p(px(12.0))
-                                .bg(if enable_totp { BG_PANEL } else { hex_rgba(0, 0.0) })
+                                .p(px(14.0))
+                                .bg(BG_PANEL)
                                 .border_1()
-                                .border_color(if enable_totp { BORDER_STRONG } else { BORDER_PANEL })
+                                .border_color(BORDER_STRONG)
                                 .flex()
                                 .flex_col()
                                 .gap(px(10.0))
                                 .child(
                                     div()
-                                        .id("btn-toggle-totp-option")
                                         .flex()
                                         .items_center()
                                         .justify_between()
-                                        .cursor_pointer()
-                                        .on_click(move |_ev, _window, cx| {
-                                            app_toggle_totp.update(cx, |this, cx| {
-                                                this.setup_state.enable_totp = !this.setup_state.enable_totp;
-                                                if this.setup_state.enable_totp && this.setup_state.totp_secret.is_empty() {
-                                                    this.setup_state.totp_secret = crate::vault::generate_totp_secret();
-                                                }
-                                                cx.notify();
-                                            });
-                                        })
                                         .child(
                                             div()
                                                 .flex()
                                                 .items_center()
-                                                .gap(px(10.0))
+                                                .gap(px(6.0))
                                                 .child(
                                                     div()
-                                                        .size(px(16.0))
-                                                        .border_1()
-                                                        .border_color(if enable_totp { OK } else { BORDER_DEFAULT })
-                                                        .bg(if enable_totp { OK_BG } else { BG_PANEL })
-                                                        .flex()
-                                                        .items_center()
-                                                        .justify_center()
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(10.0))
+                                                        .text_size(px(11.0))
+                                                        .font_weight(FontWeight::BOLD)
                                                         .text_color(OK)
-                                                        .child(if enable_totp { "✓" } else { "" }),
-                                                )
-                                                .child(
-                                                    div()
-                                                        .flex()
-                                                        .flex_col()
-                                                        .child(
-                                                            div()
-                                                                .font_family(FONT_MONO)
-                                                                .text_size(px(12.0))
-                                                                .font_weight(FontWeight::SEMIBOLD)
-                                                                .text_color(TEXT_PRIMARY)
-                                                                .child("Enable Two-Factor Authentication (RFC 6238 TOTP)"),
-                                                        )
-                                                        .child(
-                                                            div()
-                                                                .font_family(FONT_MONO)
-                                                                .text_size(px(10.0))
-                                                                .text_color(TEXT_DIMMER)
-                                                                .child("Requires 6-digit authenticator code (Google Auth, 1Password, Yubikey) on every unlock"),
-                                                        ),
+                                                        .child("MANDATORY TWO-FACTOR AUTHENTICATION (TOTP)"),
                                                 ),
                                         )
                                         .child(
                                             div()
                                                 .px(px(6.0))
                                                 .py(px(2.0))
-                                                .bg(BG_KEY)
+                                                .bg(OK_BG)
                                                 .border_1()
-                                                .border_color(BORDER_KEY)
+                                                .border_color(OK)
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(9.5))
-                                                .text_color(if enable_totp { OK } else { TEXT_DIMMER })
-                                                .child(if enable_totp { "ENABLED" } else { "OPTIONAL" }),
+                                                .font_weight(FontWeight::BOLD)
+                                                .text_color(OK)
+                                                .child("REQUIRED"),
                                         ),
                                 )
-                                // If enabled, show secret string and confirmation field
-                                .children(if enable_totp {
-                                    Some(
-                                        div()
-                                            .mt(px(4.0))
-                                            .pt(px(10.0))
-                                            .border_t_1()
-                                            .border_color(BORDER_PANEL)
-                                            .flex()
-                                            .flex_col()
-                                            .gap(px(10.0))
-                                            .child(
-                                                div()
-                                                    .font_family(FONT_MONO)
-                                                    .text_size(px(10.0))
-                                                    .text_color(TEXT_MUTED)
-                                                    .child("SCAN QR OR PASTE SECRET INTO YOUR AUTHENTICATOR:"),
-                                            )
-                                            .child(
-                                                div()
-                                                    .p(px(8.0))
-                                                    .bg(BG_WINDOW)
-                                                    .border_1()
-                                                    .border_color(BORDER_DEFAULT)
-                                                    .font_family(FONT_MONO)
-                                                    .text_size(px(12.5))
-                                                    .font_weight(FontWeight::BOLD)
-                                                    .text_color(OK)
-                                                    .text_align(TextAlign::Center)
-                                                    .child(totp_secret),
-                                            )
-                                            .child(
-                                                div()
-                                                    .font_family(FONT_MONO)
-                                                    .text_size(px(10.0))
-                                                    .text_color(TEXT_MUTED)
-                                                    .child("VERIFY 6-DIGIT CODE TO CONFIRM SETUP:"),
-                                            )
-                                            .child(
-                                                div()
-                                                    .id("setup-input-totp")
-                                                    .h(px(36.0))
-                                                    .bg(BG_PANEL)
-                                                    .border_1()
-                                                    .border_color(if is_totp_focused { OK } else { BORDER_DEFAULT })
-                                                    .px(px(12.0))
-                                                    .flex()
-                                                    .items_center()
-                                                    .cursor_text()
-                                                    .on_click(move |_ev, _window, cx| {
-                                                        app_totp_focus.update(cx, |this, cx| {
-                                                            this.setup_state.active_focus = SetupFieldFocus::TotpConfirm;
-                                                            cx.notify();
-                                                        });
-                                                    })
-                                                    .child(
-                                                        div()
-                                                            .font_family(FONT_MONO)
-                                                            .text_size(px(13.0))
-                                                            .text_color(if totp_display.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY })
-                                                            .child(if totp_display.is_empty() { "6-digit code (e.g. 123456)".to_string() } else { totp_display }),
-                                                    )
-                                                    .children(if is_totp_focused {
-                                                        Some(div().w(px(2.0)).h(px(16.0)).bg(OK).ml(px(2.0)))
-                                                    } else {
-                                                        None
-                                                    }),
-                                            ),
-                                    )
-                                } else {
-                                    None
-                                }),
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(10.5))
+                                        .text_color(TEXT_MUTED)
+                                        .child("Add this secret to your Authenticator app (1Password, Google Authenticator, etc.):"),
+                                )
+                                .child(
+                                    div()
+                                        .p(px(10.0))
+                                        .bg(BG_WINDOW)
+                                        .border_1()
+                                        .border_color(BORDER_DEFAULT)
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(13.0))
+                                        .font_weight(FontWeight::BOLD)
+                                        .text_color(OK)
+                                        .text_align(TextAlign::Center)
+                                        .child(totp_secret),
+                                )
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(10.5))
+                                        .text_color(TEXT_MUTED)
+                                        .child("ENTER 6-DIGIT CODE TO CONFIRM PAIRING:"),
+                                )
+                                .child(
+                                    div()
+                                        .id("setup-input-totp")
+                                        .h(px(36.0))
+                                        .bg(BG_WINDOW)
+                                        .border_1()
+                                        .border_color(if is_totp_focused { OK } else { BORDER_DEFAULT })
+                                        .px(px(12.0))
+                                        .flex()
+                                        .items_center()
+                                        .cursor_text()
+                                        .on_click(move |_ev, _window, cx| {
+                                            app_totp_focus.update(cx, |this, cx| {
+                                                this.setup_state.active_focus = SetupFieldFocus::TotpConfirm;
+                                                cx.notify();
+                                            });
+                                        })
+                                        .child(
+                                            div()
+                                                .font_family(FONT_MONO)
+                                                .text_size(px(13.0))
+                                                .text_color(if totp_display.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY })
+                                                .child(if totp_display.is_empty() { "6-digit code (e.g. 123456)".to_string() } else { totp_display }),
+                                        )
+                                        .children(if is_totp_focused {
+                                            Some(div().w(px(2.0)).h(px(16.0)).bg(OK).ml(px(2.0)))
+                                        } else {
+                                            None
+                                        }),
+                                ),
                         )
                         // Action buttons
                         .child(
@@ -440,16 +628,35 @@ pub fn vault_setup_view(app: Entity<CrowApp>, state: &SetupState) -> impl IntoEl
                                 .justify_between()
                                 .child(
                                     div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(10.5))
-                                        .text_color(TEXT_FAINT)
-                                        .child("Tab to cycle fields · ↵ Enter to submit"),
+                                        .id("btn-back-to-warning")
+                                        .h(px(36.0))
+                                        .px(px(14.0))
+                                        .bg(BG_KEY)
+                                        .border_1()
+                                        .border_color(BORDER_DEFAULT)
+                                        .cursor_pointer()
+                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .flex()
+                                        .items_center()
+                                        .on_click(move |_ev, _window, cx| {
+                                            app_back.update(cx, |this, cx| {
+                                                this.setup_state.step = SetupStep::WarningNotice;
+                                                cx.notify();
+                                            });
+                                        })
+                                        .child(
+                                            div()
+                                                .font_family(FONT_MONO)
+                                                .text_size(px(11.0))
+                                                .text_color(TEXT_SECONDARY)
+                                                .child("← BACK"),
+                                        ),
                                 )
                                 .child(
                                     div()
                                         .id("btn-initialize-vault")
                                         .h(px(36.0))
-                                        .px(px(18.0))
+                                        .px(px(20.0))
                                         .bg(OK)
                                         .hover(|s| s.bg(rgb(0x34d399)))
                                         .cursor_pointer()
@@ -467,7 +674,7 @@ pub fn vault_setup_view(app: Entity<CrowApp>, state: &SetupState) -> impl IntoEl
                                                 .text_size(px(12.0))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(rgb(0x050507))
-                                                .child("CREATE ENCRYPTED VAULT"),
+                                                .child("ACTIVATE PASSWORD & 2FA"),
                                         )
                                         .child(
                                             div()

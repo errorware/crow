@@ -13,7 +13,7 @@ pub struct SettingRow {
     pub is_changed: bool,
 }
 
-pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl IntoElement {
+pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection, is_auth_enabled: bool) -> impl IntoElement {
     let nav_items = [
         ("◈", "General", "", SettingsSection::General, None),
         ("⇄", "Connection & SSH", "3", SettingsSection::Connection, Some(WARN)),
@@ -24,7 +24,7 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl Int
         ("◧", "Schema Packs", "4", SettingsSection::General, Some(OK)),
         ("▲", "Danger Defaults", "", SettingsSection::General, None),
         ("⌨", "Keymap", "", SettingsSection::General, None),
-        ("🛡", "Vault & Security", "L", SettingsSection::Security, Some(OK)),
+        ("🛡", "Vault & Security", "L", SettingsSection::Security, Some(if is_auth_enabled { OK } else { WARN })),
         ("⬡", "About", "", SettingsSection::General, None),
     ];
 
@@ -139,53 +139,43 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl Int
             has_chevron: false,
             is_changed: false,
         },
-    ];
-
-    let general_rows = [
         SettingRow {
-            label: "Open fleet overview on launch",
-            desc: "Start on the pinned Fleet tab instead of the last server you had open.",
-            key: "open_fleet_on_launch = true",
-            is_toggle: true,
-            toggle_val: true,
-            val_str: "",
-            has_chevron: false,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Restore tabs from last session",
-            desc: "Reopen the server tabs you had, and reconnect them.",
-            key: "restore_tabs = true",
-            is_toggle: true,
-            toggle_val: true,
-            val_str: "",
-            has_chevron: false,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Confirm before closing a tab with staged edits",
-            desc: "Prevents losing unapplied config changes.",
-            key: "confirm_close_dirty = true",
-            is_toggle: true,
-            toggle_val: true,
-            val_str: "",
-            has_chevron: false,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Telemetry refresh",
-            desc: "How often stat strips and tables repoll.",
-            key: "refresh_interval = 1 s",
+            label: "Max concurrent sessions",
+            desc: "Ceiling on multiplexed channels before opening a secondary TCP connection.",
+            key: "max_sessions = 10",
             is_toggle: false,
             toggle_val: false,
-            val_str: "1 s",
+            val_str: "10",
             has_chevron: true,
             is_changed: false,
         },
         SettingRow {
-            label: "Numeric font",
-            desc: "Font used for all monospace data.",
-            key: "mono_font = JetBrains Mono",
+            label: "Compression",
+            desc: "Enable zlib compression for slow or metered links. Adds CPU overhead.",
+            key: "compression = false",
+            is_toggle: true,
+            toggle_val: false,
+            val_str: "",
+            has_chevron: false,
+            is_changed: false,
+        },
+    ];
+
+    let general_rows = [
+        SettingRow {
+            label: "Theme",
+            desc: "Window appearance and accent palette.",
+            key: "theme = obsidian_edge",
+            is_toggle: false,
+            toggle_val: false,
+            val_str: "Obsidian Edge",
+            has_chevron: true,
+            is_changed: false,
+        },
+        SettingRow {
+            label: "Font family",
+            desc: "Monospace font for all data grids, logs, and code views.",
+            key: "font_family = JetBrains Mono",
             is_toggle: false,
             toggle_val: false,
             val_str: "JetBrains Mono",
@@ -193,19 +183,29 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl Int
             is_changed: false,
         },
         SettingRow {
-            label: "Interface density",
-            desc: "Row heights across every table.",
-            key: "density = compact",
+            label: "Font size",
+            desc: "Base font size across all views. UI scales proportionally.",
+            key: "font_size = 12",
             is_toggle: false,
             toggle_val: false,
-            val_str: "compact",
+            val_str: "12 px",
             has_chevron: true,
             is_changed: false,
         },
         SettingRow {
-            label: "Menu bar icon",
-            desc: "Keep a fleet health indicator in the system menu bar.",
-            key: "menu_bar_icon = true",
+            label: "Auto-refresh interval",
+            desc: "Frequency of background polling for services, logs, and metrics.",
+            key: "refresh_interval = 2",
+            is_toggle: false,
+            toggle_val: false,
+            val_str: "2 s",
+            has_chevron: true,
+            is_changed: false,
+        },
+        SettingRow {
+            label: "Show latency in titlebar",
+            desc: "Display round-trip ping time to the active server in the titlebar.",
+            key: "titlebar_latency = true",
             is_toggle: true,
             toggle_val: true,
             val_str: "",
@@ -213,11 +213,41 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl Int
             is_changed: false,
         },
         SettingRow {
-            label: "Send anonymous crash reports",
-            desc: "Stack traces only. Never host names, addresses, or config contents.",
-            key: "crash_reports = false",
+            label: "Warn before destructive actions",
+            desc: "Require typed confirmation for restart, stop, and config rollback in PROD.",
+            key: "confirm_destructive = true",
             is_toggle: true,
+            toggle_val: true,
+            val_str: "",
+            has_chevron: false,
+            is_changed: false,
+        },
+        SettingRow {
+            label: "Log buffer depth",
+            desc: "Maximum lines kept in memory per service before FIFO truncation.",
+            key: "log_buffer_lines = 10000",
+            is_toggle: false,
             toggle_val: false,
+            val_str: "10,000",
+            has_chevron: true,
+            is_changed: false,
+        },
+        SettingRow {
+            label: "Notify on service failure",
+            desc: "Send a desktop notification when any monitored service enters failed state.",
+            key: "notify_failures = true",
+            is_toggle: true,
+            toggle_val: true,
+            val_str: "",
+            has_chevron: false,
+            is_changed: false,
+        },
+        SettingRow {
+            label: "Check for updates automatically",
+            desc: "Check for new releases on launch. Never installs without confirmation.",
+            key: "auto_update_check = true",
+            is_toggle: true,
+            toggle_val: true,
             val_str: "",
             has_chevron: false,
             is_changed: false,
@@ -226,12 +256,22 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl Int
 
     let security_rows = [
         SettingRow {
+            label: "Password Logon & 2FA Protection",
+            desc: "Require master password and RFC 6238 TOTP code to unlock Crow. Password logon always mandates 2FA.",
+            key: "auth_required = dynamic",
+            is_toggle: true,
+            toggle_val: is_auth_enabled,
+            val_str: if is_auth_enabled { "active · enforced" } else { "disabled (default)" },
+            has_chevron: false,
+            is_changed: is_auth_enabled,
+        },
+        SettingRow {
             label: "Local SQLite Vault",
             desc: "Zero-knowledge authenticated encrypted database at ~/.config/crow/crow.db.",
             key: "vault_storage = sqlite_chacha20poly1305",
             is_toggle: false,
             toggle_val: false,
-            val_str: "active · encrypted",
+            val_str: if is_auth_enabled { "active · encrypted" } else { "direct local access" },
             has_chevron: false,
             is_changed: false,
         },
@@ -247,13 +287,13 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl Int
         },
         SettingRow {
             label: "Two-factor authentication (2FA)",
-            desc: "Require RFC 6238 TOTP 6-digit verification code on vault unlock.",
-            key: "totp_required = dynamic",
+            desc: "Mandatory RFC 6238 TOTP 6-digit code. Password logon ALWAYS requires 2FA.",
+            key: "totp_required = mandatory",
             is_toggle: true,
-            toggle_val: true,
+            toggle_val: is_auth_enabled,
             val_str: "",
             has_chevron: false,
-            is_changed: true,
+            is_changed: is_auth_enabled,
         },
         SettingRow {
             label: "Auto-lock timeout",
@@ -306,6 +346,8 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl Int
     ];
 
     let app_close = app.clone();
+    let app_enable_auth = app.clone();
+    let app_lock_now = app.clone();
 
     div()
         .size_full()
@@ -490,6 +532,179 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl Int
                                 .id("settings-rows-list")
                                 .flex_1()
                                 .overflow_y_scroll()
+                                .children(if section == SettingsSection::Security {
+                                    if !is_auth_enabled {
+                                        Some(
+                                            div()
+                                                .m(px(14.0))
+                                                .p(px(16.0))
+                                                .bg(BG_OVERLAY_PANEL)
+                                                .border_1()
+                                                .border_color(CRIT)
+                                                .flex()
+                                                .flex_col()
+                                                .gap(px(10.0))
+                                                .child(
+                                                    div()
+                                                        .flex()
+                                                        .items_center()
+                                                        .justify_between()
+                                                        .child(
+                                                            div()
+                                                                .flex()
+                                                                .items_center()
+                                                                .gap(px(8.0))
+                                                                .child(div().font_family(FONT_MONO).text_size(px(14.0)).text_color(CRIT).child("⚠"))
+                                                                .child(
+                                                                    div()
+                                                                        .font_family(FONT_MONO)
+                                                                        .text_size(px(12.5))
+                                                                        .font_weight(FontWeight::BOLD)
+                                                                        .text_color(TEXT_PRIMARY)
+                                                                        .child("PASSWORD LOGON IS NOT CONFIGURED"),
+                                                                ),
+                                                        )
+                                                        .child(
+                                                            div()
+                                                                .px(px(6.0))
+                                                                .py(px(2.0))
+                                                                .bg(CRIT_BG)
+                                                                .border_1()
+                                                                .border_color(CRIT)
+                                                                .font_family(FONT_MONO)
+                                                                .text_size(px(9.5))
+                                                                .text_color(CRIT_INK_DIM)
+                                                                .child("DISABLED (DEFAULT)"),
+                                                        ),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .font_family(FONT_MONO)
+                                                        .text_size(px(11.0))
+                                                        .text_color(TEXT_MUTED)
+                                                        .line_height(px(16.0))
+                                                        .child("By default, Crow operates with direct unauthenticated local access. You can protect your local keys, sessions, and configuration by enabling master password logon and mandatory two-factor authentication (RFC 6238 TOTP)."),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .flex()
+                                                        .justify_end()
+                                                        .child(
+                                                            div()
+                                                                .id("btn-enable-password-logon")
+                                                                .h(px(32.0))
+                                                                .px(px(16.0))
+                                                                .bg(CRIT)
+                                                                .hover(|s| s.bg(rgb(0xf87171)))
+                                                                .cursor_pointer()
+                                                                .flex()
+                                                                .items_center()
+                                                                .gap(px(6.0))
+                                                                .on_click(move |_ev, _window, cx| {
+                                                                    app_enable_auth.update(cx, |this, cx| {
+                                                                        this.setup_state = crate::views::lock::SetupState::default();
+                                                                        this.set_screen(Screen::VaultSetup, cx);
+                                                                    });
+                                                                })
+                                                                .child(
+                                                                    div()
+                                                                        .font_family(FONT_MONO)
+                                                                        .text_size(px(11.5))
+                                                                        .font_weight(FontWeight::BOLD)
+                                                                        .text_color(rgb(0x050507))
+                                                                        .child("ENABLE PASSWORD & MANDATORY 2FA…"),
+                                                                ),
+                                                        ),
+                                                ),
+                                        )
+                                    } else {
+                                        Some(
+                                            div()
+                                                .m(px(14.0))
+                                                .p(px(16.0))
+                                                .bg(BG_OVERLAY_PANEL)
+                                                .border_1()
+                                                .border_color(OK)
+                                                .flex()
+                                                .flex_col()
+                                                .gap(px(10.0))
+                                                .child(
+                                                    div()
+                                                        .flex()
+                                                        .items_center()
+                                                        .justify_between()
+                                                        .child(
+                                                            div()
+                                                                .flex()
+                                                                .items_center()
+                                                                .gap(px(8.0))
+                                                                .child(div().font_family(FONT_MONO).text_size(px(14.0)).text_color(OK).child("✓"))
+                                                                .child(
+                                                                    div()
+                                                                        .font_family(FONT_MONO)
+                                                                        .text_size(px(12.5))
+                                                                        .font_weight(FontWeight::BOLD)
+                                                                        .text_color(TEXT_PRIMARY)
+                                                                        .child("LOCAL ENCRYPTED VAULT ACTIVE"),
+                                                                ),
+                                                        )
+                                                        .child(
+                                                            div()
+                                                                .px(px(6.0))
+                                                                .py(px(2.0))
+                                                                .bg(OK_BG)
+                                                                .border_1()
+                                                                .border_color(OK)
+                                                                .font_family(FONT_MONO)
+                                                                .text_size(px(9.5))
+                                                                .text_color(OK)
+                                                                .child("PASSWORD + 2FA ENFORCED"),
+                                                        ),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .font_family(FONT_MONO)
+                                                        .text_size(px(11.0))
+                                                        .text_color(TEXT_MUTED)
+                                                        .line_height(px(16.0))
+                                                        .child("Database is encrypted at ~/.config/crow/crow.db via Argon2id + ChaCha20-Poly1305. MasterKey is zeroized on lock."),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .flex()
+                                                        .justify_end()
+                                                        .child(
+                                                            div()
+                                                                .id("btn-lock-vault-now")
+                                                                .h(px(30.0))
+                                                                .px(px(14.0))
+                                                                .bg(BG_KEY)
+                                                                .border_1()
+                                                                .border_color(BORDER_DEFAULT)
+                                                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                                                .cursor_pointer()
+                                                                .flex()
+                                                                .items_center()
+                                                                .gap(px(6.0))
+                                                                .on_click(move |_ev, _window, cx| {
+                                                                    app_lock_now.update(cx, |this, cx| {
+                                                                        this.lock(cx);
+                                                                    });
+                                                                })
+                                                                .child(
+                                                                    div()
+                                                                        .font_family(FONT_MONO)
+                                                                        .text_size(px(11.0))
+                                                                        .text_color(TEXT_PRIMARY)
+                                                                        .child("LOCK VAULT NOW (⇧⌘L)"),
+                                                                ),
+                                                        ),
+                                                ),
+                                        )
+                                    }
+                                } else {
+                                    None
+                                })
                                 .children(rows.iter().enumerate().map(|(idx, row)| {
                                     let is_even = idx % 2 == 0;
 

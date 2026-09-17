@@ -11,8 +11,11 @@ pub use db::{VaultDb, VaultEntryMeta, VaultError, VaultMeta};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VaultStatus {
-    Uninitialized,
-    Locked { totp_enabled: bool },
+    /// Password logon is not enabled (default on fresh install).
+    Disabled,
+    /// Password and mandatory 2FA are enabled and the vault is locked.
+    Locked,
+    /// Password and mandatory 2FA are enabled and authenticated.
     Unlocked,
 }
 
@@ -49,29 +52,32 @@ impl Vault {
 
     pub fn status(&self) -> VaultStatus {
         if !self.initialized {
-            VaultStatus::Uninitialized
+            VaultStatus::Disabled
         } else if self.session.is_some() {
             VaultStatus::Unlocked
         } else {
-            VaultStatus::Locked {
-                totp_enabled: self.totp_enabled,
-            }
+            VaultStatus::Locked
         }
     }
 
+    pub fn is_password_auth_enabled(&self) -> bool {
+        self.initialized
+    }
+
     pub fn is_unlocked(&self) -> bool {
-        self.session.is_some()
+        !self.initialized || self.session.is_some()
     }
 
     pub fn key(&self) -> Option<&MasterKey> {
         self.session.as_ref().map(|s| &s.key)
     }
 
-    pub fn initialize(&mut self, password: &str, totp_secret: Option<&str>) -> Result<(), VaultError> {
+    /// Initializes password and mandatory 2FA TOTP protection.
+    pub fn initialize(&mut self, password: &str, totp_secret: &str) -> Result<(), VaultError> {
         let mut db = self.db.lock().map_err(|_| VaultError::Crypto("DB lock poisoned".into()))?;
-        let key = db.init_vault(password, totp_secret)?;
+        let key = db.init_vault(password, Some(totp_secret))?;
         self.initialized = true;
-        self.totp_enabled = totp_secret.is_some();
+        self.totp_enabled = true;
         self.session = Some(VaultSession {
             key,
             unlocked_at: Instant::now(),
@@ -80,9 +86,10 @@ impl Vault {
         Ok(())
     }
 
-    pub fn unlock(&mut self, password: &str, totp_code: Option<&str>) -> Result<(), VaultError> {
+    /// Authenticates with master password and mandatory 2FA code.
+    pub fn unlock(&mut self, password: &str, totp_code: &str) -> Result<(), VaultError> {
         let db = self.db.lock().map_err(|_| VaultError::Crypto("DB lock poisoned".into()))?;
-        let key = db.unlock(password, totp_code)?;
+        let key = db.unlock(password, Some(totp_code))?;
         let meta = db.get_meta().ok();
         let auto_lock_minutes = meta.map(|m| m.auto_lock_minutes).unwrap_or(15);
 
@@ -95,8 +102,10 @@ impl Vault {
     }
 
     pub fn lock(&mut self) {
-        // MasterKey inside session will be dropped and automatically zeroized
-        self.session = None;
+        if self.initialized {
+            // MasterKey inside session will be dropped and automatically zeroized
+            self.session = None;
+        }
     }
 
     pub fn db(&self) -> Arc<Mutex<VaultDb>> {

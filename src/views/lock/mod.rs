@@ -4,7 +4,7 @@ use gpui_kit::*;
 use crate::app::CrowApp;
 use crate::theme::*;
 
-pub use setup::{vault_setup_view, SetupFieldFocus, SetupState};
+pub use setup::{vault_setup_view, SetupFieldFocus, SetupState, SetupStep};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LockFieldFocus {
@@ -33,7 +33,7 @@ impl Default for LockState {
     }
 }
 
-pub fn vault_lock_view(app: Entity<CrowApp>, state: &LockState, totp_enabled: bool) -> impl IntoElement {
+pub fn vault_lock_view(app: Entity<CrowApp>, state: &LockState) -> impl IntoElement {
     let has_error = state.error_message.is_some();
     let error_text = state.error_message.clone().unwrap_or_default();
 
@@ -115,7 +115,7 @@ pub fn vault_lock_view(app: Entity<CrowApp>, state: &LockState, totp_enabled: bo
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.5))
                                         .text_color(TEXT_MUTED)
-                                        .child("CHACHA20-POLY1305"),
+                                        .child("PASSWORD + 2FA"),
                                 ),
                         ),
                 )
@@ -141,7 +141,7 @@ pub fn vault_lock_view(app: Entity<CrowApp>, state: &LockState, totp_enabled: bo
                                 .text_size(px(10.0))
                                 .text_color(TEXT_DIMMER)
                                 .child("STORE: ~/.config/crow/crow.db")
-                                .child(if totp_enabled { "2FA: ACTIVE" } else { "2FA: OFF" }),
+                                .child("2FA: MANDATORY"),
                         )
                         // Error message
                         .children(if has_error {
@@ -231,68 +231,64 @@ pub fn vault_lock_view(app: Entity<CrowApp>, state: &LockState, totp_enabled: bo
                                         }),
                                 ),
                         )
-                        // TOTP Code input if enabled
-                        .children(if totp_enabled {
-                            Some(
-                                div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap(px(6.0))
-                                    .child(
-                                        div()
-                                            .flex()
-                                            .items_center()
-                                            .justify_between()
-                                            .child(
-                                                div()
-                                                    .font_family(FONT_MONO)
-                                                    .text_size(px(10.5))
-                                                    .font_weight(FontWeight::SEMIBOLD)
-                                                    .text_color(if is_totp_focused { TEXT_PRIMARY } else { TEXT_MUTED })
-                                                    .child("2FA TOTP CODE"),
-                                            )
-                                            .child(
-                                                div()
-                                                    .font_family(FONT_MONO)
-                                                    .text_size(px(10.0))
-                                                    .text_color(TEXT_DIMMER)
-                                                    .child("6 DIGITS"),
-                                            ),
-                                    )
-                                    .child(
-                                        div()
-                                            .id("lock-input-totp")
-                                            .h(px(38.0))
-                                            .bg(BG_PANEL)
-                                            .border_1()
-                                            .border_color(if is_totp_focused { OK } else { BORDER_DEFAULT })
-                                            .px(px(12.0))
-                                            .flex()
-                                            .items_center()
-                                            .cursor_text()
-                                            .on_click(move |_ev, _window, cx| {
-                                                app_totp_focus.update(cx, |this, cx| {
-                                                    this.lock_state.active_focus = LockFieldFocus::Totp;
-                                                    cx.notify();
-                                                });
-                                            })
-                                            .child(
-                                                div()
-                                                    .font_family(FONT_MONO)
-                                                    .text_size(px(13.0))
-                                                    .text_color(if totp_display.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY })
-                                                    .child(if totp_display.is_empty() { "000000".to_string() } else { totp_display }),
-                                            )
-                                            .children(if is_totp_focused {
-                                                Some(div().w(px(2.0)).h(px(16.0)).bg(OK).ml(px(2.0)))
-                                            } else {
-                                                None
-                                            }),
-                                    ),
-                            )
-                        } else {
-                            None
-                        })
+                        // TOTP Code input (always mandatory)
+                        .child(
+                            div()
+                                .flex()
+                                .flex_col()
+                                .gap(px(6.0))
+                                .child(
+                                    div()
+                                        .flex()
+                                        .items_center()
+                                        .justify_between()
+                                        .child(
+                                            div()
+                                                .font_family(FONT_MONO)
+                                                .text_size(px(10.5))
+                                                .font_weight(FontWeight::SEMIBOLD)
+                                                .text_color(if is_totp_focused { TEXT_PRIMARY } else { TEXT_MUTED })
+                                                .child("2FA TOTP CODE"),
+                                        )
+                                        .child(
+                                            div()
+                                                .font_family(FONT_MONO)
+                                                .text_size(px(10.0))
+                                                .text_color(TEXT_DIMMER)
+                                                .child("6 DIGITS"),
+                                        ),
+                                )
+                                .child(
+                                    div()
+                                        .id("lock-input-totp")
+                                        .h(px(38.0))
+                                        .bg(BG_PANEL)
+                                        .border_1()
+                                        .border_color(if is_totp_focused { OK } else { BORDER_DEFAULT })
+                                        .px(px(12.0))
+                                        .flex()
+                                        .items_center()
+                                        .cursor_text()
+                                        .on_click(move |_ev, _window, cx| {
+                                            app_totp_focus.update(cx, |this, cx| {
+                                                this.lock_state.active_focus = LockFieldFocus::Totp;
+                                                cx.notify();
+                                            });
+                                        })
+                                        .child(
+                                            div()
+                                                .font_family(FONT_MONO)
+                                                .text_size(px(13.0))
+                                                .text_color(if totp_display.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY })
+                                                .child(if totp_display.is_empty() { "000000".to_string() } else { totp_display }),
+                                        )
+                                        .children(if is_totp_focused {
+                                            Some(div().w(px(2.0)).h(px(16.0)).bg(OK).ml(px(2.0)))
+                                        } else {
+                                            None
+                                        }),
+                                ),
+                        )
                         // Bottom submit row
                         .child(
                             div()
@@ -305,7 +301,7 @@ pub fn vault_lock_view(app: Entity<CrowApp>, state: &LockState, totp_enabled: bo
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.5))
                                         .text_color(TEXT_FAINT)
-                                        .child(if totp_enabled { "Tab to switch · ↵ to unlock" } else { "↵ Enter to unlock" }),
+                                        .child("Tab to switch · ↵ to unlock"),
                                 )
                                 .child(
                                     div()
