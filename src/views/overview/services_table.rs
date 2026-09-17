@@ -1,6 +1,7 @@
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
+use crate::components::icons::{TablerIcon, tabler_icon};
 
 #[derive(Clone, Debug)]
 pub struct ServiceUnit {
@@ -351,7 +352,11 @@ pub fn services_table(
                                                         this.toggle_service_confirm(svc_name, cx);
                                                     });
                                                 })
-                                                .child("↻"),
+                                                .child(
+                                                    tabler_icon(TablerIcon::Refresh)
+                                                        .size(px(10.0))
+                                                        .text_color(if is_focus { TEXT_SECONDARY } else { TEXT_FAINT }),
+                                                ),
                                         )
                                         .child(
                                             div()
@@ -359,7 +364,11 @@ pub fn services_table(
                                                 .py(px(2.0))
                                                 .border_1()
                                                 .border_color(if is_focus { BORDER_STRONG } else { BORDER_ROW })
-                                                .child("■"),
+                                                .child(
+                                                    tabler_icon(TablerIcon::PlayerStop)
+                                                        .size(px(10.0))
+                                                        .text_color(if is_focus { TEXT_SECONDARY } else { TEXT_FAINT }),
+                                                ),
                                         )
                                         .child(
                                             div()
@@ -367,7 +376,11 @@ pub fn services_table(
                                                 .py(px(2.0))
                                                 .border_1()
                                                 .border_color(if is_focus { BORDER_STRONG } else { BORDER_ROW })
-                                                .child("≡"),
+                                                .child(
+                                                    tabler_icon(TablerIcon::Dots)
+                                                        .size(px(10.0))
+                                                        .text_color(if is_focus { TEXT_SECONDARY } else { TEXT_FAINT }),
+                                                ),
                                         ),
                                 ),
                         )

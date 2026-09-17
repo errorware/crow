@@ -2,8 +2,10 @@ use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
 
+use crate::components::icons::{TablerIcon, tabler_icon};
+
 pub struct NavItemDef {
-    pub glyph: &'static str,
+    pub icon: TablerIcon,
     pub label: &'static str,
     pub badge: &'static str,
     pub view_id: Option<&'static str>,
@@ -12,17 +14,17 @@ pub struct NavItemDef {
 
 pub fn nav_items() -> &'static [NavItemDef] {
     &[
-        NavItemDef { glyph: "◈", label: "Overview", badge: "", view_id: Some("overview"), badge_color: None },
-        NavItemDef { glyph: "≡", label: "Processes", badge: "214", view_id: Some("processes"), badge_color: None },
-        NavItemDef { glyph: "◉", label: "Services", badge: "42", view_id: Some("services"), badge_color: None },
-        NavItemDef { glyph: "▣", label: "Containers", badge: "11", view_id: Some("containers"), badge_color: None },
-        NavItemDef { glyph: "◧", label: "Config", badge: "2", view_id: Some("config"), badge_color: Some(WARN) },
-        NavItemDef { glyph: "⌗", label: "Logs", badge: "4", view_id: Some("logs"), badge_color: Some(CRIT) },
-        NavItemDef { glyph: "▤", label: "Files", badge: "", view_id: Some("files"), badge_color: None },
-        NavItemDef { glyph: "◷", label: "Cron", badge: "9", view_id: Some("cron"), badge_color: None },
-        NavItemDef { glyph: "◑", label: "Users", badge: "6", view_id: Some("users"), badge_color: None },
-        NavItemDef { glyph: "⬡", label: "Firewall", badge: "ON", view_id: Some("firewall"), badge_color: Some(OK) },
-        NavItemDef { glyph: "▶", label: "Terminal", badge: "⌘T", view_id: Some("terminal"), badge_color: None },
+        NavItemDef { icon: TablerIcon::LayoutDashboard, label: "Overview", badge: "", view_id: Some("overview"), badge_color: None },
+        NavItemDef { icon: TablerIcon::Cpu, label: "Processes", badge: "214", view_id: Some("processes"), badge_color: None },
+        NavItemDef { icon: TablerIcon::Server, label: "Services", badge: "42", view_id: Some("services"), badge_color: None },
+        NavItemDef { icon: TablerIcon::Box, label: "Containers", badge: "11", view_id: Some("containers"), badge_color: None },
+        NavItemDef { icon: TablerIcon::AdjustmentsHorizontal, label: "Config", badge: "2", view_id: Some("config"), badge_color: Some(WARN) },
+        NavItemDef { icon: TablerIcon::FileText, label: "Logs", badge: "4", view_id: Some("logs"), badge_color: Some(CRIT) },
+        NavItemDef { icon: TablerIcon::Folder, label: "Files", badge: "", view_id: Some("files"), badge_color: None },
+        NavItemDef { icon: TablerIcon::Clock, label: "Cron", badge: "9", view_id: Some("cron"), badge_color: None },
+        NavItemDef { icon: TablerIcon::Users, label: "Users", badge: "6", view_id: Some("users"), badge_color: None },
+        NavItemDef { icon: TablerIcon::ShieldCheck, label: "Firewall", badge: "ON", view_id: Some("firewall"), badge_color: Some(OK) },
+        NavItemDef { icon: TablerIcon::Terminal2, label: "Terminal", badge: "⌘T", view_id: Some("terminal"), badge_color: None },
     ]
 }
 
@@ -58,12 +60,17 @@ pub fn sidebar(active_view: &str, collapsed: bool, app: Entity<CrowApp>) -> impl
                 .cursor_pointer()
                 .child(
                     div()
-                        .font_family("JetBrains Mono")
-                        .text_size(px(11.0))
                         .w(px(14.0))
-                        .text_center()
-                        .text_color(if is_active { TEXT_PRIMARY } else { TEXT_DIMMER })
-                        .child(item.glyph),
+                        .h(px(14.0))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .flex_none()
+                        .child(
+                            tabler_icon(item.icon)
+                                .size(px(14.0))
+                                .text_color(if is_active { TEXT_PRIMARY } else { TEXT_DIMMER }),
+                        ),
                 );
 
             if !collapsed {
@@ -166,20 +173,38 @@ pub fn sidebar(active_view: &str, collapsed: bool, app: Entity<CrowApp>) -> impl
                                 div()
                                     .flex()
                                     .justify_between()
+                                    .items_center()
                                     .w_full()
-                                    .child("Collapse")
                                     .child(
                                         div()
-                                            .font_family("JetBrains Mono")
-                                            .child("⌘\\"),
+                                            .flex()
+                                            .items_center()
+                                            .gap(px(6.0))
+                                            .child(
+                                                tabler_icon(TablerIcon::LayoutSidebarLeftCollapse)
+                                                    .size(px(13.0))
+                                                    .text_color(TEXT_FAINT),
+                                            )
+                                            .child("Collapse"),
                                     )
+                                    .child(
+                                        div()
+                                            .font_family(FONT_MONO)
+                                            .child("⌘\\"),
+                                    ),
                             )
                         } else {
                             Some(
                                 div()
-                                    .text_center()
+                                    .flex()
+                                    .justify_center()
+                                    .items_center()
                                     .w_full()
-                                    .child("⇥")
+                                    .child(
+                                        tabler_icon(TablerIcon::LayoutSidebarLeftExpand)
+                                            .size(px(14.0))
+                                            .text_color(TEXT_FAINT),
+                                    ),
                             )
                         })
                 }),

@@ -1,6 +1,7 @@
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
+use crate::components::icons::{TablerIcon, tabler_icon};
 
 pub struct HbaRuleDef {
     pub num: &'static str,
@@ -139,11 +140,9 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
                 .border_b_1()
                 .border_color(BORDER_PANEL)
                 .child(
-                    div()
-                        .font_family("JetBrains Mono")
-                        .text_size(px(10.0))
-                        .text_color(WARN)
-                        .child("▲"),
+                    tabler_icon(TablerIcon::AlertTriangle)
+                        .size(px(12.0))
+                        .text_color(WARN),
                 )
                 .child(
                     div()

@@ -1,5 +1,6 @@
 use gpui_kit::*;
 use crate::theme::*;
+use crate::components::icons::{TablerIcon, tabler_icon};
 
 pub fn pending_diff_rail() -> impl IntoElement {
     div()
@@ -156,7 +157,7 @@ pub fn pending_diff_rail() -> impl IntoElement {
                         .gap(px(9.0))
                         .font_family("JetBrains Mono")
                         .text_size(px(10.5))
-                        .child(div().w(px(12.0)).flex_none().text_color(OK).child("✓"))
+                        .child(tabler_icon(TablerIcon::Check).size(px(12.0)).text_color(OK))
                         .child(div().flex_1().min_w(px(0.0)).text_color(OK).child("Back up to /var/backups/crow/pg_hba.2026-09-17T0341Z"))
                         .child(div().flex_none().text_color(TEXT_FAINT).child("12 KB")),
                 )
@@ -167,7 +168,7 @@ pub fn pending_diff_rail() -> impl IntoElement {
                         .gap(px(9.0))
                         .font_family("JetBrains Mono")
                         .text_size(px(10.5))
-                        .child(div().w(px(12.0)).flex_none().text_color(OK).child("✓"))
+                        .child(tabler_icon(TablerIcon::Check).size(px(12.0)).text_color(OK))
                         .child(div().flex_1().min_w(px(0.0)).text_color(OK).child("Validate against postgres 16 grammar"))
                         .child(div().flex_none().text_color(TEXT_FAINT).child("no errors")),
                 )
@@ -178,7 +179,7 @@ pub fn pending_diff_rail() -> impl IntoElement {
                         .gap(px(9.0))
                         .font_family("JetBrains Mono")
                         .text_size(px(10.5))
-                        .child(div().w(px(12.0)).flex_none().text_color(OK).child("✓"))
+                        .child(tabler_icon(TablerIcon::Check).size(px(12.0)).text_color(OK))
                         .child(div().flex_1().min_w(px(0.0)).text_color(OK).child("Check 6 live sessions against new rules"))
                         .child(div().flex_none().text_color(TEXT_FAINT).child("0 evicted")),
                 )

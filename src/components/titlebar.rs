@@ -1,6 +1,7 @@
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
+use crate::components::icons::{TablerIcon, tabler_icon};
 
 pub fn diamond_mark() -> impl IntoElement {
     canvas(
@@ -122,10 +123,9 @@ pub fn titlebar(tabs: &[ServerTab], active_tab_id: &str, app: Entity<CrowApp>) -
                             .child(tab.name),
                     )
                     .child(
-                        div()
-                            .text_size(px(11.0))
-                            .text_color(rgb(0x41434b))
-                            .child("×"),
+                        tabler_icon(TablerIcon::X)
+                            .size(px(11.0))
+                            .text_color(rgb(0x6b7280)),
                     )
             }))
             .child(
@@ -133,9 +133,12 @@ pub fn titlebar(tabs: &[ServerTab], active_tab_id: &str, app: Entity<CrowApp>) -
                     .flex()
                     .items_center()
                     .px(px(12.0))
-                    .text_size(px(13.0))
-                    .text_color(TEXT_FAINT)
-                    .child("+"),
+                    .cursor_pointer()
+                    .child(
+                        tabler_icon(TablerIcon::Plus)
+                            .size(px(13.0))
+                            .text_color(TEXT_FAINT),
+                    ),
             )
             .child(
                 div()
@@ -184,11 +187,9 @@ pub fn titlebar(tabs: &[ServerTab], active_tab_id: &str, app: Entity<CrowApp>) -
                             window.minimize_window();
                         })
                         .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(12.0))
-                                .text_color(TEXT_MUTED)
-                                .child("—"),
+                            tabler_icon(TablerIcon::Minus)
+                                .size(px(13.0))
+                                .text_color(TEXT_MUTED),
                         ),
                 )
                 // Maximize / Restore
@@ -205,11 +206,9 @@ pub fn titlebar(tabs: &[ServerTab], active_tab_id: &str, app: Entity<CrowApp>) -
                             window.zoom_window();
                         })
                         .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(12.0))
-                                .text_color(TEXT_MUTED)
-                                .child("□"),
+                            tabler_icon(TablerIcon::Square)
+                                .size(px(12.0))
+                                .text_color(TEXT_MUTED),
                         ),
                 )
                 // Close
@@ -226,11 +225,9 @@ pub fn titlebar(tabs: &[ServerTab], active_tab_id: &str, app: Entity<CrowApp>) -
                             cx.quit();
                         })
                         .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(12.0))
-                                .text_color(TEXT_MUTED)
-                                .child("✕"),
+                            tabler_icon(TablerIcon::X)
+                                .size(px(13.0))
+                                .text_color(TEXT_MUTED),
                         ),
                 ),
         );
