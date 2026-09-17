@@ -20,6 +20,7 @@ pub struct CrowApp {
     focus_handle: FocusHandle,
     pub active_tab_id: String,
     pub active_view: String,
+    pub active_services_tab: String,
     pub tabs: Vec<ServerTab>,
     pub services: Vec<ServiceUnit>,
     pub hba_rules: Vec<HbaRuleDef>,
@@ -54,6 +55,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
             focus_handle: cx.focus_handle(),
             active_tab_id: "edge-01".to_string(),
             active_view: "overview".to_string(),
+            active_services_tab: "services".to_string(),
             tabs: vec![
                 ServerTab { id: "edge-01", name: "edge-01", status_color: OK, is_active: true },
                 ServerTab { id: "edge-02", name: "edge-02", status_color: OK, is_active: false },
@@ -79,7 +81,20 @@ host    all             all             10.0.4.0/24             scram-sha-256
     }
 
     pub fn set_view(&mut self, view: &str, cx: &mut Context<Self>) {
-        self.active_view = view.to_string();
+        if view == "services" {
+            self.active_view = "overview".to_string();
+            self.active_services_tab = "services".to_string();
+        } else if view == "processes" {
+            self.active_view = "overview".to_string();
+            self.active_services_tab = "processes".to_string();
+        } else {
+            self.active_view = view.to_string();
+        }
+        cx.notify();
+    }
+
+    pub fn set_services_tab(&mut self, tab: &str, cx: &mut Context<Self>) {
+        self.active_services_tab = tab.to_string();
         cx.notify();
     }
 
@@ -169,7 +184,7 @@ impl Render for CrowApp {
             .size_full()
             .bg(BG_WINDOW)
             .text_color(TEXT_PRIMARY)
-            .font_family("Inter")
+            .font_family(FONT_SANS)
             .text_size(px(12.0))
             .flex()
             .flex_col()
@@ -204,7 +219,7 @@ impl Render for CrowApp {
                                     div()
                                         .size_full()
                                         .flex()
-                                        .child(services_table(&self.services, "services", app_view.clone()))
+                                        .child(services_table(&self.services, &self.active_services_tab, app_view.clone()))
                                         .child(log_tail())
                                 )
                             } else if is_config {
@@ -216,16 +231,52 @@ impl Render for CrowApp {
                                         .child(rules_editor(&self.hba_rules, app_view.clone()))
                                         .child(pending_diff_rail())
                                 )
+                            } else if self.active_view == "logs" {
+                                Some(
+                                    div()
+                                        .size_full()
+                                        .flex()
+                                        .child(log_tail())
+                                )
                             } else {
                                 Some(
                                     div()
                                         .size_full()
                                         .flex()
-                                        .items_center()
-                                        .justify_center()
-                                        .font_family("JetBrains Mono")
-                                        .text_color(TEXT_FAINT)
-                                        .child(format!("view {} is not yet configured", self.active_view))
+                                        .flex_col()
+                                        .bg(BG_APP)
+                                        .child(
+                                            div()
+                                                .h(px(34.0))
+                                                .flex_none()
+                                                .flex()
+                                                .items_center()
+                                                .px(px(12.0))
+                                                .bg(BG_PANEL)
+                                                .border_b_1()
+                                                .border_color(BORDER_PANEL)
+                                                .child(
+                                                    div()
+                                                        .font_family(FONT_SANS)
+                                                        .text_size(px(11.0))
+                                                        .font_weight(FontWeight::SEMIBOLD)
+                                                        .text_color(TEXT_PRIMARY)
+                                                        .child(self.active_view.to_uppercase()),
+                                                ),
+                                        )
+                                        .child(
+                                            div()
+                                                .flex_1()
+                                                .flex()
+                                                .items_center()
+                                                .justify_center()
+                                                .gap(px(8.0))
+                                                .font_family(FONT_MONO)
+                                                .text_size(px(11.5))
+                                                .text_color(TEXT_FAINT)
+                                                .child(div().size(px(6.0)).rounded_full().bg(OK))
+                                                .child(format!("{} · agent discovery stream pending", self.active_view)),
+                                        ),
                                 )
                             })
                     ),

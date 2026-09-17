@@ -61,46 +61,75 @@ pub fn services_table(
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(
+                .child({
+                    let app_clone = app.clone();
                     div()
+                        .id("subtab-services")
                         .px(px(12.0))
                         .h_full()
                         .flex()
                         .items_center()
                         .border_r_1()
                         .border_color(BORDER_PANEL)
-                        .font_family("Inter")
+                        .font_family(FONT_SANS)
                         .text_size(px(11.0))
+                        .cursor_pointer()
                         .font_weight(if active_tab == "services" { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                         .text_color(if active_tab == "services" { TEXT_PRIMARY } else { TEXT_DIMMER })
-                        .child("SERVICES"),
-                )
-                .child(
+                        .bg(if active_tab == "services" { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
+                        .on_click(move |_ev, _window, cx| {
+                            app_clone.update(cx, |this, cx| {
+                                this.set_services_tab("services", cx);
+                            });
+                        })
+                        .child("SERVICES")
+                })
+                .child({
+                    let app_clone = app.clone();
                     div()
+                        .id("subtab-processes")
                         .px(px(12.0))
                         .h_full()
                         .flex()
                         .items_center()
                         .border_r_1()
                         .border_color(BORDER_PANEL)
-                        .font_family("Inter")
+                        .font_family(FONT_SANS)
                         .text_size(px(11.0))
-                        .text_color(TEXT_DIMMER)
-                        .child("PROCESSES"),
-                )
-                .child(
+                        .cursor_pointer()
+                        .font_weight(if active_tab == "processes" { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+                        .text_color(if active_tab == "processes" { TEXT_PRIMARY } else { TEXT_DIMMER })
+                        .bg(if active_tab == "processes" { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
+                        .on_click(move |_ev, _window, cx| {
+                            app_clone.update(cx, |this, cx| {
+                                this.set_services_tab("processes", cx);
+                            });
+                        })
+                        .child("PROCESSES")
+                })
+                .child({
+                    let app_clone = app.clone();
                     div()
+                        .id("subtab-sockets")
                         .px(px(12.0))
                         .h_full()
                         .flex()
                         .items_center()
                         .border_r_1()
                         .border_color(BORDER_PANEL)
-                        .font_family("Inter")
+                        .font_family(FONT_SANS)
                         .text_size(px(11.0))
-                        .text_color(TEXT_DIMMER)
-                        .child("SOCKETS"),
-                )
+                        .cursor_pointer()
+                        .font_weight(if active_tab == "sockets" { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+                        .text_color(if active_tab == "sockets" { TEXT_PRIMARY } else { TEXT_DIMMER })
+                        .bg(if active_tab == "sockets" { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
+                        .on_click(move |_ev, _window, cx| {
+                            app_clone.update(cx, |this, cx| {
+                                this.set_services_tab("sockets", cx);
+                            });
+                        })
+                        .child("SOCKETS")
+                })
                 .child(div().flex_1())
                 // Counts cluster
                 .child(
@@ -173,9 +202,10 @@ pub fn services_table(
         // Table body
         .child(
             div()
+                .id("services-table-scroll")
                 .flex_1()
                 .min_h(px(0.0))
-                .overflow_hidden()
+                .overflow_y_scroll()
                 .flex()
                 .flex_col()
                 .children(services.iter().enumerate().map(|(idx, svc)| {

@@ -187,9 +187,10 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
         // Rules rows
         .child(
             div()
+                .id("rules-editor-scroll")
                 .flex_1()
                 .min_h(px(0.0))
-                .overflow_hidden()
+                .overflow_y_scroll()
                 .flex()
                 .flex_col()
                 .children(rules.iter().enumerate().map(|(idx, r)| {

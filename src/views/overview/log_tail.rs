@@ -143,9 +143,10 @@ pub fn log_tail() -> impl IntoElement {
         // Log stream
         .child(
             div()
+                .id("log-stream-scroll")
                 .flex_1()
                 .min_h(px(0.0))
-                .overflow_hidden()
+                .overflow_y_scroll()
                 .flex()
                 .flex_col()
                 .py(px(6.0))

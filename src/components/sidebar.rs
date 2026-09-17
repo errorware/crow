@@ -13,16 +13,16 @@ pub struct NavItemDef {
 pub fn nav_items() -> &'static [NavItemDef] {
     &[
         NavItemDef { glyph: "◈", label: "Overview", badge: "", view_id: Some("overview"), badge_color: None },
-        NavItemDef { glyph: "≡", label: "Processes", badge: "214", view_id: None, badge_color: None },
-        NavItemDef { glyph: "◉", label: "Services", badge: "42", view_id: None, badge_color: None },
-        NavItemDef { glyph: "▣", label: "Containers", badge: "11", view_id: None, badge_color: None },
+        NavItemDef { glyph: "≡", label: "Processes", badge: "214", view_id: Some("processes"), badge_color: None },
+        NavItemDef { glyph: "◉", label: "Services", badge: "42", view_id: Some("services"), badge_color: None },
+        NavItemDef { glyph: "▣", label: "Containers", badge: "11", view_id: Some("containers"), badge_color: None },
         NavItemDef { glyph: "◧", label: "Config", badge: "2", view_id: Some("config"), badge_color: Some(WARN) },
-        NavItemDef { glyph: "⌗", label: "Logs", badge: "4", view_id: None, badge_color: Some(CRIT) },
-        NavItemDef { glyph: "▤", label: "Files", badge: "", view_id: None, badge_color: None },
-        NavItemDef { glyph: "◷", label: "Cron", badge: "9", view_id: None, badge_color: None },
-        NavItemDef { glyph: "◑", label: "Users", badge: "6", view_id: None, badge_color: None },
-        NavItemDef { glyph: "⬡", label: "Firewall", badge: "ON", view_id: None, badge_color: Some(OK) },
-        NavItemDef { glyph: "▶", label: "Terminal", badge: "⌘T", view_id: None, badge_color: None },
+        NavItemDef { glyph: "⌗", label: "Logs", badge: "4", view_id: Some("logs"), badge_color: Some(CRIT) },
+        NavItemDef { glyph: "▤", label: "Files", badge: "", view_id: Some("files"), badge_color: None },
+        NavItemDef { glyph: "◷", label: "Cron", badge: "9", view_id: Some("cron"), badge_color: None },
+        NavItemDef { glyph: "◑", label: "Users", badge: "6", view_id: Some("users"), badge_color: None },
+        NavItemDef { glyph: "⬡", label: "Firewall", badge: "ON", view_id: Some("firewall"), badge_color: Some(OK) },
+        NavItemDef { glyph: "▶", label: "Terminal", badge: "⌘T", view_id: Some("terminal"), badge_color: None },
     ]
 }
 

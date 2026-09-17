@@ -47,12 +47,21 @@ pub fn pending_diff_rail() -> impl IntoElement {
                         .child("unified · 1 file"),
                 ),
         )
-        // Diff Block
+        // Scrollable content body
         .child(
             div()
-                .flex_none()
-                .border_b_1()
-                .border_color(BORDER_PANEL)
+                .id("pending-diff-scroll")
+                .flex_1()
+                .min_h(px(0.0))
+                .overflow_y_scroll()
+                .flex()
+                .flex_col()
+                // Diff Block
+                .child(
+                    div()
+                        .flex_none()
+                        .border_b_1()
+                        .border_color(BORDER_PANEL)
                 .py(px(8.0))
                 .font_family("JetBrains Mono")
                 .text_size(px(10.5))
@@ -299,7 +308,7 @@ pub fn pending_diff_rail() -> impl IntoElement {
                         .child(div().flex_1().min_w(px(0.0)).text_color(TEXT_SECONDARY).child("ad-hoc psql from 10.0.4.0/24"))
                         .child(div().flex_none().text_color(TEXT_DIMMER).child("password now required")),
                 ),
-        )
+        ))
         // Action footer
         .child(
             div()

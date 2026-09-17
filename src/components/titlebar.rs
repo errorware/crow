@@ -34,109 +34,207 @@ pub struct ServerTab {
 }
 
 pub fn titlebar(tabs: &[ServerTab], active_tab_id: &str, app: Entity<CrowApp>) -> impl IntoElement {
-    div()
+    let mut bar = div()
         .h(px(36.0))
         .flex_none()
         .flex()
         .items_stretch()
         .bg(BG_CHROME)
         .border_b_1()
-        .border_color(BORDER_PANEL)
-        // 1. macOS native traffic lights clearance
-        .child(
+        .border_color(BORDER_PANEL);
+
+    // 1. macOS native traffic lights clearance (only on macOS)
+    #[cfg(target_os = "macos")]
+    {
+        bar = bar.child(
             div()
                 .w(px(76.0))
                 .flex_none(),
-        )
-        // 2. App mark & name
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .gap(px(6.0))
-                .px(px(10.0))
-                .border_r_1()
-                .border_color(BORDER_PANEL)
-                .child(diamond_mark())
-                .child(
-                    div()
-                        .font_family("Inter")
-                        .text_size(px(11.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
-                        .child("CROW"),
-                ),
-        )
-        // 3. Tab strip
-        .child(
+        );
+    }
+
+    // 2. App mark & name
+    bar = bar.child(
+        div()
+            .flex()
+            .items_center()
+            .gap(px(6.0))
+            .px(px(12.0))
+            .border_r_1()
+            .border_color(BORDER_PANEL)
+            .child(diamond_mark())
+            .child(
+                div()
+                    .font_family(FONT_SANS)
+                    .text_size(px(11.0))
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(TEXT_PRIMARY)
+                    .child("CROW"),
+            ),
+    );
+
+    // 3. Tab strip with window drag affordance
+    bar = bar.child(
+        div()
+            .flex()
+            .items_stretch()
+            .flex_1()
+            .min_w(px(0.0))
+            .on_mouse_down(MouseButton::Left, |ev, window, _cx| {
+                if ev.click_count == 2 {
+                    window.zoom_window();
+                } else {
+                    window.start_window_move();
+                }
+            })
+            .children(tabs.iter().enumerate().map(|(idx, tab)| {
+                let is_active = tab.id == active_tab_id;
+                let tab_id = tab.id;
+                let app_tab = app.clone();
+
+                div()
+                    .id(ElementId::NamedInteger("server-tab".into(), idx as u64))
+                    .flex()
+                    .items_center()
+                    .gap(px(7.0))
+                    .px(px(14.0))
+                    .border_r_1()
+                    .border_color(BORDER_PANEL)
+                    .bg(if is_active { BG_OVERLAY_PANEL } else { hex_rgba(0, 0.0) })
+                    .cursor_pointer()
+                    .on_click(move |_ev, _window, cx| {
+                        app_tab.update(cx, |this, cx| {
+                            this.switch_tab(tab_id, cx);
+                        });
+                    })
+                    .child(
+                        div()
+                            .size(px(6.0))
+                            .rounded_full()
+                            .bg(tab.status_color)
+                            .flex_none(),
+                    )
+                    .child(
+                        div()
+                            .font_family(FONT_MONO)
+                            .text_size(px(11.0))
+                            .text_color(if is_active { TEXT_PRIMARY } else { TEXT_MUTED })
+                            .child(tab.name),
+                    )
+                    .child(
+                        div()
+                            .text_size(px(11.0))
+                            .text_color(rgb(0x41434b))
+                            .child("×"),
+                    )
+            }))
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .px(px(12.0))
+                    .text_size(px(13.0))
+                    .text_color(TEXT_FAINT)
+                    .child("+"),
+            )
+            .child(
+                div()
+                    .flex_1()
+                    .h_full(),
+            ),
+    );
+
+    // 4. Session meta
+    bar = bar.child(
+        div()
+            .flex()
+            .items_center()
+            .gap(px(14.0))
+            .px(px(14.0))
+            .font_family(FONT_MONO)
+            .text_size(px(10.5))
+            .text_color(TEXT_FAINT)
+            .border_l_1()
+            .border_color(BORDER_PANEL)
+            .child(div().child("SSH ED25519"))
+            .child(div().child("lat 12ms"))
+            .child(div().child("03:41:22 UTC")),
+    );
+
+    // 5. Linux / Windows platform window controls
+    #[cfg(not(target_os = "macos"))]
+    {
+        bar = bar.child(
             div()
                 .flex()
                 .items_stretch()
-                .flex_1()
-                .min_w(px(0.0))
-                .children(tabs.iter().enumerate().map(|(idx, tab)| {
-                    let is_active = tab.id == active_tab_id;
-                    let tab_id = tab.id;
-                    let app_tab = app.clone();
-
+                .border_l_1()
+                .border_color(BORDER_PANEL)
+                // Minimize
+                .child(
                     div()
-                        .id(ElementId::NamedInteger("server-tab".into(), idx as u64))
+                        .id("win-btn-minimize")
+                        .w(px(38.0))
                         .flex()
                         .items_center()
-                        .gap(px(7.0))
-                        .px(px(14.0))
-                        .border_r_1()
-                        .border_color(BORDER_PANEL)
-                        .bg(if is_active { BG_OVERLAY_PANEL } else { hex_rgba(0, 0.0) })
+                        .justify_center()
                         .cursor_pointer()
-                        .on_click(move |_ev, _window, cx| {
-                            app_tab.update(cx, |this, cx| {
-                                this.switch_tab(tab_id, cx);
-                            });
+                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .on_click(|_ev, window, _cx| {
+                            window.minimize_window();
                         })
                         .child(
                             div()
-                                .size(px(6.0))
-                                .rounded_full()
-                                .bg(tab.status_color)
-                                .flex_none(),
-                        )
-                        .child(
-                            div()
-                                .font_family("JetBrains Mono")
-                                .text_size(px(11.0))
-                                .text_color(if is_active { TEXT_PRIMARY } else { TEXT_MUTED })
-                                .child(tab.name),
-                        )
-                        .child(
-                            div()
-                                .text_size(px(11.0))
-                                .text_color(rgb(0x41434b))
-                                .child("×"),
-                        )
-                }))
+                                .font_family(FONT_MONO)
+                                .text_size(px(12.0))
+                                .text_color(TEXT_MUTED)
+                                .child("—"),
+                        ),
+                )
+                // Maximize / Restore
                 .child(
                     div()
+                        .id("win-btn-maximize")
+                        .w(px(38.0))
                         .flex()
                         .items_center()
-                        .px(px(12.0))
-                        .text_size(px(13.0))
-                        .text_color(TEXT_FAINT)
-                        .child("+"),
+                        .justify_center()
+                        .cursor_pointer()
+                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .on_click(|_ev, window, _cx| {
+                            window.zoom_window();
+                        })
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(12.0))
+                                .text_color(TEXT_MUTED)
+                                .child("□"),
+                        ),
+                )
+                // Close
+                .child(
+                    div()
+                        .id("win-btn-close")
+                        .w(px(38.0))
+                        .flex()
+                        .items_center()
+                        .justify_center()
+                        .cursor_pointer()
+                        .hover(|s| s.bg(CRIT_BG).text_color(CRIT_INK))
+                        .on_click(|_ev, _window, cx| {
+                            cx.quit();
+                        })
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(12.0))
+                                .text_color(TEXT_MUTED)
+                                .child("✕"),
+                        ),
                 ),
-        )
-        // 4. Session meta
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .gap(px(14.0))
-                .px(px(14.0))
-                .font_family("JetBrains Mono")
-                .text_size(px(10.5))
-                .text_color(TEXT_FAINT)
-                .child(div().child("SSH ED25519"))
-                .child(div().child("lat 12ms"))
-                .child(div().child("03:41:22 UTC")),
-        )
+        );
+    }
+
+    bar
 }

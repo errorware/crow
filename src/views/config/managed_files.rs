@@ -66,9 +66,10 @@ pub fn managed_files_rail() -> impl IntoElement {
         // File items
         .child(
             div()
+                .id("managed-files-scroll")
                 .flex_1()
                 .min_h(px(0.0))
-                .overflow_hidden()
+                .overflow_y_scroll()
                 .flex()
                 .flex_col()
                 .children(default_managed_files().iter().map(|f| {
