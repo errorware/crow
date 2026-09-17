@@ -28,6 +28,7 @@ const NET_POINTS: &[(f32, f32)] = &[
 
 pub fn stat_strip() -> impl IntoElement {
     div()
+        .h(px(78.0))
         .flex_none()
         .flex()
         .w_full()
@@ -38,13 +39,17 @@ pub fn stat_strip() -> impl IntoElement {
         .child(
             div()
                 .flex_1()
+                .h_full()
                 .p(px(10.0))
                 .px(px(14.0))
                 .border_r_1()
                 .border_color(BORDER_PANEL)
+                .flex()
+                .flex_col()
+                .justify_between()
                 .child(
                     div()
-                        .font_family("Inter")
+                        .font_family(FONT_SANS)
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
@@ -56,16 +61,22 @@ pub fn stat_strip() -> impl IntoElement {
                         .items_end()
                         .justify_between()
                         .gap(px(10.0))
-                        .mt(px(5.0))
                         .child(
                             div()
-                                .font_family("JetBrains Mono")
-                                .text_size(px(26.0))
-                                .font_weight(FontWeight::MEDIUM)
-                                .text_color(TEXT_PRIMARY)
-                                .child("38.4")
+                                .flex()
+                                .items_baseline()
+                                .gap(px(2.0))
                                 .child(
                                     div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(26.0))
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .text_color(TEXT_PRIMARY)
+                                        .child("38.4"),
+                                )
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
                                         .text_size(px(13.0))
                                         .text_color(TEXT_DIM)
                                         .child("%"),
@@ -75,10 +86,9 @@ pub fn stat_strip() -> impl IntoElement {
                 )
                 .child(
                     div()
-                        .font_family("JetBrains Mono")
+                        .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
-                        .mt(px(6.0))
                         .child("8 vCPU · peak 71.2%"),
                 ),
         )
@@ -86,13 +96,17 @@ pub fn stat_strip() -> impl IntoElement {
         .child(
             div()
                 .flex_1()
+                .h_full()
                 .p(px(10.0))
                 .px(px(14.0))
                 .border_r_1()
                 .border_color(BORDER_PANEL)
+                .flex()
+                .flex_col()
+                .justify_between()
                 .child(
                     div()
-                        .font_family("Inter")
+                        .font_family(FONT_SANS)
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
@@ -104,16 +118,22 @@ pub fn stat_strip() -> impl IntoElement {
                         .items_end()
                         .justify_between()
                         .gap(px(10.0))
-                        .mt(px(5.0))
                         .child(
                             div()
-                                .font_family("JetBrains Mono")
-                                .text_size(px(26.0))
-                                .font_weight(FontWeight::MEDIUM)
-                                .text_color(TEXT_PRIMARY)
-                                .child("11.7")
+                                .flex()
+                                .items_baseline()
+                                .gap(px(3.0))
                                 .child(
                                     div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(26.0))
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .text_color(TEXT_PRIMARY)
+                                        .child("11.7"),
+                                )
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
                                         .text_size(px(13.0))
                                         .text_color(TEXT_DIM)
                                         .child("/16 GB"),
@@ -126,10 +146,10 @@ pub fn stat_strip() -> impl IntoElement {
                         .w_full()
                         .h(px(3.0))
                         .bg(rgb(0x1a1b21))
-                        .mt(px(8.0))
+                        .mb(px(4.0))
                         .child(
                             div()
-                                .w(px(150.0))
+                                .w(relative(0.73))
                                 .h_full()
                                 .bg(WARN),
                         ),
@@ -139,13 +159,17 @@ pub fn stat_strip() -> impl IntoElement {
         .child(
             div()
                 .flex_1()
+                .h_full()
                 .p(px(10.0))
                 .px(px(14.0))
                 .border_r_1()
                 .border_color(BORDER_PANEL)
+                .flex()
+                .flex_col()
+                .justify_between()
                 .child(
                     div()
-                        .font_family("Inter")
+                        .font_family(FONT_SANS)
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
@@ -157,16 +181,22 @@ pub fn stat_strip() -> impl IntoElement {
                         .items_end()
                         .justify_between()
                         .gap(px(10.0))
-                        .mt(px(5.0))
                         .child(
                             div()
-                                .font_family("JetBrains Mono")
-                                .text_size(px(26.0))
-                                .font_weight(FontWeight::MEDIUM)
-                                .text_color(TEXT_PRIMARY)
-                                .child("412")
+                                .flex()
+                                .items_baseline()
+                                .gap(px(3.0))
                                 .child(
                                     div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(26.0))
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .text_color(TEXT_PRIMARY)
+                                        .child("412"),
+                                )
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
                                         .text_size(px(13.0))
                                         .text_color(TEXT_DIM)
                                         .child("/960 GB"),
@@ -189,10 +219,9 @@ pub fn stat_strip() -> impl IntoElement {
                 )
                 .child(
                     div()
-                        .font_family("JetBrains Mono")
+                        .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
-                        .mt(px(6.0))
                         .child("inodes 6.2% · iowait 0.4%"),
                 ),
         )
@@ -200,13 +229,17 @@ pub fn stat_strip() -> impl IntoElement {
         .child(
             div()
                 .flex_1()
+                .h_full()
                 .p(px(10.0))
                 .px(px(14.0))
                 .border_r_1()
                 .border_color(BORDER_PANEL)
+                .flex()
+                .flex_col()
+                .justify_between()
                 .child(
                     div()
-                        .font_family("Inter")
+                        .font_family(FONT_SANS)
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
@@ -218,10 +251,9 @@ pub fn stat_strip() -> impl IntoElement {
                         .items_end()
                         .justify_between()
                         .gap(px(10.0))
-                        .mt(px(5.0))
                         .child(
                             div()
-                                .font_family("JetBrains Mono")
+                                .font_family(FONT_MONO)
                                 .text_size(px(26.0))
                                 .font_weight(FontWeight::MEDIUM)
                                 .text_color(TEXT_PRIMARY)
@@ -231,10 +263,9 @@ pub fn stat_strip() -> impl IntoElement {
                 )
                 .child(
                     div()
-                        .font_family("JetBrains Mono")
+                        .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
-                        .mt(px(6.0))
                         .child("1m 2.14 · 5m 1.88 · 15m 1.42"),
                 ),
         )
@@ -242,13 +273,17 @@ pub fn stat_strip() -> impl IntoElement {
         .child(
             div()
                 .flex_1()
+                .h_full()
                 .p(px(10.0))
                 .px(px(14.0))
                 .border_r_1()
                 .border_color(BORDER_PANEL)
+                .flex()
+                .flex_col()
+                .justify_between()
                 .child(
                     div()
-                        .font_family("Inter")
+                        .font_family(FONT_SANS)
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
@@ -256,22 +291,46 @@ pub fn stat_strip() -> impl IntoElement {
                 )
                 .child(
                     div()
-                        .font_family("JetBrains Mono")
-                        .text_size(px(26.0))
-                        .font_weight(FontWeight::MEDIUM)
-                        .text_color(TEXT_PRIMARY)
-                        .mt(px(5.0))
-                        .child("64")
-                        .child(div().text_size(px(13.0)).text_color(TEXT_DIM).child("d "))
-                        .child("07")
-                        .child(div().text_size(px(13.0)).text_color(TEXT_DIM).child("h")),
+                        .flex()
+                        .items_baseline()
+                        .gap(px(2.0))
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(26.0))
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(TEXT_PRIMARY)
+                                .child("64"),
+                        )
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(13.0))
+                                .text_color(TEXT_DIM)
+                                .child("d"),
+                        )
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(26.0))
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(TEXT_PRIMARY)
+                                .ml(px(6.0))
+                                .child("07"),
+                        )
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(13.0))
+                                .text_color(TEXT_DIM)
+                                .child("h"),
+                        ),
                 )
                 .child(
                     div()
-                        .font_family("JetBrains Mono")
+                        .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
-                        .mt(px(12.0))
                         .child("boot 2026-07-15 02:11Z"),
                 ),
         )
@@ -279,11 +338,15 @@ pub fn stat_strip() -> impl IntoElement {
         .child(
             div()
                 .flex_1()
+                .h_full()
                 .p(px(10.0))
                 .px(px(14.0))
+                .flex()
+                .flex_col()
+                .justify_between()
                 .child(
                     div()
-                        .font_family("Inter")
+                        .font_family(FONT_SANS)
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
@@ -295,16 +358,22 @@ pub fn stat_strip() -> impl IntoElement {
                         .items_end()
                         .justify_between()
                         .gap(px(10.0))
-                        .mt(px(5.0))
                         .child(
                             div()
-                                .font_family("JetBrains Mono")
-                                .text_size(px(26.0))
-                                .font_weight(FontWeight::MEDIUM)
-                                .text_color(TEXT_PRIMARY)
-                                .child("184")
+                                .flex()
+                                .items_baseline()
+                                .gap(px(3.0))
                                 .child(
                                     div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(26.0))
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .text_color(TEXT_PRIMARY)
+                                        .child("184"),
+                                )
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
                                         .text_size(px(13.0))
                                         .text_color(TEXT_DIM)
                                         .child("Mb/s"),
@@ -314,10 +383,9 @@ pub fn stat_strip() -> impl IntoElement {
                 )
                 .child(
                     div()
-                        .font_family("JetBrains Mono")
+                        .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
-                        .mt(px(6.0))
                         .child("↓ 184 · ↑ 62 · retrans 0.01%"),
                 ),
         )
