@@ -24,7 +24,7 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl Int
         ("◧", "Schema Packs", "4", SettingsSection::General, Some(OK)),
         ("▲", "Danger Defaults", "", SettingsSection::General, None),
         ("⌨", "Keymap", "", SettingsSection::General, None),
-        ("◑", "Account & Team", "", SettingsSection::General, None),
+        ("🛡", "Vault & Security", "L", SettingsSection::Security, Some(OK)),
         ("⬡", "About", "", SettingsSection::General, None),
     ];
 
@@ -224,22 +224,78 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl Int
         },
     ];
 
+    let security_rows = [
+        SettingRow {
+            label: "Local SQLite Vault",
+            desc: "Zero-knowledge authenticated encrypted database at ~/.config/crow/crow.db.",
+            key: "vault_storage = sqlite_chacha20poly1305",
+            is_toggle: false,
+            toggle_val: false,
+            val_str: "active · encrypted",
+            has_chevron: false,
+            is_changed: false,
+        },
+        SettingRow {
+            label: "Key Derivation Function",
+            desc: "Argon2id (64 MB memory cost, 3 iterations, 4 lanes).",
+            key: "kdf = argon2id",
+            is_toggle: false,
+            toggle_val: false,
+            val_str: "argon2id (64MB)",
+            has_chevron: false,
+            is_changed: false,
+        },
+        SettingRow {
+            label: "Two-factor authentication (2FA)",
+            desc: "Require RFC 6238 TOTP 6-digit verification code on vault unlock.",
+            key: "totp_required = dynamic",
+            is_toggle: true,
+            toggle_val: true,
+            val_str: "",
+            has_chevron: false,
+            is_changed: true,
+        },
+        SettingRow {
+            label: "Auto-lock timeout",
+            desc: "Lock vault and wipe decrypted keys from RAM after inactivity.",
+            key: "auto_lock_minutes = 15",
+            is_toggle: false,
+            toggle_val: false,
+            val_str: "15 min",
+            has_chevron: true,
+            is_changed: false,
+        },
+        SettingRow {
+            label: "Wipe memory on lock",
+            desc: "Zeroize MasterKey from memory immediately on lock or exit.",
+            key: "zeroize_on_drop = true",
+            is_toggle: true,
+            toggle_val: true,
+            val_str: "",
+            has_chevron: false,
+            is_changed: false,
+        },
+    ];
+
     let rows: &[SettingRow] = match section {
         SettingsSection::Connection => &connection_rows,
         SettingsSection::General => &general_rows,
         SettingsSection::Keys => &connection_rows[..3],
+        SettingsSection::Security => &security_rows,
     };
 
     let title = match section {
         SettingsSection::Connection => "CONNECTION & SSH",
         SettingsSection::General => "GENERAL",
         SettingsSection::Keys => "KEYS & ROTATION",
+        SettingsSection::Security => "VAULT & SECURITY",
     };
 
     let sub = match section {
         SettingsSection::Connection => "[connection] · applies to every host unless overridden",
         SettingsSection::General => "[general] · application behavior",
         SettingsSection::Keys => "[keys] · key distribution & policies",
+        SettingsSection::Security => "[vault] · local encrypted sqlite & master key",
     };
 
     let keychain = [
@@ -332,6 +388,7 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl Int
                                 (sec == SettingsSection::Connection && label == "Connection & SSH")
                                 || (sec == SettingsSection::General && label == "General")
                                 || (sec == SettingsSection::Keys && label == "Keys & Rotation")
+                                || (sec == SettingsSection::Security && label == "Vault & Security")
                             );
 
                             div()

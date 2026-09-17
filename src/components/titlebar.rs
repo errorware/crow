@@ -424,6 +424,12 @@ pub fn burger_menu_overlay(app: Entity<CrowApp>, current_screen: Screen) -> impl
                                 cx.quit();
                                 return;
                             }
+                            if label == "Lock & disconnect all hosts" {
+                                app_item.update(cx, |this, cx| {
+                                    this.lock(cx);
+                                });
+                                return;
+                            }
                             app_item.update(cx, |this, cx| {
                                 this.close_menu(cx);
                                 if let Some(view) = target_view {
