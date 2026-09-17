@@ -40,7 +40,6 @@ pub fn sidebar(active_view: &str, collapsed: bool, app: Entity<CrowApp>) -> impl
         .border_color(BORDER_PANEL)
         .flex()
         .flex_col()
-        .pt(px(6.0))
         // Nav items
         .children(nav_items().iter().enumerate().map(|(idx, item)| {
             let is_active = item.view_id == Some(active_view);
