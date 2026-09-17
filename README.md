@@ -119,6 +119,12 @@ cargo run --release
 
 ---
 
+## Acknowledgements
+
+- **[Tabler Icons](https://tabler.io/icons)** by Paweł Kuna and contributors (licensed under MIT). See [assets/README.md](assets/README.md) for full license and attribution.
+
+---
+
 ## License
 
 Crow is licensed under the **AEUPL-1.2** (*The Ancient European Union Public License*).

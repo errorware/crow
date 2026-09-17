@@ -5,3 +5,5 @@
 # Untracked design handoff and mockups
 design_handoff_crow_control_panel/
 *.dc.html
+CROW.md
+*.bak
