@@ -126,7 +126,7 @@ pub fn palette_overlay(app: Entity<CrowApp>) -> impl IntoElement {
                         .child(
                             div()
                                 .flex_1()
-                                .font_family("Inter")
+                                .font_family(FONT_MONO)
                                 .text_size(px(12.0))
                                 .text_color(if is_sel { TEXT_MAX } else { TEXT_SECONDARY })
                                 .child(item.label),

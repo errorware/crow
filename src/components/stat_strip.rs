@@ -49,7 +49,7 @@ pub fn stat_strip() -> impl IntoElement {
                 .justify_between()
                 .child(
                     div()
-                        .font_family(FONT_SANS)
+                        .font_family(FONT_MONO)
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
@@ -108,7 +108,7 @@ pub fn stat_strip() -> impl IntoElement {
                 .justify_between()
                 .child(
                     div()
-                        .font_family(FONT_SANS)
+                        .font_family(FONT_MONO)
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
@@ -179,7 +179,7 @@ pub fn stat_strip() -> impl IntoElement {
                 .justify_between()
                 .child(
                     div()
-                        .font_family(FONT_SANS)
+                        .font_family(FONT_MONO)
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
@@ -251,7 +251,7 @@ pub fn stat_strip() -> impl IntoElement {
                 .justify_between()
                 .child(
                     div()
-                        .font_family(FONT_SANS)
+                        .font_family(FONT_MONO)
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
@@ -297,7 +297,7 @@ pub fn stat_strip() -> impl IntoElement {
                 .justify_between()
                 .child(
                     div()
-                        .font_family(FONT_SANS)
+                        .font_family(FONT_MONO)
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
@@ -369,7 +369,7 @@ pub fn stat_strip() -> impl IntoElement {
                 .justify_between()
                 .child(
                     div()
-                        .font_family(FONT_SANS)
+                        .font_family(FONT_MONO)
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)

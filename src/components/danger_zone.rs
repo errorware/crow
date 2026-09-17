@@ -42,7 +42,7 @@ pub fn danger_zone() -> impl IntoElement {
                 .child(danger_triangle())
                 .child(
                     div()
-                        .font_family("Inter")
+                        .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(CRIT)

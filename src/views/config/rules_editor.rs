@@ -146,8 +146,8 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
                 )
                 .child(
                     div()
-                        .font_family("Inter")
-                        .text_size(px(10.5))
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.0))
                         .text_color(TEXT_TERTIARY)
                         .child("First match wins — rule order is evaluated top to bottom. Drag to reorder."),
                 )
@@ -170,7 +170,7 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
                 .bg(BG_SUBHEAD)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .font_family("Inter")
+                .font_family(FONT_MONO)
                 .text_size(px(9.5))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(TEXT_DIMMER)
@@ -373,9 +373,9 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
                                             .gap(px(8.0))
                                             .child(
                                                 div()
-                                                    .font_family("Inter")
+                                                    .font_family(FONT_MONO)
                                                     .text_size(px(10.0))
-                                                    .font_weight(FontWeight::SEMIBOLD)
+                                                    .font_weight(FontWeight::BOLD)
                                                     .text_color(TEXT_DIMMER)
                                                     .child(format!("AUTH METHOD — LINE {}", r.num)),
                                             )
@@ -423,7 +423,7 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
                                                                 div()
                                                                     .flex_1()
                                                                     .min_w(px(0.0))
-                                                                    .font_family("Inter")
+                                                                    .font_family(FONT_MONO)
                                                                     .text_size(px(10.5))
                                                                     .text_color(TEXT_DIM)
                                                                     .child(m.desc),
@@ -457,15 +457,15 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
                                             .gap(px(7.0))
                                             .child(
                                                 div()
-                                                    .font_family("Inter")
+                                                    .font_family(FONT_MONO)
                                                     .text_size(px(10.0))
-                                                    .font_weight(FontWeight::SEMIBOLD)
+                                                    .font_weight(FontWeight::BOLD)
                                                     .text_color(TEXT_DIMMER)
                                                     .child("MAN PAGE · pg_hba"),
                                             )
                                             .child(
                                                 div()
-                                                    .font_family("Inter")
+                                                    .font_family(FONT_MONO)
                                                     .text_size(px(10.5))
                                                     .text_color(TEXT_TERTIARY)
                                                     .child("scram-sha-256 performs SCRAM-SHA-256 authentication to verify the user's password, without transmitting the cleartext password."),
@@ -524,7 +524,7 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
                 )
                 .child(
                     div()
-                        .font_family("Inter")
+                        .font_family(FONT_MONO)
                         .text_size(px(11.0))
                         .child("Add rule"),
                 )
@@ -542,7 +542,7 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
                 )
                 .child(
                     div()
-                        .font_family("Inter")
+                        .font_family(FONT_MONO)
                         .text_size(px(11.0))
                         .text_color(TEXT_FAINTER)
                         .child("·  from template: app user over TLS, replication peer, read-only analyst"),

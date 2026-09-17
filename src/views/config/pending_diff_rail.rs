@@ -26,9 +26,9 @@ pub fn pending_diff_rail() -> impl IntoElement {
                 .border_color(BORDER_PANEL)
                 .child(
                     div()
-                        .font_family("Inter")
+                        .font_family(FONT_MONO)
                         .text_size(px(11.0))
-                        .font_weight(FontWeight::SEMIBOLD)
+                        .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
                         .child("PENDING DIFF"),
                 )
@@ -144,9 +144,9 @@ pub fn pending_diff_rail() -> impl IntoElement {
                 .gap(px(7.0))
                 .child(
                     div()
-                        .font_family("Inter")
+                        .font_family(FONT_MONO)
                         .text_size(px(10.0))
-                        .font_weight(FontWeight::SEMIBOLD)
+                        .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_DIMMER)
                         .child("APPLY PLAN"),
                 )
@@ -224,25 +224,23 @@ pub fn pending_diff_rail() -> impl IntoElement {
                         .items_center()
                         .gap(px(7.0))
                         .child(
-                            div()
-                                .font_family("JetBrains Mono")
-                                .text_size(px(10.0))
-                                .text_color(WARN)
-                                .child("⟲"),
+                            tabler_icon(TablerIcon::Refresh)
+                                .size(px(11.0))
+                                .text_color(WARN),
                         )
                         .child(
                             div()
-                                .font_family("Inter")
+                                .font_family(FONT_MONO)
                                 .text_size(px(10.0))
-                                .font_weight(FontWeight::SEMIBOLD)
+                                .font_weight(FontWeight::BOLD)
                                 .text_color(WARN)
                                 .child("AUTO-ROLLBACK ARMED"),
                         ),
                 )
                 .child(
                     div()
-                        .font_family("Inter")
-                        .text_size(px(10.5))
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.0))
                         .text_color(TEXT_TERTIARY)
                         .child("If Crow cannot re-authenticate within 60s of reload, the previous file is restored and postgres is reloaded again."),
                 ),
@@ -259,9 +257,9 @@ pub fn pending_diff_rail() -> impl IntoElement {
                 .gap(px(7.0))
                 .child(
                     div()
-                        .font_family("Inter")
+                        .font_family(FONT_MONO)
                         .text_size(px(10.0))
-                        .font_weight(FontWeight::SEMIBOLD)
+                        .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_DIMMER)
                         .child("BLAST RADIUS"),
                 )

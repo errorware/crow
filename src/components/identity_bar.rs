@@ -1,6 +1,7 @@
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
+use crate::components::icons::{TablerIcon, tabler_icon};
 
 pub fn identity_bar(app: Entity<CrowApp>) -> impl IntoElement {
     let app_clone = app.clone();
@@ -21,9 +22,9 @@ pub fn identity_bar(app: Entity<CrowApp>) -> impl IntoElement {
                 .px(px(16.0))
                 .child(
                     div()
-                        .font_family("Inter")
-                        .text_size(px(16.0))
-                        .font_weight(FontWeight::SEMIBOLD)
+                        .font_family(FONT_MONO)
+                        .text_size(px(15.0))
+                        .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
                         .child("edge-01"),
                 )
@@ -140,16 +141,17 @@ pub fn identity_bar(app: Entity<CrowApp>) -> impl IntoElement {
                 })
                 .child(
                     div()
-                        .font_family("JetBrains Mono")
-                        .text_size(px(11.0))
-                        .text_color(TEXT_FAINTER)
-                        .child("⌕"),
+                        .child(
+                            tabler_icon(TablerIcon::Search)
+                                .size(px(13.0))
+                                .text_color(TEXT_FAINT),
+                        ),
                 )
                 .child(
                     div()
                         .flex_1()
-                        .font_family("Inter")
-                        .text_size(px(11.5))
+                        .font_family(FONT_MONO)
+                        .text_size(px(11.0))
                         .text_color(TEXT_FAINT)
                         .child("Search or run command…"),
                 )

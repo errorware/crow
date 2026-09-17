@@ -78,8 +78,8 @@ pub fn sidebar(active_view: &str, collapsed: bool, app: Entity<CrowApp>) -> impl
                     .child(
                         div()
                             .flex_1()
-                            .font_family("Inter")
-                            .text_size(px(12.0))
+                            .font_family(FONT_MONO)
+                            .text_size(px(11.5))
                             .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                             .text_color(if is_active { TEXT_PRIMARY } else { TEXT_TERTIARY })
                             .child(item.label),
@@ -158,7 +158,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, app: Entity<CrowApp>) -> impl
                         .flex()
                         .justify_between()
                         .items_center()
-                        .font_family("Inter")
+                        .font_family(FONT_MONO)
                         .text_size(px(11.0))
                         .text_color(TEXT_FAINT)
                         .cursor_pointer()

@@ -66,7 +66,7 @@ pub fn titlebar(tabs: &[ServerTab], active_tab_id: &str, app: Entity<CrowApp>) -
             .child(diamond_mark())
             .child(
                 div()
-                    .font_family(FONT_SANS)
+                    .font_family(FONT_MONO)
                     .text_size(px(11.0))
                     .font_weight(FontWeight::BOLD)
                     .text_color(TEXT_PRIMARY)

@@ -184,7 +184,7 @@ impl Render for CrowApp {
             .size_full()
             .bg(BG_WINDOW)
             .text_color(TEXT_PRIMARY)
-            .font_family(FONT_SANS)
+            .font_family(FONT_MONO)
             .text_size(px(12.0))
             .flex()
             .flex_col()
@@ -257,7 +257,7 @@ impl Render for CrowApp {
                                                 .border_color(BORDER_PANEL)
                                                 .child(
                                                     div()
-                                                        .font_family(FONT_SANS)
+                                                        .font_family(FONT_MONO)
                                                         .text_size(px(11.0))
                                                         .font_weight(FontWeight::SEMIBOLD)
                                                         .text_color(TEXT_PRIMARY)

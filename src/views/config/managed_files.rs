@@ -50,9 +50,9 @@ pub fn managed_files_rail() -> impl IntoElement {
                 .border_color(BORDER_PANEL)
                 .child(
                     div()
-                        .font_family("Inter")
+                        .font_family(FONT_MONO)
                         .text_size(px(11.0))
-                        .font_weight(FontWeight::SEMIBOLD)
+                        .font_weight(FontWeight::BOLD)
                         .child("MANAGED FILES"),
                 )
                 .child(
@@ -142,9 +142,9 @@ pub fn managed_files_rail() -> impl IntoElement {
                 .gap(px(5.0))
                 .child(
                     div()
-                        .font_family("Inter")
+                        .font_family(FONT_MONO)
                         .text_size(px(10.0))
-                        .font_weight(FontWeight::SEMIBOLD)
+                        .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_DIMMER)
                         .child("SCHEMA PACKS"),
                 )

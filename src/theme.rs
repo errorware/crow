@@ -75,6 +75,6 @@ pub const DIFF_DEL_BG: Rgba = hex_rgb(0x150e0f);
 pub const DIFF_ADD_BG: Rgba = hex_rgb(0x0d1611);
 pub const DIFF_HUNK_BG: Rgba = hex_rgb(0x101116);
 
-// Fonts
-pub const FONT_SANS: &str = "Inter";
+// Fonts — Unified Monospace Default across the entire application
 pub const FONT_MONO: &str = "JetBrains Mono";
+pub const FONT_SANS: &str = "JetBrains Mono";
