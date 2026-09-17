@@ -404,6 +404,7 @@ pub fn burger_menu_overlay(app: Entity<CrowApp>, current_screen: Screen) -> impl
 
                     div()
                         .id(ElementId::NamedInteger("menu-item".into(), idx as u64))
+                        .relative()
                         .h(px(30.0))
                         .flex_none()
                         .flex()
@@ -411,8 +412,11 @@ pub fn burger_menu_overlay(app: Entity<CrowApp>, current_screen: Screen) -> impl
                         .gap(px(10.0))
                         .px(px(12.0))
                         .bg(if is_active { BG_KEY } else { hex_rgba(0, 0.0) })
-                        .border_l_2()
-                        .border_color(if is_active { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
+                        .children(if is_active {
+                            Some(left_indicator(TEXT_PRIMARY))
+                        } else {
+                            None
+                        })
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_KEY))
                         .on_click(move |_ev, _window, cx| {

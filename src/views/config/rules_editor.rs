@@ -198,13 +198,7 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
                     let rule_num = r.num;
                     let app_expand = app.clone();
 
-                    let left_edge = if is_open {
-                        TEXT_PRIMARY
-                    } else if is_critical {
-                        CRIT
-                    } else {
-                        hex_rgba(0, 0.0)
-                    };
+
 
                     let row_bg = if is_open {
                         BG_ROW_SELECTED
@@ -231,17 +225,14 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
                     div()
                         .id(ElementId::NamedInteger("rule-row".into(), idx as u64))
                         .w_full()
-                        .border_b_1()
-                        .border_color(BORDER_ROW)
                         .child(
                             div()
                                 .id(ElementId::NamedInteger("rule-row-inner".into(), idx as u64))
+                                .relative()
                                 .flex()
                                 .items_center()
                                 .h(px(30.0))
                                 .bg(row_bg)
-                                .border_l_2()
-                                .border_color(left_edge)
                                 .font_family("JetBrains Mono")
                                 .text_size(px(11.5))
                                 .cursor_pointer()
@@ -249,6 +240,13 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
                                     app_expand.update(cx, |this, cx| {
                                         this.toggle_rule_expand(rule_num, cx);
                                     });
+                                })
+                                .children(if is_open {
+                                    Some(left_indicator(TEXT_PRIMARY))
+                                } else if is_critical {
+                                    Some(left_indicator(CRIT))
+                                } else {
+                                    None
                                 })
                                 // Drag
                                 .child(
@@ -355,9 +353,9 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
                             let current_method = r.method;
                             Some(
                                 div()
+                                    .relative()
                                     .bg(hex_rgb(0x0e0f13))
-                                    .border_l_2()
-                                    .border_color(TEXT_PRIMARY)
+                                    .child(left_indicator(TEXT_PRIMARY))
                                     .border_t_1()
                                     .border_color(BORDER_PANEL)
                                     .flex()
@@ -396,14 +394,18 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
 
                                                         div()
                                                             .id(ElementId::NamedInteger("method-opt".into(), m_idx as u64))
+                                                            .relative()
                                                             .flex()
                                                             .items_center()
                                                             .gap(px(10.0))
                                                             .h(px(26.0))
                                                             .px(px(8.0))
-                                                            .border_l_2()
-                                                            .border_color(if is_selected { OK } else { hex_rgba(0, 0.0) })
                                                             .bg(if is_selected { BG_CONTROL_ALT } else { hex_rgba(0, 0.0) })
+                                                            .children(if is_selected {
+                                                                Some(left_indicator(OK))
+                                                            } else {
+                                                                None
+                                                            })
                                                             .cursor_pointer()
                                                             .on_click(move |_ev, _window, cx| {
                                                                 app_method.update(cx, |this, cx| {

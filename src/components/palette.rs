@@ -97,14 +97,18 @@ pub fn palette_overlay(app: Entity<CrowApp>) -> impl IntoElement {
 
                     div()
                         .id(ElementId::NamedInteger("palette-action".into(), idx as u64))
+                        .relative()
                         .flex()
                         .items_center()
                         .gap(px(10.0))
                         .h(px(32.0))
                         .px(px(14.0))
-                        .border_l_2()
-                        .border_color(if is_sel { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
                         .bg(if is_sel { BG_KEY } else { hex_rgba(0, 0.0) })
+                        .children(if is_sel {
+                            Some(left_indicator(TEXT_PRIMARY))
+                        } else {
+                            None
+                        })
                         .cursor_pointer()
                         .on_click(move |_ev, _window, cx| {
                             app_action.update(cx, |this, cx| {

@@ -299,6 +299,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>) -> impl IntoElement {
 
                                     div()
                                         .id(ElementId::NamedInteger("fleet-row".into(), idx as u64))
+                                        .relative()
                                         .h(px(32.0))
                                         .flex_none()
                                         .flex()
@@ -313,13 +314,12 @@ pub fn fleet_overview_view(app: Entity<CrowApp>) -> impl IntoElement {
                                         })
                                         .border_b_1()
                                         .border_color(BORDER_ROW)
-                                        .border_l_2()
-                                        .border_color(if host.is_selected {
-                                            TEXT_PRIMARY
+                                        .children(if host.is_selected {
+                                            Some(left_indicator(TEXT_PRIMARY))
                                         } else if host.is_critical_border {
-                                            CRIT
+                                            Some(left_indicator(CRIT))
                                         } else {
-                                            hex_rgba(0, 0.0)
+                                            None
                                         })
                                         .hover(|s| s.bg(BG_ROW_HOVER))
                                         .cursor_pointer()
@@ -586,6 +586,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>) -> impl IntoElement {
                                 .border_color(BORDER_PANEL)
                                 .children(alerts.iter().map(|(lvl, fg, bg, host, msg, age)| {
                                     div()
+                                        .relative()
                                         .flex()
                                         .flex_col()
                                         .gap(px(3.0))
@@ -593,9 +594,12 @@ pub fn fleet_overview_view(app: Entity<CrowApp>) -> impl IntoElement {
                                         .py(px(7.0))
                                         .border_b_1()
                                         .border_color(BORDER_ROW)
-                                        .border_l_2()
-                                        .border_color(if *lvl == "CRIT" { CRIT } else { hex_rgba(0, 0.0) })
                                         .bg(if *lvl == "CRIT" { CRIT_LOG_BG } else { hex_rgba(0, 0.0) })
+                                        .children(if *lvl == "CRIT" {
+                                            Some(left_indicator(CRIT))
+                                        } else {
+                                            None
+                                        })
                                         .child(
                                             div()
                                                 .flex()

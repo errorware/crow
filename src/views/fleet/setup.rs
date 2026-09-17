@@ -175,6 +175,7 @@ pub fn fleet_setup_view(app: Entity<CrowApp>) -> impl IntoElement {
                                 .children(tree_nodes.into_iter().enumerate().map(|(idx, node)| {
                                     div()
                                         .id(ElementId::NamedInteger("tree-node".into(), idx as u64))
+                                        .relative()
                                         .h(px(28.0))
                                         .flex_none()
                                         .flex()
@@ -183,8 +184,11 @@ pub fn fleet_setup_view(app: Entity<CrowApp>) -> impl IntoElement {
                                         .pl(px(12.0 + (node.depth as f32 * 14.0)))
                                         .pr(px(12.0))
                                         .bg(if node.is_selected { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
-                                        .border_l_2()
-                                        .border_color(if node.is_selected { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
+                                        .children(if node.is_selected {
+                                            Some(left_indicator(TEXT_PRIMARY))
+                                        } else {
+                                            None
+                                        })
                                         .cursor_pointer()
                                         .hover(|s| s.bg(BG_ROW_HOVER))
                                         .child(
@@ -374,8 +378,13 @@ pub fn fleet_setup_view(app: Entity<CrowApp>) -> impl IntoElement {
                                         .bg(if node.is_selected { BG_ROW_SELECTED } else { BG_SUBHEAD })
                                         .border_1()
                                         .border_color(if node.status_color == WARN { WARN_BG } else { BORDER_DEFAULT })
-                                        .border_l_2()
-                                        .border_color(if node.is_selected { TEXT_PRIMARY } else if node.status_color == WARN { WARN } else { hex_rgba(0, 0.0) })
+                                        .children(if node.is_selected {
+                                            Some(left_indicator(TEXT_PRIMARY))
+                                        } else if node.status_color == WARN {
+                                            Some(left_indicator(WARN))
+                                        } else {
+                                            None
+                                        })
                                         .p(px(8.0))
                                         .flex()
                                         .flex_col()
@@ -497,6 +506,7 @@ pub fn fleet_setup_view(app: Entity<CrowApp>) -> impl IntoElement {
                                 .children(policies.iter().map(|(label, val, note, tag, tag_fg, tag_bg)| {
                                     let is_crit = *tag_fg == CRIT;
                                     div()
+                                        .relative()
                                         .flex()
                                         .flex_col()
                                         .gap(px(3.0))
@@ -504,9 +514,12 @@ pub fn fleet_setup_view(app: Entity<CrowApp>) -> impl IntoElement {
                                         .py(px(9.0))
                                         .border_b_1()
                                         .border_color(BORDER_ROW)
-                                        .border_l_2()
-                                        .border_color(if is_crit { CRIT } else { hex_rgba(0, 0.0) })
                                         .bg(if is_crit { CRIT_ROW_BG } else { hex_rgba(0, 0.0) })
+                                        .children(if is_crit {
+                                            Some(left_indicator(CRIT))
+                                        } else {
+                                            None
+                                        })
                                         .child(
                                             div()
                                                 .flex()

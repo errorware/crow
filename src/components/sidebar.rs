@@ -48,14 +48,18 @@ pub fn sidebar(active_view: &str, collapsed: bool, app: Entity<CrowApp>) -> impl
 
             let mut row = div()
                 .id(ElementId::NamedInteger("nav-item".into(), idx as u64))
+                .relative()
                 .flex()
                 .items_center()
                 .gap(px(10.0))
                 .h(px(30.0))
                 .px(if collapsed { px(14.0) } else { px(12.0) })
-                .border_l_2()
-                .border_color(if is_active { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
                 .bg(if is_active { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
+                .children(if is_active {
+                    Some(left_indicator(TEXT_PRIMARY))
+                } else {
+                    None
+                })
                 .cursor_pointer()
                 .child(
                     div()

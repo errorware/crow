@@ -236,17 +236,14 @@ pub fn services_table(
                     div()
                         .id(ElementId::NamedInteger("service-row".into(), idx as u64))
                         .w_full()
-                        .border_b_1()
-                        .border_color(BORDER_ROW)
                         .child(
                             div()
                                 .id(ElementId::NamedInteger("service-row-inner".into(), idx as u64))
+                                .relative()
                                 .flex()
                                 .items_center()
                                 .h(px(29.0))
                                 .bg(row_bg)
-                                .border_l_2()
-                                .border_color(if is_focus { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
                                 .font_family("JetBrains Mono")
                                 .text_size(px(11.5))
                                 .cursor_pointer()
@@ -254,6 +251,11 @@ pub fn services_table(
                                     app_row.update(cx, |this, cx| {
                                         this.focus_service(svc_name, cx);
                                     });
+                                })
+                                .children(if is_focus {
+                                    Some(left_indicator(TEXT_PRIMARY))
+                                } else {
+                                    None
                                 })
                                 // Col 1: Glyph
                                 .child(
@@ -389,6 +391,7 @@ pub fn services_table(
                             Some(
                                 div()
                                     .id(ElementId::NamedInteger("confirm-row".into(), idx as u64))
+                                    .relative()
                                     .flex()
                                     .items_center()
                                     .gap(px(12.0))
@@ -396,8 +399,7 @@ pub fn services_table(
                                     .pl(px(28.0))
                                     .pr(px(12.0))
                                     .bg(CRIT_ROW_BG)
-                                    .border_l_2()
-                                    .border_color(CRIT)
+                                    .child(left_indicator(CRIT))
                                     .child(
                                         div()
                                             .font_family("JetBrains Mono")

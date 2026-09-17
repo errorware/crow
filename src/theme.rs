@@ -1,5 +1,5 @@
 #![allow(dead_code)]
-use gpui_kit::Rgba;
+use gpui_kit::*;
 
 pub const fn hex_rgb(hex: u32) -> Rgba {
     let r = ((hex >> 16) & 0xFF) as f32 / 255.0;
@@ -13,6 +13,16 @@ pub const fn hex_rgba(hex: u32, a: f32) -> Rgba {
     let g = ((hex >> 8) & 0xFF) as f32 / 255.0;
     let b = (hex & 0xFF) as f32 / 255.0;
     Rgba { r, g, b, a }
+}
+
+pub fn left_indicator(color: Rgba) -> impl IntoElement {
+    div()
+        .absolute()
+        .top_0()
+        .bottom_0()
+        .left_0()
+        .w(px(3.0))
+        .bg(color)
 }
 
 // Surfaces

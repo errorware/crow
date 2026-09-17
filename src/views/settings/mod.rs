@@ -336,6 +336,7 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl Int
 
                             div()
                                 .id(ElementId::NamedInteger("settings-nav".into(), idx as u64))
+                                .relative()
                                 .h(px(30.0))
                                 .flex_none()
                                 .flex()
@@ -343,8 +344,11 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl Int
                                 .gap(px(10.0))
                                 .px(px(12.0))
                                 .bg(if is_active { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
-                                .border_l_2()
-                                .border_color(if is_active { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
+                                .children(if is_active {
+                                    Some(left_indicator(TEXT_PRIMARY))
+                                } else {
+                                    None
+                                })
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
@@ -434,6 +438,7 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl Int
 
                                     div()
                                         .id(ElementId::NamedInteger("setting-row".into(), idx as u64))
+                                        .relative()
                                         .flex()
                                         .items_center()
                                         .justify_between()
@@ -442,14 +447,17 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection) -> impl Int
                                         .py(px(9.0))
                                         .border_b_1()
                                         .border_color(BORDER_ROW)
-                                        .border_l_2()
-                                        .border_color(if row.is_changed { WARN } else { hex_rgba(0, 0.0) })
                                         .bg(if row.is_changed {
                                             BG_OVERLAY_PANEL
                                         } else if is_even {
                                             BG_APP
                                         } else {
                                             BG_ROW_ALT
+                                        })
+                                        .children(if row.is_changed {
+                                            Some(left_indicator(WARN))
+                                        } else {
+                                            None
                                         })
                                         // Left info
                                         .child(

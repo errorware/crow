@@ -82,6 +82,7 @@ pub fn managed_files_rail() -> impl IntoElement {
                     };
 
                     div()
+                        .relative()
                         .flex()
                         .flex_col()
                         .gap(px(2.0))
@@ -89,9 +90,12 @@ pub fn managed_files_rail() -> impl IntoElement {
                         .py(px(6.0))
                         .border_b_1()
                         .border_color(BORDER_ROW)
-                        .border_l_2()
-                        .border_color(if is_sel { TEXT_PRIMARY } else { rgb(0x00000000) })
                         .bg(if is_sel { BG_NAV_ACTIVE } else { rgb(0x00000000) })
+                        .children(if is_sel {
+                            Some(left_indicator(TEXT_PRIMARY))
+                        } else {
+                            None
+                        })
                         .cursor_pointer()
                         .child(
                             div()
