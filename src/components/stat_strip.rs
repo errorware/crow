@@ -28,9 +28,9 @@ const NET_POINTS: &[(f32, f32)] = &[
 
 pub fn stat_strip() -> impl IntoElement {
     div()
-        .h(px(78.0))
         .flex_none()
         .flex()
+        .items_stretch()
         .w_full()
         .bg(BG_PANEL)
         .border_b_1()
@@ -39,8 +39,8 @@ pub fn stat_strip() -> impl IntoElement {
         .child(
             div()
                 .flex_1()
-                .h_full()
-                .p(px(10.0))
+                .pt(px(10.0))
+                .pb(px(11.0))
                 .px(px(14.0))
                 .border_r_1()
                 .border_color(BORDER_PANEL)
@@ -61,6 +61,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .items_end()
                         .justify_between()
                         .gap(px(10.0))
+                        .mt(px(5.0))
                         .child(
                             div()
                                 .flex()
@@ -89,6 +90,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
+                        .mt(px(6.0))
                         .child("8 vCPU · peak 71.2%"),
                 ),
         )
@@ -96,8 +98,8 @@ pub fn stat_strip() -> impl IntoElement {
         .child(
             div()
                 .flex_1()
-                .h_full()
-                .p(px(10.0))
+                .pt(px(10.0))
+                .pb(px(11.0))
                 .px(px(14.0))
                 .border_r_1()
                 .border_color(BORDER_PANEL)
@@ -118,6 +120,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .items_end()
                         .justify_between()
                         .gap(px(10.0))
+                        .mt(px(5.0))
                         .child(
                             div()
                                 .flex()
@@ -143,15 +146,22 @@ pub fn stat_strip() -> impl IntoElement {
                 )
                 .child(
                     div()
+                        .h(px(14.0))
+                        .flex()
+                        .items_center()
                         .w_full()
-                        .h(px(3.0))
-                        .bg(rgb(0x1a1b21))
-                        .mb(px(4.0))
+                        .mt(px(6.0))
                         .child(
                             div()
-                                .w(relative(0.73))
-                                .h_full()
-                                .bg(WARN),
+                                .w_full()
+                                .h(px(3.0))
+                                .bg(rgb(0x1a1b21))
+                                .child(
+                                    div()
+                                        .w(relative(0.73))
+                                        .h_full()
+                                        .bg(WARN),
+                                ),
                         ),
                 ),
         )
@@ -159,8 +169,8 @@ pub fn stat_strip() -> impl IntoElement {
         .child(
             div()
                 .flex_1()
-                .h_full()
-                .p(px(10.0))
+                .pt(px(10.0))
+                .pb(px(11.0))
                 .px(px(14.0))
                 .border_r_1()
                 .border_color(BORDER_PANEL)
@@ -181,6 +191,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .items_end()
                         .justify_between()
                         .gap(px(10.0))
+                        .mt(px(5.0))
                         .child(
                             div()
                                 .flex()
@@ -222,6 +233,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
+                        .mt(px(6.0))
                         .child("inodes 6.2% · iowait 0.4%"),
                 ),
         )
@@ -229,8 +241,8 @@ pub fn stat_strip() -> impl IntoElement {
         .child(
             div()
                 .flex_1()
-                .h_full()
-                .p(px(10.0))
+                .pt(px(10.0))
+                .pb(px(11.0))
                 .px(px(14.0))
                 .border_r_1()
                 .border_color(BORDER_PANEL)
@@ -251,6 +263,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .items_end()
                         .justify_between()
                         .gap(px(10.0))
+                        .mt(px(5.0))
                         .child(
                             div()
                                 .font_family(FONT_MONO)
@@ -266,6 +279,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
+                        .mt(px(6.0))
                         .child("1m 2.14 · 5m 1.88 · 15m 1.42"),
                 ),
         )
@@ -273,8 +287,8 @@ pub fn stat_strip() -> impl IntoElement {
         .child(
             div()
                 .flex_1()
-                .h_full()
-                .p(px(10.0))
+                .pt(px(10.0))
+                .pb(px(11.0))
                 .px(px(14.0))
                 .border_r_1()
                 .border_color(BORDER_PANEL)
@@ -292,45 +306,54 @@ pub fn stat_strip() -> impl IntoElement {
                 .child(
                     div()
                         .flex()
-                        .items_baseline()
-                        .gap(px(2.0))
+                        .items_end()
+                        .justify_between()
+                        .mt(px(5.0))
                         .child(
                             div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(26.0))
-                                .font_weight(FontWeight::MEDIUM)
-                                .text_color(TEXT_PRIMARY)
-                                .child("64"),
+                                .flex()
+                                .items_baseline()
+                                .gap(px(2.0))
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(26.0))
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .text_color(TEXT_PRIMARY)
+                                        .child("64"),
+                                )
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(13.0))
+                                        .text_color(TEXT_DIM)
+                                        .child("d"),
+                                )
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(26.0))
+                                        .font_weight(FontWeight::MEDIUM)
+                                        .text_color(TEXT_PRIMARY)
+                                        .ml(px(6.0))
+                                        .child("07"),
+                                )
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(13.0))
+                                        .text_color(TEXT_DIM)
+                                        .child("h"),
+                                ),
                         )
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(13.0))
-                                .text_color(TEXT_DIM)
-                                .child("d"),
-                        )
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(26.0))
-                                .font_weight(FontWeight::MEDIUM)
-                                .text_color(TEXT_PRIMARY)
-                                .ml(px(6.0))
-                                .child("07"),
-                        )
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(13.0))
-                                .text_color(TEXT_DIM)
-                                .child("h"),
-                        ),
+                        .child(div().w(px(86.0)).h(px(26.0))),
                 )
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
+                        .mt(px(6.0))
                         .child("boot 2026-07-15 02:11Z"),
                 ),
         )
@@ -338,8 +361,8 @@ pub fn stat_strip() -> impl IntoElement {
         .child(
             div()
                 .flex_1()
-                .h_full()
-                .p(px(10.0))
+                .pt(px(10.0))
+                .pb(px(11.0))
                 .px(px(14.0))
                 .flex()
                 .flex_col()
@@ -358,6 +381,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .items_end()
                         .justify_between()
                         .gap(px(10.0))
+                        .mt(px(5.0))
                         .child(
                             div()
                                 .flex()
@@ -386,6 +410,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
+                        .mt(px(6.0))
                         .child("↓ 184 · ↑ 62 · retrans 0.01%"),
                 ),
         )
