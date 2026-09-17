@@ -1,0 +1,132 @@
+AEUPL-1.2 — The Ancient European Union Public License
+https://aeupl.org/
+
+Free to use, modify, and share — commercially too, once you've sent a letter written the old way.
+
+--------------------------------------------------------------------------------
+In plain terms, before the legal text:
+This code is free for anyone to use, copy, modify, and share for any non-commercial
+purpose — no permission needed, no strings attached.
+
+If you want to use it commercially — sell it, ship it in a paid product, run it
+as a paid service — you need the author's permission first. To ask, you send a
+letter, written in Latin, on real sheepskin parchment. Ultramarine ink is preferred
+but not required; any historically attested ink will do.
+
+Everything below is the actual license text that governs.
+--------------------------------------------------------------------------------
+
+I. Definitions
+
+"The Software" means this codebase and any files distributed with it under this license.
+
+"You" means any individual or entity exercising rights under this license.
+
+"Non-Commercial Use" means any use, copying, modification, or distribution of the
+Software that is not Commercial Use.
+
+"Commercial Use" means any use of the Software, or of a Derivative Work, where the
+primary purpose or intended result is financial gain — including selling it, offering
+it as a paid service, bundling it into a paid product, or using it internally within
+a for-profit business in a way that generates revenue directly attributable to it.
+Non-profit use, academic use, personal projects, and evaluation or testing are not
+Commercial Use, even by a for-profit entity.
+
+"Derivative Work" means any fork, modification, adaptation, or work based on the Software.
+
+"The Author" means the copyright holder identified below.
+
+
+II. Grant of Rights — Non-Commercial Use
+
+Subject to the conditions below, the Author grants You, free of charge, a worldwide,
+non-exclusive, perpetual license to use, copy, modify, merge, publish, and distribute
+the Software and Derivative Works, for any non-commercial purpose, without restriction
+and without needing to ask permission.
+
+You must retain this license text and the copyright notice in all copies or substantial
+portions of the Software.
+
+
+III. Commercial Use — Conditional Grant
+
+You may exercise Commercial Use of the Software or a Derivative Work only if the
+condition in Section IV has been satisfied and the Author has granted permission
+under Section V.
+
+Absent such permission, no rights are granted for Commercial Use, and Commercial Use
+without it falls outside the scope of this license.
+
+
+IV. The Letter
+
+To request permission for Commercial Use, You must send the Author a physical letter
+meeting the following requirements:
+
+  1. Language. The letter must be composed in Latin — classical, ecclesiastical, or
+     vulgar registers all acceptable. Machine-translated Latin is permitted, though
+     sincere effort is appreciated.
+
+  2. Medium. The letter must be written on genuine sheepskin parchment. This requirement
+     admits no substitute — no paper, no synthetic parchment, no digital facsimile.
+
+  3. Ink. Ideally, the letter is written using ink prepared by an ancient or historically
+     attested technique — iron gall, carbon, or genuine ultramarine derived from lapis
+     lazuli. Ultramarine blue is the Author's preferred color, but this is a preference
+     rather than a strict requirement: any historically attested ink technique is
+     acceptable, and ordinary modern ink on the required parchment still counts as
+     conforming, provided requirements 1 and 2 are met.
+
+  4. Content. The letter should identify who You are, what You intend to build or sell,
+     and how the Software or Derivative Work will be used commercially.
+
+The letter must be sent by physical post to an address the Author makes available for
+this purpose. There is no prescribed minimum length or literary standard, but the Latin
+must be intelligible as prose to a competent reader.
+
+
+V. Grant or Denial of Commercial Permission
+
+Upon receipt of a conforming letter, the Author may, at their sole discretion:
+  - grant permission for the specific Commercial Use described, with or without
+    additional terms (including royalties, attribution, or a separate written agreement);
+  - deny permission; or
+  - not respond.
+
+Silence does not constitute consent. Permission, if granted, applies only to the
+Commercial Use described in the letter unless the Author states otherwise in writing.
+
+This process exists both as a genuine permission mechanism and for the Author's amusement.
+Both are equally sincere.
+
+
+VI. No Warranty
+
+The Software is provided "as is", without warranty of any kind, express or implied,
+including but not limited to the warranties of merchantability, fitness for a particular
+purpose, and non-infringement. In no event shall the Author be liable for any claim,
+damages, or other liability arising from the Software or its use.
+
+
+VII. Author's Own Rights
+
+Nothing in this license restricts the Author's own use of the Software. The Author may
+use, relicense, sublicense, or sell the Software — including under different terms to
+different parties — at any time, without needing to comply with the letter requirement
+themselves.
+
+
+VIII. Severability
+
+If any provision of this license is found unenforceable, the remaining provisions remain
+in full force, and the unenforceable provision shall be interpreted to achieve its intent
+as closely as possible within the law.
+
+--------------------------------------------------------------------------------
+Copyright © 2026 Nelson Casanova.
+AEUPL-1.2 is an original license, not affiliated with or derived from the European Union or the EUPL.
+
+Vale.
+
+To send a letter of request, write to the Author. Letters not meeting the requirements
+in Section IV will not be considered a conforming request.
