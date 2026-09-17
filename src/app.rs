@@ -5,19 +5,41 @@ use crate::components::identity_bar::identity_bar;
 use crate::components::palette::palette_overlay;
 use crate::components::sidebar::sidebar;
 use crate::components::stat_strip::stat_strip;
-use crate::components::titlebar::{titlebar, ServerTab};
+use crate::components::titlebar::{burger_menu_overlay, titlebar, ServerTab};
 use crate::views::config::managed_files::managed_files_rail;
 use crate::views::config::pending_diff_rail::pending_diff_rail;
 use crate::views::config::rules_editor::{default_hba_rules, rules_editor, HbaRuleDef};
+use crate::views::fleet::{fleet_overview_view, fleet_setup_view};
+use crate::views::onboard::onboard_view;
 use crate::views::overview::log_tail::log_tail;
 use crate::views::overview::services_table::{default_services, services_table, ServiceUnit};
+use crate::views::settings::settings_view;
 
 use crow_config_core::edit::ConfigDocument;
 use crow_config_core::ConfigPlugin;
 use crow_config_schemas::PgHbaPlugin;
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Screen {
+    Server,
+    Fleet,
+    Settings,
+    Onboard,
+    FleetSetup,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SettingsSection {
+    Connection,
+    General,
+    Keys,
+}
+
 pub struct CrowApp {
     focus_handle: FocusHandle,
+    pub screen: Screen,
+    pub menu_open: bool,
+    pub settings_section: SettingsSection,
     pub active_tab_id: String,
     pub active_view: String,
     pub active_services_tab: String,
@@ -53,6 +75,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
 
         Self {
             focus_handle: cx.focus_handle(),
+            screen: Screen::Server,
+            menu_open: false,
+            settings_section: SettingsSection::Connection,
             active_tab_id: "edge-01".to_string(),
             active_view: "overview".to_string(),
             active_services_tab: "services".to_string(),
@@ -70,8 +95,36 @@ host    all             all             10.0.4.0/24             scram-sha-256
         }
     }
 
+    pub fn set_screen(&mut self, screen: Screen, cx: &mut Context<Self>) {
+        self.screen = screen;
+        self.menu_open = false;
+        self.palette_open = false;
+        cx.notify();
+    }
+
+    pub fn toggle_menu(&mut self, cx: &mut Context<Self>) {
+        self.menu_open = !self.menu_open;
+        if self.menu_open {
+            self.palette_open = false;
+        }
+        cx.notify();
+    }
+
+    pub fn close_menu(&mut self, cx: &mut Context<Self>) {
+        self.menu_open = false;
+        cx.notify();
+    }
+
+    pub fn set_settings_section(&mut self, section: SettingsSection, cx: &mut Context<Self>) {
+        self.settings_section = section;
+        cx.notify();
+    }
+
     pub fn toggle_palette(&mut self, cx: &mut Context<Self>) {
         self.palette_open = !self.palette_open;
+        if self.palette_open {
+            self.menu_open = false;
+        }
         cx.notify();
     }
 
@@ -100,6 +153,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
 
     pub fn switch_tab(&mut self, tab_id: &str, cx: &mut Context<Self>) {
         self.active_tab_id = tab_id.to_string();
+        self.screen = Screen::Server;
         cx.notify();
     }
 
@@ -159,26 +213,45 @@ impl Render for CrowApp {
         let is_overview = self.active_view == "overview";
         let is_config = self.active_view == "config";
         let palette_open = self.palette_open;
+        let menu_open = self.menu_open;
+        let screen = self.screen;
         let app_view = cx.entity();
 
         div()
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(|this, ev: &KeyDownEvent, _window, cx| {
+                let is_mod = ev.keystroke.modifiers.platform || ev.keystroke.modifiers.control;
+                let key = ev.keystroke.key.to_lowercase();
+
                 if ev.keystroke.key == "escape" {
-                    if this.palette_open {
+                    if this.menu_open {
+                        this.menu_open = false;
+                        cx.notify();
+                    } else if this.palette_open {
                         this.palette_open = false;
                         cx.notify();
+                    } else if this.screen != Screen::Server && this.screen != Screen::Fleet {
+                        this.set_screen(Screen::Fleet, cx);
                     }
-                } else if ev.keystroke.key.to_lowercase() == "k"
-                    && (ev.keystroke.modifiers.platform || ev.keystroke.modifiers.control)
-                {
-                    this.palette_open = !this.palette_open;
-                    cx.notify();
-                } else if ev.keystroke.key == "\\"
-                    && (ev.keystroke.modifiers.platform || ev.keystroke.modifiers.control)
-                {
+                } else if key == "k" && is_mod {
+                    this.toggle_palette(cx);
+                } else if key == "\\" && is_mod {
                     this.sidebar_collapsed = !this.sidebar_collapsed;
                     cx.notify();
+                } else if key == "1" && is_mod {
+                    this.set_screen(Screen::Fleet, cx);
+                } else if key == "2" && is_mod {
+                    this.set_screen(Screen::Server, cx);
+                    this.set_view("overview", cx);
+                } else if key == "3" && is_mod {
+                    this.set_screen(Screen::Server, cx);
+                    this.set_view("config", cx);
+                } else if key == "," && is_mod {
+                    this.set_screen(Screen::Settings, cx);
+                } else if key == "n" && is_mod {
+                    this.set_screen(Screen::Onboard, cx);
+                } else if key == "f" && is_mod && ev.keystroke.modifiers.shift {
+                    this.set_screen(Screen::FleetSetup, cx);
                 }
             }))
             .size_full()
@@ -193,97 +266,146 @@ impl Render for CrowApp {
             .border_color(BORDER_DEFAULT)
             .relative()
             // 1. Frameless Titlebar
-            .child(titlebar(&self.tabs, &self.active_tab_id, app_view.clone()))
-            // 2. Identity Bar
-            .child(identity_bar(app_view.clone()))
-            // 3. Stat Strip
-            .child(stat_strip())
-            // 4. Main Body Grid: Sidebar + Content
+            .child(titlebar(
+                &self.tabs,
+                &self.active_tab_id,
+                self.screen,
+                self.menu_open,
+                app_view.clone(),
+            ))
+            // 2. Main Screen Area
             .child(
                 div()
                     .flex_1()
                     .min_h(px(0.0))
                     .flex()
+                    .flex_col()
                     .w_full()
-                    // Sidebar
-                    .child(sidebar(&self.active_view, self.sidebar_collapsed, app_view.clone()))
-                    // Content Area (Overview or Config)
-                    .child(
-                        div()
-                            .flex_1()
-                            .min_w(px(0.0))
-                            .h_full()
-                            .flex()
-                            .children(if is_overview {
-                                Some(
+                    .children(match screen {
+                        Screen::Server => Some(
+                            div()
+                                .size_full()
+                                .flex()
+                                .flex_col()
+                                // Server Identity Bar
+                                .child(identity_bar(app_view.clone()))
+                                // Server Stat Strip
+                                .child(stat_strip())
+                                // Main Server Body: Sidebar + Content
+                                .child(
                                     div()
-                                        .size_full()
+                                        .flex_1()
+                                        .min_h(px(0.0))
                                         .flex()
-                                        .child(services_table(&self.services, &self.active_services_tab, app_view.clone()))
-                                        .child(log_tail())
-                                )
-                            } else if is_config {
-                                Some(
-                                    div()
-                                        .size_full()
-                                        .flex()
-                                        .child(managed_files_rail())
-                                        .child(rules_editor(&self.hba_rules, app_view.clone()))
-                                        .child(pending_diff_rail())
-                                )
-                            } else if self.active_view == "logs" {
-                                Some(
-                                    div()
-                                        .size_full()
-                                        .flex()
-                                        .child(log_tail())
-                                )
-                            } else {
-                                Some(
-                                    div()
-                                        .size_full()
-                                        .flex()
-                                        .flex_col()
-                                        .bg(BG_APP)
-                                        .child(
-                                            div()
-                                                .h(px(34.0))
-                                                .flex_none()
-                                                .flex()
-                                                .items_center()
-                                                .px(px(12.0))
-                                                .bg(BG_PANEL)
-                                                .border_b_1()
-                                                .border_color(BORDER_PANEL)
-                                                .child(
-                                                    div()
-                                                        .font_family(FONT_MONO)
-                                                        .text_size(px(11.0))
-                                                        .font_weight(FontWeight::SEMIBOLD)
-                                                        .text_color(TEXT_PRIMARY)
-                                                        .child(self.active_view.to_uppercase()),
-                                                ),
-                                        )
+                                        .w_full()
+                                        // Sidebar
+                                        .child(sidebar(&self.active_view, self.sidebar_collapsed, app_view.clone()))
+                                        // Content Area (Overview or Config or other server view)
                                         .child(
                                             div()
                                                 .flex_1()
+                                                .min_w(px(0.0))
+                                                .h_full()
                                                 .flex()
-                                                .items_center()
-                                                .justify_center()
-                                                .gap(px(8.0))
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(11.5))
-                                                .text_color(TEXT_FAINT)
-                                                .child(div().size(px(6.0)).rounded_full().bg(OK))
-                                                .child(format!("{} · agent discovery stream pending", self.active_view)),
+                                                .children(if is_overview {
+                                                    Some(
+                                                        div()
+                                                            .size_full()
+                                                            .flex()
+                                                            .child(services_table(&self.services, &self.active_services_tab, app_view.clone()))
+                                                            .child(log_tail())
+                                                    )
+                                                } else if is_config {
+                                                    Some(
+                                                        div()
+                                                            .size_full()
+                                                            .flex()
+                                                            .child(managed_files_rail())
+                                                            .child(rules_editor(&self.hba_rules, app_view.clone()))
+                                                            .child(pending_diff_rail())
+                                                    )
+                                                } else if self.active_view == "logs" {
+                                                    Some(
+                                                        div()
+                                                            .size_full()
+                                                            .flex()
+                                                            .child(log_tail())
+                                                    )
+                                                } else {
+                                                    Some(
+                                                        div()
+                                                            .size_full()
+                                                            .flex()
+                                                            .flex_col()
+                                                            .bg(BG_APP)
+                                                            .child(
+                                                                div()
+                                                                    .h(px(34.0))
+                                                                    .flex_none()
+                                                                    .flex()
+                                                                    .items_center()
+                                                                    .px(px(12.0))
+                                                                    .bg(BG_PANEL)
+                                                                    .border_b_1()
+                                                                    .border_color(BORDER_PANEL)
+                                                                    .child(
+                                                                        div()
+                                                                            .font_family(FONT_MONO)
+                                                                            .text_size(px(11.0))
+                                                                            .font_weight(FontWeight::SEMIBOLD)
+                                                                            .text_color(TEXT_PRIMARY)
+                                                                            .child(self.active_view.to_uppercase()),
+                                                                    ),
+                                                            )
+                                                            .child(
+                                                                div()
+                                                                    .flex_1()
+                                                                    .flex()
+                                                                    .items_center()
+                                                                    .justify_center()
+                                                                    .gap(px(8.0))
+                                                                    .font_family(FONT_MONO)
+                                                                    .text_size(px(11.5))
+                                                                    .text_color(TEXT_FAINT)
+                                                                    .child(div().size(px(6.0)).rounded_full().bg(OK))
+                                                                    .child(format!("{} · agent discovery stream pending", self.active_view)),
+                                                            ),
+                                                    )
+                                                })
                                         ),
                                 )
-                            })
-                    ),
+                                // Persistent Danger Zone Strip
+                                .child(danger_zone()),
+                        ),
+                        Screen::Fleet => Some(
+                            div()
+                                .size_full()
+                                .child(fleet_overview_view(app_view.clone())),
+                        ),
+                        Screen::Settings => Some(
+                            div()
+                                .size_full()
+                                .child(settings_view(app_view.clone(), self.settings_section)),
+                        ),
+                        Screen::Onboard => Some(
+                            div()
+                                .size_full()
+                                .child(onboard_view(app_view.clone())),
+                        ),
+                        Screen::FleetSetup => Some(
+                            div()
+                                .size_full()
+                                .child(fleet_setup_view(app_view.clone())),
+                        ),
+                    }),
             )
-            // 5. Persistent Danger Zone Strip
-            .child(danger_zone())
-            // 6. Command Palette Overlay (⌘K)
+            // 3. Burger Menu Overlay
+            .children(if menu_open {
+                Some(burger_menu_overlay(app_view.clone(), self.screen))
+            } else {
+                None
+            })
+            // 4. Command Palette Overlay (⌘K)
             .children(if palette_open {
                 Some(palette_overlay(app_view.clone()))
             } else {
