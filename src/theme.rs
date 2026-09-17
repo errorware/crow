@@ -1,0 +1,76 @@
+#![allow(dead_code)]
+use gpui_kit::Rgba;
+
+pub const fn hex_rgb(hex: u32) -> Rgba {
+    let r = ((hex >> 16) & 0xFF) as f32 / 255.0;
+    let g = ((hex >> 8) & 0xFF) as f32 / 255.0;
+    let b = (hex & 0xFF) as f32 / 255.0;
+    Rgba { r, g, b, a: 1.0 }
+}
+
+pub const fn hex_rgba(hex: u32, a: f32) -> Rgba {
+    let r = ((hex >> 16) & 0xFF) as f32 / 255.0;
+    let g = ((hex >> 8) & 0xFF) as f32 / 255.0;
+    let b = (hex & 0xFF) as f32 / 255.0;
+    Rgba { r, g, b, a }
+}
+
+// Surfaces
+pub const BG_WINDOW: Rgba = hex_rgb(0x050507);
+pub const BG_APP: Rgba = hex_rgb(0x0a0a0c);
+pub const BG_CHROME: Rgba = hex_rgb(0x07070a);
+pub const BG_PANEL: Rgba = hex_rgb(0x0b0b0e);
+pub const BG_RAIL: Rgba = hex_rgb(0x08080b);
+pub const BG_SUBHEAD: Rgba = hex_rgb(0x0c0c10);
+pub const BG_ROW_ALT: Rgba = hex_rgb(0x0b0b0e);
+pub const BG_ROW_HOVER: Rgba = hex_rgb(0x101116);
+pub const BG_ROW_SELECTED: Rgba = hex_rgb(0x15161b);
+pub const BG_NAV_ACTIVE: Rgba = hex_rgb(0x131419);
+pub const BG_OVERLAY_PANEL: Rgba = hex_rgb(0x0d0e12);
+pub const BG_CONTROL: Rgba = hex_rgb(0x15161b);
+pub const BG_CONTROL_ALT: Rgba = hex_rgb(0x1a1b21);
+pub const BG_CHIP: Rgba = hex_rgb(0x1e1f25);
+pub const BG_KEY: Rgba = hex_rgb(0x181920);
+
+// Borders
+pub const BORDER_STRONG: Rgba = hex_rgb(0x2c2d35);
+pub const BORDER_DEFAULT: Rgba = hex_rgb(0x23242b);
+pub const BORDER_PANEL: Rgba = hex_rgb(0x1c1d22);
+pub const BORDER_ROW: Rgba = hex_rgb(0x101116);
+pub const BORDER_KEY: Rgba = hex_rgb(0x26272e);
+pub const BORDER_CONTROL_SEL: Rgba = hex_rgb(0x3a3c46);
+pub const BORDER_DANGER: Rgba = hex_rgb(0x2a1214);
+pub const BORDER_DANGER_BTN: Rgba = hex_rgb(0x3a1a1d);
+pub const BORDER_DANGER_SEL: Rgba = hex_rgb(0x5a2024);
+
+// Text
+pub const TEXT_MAX: Rgba = hex_rgb(0xffffff);
+pub const TEXT_PRIMARY: Rgba = hex_rgb(0xe6e7ea);
+pub const TEXT_SECONDARY: Rgba = hex_rgb(0xc9cbd2);
+pub const TEXT_TERTIARY: Rgba = hex_rgb(0x9a9da6);
+pub const TEXT_MUTED: Rgba = hex_rgb(0x8a8d96);
+pub const TEXT_DIM: Rgba = hex_rgb(0x7a7d86);
+pub const TEXT_DIMMER: Rgba = hex_rgb(0x6c6f78);
+pub const TEXT_FAINT: Rgba = hex_rgb(0x5a5d66);
+pub const TEXT_FAINTER: Rgba = hex_rgb(0x4c4f58);
+pub const TEXT_GHOST: Rgba = hex_rgb(0x3b3c42);
+
+// Semantic Signals
+pub const OK: Rgba = hex_rgb(0x3ecf6e);
+pub const WARN: Rgba = hex_rgb(0xe0a020);
+pub const CRIT: Rgba = hex_rgb(0xe5484d);
+
+pub const OK_BG: Rgba = hex_rgb(0x16301f);
+pub const WARN_BG: Rgba = hex_rgb(0x2e2210);
+pub const CRIT_BG: Rgba = hex_rgb(0x2e1114);
+pub const CRIT_ROW_BG: Rgba = hex_rgb(0x140d0e);
+pub const CRIT_LOG_BG: Rgba = hex_rgb(0x120c0d);
+pub const CRIT_STRIP_BG: Rgba = hex_rgb(0x0c0809);
+pub const CRIT_INK: Rgba = hex_rgb(0xf0b5b7);
+pub const CRIT_INK_DIM: Rgba = hex_rgb(0xc1898b);
+pub const WARN_INK: Rgba = hex_rgb(0xe6cfa3);
+pub const OK_INK: Rgba = hex_rgb(0xa8e0bf);
+
+pub const DIFF_DEL_BG: Rgba = hex_rgb(0x150e0f);
+pub const DIFF_ADD_BG: Rgba = hex_rgb(0x0d1611);
+pub const DIFF_HUNK_BG: Rgba = hex_rgb(0x101116);
