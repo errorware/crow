@@ -32,6 +32,7 @@ fn main() {
                     appears_transparent: true,
                     traffic_light_position: None,
                 });
+                options.window_decorations = Some(WindowDecorations::Client);
             }
             options.is_resizable = true;
             options.is_minimizable = true;
