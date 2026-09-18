@@ -1,10 +1,62 @@
-/target
-**/*.rs.bk
-.DS_Store
+# AI & agent tooling — local dev aids, not for distribution
+.agents/
+.aider*
+.claude/
+.claude.json
+.clinerules/
+.codeium/
+.continue/
+.cursor/
+.cursorignore
+.cursorrules
+.github/copilot-instructions.md
+.windsurf/
+AGENTS.md
+CLAUDE.local.md
+CLAUDE.md
+GEMINI.md
 
-# Untracked design handoff and mockups
-design_handoff_crow_control_panel/
+# Backup & swap files
+**/*.rs.bk
+*.bak
+*.orig
+*.rej
+*.swn
+*.swo
+*.swp
+*~
+
+# Build artifacts
+/target
+
+# Editors & IDEs
+*.iml
+.fleet/
+.idea/
+.vscode/
+.zed/
+
+# Environment & secrets
+*.p12
+*.pem
+*.pfx
+.env
+.env.*
+.envrc
+
+# Internal docs & design handoff — ours, not the world
 *.dc.html
 CROW.md
-*.bak
-.idea/
+design_handoff_crow_control_panel/
+
+# Logs
+*.log
+
+# OS files
+._*
+.DS_Store
+.Spotlight-V100
+.Trashes
+Desktop.ini
+Thumbs.db
+ehthumbs.db
