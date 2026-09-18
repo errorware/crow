@@ -1,14 +1,28 @@
 use gpui_kit::*;
 use crate::theme::*;
 
+/// Compute character index from local X coordinate within the text content area.
+pub fn char_index_from_x(local_x: f32, text_size_px: f32, total_chars: usize) -> usize {
+    if local_x <= 0.0 || total_chars == 0 {
+        return 0;
+    }
+    let char_w = text_size_px * 0.6;
+    if char_w <= 0.0 {
+        return 0;
+    }
+    let idx = (local_x / char_w).round() as usize;
+    idx.min(total_chars)
+}
+
 /// Render a terminal-style text input box adhering to the Obsidian Edge aesthetic.
 /// Features:
 /// - I-beam cursor styling on hover (`cursor_text()`)
 /// - High-contrast focus border (`OK` emerald) and subtle background elevation on focus
 /// - Dedicated blinking terminal insertion caret (`OK` emerald)
 /// - Evident text selection highlighting with translucent cyan background
+/// - Mouse click-drag selection, click-to-position caret, and double-click select all
 /// - Ghost placeholder styling (`TEXT_FAINTER`) when value is empty
-pub fn terminal_text_input(
+pub fn terminal_text_input<F>(
     id: impl Into<ElementId>,
     value: &str,
     placeholder: &str,
@@ -16,8 +30,13 @@ pub fn terminal_text_input(
     is_password: bool,
     cursor_pos: usize,
     selection: Option<(usize, usize)>,
+    drag_anchor: Option<usize>,
     cursor_visible: bool,
-) -> Stateful<Div> {
+    on_change: F,
+) -> Stateful<Div>
+where
+    F: Fn(usize, Option<usize>, Option<(usize, usize)>, &mut Window, &mut App) + 'static + Clone,
+{
     terminal_text_input_styled(
         id,
         value,
@@ -28,12 +47,14 @@ pub fn terminal_text_input(
         12.0,
         cursor_pos,
         selection,
+        drag_anchor,
         cursor_visible,
+        on_change,
     )
 }
 
 /// Render a terminal text input with custom height and text size.
-pub fn terminal_text_input_styled(
+pub fn terminal_text_input_styled<F>(
     id: impl Into<ElementId>,
     value: &str,
     placeholder: &str,
@@ -43,8 +64,13 @@ pub fn terminal_text_input_styled(
     text_size_px: f32,
     cursor_pos: usize,
     selection: Option<(usize, usize)>,
+    drag_anchor: Option<usize>,
     cursor_visible: bool,
-) -> Stateful<Div> {
+    on_change: F,
+) -> Stateful<Div>
+where
+    F: Fn(usize, Option<usize>, Option<(usize, usize)>, &mut Window, &mut App) + 'static + Clone,
+{
     let caret_height = (height_px * 0.48).round().max(12.0);
 
     let chars: Vec<char> = if is_password {
@@ -117,11 +143,19 @@ pub fn terminal_text_input_styled(
                         .child(before),
                 );
             }
+            if cursor_visible && cursor_pos <= s {
+                row = row.child(
+                    div()
+                        .w(px(2.0))
+                        .h(px(caret_height))
+                        .bg(OK)
+                        .mr(px(0.5)),
+                );
+            }
             row = row.child(
                 div()
                     .bg(hex_rgba(0x38bdf8, 0.35)) // Translucent vibrant cyan highlight
                     .rounded(px(2.0))
-                    .px(px(2.0))
                     .child(
                         div()
                             .font_family(FONT_MONO)
@@ -131,6 +165,15 @@ pub fn terminal_text_input_styled(
                             .child(selected),
                     ),
             );
+            if cursor_visible && cursor_pos >= e {
+                row = row.child(
+                    div()
+                        .w(px(2.0))
+                        .h(px(caret_height))
+                        .bg(OK)
+                        .ml(px(0.5)),
+                );
+            }
             if !after.is_empty() {
                 row = row.child(
                     div()
@@ -138,15 +181,6 @@ pub fn terminal_text_input_styled(
                         .text_size(px(text_size_px))
                         .text_color(TEXT_MAX)
                         .child(after),
-                );
-            }
-            if cursor_visible {
-                row = row.child(
-                    div()
-                        .w(px(2.0))
-                        .h(px(caret_height))
-                        .bg(OK)
-                        .ml(px(1.0)),
                 );
             }
             row
@@ -185,6 +219,8 @@ pub fn terminal_text_input_styled(
         }
     };
 
+    let origin_x_cell = std::rc::Rc::new(std::cell::Cell::new(0.0f32));
+
     div()
         .id(id)
         .h(px(height_px))
@@ -195,7 +231,69 @@ pub fn terminal_text_input_styled(
         .cursor_text()
         .flex()
         .items_center()
+        .relative()
+        .child(
+            canvas(
+                {
+                    let cell = origin_x_cell.clone();
+                    move |bounds, _window, _cx| {
+                        cell.set(bounds.origin.x / px(1.0));
+                    }
+                },
+                |_bounds, (), _window, _cx| {},
+            )
+            .w(px(0.0))
+            .h(px(0.0))
+            .absolute(),
+        )
         .child(inner_content)
+        .on_mouse_down(MouseButton::Left, {
+            let origin_cell = origin_x_cell.clone();
+            let on_change = on_change.clone();
+            move |ev, window, cx| {
+                let origin_x = origin_cell.get();
+                let text_x = (ev.position.x / px(1.0) - origin_x) - 11.0;
+                let idx = char_index_from_x(text_x, text_size_px, len);
+                if ev.click_count >= 2 {
+                    on_change(len, None, if len > 0 { Some((0, len)) } else { None }, window, cx);
+                } else {
+                    on_change(idx, Some(idx), None, window, cx);
+                }
+            }
+        })
+        .on_mouse_move({
+            let origin_cell = origin_x_cell.clone();
+            let on_change = on_change.clone();
+            move |ev, window, cx| {
+                if let Some(anchor) = drag_anchor {
+                    let origin_x = origin_cell.get();
+                    let text_x = (ev.position.x / px(1.0) - origin_x) - 11.0;
+                    let cur_idx = char_index_from_x(text_x, text_size_px, len);
+                    let sel = if cur_idx == anchor {
+                        None
+                    } else {
+                        Some((anchor.min(cur_idx), anchor.max(cur_idx)))
+                    };
+                    on_change(cur_idx, Some(anchor), sel, window, cx);
+                }
+            }
+        })
+        .on_mouse_up(MouseButton::Left, {
+            let on_change = on_change.clone();
+            move |_ev, window, cx| {
+                if drag_anchor.is_some() {
+                    on_change(cursor_pos, None, selection, window, cx);
+                }
+            }
+        })
+        .on_mouse_up_out(MouseButton::Left, {
+            let on_change = on_change;
+            move |_ev, window, cx| {
+                if drag_anchor.is_some() {
+                    on_change(cursor_pos, None, selection, window, cx);
+                }
+            }
+        })
 }
 
 /// Centralized keyboard handler for terminal text inputs.
@@ -585,5 +683,25 @@ mod tests {
         let ev = make_event("end", false, false);
         assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
         assert_eq!(cursor, 6);
+    }
+
+    #[test]
+    fn test_char_index_from_x() {
+        // Font size 10.0 => char_w = 6.0px per monospaced character
+        assert_eq!(char_index_from_x(-10.0, 10.0, 5), 0);
+        assert_eq!(char_index_from_x(0.0, 10.0, 5), 0);
+        assert_eq!(char_index_from_x(2.9, 10.0, 5), 0);
+        assert_eq!(char_index_from_x(3.1, 10.0, 5), 1);
+        assert_eq!(char_index_from_x(6.0, 10.0, 5), 1);
+        assert_eq!(char_index_from_x(8.9, 10.0, 5), 1);
+        assert_eq!(char_index_from_x(9.1, 10.0, 5), 2);
+        assert_eq!(char_index_from_x(30.0, 10.0, 5), 5);
+        assert_eq!(char_index_from_x(150.0, 10.0, 5), 5);
+
+        // Empty string
+        assert_eq!(char_index_from_x(50.0, 10.0, 0), 0);
+
+        // Invalid font size
+        assert_eq!(char_index_from_x(50.0, 0.0, 5), 0);
     }
 }

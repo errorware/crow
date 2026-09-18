@@ -98,6 +98,7 @@ pub struct CrowApp {
     pub cursor_blink: bool,
     pub input_cursor: usize,
     pub input_selection: Option<(usize, usize)>,
+    pub input_drag_anchor: Option<usize>,
     pub _cursor_blink_task: Task<()>,
 }
 
@@ -222,6 +223,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
             cursor_blink: true,
             input_cursor: 0,
             input_selection: None,
+            input_drag_anchor: None,
             _cursor_blink_task: cx.spawn(async move |entity, cx| {
                 loop {
                     cx.background_executor().timer(std::time::Duration::from_millis(530)).await;
@@ -842,6 +844,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
             OnboardFieldFocus::None => 0,
         };
         self.cursor_blink = true;
+        self.input_drag_anchor = None;
         if select_all && text_len > 0 {
             self.input_selection = Some((0, text_len));
             self.input_cursor = text_len;
@@ -1467,6 +1470,12 @@ impl Render for CrowApp {
                     this.start_onboarding(cx);
                 } else if key == "f" && is_mod && is_shift {
                     this.set_screen(Screen::FleetSetup, cx);
+                }
+            }))
+            .on_mouse_up(MouseButton::Left, cx.listener(|this, _ev: &MouseUpEvent, _window, cx| {
+                if this.input_drag_anchor.is_some() {
+                    this.input_drag_anchor = None;
+                    cx.notify();
                 }
             }))
             .size_full()

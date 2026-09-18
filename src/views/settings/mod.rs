@@ -992,30 +992,33 @@ pub fn settings_view(
                                                                          11.0,
                                                                          app_data.input_cursor,
                                                                          app_data.input_selection,
+                                                                         app_data.input_drag_anchor,
                                                                          app_data.cursor_blink,
+                                                                         {
+                                                                             let app = app_custom;
+                                                                             move |cursor, anchor, selection, _window, cx| {
+                                                                                 app.update(cx, |this, cx| {
+                                                                                     this.input_cursor = cursor;
+                                                                                     this.input_drag_anchor = anchor;
+                                                                                     this.input_selection = selection;
+                                                                                     this.cursor_blink = true;
+                                                                                     cx.notify();
+                                                                                 });
+                                                                             }
+                                                                         },
                                                                      )
-                                                                     .on_click(move |ev, _window, cx| {
-                                                                         let select_all = ev.click_count() >= 2;
-                                                                         app_custom.update(cx, |this, cx| {
-                                                                             let len = this.settings_custom_input.chars().count();
-                                                                             this.input_cursor = len;
-                                                                             this.input_selection = if select_all && len > 0 { Some((0, len)) } else { None };
-                                                                             this.cursor_blink = true;
-                                                                             cx.notify();
-                                                                         });
-                                                                     })
-                                                                        .children(if !unit_str.is_empty() {
-                                                                            Some(
-                                                                                div()
-                                                                                    .font_family(FONT_MONO)
-                                                                                    .text_size(px(10.0))
-                                                                                    .text_color(TEXT_FAINT)
-                                                                                    .child(unit_str),
-                                                                            )
-                                                                        } else {
-                                                                            None
-                                                                        }),
-                                                                )
+                                                                     .children(if !unit_str.is_empty() {
+                                                                         Some(
+                                                                             div()
+                                                                                 .font_family(FONT_MONO)
+                                                                                 .text_size(px(10.0))
+                                                                                 .text_color(TEXT_FAINT)
+                                                                                 .child(unit_str),
+                                                                         )
+                                                                     } else {
+                                                                         None
+                                                                     }),
+                                                                 )
                                                                 // Apply Button
                                                                 .child(
                                                                     div()

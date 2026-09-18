@@ -205,19 +205,22 @@ pub fn vault_lock_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoEle
                                         13.0,
                                         if is_pwd_focused { app_data.input_cursor } else { 0 },
                                         if is_pwd_focused { app_data.input_selection } else { None },
+                                        if is_pwd_focused { app_data.input_drag_anchor } else { None },
                                         app_data.cursor_blink,
-                                    )
-                                    .on_click(move |ev, _window, cx| {
-                                        let select_all = ev.click_count() >= 2;
-                                        app_pwd_focus.update(cx, |this, cx| {
-                                            this.lock_state.active_focus = LockFieldFocus::Password;
-                                            let len = this.lock_state.password_input.chars().count();
-                                            this.input_cursor = len;
-                                            this.input_selection = if select_all && len > 0 { Some((0, len)) } else { None };
-                                            this.cursor_blink = true;
-                                            cx.notify();
-                                        });
-                                    }),
+                                        {
+                                            let app = app_pwd_focus;
+                                            move |cursor, anchor, selection, _window, cx| {
+                                                app.update(cx, |this, cx| {
+                                                    this.lock_state.active_focus = LockFieldFocus::Password;
+                                                    this.input_cursor = cursor;
+                                                    this.input_drag_anchor = anchor;
+                                                    this.input_selection = selection;
+                                                    this.cursor_blink = true;
+                                                    cx.notify();
+                                                });
+                                            }
+                                        },
+                                    ),
                                 ),
                         )
                         // TOTP Code input (always mandatory)
@@ -258,19 +261,22 @@ pub fn vault_lock_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoEle
                                         13.0,
                                         if is_totp_focused { app_data.input_cursor } else { 0 },
                                         if is_totp_focused { app_data.input_selection } else { None },
+                                        if is_totp_focused { app_data.input_drag_anchor } else { None },
                                         app_data.cursor_blink,
-                                    )
-                                    .on_click(move |ev, _window, cx| {
-                                        let select_all = ev.click_count() >= 2;
-                                        app_totp_focus.update(cx, |this, cx| {
-                                            this.lock_state.active_focus = LockFieldFocus::Totp;
-                                            let len = this.lock_state.totp_input.chars().count();
-                                            this.input_cursor = len;
-                                            this.input_selection = if select_all && len > 0 { Some((0, len)) } else { None };
-                                            this.cursor_blink = true;
-                                            cx.notify();
-                                        });
-                                    }),
+                                        {
+                                            let app = app_totp_focus;
+                                            move |cursor, anchor, selection, _window, cx| {
+                                                app.update(cx, |this, cx| {
+                                                    this.lock_state.active_focus = LockFieldFocus::Totp;
+                                                    this.input_cursor = cursor;
+                                                    this.input_drag_anchor = anchor;
+                                                    this.input_selection = selection;
+                                                    this.cursor_blink = true;
+                                                    cx.notify();
+                                                });
+                                            }
+                                        },
+                                    ),
                                 ),
                         )
                         // Bottom submit row

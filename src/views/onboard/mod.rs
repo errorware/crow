@@ -412,14 +412,22 @@ fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                         false,
                         if is_host_focused { app_data.input_cursor } else { 0 },
                         if is_host_focused { app_data.input_selection } else { None },
+                        if is_host_focused { app_data.input_drag_anchor } else { None },
                         app_data.cursor_blink,
-                    )
-                    .on_click(move |ev, _window, cx| {
-                        let select_all = ev.click_count() >= 2;
-                        app_host.update(cx, |this, cx| {
-                            this.onboard_set_focus_select(OnboardFieldFocus::Host, select_all, cx);
-                        });
-                    }),
+                        {
+                            let app = app_host;
+                            move |cursor, anchor, selection, _window, cx| {
+                                app.update(cx, |this, cx| {
+                                    this.onboard_state.focus = OnboardFieldFocus::Host;
+                                    this.input_cursor = cursor;
+                                    this.input_drag_anchor = anchor;
+                                    this.input_selection = selection;
+                                    this.cursor_blink = true;
+                                    cx.notify();
+                                });
+                            }
+                        },
+                    ),
                 )
                 .child(
                     div()
@@ -452,15 +460,23 @@ fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                         false,
                         if is_port_focused { app_data.input_cursor } else { 0 },
                         if is_port_focused { app_data.input_selection } else { None },
+                        if is_port_focused { app_data.input_drag_anchor } else { None },
                         app_data.cursor_blink,
+                        {
+                            let app = app_port;
+                            move |cursor, anchor, selection, _window, cx| {
+                                app.update(cx, |this, cx| {
+                                    this.onboard_state.focus = OnboardFieldFocus::Port;
+                                    this.input_cursor = cursor;
+                                    this.input_drag_anchor = anchor;
+                                    this.input_selection = selection;
+                                    this.cursor_blink = true;
+                                    cx.notify();
+                                });
+                            }
+                        },
                     )
-                    .w(px(120.0))
-                    .on_click(move |ev, _window, cx| {
-                        let select_all = ev.click_count() >= 2;
-                        app_port.update(cx, |this, cx| {
-                            this.onboard_set_focus_select(OnboardFieldFocus::Port, select_all, cx);
-                        });
-                    }),
+                    .w(px(120.0)),
                 )
                 .child(
                     div()
@@ -530,14 +546,22 @@ fn render_step_credentials(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                         false,
                         if is_user_focused { app_data.input_cursor } else { 0 },
                         if is_user_focused { app_data.input_selection } else { None },
+                        if is_user_focused { app_data.input_drag_anchor } else { None },
                         app_data.cursor_blink,
-                    )
-                    .on_click(move |ev, _window, cx| {
-                        let select_all = ev.click_count() >= 2;
-                        app_user.update(cx, |this, cx| {
-                            this.onboard_set_focus_select(OnboardFieldFocus::User, select_all, cx);
-                        });
-                    }),
+                        {
+                            let app = app_user;
+                            move |cursor, anchor, selection, _window, cx| {
+                                app.update(cx, |this, cx| {
+                                    this.onboard_state.focus = OnboardFieldFocus::User;
+                                    this.input_cursor = cursor;
+                                    this.input_drag_anchor = anchor;
+                                    this.input_selection = selection;
+                                    this.cursor_blink = true;
+                                    cx.notify();
+                                });
+                            }
+                        },
+                    ),
                 )
                 .child(
                     div()
@@ -755,14 +779,22 @@ fn render_step_credentials(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                             true,
                             if is_pw_focused { app_data.input_cursor } else { 0 },
                             if is_pw_focused { app_data.input_selection } else { None },
+                            if is_pw_focused { app_data.input_drag_anchor } else { None },
                             app_data.cursor_blink,
-                        )
-                        .on_click(move |ev, _window, cx| {
-                            let select_all = ev.click_count() >= 2;
-                            app_pw.update(cx, |this, cx| {
-                                this.onboard_set_focus_select(OnboardFieldFocus::Password, select_all, cx);
-                            });
-                        }),
+                            {
+                                let app = app_pw;
+                                move |cursor, anchor, selection, _window, cx| {
+                                    app.update(cx, |this, cx| {
+                                        this.onboard_state.focus = OnboardFieldFocus::Password;
+                                        this.input_cursor = cursor;
+                                        this.input_drag_anchor = anchor;
+                                        this.input_selection = selection;
+                                        this.cursor_blink = true;
+                                        cx.notify();
+                                    });
+                                }
+                            },
+                        ),
                     ),
             )
         } else {
@@ -1081,14 +1113,22 @@ fn render_step_classify(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                         false,
                         if is_label_focused { app_data.input_cursor } else { 0 },
                         if is_label_focused { app_data.input_selection } else { None },
+                        if is_label_focused { app_data.input_drag_anchor } else { None },
                         app_data.cursor_blink,
-                    )
-                    .on_click(move |ev, _window, cx| {
-                        let select_all = ev.click_count() >= 2;
-                        app_label.update(cx, |this, cx| {
-                            this.onboard_set_focus_select(OnboardFieldFocus::Label, select_all, cx);
-                        });
-                    }),
+                        {
+                            let app = app_label;
+                            move |cursor, anchor, selection, _window, cx| {
+                                app.update(cx, |this, cx| {
+                                    this.onboard_state.focus = OnboardFieldFocus::Label;
+                                    this.input_cursor = cursor;
+                                    this.input_drag_anchor = anchor;
+                                    this.input_selection = selection;
+                                    this.cursor_blink = true;
+                                    cx.notify();
+                                });
+                            }
+                        },
+                    ),
                 )
                 .child(
                     div()
@@ -1295,14 +1335,22 @@ fn render_step_classify(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                         false,
                         if is_tags_focused { app_data.input_cursor } else { 0 },
                         if is_tags_focused { app_data.input_selection } else { None },
+                        if is_tags_focused { app_data.input_drag_anchor } else { None },
                         app_data.cursor_blink,
-                    )
-                    .on_click(move |ev, _window, cx| {
-                        let select_all = ev.click_count() >= 2;
-                        app_tags.update(cx, |this, cx| {
-                            this.onboard_set_focus_select(OnboardFieldFocus::Tags, select_all, cx);
-                        });
-                    }),
+                        {
+                            let app = app_tags;
+                            move |cursor, anchor, selection, _window, cx| {
+                                app.update(cx, |this, cx| {
+                                    this.onboard_state.focus = OnboardFieldFocus::Tags;
+                                    this.input_cursor = cursor;
+                                    this.input_drag_anchor = anchor;
+                                    this.input_selection = selection;
+                                    this.cursor_blink = true;
+                                    cx.notify();
+                                });
+                            }
+                        },
+                    ),
                 ),
         )
 }

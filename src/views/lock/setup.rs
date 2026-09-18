@@ -442,19 +442,22 @@ fn render_credentials_step(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                         13.0,
                                         if is_pwd_focused { app_data.input_cursor } else { 0 },
                                         if is_pwd_focused { app_data.input_selection } else { None },
+                                        if is_pwd_focused { app_data.input_drag_anchor } else { None },
                                         app_data.cursor_blink,
-                                    )
-                                    .on_click(move |ev, _window, cx| {
-                                        let select_all = ev.click_count() >= 2;
-                                        app_pwd_focus.update(cx, |this, cx| {
-                                            this.setup_state.active_focus = SetupFieldFocus::Password;
-                                            let len = this.setup_state.password_input.chars().count();
-                                            this.input_cursor = len;
-                                            this.input_selection = if select_all && len > 0 { Some((0, len)) } else { None };
-                                            this.cursor_blink = true;
-                                            cx.notify();
-                                        });
-                                    }),
+                                        {
+                                            let app = app_pwd_focus;
+                                            move |cursor, anchor, selection, _window, cx| {
+                                                app.update(cx, |this, cx| {
+                                                    this.setup_state.active_focus = SetupFieldFocus::Password;
+                                                    this.input_cursor = cursor;
+                                                    this.input_drag_anchor = anchor;
+                                                    this.input_selection = selection;
+                                                    this.cursor_blink = true;
+                                                    cx.notify();
+                                                });
+                                            }
+                                        },
+                                    ),
                                 ),
                         )
                         // Field 2: Confirm Password
@@ -482,19 +485,22 @@ fn render_credentials_step(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                         13.0,
                                         if is_confirm_focused { app_data.input_cursor } else { 0 },
                                         if is_confirm_focused { app_data.input_selection } else { None },
+                                        if is_confirm_focused { app_data.input_drag_anchor } else { None },
                                         app_data.cursor_blink,
-                                    )
-                                    .on_click(move |ev, _window, cx| {
-                                        let select_all = ev.click_count() >= 2;
-                                        app_confirm_focus.update(cx, |this, cx| {
-                                            this.setup_state.active_focus = SetupFieldFocus::ConfirmPassword;
-                                            let len = this.setup_state.confirm_input.chars().count();
-                                            this.input_cursor = len;
-                                            this.input_selection = if select_all && len > 0 { Some((0, len)) } else { None };
-                                            this.cursor_blink = true;
-                                            cx.notify();
-                                        });
-                                    }),
+                                        {
+                                            let app = app_confirm_focus;
+                                            move |cursor, anchor, selection, _window, cx| {
+                                                app.update(cx, |this, cx| {
+                                                    this.setup_state.active_focus = SetupFieldFocus::ConfirmPassword;
+                                                    this.input_cursor = cursor;
+                                                    this.input_drag_anchor = anchor;
+                                                    this.input_selection = selection;
+                                                    this.cursor_blink = true;
+                                                    cx.notify();
+                                                });
+                                            }
+                                        },
+                                    ),
                                 ),
                         )
                         // Mandatory 2FA TOTP Card
@@ -578,19 +584,22 @@ fn render_credentials_step(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                         13.0,
                                         if is_totp_focused { app_data.input_cursor } else { 0 },
                                         if is_totp_focused { app_data.input_selection } else { None },
+                                        if is_totp_focused { app_data.input_drag_anchor } else { None },
                                         app_data.cursor_blink,
-                                    )
-                                    .on_click(move |ev, _window, cx| {
-                                        let select_all = ev.click_count() >= 2;
-                                        app_totp_focus.update(cx, |this, cx| {
-                                            this.setup_state.active_focus = SetupFieldFocus::TotpConfirm;
-                                            let len = this.setup_state.totp_confirm_input.chars().count();
-                                            this.input_cursor = len;
-                                            this.input_selection = if select_all && len > 0 { Some((0, len)) } else { None };
-                                            this.cursor_blink = true;
-                                            cx.notify();
-                                        });
-                                    }),
+                                        {
+                                            let app = app_totp_focus;
+                                            move |cursor, anchor, selection, _window, cx| {
+                                                app.update(cx, |this, cx| {
+                                                    this.setup_state.active_focus = SetupFieldFocus::TotpConfirm;
+                                                    this.input_cursor = cursor;
+                                                    this.input_drag_anchor = anchor;
+                                                    this.input_selection = selection;
+                                                    this.cursor_blink = true;
+                                                    cx.notify();
+                                                });
+                                            }
+                                        },
+                                    ),
                                 ),
                         )
                         // Action buttons
