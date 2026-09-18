@@ -3,6 +3,7 @@ use crate::theme::*;
 use crate::app::{CrowApp, Screen, SettingsSection};
 use crate::config::DiffKind;
 use crate::components::icons::{TablerIcon, tabler_icon};
+use crate::components::terminal_text_input_styled;
 use crow_config_core::schema::FieldType;
 
 pub mod keys;
@@ -693,6 +694,7 @@ pub fn settings_view(
                                     let app_btn = app.clone();
                                     let app_apply = app.clone();
                                     let app_cancel = app.clone();
+                                    let app_custom = app.clone();
                                     let row_id_str = row.row_id.clone();
                                     let row_id_for_apply = row.row_id.clone();
                                     let initial_val_for_open = raw_val_str.clone();
@@ -978,47 +980,30 @@ pub fn settings_view(
                                                                         .text_color(TEXT_DIMMER)
                                                                         .child("OR ENTER CUSTOM VALUE:"),
                                                                 )
-                                                                // Textbox display with active indicator
-                                                                .child(
-                                                                    div()
-                                                                        .id(ElementId::NamedInteger("custom-input-box".into(), idx as u64))
-                                                                        .h(px(26.0))
-                                                                        .px(px(8.0))
-                                                                        .bg(BG_ROW_HOVER)
-                                                                        .border_1()
-                                                                        .border_color(OK)
-                                                                        .cursor_text()
-                                                                        .flex()
-                                                                        .items_center()
-                                                                        .gap(px(4.0))
-                                                                        .child(
-                                                                            if custom_input.is_empty() {
-                                                                                div()
-                                                                                    .flex()
-                                                                                    .items_center()
-                                                                                    .child(div().w(px(2.0)).h(px(13.0)).bg(OK).mr(px(3.0)))
-                                                                                    .child(
-                                                                                        div()
-                                                                                            .font_family(FONT_MONO)
-                                                                                            .text_size(px(11.0))
-                                                                                            .text_color(TEXT_FAINTER)
-                                                                                            .child("value…"),
-                                                                                    )
-                                                                            } else {
-                                                                                div()
-                                                                                    .flex()
-                                                                                    .items_center()
-                                                                                    .child(
-                                                                                        div()
-                                                                                            .font_family(FONT_MONO)
-                                                                                            .text_size(px(11.0))
-                                                                                            .font_weight(FontWeight::BOLD)
-                                                                                            .text_color(TEXT_MAX)
-                                                                                            .child(custom_input.to_string()),
-                                                                                    )
-                                                                                    .child(div().w(px(2.0)).h(px(13.0)).bg(OK).ml(px(2.0)))
-                                                                            }
-                                                                        )
+                                                                 // Textbox display with active indicator
+                                                                 .child(
+                                                                     terminal_text_input_styled(
+                                                                         ElementId::NamedInteger("custom-input-box".into(), idx as u64),
+                                                                         custom_input,
+                                                                         "value…",
+                                                                         true,
+                                                                         false,
+                                                                         26.0,
+                                                                         11.0,
+                                                                         app_data.input_cursor,
+                                                                         app_data.input_selection,
+                                                                         app_data.cursor_blink,
+                                                                     )
+                                                                     .on_click(move |ev, _window, cx| {
+                                                                         let select_all = ev.click_count() >= 2;
+                                                                         app_custom.update(cx, |this, cx| {
+                                                                             let len = this.settings_custom_input.chars().count();
+                                                                             this.input_cursor = len;
+                                                                             this.input_selection = if select_all && len > 0 { Some((0, len)) } else { None };
+                                                                             this.cursor_blink = true;
+                                                                             cx.notify();
+                                                                         });
+                                                                     })
                                                                         .children(if !unit_str.is_empty() {
                                                                             Some(
                                                                                 div()

@@ -1,5 +1,6 @@
 use gpui_kit::*;
 use crate::app::{CrowApp, Screen};
+use crate::components::terminal_text_input_styled;
 use crate::theme::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -42,7 +43,8 @@ impl Default for SetupState {
     }
 }
 
-pub fn vault_setup_view(app: Entity<CrowApp>, state: &SetupState) -> impl IntoElement {
+pub fn vault_setup_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElement {
+    let state = &app_data.setup_state;
     div()
         .size_full()
         .children(match state.step {
@@ -50,7 +52,7 @@ pub fn vault_setup_view(app: Entity<CrowApp>, state: &SetupState) -> impl IntoEl
             SetupStep::ConfigureCredentials => None,
         })
         .children(match state.step {
-            SetupStep::ConfigureCredentials => Some(render_credentials_step(app, state)),
+            SetupStep::ConfigureCredentials => Some(render_credentials_step(app, app_data)),
             SetupStep::WarningNotice => None,
         })
 }
@@ -285,29 +287,16 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
         )
 }
 
-fn render_credentials_step(app: Entity<CrowApp>, state: &SetupState) -> impl IntoElement {
+fn render_credentials_step(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElement {
+    let state = &app_data.setup_state;
     let has_error = state.error_message.is_some();
     let error_text = state.error_message.clone().unwrap_or_default();
 
     let is_pwd_focused = state.active_focus == SetupFieldFocus::Password;
     let is_confirm_focused = state.active_focus == SetupFieldFocus::ConfirmPassword;
     let is_totp_focused = state.active_focus == SetupFieldFocus::TotpConfirm;
-
-    let pwd_display = if state.show_password {
-        state.password_input.clone()
-    } else {
-        "●".repeat(state.password_input.len())
-    };
-
-    let confirm_display = if state.show_password {
-        state.confirm_input.clone()
-    } else {
-        "●".repeat(state.confirm_input.len())
-    };
-
     let show_pwd = state.show_password;
     let totp_secret = state.totp_secret.clone();
-    let totp_display = state.totp_confirm_input.clone();
 
     let app_pwd_focus = app.clone();
     let app_confirm_focus = app.clone();
@@ -443,34 +432,29 @@ fn render_credentials_step(app: Entity<CrowApp>, state: &SetupState) -> impl Int
                                         ),
                                 )
                                 .child(
-                                    div()
-                                        .id("setup-input-pwd")
-                                        .h(px(36.0))
-                                        .bg(BG_PANEL)
-                                        .border_1()
-                                        .border_color(if is_pwd_focused { OK } else { BORDER_DEFAULT })
-                                        .px(px(12.0))
-                                        .flex()
-                                        .items_center()
-                                        .cursor_text()
-                                        .on_click(move |_ev, _window, cx| {
-                                            app_pwd_focus.update(cx, |this, cx| {
-                                                this.setup_state.active_focus = SetupFieldFocus::Password;
-                                                cx.notify();
-                                            });
-                                        })
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(13.0))
-                                                .text_color(if pwd_display.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY })
-                                                .child(if pwd_display.is_empty() { "Enter master password (min 8 characters)…".to_string() } else { pwd_display }),
-                                        )
-                                        .children(if is_pwd_focused {
-                                            Some(div().w(px(2.0)).h(px(16.0)).bg(OK).ml(px(2.0)))
-                                        } else {
-                                            None
-                                        }),
+                                    terminal_text_input_styled(
+                                        "setup-input-pwd",
+                                        &state.password_input,
+                                        "Enter master password (min 8 characters)…",
+                                        is_pwd_focused,
+                                        !show_pwd,
+                                        36.0,
+                                        13.0,
+                                        if is_pwd_focused { app_data.input_cursor } else { 0 },
+                                        if is_pwd_focused { app_data.input_selection } else { None },
+                                        app_data.cursor_blink,
+                                    )
+                                    .on_click(move |ev, _window, cx| {
+                                        let select_all = ev.click_count() >= 2;
+                                        app_pwd_focus.update(cx, |this, cx| {
+                                            this.setup_state.active_focus = SetupFieldFocus::Password;
+                                            let len = this.setup_state.password_input.chars().count();
+                                            this.input_cursor = len;
+                                            this.input_selection = if select_all && len > 0 { Some((0, len)) } else { None };
+                                            this.cursor_blink = true;
+                                            cx.notify();
+                                        });
+                                    }),
                                 ),
                         )
                         // Field 2: Confirm Password
@@ -488,34 +472,29 @@ fn render_credentials_step(app: Entity<CrowApp>, state: &SetupState) -> impl Int
                                         .child("CONFIRM MASTER PASSWORD"),
                                 )
                                 .child(
-                                    div()
-                                        .id("setup-input-confirm")
-                                        .h(px(36.0))
-                                        .bg(BG_PANEL)
-                                        .border_1()
-                                        .border_color(if is_confirm_focused { OK } else { BORDER_DEFAULT })
-                                        .px(px(12.0))
-                                        .flex()
-                                        .items_center()
-                                        .cursor_text()
-                                        .on_click(move |_ev, _window, cx| {
-                                            app_confirm_focus.update(cx, |this, cx| {
-                                                this.setup_state.active_focus = SetupFieldFocus::ConfirmPassword;
-                                                cx.notify();
-                                            });
-                                        })
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(13.0))
-                                                .text_color(if confirm_display.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY })
-                                                .child(if confirm_display.is_empty() { "Re-type password…".to_string() } else { confirm_display }),
-                                        )
-                                        .children(if is_confirm_focused {
-                                            Some(div().w(px(2.0)).h(px(16.0)).bg(OK).ml(px(2.0)))
-                                        } else {
-                                            None
-                                        }),
+                                    terminal_text_input_styled(
+                                        "setup-input-confirm",
+                                        &state.confirm_input,
+                                        "Re-type password…",
+                                        is_confirm_focused,
+                                        !show_pwd,
+                                        36.0,
+                                        13.0,
+                                        if is_confirm_focused { app_data.input_cursor } else { 0 },
+                                        if is_confirm_focused { app_data.input_selection } else { None },
+                                        app_data.cursor_blink,
+                                    )
+                                    .on_click(move |ev, _window, cx| {
+                                        let select_all = ev.click_count() >= 2;
+                                        app_confirm_focus.update(cx, |this, cx| {
+                                            this.setup_state.active_focus = SetupFieldFocus::ConfirmPassword;
+                                            let len = this.setup_state.confirm_input.chars().count();
+                                            this.input_cursor = len;
+                                            this.input_selection = if select_all && len > 0 { Some((0, len)) } else { None };
+                                            this.cursor_blink = true;
+                                            cx.notify();
+                                        });
+                                    }),
                                 ),
                         )
                         // Mandatory 2FA TOTP Card
@@ -589,34 +568,29 @@ fn render_credentials_step(app: Entity<CrowApp>, state: &SetupState) -> impl Int
                                         .child("ENTER 6-DIGIT CODE TO CONFIRM PAIRING:"),
                                 )
                                 .child(
-                                    div()
-                                        .id("setup-input-totp")
-                                        .h(px(36.0))
-                                        .bg(BG_WINDOW)
-                                        .border_1()
-                                        .border_color(if is_totp_focused { OK } else { BORDER_DEFAULT })
-                                        .px(px(12.0))
-                                        .flex()
-                                        .items_center()
-                                        .cursor_text()
-                                        .on_click(move |_ev, _window, cx| {
-                                            app_totp_focus.update(cx, |this, cx| {
-                                                this.setup_state.active_focus = SetupFieldFocus::TotpConfirm;
-                                                cx.notify();
-                                            });
-                                        })
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(13.0))
-                                                .text_color(if totp_display.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY })
-                                                .child(if totp_display.is_empty() { "6-digit code (e.g. 123456)".to_string() } else { totp_display }),
-                                        )
-                                        .children(if is_totp_focused {
-                                            Some(div().w(px(2.0)).h(px(16.0)).bg(OK).ml(px(2.0)))
-                                        } else {
-                                            None
-                                        }),
+                                    terminal_text_input_styled(
+                                        "setup-input-totp",
+                                        &state.totp_confirm_input,
+                                        "6-digit code (e.g. 123456)",
+                                        is_totp_focused,
+                                        false,
+                                        36.0,
+                                        13.0,
+                                        if is_totp_focused { app_data.input_cursor } else { 0 },
+                                        if is_totp_focused { app_data.input_selection } else { None },
+                                        app_data.cursor_blink,
+                                    )
+                                    .on_click(move |ev, _window, cx| {
+                                        let select_all = ev.click_count() >= 2;
+                                        app_totp_focus.update(cx, |this, cx| {
+                                            this.setup_state.active_focus = SetupFieldFocus::TotpConfirm;
+                                            let len = this.setup_state.totp_confirm_input.chars().count();
+                                            this.input_cursor = len;
+                                            this.input_selection = if select_all && len > 0 { Some((0, len)) } else { None };
+                                            this.cursor_blink = true;
+                                            cx.notify();
+                                        });
+                                    }),
                                 ),
                         )
                         // Action buttons

@@ -352,10 +352,10 @@ fn render_step_content(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
     let state = &app_data.onboard_state;
 
     match state.step {
-        OnboardStep::Address => render_step_address(app, state),
-        OnboardStep::Credentials => render_step_credentials(app, state, &app_data.enrolled_keys, &app_data.servers),
+        OnboardStep::Address => render_step_address(app, app_data),
+        OnboardStep::Credentials => render_step_credentials(app, app_data),
         OnboardStep::VerifyHost => render_step_verify(app, state),
-        OnboardStep::Classify => render_step_classify(app, state),
+        OnboardStep::Classify => render_step_classify(app, app_data),
         OnboardStep::Finish => render_step_finish(app, state, &app_data.enrolled_keys),
     }
 }
@@ -363,9 +363,12 @@ fn render_step_content(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
 // -----------------------------------------------------------------------------
 // Step 1: Address
 // -----------------------------------------------------------------------------
-fn render_step_address(app: Entity<CrowApp>, state: &OnboardState) -> Div {
+fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
+    let state = &app_data.onboard_state;
     let app_host = app.clone();
     let app_port = app.clone();
+    let is_host_focused = state.focus == OnboardFieldFocus::Host;
+    let is_port_focused = state.focus == OnboardFieldFocus::Port;
 
     div()
         .flex()
@@ -397,7 +400,7 @@ fn render_step_address(app: Entity<CrowApp>, state: &OnboardState) -> Div {
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(if state.focus == OnboardFieldFocus::Host { TEXT_PRIMARY } else { TEXT_DIM })
+                        .text_color(if is_host_focused { TEXT_PRIMARY } else { TEXT_DIM })
                         .child("HOSTNAME OR IP ADDRESS:"),
                 )
                 .child(
@@ -405,12 +408,16 @@ fn render_step_address(app: Entity<CrowApp>, state: &OnboardState) -> Div {
                         "input-onboard-host",
                         &state.host,
                         "e.g. 10.0.4.32 or prod-db.internal",
-                        state.focus == OnboardFieldFocus::Host,
+                        is_host_focused,
                         false,
+                        if is_host_focused { app_data.input_cursor } else { 0 },
+                        if is_host_focused { app_data.input_selection } else { None },
+                        app_data.cursor_blink,
                     )
-                    .on_click(move |_ev, _window, cx| {
+                    .on_click(move |ev, _window, cx| {
+                        let select_all = ev.click_count() >= 2;
                         app_host.update(cx, |this, cx| {
-                            this.onboard_set_focus(OnboardFieldFocus::Host, cx);
+                            this.onboard_set_focus_select(OnboardFieldFocus::Host, select_all, cx);
                         });
                     }),
                 )
@@ -433,7 +440,7 @@ fn render_step_address(app: Entity<CrowApp>, state: &OnboardState) -> Div {
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(if state.focus == OnboardFieldFocus::Port { TEXT_PRIMARY } else { TEXT_DIM })
+                        .text_color(if is_port_focused { TEXT_PRIMARY } else { TEXT_DIM })
                         .child("SSH PORT:"),
                 )
                 .child(
@@ -441,13 +448,17 @@ fn render_step_address(app: Entity<CrowApp>, state: &OnboardState) -> Div {
                         "input-onboard-port",
                         &state.port,
                         "22",
-                        state.focus == OnboardFieldFocus::Port,
+                        is_port_focused,
                         false,
+                        if is_port_focused { app_data.input_cursor } else { 0 },
+                        if is_port_focused { app_data.input_selection } else { None },
+                        app_data.cursor_blink,
                     )
                     .w(px(120.0))
-                    .on_click(move |_ev, _window, cx| {
+                    .on_click(move |ev, _window, cx| {
+                        let select_all = ev.click_count() >= 2;
                         app_port.update(cx, |this, cx| {
-                            this.onboard_set_focus(OnboardFieldFocus::Port, cx);
+                            this.onboard_set_focus_select(OnboardFieldFocus::Port, select_all, cx);
                         });
                     }),
                 )
@@ -464,18 +475,18 @@ fn render_step_address(app: Entity<CrowApp>, state: &OnboardState) -> Div {
 // -----------------------------------------------------------------------------
 // Step 2: Credentials
 // -----------------------------------------------------------------------------
-fn render_step_credentials(
-    app: Entity<CrowApp>,
-    state: &OnboardState,
-    enrolled_keys: &[crate::vault::SshKeyRecord],
-    servers: &[crate::vault::ServerRecord],
-) -> Div {
+fn render_step_credentials(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
+    let state = &app_data.onboard_state;
+    let enrolled_keys = &app_data.enrolled_keys;
+    let servers = &app_data.servers;
     let app_user = app.clone();
     let app_auth_pub = app.clone();
     let app_auth_agent = app.clone();
     let app_auth_pass = app.clone();
     let app_pw = app.clone();
     let app_jump_none = app.clone();
+    let is_user_focused = state.focus == OnboardFieldFocus::User;
+    let is_pw_focused = state.focus == OnboardFieldFocus::Password;
 
     div()
         .flex()
@@ -507,7 +518,7 @@ fn render_step_credentials(
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(if state.focus == OnboardFieldFocus::User { TEXT_PRIMARY } else { TEXT_DIM })
+                        .text_color(if is_user_focused { TEXT_PRIMARY } else { TEXT_DIM })
                         .child("LOGIN USER:"),
                 )
                 .child(
@@ -515,12 +526,16 @@ fn render_step_credentials(
                         "input-onboard-user",
                         &state.user,
                         "root (or ubuntu, deploy, admin…)",
-                        state.focus == OnboardFieldFocus::User,
+                        is_user_focused,
                         false,
+                        if is_user_focused { app_data.input_cursor } else { 0 },
+                        if is_user_focused { app_data.input_selection } else { None },
+                        app_data.cursor_blink,
                     )
-                    .on_click(move |_ev, _window, cx| {
+                    .on_click(move |ev, _window, cx| {
+                        let select_all = ev.click_count() >= 2;
                         app_user.update(cx, |this, cx| {
-                            this.onboard_set_focus(OnboardFieldFocus::User, cx);
+                            this.onboard_set_focus_select(OnboardFieldFocus::User, select_all, cx);
                         });
                     }),
                 )
@@ -728,7 +743,7 @@ fn render_step_credentials(
                             .font_family(FONT_MONO)
                             .text_size(px(10.0))
                             .font_weight(FontWeight::BOLD)
-                            .text_color(if state.focus == OnboardFieldFocus::Password { TEXT_PRIMARY } else { TEXT_DIM })
+                            .text_color(if is_pw_focused { TEXT_PRIMARY } else { TEXT_DIM })
                             .child("PASSWORD:"),
                     )
                     .child(
@@ -736,12 +751,16 @@ fn render_step_credentials(
                             "input-onboard-pw",
                             &state.password,
                             "Enter remote password…",
-                            state.focus == OnboardFieldFocus::Password,
+                            is_pw_focused,
                             true,
+                            if is_pw_focused { app_data.input_cursor } else { 0 },
+                            if is_pw_focused { app_data.input_selection } else { None },
+                            app_data.cursor_blink,
                         )
-                        .on_click(move |_ev, _window, cx| {
+                        .on_click(move |ev, _window, cx| {
+                            let select_all = ev.click_count() >= 2;
                             app_pw.update(cx, |this, cx| {
-                                this.onboard_set_focus(OnboardFieldFocus::Password, cx);
+                                this.onboard_set_focus_select(OnboardFieldFocus::Password, select_all, cx);
                             });
                         }),
                     ),
@@ -1009,9 +1028,12 @@ fn render_step_verify(app: Entity<CrowApp>, state: &OnboardState) -> Div {
 // -----------------------------------------------------------------------------
 // Step 4: Classify
 // -----------------------------------------------------------------------------
-fn render_step_classify(app: Entity<CrowApp>, state: &OnboardState) -> Div {
+fn render_step_classify(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
+    let state = &app_data.onboard_state;
     let app_label = app.clone();
     let app_tags = app.clone();
+    let is_label_focused = state.focus == OnboardFieldFocus::Label;
+    let is_tags_focused = state.focus == OnboardFieldFocus::Tags;
 
     let envs = ["PROD", "STAGE", "DEV", "LAB"];
     let roles = ["web · nginx", "postgres 16", "cache · queue", "sidekiq", "ssh jump", "prometheus", "custom"];
@@ -1047,7 +1069,7 @@ fn render_step_classify(app: Entity<CrowApp>, state: &OnboardState) -> Div {
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(if state.focus == OnboardFieldFocus::Label { TEXT_PRIMARY } else { TEXT_DIM })
+                        .text_color(if is_label_focused { TEXT_PRIMARY } else { TEXT_DIM })
                         .child("SERVER LABEL (UNIQUE IDENTIFIER):"),
                 )
                 .child(
@@ -1055,12 +1077,16 @@ fn render_step_classify(app: Entity<CrowApp>, state: &OnboardState) -> Div {
                         "input-onboard-label",
                         &state.label,
                         "e.g. worker-05, edge-eu, db-primary",
-                        state.focus == OnboardFieldFocus::Label,
+                        is_label_focused,
                         false,
+                        if is_label_focused { app_data.input_cursor } else { 0 },
+                        if is_label_focused { app_data.input_selection } else { None },
+                        app_data.cursor_blink,
                     )
-                    .on_click(move |_ev, _window, cx| {
+                    .on_click(move |ev, _window, cx| {
+                        let select_all = ev.click_count() >= 2;
                         app_label.update(cx, |this, cx| {
-                            this.onboard_set_focus(OnboardFieldFocus::Label, cx);
+                            this.onboard_set_focus_select(OnboardFieldFocus::Label, select_all, cx);
                         });
                     }),
                 )
@@ -1257,7 +1283,7 @@ fn render_step_classify(app: Entity<CrowApp>, state: &OnboardState) -> Div {
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(if state.focus == OnboardFieldFocus::Tags { TEXT_PRIMARY } else { TEXT_DIM })
+                        .text_color(if is_tags_focused { TEXT_PRIMARY } else { TEXT_DIM })
                         .child("TAGS (COMMA SEPARATED):"),
                 )
                 .child(
@@ -1265,12 +1291,16 @@ fn render_step_classify(app: Entity<CrowApp>, state: &OnboardState) -> Div {
                         "input-onboard-tags",
                         &state.tags,
                         "e.g. queue, ruby, eu-west, staging",
-                        state.focus == OnboardFieldFocus::Tags,
+                        is_tags_focused,
                         false,
+                        if is_tags_focused { app_data.input_cursor } else { 0 },
+                        if is_tags_focused { app_data.input_selection } else { None },
+                        app_data.cursor_blink,
                     )
-                    .on_click(move |_ev, _window, cx| {
+                    .on_click(move |ev, _window, cx| {
+                        let select_all = ev.click_count() >= 2;
                         app_tags.update(cx, |this, cx| {
-                            this.onboard_set_focus(OnboardFieldFocus::Tags, cx);
+                            this.onboard_set_focus_select(OnboardFieldFocus::Tags, select_all, cx);
                         });
                     }),
                 ),

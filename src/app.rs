@@ -94,6 +94,11 @@ pub struct CrowApp {
     // Server Enrollment Subsystem
     pub servers: Vec<ServerRecord>,
     pub onboard_state: OnboardState,
+    // Text input caret and selection state
+    pub cursor_blink: bool,
+    pub input_cursor: usize,
+    pub input_selection: Option<(usize, usize)>,
+    pub _cursor_blink_task: Task<()>,
 }
 
 impl CrowApp {
@@ -214,6 +219,20 @@ host    all             all             10.0.4.0/24             scram-sha-256
             key_toast: None,
             servers,
             onboard_state,
+            cursor_blink: true,
+            input_cursor: 0,
+            input_selection: None,
+            _cursor_blink_task: cx.spawn(async move |entity, cx| {
+                loop {
+                    cx.background_executor().timer(std::time::Duration::from_millis(530)).await;
+                    if entity.update(cx, |this, cx| {
+                        this.cursor_blink = !this.cursor_blink;
+                        cx.notify();
+                    }).is_err() {
+                        break;
+                    }
+                }
+            }),
         }
     }
 
@@ -223,6 +242,8 @@ host    all             all             10.0.4.0/24             scram-sha-256
             self.lock_state.password_input.clear();
             self.lock_state.totp_input.clear();
             self.lock_state.error_message = None;
+            self.input_cursor = 0;
+            self.input_selection = None;
             self.menu_open = false;
             self.palette_open = false;
             cx.notify();
@@ -254,6 +275,8 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 self.lock_state.password_input.clear();
                 self.lock_state.totp_input.clear();
                 self.lock_state.error_message = None;
+                self.input_cursor = 0;
+                self.input_selection = None;
                 cx.notify();
             }
             Err(e) => {
@@ -293,6 +316,8 @@ host    all             all             10.0.4.0/24             scram-sha-256
         match self.vault.initialize(&pwd, &self.setup_state.totp_secret) {
             Ok(_) => {
                 self.setup_state = SetupState::default();
+                self.input_cursor = 0;
+                self.input_selection = None;
                 self.screen = Screen::Fleet;
                 cx.notify();
             }
@@ -306,6 +331,12 @@ host    all             all             10.0.4.0/24             scram-sha-256
     pub fn set_screen(&mut self, screen: Screen, cx: &mut Context<Self>) {
         if screen == Screen::Onboard && self.screen != Screen::Onboard {
             self.onboard_state = OnboardState::new(&self.enrolled_keys);
+            self.input_cursor = self.onboard_state.host.chars().count();
+            self.input_selection = None;
+        } else if screen == Screen::VaultSetup && self.screen != Screen::VaultSetup {
+            self.setup_state = SetupState::default();
+            self.input_cursor = 0;
+            self.input_selection = None;
         }
         self.screen = screen;
         self.menu_open = false;
@@ -369,6 +400,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
         } else {
             self.settings_dropdown_open = Some(row_id.to_string());
             self.settings_custom_input = initial_val.to_string();
+            self.input_cursor = self.settings_custom_input.chars().count();
+            self.input_selection = None;
+            self.cursor_blink = true;
         }
         cx.notify();
     }
@@ -570,6 +604,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
 
     pub fn open_key_gen_modal(&mut self, cx: &mut Context<Self>) {
         self.key_gen_modal = Some(KeyGenModalState::default());
+        self.input_cursor = 0;
+        self.input_selection = None;
+        self.cursor_blink = true;
         cx.notify();
     }
 
@@ -627,6 +664,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
             color_input: "#4ade80".to_string(),
             error_message: None,
         });
+        self.input_cursor = 0;
+        self.input_selection = None;
+        self.cursor_blink = true;
         cx.notify();
     }
 
@@ -668,6 +708,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
 
     pub fn open_add_scan_path_modal(&mut self, cx: &mut Context<Self>) {
         self.add_scan_path_modal = Some(AddScanPathModalState::default());
+        self.input_cursor = 0;
+        self.input_selection = None;
+        self.cursor_blink = true;
         cx.notify();
     }
 
@@ -710,6 +753,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
 
     pub fn open_edit_key_modal(&mut self, key_id: &str, cx: &mut Context<Self>) {
         if let Some(key) = self.enrolled_keys.iter().find(|k| k.id == key_id) {
+            let name_len = key.name.chars().count();
             self.edit_key_modal = Some(EditKeyModalState {
                 key_id: key.id.clone(),
                 name_input: key.name.clone(),
@@ -717,6 +761,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 attached_servers: key.attached_servers.clone(),
                 error_message: None,
             });
+            self.input_cursor = name_len;
+            self.input_selection = None;
+            self.cursor_blink = true;
             cx.notify();
         }
     }
@@ -774,7 +821,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
         self.screen = Screen::Onboard;
         self.menu_open = false;
         self.palette_open = false;
-        cx.notify();
+        self.onboard_set_focus_select(OnboardFieldFocus::Host, false, cx);
     }
 
     pub fn reload_servers(&mut self) {
@@ -783,30 +830,52 @@ host    all             all             10.0.4.0/24             scram-sha-256
         }
     }
 
+    pub fn onboard_set_focus_select(&mut self, focus: OnboardFieldFocus, select_all: bool, cx: &mut Context<Self>) {
+        self.onboard_state.focus = focus;
+        let text_len = match focus {
+            OnboardFieldFocus::Host => self.onboard_state.host.chars().count(),
+            OnboardFieldFocus::Port => self.onboard_state.port.chars().count(),
+            OnboardFieldFocus::User => self.onboard_state.user.chars().count(),
+            OnboardFieldFocus::Password => self.onboard_state.password.chars().count(),
+            OnboardFieldFocus::Label => self.onboard_state.label.chars().count(),
+            OnboardFieldFocus::Tags => self.onboard_state.tags.chars().count(),
+            OnboardFieldFocus::None => 0,
+        };
+        self.cursor_blink = true;
+        if select_all && text_len > 0 {
+            self.input_selection = Some((0, text_len));
+            self.input_cursor = text_len;
+        } else {
+            self.input_selection = None;
+            self.input_cursor = text_len;
+        }
+        cx.notify();
+    }
+
+    #[allow(dead_code)]
+    pub fn onboard_set_focus(&mut self, focus: OnboardFieldFocus, cx: &mut Context<Self>) {
+        self.onboard_set_focus_select(focus, false, cx);
+    }
+
     pub fn onboard_set_step(&mut self, step: OnboardStep, cx: &mut Context<Self>) {
         self.onboard_state.step = step;
         if step.num() > self.onboard_state.max_reached_step.num() {
             self.onboard_state.max_reached_step = step;
         }
-        match step {
-            OnboardStep::Address => self.onboard_state.focus = OnboardFieldFocus::Host,
-            OnboardStep::Credentials => self.onboard_state.focus = OnboardFieldFocus::User,
+        let focus = match step {
+            OnboardStep::Address => OnboardFieldFocus::Host,
+            OnboardStep::Credentials => OnboardFieldFocus::User,
             OnboardStep::VerifyHost => {
-                self.onboard_state.focus = OnboardFieldFocus::None;
                 if self.onboard_state.probe_result.is_none() {
                     self.onboard_run_probe(cx);
                     return;
                 }
+                OnboardFieldFocus::None
             }
-            OnboardStep::Classify => self.onboard_state.focus = OnboardFieldFocus::Label,
-            OnboardStep::Finish => self.onboard_state.focus = OnboardFieldFocus::None,
-        }
-        cx.notify();
-    }
-
-    pub fn onboard_set_focus(&mut self, focus: OnboardFieldFocus, cx: &mut Context<Self>) {
-        self.onboard_state.focus = focus;
-        cx.notify();
+            OnboardStep::Classify => OnboardFieldFocus::Label,
+            OnboardStep::Finish => OnboardFieldFocus::None,
+        };
+        self.onboard_set_focus_select(focus, false, cx);
     }
 
     pub fn onboard_next_step(&mut self, cx: &mut Context<Self>) {
@@ -822,11 +891,10 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 }
                 self.onboard_state.error_message = None;
                 self.onboard_state.step = OnboardStep::Credentials;
-                self.onboard_state.focus = OnboardFieldFocus::User;
                 if self.onboard_state.step.num() > self.onboard_state.max_reached_step.num() {
                     self.onboard_state.max_reached_step = self.onboard_state.step;
                 }
-                cx.notify();
+                self.onboard_set_focus_select(OnboardFieldFocus::User, false, cx);
             }
             OnboardStep::Credentials => {
                 if self.onboard_state.user.trim().is_empty() {
@@ -836,20 +904,19 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 }
                 self.onboard_state.error_message = None;
                 self.onboard_state.step = OnboardStep::VerifyHost;
-                self.onboard_state.focus = OnboardFieldFocus::None;
                 if self.onboard_state.step.num() > self.onboard_state.max_reached_step.num() {
                     self.onboard_state.max_reached_step = self.onboard_state.step;
                 }
+                self.onboard_set_focus_select(OnboardFieldFocus::None, false, cx);
                 self.onboard_run_probe(cx);
             }
             OnboardStep::VerifyHost => {
                 self.onboard_state.error_message = None;
                 self.onboard_state.step = OnboardStep::Classify;
-                self.onboard_state.focus = OnboardFieldFocus::Label;
                 if self.onboard_state.step.num() > self.onboard_state.max_reached_step.num() {
                     self.onboard_state.max_reached_step = self.onboard_state.step;
                 }
-                cx.notify();
+                self.onboard_set_focus_select(OnboardFieldFocus::Label, false, cx);
             }
             OnboardStep::Classify => {
                 if self.onboard_state.label.trim().is_empty() {
@@ -859,11 +926,10 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 }
                 self.onboard_state.error_message = None;
                 self.onboard_state.step = OnboardStep::Finish;
-                self.onboard_state.focus = OnboardFieldFocus::None;
                 if self.onboard_state.step.num() > self.onboard_state.max_reached_step.num() {
                     self.onboard_state.max_reached_step = self.onboard_state.step;
                 }
-                cx.notify();
+                self.onboard_set_focus_select(OnboardFieldFocus::None, false, cx);
             }
             OnboardStep::Finish => {
                 self.submit_server_enrollment(cx);
@@ -877,22 +943,21 @@ host    all             all             10.0.4.0/24             scram-sha-256
             OnboardStep::Address => {}
             OnboardStep::Credentials => {
                 self.onboard_state.step = OnboardStep::Address;
-                self.onboard_state.focus = OnboardFieldFocus::Host;
+                self.onboard_set_focus_select(OnboardFieldFocus::Host, false, cx);
             }
             OnboardStep::VerifyHost => {
                 self.onboard_state.step = OnboardStep::Credentials;
-                self.onboard_state.focus = OnboardFieldFocus::User;
+                self.onboard_set_focus_select(OnboardFieldFocus::User, false, cx);
             }
             OnboardStep::Classify => {
                 self.onboard_state.step = OnboardStep::VerifyHost;
-                self.onboard_state.focus = OnboardFieldFocus::None;
+                self.onboard_set_focus_select(OnboardFieldFocus::None, false, cx);
             }
             OnboardStep::Finish => {
                 self.onboard_state.step = OnboardStep::Classify;
-                self.onboard_state.focus = OnboardFieldFocus::Label;
+                self.onboard_set_focus_select(OnboardFieldFocus::Label, false, cx);
             }
         }
-        cx.notify();
     }
 
     pub fn onboard_run_probe(&mut self, cx: &mut Context<Self>) {
@@ -1015,70 +1080,32 @@ host    all             all             10.0.4.0/24             scram-sha-256
         cx.notify();
     }
 
-    pub fn onboard_type_char(&mut self, c: &str, cx: &mut Context<Self>) {
-        match self.onboard_state.focus {
-            OnboardFieldFocus::Host => self.onboard_state.host.push_str(c),
-            OnboardFieldFocus::Port => {
-                if c.chars().all(|d| d.is_ascii_digit()) && self.onboard_state.port.len() < 5 {
-                    self.onboard_state.port.push_str(c);
-                }
-            }
-            OnboardFieldFocus::User => self.onboard_state.user.push_str(c),
-            OnboardFieldFocus::Password => self.onboard_state.password.push_str(c),
-            OnboardFieldFocus::Label => self.onboard_state.label.push_str(c),
-            OnboardFieldFocus::Tags => self.onboard_state.tags.push_str(c),
-            OnboardFieldFocus::None => {}
-        }
-        self.onboard_state.error_message = None;
-        cx.notify();
-    }
 
-    pub fn onboard_backspace(&mut self, cx: &mut Context<Self>) {
-        match self.onboard_state.focus {
-            OnboardFieldFocus::Host => { self.onboard_state.host.pop(); }
-            OnboardFieldFocus::Port => { self.onboard_state.port.pop(); }
-            OnboardFieldFocus::User => { self.onboard_state.user.pop(); }
-            OnboardFieldFocus::Password => { self.onboard_state.password.pop(); }
-            OnboardFieldFocus::Label => { self.onboard_state.label.pop(); }
-            OnboardFieldFocus::Tags => { self.onboard_state.tags.pop(); }
-            OnboardFieldFocus::None => {}
-        }
-        self.onboard_state.error_message = None;
-        cx.notify();
-    }
 
     pub fn onboard_cycle_focus(&mut self, _reverse: bool, cx: &mut Context<Self>) {
-        match self.onboard_state.step {
-            OnboardStep::Address => {
-                self.onboard_state.focus = match self.onboard_state.focus {
-                    OnboardFieldFocus::Host => OnboardFieldFocus::Port,
-                    _ => OnboardFieldFocus::Host,
-                };
-            }
+        let next_focus = match self.onboard_state.step {
+            OnboardStep::Address => match self.onboard_state.focus {
+                OnboardFieldFocus::Host => OnboardFieldFocus::Port,
+                _ => OnboardFieldFocus::Host,
+            },
             OnboardStep::Credentials => {
                 if self.onboard_state.auth_method == "password" {
-                    self.onboard_state.focus = match self.onboard_state.focus {
+                    match self.onboard_state.focus {
                         OnboardFieldFocus::User => OnboardFieldFocus::Password,
                         _ => OnboardFieldFocus::User,
-                    };
+                    }
                 } else {
-                    self.onboard_state.focus = OnboardFieldFocus::User;
+                    OnboardFieldFocus::User
                 }
             }
-            OnboardStep::VerifyHost => {
-                self.onboard_state.focus = OnboardFieldFocus::None;
-            }
-            OnboardStep::Classify => {
-                self.onboard_state.focus = match self.onboard_state.focus {
-                    OnboardFieldFocus::Label => OnboardFieldFocus::Tags,
-                    _ => OnboardFieldFocus::Label,
-                };
-            }
-            OnboardStep::Finish => {
-                self.onboard_state.focus = OnboardFieldFocus::None;
-            }
-        }
-        cx.notify();
+            OnboardStep::VerifyHost => OnboardFieldFocus::None,
+            OnboardStep::Classify => match self.onboard_state.focus {
+                OnboardFieldFocus::Label => OnboardFieldFocus::Tags,
+                _ => OnboardFieldFocus::Label,
+            },
+            OnboardStep::Finish => OnboardFieldFocus::None,
+        };
+        self.onboard_set_focus_select(next_focus, false, cx);
     }
 }
 
@@ -1101,36 +1128,37 @@ impl Render for CrowApp {
 
                 // If vault is locked, keyboard events are dedicated to unlocking
                 if this.vault.status() == VaultStatus::Locked {
+                    this.cursor_blink = true;
                     if key == "tab" {
                         this.lock_state.active_focus = match this.lock_state.active_focus {
                             LockFieldFocus::Password => LockFieldFocus::Totp,
                             LockFieldFocus::Totp => LockFieldFocus::Password,
                         };
+                        let len = match this.lock_state.active_focus {
+                            LockFieldFocus::Password => this.lock_state.password_input.chars().count(),
+                            LockFieldFocus::Totp => this.lock_state.totp_input.chars().count(),
+                        };
+                        this.input_cursor = len;
+                        this.input_selection = None;
                         cx.notify();
                     } else if key == "enter" {
                         this.submit_unlock(cx);
-                    } else if key == "backspace" {
-                        match this.lock_state.active_focus {
-                            LockFieldFocus::Password => { this.lock_state.password_input.pop(); }
-                            LockFieldFocus::Totp => { this.lock_state.totp_input.pop(); }
-                        }
-                        this.lock_state.error_message = None;
-                        cx.notify();
-                    } else if !is_mod {
-                        let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
-                            Some(ev.keystroke.key.as_str())
-                        } else {
-                            None
-                        });
-                        if let Some(c) = char_to_insert {
-                            match this.lock_state.active_focus {
-                                LockFieldFocus::Password => { this.lock_state.password_input.push_str(c); }
-                                LockFieldFocus::Totp => {
-                                    if this.lock_state.totp_input.len() < 6 && c.chars().all(|d| d.is_ascii_digit()) {
-                                        this.lock_state.totp_input.push_str(c);
-                                    }
-                                }
+                    } else {
+                        let is_totp = this.lock_state.active_focus == LockFieldFocus::Totp;
+                        let text = match this.lock_state.active_focus {
+                            LockFieldFocus::Password => &mut this.lock_state.password_input,
+                            LockFieldFocus::Totp => &mut this.lock_state.totp_input,
+                        };
+                        let changed = crate::components::handle_text_key_event(text, &mut this.input_cursor, &mut this.input_selection, ev);
+                        if is_totp {
+                            this.lock_state.totp_input.retain(|c| c.is_ascii_digit());
+                            if this.lock_state.totp_input.chars().count() > 6 {
+                                let s: String = this.lock_state.totp_input.chars().take(6).collect();
+                                this.lock_state.totp_input = s;
+                                this.input_cursor = this.input_cursor.min(6);
                             }
+                        }
+                        if changed {
                             this.lock_state.error_message = None;
                             cx.notify();
                         }
@@ -1150,10 +1178,14 @@ impl Render for CrowApp {
                                 if this.setup_state.totp_secret.is_empty() {
                                     this.setup_state.totp_secret = crate::vault::generate_totp_secret();
                                 }
+                                this.input_cursor = this.setup_state.password_input.chars().count();
+                                this.input_selection = None;
+                                this.cursor_blink = true;
                                 cx.notify();
                             }
                         }
                         SetupStep::ConfigureCredentials => {
+                            this.cursor_blink = true;
                             if ev.keystroke.key == "escape" {
                                 this.setup_state.step = SetupStep::WarningNotice;
                                 cx.notify();
@@ -1163,33 +1195,33 @@ impl Render for CrowApp {
                                     SetupFieldFocus::ConfirmPassword => SetupFieldFocus::TotpConfirm,
                                     SetupFieldFocus::TotpConfirm => SetupFieldFocus::Password,
                                 };
+                                let len = match this.setup_state.active_focus {
+                                    SetupFieldFocus::Password => this.setup_state.password_input.chars().count(),
+                                    SetupFieldFocus::ConfirmPassword => this.setup_state.confirm_input.chars().count(),
+                                    SetupFieldFocus::TotpConfirm => this.setup_state.totp_confirm_input.chars().count(),
+                                };
+                                this.input_cursor = len;
+                                this.input_selection = None;
                                 cx.notify();
                             } else if key == "enter" {
                                 this.submit_setup(cx);
-                            } else if key == "backspace" {
-                                match this.setup_state.active_focus {
-                                    SetupFieldFocus::Password => { this.setup_state.password_input.pop(); }
-                                    SetupFieldFocus::ConfirmPassword => { this.setup_state.confirm_input.pop(); }
-                                    SetupFieldFocus::TotpConfirm => { this.setup_state.totp_confirm_input.pop(); }
-                                }
-                                this.setup_state.error_message = None;
-                                cx.notify();
-                            } else if !is_mod {
-                                let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
-                                    Some(ev.keystroke.key.as_str())
-                                } else {
-                                    None
-                                });
-                                if let Some(c) = char_to_insert {
-                                    match this.setup_state.active_focus {
-                                        SetupFieldFocus::Password => { this.setup_state.password_input.push_str(c); }
-                                        SetupFieldFocus::ConfirmPassword => { this.setup_state.confirm_input.push_str(c); }
-                                        SetupFieldFocus::TotpConfirm => {
-                                            if this.setup_state.totp_confirm_input.len() < 6 && c.chars().all(|d| d.is_ascii_digit()) {
-                                                this.setup_state.totp_confirm_input.push_str(c);
-                                            }
-                                        }
+                            } else {
+                                let is_totp = this.setup_state.active_focus == SetupFieldFocus::TotpConfirm;
+                                let text = match this.setup_state.active_focus {
+                                    SetupFieldFocus::Password => &mut this.setup_state.password_input,
+                                    SetupFieldFocus::ConfirmPassword => &mut this.setup_state.confirm_input,
+                                    SetupFieldFocus::TotpConfirm => &mut this.setup_state.totp_confirm_input,
+                                };
+                                let changed = crate::components::handle_text_key_event(text, &mut this.input_cursor, &mut this.input_selection, ev);
+                                if is_totp {
+                                    this.setup_state.totp_confirm_input.retain(|c| c.is_ascii_digit());
+                                    if this.setup_state.totp_confirm_input.chars().count() > 6 {
+                                        let s: String = this.setup_state.totp_confirm_input.chars().take(6).collect();
+                                        this.setup_state.totp_confirm_input = s;
+                                        this.input_cursor = this.input_cursor.min(6);
                                     }
+                                }
+                                if changed {
                                     this.setup_state.error_message = None;
                                     cx.notify();
                                 }
@@ -1201,6 +1233,7 @@ impl Render for CrowApp {
 
                 // SSH Key Management Modal Keyboard Routing
                 if let Some(ref mut gen) = this.key_gen_modal {
+                    this.cursor_blink = true;
                     if ev.keystroke.key == "escape" {
                         this.close_key_gen_modal(cx);
                     } else if key == "enter" {
@@ -1215,27 +1248,25 @@ impl Render for CrowApp {
                             KeyGenFieldFocus::Comment => KeyGenFieldFocus::Directory,
                             KeyGenFieldFocus::Directory => KeyGenFieldFocus::Name,
                         };
+                        this.input_cursor = match gen.active_focus {
+                            KeyGenFieldFocus::Name => gen.name_input.chars().count(),
+                            KeyGenFieldFocus::Comment => gen.comment_input.chars().count(),
+                            KeyGenFieldFocus::Directory => gen.custom_dir_input.chars().count(),
+                        };
+                        this.input_selection = None;
                         cx.notify();
-                    } else if key == "backspace" {
-                        match gen.active_focus {
-                            KeyGenFieldFocus::Name => { gen.name_input.pop(); }
-                            KeyGenFieldFocus::Comment => { gen.comment_input.pop(); }
-                            KeyGenFieldFocus::Directory => { gen.custom_dir_input.pop(); }
-                        }
-                        gen.error_message = None;
-                        cx.notify();
-                    } else if !is_mod {
-                        let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
-                            Some(ev.keystroke.key.as_str())
-                        } else {
-                            None
-                        });
-                        if let Some(c) = char_to_insert {
-                            match gen.active_focus {
-                                KeyGenFieldFocus::Name => gen.name_input.push_str(c),
-                                KeyGenFieldFocus::Comment => gen.comment_input.push_str(c),
-                                KeyGenFieldFocus::Directory => gen.custom_dir_input.push_str(c),
-                            }
+                    } else {
+                        let target = match gen.active_focus {
+                            KeyGenFieldFocus::Name => &mut gen.name_input,
+                            KeyGenFieldFocus::Comment => &mut gen.comment_input,
+                            KeyGenFieldFocus::Directory => &mut gen.custom_dir_input,
+                        };
+                        if crate::components::handle_text_key_event(
+                            target,
+                            &mut this.input_cursor,
+                            &mut this.input_selection,
+                            ev,
+                        ) {
                             gen.error_message = None;
                             cx.notify();
                         }
@@ -1244,73 +1275,55 @@ impl Render for CrowApp {
                 }
 
                 if let Some(ref mut grp) = this.new_group_modal {
+                    this.cursor_blink = true;
                     if ev.keystroke.key == "escape" {
                         this.close_new_group_modal(cx);
                     } else if key == "enter" {
                         this.submit_new_group(cx);
-                    } else if key == "backspace" {
-                        grp.name_input.pop();
+                    } else if crate::components::handle_text_key_event(
+                        &mut grp.name_input,
+                        &mut this.input_cursor,
+                        &mut this.input_selection,
+                        ev,
+                    ) {
                         grp.error_message = None;
                         cx.notify();
-                    } else if !is_mod {
-                        let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
-                            Some(ev.keystroke.key.as_str())
-                        } else {
-                            None
-                        });
-                        if let Some(c) = char_to_insert {
-                            grp.name_input.push_str(c);
-                            grp.error_message = None;
-                            cx.notify();
-                        }
                     }
                     return;
                 }
 
                 if let Some(ref mut sp) = this.add_scan_path_modal {
+                    this.cursor_blink = true;
                     if ev.keystroke.key == "escape" {
                         this.close_add_scan_path_modal(cx);
                     } else if key == "enter" {
                         this.submit_add_scan_path(cx);
-                    } else if key == "backspace" {
-                        sp.path_input.pop();
+                    } else if crate::components::handle_text_key_event(
+                        &mut sp.path_input,
+                        &mut this.input_cursor,
+                        &mut this.input_selection,
+                        ev,
+                    ) {
                         sp.error_message = None;
                         cx.notify();
-                    } else if !is_mod {
-                        let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
-                            Some(ev.keystroke.key.as_str())
-                        } else {
-                            None
-                        });
-                        if let Some(c) = char_to_insert {
-                            sp.path_input.push_str(c);
-                            sp.error_message = None;
-                            cx.notify();
-                        }
                     }
                     return;
                 }
 
                 if let Some(ref mut edit) = this.edit_key_modal {
+                    this.cursor_blink = true;
                     if ev.keystroke.key == "escape" {
                         this.close_edit_key_modal(cx);
                     } else if key == "enter" {
                         this.submit_edit_key(cx);
-                    } else if key == "backspace" {
-                        edit.name_input.pop();
+                    } else if crate::components::handle_text_key_event(
+                        &mut edit.name_input,
+                        &mut this.input_cursor,
+                        &mut this.input_selection,
+                        ev,
+                    ) {
                         edit.error_message = None;
                         cx.notify();
-                    } else if !is_mod {
-                        let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
-                            Some(ev.keystroke.key.as_str())
-                        } else {
-                            None
-                        });
-                        if let Some(c) = char_to_insert {
-                            edit.name_input.push_str(c);
-                            edit.error_message = None;
-                            cx.notify();
-                        }
                     }
                     return;
                 }
@@ -1318,40 +1331,37 @@ impl Render for CrowApp {
                 // If on Settings with dropdown open, handle dropdown typing / escape / enter
                 if this.screen == Screen::Settings {
                     if let Some(open_row_id) = this.settings_dropdown_open.clone() {
+                        this.cursor_blink = true;
                         if ev.keystroke.key == "escape" {
                             this.close_settings_dropdown(cx);
                             return;
                         } else if key == "enter" {
                             this.apply_settings_custom_input(&open_row_id, cx);
                             return;
-                        } else if key == "backspace" {
-                            this.settings_custom_input.pop();
+                        } else if crate::components::handle_text_key_event(
+                            &mut this.settings_custom_input,
+                            &mut this.input_cursor,
+                            &mut this.input_selection,
+                            ev,
+                        ) {
+                            let field_is_int = this
+                                .config
+                                .get_field(&open_row_id)
+                                .map(|f| matches!(&f.field_type, crow_config_core::schema::FieldType::Other(cow) if cow == "integer"))
+                                .unwrap_or(false);
+                            if field_is_int {
+                                this.settings_custom_input.retain(|c| c.is_ascii_digit());
+                                this.input_cursor = this.input_cursor.min(this.settings_custom_input.chars().count());
+                            }
                             cx.notify();
                             return;
-                        } else if !is_mod {
-                            let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
-                                Some(ev.keystroke.key.as_str())
-                            } else {
-                                None
-                            });
-                            if let Some(c) = char_to_insert {
-                                let field_is_int = this
-                                    .config
-                                    .get_field(&open_row_id)
-                                    .map(|f| matches!(&f.field_type, crow_config_core::schema::FieldType::Other(cow) if cow == "integer"))
-                                    .unwrap_or(false);
-                                if !field_is_int || c.chars().all(|d| d.is_ascii_digit()) {
-                                    this.settings_custom_input.push_str(c);
-                                    cx.notify();
-                                }
-                                return;
-                            }
                         }
                     }
                 }
 
                 // Onboard Screen Keyboard Interaction
-                if this.screen == Screen::Onboard && !is_mod {
+                if this.screen == Screen::Onboard {
+                    this.cursor_blink = true;
                     if ev.keystroke.key == "escape" {
                         this.set_screen(Screen::Fleet, cx);
                         return;
@@ -1362,19 +1372,62 @@ impl Render for CrowApp {
                         let shift = is_shift;
                         this.onboard_cycle_focus(shift, cx);
                         return;
-                    } else if key == "backspace" {
-                        this.onboard_backspace(cx);
-                        return;
-                    } else {
-                        let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
-                            Some(ev.keystroke.key.as_str())
-                        } else {
-                            None
-                        });
-                        if let Some(c) = char_to_insert {
-                            this.onboard_type_char(c, cx);
-                            return;
+                    }
+
+                    let handled = match this.onboard_state.focus {
+                        OnboardFieldFocus::Host => crate::components::handle_text_key_event(
+                            &mut this.onboard_state.host,
+                            &mut this.input_cursor,
+                            &mut this.input_selection,
+                            ev,
+                        ),
+                        OnboardFieldFocus::Port => {
+                            let res = crate::components::handle_text_key_event(
+                                &mut this.onboard_state.port,
+                                &mut this.input_cursor,
+                                &mut this.input_selection,
+                                ev,
+                            );
+                            if res {
+                                this.onboard_state.port.retain(|c| c.is_ascii_digit());
+                                if this.onboard_state.port.len() > 5 {
+                                    this.onboard_state.port.truncate(5);
+                                    this.input_cursor = this.input_cursor.min(this.onboard_state.port.len());
+                                }
+                            }
+                            res
                         }
+                        OnboardFieldFocus::User => crate::components::handle_text_key_event(
+                            &mut this.onboard_state.user,
+                            &mut this.input_cursor,
+                            &mut this.input_selection,
+                            ev,
+                        ),
+                        OnboardFieldFocus::Password => crate::components::handle_text_key_event(
+                            &mut this.onboard_state.password,
+                            &mut this.input_cursor,
+                            &mut this.input_selection,
+                            ev,
+                        ),
+                        OnboardFieldFocus::Label => crate::components::handle_text_key_event(
+                            &mut this.onboard_state.label,
+                            &mut this.input_cursor,
+                            &mut this.input_selection,
+                            ev,
+                        ),
+                        OnboardFieldFocus::Tags => crate::components::handle_text_key_event(
+                            &mut this.onboard_state.tags,
+                            &mut this.input_cursor,
+                            &mut this.input_selection,
+                            ev,
+                        ),
+                        OnboardFieldFocus::None => false,
+                    };
+
+                    if handled {
+                        this.onboard_state.error_message = None;
+                        cx.notify();
+                        return;
                     }
                 }
 
@@ -1430,7 +1483,7 @@ impl Render for CrowApp {
             // If locked, show full lock screen
             .children(if vault_status == VaultStatus::Locked {
                 Some(
-                    div().size_full().child(vault_lock_view(app_view.clone(), &self.lock_state))
+                    div().size_full().child(vault_lock_view(app_view.clone(), self))
                 )
             } else {
                 None
@@ -1581,7 +1634,7 @@ impl Render for CrowApp {
                                     Screen::VaultSetup => Some(
                                         div()
                                             .size_full()
-                                            .child(vault_setup_view(app_view.clone(), &self.setup_state)),
+                                            .child(vault_setup_view(app_view.clone(), self)),
                                     ),
                                 }),
                         )

@@ -2,6 +2,7 @@ pub mod setup;
 
 use gpui_kit::*;
 use crate::app::CrowApp;
+use crate::components::terminal_text_input_styled;
 use crate::theme::*;
 
 pub use setup::{vault_setup_view, SetupFieldFocus, SetupState, SetupStep};
@@ -33,21 +34,14 @@ impl Default for LockState {
     }
 }
 
-pub fn vault_lock_view(app: Entity<CrowApp>, state: &LockState) -> impl IntoElement {
+pub fn vault_lock_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElement {
+    let state = &app_data.lock_state;
     let has_error = state.error_message.is_some();
     let error_text = state.error_message.clone().unwrap_or_default();
 
     let is_pwd_focused = state.active_focus == LockFieldFocus::Password;
     let is_totp_focused = state.active_focus == LockFieldFocus::Totp;
-
-    let pwd_display = if state.show_password {
-        state.password_input.clone()
-    } else {
-        "●".repeat(state.password_input.len())
-    };
-
     let show_pwd = state.show_password;
-    let totp_display = state.totp_input.clone();
 
     let app_pwd_focus = app.clone();
     let app_totp_focus = app.clone();
@@ -201,34 +195,29 @@ pub fn vault_lock_view(app: Entity<CrowApp>, state: &LockState) -> impl IntoElem
                                         ),
                                 )
                                 .child(
-                                    div()
-                                        .id("lock-input-pwd")
-                                        .h(px(38.0))
-                                        .bg(BG_PANEL)
-                                        .border_1()
-                                        .border_color(if is_pwd_focused { OK } else { BORDER_DEFAULT })
-                                        .px(px(12.0))
-                                        .flex()
-                                        .items_center()
-                                        .cursor_text()
-                                        .on_click(move |_ev, _window, cx| {
-                                            app_pwd_focus.update(cx, |this, cx| {
-                                                this.lock_state.active_focus = LockFieldFocus::Password;
-                                                cx.notify();
-                                            });
-                                        })
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(13.0))
-                                                .text_color(if pwd_display.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY })
-                                                .child(if pwd_display.is_empty() { "Enter master password…".to_string() } else { pwd_display }),
-                                        )
-                                        .children(if is_pwd_focused {
-                                            Some(div().w(px(2.0)).h(px(16.0)).bg(OK).ml(px(2.0)))
-                                        } else {
-                                            None
-                                        }),
+                                    terminal_text_input_styled(
+                                        "lock-input-pwd",
+                                        &state.password_input,
+                                        "Enter master password…",
+                                        is_pwd_focused,
+                                        !show_pwd,
+                                        38.0,
+                                        13.0,
+                                        if is_pwd_focused { app_data.input_cursor } else { 0 },
+                                        if is_pwd_focused { app_data.input_selection } else { None },
+                                        app_data.cursor_blink,
+                                    )
+                                    .on_click(move |ev, _window, cx| {
+                                        let select_all = ev.click_count() >= 2;
+                                        app_pwd_focus.update(cx, |this, cx| {
+                                            this.lock_state.active_focus = LockFieldFocus::Password;
+                                            let len = this.lock_state.password_input.chars().count();
+                                            this.input_cursor = len;
+                                            this.input_selection = if select_all && len > 0 { Some((0, len)) } else { None };
+                                            this.cursor_blink = true;
+                                            cx.notify();
+                                        });
+                                    }),
                                 ),
                         )
                         // TOTP Code input (always mandatory)
@@ -259,34 +248,29 @@ pub fn vault_lock_view(app: Entity<CrowApp>, state: &LockState) -> impl IntoElem
                                         ),
                                 )
                                 .child(
-                                    div()
-                                        .id("lock-input-totp")
-                                        .h(px(38.0))
-                                        .bg(BG_PANEL)
-                                        .border_1()
-                                        .border_color(if is_totp_focused { OK } else { BORDER_DEFAULT })
-                                        .px(px(12.0))
-                                        .flex()
-                                        .items_center()
-                                        .cursor_text()
-                                        .on_click(move |_ev, _window, cx| {
-                                            app_totp_focus.update(cx, |this, cx| {
-                                                this.lock_state.active_focus = LockFieldFocus::Totp;
-                                                cx.notify();
-                                            });
-                                        })
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(13.0))
-                                                .text_color(if totp_display.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY })
-                                                .child(if totp_display.is_empty() { "000000".to_string() } else { totp_display }),
-                                        )
-                                        .children(if is_totp_focused {
-                                            Some(div().w(px(2.0)).h(px(16.0)).bg(OK).ml(px(2.0)))
-                                        } else {
-                                            None
-                                        }),
+                                    terminal_text_input_styled(
+                                        "lock-input-totp",
+                                        &state.totp_input,
+                                        "000000",
+                                        is_totp_focused,
+                                        false,
+                                        38.0,
+                                        13.0,
+                                        if is_totp_focused { app_data.input_cursor } else { 0 },
+                                        if is_totp_focused { app_data.input_selection } else { None },
+                                        app_data.cursor_blink,
+                                    )
+                                    .on_click(move |ev, _window, cx| {
+                                        let select_all = ev.click_count() >= 2;
+                                        app_totp_focus.update(cx, |this, cx| {
+                                            this.lock_state.active_focus = LockFieldFocus::Totp;
+                                            let len = this.lock_state.totp_input.chars().count();
+                                            this.input_cursor = len;
+                                            this.input_selection = if select_all && len > 0 { Some((0, len)) } else { None };
+                                            this.cursor_blink = true;
+                                            cx.notify();
+                                        });
+                                    }),
                                 ),
                         )
                         // Bottom submit row

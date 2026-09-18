@@ -131,6 +131,29 @@ pub fn copy_to_clipboard_system(text: &str) {
     }
 }
 
+pub fn read_clipboard_system() -> Option<String> {
+    #[cfg(target_os = "macos")]
+    {
+        if let Ok(output) = std::process::Command::new("pbpaste").output() {
+            if output.status.success() {
+                return String::from_utf8(output.stdout).ok();
+            }
+        }
+    }
+    #[cfg(target_os = "linux")]
+    {
+        if let Ok(output) = std::process::Command::new("xclip")
+            .args(["-selection", "clipboard", "-o"])
+            .output()
+        {
+            if output.status.success() {
+                return String::from_utf8(output.stdout).ok();
+            }
+        }
+    }
+    None
+}
+
 /// Expands a leading '~' into the user's home directory.
 pub fn expand_tilde(path_str: &str) -> PathBuf {
     if let Some(stripped) = path_str.strip_prefix("~/") {

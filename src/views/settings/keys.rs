@@ -1295,11 +1295,19 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                     false,
                                                     28.0,
                                                     11.0,
+                                                    if gen.active_focus == KeyGenFieldFocus::Name { app_data.input_cursor } else { 0 },
+                                                    if gen.active_focus == KeyGenFieldFocus::Name { app_data.input_selection } else { None },
+                                                    app_data.cursor_blink,
                                                 )
-                                                .on_click(move |_ev, _window, cx| {
+                                                .on_click(move |ev, _window, cx| {
+                                                    let select_all = ev.click_count() >= 2;
                                                     app_focus_name.update(cx, |this, cx| {
                                                         if let Some(ref mut g) = this.key_gen_modal {
                                                             g.active_focus = KeyGenFieldFocus::Name;
+                                                            let len = g.name_input.chars().count();
+                                                            this.input_cursor = len;
+                                                            this.input_selection = if select_all && len > 0 { Some((0, len)) } else { None };
+                                                            this.cursor_blink = true;
                                                             cx.notify();
                                                         }
                                                     });
@@ -1351,6 +1359,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                                 div()
                                                                     .font_family(FONT_MONO)
                                                                     .text_size(px(10.5))
+                                                                    .font_weight(FontWeight::BOLD)
                                                                     .text_color(if gen.algo == KeyAlgorithm::Rsa4096 { WARN_INK } else { TEXT_DIM })
                                                                     .child("RSA 4096-bit"),
                                                             ),
@@ -1380,11 +1389,19 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                     false,
                                                     28.0,
                                                     11.0,
+                                                    if gen.active_focus == KeyGenFieldFocus::Comment { app_data.input_cursor } else { 0 },
+                                                    if gen.active_focus == KeyGenFieldFocus::Comment { app_data.input_selection } else { None },
+                                                    app_data.cursor_blink,
                                                 )
-                                                .on_click(move |_ev, _window, cx| {
+                                                .on_click(move |ev, _window, cx| {
+                                                    let select_all = ev.click_count() >= 2;
                                                     app_focus_comment.update(cx, |this, cx| {
                                                         if let Some(ref mut g) = this.key_gen_modal {
                                                             g.active_focus = KeyGenFieldFocus::Comment;
+                                                            let len = g.comment_input.chars().count();
+                                                            this.input_cursor = len;
+                                                            this.input_selection = if select_all && len > 0 { Some((0, len)) } else { None };
+                                                            this.cursor_blink = true;
                                                             cx.notify();
                                                         }
                                                     });
@@ -1414,11 +1431,19 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                     false,
                                                     28.0,
                                                     11.0,
+                                                    if gen.active_focus == KeyGenFieldFocus::Directory { app_data.input_cursor } else { 0 },
+                                                    if gen.active_focus == KeyGenFieldFocus::Directory { app_data.input_selection } else { None },
+                                                    app_data.cursor_blink,
                                                 )
-                                                .on_click(move |_ev, _window, cx| {
+                                                .on_click(move |ev, _window, cx| {
+                                                    let select_all = ev.click_count() >= 2;
                                                     app_focus_dir.update(cx, |this, cx| {
                                                         if let Some(ref mut g) = this.key_gen_modal {
                                                             g.active_focus = KeyGenFieldFocus::Directory;
+                                                            let len = g.custom_dir_input.chars().count();
+                                                            this.input_cursor = len;
+                                                            this.input_selection = if select_all && len > 0 { Some((0, len)) } else { None };
+                                                            this.cursor_blink = true;
                                                             cx.notify();
                                                         }
                                                     });
@@ -1578,7 +1603,23 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                 false,
                                 30.0,
                                 11.0,
-                            ),
+                                app_data.input_cursor,
+                                app_data.input_selection,
+                                app_data.cursor_blink,
+                            )
+                            .on_click({
+                                let app_c = app.clone();
+                                let p_len = path_text.chars().count();
+                                move |ev, _window, cx| {
+                                    let select_all = ev.click_count() >= 2;
+                                    app_c.update(cx, |this, cx| {
+                                        this.input_cursor = p_len;
+                                        this.input_selection = if select_all && p_len > 0 { Some((0, p_len)) } else { None };
+                                        this.cursor_blink = true;
+                                        cx.notify();
+                                    });
+                                }
+                            }),
                         )
                         .children(if let Some(ref e) = err {
                             Some(
@@ -1691,7 +1732,23 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                 false,
                                 30.0,
                                 11.0,
-                            ),
+                                app_data.input_cursor,
+                                app_data.input_selection,
+                                app_data.cursor_blink,
+                            )
+                            .on_click({
+                                let app_c = app.clone();
+                                let n_len = name_text.chars().count();
+                                move |ev, _window, cx| {
+                                    let select_all = ev.click_count() >= 2;
+                                    app_c.update(cx, |this, cx| {
+                                        this.input_cursor = n_len;
+                                        this.input_selection = if select_all && n_len > 0 { Some((0, n_len)) } else { None };
+                                        this.cursor_blink = true;
+                                        cx.notify();
+                                    });
+                                }
+                            }),
                         )
                         .children(if let Some(ref e) = err {
                             Some(
@@ -1814,7 +1871,23 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                         false,
                                         28.0,
                                         11.0,
-                                    ),
+                                        app_data.input_cursor,
+                                        app_data.input_selection,
+                                        app_data.cursor_blink,
+                                    )
+                                    .on_click({
+                                        let app_c = app.clone();
+                                        let n_len = name_text.chars().count();
+                                        move |ev, _window, cx| {
+                                            let select_all = ev.click_count() >= 2;
+                                            app_c.update(cx, |this, cx| {
+                                                this.input_cursor = n_len;
+                                                this.input_selection = if select_all && n_len > 0 { Some((0, n_len)) } else { None };
+                                                this.cursor_blink = true;
+                                                cx.notify();
+                                            });
+                                        }
+                                    }),
                                 ),
                         )
                         // Group selector chips
