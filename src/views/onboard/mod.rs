@@ -389,6 +389,108 @@ fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                 .text_color(TEXT_DIM)
                 .child("Provide the target server's IPv4, IPv6, or fully qualified domain name (FQDN)."),
         )
+        // Local Lab Test Nodes Quick-Pick (if any exist)
+        .children(if !app_data.lab_nodes.is_empty() {
+            let app_pick = app.clone();
+            Some(
+                div()
+                    .p(px(10.0))
+                    .bg(hex_rgb(0x0f1016))
+                    .border_1()
+                    .border_color(BORDER_DEFAULT)
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.0))
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .child(
+                                div()
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(10.0))
+                                    .font_weight(FontWeight::BOLD)
+                                    .text_color(OK)
+                                    .child("⚡ OR PICK A DETECTED LOCAL TEST NODE"),
+                            )
+                            .child(
+                                div()
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(9.0))
+                                    .text_color(TEXT_MUTED)
+                                    .child("Distrobox / Podman"),
+                            ),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap(px(4.0))
+                            .children(app_data.lab_nodes.iter().enumerate().map(|(idx, node)| {
+                                let app = app_pick.clone();
+                                let node_name = node.name.clone();
+                                let port_str = node.ssh_port.unwrap_or(2222).to_string();
+                                let distro = node.distro_display();
+                                div()
+                                    .id(ElementId::NamedInteger("quick-pick-lab-node".into(), idx as u64))
+                                    .p(px(6.0))
+                                    .bg(BG_CONTROL)
+                                    .border_1()
+                                    .border_color(BORDER_DEFAULT)
+                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                    .cursor_pointer()
+                                    .flex()
+                                    .items_center()
+                                    .justify_between()
+                                    .on_click(move |_ev, _window, cx| {
+                                        let name = node_name.clone();
+                                        let p = port_str.clone();
+                                        let d = distro.clone();
+                                        app.update(cx, |this, cx| {
+                                            this.onboard_select_local_lab_node(&name, &p, &d, cx);
+                                        });
+                                    })
+                                    .child(
+                                        div()
+                                            .flex()
+                                            .items_center()
+                                            .gap(px(8.0))
+                                            .child(
+                                                div()
+                                                    .size(px(6.0))
+                                                    .rounded_full()
+                                                    .bg(if node.is_running() { OK } else { TEXT_DIMMER }),
+                                            )
+                                            .child(
+                                                div()
+                                                    .font_family(FONT_MONO)
+                                                    .text_size(px(10.5))
+                                                    .font_weight(FontWeight::BOLD)
+                                                    .text_color(TEXT_PRIMARY)
+                                                    .child(node.name.clone()),
+                                            )
+                                            .child(
+                                                div()
+                                                    .font_family(FONT_MONO)
+                                                    .text_size(px(9.0))
+                                                    .text_color(TEXT_TERTIARY)
+                                                    .child(format!("({})", node.engine.label())),
+                                            ),
+                                    )
+                                    .child(
+                                        div()
+                                            .font_family(FONT_MONO)
+                                            .text_size(px(9.5))
+                                            .text_color(TEXT_MUTED)
+                                            .child(format!("127.0.0.1:{}", node.ssh_port.unwrap_or(2222))),
+                                    )
+                            }))
+                    )
+            )
+        } else {
+            None
+        })
         // Host field
         .child(
             div()

@@ -6,6 +6,7 @@ mod theme;
 pub mod config;
 pub mod journal;
 pub mod keys;
+pub mod lab;
 pub mod metrics;
 pub mod vault;
 mod views;

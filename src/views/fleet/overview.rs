@@ -303,6 +303,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
     ];
 
     div()
+        .relative()
         .size_full()
         .flex()
         .flex_col()
@@ -352,6 +353,28 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                 .child(div().text_color(TEXT_MUTED).child("EDGE"))
                                 .child(div().text_color(TEXT_MUTED).child("DATA"))
                                 .child(div().text_color(TEXT_MUTED).child("BY REGION"))
+                                .child({
+                                    let app_lab = app.clone();
+                                    div()
+                                        .id("btn-fleet-local-lab")
+                                        .px(px(8.0))
+                                        .py(px(2.0))
+                                        .bg(OK_BG)
+                                        .border_1()
+                                        .border_color(OK)
+                                        .text_color(OK)
+                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .cursor_pointer()
+                                        .font_family(FONT_MONO)
+                                        .font_weight(FontWeight::BOLD)
+                                        .text_size(px(10.0))
+                                        .on_click(move |_ev, _window, cx| {
+                                            app_lab.update(cx, |this, cx| {
+                                                this.toggle_local_lab_modal(cx);
+                                            });
+                                        })
+                                        .child("⚡ LOCAL LAB & VMS")
+                                })
                                 .child(div().flex_1())
                                 .child(
                                     div()
@@ -909,4 +932,14 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                         .child("fleet actions run serially with a per-host abort gate"),
                 ),
         )
+        .children(if app_data.show_local_lab_modal {
+            Some(crate::views::fleet::lab_modal::local_lab_modal(
+                &app_data.lab_engines,
+                &app_data.lab_nodes,
+                app.clone(),
+                app_data,
+            ))
+        } else {
+            None
+        })
 }

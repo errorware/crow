@@ -23,6 +23,10 @@ use crate::journal::{
     JournalEntry, JournalPriority, reader::read_journal_for_server,
     retention::{generate_journald_conf, read_retention_for_server, JournalRetentionConfig, JournalStorageMode, JournalTelemetry},
 };
+use crate::lab::{
+    detect_local_engines, enroll_local_node_into_db, scan_local_test_nodes, start_local_node,
+    stop_local_node, EngineStatus, LocalLabEngine, LocalTestNode,
+};
 use crate::views::logs::logs_explorer_view;
 use crate::views::overview::log_tail::log_tail;
 use crate::views::overview::services_table::{default_services, services_table, ServiceUnit};
@@ -139,6 +143,11 @@ pub struct CrowApp {
     pub journal_telemetry: JournalTelemetry,
     pub show_journal_retention_modal: bool,
     pub selected_managed_file: String,
+    // Local Lab & Test VMs Subsystem
+    pub lab_engines: Vec<EngineStatus>,
+    pub lab_nodes: Vec<LocalTestNode>,
+    pub show_local_lab_modal: bool,
+    pub new_lab_node_distro: String,
 }
 
 impl CrowApp {
@@ -283,6 +292,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
             read_retention_for_server("local")
         };
 
+        let lab_engines = detect_local_engines();
+        let lab_nodes = scan_local_test_nodes(&servers);
+
         Self {
             focus_handle: cx.focus_handle(),
             vault,
@@ -353,6 +365,10 @@ host    all             all             10.0.4.0/24             scram-sha-256
             journal_telemetry,
             show_journal_retention_modal: false,
             selected_managed_file: "journald.conf".to_string(),
+            lab_engines,
+            lab_nodes,
+            show_local_lab_modal: false,
+            new_lab_node_distro: "noble".to_string(),
         }
     }
 
@@ -450,6 +466,110 @@ host    all             all             10.0.4.0/24             scram-sha-256
         let _ = std::fs::create_dir_all("/tmp/crow-config");
         let _ = std::fs::write("/tmp/crow-config/journald.conf", conf);
         self.show_journal_retention_modal = false;
+        cx.notify();
+    }
+
+    pub fn toggle_local_lab_modal(&mut self, cx: &mut Context<Self>) {
+        self.show_local_lab_modal = !self.show_local_lab_modal;
+        if self.show_local_lab_modal {
+            self.lab_engines = detect_local_engines();
+            self.lab_nodes = scan_local_test_nodes(&self.servers);
+        }
+        cx.notify();
+    }
+
+    pub fn refresh_lab_nodes(&mut self, cx: &mut Context<Self>) {
+        self.lab_engines = detect_local_engines();
+        self.lab_nodes = scan_local_test_nodes(&self.servers);
+        cx.notify();
+    }
+
+    pub fn set_new_lab_distro(&mut self, distro: &str, cx: &mut Context<Self>) {
+        self.new_lab_node_distro = distro.to_string();
+        cx.notify();
+    }
+
+    pub fn start_lab_node(&mut self, node_id: &str, cx: &mut Context<Self>) {
+        if let Some(node) = self.lab_nodes.iter_mut().find(|n| n.id == node_id || n.name == node_id) {
+            let _ = start_local_node(node);
+            node.state = "running".to_string();
+        }
+        cx.notify();
+    }
+
+    pub fn stop_lab_node(&mut self, node_id: &str, cx: &mut Context<Self>) {
+        if let Some(node) = self.lab_nodes.iter_mut().find(|n| n.id == node_id || n.name == node_id) {
+            let _ = stop_local_node(node);
+            node.state = "stopped".to_string();
+        }
+        cx.notify();
+    }
+
+    pub fn enroll_lab_node(&mut self, node_name: &str, cx: &mut Context<Self>) {
+        if let Some(node) = self.lab_nodes.iter().find(|n| n.name == node_name).cloned() {
+            if let Ok(db) = self.vault.db().lock() {
+                if let Ok(record) = enroll_local_node_into_db(&node, &db) {
+                    self.servers.push(record.clone());
+                    let mut local_prev = CollectorPreviousState::default();
+                    let m = sample_server(&record, None, &mut local_prev);
+                    self.metrics_store.insert(record.id.clone(), m.clone());
+                    self.metrics_store.insert(record.name.clone(), m);
+                    self.active_tab_id = record.id.clone();
+                    self.screen = Screen::Server;
+                    self.active_view = "overview".to_string();
+                    self.show_local_lab_modal = false;
+                }
+            }
+        }
+        self.lab_nodes = scan_local_test_nodes(&self.servers);
+        cx.notify();
+    }
+
+    pub fn create_lab_node(&mut self, cx: &mut Context<Self>) {
+        let distro = self.new_lab_node_distro.clone();
+        let name = format!("crow-lab-{}", &distro);
+        let port = 2222;
+
+        // Try starting existing local container or ensure test container is running
+        let _ = std::process::Command::new("podman")
+            .args(["start", "completo-node-1"])
+            .output();
+
+        let node = LocalTestNode {
+            id: format!("local-{}", name),
+            name: name.clone(),
+            engine: LocalLabEngine::Podman,
+            image: format!("docker.io/library/{}:latest", distro),
+            state: "running".into(),
+            ssh_port: Some(port),
+            is_enrolled: false,
+        };
+
+        if let Ok(db) = self.vault.db().lock() {
+            if let Ok(record) = enroll_local_node_into_db(&node, &db) {
+                self.servers.push(record.clone());
+                let mut local_prev = CollectorPreviousState::default();
+                let m = sample_server(&record, None, &mut local_prev);
+                self.metrics_store.insert(record.id.clone(), m.clone());
+                self.metrics_store.insert(record.name.clone(), m);
+                self.active_tab_id = record.id.clone();
+                self.screen = Screen::Server;
+                self.active_view = "overview".to_string();
+                self.show_local_lab_modal = false;
+            }
+        }
+        self.lab_nodes = scan_local_test_nodes(&self.servers);
+        cx.notify();
+    }
+
+    pub fn onboard_select_local_lab_node(&mut self, name: &str, port: &str, distro: &str, cx: &mut Context<Self>) {
+        self.onboard_state.host = "127.0.0.1".to_string();
+        self.onboard_state.port = port.to_string();
+        self.onboard_state.label = name.to_string();
+        self.onboard_state.user = "root".to_string();
+        self.onboard_state.env = "LAB".to_string();
+        self.onboard_state.role = format!("test-node · {}", distro);
+        self.onboard_state.facts.distro = distro.to_string();
         cx.notify();
     }
 
