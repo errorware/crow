@@ -5,6 +5,7 @@ mod components;
 mod theme;
 pub mod config;
 pub mod keys;
+pub mod metrics;
 pub mod vault;
 mod views;
 

@@ -102,15 +102,26 @@ pub fn default_fleet_hosts() -> Vec<FleetHost> {
     ]
 }
 
-pub fn fleet_stat_strip(server_count: usize, agent_count: usize) -> impl IntoElement {
+pub fn fleet_stat_strip(
+    server_count: usize,
+    agent_count: usize,
+    avg_load: Option<f32>,
+    total_vcpu: usize,
+) -> impl IntoElement {
     let s_count = server_count.to_string();
     let a_cov = agent_count.to_string();
     let a_tot = format!("/{}", server_count);
+    let load_val = avg_load.map(|l| format!("{:.2}", l)).unwrap_or_else(|| "1.42".to_string());
+    let vcpu_note = if total_vcpu > 0 {
+        format!("weighted avg · {} vCPU", total_vcpu)
+    } else {
+        "weighted avg · 96 vCPU".to_string()
+    };
     let stats = [
         ("SERVERS", s_count, "".to_string(), "3 regions · 4 groups".to_string(), TEXT_PRIMARY),
         ("OPEN ALERTS", "7".to_string(), "".to_string(), "2 crit · 5 warn".to_string(), WARN),
         ("CONFIG DRIFT", "3".to_string(), " hosts".to_string(), "authorized_keys, ufw".to_string(), WARN),
-        ("FLEET LOAD", "1.42".to_string(), "".to_string(), "weighted avg · 96 vCPU".to_string(), TEXT_PRIMARY),
+        ("FLEET LOAD", load_val, "".to_string(), vcpu_note, TEXT_PRIMARY),
         ("OLDEST HOST KEY", "214".to_string(), "d".to_string(), "worker-04 · policy 90d".to_string(), CRIT),
         ("AGENT COVERAGE", a_cov, a_tot, "telemetry coverage".to_string(), TEXT_PRIMARY),
     ];
@@ -189,19 +200,36 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                 "DEV" => (OK_BG, OK),
                 _ => (BG_PANEL, TEXT_DIM),
             };
-            let (cpu_pct, cpu_label, mem_pct, mem_label, disk, uptime) = match s.name.as_str() {
-                "edge-01" => (38, "38%".into(), 73, "73%".into(), "43%".into(), "64d 07h".into()),
-                "edge-02" => (31, "31%".into(), 61, "61%".into(), "39%".into(), "64d 07h".into()),
-                "db-primary" => (64, "64%".into(), 82, "82%".into(), "77%".into(), "121d 03h".into()),
-                "db-replica-01" => (22, "22%".into(), 58, "58%".into(), "74%".into(), "121d 03h".into()),
-                "redis-01" => (47, "47%".into(), 44, "44%".into(), "18%".into(), "89d 11h".into()),
-                "worker-04" => (0, "—".into(), 0, "—".into(), "—".into(), "—".into()),
-                "worker-05" => (71, "71%".into(), 66, "66%".into(), "31%".into(), "12d 19h".into()),
-                _ => {
-                    if s.status == "online" {
-                        (18, "18%".into(), 34, "34%".into(), "24%".into(), "1d 04h".into())
-                    } else {
-                        (0, "—".into(), 0, "—".into(), "—".into(), "—".into())
+            let (cpu_pct, cpu_label, mem_pct, mem_label, disk, uptime) = if let Some(m) = app_data.metrics_store.get(&s.id).or_else(|| app_data.metrics_store.get(&s.name)) {
+                let cpu = (m.cpu_pct.round() as u8).clamp(0, 100);
+                let mem = (m.mem_pct.round() as u8).clamp(0, 100);
+                if s.status == "unreachable" || s.status == "offline" {
+                    (0, "—".into(), 0, "—".into(), "—".into(), "—".into())
+                } else {
+                    (
+                        cpu,
+                        format!("{}%", cpu),
+                        mem,
+                        format!("{}%", mem),
+                        format!("{:.0}%", m.disk_pct),
+                        m.uptime_formatted.clone(),
+                    )
+                }
+            } else {
+                match s.name.as_str() {
+                    "edge-01" => (38, "38%".into(), 73, "73%".into(), "43%".into(), "64d 07h".into()),
+                    "edge-02" => (31, "31%".into(), 61, "61%".into(), "39%".into(), "64d 07h".into()),
+                    "db-primary" => (64, "64%".into(), 82, "82%".into(), "77%".into(), "121d 03h".into()),
+                    "db-replica-01" => (22, "22%".into(), 58, "58%".into(), "74%".into(), "121d 03h".into()),
+                    "redis-01" => (47, "47%".into(), 44, "44%".into(), "18%".into(), "89d 11h".into()),
+                    "worker-04" => (0, "—".into(), 0, "—".into(), "—".into(), "—".into()),
+                    "worker-05" => (71, "71%".into(), 66, "66%".into(), "31%".into(), "12d 19h".into()),
+                    _ => {
+                        if s.status == "online" {
+                            (18, "18%".into(), 34, "34%".into(), "24%".into(), "1d 04h".into())
+                        } else {
+                            (0, "—".into(), 0, "—".into(), "—".into(), "—".into())
+                        }
                     }
                 }
             };
@@ -234,6 +262,18 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
 
     let server_count = hosts.len();
     let agent_count = hosts.iter().filter(|h| h.agent != "—").count();
+    let total_vcpu: usize = app_data
+        .metrics_store
+        .values()
+        .map(|m| m.vcpu_count)
+        .sum::<usize>();
+    let total_load: f32 = app_data.metrics_store.values().map(|m| m.load_1m).sum();
+    let m_count = app_data.metrics_store.len();
+    let avg_load = if m_count > 0 {
+        Some(total_load / m_count as f32)
+    } else {
+        None
+    };
 
     let alerts = [
         ("CRIT", CRIT, CRIT_BG, "worker-04", "ssh handshake timeout — 6 consecutive probes failed", "4m"),
@@ -268,7 +308,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
         .flex_col()
         .bg(BG_APP)
         // 1. Fleet Stat Strip
-        .child(fleet_stat_strip(server_count, agent_count))
+        .child(fleet_stat_strip(server_count, agent_count, avg_load, total_vcpu))
         // 2. Main content split: host table on left, alerts/activity rail on right
         .child(
             div()

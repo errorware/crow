@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::components::danger_zone::danger_zone;
@@ -6,6 +7,7 @@ use crate::components::palette::palette_overlay;
 use crate::components::sidebar::sidebar;
 use crate::components::stat_strip::stat_strip;
 use crate::components::titlebar::{burger_menu_overlay, titlebar, ServerTab};
+use crate::metrics::{ServerMetrics, collector::{sample_server, CollectorPreviousState}};
 use crate::vault::{ServerRecord, Vault, VaultStatus};
 use crate::views::config::managed_files::managed_files_rail;
 use crate::views::config::pending_diff_rail::pending_diff_rail;
@@ -119,6 +121,9 @@ pub struct CrowApp {
     pub input_selection: Option<(usize, usize)>,
     pub input_drag_anchor: Option<usize>,
     pub _cursor_blink_task: Task<()>,
+    // Real Stats & Metrics Telemetry Store
+    pub metrics_store: HashMap<String, ServerMetrics>,
+    pub _metrics_poll_task: Task<()>,
 }
 
 impl CrowApp {
@@ -243,6 +248,14 @@ host    all             all             10.0.4.0/24             scram-sha-256
             custom_compare_drag_anchor: None,
         };
 
+        let mut metrics_store = HashMap::new();
+        let mut local_prev = CollectorPreviousState::default();
+        for s in &servers {
+            let m = sample_server(s, None, &mut local_prev);
+            metrics_store.insert(s.id.clone(), m.clone());
+            metrics_store.insert(s.name.clone(), m);
+        }
+
         Self {
             focus_handle: cx.focus_handle(),
             vault,
@@ -291,6 +304,37 @@ host    all             all             10.0.4.0/24             scram-sha-256
                     }
                 }
             }),
+            metrics_store,
+            _metrics_poll_task: cx.spawn(async move |entity, cx| {
+                let mut local_prev = CollectorPreviousState::default();
+                loop {
+                    cx.background_executor().timer(std::time::Duration::from_millis(2000)).await;
+                    if entity.update(cx, |this, cx| {
+                        this.poll_metrics(&mut local_prev);
+                        cx.notify();
+                    }).is_err() {
+                        break;
+                    }
+                }
+            }),
+        }
+    }
+
+    pub fn poll_metrics(&mut self, local_prev: &mut CollectorPreviousState) {
+        if let Some(active_srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
+            let prev = self.metrics_store.get(&active_srv.id);
+            let updated = sample_server(&active_srv, prev, local_prev);
+            self.metrics_store.insert(active_srv.id.clone(), updated.clone());
+            self.metrics_store.insert(active_srv.name.clone(), updated);
+        }
+
+        if self.screen == Screen::Fleet {
+            for s in self.servers.clone() {
+                let prev = self.metrics_store.get(&s.id);
+                let updated = sample_server(&s, prev, local_prev);
+                self.metrics_store.insert(s.id.clone(), updated.clone());
+                self.metrics_store.insert(s.name.clone(), updated);
+            }
         }
     }
 
@@ -1577,15 +1621,18 @@ impl Render for CrowApp {
                                 .flex_col()
                                 .w_full()
                                 .children(match screen {
-                                    Screen::Server => Some(
-                                        div()
-                                            .size_full()
-                                            .flex()
-                                            .flex_col()
-                                            // Server Identity Bar
-                                            .child(identity_bar(app_view.clone()))
-                                            // Server Stat Strip
-                                            .child(stat_strip())
+                                    Screen::Server => {
+                                        let active_srv = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id);
+                                        let active_mtr = self.metrics_store.get(&self.active_tab_id).or_else(|| active_srv.and_then(|s| self.metrics_store.get(&s.id)));
+                                        Some(
+                                            div()
+                                                .size_full()
+                                                .flex()
+                                                .flex_col()
+                                                // Server Identity Bar
+                                                .child(identity_bar(active_srv, app_view.clone()))
+                                                // Server Stat Strip
+                                                .child(stat_strip(active_mtr))
                                             // Main Server Body: Sidebar + Content
                                             .child(
                                                 div()
@@ -1671,7 +1718,8 @@ impl Render for CrowApp {
                                             )
                                             // Persistent Danger Zone Strip
                                             .child(danger_zone()),
-                                    ),
+                                        )
+                                    }
                                     Screen::Fleet => Some(
                                         div()
                                             .size_full()

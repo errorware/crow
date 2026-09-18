@@ -1,32 +1,61 @@
 use gpui_kit::*;
 use crate::theme::*;
-use crate::components::sparkline::sparkline;
+use crate::components::sparkline::dynamic_sparkline;
+use crate::metrics::ServerMetrics;
 
-const CPU_POINTS: &[(f32, f32)] = &[
-    (0.0, 20.0), (8.0, 17.0), (16.0, 21.0), (24.0, 13.0),
-    (32.0, 16.0), (40.0, 9.0), (48.0, 14.0), (56.0, 11.0),
-    (64.0, 18.0), (72.0, 12.0), (80.0, 8.0), (86.0, 10.0),
-];
+pub fn stat_strip(metrics: Option<&ServerMetrics>) -> impl IntoElement {
+    let default_m = ServerMetrics::default();
+    let m = metrics.unwrap_or(&default_m);
 
-const MEM_POINTS: &[(f32, f32)] = &[
-    (0.0, 18.0), (8.0, 17.0), (16.0, 16.0), (24.0, 16.0),
-    (32.0, 14.0), (40.0, 13.0), (48.0, 13.0), (56.0, 11.0),
-    (64.0, 10.0), (72.0, 9.0), (80.0, 7.0), (86.0, 6.0),
-];
+    // CPU formatting
+    let cpu_str = format!("{:.1}", m.cpu_pct);
+    let cpu_color = if m.cpu_pct > 80.0 {
+        CRIT
+    } else if m.cpu_pct > 60.0 {
+        WARN
+    } else {
+        OK
+    };
+    let cpu_sub = format!("{} vCPU · peak {:.1}%", m.vcpu_count, m.cpu_peak.max(m.cpu_pct));
 
-const LOAD_POINTS: &[(f32, f32)] = &[
-    (0.0, 14.0), (8.0, 15.0), (16.0, 12.0), (24.0, 17.0),
-    (32.0, 15.0), (40.0, 19.0), (48.0, 16.0), (56.0, 20.0),
-    (64.0, 17.0), (72.0, 15.0), (80.0, 16.0), (86.0, 13.0),
-];
+    // Memory formatting
+    let (mem_used_str, mem_total_str) = m.mem_formatted();
+    let mem_color = if m.mem_pct > 85.0 {
+        CRIT
+    } else if m.mem_pct > 65.0 {
+        WARN
+    } else {
+        OK
+    };
+    let mem_ratio = (m.mem_pct / 100.0).clamp(0.01, 1.0);
 
-const NET_POINTS: &[(f32, f32)] = &[
-    (0.0, 22.0), (8.0, 15.0), (16.0, 18.0), (24.0, 10.0),
-    (32.0, 14.0), (40.0, 6.0), (48.0, 12.0), (56.0, 8.0),
-    (64.0, 16.0), (72.0, 7.0), (80.0, 11.0), (86.0, 5.0),
-];
+    // Disk formatting
+    let (disk_used_str, disk_total_str) = m.disk_formatted();
+    let disk_sub = format!("inodes {:.1}% · iowait {:.1}%", m.inodes_pct, m.iowait_pct);
 
-pub fn stat_strip() -> impl IntoElement {
+    // Load formatting
+    let load_str = format!("{:.2}", m.load_1m);
+    let load_sub = format!("1m {:.2} · 5m {:.2} · 15m {:.2}", m.load_1m, m.load_5m, m.load_15m);
+
+    // Uptime formatting
+    let (days, hours, mins) = m.uptime_parts();
+    let (uptime_top_val, uptime_top_unit, uptime_sub_val, uptime_sub_unit) = if days > 0 {
+        (days.to_string(), "d", format!("{:02}", hours), "h")
+    } else {
+        (hours.to_string(), "h", format!("{:02}", mins), "m")
+    };
+
+    // Network formatting
+    let rx_mbps = (m.net_rx_bps as f64 * 8.0) / 1_000_000.0;
+    let tx_mbps = (m.net_tx_bps as f64 * 8.0) / 1_000_000.0;
+    let net_total_mbps = rx_mbps + tx_mbps;
+    let net_str = if net_total_mbps >= 1.0 {
+        format!("{:.0}", net_total_mbps)
+    } else {
+        format!("{:.1}", net_total_mbps)
+    };
+    let net_sub = format!("↓ {:.0} · ↑ {:.0} · retrans 0.01%", rx_mbps, tx_mbps);
+
     div()
         .flex_none()
         .flex()
@@ -73,7 +102,7 @@ pub fn stat_strip() -> impl IntoElement {
                                         .text_size(px(26.0))
                                         .font_weight(FontWeight::MEDIUM)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("38.4"),
+                                        .child(cpu_str),
                                 )
                                 .child(
                                     div()
@@ -83,7 +112,7 @@ pub fn stat_strip() -> impl IntoElement {
                                         .child("%"),
                                 ),
                         )
-                        .child(sparkline(CPU_POINTS, OK)),
+                        .child(dynamic_sparkline(&m.cpu_history, Some(0.0), Some(100.0), cpu_color)),
                 )
                 .child(
                     div()
@@ -91,7 +120,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
                         .mt(px(6.0))
-                        .child("8 vCPU · peak 71.2%"),
+                        .child(cpu_sub),
                 ),
         )
         // 2. MEMORY
@@ -132,17 +161,17 @@ pub fn stat_strip() -> impl IntoElement {
                                         .text_size(px(26.0))
                                         .font_weight(FontWeight::MEDIUM)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("11.7"),
+                                        .child(mem_used_str),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(px(13.0))
                                         .text_color(TEXT_DIM)
-                                        .child("/16 GB"),
+                                        .child(mem_total_str),
                                 ),
                         )
-                        .child(sparkline(MEM_POINTS, WARN)),
+                        .child(dynamic_sparkline(&m.mem_history, Some(0.0), Some(100.0), mem_color)),
                 )
                 .child(
                     div()
@@ -158,9 +187,9 @@ pub fn stat_strip() -> impl IntoElement {
                                 .bg(rgb(0x1a1b21))
                                 .child(
                                     div()
-                                        .w(relative(0.73))
+                                        .w(relative(mem_ratio))
                                         .h_full()
-                                        .bg(WARN),
+                                        .bg(mem_color),
                                 ),
                         ),
                 ),
@@ -183,7 +212,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
-                        .child("DISK / (NVME)"),
+                        .child(format!("DISK {} (NVME)", m.disk_mount)),
                 )
                 .child(
                     div()
@@ -203,14 +232,14 @@ pub fn stat_strip() -> impl IntoElement {
                                         .text_size(px(26.0))
                                         .font_weight(FontWeight::MEDIUM)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("412"),
+                                        .child(disk_used_str),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(px(13.0))
                                         .text_color(TEXT_DIM)
-                                        .child("/960 GB"),
+                                        .child(disk_total_str),
                                 ),
                         )
                         .child(
@@ -234,7 +263,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
                         .mt(px(6.0))
-                        .child("inodes 6.2% · iowait 0.4%"),
+                        .child(disk_sub),
                 ),
         )
         // 4. LOAD AVG
@@ -270,9 +299,9 @@ pub fn stat_strip() -> impl IntoElement {
                                 .text_size(px(26.0))
                                 .font_weight(FontWeight::MEDIUM)
                                 .text_color(TEXT_PRIMARY)
-                                .child("2.14"),
+                                .child(load_str),
                         )
-                        .child(sparkline(LOAD_POINTS, TEXT_DIMMER)),
+                        .child(dynamic_sparkline(&m.load_history, Some(0.0), None, TEXT_DIMMER)),
                 )
                 .child(
                     div()
@@ -280,7 +309,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
                         .mt(px(6.0))
-                        .child("1m 2.14 · 5m 1.88 · 15m 1.42"),
+                        .child(load_sub),
                 ),
         )
         // 5. UPTIME
@@ -320,14 +349,14 @@ pub fn stat_strip() -> impl IntoElement {
                                         .text_size(px(26.0))
                                         .font_weight(FontWeight::MEDIUM)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("64"),
+                                        .child(uptime_top_val),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(px(13.0))
                                         .text_color(TEXT_DIM)
-                                        .child("d"),
+                                        .child(uptime_top_unit),
                                 )
                                 .child(
                                     div()
@@ -336,14 +365,14 @@ pub fn stat_strip() -> impl IntoElement {
                                         .font_weight(FontWeight::MEDIUM)
                                         .text_color(TEXT_PRIMARY)
                                         .ml(px(6.0))
-                                        .child("07"),
+                                        .child(uptime_sub_val),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(px(13.0))
                                         .text_color(TEXT_DIM)
-                                        .child("h"),
+                                        .child(uptime_sub_unit),
                                 ),
                         )
                         .child(div().w(px(86.0)).h(px(26.0))),
@@ -354,7 +383,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
                         .mt(px(6.0))
-                        .child("boot 2026-07-15 02:11Z"),
+                        .child(format!("sampled {}", m.last_sample_ts)),
                 ),
         )
         // 6. NETWORK eth0
@@ -373,7 +402,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
-                        .child("NETWORK eth0"),
+                        .child("NETWORK"),
                 )
                 .child(
                     div()
@@ -393,7 +422,7 @@ pub fn stat_strip() -> impl IntoElement {
                                         .text_size(px(26.0))
                                         .font_weight(FontWeight::MEDIUM)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("184"),
+                                        .child(net_str),
                                 )
                                 .child(
                                     div()
@@ -403,7 +432,7 @@ pub fn stat_strip() -> impl IntoElement {
                                         .child("Mb/s"),
                                 ),
                         )
-                        .child(sparkline(NET_POINTS, TEXT_SECONDARY)),
+                        .child(dynamic_sparkline(&m.net_history, Some(0.0), None, TEXT_SECONDARY)),
                 )
                 .child(
                     div()
@@ -411,7 +440,7 @@ pub fn stat_strip() -> impl IntoElement {
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
                         .mt(px(6.0))
-                        .child("↓ 184 · ↑ 62 · retrans 0.01%"),
+                        .child(net_sub),
                 ),
         )
 }
