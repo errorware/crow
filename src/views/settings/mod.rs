@@ -40,240 +40,171 @@ fn format_field_label(leaf: &str) -> String {
     }
 }
 
-fn format_int_val(leaf: &str, n: i64) -> String {
-    match leaf {
-        "keepalive_interval" | "connect_timeout" | "refresh_interval" => format!("{} s", n),
-        "auto_lock_minutes" => format!("{} min", n),
-        "auto_rotate_days" => format!("{} days", n),
-        "font_size" => format!("{} px", n),
-        "log_buffer_lines" => format!("{} lines", n),
-        _ => format!("{}", n),
+fn format_display_value(leaf: &str, field: Option<&crow_config_core::ir::FieldIr>) -> String {
+    match field.map(|f| &f.value) {
+        Some(serde_json::Value::Number(n)) => {
+            let num = n.as_i64().unwrap_or(0);
+            match leaf {
+                "refresh_interval" | "connect_timeout" | "keepalive_interval" => format!("{} s", num),
+                "auto_lock_minutes" => format!("{} min", num),
+                "auto_rotate_days" => format!("{} days", num),
+                "font_size" => format!("{} px", num),
+                "log_buffer_lines" => format!("{} lines", num),
+                _ => format!("{}", num),
+            }
+        }
+        Some(serde_json::Value::String(s)) => match leaf {
+            "theme" => match s.as_str() {
+                "obsidian_edge" => "Obsidian Edge".into(),
+                "slate_dark" => "Slate Dark".into(),
+                other => other.to_string(),
+            },
+            _ => s.clone(),
+        },
+        Some(serde_json::Value::Bool(b)) => format!("{}", b),
+        _ => String::new(),
     }
 }
 
-fn next_int_preset(leaf: &str, curr: i64) -> i64 {
-    let presets: &[i64] = match leaf {
-        "connect_timeout" => &[5, 10, 15, 30, 60],
-        "keepalive_interval" => &[10, 15, 30, 60],
-        "auto_lock_minutes" => &[5, 15, 30, 60],
-        "refresh_interval" => &[1, 2, 5, 10],
-        "font_size" => &[11, 12, 13, 14, 15],
-        "log_buffer_lines" => &[500, 1000, 2000, 5000],
-        "auto_rotate_days" => &[30, 60, 90, 180, 365],
-        _ => &[1, 5, 10, 20],
-    };
-    let curr_idx = presets.iter().position(|&p| p == curr).unwrap_or(0);
-    presets[(curr_idx + 1) % presets.len()]
+struct SettingOption {
+    value: String,
+    label: String,
+    desc: String,
 }
 
-fn next_str_preset(leaf: &str, curr: &str) -> Option<String> {
-    let presets: &[&str] = match leaf {
-        "font_family" => &["JetBrains Mono, monospace", "Fira Code, monospace", "SF Mono, monospace"],
-        "ciphers" => &[
-            "chacha20-poly1305@openssh.com,aes256-gcm@openssh.com",
-            "aes256-gcm@openssh.com",
-            "chacha20-poly1305@openssh.com",
-        ],
-        "default_identity" => &["~/.ssh/id_ed25519", "~/.ssh/id_ed25519_bastion", "~/.ssh/id_rsa"],
-        _ => return None,
-    };
-    let curr_idx = presets.iter().position(|&p| p == curr).unwrap_or(0);
-    Some(presets[(curr_idx + 1) % presets.len()].to_string())
-}
-
-fn render_setting_control(
-    app: Entity<CrowApp>,
-    idx: usize,
-    row_id: &str,
+fn get_field_options(
     leaf: &str,
     field: Option<&crow_config_core::ir::FieldIr>,
-    is_changed: bool,
-) -> impl IntoElement {
-    let target_row_id = row_id.to_string();
-    let leaf_str = leaf.to_string();
-
-    match field.map(|f| &f.field_type) {
-        Some(FieldType::Bool) => {
-            let curr_val = field.and_then(|f| f.value.as_bool()).unwrap_or(false);
-            let next_val = !curr_val;
-            let app_toggle = app.clone();
-            let row_id_clone = target_row_id.clone();
-
-            div()
-                .id(ElementId::NamedInteger("ctl-bool".into(), idx as u64))
-                .flex()
-                .border_1()
-                .border_color(if is_changed { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
-                .cursor_pointer()
-                .hover(|s| s.border_color(TEXT_SECONDARY))
-                .on_click(move |_ev, _window, cx| {
-                    let r_id = row_id_clone.clone();
-                    app_toggle.update(cx, |this, cx| {
-                        this.update_config_field(&r_id, serde_json::Value::Bool(next_val), cx);
-                    });
-                })
-                .child(
-                    div()
-                        .px(px(9.0))
-                        .py(px(3.0))
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .border_r_1()
-                        .border_color(BORDER_DEFAULT)
-                        .bg(if curr_val { OK_BG } else { hex_rgba(0, 0.0) })
-                        .text_color(if curr_val { OK } else { TEXT_FAINT })
-                        .child("ON"),
-                )
-                .child(
-                    div()
-                        .px(px(9.0))
-                        .py(px(3.0))
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .bg(if !curr_val { BG_CHIP } else { hex_rgba(0, 0.0) })
-                        .text_color(if !curr_val { TEXT_DIM } else { TEXT_FAINT })
-                        .child("OFF"),
-                )
-        }
-        Some(FieldType::Enum) => {
-            let curr_str = field.and_then(|f| f.value.as_str()).unwrap_or("");
-            let options = field.and_then(|f| f.options.clone()).unwrap_or_default();
-            let app_enum = app.clone();
-            let row_id_clone = target_row_id.clone();
-
-            let next_val = if !options.is_empty() {
-                let curr_idx = options.iter().position(|o| o.value == curr_str).unwrap_or(0);
-                let next_idx = (curr_idx + 1) % options.len();
-                options[next_idx].value.clone()
-            } else {
-                curr_str.to_string()
-            };
-
-            div()
-                .id(ElementId::NamedInteger("ctl-enum".into(), idx as u64))
-                .flex()
-                .items_center()
-                .gap(px(6.0))
-                .px(px(9.0))
-                .py(px(4.0))
-                .bg(BG_OVERLAY_PANEL)
-                .border_1()
-                .border_color(if is_changed { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
-                .cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER))
-                .on_click(move |_ev, _window, cx| {
-                    let r_id = row_id_clone.clone();
-                    let n_val = next_val.clone();
-                    app_enum.update(cx, |this, cx| {
-                        this.update_config_field(&r_id, serde_json::Value::String(n_val), cx);
-                    });
-                })
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(11.0))
-                        .text_color(if is_changed { TEXT_MAX } else { TEXT_PRIMARY })
-                        .child(curr_str.to_string()),
-                )
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(9.0))
-                        .text_color(TEXT_FAINT)
-                        .child("▾"),
-                )
-        }
-        Some(FieldType::Other(cow)) if cow == "integer" => {
-            let curr_num = field.and_then(|f| f.value.as_i64()).unwrap_or(0);
-            let display_str = format_int_val(&leaf_str, curr_num);
-            let next_val = next_int_preset(&leaf_str, curr_num);
-            let app_num = app.clone();
-            let row_id_clone = target_row_id.clone();
-
-            div()
-                .id(ElementId::NamedInteger("ctl-int".into(), idx as u64))
-                .flex()
-                .items_center()
-                .gap(px(6.0))
-                .px(px(9.0))
-                .py(px(4.0))
-                .bg(BG_OVERLAY_PANEL)
-                .border_1()
-                .border_color(if is_changed { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
-                .cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER))
-                .on_click(move |_ev, _window, cx| {
-                    let r_id = row_id_clone.clone();
-                    app_num.update(cx, |this, cx| {
-                        this.update_config_field(&r_id, serde_json::Value::Number(serde_json::Number::from(next_val)), cx);
-                    });
-                })
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(11.0))
-                        .text_color(if is_changed { TEXT_MAX } else { TEXT_PRIMARY })
-                        .child(display_str),
-                )
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(9.0))
-                        .text_color(TEXT_FAINT)
-                        .child("▾"),
-                )
-        }
+) -> (Vec<SettingOption>, Option<&'static str>, bool) {
+    match leaf {
+        "refresh_interval" => (
+            vec![
+                SettingOption { value: "1".into(), label: "1 s".into(), desc: "Aggressive (1 sec — high frequency polling)".into() },
+                SettingOption { value: "2".into(), label: "2 s".into(), desc: "Recommended (2 sec — balanced telemetry & CPU)".into() },
+                SettingOption { value: "5".into(), label: "5 s".into(), desc: "Standard (5 sec — moderate background polling)".into() },
+                SettingOption { value: "10".into(), label: "10 s".into(), desc: "Conservative (10 sec — low network overhead)".into() },
+            ],
+            Some("seconds"),
+            true,
+        ),
+        "connect_timeout" => (
+            vec![
+                SettingOption { value: "5".into(), label: "5 s".into(), desc: "Fast fail (5 sec — responsive drop detection)".into() },
+                SettingOption { value: "10".into(), label: "10 s".into(), desc: "Standard (10 sec — default TCP handshake)".into() },
+                SettingOption { value: "15".into(), label: "15 s".into(), desc: "Relaxed (15 sec — high-latency WAN)".into() },
+                SettingOption { value: "30".into(), label: "30 s".into(), desc: "Satellite / congested links (30 sec)".into() },
+            ],
+            Some("seconds"),
+            true,
+        ),
+        "keepalive_interval" => (
+            vec![
+                SettingOption { value: "10".into(), label: "10 s".into(), desc: "Active probe (10 sec — fast drop detection)".into() },
+                SettingOption { value: "15".into(), label: "15 s".into(), desc: "Standard (15 sec — default heartbeat)".into() },
+                SettingOption { value: "30".into(), label: "30 s".into(), desc: "Relaxed (30 sec — low traffic chatter)".into() },
+                SettingOption { value: "60".into(), label: "60 s".into(), desc: "Passive (60 sec — minimal heartbeat packets)".into() },
+            ],
+            Some("seconds"),
+            true,
+        ),
+        "font_size" => (
+            vec![
+                SettingOption { value: "11".into(), label: "11 px".into(), desc: "Compact (maximum density)".into() },
+                SettingOption { value: "12".into(), label: "12 px".into(), desc: "Standard (default readability)".into() },
+                SettingOption { value: "13".into(), label: "13 px".into(), desc: "Medium (enhanced clarity)".into() },
+                SettingOption { value: "14".into(), label: "14 px".into(), desc: "Large (comfortable view)".into() },
+            ],
+            Some("px"),
+            true,
+        ),
+        "log_buffer_lines" => (
+            vec![
+                SettingOption { value: "1000".into(), label: "1,000".into(), desc: "Minimal memory footprint".into() },
+                SettingOption { value: "5000".into(), label: "5,000".into(), desc: "Balanced log tail".into() },
+                SettingOption { value: "10000".into(), label: "10,000".into(), desc: "Standard audit depth".into() },
+                SettingOption { value: "25000".into(), label: "25,000".into(), desc: "Deep diagnostic history".into() },
+            ],
+            Some("lines"),
+            true,
+        ),
+        "auto_lock_minutes" => (
+            vec![
+                SettingOption { value: "5".into(), label: "5 min".into(), desc: "High security (quick auto-lock)".into() },
+                SettingOption { value: "15".into(), label: "15 min".into(), desc: "Standard timeout (recommended)".into() },
+                SettingOption { value: "30".into(), label: "30 min".into(), desc: "Relaxed workspace".into() },
+                SettingOption { value: "60".into(), label: "60 min".into(), desc: "Extended session".into() },
+            ],
+            Some("minutes"),
+            true,
+        ),
+        "auto_rotate_days" => (
+            vec![
+                SettingOption { value: "30".into(), label: "30 days".into(), desc: "Monthly rotation".into() },
+                SettingOption { value: "60".into(), label: "60 days".into(), desc: "Bi-monthly".into() },
+                SettingOption { value: "90".into(), label: "90 days".into(), desc: "Quarterly (industry standard)".into() },
+                SettingOption { value: "180".into(), label: "180 days".into(), desc: "Semi-annual rotation".into() },
+            ],
+            Some("days"),
+            true,
+        ),
+        "theme" => (
+            vec![
+                SettingOption { value: "obsidian_edge".into(), label: "Obsidian Edge".into(), desc: "High-contrast dark terminal aesthetic".into() },
+                SettingOption { value: "slate_dark".into(), label: "Slate Dark".into(), desc: "Subtle charcoal slate palette".into() },
+            ],
+            None,
+            false,
+        ),
+        "reconnect_backoff" => (
+            vec![
+                SettingOption { value: "exponential".into(), label: "exponential".into(), desc: "Exponential delay (1s, 2s, 4s… capped at 30s)".into() },
+                SettingOption { value: "linear".into(), label: "linear".into(), desc: "Linear incremental delay".into() },
+                SettingOption { value: "fixed".into(), label: "fixed".into(), desc: "Fixed constant retry delay".into() },
+            ],
+            None,
+            false,
+        ),
+        "font_family" => (
+            vec![
+                SettingOption { value: "JetBrains Mono".into(), label: "JetBrains Mono".into(), desc: "Default monospace (recommended)".into() },
+                SettingOption { value: "Fira Code".into(), label: "Fira Code".into(), desc: "Programming ligatures support".into() },
+                SettingOption { value: "SF Mono".into(), label: "SF Mono".into(), desc: "Apple system monospace".into() },
+            ],
+            None,
+            true,
+        ),
+        "ciphers" => (
+            vec![
+                SettingOption { value: "chacha20-poly1305,aes256-gcm".into(), label: "chacha20, aes256-gcm".into(), desc: "Modern AEAD only (recommended)".into() },
+                SettingOption { value: "chacha20-poly1305".into(), label: "chacha20-poly1305".into(), desc: "ChaCha20-Poly1305 only".into() },
+                SettingOption { value: "aes256-gcm".into(), label: "aes256-gcm".into(), desc: "AES256-GCM only".into() },
+            ],
+            None,
+            true,
+        ),
+        "default_identity" => (
+            vec![
+                SettingOption { value: "~/.ssh/id_ed25519".into(), label: "~/.ssh/id_ed25519".into(), desc: "Default Ed25519 key".into() },
+                SettingOption { value: "~/.ssh/id_ed25519_bastion".into(), label: "~/.ssh/id_ed25519_bastion".into(), desc: "Dedicated bastion key".into() },
+                SettingOption { value: "~/.ssh/id_rsa".into(), label: "~/.ssh/id_rsa".into(), desc: "Legacy RSA identity".into() },
+            ],
+            None,
+            true,
+        ),
         _ => {
-            let curr_str = field.and_then(|f| f.value.as_str()).unwrap_or("");
-            let maybe_next = next_str_preset(&leaf_str, curr_str);
-            let app_str = app.clone();
-            let row_id_clone = target_row_id.clone();
-            let has_preset = maybe_next.is_some();
-
-            div()
-                .id(ElementId::NamedInteger("ctl-str".into(), idx as u64))
-                .flex()
-                .items_center()
-                .gap(px(6.0))
-                .px(px(9.0))
-                .py(px(4.0))
-                .bg(BG_OVERLAY_PANEL)
-                .border_1()
-                .border_color(if is_changed { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
-                .children(if has_preset {
-                    Some(div().cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)))
-                } else {
-                    None
-                })
-                .on_click(move |_ev, _window, cx| {
-                    if let Some(next_str) = &maybe_next {
-                        let r_id = row_id_clone.clone();
-                        let n_val = next_str.clone();
-                        app_str.update(cx, |this, cx| {
-                            this.update_config_field(&r_id, serde_json::Value::String(n_val), cx);
-                        });
-                    }
-                })
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(11.0))
-                        .text_color(if is_changed { TEXT_MAX } else { TEXT_PRIMARY })
-                        .child(curr_str.to_string()),
+            if let Some(opts) = field.and_then(|f| f.options.clone()) {
+                (
+                    opts.into_iter().map(|o| SettingOption {
+                        value: o.value.clone(),
+                        label: o.label.clone(),
+                        desc: format!("Risk: {:?}", o.risk),
+                    }).collect(),
+                    None,
+                    false,
                 )
-                .children(if has_preset {
-                    Some(
-                        div()
-                            .font_family(FONT_MONO)
-                            .text_size(px(9.0))
-                            .text_color(TEXT_FAINT)
-                            .child("▾")
-                    )
-                } else {
-                    None
-                })
+            } else {
+                (Vec::new(), None, true)
+            }
         }
     }
 }
@@ -283,6 +214,8 @@ pub fn settings_view(
     config: &CrowConfigManager,
     section: SettingsSection,
     is_auth_enabled: bool,
+    open_dropdown: Option<&str>,
+    custom_input: &str,
 ) -> impl IntoElement {
     let nav_items = [
         (TablerIcon::AdjustmentsHorizontal, "General", SettingsSection::General),
@@ -398,6 +331,7 @@ pub fn settings_view(
                         .hover(|s| s.bg(BG_ROW_HOVER))
                         .on_click(move |_ev, _window, cx| {
                             app_close.update(cx, |this, cx| {
+                                this.close_settings_dropdown(cx);
                                 this.set_screen(Screen::Fleet, cx);
                             });
                         })
@@ -458,6 +392,7 @@ pub fn settings_view(
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
                                     app_nav.update(cx, |this, cx| {
+                                        this.close_settings_dropdown(cx);
                                         this.set_settings_section(sec, cx);
                                     });
                                 })
@@ -723,26 +658,44 @@ pub fn settings_view(
                                     let desc = field.and_then(|f| f.help.clone()).unwrap_or_default();
                                     let is_changed = config.is_field_changed(&row.row_id);
 
+                                    let is_bool = matches!(field.map(|f| &f.field_type), Some(FieldType::Bool));
+                                    let is_int = matches!(field.map(|f| &f.field_type), Some(FieldType::Other(cow)) if cow == "integer");
+                                    let is_open = open_dropdown == Some(row.row_id.as_str());
+
+                                    let display_val = format_display_value(leaf, field);
                                     let raw_val_str = match field.map(|f| &f.value) {
                                         Some(serde_json::Value::Bool(b)) => format!("{}", b),
                                         Some(serde_json::Value::Number(n)) => format!("{}", n),
-                                        Some(serde_json::Value::String(s)) => format!("\"{}\"", s),
+                                        Some(serde_json::Value::String(s)) => s.clone(),
                                         _ => String::new(),
                                     };
-                                    let key_repr = format!("{} = {}", leaf, raw_val_str);
+
+                                    let key_repr = if is_bool || is_int {
+                                        format!("{} = {}", leaf, raw_val_str)
+                                    } else {
+                                        format!("{} = \"{}\"", leaf, raw_val_str)
+                                    };
+
+                                    let (presets, unit_suffix, allow_custom) = get_field_options(leaf, field);
+
+                                    let app_toggle = app.clone();
+                                    let app_btn = app.clone();
+                                    let app_apply = app.clone();
+                                    let app_cancel = app.clone();
+                                    let row_id_str = row.row_id.clone();
+                                    let row_id_for_apply = row.row_id.clone();
+                                    let initial_val_for_open = raw_val_str.clone();
 
                                     div()
                                         .id(ElementId::NamedInteger("setting-row".into(), idx as u64))
                                         .relative()
                                         .flex()
-                                        .items_center()
-                                        .justify_between()
-                                        .gap(px(16.0))
-                                        .px(px(14.0))
-                                        .py(px(9.0))
+                                        .flex_col()
                                         .border_b_1()
                                         .border_color(BORDER_ROW)
-                                        .bg(if is_changed {
+                                        .bg(if is_open {
+                                            hex_rgb(0x0e0e12)
+                                        } else if is_changed {
                                             BG_OVERLAY_PANEL
                                         } else if is_even {
                                             BG_APP
@@ -754,71 +707,359 @@ pub fn settings_view(
                                         } else {
                                             None
                                         })
-                                        // Left info
+                                        // 1. Primary Row Line
                                         .child(
                                             div()
-                                                .flex_1()
-                                                .min_w(px(0.0))
                                                 .flex()
-                                                .flex_col()
-                                                .gap(px(2.0))
+                                                .items_center()
+                                                .justify_between()
+                                                .gap(px(16.0))
+                                                .px(px(14.0))
+                                                .py(px(9.0))
+                                                // Left info
                                                 .child(
                                                     div()
+                                                        .flex_1()
+                                                        .min_w(px(0.0))
                                                         .flex()
-                                                        .items_center()
-                                                        .gap(px(8.0))
+                                                        .flex_col()
+                                                        .gap(px(2.0))
                                                         .child(
                                                             div()
-                                                                .font_family(FONT_MONO)
-                                                                .text_size(px(12.0))
-                                                                .font_weight(FontWeight::MEDIUM)
-                                                                .text_color(if is_changed { TEXT_MAX } else { TEXT_PRIMARY })
-                                                                .child(label),
+                                                                .flex()
+                                                                .items_center()
+                                                                .gap(px(8.0))
+                                                                .child(
+                                                                    div()
+                                                                        .font_family(FONT_MONO)
+                                                                        .text_size(px(12.0))
+                                                                        .font_weight(FontWeight::MEDIUM)
+                                                                        .text_color(if is_changed { TEXT_MAX } else { TEXT_PRIMARY })
+                                                                        .child(label),
+                                                                )
+                                                                .child(
+                                                                    div()
+                                                                        .children(if is_changed {
+                                                                            Some(
+                                                                                div()
+                                                                                    .px(px(4.0))
+                                                                                    .py(px(1.5))
+                                                                                    .bg(WARN_BG)
+                                                                                    .text_color(WARN)
+                                                                                    .font_family(FONT_MONO)
+                                                                                    .text_size(px(8.5))
+                                                                                    .font_weight(FontWeight::BOLD)
+                                                                                    .child("CHANGED"),
+                                                                            )
+                                                                        } else {
+                                                                            None
+                                                                        }),
+                                                                ),
                                                         )
                                                         .child(
                                                             div()
-                                                                .children(if is_changed {
-                                                                    Some(
-                                                                        div()
-                                                                            .px(px(4.0))
-                                                                            .py(px(1.5))
-                                                                            .bg(WARN_BG)
-                                                                            .text_color(WARN)
-                                                                            .font_family(FONT_MONO)
-                                                                            .text_size(px(8.5))
-                                                                            .font_weight(FontWeight::BOLD)
-                                                                            .child("CHANGED"),
-                                                                    )
-                                                                } else {
-                                                                    None
-                                                                }),
+                                                                .font_family(FONT_MONO)
+                                                                .text_size(px(10.5))
+                                                                .text_color(TEXT_DIM)
+                                                                .line_height(relative(1.45))
+                                                                .child(desc),
+                                                        )
+                                                        .child(
+                                                            div()
+                                                                .font_family(FONT_MONO)
+                                                                .text_size(px(9.5))
+                                                                .text_color(TEXT_FAINTER)
+                                                                .child(key_repr),
                                                         ),
                                                 )
+                                                // Right control
                                                 .child(
                                                     div()
-                                                        .font_family(FONT_MONO)
-                                                        .text_size(px(10.5))
-                                                        .text_color(TEXT_DIM)
-                                                        .line_height(relative(1.45))
-                                                        .child(desc),
-                                                )
-                                                .child(
-                                                    div()
-                                                        .font_family(FONT_MONO)
-                                                        .text_size(px(9.5))
-                                                        .text_color(TEXT_FAINTER)
-                                                        .child(key_repr),
+                                                        .flex_none()
+                                                        .flex()
+                                                        .items_center()
+                                                        .justify_end()
+                                                        .children(if is_bool {
+                                                            let curr_val = field.and_then(|f| f.value.as_bool()).unwrap_or(false);
+                                                            let next_val = !curr_val;
+                                                            let r_id = row_id_str.clone();
+
+                                                            Some(
+                                                                div()
+                                                                    .id(ElementId::NamedInteger("ctl-bool".into(), idx as u64))
+                                                                    .flex()
+                                                                    .border_1()
+                                                                    .border_color(if is_changed { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
+                                                                    .cursor_pointer()
+                                                                    .hover(|s| s.border_color(TEXT_SECONDARY))
+                                                                    .on_click(move |_ev, _window, cx| {
+                                                                        let target = r_id.clone();
+                                                                        app_toggle.update(cx, |this, cx| {
+                                                                            this.update_config_field(&target, serde_json::Value::Bool(next_val), cx);
+                                                                        });
+                                                                    })
+                                                                    .child(
+                                                                        div()
+                                                                            .px(px(9.0))
+                                                                            .py(px(3.0))
+                                                                            .font_family(FONT_MONO)
+                                                                            .text_size(px(10.0))
+                                                                            .font_weight(FontWeight::BOLD)
+                                                                            .border_r_1()
+                                                                            .border_color(BORDER_DEFAULT)
+                                                                            .bg(if curr_val { OK_BG } else { hex_rgba(0, 0.0) })
+                                                                            .text_color(if curr_val { OK } else { TEXT_FAINT })
+                                                                            .child("ON"),
+                                                                    )
+                                                                    .child(
+                                                                        div()
+                                                                            .px(px(9.0))
+                                                                            .py(px(3.0))
+                                                                            .font_family(FONT_MONO)
+                                                                            .text_size(px(10.0))
+                                                                            .font_weight(FontWeight::BOLD)
+                                                                            .bg(if !curr_val { BG_CHIP } else { hex_rgba(0, 0.0) })
+                                                                            .text_color(if !curr_val { TEXT_DIM } else { TEXT_FAINT })
+                                                                            .child("OFF"),
+                                                                    ),
+                                                            )
+                                                        } else {
+                                                            let r_id = row_id_str.clone();
+                                                            let init_val = initial_val_for_open.clone();
+
+                                                            Some(
+                                                                div()
+                                                                    .id(ElementId::NamedInteger("ctl-btn".into(), idx as u64))
+                                                                    .flex()
+                                                                    .items_center()
+                                                                    .gap(px(6.0))
+                                                                    .px(px(9.0))
+                                                                    .py(px(4.0))
+                                                                    .bg(if is_open { hex_rgb(0x1a1a24) } else { BG_OVERLAY_PANEL })
+                                                                    .border_1()
+                                                                    .border_color(if is_open { TEXT_PRIMARY } else if is_changed { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
+                                                                    .cursor_pointer()
+                                                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                                                    .on_click(move |_ev, _window, cx| {
+                                                                        let target = r_id.clone();
+                                                                        let val_snap = init_val.clone();
+                                                                        app_btn.update(cx, |this, cx| {
+                                                                            this.toggle_settings_dropdown(&target, &val_snap, cx);
+                                                                        });
+                                                                    })
+                                                                    .child(
+                                                                        div()
+                                                                            .font_family(FONT_MONO)
+                                                                            .text_size(px(11.0))
+                                                                            .text_color(if is_changed { TEXT_MAX } else { TEXT_PRIMARY })
+                                                                            .child(display_val),
+                                                                    )
+                                                                    .child(
+                                                                        div()
+                                                                            .font_family(FONT_MONO)
+                                                                            .text_size(px(9.0))
+                                                                            .text_color(if is_open { TEXT_PRIMARY } else { TEXT_FAINT })
+                                                                            .child(if is_open { "▴" } else { "▾" }),
+                                                                    ),
+                                                            )
+                                                        }),
                                                 ),
                                         )
-                                        // Right control
-                                        .child(
-                                            div()
-                                                .flex_none()
-                                                .flex()
-                                                .items_center()
-                                                .justify_end()
-                                                .child(render_setting_control(app.clone(), idx, row.row_id.as_str(), leaf, field, is_changed)),
-                                        )
+                                        // 2. Options Dropdown Tray (shown when is_open == true)
+                                        .children(if is_open && !is_bool {
+                                            Some(
+                                                div()
+                                                    .id(ElementId::NamedInteger("dropdown-tray".into(), idx as u64))
+                                                    .mx(px(14.0))
+                                                    .mb(px(10.0))
+                                                    .p(px(10.0))
+                                                    .bg(hex_rgb(0x070709))
+                                                    .border_1()
+                                                    .border_color(hex_rgb(0x272730))
+                                                    .flex()
+                                                    .flex_col()
+                                                    .gap(px(6.0))
+                                                    // Header
+                                                    .child(
+                                                        div()
+                                                            .font_family(FONT_MONO)
+                                                            .text_size(px(9.5))
+                                                            .font_weight(FontWeight::BOLD)
+                                                            .text_color(TEXT_DIMMER)
+                                                            .child("SELECT PRESET OPTION:"),
+                                                    )
+                                                    // Presets list
+                                                    .children(presets.into_iter().enumerate().map(|(opt_idx, opt)| {
+                                                        let app_opt = app.clone();
+                                                        let r_id = row_id_str.clone();
+                                                        let opt_val_str = opt.value.clone();
+                                                        let is_selected = opt_val_str == raw_val_str;
+
+                                                        div()
+                                                            .id(ElementId::NamedInteger("opt-item".into(), (idx * 100 + opt_idx) as u64))
+                                                            .flex()
+                                                            .items_center()
+                                                            .gap(px(8.0))
+                                                            .px(px(8.0))
+                                                            .py(px(4.0))
+                                                            .bg(if is_selected { BG_OVERLAY_PANEL } else { hex_rgba(0, 0.0) })
+                                                            .border_1()
+                                                            .border_color(if is_selected { BORDER_DEFAULT } else { hex_rgba(0, 0.0) })
+                                                            .cursor_pointer()
+                                                            .hover(|s| s.bg(BG_ROW_HOVER))
+                                                            .on_click(move |_ev, _window, cx| {
+                                                                let target = r_id.clone();
+                                                                let new_json_val = if is_int {
+                                                                    serde_json::Value::Number(serde_json::Number::from(opt_val_str.parse::<i64>().unwrap_or(0)))
+                                                                } else {
+                                                                    serde_json::Value::String(opt_val_str.clone())
+                                                                };
+                                                                app_opt.update(cx, |this, cx| {
+                                                                    this.update_config_field(&target, new_json_val, cx);
+                                                                    this.close_settings_dropdown(cx);
+                                                                });
+                                                            })
+                                                            // Radio indicator
+                                                            .child(
+                                                                div()
+                                                                    .font_family(FONT_MONO)
+                                                                    .text_size(px(10.0))
+                                                                    .text_color(if is_selected { OK } else { TEXT_FAINT })
+                                                                    .child(if is_selected { "●" } else { "○" }),
+                                                            )
+                                                            // Option label
+                                                            .child(
+                                                                div()
+                                                                    .font_family(FONT_MONO)
+                                                                    .text_size(px(11.0))
+                                                                    .font_weight(if is_selected { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+                                                                    .text_color(if is_selected { TEXT_PRIMARY } else { TEXT_SECONDARY })
+                                                                    .child(opt.label),
+                                                            )
+                                                            // Option description
+                                                            .child(
+                                                                div()
+                                                                    .font_family(FONT_MONO)
+                                                                    .text_size(px(10.0))
+                                                                    .text_color(TEXT_DIMMER)
+                                                                    .child(opt.desc),
+                                                            )
+                                                    }))
+                                                    // Optional Custom Value Textbox
+                                                    .children(if allow_custom {
+                                                        let r_id = row_id_for_apply.clone();
+                                                        let unit_str = unit_suffix.unwrap_or("").to_string();
+
+                                                        Some(
+                                                            div()
+                                                                .mt(px(4.0))
+                                                                .pt(px(6.0))
+                                                                .border_t_1()
+                                                                .border_color(BORDER_PANEL)
+                                                                .flex()
+                                                                .items_center()
+                                                                .gap(px(8.0))
+                                                                .child(
+                                                                    div()
+                                                                        .font_family(FONT_MONO)
+                                                                        .text_size(px(9.5))
+                                                                        .font_weight(FontWeight::BOLD)
+                                                                        .text_color(TEXT_DIMMER)
+                                                                        .child("OR ENTER CUSTOM VALUE:"),
+                                                                )
+                                                                // Textbox display with active indicator
+                                                                .child(
+                                                                    div()
+                                                                        .id(ElementId::NamedInteger("custom-input-box".into(), idx as u64))
+                                                                        .h(px(26.0))
+                                                                        .px(px(8.0))
+                                                                        .bg(BG_APP)
+                                                                        .border_1()
+                                                                        .border_color(BORDER_STRONG)
+                                                                        .flex()
+                                                                        .items_center()
+                                                                        .gap(px(4.0))
+                                                                        .child(
+                                                                            div()
+                                                                                .font_family(FONT_MONO)
+                                                                                .text_size(px(11.0))
+                                                                                .font_weight(FontWeight::BOLD)
+                                                                                .text_color(TEXT_MAX)
+                                                                                .child(if custom_input.is_empty() { "_".to_string() } else { custom_input.to_string() }),
+                                                                        )
+                                                                        .children(if !unit_str.is_empty() {
+                                                                            Some(
+                                                                                div()
+                                                                                    .font_family(FONT_MONO)
+                                                                                    .text_size(px(10.0))
+                                                                                    .text_color(TEXT_FAINT)
+                                                                                    .child(unit_str),
+                                                                            )
+                                                                        } else {
+                                                                            None
+                                                                        }),
+                                                                )
+                                                                // Apply Button
+                                                                .child(
+                                                                    div()
+                                                                        .id(ElementId::NamedInteger("btn-apply-custom".into(), idx as u64))
+                                                                        .h(px(26.0))
+                                                                        .px(px(10.0))
+                                                                        .bg(BG_KEY)
+                                                                        .border_1()
+                                                                        .border_color(BORDER_DEFAULT)
+                                                                        .flex()
+                                                                        .items_center()
+                                                                        .cursor_pointer()
+                                                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                                                        .on_click(move |_ev, _window, cx| {
+                                                                            let target = r_id.clone();
+                                                                            app_apply.update(cx, |this, cx| {
+                                                                                this.apply_settings_custom_input(&target, cx);
+                                                                            });
+                                                                        })
+                                                                        .child(
+                                                                            div()
+                                                                                .font_family(FONT_MONO)
+                                                                                .text_size(px(10.0))
+                                                                                .font_weight(FontWeight::BOLD)
+                                                                                .text_color(OK)
+                                                                                .child("APPLY ↵"),
+                                                                        ),
+                                                                )
+                                                                // Cancel Button
+                                                                .child(
+                                                                    div()
+                                                                        .id(ElementId::NamedInteger("btn-cancel-custom".into(), idx as u64))
+                                                                        .h(px(26.0))
+                                                                        .px(px(8.0))
+                                                                        .border_1()
+                                                                        .border_color(BORDER_PANEL)
+                                                                        .flex()
+                                                                        .items_center()
+                                                                        .cursor_pointer()
+                                                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                                                        .on_click(move |_ev, _window, cx| {
+                                                                            app_cancel.update(cx, |this, cx| {
+                                                                                this.close_settings_dropdown(cx);
+                                                                            });
+                                                                        })
+                                                                        .child(
+                                                                            div()
+                                                                                .font_family(FONT_MONO)
+                                                                                .text_size(px(10.0))
+                                                                                .text_color(TEXT_TERTIARY)
+                                                                                .child("CANCEL esc"),
+                                                                        ),
+                                                                ),
+                                                        )
+                                                    } else {
+                                                        None
+                                                    }),
+                                            )
+                                        } else {
+                                            None
+                                        })
                                 })),
                         )
                         // Section Bottom Actions Bar
@@ -849,6 +1090,7 @@ pub fn settings_view(
                                             if has_section_changes {
                                                 let prefix = sec_prefix_id.clone();
                                                 app_reset.update(cx, |this, cx| {
+                                                    this.close_settings_dropdown(cx);
                                                     this.reset_config_section(&prefix, cx);
                                                 });
                                             }
@@ -887,6 +1129,7 @@ pub fn settings_view(
                                         .on_click(move |_ev, _window, cx| {
                                             if total_changed > 0 {
                                                 app_save.update(cx, |this, cx| {
+                                                    this.close_settings_dropdown(cx);
                                                     this.save_config(cx);
                                                 });
                                             }

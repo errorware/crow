@@ -70,6 +70,8 @@ pub struct CrowApp {
     pub hba_rules: Vec<HbaRuleDef>,
     pub palette_open: bool,
     pub sidebar_collapsed: bool,
+    pub settings_dropdown_open: Option<String>,
+    pub settings_custom_input: String,
 }
 
 impl CrowApp {
@@ -121,6 +123,8 @@ host    all             all             10.0.4.0/24             scram-sha-256
             hba_rules: default_hba_rules(),
             palette_open: false,
             sidebar_collapsed: false,
+            settings_dropdown_open: None,
+            settings_custom_input: String::new(),
         }
     }
 
@@ -264,6 +268,51 @@ host    all             all             10.0.4.0/24             scram-sha-256
         let _ = std::process::Command::new("xdg-open").arg(path).spawn();
         #[cfg(target_os = "windows")]
         let _ = std::process::Command::new("cmd").args(["/c", "start", ""]).arg(path).spawn();
+    }
+
+    pub fn toggle_settings_dropdown(&mut self, row_id: &str, initial_val: &str, cx: &mut Context<Self>) {
+        if self.settings_dropdown_open.as_deref() == Some(row_id) {
+            self.settings_dropdown_open = None;
+            self.settings_custom_input.clear();
+        } else {
+            self.settings_dropdown_open = Some(row_id.to_string());
+            self.settings_custom_input = initial_val.to_string();
+        }
+        cx.notify();
+    }
+
+    pub fn close_settings_dropdown(&mut self, cx: &mut Context<Self>) {
+        self.settings_dropdown_open = None;
+        self.settings_custom_input.clear();
+        cx.notify();
+    }
+
+    #[allow(dead_code)]
+    pub fn set_settings_custom_input(&mut self, val: String, cx: &mut Context<Self>) {
+        self.settings_custom_input = val;
+        cx.notify();
+    }
+
+    pub fn apply_settings_custom_input(&mut self, row_id: &str, cx: &mut Context<Self>) {
+        let trimmed = self.settings_custom_input.trim();
+        let field_is_int = self
+            .config
+            .get_field(row_id)
+            .map(|f| matches!(&f.field_type, crow_config_core::schema::FieldType::Other(cow) if cow == "integer"))
+            .unwrap_or(false);
+
+        if field_is_int {
+            if let Ok(n) = trimmed.parse::<i64>() {
+                self.update_config_field(row_id, serde_json::Value::Number(serde_json::Number::from(n)), cx);
+                self.settings_dropdown_open = None;
+                self.settings_custom_input.clear();
+            }
+        } else {
+            self.update_config_field(row_id, serde_json::Value::String(trimmed.to_string()), cx);
+            self.settings_dropdown_open = None;
+            self.settings_custom_input.clear();
+        }
+        cx.notify();
     }
 
     pub fn toggle_palette(&mut self, cx: &mut Context<Self>) {
@@ -471,6 +520,41 @@ impl Render for CrowApp {
                     return;
                 }
 
+                // If on Settings with dropdown open, handle dropdown typing / escape / enter
+                if this.screen == Screen::Settings {
+                    if let Some(open_row_id) = this.settings_dropdown_open.clone() {
+                        if ev.keystroke.key == "escape" {
+                            this.close_settings_dropdown(cx);
+                            return;
+                        } else if key == "enter" {
+                            this.apply_settings_custom_input(&open_row_id, cx);
+                            return;
+                        } else if key == "backspace" {
+                            this.settings_custom_input.pop();
+                            cx.notify();
+                            return;
+                        } else if !is_mod {
+                            let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
+                                Some(ev.keystroke.key.as_str())
+                            } else {
+                                None
+                            });
+                            if let Some(c) = char_to_insert {
+                                let field_is_int = this
+                                    .config
+                                    .get_field(&open_row_id)
+                                    .map(|f| matches!(&f.field_type, crow_config_core::schema::FieldType::Other(cow) if cow == "integer"))
+                                    .unwrap_or(false);
+                                if !field_is_int || c.chars().all(|d| d.is_ascii_digit()) {
+                                    this.settings_custom_input.push_str(c);
+                                    cx.notify();
+                                }
+                                return;
+                            }
+                        }
+                    }
+                }
+
                 // Normal Screens shortcuts
                 if ev.keystroke.key == "escape" {
                     if this.menu_open {
@@ -655,7 +739,14 @@ impl Render for CrowApp {
                                     Screen::Settings => Some(
                                         div()
                                             .size_full()
-                                            .child(settings_view(app_view.clone(), &self.config, self.settings_section, self.vault.is_password_auth_enabled())),
+                                            .child(settings_view(
+                                                app_view.clone(),
+                                                &self.config,
+                                                self.settings_section,
+                                                self.vault.is_password_auth_enabled(),
+                                                self.settings_dropdown_open.as_deref(),
+                                                &self.settings_custom_input,
+                                            )),
                                     ),
                                     Screen::Onboard => Some(
                                         div()
