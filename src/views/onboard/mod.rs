@@ -1,6 +1,7 @@
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::{CrowApp, Screen};
+use crate::components::terminal_text_input;
 
 pub mod probe;
 #[allow(unused_imports)]
@@ -396,36 +397,22 @@ fn render_step_address(app: Entity<CrowApp>, state: &OnboardState) -> Div {
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIM)
+                        .text_color(if state.focus == OnboardFieldFocus::Host { TEXT_PRIMARY } else { TEXT_DIM })
                         .child("HOSTNAME OR IP ADDRESS:"),
                 )
                 .child(
-                    div()
-                        .id("input-onboard-host")
-                        .h(px(32.0))
-                        .px(px(10.0))
-                        .bg(BG_APP)
-                        .border_1()
-                        .border_color(if state.focus == OnboardFieldFocus::Host { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                        .cursor_pointer()
-                        .on_click(move |_ev, _window, cx| {
-                            app_host.update(cx, |this, cx| {
-                                this.onboard_set_focus(OnboardFieldFocus::Host, cx);
-                            });
-                        })
-                        .flex()
-                        .items_center()
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(12.0))
-                                .text_color(TEXT_MAX)
-                                .child(if state.host.is_empty() {
-                                    if state.focus == OnboardFieldFocus::Host { "_ (type hostname or IP…)" } else { "e.g. 10.0.4.32" }.to_string()
-                                } else {
-                                    format!("{}{}", state.host, if state.focus == OnboardFieldFocus::Host { "_" } else { "" })
-                                }),
-                        ),
+                    terminal_text_input(
+                        "input-onboard-host",
+                        &state.host,
+                        "e.g. 10.0.4.32 or prod-db.internal",
+                        state.focus == OnboardFieldFocus::Host,
+                        false,
+                    )
+                    .on_click(move |_ev, _window, cx| {
+                        app_host.update(cx, |this, cx| {
+                            this.onboard_set_focus(OnboardFieldFocus::Host, cx);
+                        });
+                    }),
                 )
                 .child(
                     div()
@@ -446,37 +433,23 @@ fn render_step_address(app: Entity<CrowApp>, state: &OnboardState) -> Div {
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIM)
+                        .text_color(if state.focus == OnboardFieldFocus::Port { TEXT_PRIMARY } else { TEXT_DIM })
                         .child("SSH PORT:"),
                 )
                 .child(
-                    div()
-                        .id("input-onboard-port")
-                        .h(px(32.0))
-                        .w(px(120.0))
-                        .px(px(10.0))
-                        .bg(BG_APP)
-                        .border_1()
-                        .border_color(if state.focus == OnboardFieldFocus::Port { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                        .cursor_pointer()
-                        .on_click(move |_ev, _window, cx| {
-                            app_port.update(cx, |this, cx| {
-                                this.onboard_set_focus(OnboardFieldFocus::Port, cx);
-                            });
-                        })
-                        .flex()
-                        .items_center()
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(12.0))
-                                .text_color(TEXT_MAX)
-                                .child(if state.port.is_empty() {
-                                    "22_".to_string()
-                                } else {
-                                    format!("{}{}", state.port, if state.focus == OnboardFieldFocus::Port { "_" } else { "" })
-                                }),
-                        ),
+                    terminal_text_input(
+                        "input-onboard-port",
+                        &state.port,
+                        "22",
+                        state.focus == OnboardFieldFocus::Port,
+                        false,
+                    )
+                    .w(px(120.0))
+                    .on_click(move |_ev, _window, cx| {
+                        app_port.update(cx, |this, cx| {
+                            this.onboard_set_focus(OnboardFieldFocus::Port, cx);
+                        });
+                    }),
                 )
                 .child(
                     div()
@@ -534,36 +507,22 @@ fn render_step_credentials(
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIM)
+                        .text_color(if state.focus == OnboardFieldFocus::User { TEXT_PRIMARY } else { TEXT_DIM })
                         .child("LOGIN USER:"),
                 )
                 .child(
-                    div()
-                        .id("input-onboard-user")
-                        .h(px(32.0))
-                        .px(px(10.0))
-                        .bg(BG_APP)
-                        .border_1()
-                        .border_color(if state.focus == OnboardFieldFocus::User { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                        .cursor_pointer()
-                        .on_click(move |_ev, _window, cx| {
-                            app_user.update(cx, |this, cx| {
-                                this.onboard_set_focus(OnboardFieldFocus::User, cx);
-                            });
-                        })
-                        .flex()
-                        .items_center()
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(12.0))
-                                .text_color(TEXT_MAX)
-                                .child(if state.user.is_empty() {
-                                    if state.focus == OnboardFieldFocus::User { "_" } else { "root" }.to_string()
-                                } else {
-                                    format!("{}{}", state.user, if state.focus == OnboardFieldFocus::User { "_" } else { "" })
-                                }),
-                        ),
+                    terminal_text_input(
+                        "input-onboard-user",
+                        &state.user,
+                        "root (or ubuntu, deploy, admin…)",
+                        state.focus == OnboardFieldFocus::User,
+                        false,
+                    )
+                    .on_click(move |_ev, _window, cx| {
+                        app_user.update(cx, |this, cx| {
+                            this.onboard_set_focus(OnboardFieldFocus::User, cx);
+                        });
+                    }),
                 )
                 .child(
                     div()
@@ -769,36 +728,22 @@ fn render_step_credentials(
                             .font_family(FONT_MONO)
                             .text_size(px(10.0))
                             .font_weight(FontWeight::BOLD)
-                            .text_color(TEXT_DIM)
+                            .text_color(if state.focus == OnboardFieldFocus::Password { TEXT_PRIMARY } else { TEXT_DIM })
                             .child("PASSWORD:"),
                     )
                     .child(
-                        div()
-                            .id("input-onboard-pw")
-                            .h(px(32.0))
-                            .px(px(10.0))
-                            .bg(BG_APP)
-                            .border_1()
-                            .border_color(if state.focus == OnboardFieldFocus::Password { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                            .cursor_pointer()
-                            .on_click(move |_ev, _window, cx| {
-                                app_pw.update(cx, |this, cx| {
-                                    this.onboard_set_focus(OnboardFieldFocus::Password, cx);
-                                });
-                            })
-                            .flex()
-                            .items_center()
-                            .child(
-                                div()
-                                    .font_family(FONT_MONO)
-                                    .text_size(px(12.0))
-                                    .text_color(TEXT_MAX)
-                                    .child(if state.password.is_empty() {
-                                        if state.focus == OnboardFieldFocus::Password { "_" } else { "(type password…)" }.to_string()
-                                    } else {
-                                        format!("{}{}", "•".repeat(state.password.len()), if state.focus == OnboardFieldFocus::Password { "_" } else { "" })
-                                    }),
-                            ),
+                        terminal_text_input(
+                            "input-onboard-pw",
+                            &state.password,
+                            "Enter remote password…",
+                            state.focus == OnboardFieldFocus::Password,
+                            true,
+                        )
+                        .on_click(move |_ev, _window, cx| {
+                            app_pw.update(cx, |this, cx| {
+                                this.onboard_set_focus(OnboardFieldFocus::Password, cx);
+                            });
+                        }),
                     ),
             )
         } else {
@@ -1102,36 +1047,22 @@ fn render_step_classify(app: Entity<CrowApp>, state: &OnboardState) -> Div {
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIM)
+                        .text_color(if state.focus == OnboardFieldFocus::Label { TEXT_PRIMARY } else { TEXT_DIM })
                         .child("SERVER LABEL (UNIQUE IDENTIFIER):"),
                 )
                 .child(
-                    div()
-                        .id("input-onboard-label")
-                        .h(px(32.0))
-                        .px(px(10.0))
-                        .bg(BG_APP)
-                        .border_1()
-                        .border_color(if state.focus == OnboardFieldFocus::Label { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                        .cursor_pointer()
-                        .on_click(move |_ev, _window, cx| {
-                            app_label.update(cx, |this, cx| {
-                                this.onboard_set_focus(OnboardFieldFocus::Label, cx);
-                            });
-                        })
-                        .flex()
-                        .items_center()
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(12.0))
-                                .text_color(TEXT_MAX)
-                                .child(if state.label.is_empty() {
-                                    if state.focus == OnboardFieldFocus::Label { "_" } else { "worker-05" }.to_string()
-                                } else {
-                                    format!("{}{}", state.label, if state.focus == OnboardFieldFocus::Label { "_" } else { "" })
-                                }),
-                        ),
+                    terminal_text_input(
+                        "input-onboard-label",
+                        &state.label,
+                        "e.g. worker-05, edge-eu, db-primary",
+                        state.focus == OnboardFieldFocus::Label,
+                        false,
+                    )
+                    .on_click(move |_ev, _window, cx| {
+                        app_label.update(cx, |this, cx| {
+                            this.onboard_set_focus(OnboardFieldFocus::Label, cx);
+                        });
+                    }),
                 )
                 .child(
                     div()
@@ -1326,36 +1257,22 @@ fn render_step_classify(app: Entity<CrowApp>, state: &OnboardState) -> Div {
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIM)
+                        .text_color(if state.focus == OnboardFieldFocus::Tags { TEXT_PRIMARY } else { TEXT_DIM })
                         .child("TAGS (COMMA SEPARATED):"),
                 )
                 .child(
-                    div()
-                        .id("input-onboard-tags")
-                        .h(px(32.0))
-                        .px(px(10.0))
-                        .bg(BG_APP)
-                        .border_1()
-                        .border_color(if state.focus == OnboardFieldFocus::Tags { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                        .cursor_pointer()
-                        .on_click(move |_ev, _window, cx| {
-                            app_tags.update(cx, |this, cx| {
-                                this.onboard_set_focus(OnboardFieldFocus::Tags, cx);
-                            });
-                        })
-                        .flex()
-                        .items_center()
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(12.0))
-                                .text_color(TEXT_MAX)
-                                .child(if state.tags.is_empty() {
-                                    if state.focus == OnboardFieldFocus::Tags { "_" } else { "queue, ruby, eu-west" }.to_string()
-                                } else {
-                                    format!("{}{}", state.tags, if state.focus == OnboardFieldFocus::Tags { "_" } else { "" })
-                                }),
-                        ),
+                    terminal_text_input(
+                        "input-onboard-tags",
+                        &state.tags,
+                        "e.g. queue, ruby, eu-west, staging",
+                        state.focus == OnboardFieldFocus::Tags,
+                        false,
+                    )
+                    .on_click(move |_ev, _window, cx| {
+                        app_tags.update(cx, |this, cx| {
+                            this.onboard_set_focus(OnboardFieldFocus::Tags, cx);
+                        });
+                    }),
                 ),
         )
 }

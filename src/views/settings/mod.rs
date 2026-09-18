@@ -984,19 +984,40 @@ pub fn settings_view(
                                                                         .id(ElementId::NamedInteger("custom-input-box".into(), idx as u64))
                                                                         .h(px(26.0))
                                                                         .px(px(8.0))
-                                                                        .bg(BG_APP)
+                                                                        .bg(BG_ROW_HOVER)
                                                                         .border_1()
-                                                                        .border_color(BORDER_STRONG)
+                                                                        .border_color(OK)
+                                                                        .cursor_text()
                                                                         .flex()
                                                                         .items_center()
                                                                         .gap(px(4.0))
                                                                         .child(
-                                                                            div()
-                                                                                .font_family(FONT_MONO)
-                                                                                .text_size(px(11.0))
-                                                                                .font_weight(FontWeight::BOLD)
-                                                                                .text_color(TEXT_MAX)
-                                                                                .child(if custom_input.is_empty() { "_".to_string() } else { custom_input.to_string() }),
+                                                                            if custom_input.is_empty() {
+                                                                                div()
+                                                                                    .flex()
+                                                                                    .items_center()
+                                                                                    .child(div().w(px(2.0)).h(px(13.0)).bg(OK).mr(px(3.0)))
+                                                                                    .child(
+                                                                                        div()
+                                                                                            .font_family(FONT_MONO)
+                                                                                            .text_size(px(11.0))
+                                                                                            .text_color(TEXT_FAINTER)
+                                                                                            .child("value…"),
+                                                                                    )
+                                                                            } else {
+                                                                                div()
+                                                                                    .flex()
+                                                                                    .items_center()
+                                                                                    .child(
+                                                                                        div()
+                                                                                            .font_family(FONT_MONO)
+                                                                                            .text_size(px(11.0))
+                                                                                            .font_weight(FontWeight::BOLD)
+                                                                                            .text_color(TEXT_MAX)
+                                                                                            .child(custom_input.to_string()),
+                                                                                    )
+                                                                                    .child(div().w(px(2.0)).h(px(13.0)).bg(OK).ml(px(2.0)))
+                                                                            }
                                                                         )
                                                                         .children(if !unit_str.is_empty() {
                                                                             Some(

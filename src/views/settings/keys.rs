@@ -2,6 +2,7 @@ use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
+use crate::components::terminal_text_input_styled;
 use crate::keys::{
     KeyAlgorithm, KeyGenFieldFocus,
 };
@@ -1137,6 +1138,9 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
         let app_submit = app.clone();
         let app_copy = app.clone();
         let app_cycle_focus = app.clone();
+        let app_focus_name = app.clone();
+        let app_focus_comment = app.clone();
+        let app_focus_dir = app.clone();
 
         let is_success = gen.generated_public_key.is_some();
         let pubkey_to_copy = gen.generated_public_key.clone().unwrap_or_default();
@@ -1283,21 +1287,23 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                     .child("KEY NAME:"),
                                             )
                                             .child(
-                                                div()
-                                                    .h(px(28.0))
-                                                    .px(px(8.0))
-                                                    .bg(BG_APP)
-                                                    .border_1()
-                                                    .border_color(if gen.active_focus == KeyGenFieldFocus::Name { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                                    .flex()
-                                                    .items_center()
-                                                    .child(
-                                                        div()
-                                                            .font_family(FONT_MONO)
-                                                            .text_size(px(11.0))
-                                                            .text_color(TEXT_MAX)
-                                                            .child(if gen.name_input.is_empty() { "_ (type name…)".to_string() } else { gen.name_input.clone() }),
-                                                    ),
+                                                terminal_text_input_styled(
+                                                    "input-keygen-name",
+                                                    &gen.name_input,
+                                                    "e.g. id_ed25519_bastion",
+                                                    gen.active_focus == KeyGenFieldFocus::Name,
+                                                    false,
+                                                    28.0,
+                                                    11.0,
+                                                )
+                                                .on_click(move |_ev, _window, cx| {
+                                                    app_focus_name.update(cx, |this, cx| {
+                                                        if let Some(ref mut g) = this.key_gen_modal {
+                                                            g.active_focus = KeyGenFieldFocus::Name;
+                                                            cx.notify();
+                                                        }
+                                                    });
+                                                }),
                                             ),
                                     )
                                     // Field 2: Algorithm
@@ -1366,21 +1372,23 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                     .child("COMMENT (OPTIONAL):"),
                                             )
                                             .child(
-                                                div()
-                                                    .h(px(28.0))
-                                                    .px(px(8.0))
-                                                    .bg(BG_APP)
-                                                    .border_1()
-                                                    .border_color(if gen.active_focus == KeyGenFieldFocus::Comment { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                                    .flex()
-                                                    .items_center()
-                                                    .child(
-                                                        div()
-                                                            .font_family(FONT_MONO)
-                                                            .text_size(px(11.0))
-                                                            .text_color(TEXT_MAX)
-                                                            .child(if gen.comment_input.is_empty() { "_ (e.g. nelson@crow)".to_string() } else { gen.comment_input.clone() }),
-                                                    ),
+                                                terminal_text_input_styled(
+                                                    "input-keygen-comment",
+                                                    &gen.comment_input,
+                                                    "e.g. nelson@crow",
+                                                    gen.active_focus == KeyGenFieldFocus::Comment,
+                                                    false,
+                                                    28.0,
+                                                    11.0,
+                                                )
+                                                .on_click(move |_ev, _window, cx| {
+                                                    app_focus_comment.update(cx, |this, cx| {
+                                                        if let Some(ref mut g) = this.key_gen_modal {
+                                                            g.active_focus = KeyGenFieldFocus::Comment;
+                                                            cx.notify();
+                                                        }
+                                                    });
+                                                }),
                                             ),
                                     )
                                     // Field 4: Destination directory
@@ -1398,21 +1406,23 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                     .child("SAVE DIRECTORY:"),
                                             )
                                             .child(
-                                                div()
-                                                    .h(px(28.0))
-                                                    .px(px(8.0))
-                                                    .bg(BG_APP)
-                                                    .border_1()
-                                                    .border_color(if gen.active_focus == KeyGenFieldFocus::Directory { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                                    .flex()
-                                                    .items_center()
-                                                    .child(
-                                                        div()
-                                                            .font_family(FONT_MONO)
-                                                            .text_size(px(11.0))
-                                                            .text_color(TEXT_MAX)
-                                                            .child(gen.custom_dir_input.clone()),
-                                                    ),
+                                                terminal_text_input_styled(
+                                                    "input-keygen-dir",
+                                                    &gen.custom_dir_input,
+                                                    "~/.ssh",
+                                                    gen.active_focus == KeyGenFieldFocus::Directory,
+                                                    false,
+                                                    28.0,
+                                                    11.0,
+                                                )
+                                                .on_click(move |_ev, _window, cx| {
+                                                    app_focus_dir.update(cx, |this, cx| {
+                                                        if let Some(ref mut g) = this.key_gen_modal {
+                                                            g.active_focus = KeyGenFieldFocus::Directory;
+                                                            cx.notify();
+                                                        }
+                                                    });
+                                                }),
                                             ),
                                     )
                                     // Error message
@@ -1560,21 +1570,15 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                 .child("Enter directory path (e.g. ~/work-keys or /etc/ssh):"),
                         )
                         .child(
-                            div()
-                                .h(px(30.0))
-                                .px(px(8.0))
-                                .bg(BG_APP)
-                                .border_1()
-                                .border_color(TEXT_PRIMARY)
-                                .flex()
-                                .items_center()
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
-                                        .text_color(TEXT_MAX)
-                                        .child(if path_text.is_empty() { "_ (type directory path…)".to_string() } else { path_text.clone() }),
-                                ),
+                            terminal_text_input_styled(
+                                "input-scan-path",
+                                &path_text,
+                                "e.g. ~/work-keys or /etc/ssh",
+                                true,
+                                false,
+                                30.0,
+                                11.0,
+                            ),
                         )
                         .children(if let Some(ref e) = err {
                             Some(
@@ -1679,21 +1683,15 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                 .child("Enter group name (e.g. Staging Fleet, Edge Bastions):"),
                         )
                         .child(
-                            div()
-                                .h(px(30.0))
-                                .px(px(8.0))
-                                .bg(BG_APP)
-                                .border_1()
-                                .border_color(TEXT_PRIMARY)
-                                .flex()
-                                .items_center()
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
-                                        .text_color(TEXT_MAX)
-                                        .child(if name_text.is_empty() { "_ (type group name…)".to_string() } else { name_text.clone() }),
-                                ),
+                            terminal_text_input_styled(
+                                "input-new-group-name",
+                                &name_text,
+                                "e.g. Staging Fleet, Edge Bastions",
+                                true,
+                                false,
+                                30.0,
+                                11.0,
+                            ),
                         )
                         .children(if let Some(ref e) = err {
                             Some(
@@ -1808,21 +1806,15 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                         .child("NAME:"),
                                 )
                                 .child(
-                                    div()
-                                        .h(px(28.0))
-                                        .px(px(8.0))
-                                        .bg(BG_APP)
-                                        .border_1()
-                                        .border_color(TEXT_PRIMARY)
-                                        .flex()
-                                        .items_center()
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(11.0))
-                                                .text_color(TEXT_MAX)
-                                                .child(if name_text.is_empty() { "_".to_string() } else { name_text.clone() }),
-                                        ),
+                                    terminal_text_input_styled(
+                                        "input-edit-key-name",
+                                        &name_text,
+                                        "Enter key name…",
+                                        true,
+                                        false,
+                                        28.0,
+                                        11.0,
+                                    ),
                                 ),
                         )
                         // Group selector chips
