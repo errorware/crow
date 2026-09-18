@@ -26,23 +26,63 @@ GEMINI.md
 *.swp
 *~
 
-# Build artifacts
+# Build artifacts & packaging
+*.AppImage
+*.deb
+*.dmg
+*.exe
+*.msi
+*.rpm
+*.tar.gz
+*.zip
+.flatpak-builder/
+/dist
+/release
 /target
+
+# Coverage & profiling
+*.lcov
+*.profdata
+*.profraw
+/coverage
+cobertura.xml
+flamegraph.svg
+massif.out.*
+perf.data
+perf.data.old
+tarpaulin-report.html
+
+# Crash dumps & core files
+*.dmp
+*.stackdump
+core
+core.*
+vgcore.*
 
 # Editors & IDEs
 *.iml
+*.sublime-project
+*.sublime-workspace
 .fleet/
 .idea/
+.netrwhist
 .vscode/
 .zed/
+Session.vim
 
-# Environment & secrets
+# Environment, secrets & local runtime state
+*.env
 *.p12
 *.pem
 *.pfx
+*.sqlite
+*.sqlite3
 .env
 .env.*
 .envrc
+id_ed25519*
+id_rsa*
+vault.db*
 
 # Internal docs & design handoff — ours, not the world
 *.dc.html
@@ -51,8 +91,15 @@ design_handoff_crow_control_panel/
 
 # Logs
 *.log
+*.log.*
+
+# Nix & sandboxing
+.direnv/
+result
+result-*
 
 # OS files
+$RECYCLE.BIN/
 ._*
 .DS_Store
 .Spotlight-V100
@@ -60,3 +107,11 @@ design_handoff_crow_control_panel/
 Desktop.ini
 Thumbs.db
 ehthumbs.db
+ehthumbs_vista.db
+
+# Temporary & cache files
+*.cache
+*.pid
+*.tmp
+.cache/
+tmp/
