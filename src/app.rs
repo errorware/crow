@@ -29,7 +29,14 @@ use crate::lab::{
 };
 use crate::views::logs::logs_explorer_view;
 use crate::views::overview::log_tail::log_tail;
-use crate::views::overview::services_table::{default_services, services_table, ServiceUnit};
+use crate::views::overview::{
+    collector::{
+        collect_processes_for_server, collect_services_for_server, collect_sockets_for_server,
+        restart_service_unit, terminate_process,
+    },
+    services_table::services_table,
+    ProcessUnit, ServiceUnit, SocketUnit,
+};
 use crate::views::settings::settings_view;
 
 use crow_config_core::edit::ConfigDocument;
@@ -102,6 +109,8 @@ pub struct CrowApp {
     pub active_services_tab: String,
     pub tabs: Vec<ServerTab>,
     pub services: Vec<ServiceUnit>,
+    pub processes: Vec<ProcessUnit>,
+    pub sockets: Vec<SocketUnit>,
     pub hba_rules: Vec<HbaRuleDef>,
     pub palette_open: bool,
     pub sidebar_collapsed: bool,
@@ -282,6 +291,16 @@ host    all             all             10.0.4.0/24             scram-sha-256
             read_retention_for_server("local")
         };
 
+        let (initial_services, initial_processes, initial_sockets) = if let Some(first_srv) = servers.first() {
+            (
+                collect_services_for_server(first_srv),
+                collect_processes_for_server(first_srv),
+                collect_sockets_for_server(first_srv),
+            )
+        } else {
+            (Vec::new(), Vec::new(), Vec::new())
+        };
+
         let lab_engines = detect_local_engines();
         let lab_nodes = scan_local_test_nodes(&servers);
 
@@ -298,7 +317,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
             active_view: "overview".to_string(),
             active_services_tab: "services".to_string(),
             tabs,
-            services: default_services(),
+            services: initial_services,
+            processes: initial_processes,
+            sockets: initial_sockets,
             hba_rules: default_hba_rules(),
             palette_open: false,
             sidebar_collapsed: false,
@@ -368,6 +389,15 @@ host    all             all             10.0.4.0/24             scram-sha-256
             let updated = sample_server(&active_srv, prev, local_prev);
             self.metrics_store.insert(active_srv.id.clone(), updated.clone());
             self.metrics_store.insert(active_srv.name.clone(), updated);
+
+            // If overview is active, refresh active subtab data
+            if self.active_view == "overview" {
+                match self.active_services_tab.as_str() {
+                    "processes" => self.processes = collect_processes_for_server(&active_srv),
+                    "sockets" => self.sockets = collect_sockets_for_server(&active_srv),
+                    _ => self.services = collect_services_for_server(&active_srv),
+                }
+            }
 
             // If live tail is enabled, poll fresh journal entries
             if self.journal_live_tail {
@@ -513,6 +543,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
                         });
                     }
                     self.active_tab_id = record.id.clone();
+                    self.services = collect_services_for_server(&record);
+                    self.processes = collect_processes_for_server(&record);
+                    self.sockets = collect_sockets_for_server(&record);
                     self.screen = Screen::Server;
                     self.active_view = "overview".to_string();
                     self.show_local_lab_modal = false;
@@ -559,6 +592,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
                     });
                 }
                 self.active_tab_id = record.id.clone();
+                self.services = collect_services_for_server(&record);
+                self.processes = collect_processes_for_server(&record);
+                self.sockets = collect_sockets_for_server(&record);
                 self.screen = Screen::Server;
                 self.active_view = "overview".to_string();
                 self.show_local_lab_modal = false;
@@ -805,10 +841,13 @@ host    all             all             10.0.4.0/24             scram-sha-256
     pub fn set_view(&mut self, view: &str, cx: &mut Context<Self>) {
         if view == "services" {
             self.active_view = "overview".to_string();
-            self.active_services_tab = "services".to_string();
+            self.set_services_tab("services", cx);
         } else if view == "processes" {
             self.active_view = "overview".to_string();
-            self.active_services_tab = "processes".to_string();
+            self.set_services_tab("processes", cx);
+        } else if view == "sockets" {
+            self.active_view = "overview".to_string();
+            self.set_services_tab("sockets", cx);
         } else {
             self.active_view = view.to_string();
         }
@@ -817,12 +856,28 @@ host    all             all             10.0.4.0/24             scram-sha-256
 
     pub fn set_services_tab(&mut self, tab: &str, cx: &mut Context<Self>) {
         self.active_services_tab = tab.to_string();
+        if let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
+            match tab {
+                "processes" => self.processes = collect_processes_for_server(&srv),
+                "sockets" => self.sockets = collect_sockets_for_server(&srv),
+                _ => self.services = collect_services_for_server(&srv),
+            }
+        }
         cx.notify();
     }
 
     pub fn switch_tab(&mut self, tab_id: &str, cx: &mut Context<Self>) {
         self.active_tab_id = tab_id.to_string();
         self.screen = Screen::Server;
+        if let Some(srv) = self.servers.iter().find(|s| s.id == tab_id || s.name == tab_id).cloned() {
+            if self.active_view == "overview" {
+                match self.active_services_tab.as_str() {
+                    "processes" => self.processes = collect_processes_for_server(&srv),
+                    "sockets" => self.sockets = collect_sockets_for_server(&srv),
+                    _ => self.services = collect_services_for_server(&srv),
+                }
+            }
+        }
         cx.notify();
     }
 
@@ -855,6 +910,54 @@ host    all             all             10.0.4.0/24             scram-sha-256
             } else {
                 svc.show_confirm = false;
             }
+        }
+        cx.notify();
+    }
+
+    pub fn execute_service_restart(&mut self, name: &str, cx: &mut Context<Self>) {
+        if let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
+            let _ = restart_service_unit(&srv, name);
+            self.services = collect_services_for_server(&srv);
+        }
+        for svc in &mut self.services {
+            svc.show_confirm = false;
+        }
+        cx.notify();
+    }
+
+    pub fn focus_process(&mut self, pid: u32, cx: &mut Context<Self>) {
+        for proc in &mut self.processes {
+            proc.is_focused = proc.pid == pid;
+        }
+        cx.notify();
+    }
+
+    pub fn toggle_process_confirm(&mut self, pid: u32, cx: &mut Context<Self>) {
+        for proc in &mut self.processes {
+            if proc.pid == pid {
+                proc.show_confirm = !proc.show_confirm;
+            } else {
+                proc.show_confirm = false;
+            }
+        }
+        cx.notify();
+    }
+
+    pub fn execute_process_kill(&mut self, pid: u32, cx: &mut Context<Self>) {
+        if let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
+            let _ = terminate_process(&srv, pid, 15);
+            self.processes = collect_processes_for_server(&srv);
+        }
+        for proc in &mut self.processes {
+            proc.show_confirm = false;
+        }
+        cx.notify();
+    }
+
+    pub fn focus_socket(&mut self, sock_id: &str, cx: &mut Context<Self>) {
+        for (idx, sock) in self.sockets.iter_mut().enumerate() {
+            let id = format!("{}:{}:{}", sock.protocol, sock.local_port, idx);
+            sock.is_focused = id == sock_id;
         }
         cx.notify();
     }
@@ -2011,7 +2114,7 @@ impl Render for CrowApp {
                                                                     div()
                                                                         .size_full()
                                                                         .flex()
-                                                                        .child(services_table(&self.services, &self.active_services_tab, app_view.clone()))
+                                                                        .child(services_table(&self.services, &self.processes, &self.sockets, &self.active_services_tab, app_view.clone()))
                                                                         .child(log_tail(&self.journal_entries, app_view.clone()))
                                                                 )
                                                             } else if is_config {
