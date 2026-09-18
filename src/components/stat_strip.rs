@@ -1,9 +1,13 @@
 use gpui_kit::*;
 use crate::theme::*;
 use crate::components::sparkline::dynamic_sparkline;
-use crate::metrics::ServerMetrics;
+use crate::metrics::{ServerMetrics, SurgeAlert};
 
-pub fn stat_strip(metrics: Option<&ServerMetrics>) -> impl IntoElement {
+pub fn stat_strip(
+    metrics: Option<&ServerMetrics>,
+    lag_secs: u64,
+    surge_alert: Option<&SurgeAlert>,
+) -> impl IntoElement {
     let default_m = ServerMetrics::default();
     let m = metrics.unwrap_or(&default_m);
 
@@ -58,12 +62,92 @@ pub fn stat_strip(metrics: Option<&ServerMetrics>) -> impl IntoElement {
 
     div()
         .flex_none()
-        .flex()
-        .items_stretch()
         .w_full()
-        .bg(BG_PANEL)
-        .border_b_1()
-        .border_color(BORDER_PANEL)
+        .flex()
+        .flex_col()
+        // 1. Foreknowledge and Turbo Buffer Ribbon
+        .child(
+            div()
+                .h(px(24.0))
+                .w_full()
+                .flex()
+                .items_center()
+                .justify_between()
+                .px(px(14.0))
+                .bg(if surge_alert.is_some() { hex_rgb(0x1e1215) } else { hex_rgb(0x0e1014) })
+                .border_b_1()
+                .border_color(if surge_alert.is_some() { hex_rgb(0x7f1d1d) } else { BORDER_PANEL })
+                // Left: Buffer info
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .child(
+                            div()
+                                .size(px(6.0))
+                                .rounded_full()
+                                .bg(if surge_alert.is_some() { CRIT } else { OK }),
+                        )
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(if surge_alert.is_some() { CRIT } else { OK })
+                                .child("TURBO BUFFER"),
+                        )
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.5))
+                                .text_color(TEXT_MUTED)
+                                .child(format!("· -{}s lag · local memory cache · 0ms compute overhead", lag_secs)),
+                        ),
+                )
+                // Right: Surge Foreknowledge / Preview
+                .child(if let Some(surge) = surge_alert {
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(6.0))
+                        .px(px(6.0))
+                        .py(px(1.5))
+                        .bg(CRIT_BG)
+                        .border_1()
+                        .border_color(CRIT)
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.5))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(CRIT)
+                                .child(format!("⚡ FOREKNOWLEDGE ALERT: {} in +{}s", surge.description, surge.lead_seconds)),
+                        )
+                        .into_any_element()
+                } else {
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(6.0))
+                        .font_family(FONT_MONO)
+                        .text_size(px(9.5))
+                        .text_color(TEXT_FAINT)
+                        .child(div().text_color(OK).child("✓"))
+                        .child(format!("next +{}s nominal · no upcoming anomalies detected", lag_secs))
+                        .into_any_element()
+                }),
+        )
+        // 2. Main 5-Card Stats Strip
+        .child(
+            div()
+                .flex_none()
+                .flex()
+                .items_stretch()
+                .w_full()
+                .bg(BG_PANEL)
+                .border_b_1()
+                .border_color(BORDER_PANEL)
         // 1. CPU LOAD
         .child(
             div()
@@ -443,4 +527,5 @@ pub fn stat_strip(metrics: Option<&ServerMetrics>) -> impl IntoElement {
                         .child(net_sub),
                 ),
         )
+    )
 }

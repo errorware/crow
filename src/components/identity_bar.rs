@@ -165,7 +165,20 @@ pub fn identity_bar(server: Option<&ServerRecord>, app: Entity<CrowApp>) -> impl
                     )
                 } else {
                     None
-                }),
+                })
+                .child(
+                    div()
+                        .bg(hex_rgb(0x14161b))
+                        .border_1()
+                        .border_color(hex_rgb(0x27272a))
+                        .text_color(OK)
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.0))
+                        .font_weight(FontWeight::BOLD)
+                        .px(px(6.0))
+                        .py(px(2.5))
+                        .child("TURBO (-24s LAG)"),
+                ),
         )
         // 4. Spacer
         .child(div().flex_1())

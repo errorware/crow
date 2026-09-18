@@ -1,6 +1,8 @@
+use std::collections::VecDeque;
 use serde::{Deserialize, Serialize};
 use gpui_kit::Rgba;
 use crate::theme::*;
+use crate::views::overview::{ProcessUnit, ServiceUnit, SocketUnit};
 
 pub mod collector;
 
@@ -182,6 +184,176 @@ pub fn format_uptime(secs: u64) -> String {
     }
 }
 
+/// A fully hydrated local telemetry snapshot stored in the time-series ring buffer.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct MetricSample {
+    pub timestamp_secs: u64,
+    pub metrics: ServerMetrics,
+    pub services: Vec<ServiceUnit>,
+    pub processes: Vec<ProcessUnit>,
+    pub sockets: Vec<SocketUnit>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum SurgeType {
+    CpuSpike { pct: f32, delta: f32 },
+    MemSurge { pct: f32 },
+    ServiceFailure { unit_name: String },
+    LoadSpike { load_1m: f32 },
+}
+
+#[derive(Clone, Debug)]
+pub struct SurgeAlert {
+    pub surge_type: SurgeType,
+    pub lead_seconds: u64,
+    pub description: String,
+    pub is_critical: bool,
+}
+
+/// A decoupled local in-memory sliding buffer of telemetry samples.
+/// Ingestion pushes at T_head, while the UI queries at (T_head - lag_secs),
+/// providing buttery smooth rendering and lookahead foreknowledge.
+#[derive(Clone, Debug)]
+pub struct ServerTimeSeriesBuffer {
+    pub samples: VecDeque<MetricSample>,
+    pub max_duration_secs: u64,
+}
+
+impl Default for ServerTimeSeriesBuffer {
+    fn default() -> Self {
+        Self::new(180) // 3-minute sliding window default
+    }
+}
+
+impl ServerTimeSeriesBuffer {
+    pub fn new(max_duration_secs: u64) -> Self {
+        Self {
+            samples: VecDeque::new(),
+            max_duration_secs: max_duration_secs.max(60),
+        }
+    }
+
+    pub fn push_sample(&mut self, sample: MetricSample) {
+        let current_ts = sample.timestamp_secs;
+        self.samples.push_back(sample);
+
+        // Trim samples older than max_duration_secs relative to head
+        while let Some(front) = self.samples.front() {
+            if current_ts.saturating_sub(front.timestamp_secs) > self.max_duration_secs {
+                self.samples.pop_front();
+            } else {
+                break;
+            }
+        }
+    }
+
+    /// Queries the sample closest to (T_head - lag_secs).
+    /// If the buffer has not yet accumulated lag_secs of history, returns the oldest available sample.
+    pub fn query_lagged(&self, lag_secs: u64) -> Option<&MetricSample> {
+        let newest = self.samples.back()?;
+        let target_ts = newest.timestamp_secs.saturating_sub(lag_secs);
+
+        let mut best: Option<&MetricSample> = None;
+        let mut min_diff = u64::MAX;
+
+        for s in &self.samples {
+            let diff = if s.timestamp_secs >= target_ts {
+                s.timestamp_secs - target_ts
+            } else {
+                target_ts - s.timestamp_secs
+            };
+            if diff < min_diff {
+                min_diff = diff;
+                best = Some(s);
+            }
+        }
+
+        best
+    }
+
+    /// Returns the newest (head) sample currently in the buffer.
+    pub fn head(&self) -> Option<&MetricSample> {
+        self.samples.back()
+    }
+
+    /// Scans the lookahead window [T_playhead, T_head] for upcoming surges.
+    /// Returns the earliest detected surge along with the operator lead time in seconds.
+    pub fn detect_upcoming_surge(&self, lag_secs: u64) -> Option<SurgeAlert> {
+        let newest = self.samples.back()?;
+        let target_ts = newest.timestamp_secs.saturating_sub(lag_secs);
+        let lagged_sample = self.query_lagged(lag_secs)?;
+        let baseline_cpu = lagged_sample.metrics.cpu_pct;
+        let baseline_mem = lagged_sample.metrics.mem_pct;
+
+        for s in self.samples.iter().filter(|s| s.timestamp_secs > target_ts) {
+            let lead_seconds = s.timestamp_secs.saturating_sub(target_ts);
+
+            // 1. Check for Service Failure in lookahead
+            for svc in &s.services {
+                if svc.status == "FAILED" {
+                    let was_failed = lagged_sample.services.iter().any(|b| b.name == svc.name && b.status == "FAILED");
+                    if !was_failed {
+                        return Some(SurgeAlert {
+                            surge_type: SurgeType::ServiceFailure { unit_name: svc.name.clone() },
+                            lead_seconds,
+                            description: format!("Unit '{}' fails", svc.name),
+                            is_critical: true,
+                        });
+                    }
+                }
+            }
+
+            // 2. Check for CPU Spike (>20% jump or >80% threshold)
+            let cpu_delta = s.metrics.cpu_pct - baseline_cpu;
+            if s.metrics.cpu_pct >= 80.0 && baseline_cpu < 80.0 {
+                return Some(SurgeAlert {
+                    surge_type: SurgeType::CpuSpike { pct: s.metrics.cpu_pct, delta: cpu_delta },
+                    lead_seconds,
+                    description: format!("CPU spike to {:.0}% (+{:.0}%)", s.metrics.cpu_pct, cpu_delta.max(0.0)),
+                    is_critical: true,
+                });
+            } else if cpu_delta >= 25.0 {
+                return Some(SurgeAlert {
+                    surge_type: SurgeType::CpuSpike { pct: s.metrics.cpu_pct, delta: cpu_delta },
+                    lead_seconds,
+                    description: format!("Rapid CPU surge +{:.0}% (to {:.0}%)", cpu_delta, s.metrics.cpu_pct),
+                    is_critical: false,
+                });
+            }
+
+            // 3. Check for Memory Surge (>85% or +20% jump)
+            let mem_delta = s.metrics.mem_pct - baseline_mem;
+            if s.metrics.mem_pct >= 85.0 && baseline_mem < 85.0 {
+                return Some(SurgeAlert {
+                    surge_type: SurgeType::MemSurge { pct: s.metrics.mem_pct },
+                    lead_seconds,
+                    description: format!("Memory surge to {:.0}% (+{:.0}%)", s.metrics.mem_pct, mem_delta.max(0.0)),
+                    is_critical: true,
+                });
+            } else if mem_delta >= 20.0 {
+                return Some(SurgeAlert {
+                    surge_type: SurgeType::MemSurge { pct: s.metrics.mem_pct },
+                    lead_seconds,
+                    description: format!("Rapid Memory surge +{:.0}% (to {:.0}%)", mem_delta, s.metrics.mem_pct),
+                    is_critical: false,
+                });
+            }
+
+            // 4. Check for Load Spike
+            if s.metrics.load_1m >= (s.metrics.vcpu_count as f32 * 2.0).max(4.0) {
+                return Some(SurgeAlert {
+                    surge_type: SurgeType::LoadSpike { load_1m: s.metrics.load_1m },
+                    lead_seconds,
+                    description: format!("Load average surge to {:.2}", s.metrics.load_1m),
+                    is_critical: false,
+                });
+            }
+        }
+
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -209,5 +381,67 @@ mod tests {
         assert_eq!(m.cpu_peak, 55.0);
         m.push_cpu_sample(30.0);
         assert_eq!(m.cpu_peak, 55.0);
+    }
+
+    #[test]
+    fn test_buffer_push_and_query_lagged() {
+        let mut buffer = ServerTimeSeriesBuffer::new(120);
+        let make_sample = |ts: u64, cpu: f32| MetricSample {
+            timestamp_secs: ts,
+            metrics: ServerMetrics { cpu_pct: cpu, ..Default::default() },
+            services: Vec::new(),
+            processes: Vec::new(),
+            sockets: Vec::new(),
+        };
+
+        buffer.push_sample(make_sample(100, 20.0));
+        buffer.push_sample(make_sample(110, 25.0));
+        buffer.push_sample(make_sample(124, 30.0)); // Head is at 124
+
+        // Query with lag of 24s: Target is 124 - 24 = 100
+        let lagged = buffer.query_lagged(24).expect("sample expected");
+        assert_eq!(lagged.timestamp_secs, 100);
+        assert_eq!(lagged.metrics.cpu_pct, 20.0);
+    }
+
+    #[test]
+    fn test_buffer_retention_trim() {
+        let mut buffer = ServerTimeSeriesBuffer::new(60); // 60s window
+        let make_sample = |ts: u64| MetricSample {
+            timestamp_secs: ts,
+            metrics: ServerMetrics::default(),
+            services: Vec::new(),
+            processes: Vec::new(),
+            sockets: Vec::new(),
+        };
+
+        buffer.push_sample(make_sample(10));
+        buffer.push_sample(make_sample(50));
+        buffer.push_sample(make_sample(80)); // 80 - 10 = 70 > 60, so sample 10 must be trimmed
+
+        assert_eq!(buffer.samples.len(), 2);
+        assert_eq!(buffer.samples.front().unwrap().timestamp_secs, 50);
+        assert_eq!(buffer.samples.back().unwrap().timestamp_secs, 80);
+    }
+
+    #[test]
+    fn test_detect_upcoming_surge_cpu() {
+        let mut buffer = ServerTimeSeriesBuffer::new(180);
+        let make_sample = |ts: u64, cpu: f32| MetricSample {
+            timestamp_secs: ts,
+            metrics: ServerMetrics { cpu_pct: cpu, ..Default::default() },
+            services: Vec::new(),
+            processes: Vec::new(),
+            sockets: Vec::new(),
+        };
+
+        buffer.push_sample(make_sample(100, 25.0)); // T_playhead (lag = 24, Head = 124)
+        buffer.push_sample(make_sample(114, 88.0)); // Spike at T+14s
+        buffer.push_sample(make_sample(124, 92.0)); // Head
+
+        let alert = buffer.detect_upcoming_surge(24).expect("surge alert expected");
+        assert_eq!(alert.lead_seconds, 14);
+        assert!(alert.is_critical);
+        assert!(alert.description.contains("CPU spike to 88%"));
     }
 }

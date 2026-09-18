@@ -7,7 +7,10 @@ use crate::components::palette::palette_overlay;
 use crate::components::sidebar::sidebar;
 use crate::components::stat_strip::stat_strip;
 use crate::components::titlebar::{burger_menu_overlay, titlebar, ServerTab};
-use crate::metrics::{ServerMetrics, collector::{sample_server, CollectorPreviousState}};
+use crate::metrics::{
+    collector::{sample_server, CollectorPreviousState},
+    MetricSample, ServerMetrics, ServerTimeSeriesBuffer, SurgeAlert,
+};
 use crate::vault::{ServerRecord, Vault, VaultStatus};
 use crate::views::config::managed_files::managed_files_rail;
 use crate::views::config::pending_diff_rail::pending_diff_rail;
@@ -139,8 +142,11 @@ pub struct CrowApp {
     pub input_selection: Option<(usize, usize)>,
     pub input_drag_anchor: Option<usize>,
     pub _cursor_blink_task: Task<()>,
-    // Real Stats & Metrics Telemetry Store
+    // Real Stats & Metrics Telemetry Store (Lagged Turbo Buffer & Foreknowledge)
     pub metrics_store: HashMap<String, ServerMetrics>,
+    pub buffered_stores: HashMap<String, ServerTimeSeriesBuffer>,
+    pub metrics_lag_secs: u64,
+    pub active_surge_alert: Option<SurgeAlert>,
     pub _metrics_poll_task: Task<()>,
     // Systemd Journal Log Explorer & Retention Boundaries
     pub journal_entries: Vec<JournalEntry>,
@@ -272,11 +278,28 @@ host    all             all             10.0.4.0/24             scram-sha-256
         };
 
         let mut metrics_store = HashMap::new();
+        let mut buffered_stores = HashMap::new();
         let mut local_prev = CollectorPreviousState::default();
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+
         for s in &servers {
             let m = sample_server(s, None, &mut local_prev);
             metrics_store.insert(s.id.clone(), m.clone());
-            metrics_store.insert(s.name.clone(), m);
+            metrics_store.insert(s.name.clone(), m.clone());
+
+            let mut buf = ServerTimeSeriesBuffer::default();
+            buf.push_sample(MetricSample {
+                timestamp_secs: now_secs,
+                metrics: m,
+                services: Vec::new(),
+                processes: Vec::new(),
+                sockets: Vec::new(),
+            });
+            buffered_stores.insert(s.id.clone(), buf.clone());
+            buffered_stores.insert(s.name.clone(), buf);
         }
 
         let initial_journal = if let Some(first_srv) = servers.first() {
@@ -300,6 +323,23 @@ host    all             all             10.0.4.0/24             scram-sha-256
         } else {
             (Vec::new(), Vec::new(), Vec::new())
         };
+
+        if let Some(first_srv) = servers.first() {
+            if let Some(buf) = buffered_stores.get_mut(&first_srv.id) {
+                if let Some(sample) = buf.samples.back_mut() {
+                    sample.services = initial_services.clone();
+                    sample.processes = initial_processes.clone();
+                    sample.sockets = initial_sockets.clone();
+                }
+            }
+            if let Some(buf) = buffered_stores.get_mut(&first_srv.name) {
+                if let Some(sample) = buf.samples.back_mut() {
+                    sample.services = initial_services.clone();
+                    sample.processes = initial_processes.clone();
+                    sample.sockets = initial_sockets.clone();
+                }
+            }
+        }
 
         let lab_engines = detect_local_engines();
         let lab_nodes = scan_local_test_nodes(&servers);
@@ -355,6 +395,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 }
             }),
             metrics_store,
+            buffered_stores,
+            metrics_lag_secs: 24,
+            active_surge_alert: None,
             _metrics_poll_task: cx.spawn(async move |entity, cx| {
                 let mut local_prev = CollectorPreviousState::default();
                 loop {
@@ -384,20 +427,71 @@ host    all             all             10.0.4.0/24             scram-sha-256
     }
 
     pub fn poll_metrics(&mut self, local_prev: &mut CollectorPreviousState) {
-        if let Some(active_srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
-            let prev = self.metrics_store.get(&active_srv.id);
-            let updated = sample_server(&active_srv, prev, local_prev);
-            self.metrics_store.insert(active_srv.id.clone(), updated.clone());
-            self.metrics_store.insert(active_srv.name.clone(), updated);
+        let now_secs = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
 
-            // If overview is active, refresh active subtab data
-            if self.active_view == "overview" {
+        if let Some(active_srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
+            let prev = self.buffered_stores.get(&active_srv.id).and_then(|b| b.head()).map(|h| &h.metrics).or_else(|| self.metrics_store.get(&active_srv.id));
+            let updated_head = sample_server(&active_srv, prev, local_prev);
+
+            // Collect active subtab data for overview
+            let (services_sample, processes_sample, sockets_sample) = if self.active_view == "overview" {
                 match self.active_services_tab.as_str() {
-                    "processes" => self.processes = collect_processes_for_server(&active_srv),
-                    "sockets" => self.sockets = collect_sockets_for_server(&active_srv),
-                    _ => self.services = collect_services_for_server(&active_srv),
+                    "processes" => (
+                        self.services.clone(),
+                        collect_processes_for_server(&active_srv),
+                        self.sockets.clone(),
+                    ),
+                    "sockets" => (
+                        self.services.clone(),
+                        self.processes.clone(),
+                        collect_sockets_for_server(&active_srv),
+                    ),
+                    _ => (
+                        collect_services_for_server(&active_srv),
+                        self.processes.clone(),
+                        self.sockets.clone(),
+                    ),
                 }
+            } else {
+                (self.services.clone(), self.processes.clone(), self.sockets.clone())
+            };
+
+            // Ingest sample into ring buffer at T_head
+            let buf = self.buffered_stores.entry(active_srv.id.clone()).or_insert_with(ServerTimeSeriesBuffer::default);
+            buf.push_sample(MetricSample {
+                timestamp_secs: now_secs,
+                metrics: updated_head.clone(),
+                services: services_sample,
+                processes: processes_sample,
+                sockets: sockets_sample,
+            });
+
+            // Foreknowledge: scan lookahead window (T_playback, T_head] for upcoming surges
+            self.active_surge_alert = buf.detect_upcoming_surge(self.metrics_lag_secs);
+
+            // Playback: query lagged sample from local time-series ring buffer (lag_secs behind)
+            if let Some(lagged) = buf.query_lagged(self.metrics_lag_secs) {
+                self.metrics_store.insert(active_srv.id.clone(), lagged.metrics.clone());
+                self.metrics_store.insert(active_srv.name.clone(), lagged.metrics.clone());
+                if !lagged.services.is_empty() {
+                    self.services = lagged.services.clone();
+                }
+                if !lagged.processes.is_empty() {
+                    self.processes = lagged.processes.clone();
+                }
+                if !lagged.sockets.is_empty() {
+                    self.sockets = lagged.sockets.clone();
+                }
+            } else {
+                self.metrics_store.insert(active_srv.id.clone(), updated_head.clone());
+                self.metrics_store.insert(active_srv.name.clone(), updated_head);
             }
+
+            let buf_clone = buf.clone();
+            self.buffered_stores.insert(active_srv.name.clone(), buf_clone);
 
             // If live tail is enabled, poll fresh journal entries
             if self.journal_live_tail {
@@ -412,10 +506,25 @@ host    all             all             10.0.4.0/24             scram-sha-256
 
         if self.screen == Screen::Fleet {
             for s in self.servers.clone() {
-                let prev = self.metrics_store.get(&s.id);
+                let prev = self.buffered_stores.get(&s.id).and_then(|b| b.head()).map(|h| &h.metrics).or_else(|| self.metrics_store.get(&s.id));
                 let updated = sample_server(&s, prev, local_prev);
-                self.metrics_store.insert(s.id.clone(), updated.clone());
-                self.metrics_store.insert(s.name.clone(), updated);
+                let buf = self.buffered_stores.entry(s.id.clone()).or_insert_with(ServerTimeSeriesBuffer::default);
+                buf.push_sample(MetricSample {
+                    timestamp_secs: now_secs,
+                    metrics: updated.clone(),
+                    services: Vec::new(),
+                    processes: Vec::new(),
+                    sockets: Vec::new(),
+                });
+                if let Some(lagged) = buf.query_lagged(self.metrics_lag_secs) {
+                    self.metrics_store.insert(s.id.clone(), lagged.metrics.clone());
+                    self.metrics_store.insert(s.name.clone(), lagged.metrics.clone());
+                } else {
+                    self.metrics_store.insert(s.id.clone(), updated.clone());
+                    self.metrics_store.insert(s.name.clone(), updated);
+                }
+                let buf_clone = buf.clone();
+                self.buffered_stores.insert(s.name.clone(), buf_clone);
             }
         }
     }
@@ -2092,7 +2201,7 @@ impl Render for CrowApp {
                                                     // Server Identity Bar
                                                     .child(identity_bar(active_srv, app_view.clone()))
                                                     // Server Stat Strip
-                                                    .child(stat_strip(active_mtr))
+                                                    .child(stat_strip(active_mtr, self.metrics_lag_secs, self.active_surge_alert.as_ref()))
                                                 // Main Server Body: Sidebar + Content
                                                 .child(
                                                     div()
