@@ -25,8 +25,8 @@ pub fn crow_logo(ink: Rgba) -> impl IntoElement {
 
 #[derive(Clone, Debug)]
 pub struct ServerTab {
-    pub id: &'static str,
-    pub name: &'static str,
+    pub id: String,
+    pub name: String,
     pub status_color: Rgba,
     #[allow(dead_code)]
     pub is_active: bool,
@@ -154,7 +154,7 @@ pub fn titlebar(
             // Server Tabs (each with close affordance)
             .children(tabs.iter().enumerate().map(|(idx, tab)| {
                 let is_active = current_screen == Screen::Server && tab.id == active_tab_id;
-                let tab_id = tab.id;
+                let tab_id = tab.id.clone();
                 let app_tab = app.clone();
 
                 div()
@@ -169,8 +169,9 @@ pub fn titlebar(
                     .cursor_pointer()
                     .hover(|s| s.bg(BG_ROW_HOVER))
                     .on_click(move |_ev, _window, cx| {
+                        let tid = tab_id.clone();
                         app_tab.update(cx, |this, cx| {
-                            this.switch_tab(tab_id, cx);
+                            this.switch_tab(&tid, cx);
                             this.set_screen(Screen::Server, cx);
                         });
                     })
@@ -186,7 +187,7 @@ pub fn titlebar(
                             .font_family(FONT_MONO)
                             .text_size(px(11.0))
                             .text_color(if is_active { TEXT_PRIMARY } else { TEXT_MUTED })
-                            .child(tab.name),
+                            .child(tab.name.clone()),
                     )
                     .child(
                         tabler_icon(TablerIcon::X)

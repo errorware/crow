@@ -6,7 +6,7 @@ use crate::components::palette::palette_overlay;
 use crate::components::sidebar::sidebar;
 use crate::components::stat_strip::stat_strip;
 use crate::components::titlebar::{burger_menu_overlay, titlebar, ServerTab};
-use crate::vault::{Vault, VaultStatus};
+use crate::vault::{ServerRecord, Vault, VaultStatus};
 use crate::views::config::managed_files::managed_files_rail;
 use crate::views::config::pending_diff_rail::pending_diff_rail;
 use crate::views::config::rules_editor::{default_hba_rules, rules_editor, HbaRuleDef};
@@ -14,7 +14,9 @@ use crate::views::fleet::{fleet_overview_view, fleet_setup_view};
 use crate::views::lock::{
     vault_lock_view, vault_setup_view, LockFieldFocus, LockState, SetupFieldFocus, SetupState, SetupStep,
 };
-use crate::views::onboard::onboard_view;
+use crate::views::onboard::{
+    append_to_known_hosts, onboard_view, probe_host, OnboardFieldFocus, OnboardState, OnboardStep,
+};
 use crate::views::overview::log_tail::log_tail;
 use crate::views::overview::services_table::{default_services, services_table, ServiceUnit};
 use crate::views::settings::settings_view;
@@ -89,6 +91,9 @@ pub struct CrowApp {
     pub add_scan_path_modal: Option<AddScanPathModalState>,
     pub edit_key_modal: Option<EditKeyModalState>,
     pub key_toast: Option<String>,
+    // Server Enrollment Subsystem
+    pub servers: Vec<ServerRecord>,
+    pub onboard_state: OnboardState,
 }
 
 impl CrowApp {
@@ -96,13 +101,14 @@ impl CrowApp {
         let vault = Vault::open_default().expect("Failed to initialize vault storage");
         let config = CrowConfigManager::load();
 
-        // Load SSH Key Management records and run initial scan
-        let (enrolled_keys, key_groups, scan_paths, discovered_keys, scan_status_message) = {
+        // Load servers, SSH Key Management records and run initial scan
+        let (servers, enrolled_keys, key_groups, scan_paths, discovered_keys, scan_status_message) = {
             let db = vault.db();
             let res = if let Ok(db_guard) = db.lock() {
                 let paths = db_guard.list_scan_paths().unwrap_or_default();
                 let groups = db_guard.list_key_groups().unwrap_or_default();
                 let keys = db_guard.list_ssh_keys().unwrap_or_default();
+                let srvs = db_guard.list_servers().unwrap_or_default();
                 let mut discovered = Vec::new();
                 for p in &paths {
                     let expanded = expand_tilde(&p.path);
@@ -122,9 +128,9 @@ impl CrowApp {
                     if discovered.len() == 1 { "" } else { "s" },
                     new_count
                 );
-                (keys, groups, paths, discovered, Some(msg))
+                (srvs, keys, groups, paths, discovered, Some(msg))
             } else {
-                (Vec::new(), Vec::new(), Vec::new(), Vec::new(), None)
+                (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), None)
             };
             res
         };
@@ -150,6 +156,32 @@ host    all             all             10.0.4.0/24             scram-sha-256
             }
         }
 
+        let tabs = if !servers.is_empty() {
+            servers.iter().take(5).map(|s| {
+                ServerTab {
+                    id: s.id.clone(),
+                    name: s.name.clone(),
+                    status_color: match s.status.as_str() {
+                        "online" => OK,
+                        "warn" => WARN,
+                        "crit" => CRIT,
+                        _ => TEXT_FAINTER,
+                    },
+                    is_active: s.id == "edge-01",
+                }
+            }).collect()
+        } else {
+            vec![
+                ServerTab { id: "edge-01".into(), name: "edge-01".into(), status_color: OK, is_active: true },
+                ServerTab { id: "edge-02".into(), name: "edge-02".into(), status_color: OK, is_active: false },
+                ServerTab { id: "db-primary".into(), name: "db-primary".into(), status_color: WARN, is_active: false },
+                ServerTab { id: "worker-04".into(), name: "worker-04".into(), status_color: CRIT, is_active: false },
+                ServerTab { id: "bastion".into(), name: "bastion".into(), status_color: TEXT_FAINTER, is_active: false },
+            ]
+        };
+
+        let onboard_state = OnboardState::new(&enrolled_keys);
+
         Self {
             focus_handle: cx.focus_handle(),
             vault,
@@ -162,13 +194,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
             active_tab_id: "edge-01".to_string(),
             active_view: "overview".to_string(),
             active_services_tab: "services".to_string(),
-            tabs: vec![
-                ServerTab { id: "edge-01", name: "edge-01", status_color: OK, is_active: true },
-                ServerTab { id: "edge-02", name: "edge-02", status_color: OK, is_active: false },
-                ServerTab { id: "db-primary", name: "db-primary", status_color: WARN, is_active: false },
-                ServerTab { id: "worker-04", name: "worker-04", status_color: CRIT, is_active: false },
-                ServerTab { id: "bastion", name: "bastion", status_color: TEXT_FAINTER, is_active: false },
-            ],
+            tabs,
             services: default_services(),
             hba_rules: default_hba_rules(),
             palette_open: false,
@@ -186,6 +212,8 @@ host    all             all             10.0.4.0/24             scram-sha-256
             add_scan_path_modal: None,
             edit_key_modal: None,
             key_toast: None,
+            servers,
+            onboard_state,
         }
     }
 
@@ -276,6 +304,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
     }
 
     pub fn set_screen(&mut self, screen: Screen, cx: &mut Context<Self>) {
+        if screen == Screen::Onboard && self.screen != Screen::Onboard {
+            self.onboard_state = OnboardState::new(&self.enrolled_keys);
+        }
         self.screen = screen;
         self.menu_open = false;
         self.palette_open = false;
@@ -735,6 +766,320 @@ host    all             all             10.0.4.0/24             scram-sha-256
         self.key_toast = None;
         cx.notify();
     }
+
+    // --- Server Enrollment Subsystem ---
+
+    pub fn start_onboarding(&mut self, cx: &mut Context<Self>) {
+        self.onboard_state = OnboardState::new(&self.enrolled_keys);
+        self.screen = Screen::Onboard;
+        self.menu_open = false;
+        self.palette_open = false;
+        cx.notify();
+    }
+
+    pub fn reload_servers(&mut self) {
+        if let Ok(db_guard) = self.vault.db().lock() {
+            self.servers = db_guard.list_servers().unwrap_or_default();
+        }
+    }
+
+    pub fn onboard_set_step(&mut self, step: OnboardStep, cx: &mut Context<Self>) {
+        self.onboard_state.step = step;
+        if step.num() > self.onboard_state.max_reached_step.num() {
+            self.onboard_state.max_reached_step = step;
+        }
+        match step {
+            OnboardStep::Address => self.onboard_state.focus = OnboardFieldFocus::Host,
+            OnboardStep::Credentials => self.onboard_state.focus = OnboardFieldFocus::User,
+            OnboardStep::VerifyHost => {
+                self.onboard_state.focus = OnboardFieldFocus::None;
+                if self.onboard_state.probe_result.is_none() {
+                    self.onboard_run_probe(cx);
+                    return;
+                }
+            }
+            OnboardStep::Classify => self.onboard_state.focus = OnboardFieldFocus::Label,
+            OnboardStep::Finish => self.onboard_state.focus = OnboardFieldFocus::None,
+        }
+        cx.notify();
+    }
+
+    pub fn onboard_set_focus(&mut self, focus: OnboardFieldFocus, cx: &mut Context<Self>) {
+        self.onboard_state.focus = focus;
+        cx.notify();
+    }
+
+    pub fn onboard_next_step(&mut self, cx: &mut Context<Self>) {
+        match self.onboard_state.step {
+            OnboardStep::Address => {
+                if self.onboard_state.host.trim().is_empty() {
+                    self.onboard_state.error_message = Some("Host address is required".into());
+                    cx.notify();
+                    return;
+                }
+                if self.onboard_state.port.trim().is_empty() {
+                    self.onboard_state.port = "22".into();
+                }
+                self.onboard_state.error_message = None;
+                self.onboard_state.step = OnboardStep::Credentials;
+                self.onboard_state.focus = OnboardFieldFocus::User;
+                if self.onboard_state.step.num() > self.onboard_state.max_reached_step.num() {
+                    self.onboard_state.max_reached_step = self.onboard_state.step;
+                }
+                cx.notify();
+            }
+            OnboardStep::Credentials => {
+                if self.onboard_state.user.trim().is_empty() {
+                    self.onboard_state.error_message = Some("SSH user username is required".into());
+                    cx.notify();
+                    return;
+                }
+                self.onboard_state.error_message = None;
+                self.onboard_state.step = OnboardStep::VerifyHost;
+                self.onboard_state.focus = OnboardFieldFocus::None;
+                if self.onboard_state.step.num() > self.onboard_state.max_reached_step.num() {
+                    self.onboard_state.max_reached_step = self.onboard_state.step;
+                }
+                self.onboard_run_probe(cx);
+            }
+            OnboardStep::VerifyHost => {
+                self.onboard_state.error_message = None;
+                self.onboard_state.step = OnboardStep::Classify;
+                self.onboard_state.focus = OnboardFieldFocus::Label;
+                if self.onboard_state.step.num() > self.onboard_state.max_reached_step.num() {
+                    self.onboard_state.max_reached_step = self.onboard_state.step;
+                }
+                cx.notify();
+            }
+            OnboardStep::Classify => {
+                if self.onboard_state.label.trim().is_empty() {
+                    self.onboard_state.error_message = Some("Server name / label is required".into());
+                    cx.notify();
+                    return;
+                }
+                self.onboard_state.error_message = None;
+                self.onboard_state.step = OnboardStep::Finish;
+                self.onboard_state.focus = OnboardFieldFocus::None;
+                if self.onboard_state.step.num() > self.onboard_state.max_reached_step.num() {
+                    self.onboard_state.max_reached_step = self.onboard_state.step;
+                }
+                cx.notify();
+            }
+            OnboardStep::Finish => {
+                self.submit_server_enrollment(cx);
+            }
+        }
+    }
+
+    pub fn onboard_prev_step(&mut self, cx: &mut Context<Self>) {
+        self.onboard_state.error_message = None;
+        match self.onboard_state.step {
+            OnboardStep::Address => {}
+            OnboardStep::Credentials => {
+                self.onboard_state.step = OnboardStep::Address;
+                self.onboard_state.focus = OnboardFieldFocus::Host;
+            }
+            OnboardStep::VerifyHost => {
+                self.onboard_state.step = OnboardStep::Credentials;
+                self.onboard_state.focus = OnboardFieldFocus::User;
+            }
+            OnboardStep::Classify => {
+                self.onboard_state.step = OnboardStep::VerifyHost;
+                self.onboard_state.focus = OnboardFieldFocus::None;
+            }
+            OnboardStep::Finish => {
+                self.onboard_state.step = OnboardStep::Classify;
+                self.onboard_state.focus = OnboardFieldFocus::Label;
+            }
+        }
+        cx.notify();
+    }
+
+    pub fn onboard_run_probe(&mut self, cx: &mut Context<Self>) {
+        let host = self.onboard_state.host.trim().to_string();
+        let port = self.onboard_state.port.trim().parse::<u16>().unwrap_or(22);
+        let key_name = if let Some(ref kid) = self.onboard_state.selected_key_id {
+            self.enrolled_keys.iter().find(|k| &k.id == kid).map(|k| k.name.as_str()).unwrap_or("ssh-key")
+        } else {
+            "ssh-agent"
+        };
+        let role = self.onboard_state.role.clone();
+
+        let (result, logs, facts) = probe_host(&host, port, key_name, &role);
+
+        self.onboard_state.host_key_accepted = result.is_known_host;
+        self.onboard_state.probe_result = Some(result);
+        self.onboard_state.probe_logs = logs;
+        self.onboard_state.facts = facts;
+        self.onboard_state.is_probing = false;
+        cx.notify();
+    }
+
+    pub fn onboard_accept_host_key(&mut self, cx: &mut Context<Self>) {
+        let host = self.onboard_state.host.trim();
+        let port = self.onboard_state.port.trim().parse::<u16>().unwrap_or(22);
+        let _ = append_to_known_hosts(
+            host,
+            port,
+            "ssh-ed25519",
+            "AAAAC3NzaC1lZDI1NTE5AAAAIC0pReYk4+8qV2wz7nN8d89gC19P2Q3L5v9a7BcD1E8F",
+        );
+        self.onboard_state.host_key_accepted = true;
+        if let Some(ref mut res) = self.onboard_state.probe_result {
+            res.is_known_host = true;
+        }
+        cx.notify();
+    }
+
+    pub fn submit_server_enrollment(&mut self, cx: &mut Context<Self>) {
+        let now = chrono::Utc::now().to_rfc3339();
+        let label = self.onboard_state.label.trim().to_string();
+        let name = if label.is_empty() {
+            self.onboard_state.host.clone()
+        } else {
+            label
+        };
+        let id = name.to_lowercase().replace(' ', "-").replace('.', "-");
+        let port = self.onboard_state.port.trim().parse::<u16>().unwrap_or(22);
+        let tags: Vec<String> = self.onboard_state.tags
+            .split(',')
+            .map(|t| t.trim().to_string())
+            .filter(|t| !t.is_empty())
+            .collect();
+        let status = if let Some(ref p) = self.onboard_state.probe_result {
+            if p.is_reachable { "online".to_string() } else { "offline".to_string() }
+        } else {
+            "online".to_string()
+        };
+        let host_key_fingerprint = self.onboard_state.probe_result.as_ref().map(|p| p.host_key_fingerprint.clone());
+        let record = ServerRecord {
+            id: id.clone(),
+            name: name.clone(),
+            host: self.onboard_state.host.trim().to_string(),
+            port,
+            login_user: self.onboard_state.user.trim().to_string(),
+            auth_method: self.onboard_state.auth_method.clone(),
+            key_id: self.onboard_state.selected_key_id.clone(),
+            jump_host_id: self.onboard_state.jump_host_id.clone(),
+            env: self.onboard_state.env.clone(),
+            role: self.onboard_state.role.clone(),
+            group_name: self.onboard_state.group.clone(),
+            tags,
+            host_key_fingerprint,
+            os_distro: self.onboard_state.facts.distro.clone(),
+            os_kernel: self.onboard_state.facts.kernel.clone(),
+            arch: self.onboard_state.facts.arch.clone(),
+            memory_total: self.onboard_state.facts.memory.clone(),
+            disk_total: self.onboard_state.facts.disk.clone(),
+            agent_installed: self.onboard_state.install_agent,
+            agent_version: if self.onboard_state.install_agent { Some("0.9.4".into()) } else { None },
+            status: status.clone(),
+            created_at: now.clone(),
+            last_seen_at: Some(now),
+        };
+
+        // Persist to SQLite
+        {
+            if let Ok(db_guard) = self.vault.db().lock() {
+                let _ = db_guard.upsert_server(&record);
+                if let Some(ref kid) = record.key_id {
+                    let _ = db_guard.attach_server_to_key(kid, &record.name);
+                }
+            }
+        }
+
+        // Reload servers & keys from DB
+        self.reload_servers();
+        self.refresh_keys(cx);
+
+        // Add to tabs if not already present, switch active tab to it
+        let status_color = match status.as_str() {
+            "online" => OK,
+            "warn" => WARN,
+            "crit" => CRIT,
+            _ => TEXT_FAINTER,
+        };
+        if !self.tabs.iter().any(|t| t.id == id) {
+            self.tabs.push(ServerTab {
+                id: id.clone(),
+                name: name.clone(),
+                status_color,
+                is_active: true,
+            });
+        }
+        self.active_tab_id = id.clone();
+        self.screen = Screen::Server;
+        self.active_view = "overview".to_string();
+        self.key_toast = Some(format!("Server '{}' enrolled into fleet", name));
+
+        cx.notify();
+    }
+
+    pub fn onboard_type_char(&mut self, c: &str, cx: &mut Context<Self>) {
+        match self.onboard_state.focus {
+            OnboardFieldFocus::Host => self.onboard_state.host.push_str(c),
+            OnboardFieldFocus::Port => {
+                if c.chars().all(|d| d.is_ascii_digit()) && self.onboard_state.port.len() < 5 {
+                    self.onboard_state.port.push_str(c);
+                }
+            }
+            OnboardFieldFocus::User => self.onboard_state.user.push_str(c),
+            OnboardFieldFocus::Password => self.onboard_state.password.push_str(c),
+            OnboardFieldFocus::Label => self.onboard_state.label.push_str(c),
+            OnboardFieldFocus::Tags => self.onboard_state.tags.push_str(c),
+            OnboardFieldFocus::None => {}
+        }
+        self.onboard_state.error_message = None;
+        cx.notify();
+    }
+
+    pub fn onboard_backspace(&mut self, cx: &mut Context<Self>) {
+        match self.onboard_state.focus {
+            OnboardFieldFocus::Host => { self.onboard_state.host.pop(); }
+            OnboardFieldFocus::Port => { self.onboard_state.port.pop(); }
+            OnboardFieldFocus::User => { self.onboard_state.user.pop(); }
+            OnboardFieldFocus::Password => { self.onboard_state.password.pop(); }
+            OnboardFieldFocus::Label => { self.onboard_state.label.pop(); }
+            OnboardFieldFocus::Tags => { self.onboard_state.tags.pop(); }
+            OnboardFieldFocus::None => {}
+        }
+        self.onboard_state.error_message = None;
+        cx.notify();
+    }
+
+    pub fn onboard_cycle_focus(&mut self, _reverse: bool, cx: &mut Context<Self>) {
+        match self.onboard_state.step {
+            OnboardStep::Address => {
+                self.onboard_state.focus = match self.onboard_state.focus {
+                    OnboardFieldFocus::Host => OnboardFieldFocus::Port,
+                    _ => OnboardFieldFocus::Host,
+                };
+            }
+            OnboardStep::Credentials => {
+                if self.onboard_state.auth_method == "password" {
+                    self.onboard_state.focus = match self.onboard_state.focus {
+                        OnboardFieldFocus::User => OnboardFieldFocus::Password,
+                        _ => OnboardFieldFocus::User,
+                    };
+                } else {
+                    self.onboard_state.focus = OnboardFieldFocus::User;
+                }
+            }
+            OnboardStep::VerifyHost => {
+                self.onboard_state.focus = OnboardFieldFocus::None;
+            }
+            OnboardStep::Classify => {
+                self.onboard_state.focus = match self.onboard_state.focus {
+                    OnboardFieldFocus::Label => OnboardFieldFocus::Tags,
+                    _ => OnboardFieldFocus::Label,
+                };
+            }
+            OnboardStep::Finish => {
+                self.onboard_state.focus = OnboardFieldFocus::None;
+            }
+        }
+        cx.notify();
+    }
 }
 
 impl Render for CrowApp {
@@ -1005,6 +1350,34 @@ impl Render for CrowApp {
                     }
                 }
 
+                // Onboard Screen Keyboard Interaction
+                if this.screen == Screen::Onboard && !is_mod {
+                    if ev.keystroke.key == "escape" {
+                        this.set_screen(Screen::Fleet, cx);
+                        return;
+                    } else if key == "enter" {
+                        this.onboard_next_step(cx);
+                        return;
+                    } else if key == "tab" {
+                        let shift = is_shift;
+                        this.onboard_cycle_focus(shift, cx);
+                        return;
+                    } else if key == "backspace" {
+                        this.onboard_backspace(cx);
+                        return;
+                    } else {
+                        let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
+                            Some(ev.keystroke.key.as_str())
+                        } else {
+                            None
+                        });
+                        if let Some(c) = char_to_insert {
+                            this.onboard_type_char(c, cx);
+                            return;
+                        }
+                    }
+                }
+
                 // Normal Screens shortcuts
                 if ev.keystroke.key == "escape" {
                     if this.menu_open {
@@ -1038,7 +1411,7 @@ impl Render for CrowApp {
                 } else if key == "/" && is_mod && this.screen == Screen::Settings {
                     this.open_config_file();
                 } else if key == "n" && is_mod {
-                    this.set_screen(Screen::Onboard, cx);
+                    this.start_onboarding(cx);
                 } else if key == "f" && is_mod && is_shift {
                     this.set_screen(Screen::FleetSetup, cx);
                 }
@@ -1184,7 +1557,7 @@ impl Render for CrowApp {
                                     Screen::Fleet => Some(
                                         div()
                                             .size_full()
-                                            .child(fleet_overview_view(app_view.clone())),
+                                            .child(fleet_overview_view(app_view.clone(), self)),
                                     ),
                                     Screen::Settings => Some(
                                         div()
@@ -1198,7 +1571,7 @@ impl Render for CrowApp {
                                     Screen::Onboard => Some(
                                         div()
                                             .size_full()
-                                            .child(onboard_view(app_view.clone())),
+                                            .child(onboard_view(app_view.clone(), self)),
                                     ),
                                     Screen::FleetSetup => Some(
                                         div()

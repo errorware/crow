@@ -104,6 +104,33 @@ pub struct SshKeyRecord {
     pub updated_at: String,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct ServerRecord {
+    pub id: String,
+    pub name: String,
+    pub host: String,
+    pub port: u16,
+    pub login_user: String,
+    pub auth_method: String,
+    pub key_id: Option<String>,
+    pub jump_host_id: Option<String>,
+    pub env: String,
+    pub role: String,
+    pub group_name: String,
+    pub tags: Vec<String>,
+    pub host_key_fingerprint: Option<String>,
+    pub os_distro: String,
+    pub os_kernel: String,
+    pub arch: String,
+    pub memory_total: String,
+    pub disk_total: String,
+    pub agent_installed: bool,
+    pub agent_version: Option<String>,
+    pub status: String,
+    pub created_at: String,
+    pub last_seen_at: Option<String>,
+}
+
 pub struct VaultDb {
     conn: Connection,
     path: PathBuf,
@@ -209,7 +236,36 @@ impl VaultDb {
             );
 
             CREATE INDEX IF NOT EXISTS idx_ssh_keys_group ON ssh_keys (group_id);
-            CREATE INDEX IF NOT EXISTS idx_ssh_keys_fingerprint ON ssh_keys (fingerprint);",
+            CREATE INDEX IF NOT EXISTS idx_ssh_keys_fingerprint ON ssh_keys (fingerprint);
+
+            CREATE TABLE IF NOT EXISTS servers (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL UNIQUE,
+                host TEXT NOT NULL,
+                port INTEGER NOT NULL DEFAULT 22,
+                login_user TEXT NOT NULL,
+                auth_method TEXT NOT NULL DEFAULT 'publickey',
+                key_id TEXT,
+                jump_host_id TEXT,
+                env TEXT NOT NULL DEFAULT 'PROD',
+                role TEXT NOT NULL DEFAULT 'generic',
+                group_name TEXT NOT NULL DEFAULT 'default',
+                tags TEXT NOT NULL DEFAULT '[]',
+                host_key_fingerprint TEXT,
+                os_distro TEXT NOT NULL DEFAULT 'Ubuntu 24.04.1 LTS',
+                os_kernel TEXT NOT NULL DEFAULT '6.8.0-45-generic',
+                arch TEXT NOT NULL DEFAULT 'x86_64 · 4 vCPU',
+                memory_total TEXT NOT NULL DEFAULT '8.0 GB',
+                disk_total TEXT NOT NULL DEFAULT '160 GB nvme',
+                agent_installed INTEGER NOT NULL DEFAULT 0,
+                agent_version TEXT,
+                status TEXT NOT NULL DEFAULT 'online',
+                created_at TEXT NOT NULL,
+                last_seen_at TEXT
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_servers_env ON servers (env);
+            CREATE INDEX IF NOT EXISTS idx_servers_group ON servers (group_name);",
         )?;
 
         // Seed default scan path if empty
@@ -248,6 +304,40 @@ impl VaultDb {
                 let _ = self.conn.execute(
                     "INSERT OR IGNORE INTO ssh_key_groups (id, name, color, created_at) VALUES (?1, ?2, ?3, ?4)",
                     params![id, name, color, now],
+                );
+            }
+        }
+
+        // Seed default servers if empty
+        let server_count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM servers",
+            [],
+            |r| r.get(0),
+        )?;
+        if server_count == 0 {
+            let now = Utc::now().to_rfc3339();
+            let default_hosts = [
+                ("edge-01", "edge-01", "159.223.84.17", 22, "root", "publickey", "PROD", "web · nginx", "edge", r#"["web", "nginx", "ingress"]"#, 1, Some("0.9.4"), "online"),
+                ("edge-02", "edge-02", "159.223.84.22", 22, "root", "publickey", "PROD", "web · nginx", "edge", r#"["web", "nginx", "ingress"]"#, 1, Some("0.9.4"), "online"),
+                ("db-primary", "db-primary", "10.0.4.11", 22, "postgres", "publickey", "PROD", "postgres 16", "data", r#"["database", "postgres", "primary"]"#, 1, Some("0.9.4"), "degraded"),
+                ("db-replica-01", "db-replica-01", "10.0.4.12", 22, "postgres", "publickey", "PROD", "postgres 16", "data", r#"["database", "postgres", "replica"]"#, 1, Some("0.9.4"), "online"),
+                ("redis-01", "redis-01", "10.0.4.18", 22, "redis", "publickey", "PROD", "cache · queue", "data", r#"["redis", "cache"]"#, 1, Some("0.9.4"), "degraded"),
+                ("worker-04", "worker-04", "10.0.4.31", 22, "ubuntu", "publickey", "PROD", "sidekiq", "workers", r#"["sidekiq", "queue"]"#, 1, Some("0.8.1"), "unreachable"),
+                ("worker-05", "worker-05", "10.0.4.32", 22, "ubuntu", "publickey", "PROD", "sidekiq", "workers", r#"["sidekiq", "queue", "ruby"]"#, 1, Some("0.9.4"), "online"),
+                ("metrics-01", "metrics-01", "10.0.4.40", 22, "root", "publickey", "PROD", "prometheus", "data", r#"["monitoring", "prometheus"]"#, 1, Some("0.9.4"), "online"),
+                ("bastion", "bastion", "159.223.84.9", 22, "admin", "publickey", "PROD", "ssh jump", "edge", r#"["bastion", "jump"]"#, 0, None, "online"),
+                ("stage-web-01", "stage-web-01", "10.1.2.11", 22, "ubuntu", "publickey", "STAGE", "web · nginx", "staging", r#"["staging", "web"]"#, 1, Some("0.9.4"), "online"),
+                ("stage-db-01", "stage-db-01", "10.1.2.21", 22, "postgres", "publickey", "STAGE", "postgres 16", "staging", r#"["staging", "database"]"#, 1, Some("0.9.4"), "online"),
+                ("build-01", "build-01", "10.1.9.5", 22, "runner", "publickey", "DEV", "ci runner", "workers", r#"["ci", "build"]"#, 1, Some("0.9.4"), "degraded"),
+            ];
+
+            for (id, name, host, port, user, auth, env, role, grp, tags, agent_inst, agent_ver, status) in default_hosts {
+                let _ = self.conn.execute(
+                    "INSERT OR IGNORE INTO servers (
+                        id, name, host, port, login_user, auth_method, env, role, group_name, tags,
+                        agent_installed, agent_version, status, created_at
+                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
+                    params![id, name, host, port, user, auth, env, role, grp, tags, agent_inst, agent_ver, status, now],
                 );
             }
         }
@@ -727,6 +817,169 @@ impl VaultDb {
         Ok(())
     }
 
+    pub fn attach_server_to_key(&self, key_id: &str, server_name: &str) -> Result<(), VaultError> {
+        if let Some(mut key) = self.get_ssh_key(key_id)? {
+            if !key.attached_servers.iter().any(|s| s == server_name) {
+                key.attached_servers.push(server_name.to_string());
+                self.update_ssh_key_attached_servers(key_id, &key.attached_servers)?;
+            }
+        }
+        Ok(())
+    }
+
+    pub fn list_servers(&self) -> Result<Vec<ServerRecord>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, host, port, login_user, auth_method, key_id, jump_host_id,
+                    env, role, group_name, tags, host_key_fingerprint, os_distro, os_kernel,
+                    arch, memory_total, disk_total, agent_installed, agent_version, status,
+                    created_at, last_seen_at
+             FROM servers
+             ORDER BY created_at ASC",
+        )?;
+
+        let rows = stmt.query_map([], |r| {
+            let tags_json: String = r.get(11)?;
+            let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
+            let agent_inst: i64 = r.get(18)?;
+
+            Ok(ServerRecord {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                host: r.get(2)?,
+                port: r.get::<_, u16>(3)?,
+                login_user: r.get(4)?,
+                auth_method: r.get(5)?,
+                key_id: r.get(6)?,
+                jump_host_id: r.get(7)?,
+                env: r.get(8)?,
+                role: r.get(9)?,
+                group_name: r.get(10)?,
+                tags,
+                host_key_fingerprint: r.get(12)?,
+                os_distro: r.get(13)?,
+                os_kernel: r.get(14)?,
+                arch: r.get(15)?,
+                memory_total: r.get(16)?,
+                disk_total: r.get(17)?,
+                agent_installed: agent_inst != 0,
+                agent_version: r.get(19)?,
+                status: r.get(20)?,
+                created_at: r.get(21)?,
+                last_seen_at: r.get(22)?,
+            })
+        })?;
+
+        let mut res = Vec::new();
+        for r in rows {
+            res.push(r?);
+        }
+        Ok(res)
+    }
+
+    pub fn get_server(&self, id: &str) -> Result<Option<ServerRecord>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, host, port, login_user, auth_method, key_id, jump_host_id,
+                    env, role, group_name, tags, host_key_fingerprint, os_distro, os_kernel,
+                    arch, memory_total, disk_total, agent_installed, agent_version, status,
+                    created_at, last_seen_at
+             FROM servers
+             WHERE id = ?1",
+        )?;
+
+        let res = stmt.query_row(params![id], |r| {
+            let tags_json: String = r.get(11)?;
+            let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
+            let agent_inst: i64 = r.get(18)?;
+
+            Ok(ServerRecord {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                host: r.get(2)?,
+                port: r.get::<_, u16>(3)?,
+                login_user: r.get(4)?,
+                auth_method: r.get(5)?,
+                key_id: r.get(6)?,
+                jump_host_id: r.get(7)?,
+                env: r.get(8)?,
+                role: r.get(9)?,
+                group_name: r.get(10)?,
+                tags,
+                host_key_fingerprint: r.get(12)?,
+                os_distro: r.get(13)?,
+                os_kernel: r.get(14)?,
+                arch: r.get(15)?,
+                memory_total: r.get(16)?,
+                disk_total: r.get(17)?,
+                agent_installed: agent_inst != 0,
+                agent_version: r.get(19)?,
+                status: r.get(20)?,
+                created_at: r.get(21)?,
+                last_seen_at: r.get(22)?,
+            })
+        }).optional()?;
+        Ok(res)
+    }
+
+    pub fn upsert_server(&self, srv: &ServerRecord) -> Result<(), VaultError> {
+        let tags_json = serde_json::to_string(&srv.tags).unwrap_or_else(|_| "[]".to_string());
+        let now = Utc::now().to_rfc3339();
+        let created = if srv.created_at.is_empty() { &now } else { &srv.created_at };
+        let agent_inst = if srv.agent_installed { 1 } else { 0 };
+
+        self.conn.execute(
+            "INSERT INTO servers (
+                id, name, host, port, login_user, auth_method, key_id, jump_host_id,
+                env, role, group_name, tags, host_key_fingerprint, os_distro, os_kernel,
+                arch, memory_total, disk_total, agent_installed, agent_version, status,
+                created_at, last_seen_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)
+            ON CONFLICT(id) DO UPDATE SET
+                name = excluded.name,
+                host = excluded.host,
+                port = excluded.port,
+                login_user = excluded.login_user,
+                auth_method = excluded.auth_method,
+                key_id = excluded.key_id,
+                jump_host_id = excluded.jump_host_id,
+                env = excluded.env,
+                role = excluded.role,
+                group_name = excluded.group_name,
+                tags = excluded.tags,
+                host_key_fingerprint = excluded.host_key_fingerprint,
+                os_distro = excluded.os_distro,
+                os_kernel = excluded.os_kernel,
+                arch = excluded.arch,
+                memory_total = excluded.memory_total,
+                disk_total = excluded.disk_total,
+                agent_installed = excluded.agent_installed,
+                agent_version = excluded.agent_version,
+                status = excluded.status,
+                last_seen_at = excluded.last_seen_at",
+            params![
+                srv.id, srv.name, srv.host, srv.port, srv.login_user, srv.auth_method,
+                srv.key_id, srv.jump_host_id, srv.env, srv.role, srv.group_name,
+                tags_json, srv.host_key_fingerprint, srv.os_distro, srv.os_kernel,
+                srv.arch, srv.memory_total, srv.disk_total, agent_inst,
+                srv.agent_version, srv.status, created, srv.last_seen_at
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_server(&self, id: &str) -> Result<(), VaultError> {
+        self.conn.execute("DELETE FROM servers WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+
+    pub fn update_server_status(&self, id: &str, status: &str) -> Result<(), VaultError> {
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "UPDATE servers SET status = ?1, last_seen_at = ?2 WHERE id = ?3",
+            params![status, now, id],
+        )?;
+        Ok(())
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
     }
@@ -875,5 +1128,65 @@ mod tests {
         let deleted = db.delete_ssh_key("key-1").unwrap();
         assert!(deleted);
         assert!(db.get_ssh_key("key-1").unwrap().is_none());
+    }
+
+    #[test]
+    fn test_default_servers_seeding() {
+        let db = VaultDb::open_in_memory().unwrap();
+        let servers = db.list_servers().unwrap();
+        assert_eq!(servers.len(), 12);
+        assert!(servers.iter().any(|s| s.name == "edge-01"));
+        assert!(servers.iter().any(|s| s.name == "worker-05"));
+        assert!(servers.iter().any(|s| s.name == "bastion"));
+    }
+
+    #[test]
+    fn test_servers_crud_lifecycle() {
+        let db = VaultDb::open_in_memory().unwrap();
+
+        let srv = ServerRecord {
+            id: "srv-custom-01".into(),
+            name: "custom-01".into(),
+            host: "10.0.9.99".into(),
+            port: 22,
+            login_user: "deploy".into(),
+            auth_method: "publickey".into(),
+            key_id: Some("key-1".into()),
+            jump_host_id: Some("bastion".into()),
+            env: "PROD".into(),
+            role: "worker".into(),
+            group_name: "workers".into(),
+            tags: vec!["custom".into(), "queue".into()],
+            host_key_fingerprint: Some("SHA256:abcd1234...".into()),
+            os_distro: "Ubuntu 24.04 LTS".into(),
+            os_kernel: "6.8.0".into(),
+            arch: "x86_64".into(),
+            memory_total: "16 GB".into(),
+            disk_total: "500 GB".into(),
+            agent_installed: true,
+            agent_version: Some("0.9.4".into()),
+            status: "online".into(),
+            created_at: String::new(),
+            last_seen_at: None,
+        };
+
+        db.upsert_server(&srv).unwrap();
+
+        let fetched = db.get_server("srv-custom-01").unwrap().unwrap();
+        assert_eq!(fetched.name, "custom-01");
+        assert_eq!(fetched.host, "10.0.9.99");
+        assert_eq!(fetched.port, 22);
+        assert_eq!(fetched.tags.len(), 2);
+        assert!(fetched.agent_installed);
+
+        // Update status
+        db.update_server_status("srv-custom-01", "degraded").unwrap();
+        let updated = db.get_server("srv-custom-01").unwrap().unwrap();
+        assert_eq!(updated.status, "degraded");
+        assert!(updated.last_seen_at.is_some());
+
+        // Delete
+        db.delete_server("srv-custom-01").unwrap();
+        assert!(db.get_server("srv-custom-01").unwrap().is_none());
     }
 }

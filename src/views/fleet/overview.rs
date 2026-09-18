@@ -3,113 +3,116 @@ use crate::theme::*;
 use crate::app::{CrowApp, Screen};
 
 pub struct FleetHost {
-    pub name: &'static str,
-    pub ip: &'static str,
-    pub role: &'static str,
-    pub env: &'static str,
+    pub name: String,
+    pub ip: String,
+    pub role: String,
+    pub env: String,
     pub env_bg: Rgba,
     pub env_fg: Rgba,
     pub cpu_pct: u8,
-    pub cpu_label: &'static str,
+    pub cpu_label: String,
     pub mem_pct: u8,
-    pub mem_label: &'static str,
-    pub disk: &'static str,
-    pub uptime: &'static str,
-    pub agent: &'static str,
+    pub mem_label: String,
+    pub disk: String,
+    pub uptime: String,
+    pub agent: String,
     pub agent_color: Rgba,
-    pub alerts: &'static str,
+    pub alerts: String,
     pub alert_color: Rgba,
     pub status_color: Rgba,
     pub is_critical_border: bool,
-    pub pill: &'static str,
+    pub pill: String,
     pub is_selected: bool,
 }
 
 pub fn default_fleet_hosts() -> Vec<FleetHost> {
     vec![
         FleetHost {
-            name: "edge-01", ip: "159.223.84.17", role: "web · nginx", env: "PROD",
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 38, cpu_label: "38%", mem_pct: 73, mem_label: "73%",
-            disk: "43%", uptime: "64d 07h", agent: "0.9.4", agent_color: TEXT_FAINT,
-            alerts: "2", alert_color: WARN, status_color: OK, is_critical_border: false, pill: "OK", is_selected: true,
+            name: "edge-01".into(), ip: "159.223.84.17".into(), role: "web · nginx".into(), env: "PROD".into(),
+            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 38, cpu_label: "38%".into(), mem_pct: 73, mem_label: "73%".into(),
+            disk: "43%".into(), uptime: "64d 07h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
+            alerts: "2".into(), alert_color: WARN, status_color: OK, is_critical_border: false, pill: "OK".into(), is_selected: true,
         },
         FleetHost {
-            name: "edge-02", ip: "159.223.84.22", role: "web · nginx", env: "PROD",
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 31, cpu_label: "31%", mem_pct: 61, mem_label: "61%",
-            disk: "39%", uptime: "64d 07h", agent: "0.9.4", agent_color: TEXT_FAINT,
-            alerts: "0", alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK", is_selected: false,
+            name: "edge-02".into(), ip: "159.223.84.22".into(), role: "web · nginx".into(), env: "PROD".into(),
+            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 31, cpu_label: "31%".into(), mem_pct: 61, mem_label: "61%".into(),
+            disk: "39%".into(), uptime: "64d 07h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
+            alerts: "0".into(), alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK".into(), is_selected: false,
         },
         FleetHost {
-            name: "db-primary", ip: "10.0.4.11", role: "postgres 16", env: "PROD",
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 64, cpu_label: "64%", mem_pct: 82, mem_label: "82%",
-            disk: "77%", uptime: "121d 03h", agent: "0.9.4", agent_color: TEXT_FAINT,
-            alerts: "3", alert_color: WARN, status_color: WARN, is_critical_border: false, pill: "DEGRADED", is_selected: false,
+            name: "db-primary".into(), ip: "10.0.4.11".into(), role: "postgres 16".into(), env: "PROD".into(),
+            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 64, cpu_label: "64%".into(), mem_pct: 82, mem_label: "82%".into(),
+            disk: "77%".into(), uptime: "121d 03h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
+            alerts: "3".into(), alert_color: WARN, status_color: WARN, is_critical_border: false, pill: "DEGRADED".into(), is_selected: false,
         },
         FleetHost {
-            name: "db-replica-01", ip: "10.0.4.12", role: "postgres 16", env: "PROD",
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 22, cpu_label: "22%", mem_pct: 58, mem_label: "58%",
-            disk: "74%", uptime: "121d 03h", agent: "0.9.4", agent_color: TEXT_FAINT,
-            alerts: "0", alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK", is_selected: false,
+            name: "db-replica-01".into(), ip: "10.0.4.12".into(), role: "postgres 16".into(), env: "PROD".into(),
+            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 22, cpu_label: "22%".into(), mem_pct: 58, mem_label: "58%".into(),
+            disk: "74%".into(), uptime: "121d 03h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
+            alerts: "0".into(), alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK".into(), is_selected: false,
         },
         FleetHost {
-            name: "redis-01", ip: "10.0.4.18", role: "cache · queue", env: "PROD",
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 47, cpu_label: "47%", mem_pct: 44, mem_label: "44%",
-            disk: "18%", uptime: "89d 11h", agent: "0.9.4", agent_color: TEXT_FAINT,
-            alerts: "1", alert_color: WARN, status_color: WARN, is_critical_border: false, pill: "DEGRADED", is_selected: false,
+            name: "redis-01".into(), ip: "10.0.4.18".into(), role: "cache · queue".into(), env: "PROD".into(),
+            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 47, cpu_label: "47%".into(), mem_pct: 44, mem_label: "44%".into(),
+            disk: "18%".into(), uptime: "89d 11h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
+            alerts: "1".into(), alert_color: WARN, status_color: WARN, is_critical_border: false, pill: "DEGRADED".into(), is_selected: false,
         },
         FleetHost {
-            name: "worker-04", ip: "10.0.4.31", role: "sidekiq", env: "PROD",
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 0, cpu_label: "—", mem_pct: 0, mem_label: "—",
-            disk: "—", uptime: "—", agent: "0.8.1", agent_color: WARN,
-            alerts: "2", alert_color: CRIT, status_color: CRIT, is_critical_border: true, pill: "UNREACHABLE", is_selected: false,
+            name: "worker-04".into(), ip: "10.0.4.31".into(), role: "sidekiq".into(), env: "PROD".into(),
+            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 0, cpu_label: "—".into(), mem_pct: 0, mem_label: "—".into(),
+            disk: "—".into(), uptime: "—".into(), agent: "0.8.1".into(), agent_color: WARN,
+            alerts: "2".into(), alert_color: CRIT, status_color: CRIT, is_critical_border: true, pill: "UNREACHABLE".into(), is_selected: false,
         },
         FleetHost {
-            name: "worker-05", ip: "10.0.4.32", role: "sidekiq", env: "PROD",
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 71, cpu_label: "71%", mem_pct: 66, mem_label: "66%",
-            disk: "31%", uptime: "12d 19h", agent: "0.9.4", agent_color: TEXT_FAINT,
-            alerts: "0", alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK", is_selected: false,
+            name: "worker-05".into(), ip: "10.0.4.32".into(), role: "sidekiq".into(), env: "PROD".into(),
+            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 71, cpu_label: "71%".into(), mem_pct: 66, mem_label: "66%".into(),
+            disk: "31%".into(), uptime: "12d 19h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
+            alerts: "0".into(), alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK".into(), is_selected: false,
         },
         FleetHost {
-            name: "metrics-01", ip: "10.0.4.40", role: "prometheus", env: "PROD",
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 18, cpu_label: "18%", mem_pct: 39, mem_label: "39%",
-            disk: "62%", uptime: "31d 18h", agent: "0.9.4", agent_color: TEXT_FAINT,
-            alerts: "0", alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK", is_selected: false,
+            name: "metrics-01".into(), ip: "10.0.4.40".into(), role: "prometheus".into(), env: "PROD".into(),
+            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 18, cpu_label: "18%".into(), mem_pct: 39, mem_label: "39%".into(),
+            disk: "62%".into(), uptime: "31d 18h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
+            alerts: "0".into(), alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK".into(), is_selected: false,
         },
         FleetHost {
-            name: "bastion", ip: "159.223.84.9", role: "ssh jump", env: "PROD",
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 3, cpu_label: "3%", mem_pct: 12, mem_label: "12%",
-            disk: "9%", uptime: "204d 02h", agent: "—", agent_color: TEXT_FAINT,
-            alerts: "1", alert_color: WARN, status_color: TEXT_FAINT, is_critical_border: false, pill: "NO AGENT", is_selected: false,
+            name: "bastion".into(), ip: "159.223.84.9".into(), role: "ssh jump".into(), env: "PROD".into(),
+            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 3, cpu_label: "3%".into(), mem_pct: 12, mem_label: "12%".into(),
+            disk: "9%".into(), uptime: "204d 02h".into(), agent: "—".into(), agent_color: TEXT_FAINT,
+            alerts: "1".into(), alert_color: WARN, status_color: TEXT_FAINT, is_critical_border: false, pill: "NO AGENT".into(), is_selected: false,
         },
         FleetHost {
-            name: "stage-web-01", ip: "10.1.2.11", role: "web · nginx", env: "STAGE",
-            env_bg: WARN_BG, env_fg: WARN, cpu_pct: 12, cpu_label: "12%", mem_pct: 28, mem_label: "28%",
-            disk: "22%", uptime: "8d 04h", agent: "0.9.4", agent_color: TEXT_FAINT,
-            alerts: "0", alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK", is_selected: false,
+            name: "stage-web-01".into(), ip: "10.1.2.11".into(), role: "web · nginx".into(), env: "STAGE".into(),
+            env_bg: WARN_BG, env_fg: WARN, cpu_pct: 12, cpu_label: "12%".into(), mem_pct: 28, mem_label: "28%".into(),
+            disk: "22%".into(), uptime: "8d 04h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
+            alerts: "0".into(), alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK".into(), is_selected: false,
         },
         FleetHost {
-            name: "stage-db-01", ip: "10.1.2.21", role: "postgres 16", env: "STAGE",
-            env_bg: WARN_BG, env_fg: WARN, cpu_pct: 8, cpu_label: "8%", mem_pct: 34, mem_label: "34%",
-            disk: "28%", uptime: "8d 04h", agent: "0.9.4", agent_color: TEXT_FAINT,
-            alerts: "0", alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK", is_selected: false,
+            name: "stage-db-01".into(), ip: "10.1.2.21".into(), role: "postgres 16".into(), env: "STAGE".into(),
+            env_bg: WARN_BG, env_fg: WARN, cpu_pct: 8, cpu_label: "8%".into(), mem_pct: 34, mem_label: "34%".into(),
+            disk: "28%".into(), uptime: "8d 04h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
+            alerts: "0".into(), alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK".into(), is_selected: false,
         },
         FleetHost {
-            name: "build-01", ip: "10.1.9.5", role: "ci runner", env: "DEV",
-            env_bg: hex_rgb(0x1a1b21), env_fg: TEXT_MUTED, cpu_pct: 92, cpu_label: "92%", mem_pct: 71, mem_label: "71%",
-            disk: "88%", uptime: "2d 06h", agent: "0.9.4", agent_color: TEXT_FAINT,
-            alerts: "1", alert_color: WARN, status_color: WARN, is_critical_border: false, pill: "DEGRADED", is_selected: false,
+            name: "build-01".into(), ip: "10.1.9.5".into(), role: "ci runner".into(), env: "DEV".into(),
+            env_bg: hex_rgb(0x1a1b21), env_fg: TEXT_MUTED, cpu_pct: 92, cpu_label: "92%".into(), mem_pct: 71, mem_label: "71%".into(),
+            disk: "88%".into(), uptime: "2d 06h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
+            alerts: "1".into(), alert_color: WARN, status_color: WARN, is_critical_border: false, pill: "DEGRADED".into(), is_selected: false,
         },
     ]
 }
 
-pub fn fleet_stat_strip() -> impl IntoElement {
+pub fn fleet_stat_strip(server_count: usize, agent_count: usize) -> impl IntoElement {
+    let s_count = server_count.to_string();
+    let a_cov = agent_count.to_string();
+    let a_tot = format!("/{}", server_count);
     let stats = [
-        ("SERVERS", "12", "", "3 regions · 4 groups", TEXT_PRIMARY),
-        ("OPEN ALERTS", "7", "", "2 crit · 5 warn", WARN),
-        ("CONFIG DRIFT", "3", " hosts", "authorized_keys, ufw", WARN),
-        ("FLEET LOAD", "1.42", "", "weighted avg · 96 vCPU", TEXT_PRIMARY),
-        ("OLDEST HOST KEY", "214", "d", "worker-04 · policy 90d", CRIT),
-        ("AGENT COVERAGE", "11", "/12", "bastion pending install", TEXT_PRIMARY),
+        ("SERVERS", s_count, "".to_string(), "3 regions · 4 groups".to_string(), TEXT_PRIMARY),
+        ("OPEN ALERTS", "7".to_string(), "".to_string(), "2 crit · 5 warn".to_string(), WARN),
+        ("CONFIG DRIFT", "3".to_string(), " hosts".to_string(), "authorized_keys, ufw".to_string(), WARN),
+        ("FLEET LOAD", "1.42".to_string(), "".to_string(), "weighted avg · 96 vCPU".to_string(), TEXT_PRIMARY),
+        ("OLDEST HOST KEY", "214".to_string(), "d".to_string(), "worker-04 · policy 90d".to_string(), CRIT),
+        ("AGENT COVERAGE", a_cov, a_tot, "telemetry coverage".to_string(), TEXT_PRIMARY),
     ];
 
     div()
@@ -120,7 +123,7 @@ pub fn fleet_stat_strip() -> impl IntoElement {
         .bg(BG_PANEL)
         .border_b_1()
         .border_color(BORDER_PANEL)
-        .children(stats.iter().map(|(label, val, unit, note, fg)| {
+        .children(stats.into_iter().map(|(label, val, unit, note, fg)| {
             div()
                 .flex_1()
                 .flex()
@@ -136,7 +139,7 @@ pub fn fleet_stat_strip() -> impl IntoElement {
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
-                        .child(*label),
+                        .child(label),
                 )
                 .child(
                     div()
@@ -148,15 +151,15 @@ pub fn fleet_stat_strip() -> impl IntoElement {
                                 .font_family(FONT_MONO)
                                 .text_size(px(16.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(*fg)
-                                .child(*val),
+                                .text_color(fg)
+                                .child(val),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(11.0))
                                 .text_color(TEXT_MUTED)
-                                .child(*unit),
+                                .child(unit),
                         )
                         .child(
                             div()
@@ -164,14 +167,73 @@ pub fn fleet_stat_strip() -> impl IntoElement {
                                 .text_size(px(10.0))
                                 .text_color(TEXT_DIMMER)
                                 .ml(px(6.0))
-                                .child(*note),
+                                .child(note),
                         ),
                 )
         }))
 }
 
-pub fn fleet_overview_view(app: Entity<CrowApp>) -> impl IntoElement {
-    let hosts = default_fleet_hosts();
+pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElement {
+    let hosts: Vec<FleetHost> = if !app_data.servers.is_empty() {
+        app_data.servers.iter().map(|s| {
+            let (status_color, pill, is_crit) = match s.status.as_str() {
+                "online" => (OK, "OK".to_string(), false),
+                "warn" | "degraded" => (WARN, "DEGRADED".to_string(), false),
+                "crit" => (CRIT, "CRITICAL".to_string(), true),
+                "offline" => (CRIT, "OFFLINE".to_string(), true),
+                _ => (TEXT_FAINTER, "UNKNOWN".to_string(), false),
+            };
+            let (env_bg, env_fg) = match s.env.as_str() {
+                "PROD" => (CRIT_BG, CRIT),
+                "STAGE" => (WARN_BG, WARN),
+                "DEV" => (OK_BG, OK),
+                _ => (BG_PANEL, TEXT_DIM),
+            };
+            let (cpu_pct, cpu_label, mem_pct, mem_label, disk, uptime) = match s.name.as_str() {
+                "edge-01" => (38, "38%".into(), 73, "73%".into(), "43%".into(), "64d 07h".into()),
+                "edge-02" => (31, "31%".into(), 61, "61%".into(), "39%".into(), "64d 07h".into()),
+                "db-primary" => (64, "64%".into(), 82, "82%".into(), "77%".into(), "121d 03h".into()),
+                "db-replica-01" => (22, "22%".into(), 58, "58%".into(), "74%".into(), "121d 03h".into()),
+                "redis-01" => (47, "47%".into(), 44, "44%".into(), "18%".into(), "89d 11h".into()),
+                "worker-04" => (0, "—".into(), 0, "—".into(), "—".into(), "—".into()),
+                "worker-05" => (71, "71%".into(), 66, "66%".into(), "31%".into(), "12d 19h".into()),
+                _ => {
+                    if s.status == "online" {
+                        (18, "18%".into(), 34, "34%".into(), "24%".into(), "1d 04h".into())
+                    } else {
+                        (0, "—".into(), 0, "—".into(), "—".into(), "—".into())
+                    }
+                }
+            };
+            FleetHost {
+                name: s.name.clone(),
+                ip: s.host.clone(),
+                role: s.role.clone(),
+                env: s.env.clone(),
+                env_bg,
+                env_fg,
+                cpu_pct,
+                cpu_label,
+                mem_pct,
+                mem_label,
+                disk,
+                uptime,
+                agent: if s.agent_installed { "0.9.4".into() } else { "—".into() },
+                agent_color: if s.agent_installed { TEXT_FAINT } else { WARN },
+                alerts: "0".into(),
+                alert_color: TEXT_FAINT,
+                status_color,
+                is_critical_border: is_crit,
+                pill,
+                is_selected: s.id == app_data.active_tab_id,
+            }
+        }).collect()
+    } else {
+        default_fleet_hosts()
+    };
+
+    let server_count = hosts.len();
+    let agent_count = hosts.iter().filter(|h| h.agent != "—").count();
 
     let alerts = [
         ("CRIT", CRIT, CRIT_BG, "worker-04", "ssh handshake timeout — 6 consecutive probes failed", "4m"),
@@ -206,8 +268,8 @@ pub fn fleet_overview_view(app: Entity<CrowApp>) -> impl IntoElement {
         .flex_col()
         .bg(BG_APP)
         // 1. Fleet Stat Strip
-        .child(fleet_stat_strip())
-        // 2. Main content split: 12-host table on left, alerts/activity rail on right
+        .child(fleet_stat_strip(server_count, agent_count))
+        // 2. Main content split: host table on left, alerts/activity rail on right
         .child(
             div()
                 .flex_1()
@@ -243,7 +305,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>) -> impl IntoElement {
                                         .border_color(BORDER_CONTROL_SEL)
                                         .text_color(TEXT_MAX)
                                         .font_weight(FontWeight::BOLD)
-                                        .child("ALL (12)"),
+                                        .child(format!("ALL ({})", server_count)),
                                 )
                                 .child(div().text_color(TEXT_MUTED).child("PRODUCTION (8)"))
                                 .child(div().text_color(TEXT_MUTED).child("STAGING (2)"))
@@ -256,7 +318,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>) -> impl IntoElement {
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.5))
                                         .text_color(TEXT_DIMMER)
-                                        .child("12 hosts · sort health ↓ · click to open"),
+                                        .child(format!("{} hosts · sort health ↓ · click to open", server_count)),
                                 ),
                         )
                         // Table Column Headers
@@ -294,7 +356,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>) -> impl IntoElement {
                                 .overflow_y_scroll()
                                 .children(hosts.into_iter().enumerate().map(|(idx, host)| {
                                     let app_host = app.clone();
-                                    let host_name = host.name;
+                                    let host_name = host.name.clone();
                                     let is_even = idx % 2 == 0;
 
                                     div()
@@ -324,8 +386,9 @@ pub fn fleet_overview_view(app: Entity<CrowApp>) -> impl IntoElement {
                                         .hover(|s| s.bg(BG_ROW_HOVER))
                                         .cursor_pointer()
                                         .on_click(move |_ev, _window, cx| {
+                                            let hn = host_name.clone();
                                             app_host.update(cx, |this, cx| {
-                                                this.switch_tab(host_name, cx);
+                                                this.switch_tab(&hn, cx);
                                                 this.set_screen(Screen::Server, cx);
                                             });
                                         })
