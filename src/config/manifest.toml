@@ -1,0 +1,155 @@
+[plugin]
+name = "crow_config"
+grammar = "toml"
+
+[shape]
+kind = "key_value_list"
+order_sensitive = false
+order_note = "Configuration values are organized by section."
+
+[[fields]]
+name = "general.theme"
+type = "enum"
+required = true
+help = "Window appearance and accent palette."
+options = [
+  { value = "obsidian_edge", label = "Obsidian Edge", risk = "recommended" },
+  { value = "slate_dark", label = "Slate Dark", risk = "recommended" }
+]
+
+[[fields]]
+name = "general.font_family"
+type = "string"
+required = true
+help = "Monospace font for all data grids, logs, and code views."
+
+[[fields]]
+name = "general.font_size"
+type = "integer"
+required = true
+help = "Base font size across all views. UI scales proportionally."
+
+[[fields]]
+name = "general.refresh_interval"
+type = "integer"
+required = true
+help = "Frequency of background polling in seconds for services and telemetry."
+
+[[fields]]
+name = "general.titlebar_latency"
+type = "bool"
+required = true
+help = "Display round-trip ping latency to the active server in the titlebar."
+
+[[fields]]
+name = "general.confirm_destructive"
+type = "bool"
+required = true
+help = "Require typed confirmation for restart, stop, and config rollback in PROD."
+
+[[fields]]
+name = "general.log_buffer_lines"
+type = "integer"
+required = true
+help = "Maximum lines kept in memory per service before FIFO truncation."
+
+[[fields]]
+name = "general.notify_failures"
+type = "bool"
+required = true
+help = "Send a desktop notification when any monitored service enters failed state."
+
+[[fields]]
+name = "general.auto_update_check"
+type = "bool"
+required = true
+help = "Check for new releases on launch. Never installs without confirmation."
+
+[[fields]]
+name = "connection.strict_host_key_checking"
+type = "bool"
+required = true
+help = "Refuse to connect when a host key changes. Unknown keys must be verified manually on first contact."
+
+[[fields]]
+name = "connection.agent_forwarding"
+type = "bool"
+required = true
+help = "Forward your local agent into sessions. Convenient, and a lateral-movement risk on shared hosts."
+
+[[fields]]
+name = "connection.control_master"
+type = "bool"
+required = true
+help = "Reuse one TCP connection per host for all panels. Reduces handshakes from ~14 to 1."
+
+[[fields]]
+name = "connection.keepalive_interval"
+type = "integer"
+required = true
+help = "Seconds between keepalive probes. Lower detects dead hosts faster, costs more chatter."
+
+[[fields]]
+name = "connection.connect_timeout"
+type = "integer"
+required = true
+help = "Give up on a TCP handshake after this long."
+
+[[fields]]
+name = "connection.reconnect_backoff"
+type = "enum"
+required = true
+help = "Delay curve between reconnect attempts after a drop."
+options = [
+  { value = "exponential", label = "exponential", risk = "recommended" },
+  { value = "linear", label = "linear", risk = "recommended" },
+  { value = "fixed", label = "fixed", risk = "caution" }
+]
+
+[[fields]]
+name = "connection.ciphers"
+type = "string"
+required = true
+help = "Restrict negotiation to modern AEAD ciphers only."
+
+[[fields]]
+name = "connection.compression"
+type = "bool"
+required = true
+help = "Enable zlib compression for slow or metered links. Adds CPU overhead."
+
+[[fields]]
+name = "keys.default_identity"
+type = "path"
+required = true
+help = "Default SSH private key offered during host authentication."
+
+[[fields]]
+name = "keys.auto_rotate_days"
+type = "integer"
+required = true
+help = "Warning threshold in days before key rotation is recommended."
+
+[[fields]]
+name = "keys.enforce_ed25519_only"
+type = "bool"
+required = true
+help = "Disallow legacy RSA or ECDSA keys across the fleet."
+
+[[fields]]
+name = "keys.agent_integration"
+type = "bool"
+required = true
+help = "Query local 1Password / ssh-agent for available identities."
+
+[[fields]]
+name = "security.auto_lock_minutes"
+type = "integer"
+required = true
+help = "Lock vault and wipe decrypted keys from RAM after inactivity."
+
+[[fields]]
+name = "security.zeroize_on_drop"
+type = "bool"
+required = true
+help = "Zeroize MasterKey from memory immediately on lock or exit."

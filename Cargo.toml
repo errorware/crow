@@ -19,3 +19,5 @@ zeroize = { version = "1.9.0", features = ["derive"] }
 totp-rs = { version = "6.0.0", features = ["gen_secret", "otpauth"] }
 rand = "0.10.2"
 dirs = "7.0.0"
+toml = "0.8"
+toml_edit = "0.22"

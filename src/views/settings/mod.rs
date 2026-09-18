@@ -1,341 +1,301 @@
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::{CrowApp, Screen, SettingsSection};
+use crate::config::{CrowConfigManager, DiffKind};
+use crate::components::icons::{TablerIcon, tabler_icon};
+use crow_config_core::schema::FieldType;
 
-pub struct SettingRow {
-    pub label: &'static str,
-    pub desc: &'static str,
-    pub key: &'static str,
-    pub is_toggle: bool,
-    pub toggle_val: bool,
-    pub val_str: &'static str,
-    pub has_chevron: bool,
-    pub is_changed: bool,
+fn format_field_label(leaf: &str) -> String {
+    match leaf {
+        "strict_host_key_checking" => "Strict host key checking".into(),
+        "agent_forwarding" => "SSH agent forwarding".into(),
+        "control_master" => "Connection multiplexing".into(),
+        "keepalive_interval" => "Keepalive interval".into(),
+        "connect_timeout" => "Connect timeout".into(),
+        "reconnect_backoff" => "Reconnect backoff".into(),
+        "ciphers" => "Preferred ciphers".into(),
+        "compression" => "Compression".into(),
+        "theme" => "Window theme".into(),
+        "font_family" => "Font family".into(),
+        "font_size" => "Base font size".into(),
+        "refresh_interval" => "Refresh interval".into(),
+        "titlebar_latency" => "Titlebar latency probe".into(),
+        "confirm_destructive" => "Confirm destructive actions".into(),
+        "log_buffer_lines" => "Log buffer ceiling".into(),
+        "notify_failures" => "Desktop failure notifications".into(),
+        "auto_update_check" => "Auto update check".into(),
+        "default_identity" => "Default identity".into(),
+        "auto_rotate_days" => "Key auto-rotate threshold".into(),
+        "enforce_ed25519_only" => "Enforce Ed25519 keys only".into(),
+        "agent_integration" => "Local SSH agent integration".into(),
+        "auto_lock_minutes" => "Auto-lock inactive vault".into(),
+        "zeroize_on_drop" => "Wipe memory on lock".into(),
+        _ => {
+            let mut chars = leaf.replace('_', " ").chars().collect::<Vec<_>>();
+            if let Some(first) = chars.first_mut() {
+                *first = first.to_ascii_uppercase();
+            }
+            chars.into_iter().collect()
+        }
+    }
 }
 
-pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection, is_auth_enabled: bool) -> impl IntoElement {
+fn format_int_val(leaf: &str, n: i64) -> String {
+    match leaf {
+        "keepalive_interval" | "connect_timeout" | "refresh_interval" => format!("{} s", n),
+        "auto_lock_minutes" => format!("{} min", n),
+        "auto_rotate_days" => format!("{} days", n),
+        "font_size" => format!("{} px", n),
+        "log_buffer_lines" => format!("{} lines", n),
+        _ => format!("{}", n),
+    }
+}
+
+fn next_int_preset(leaf: &str, curr: i64) -> i64 {
+    let presets: &[i64] = match leaf {
+        "connect_timeout" => &[5, 10, 15, 30, 60],
+        "keepalive_interval" => &[10, 15, 30, 60],
+        "auto_lock_minutes" => &[5, 15, 30, 60],
+        "refresh_interval" => &[1, 2, 5, 10],
+        "font_size" => &[11, 12, 13, 14, 15],
+        "log_buffer_lines" => &[500, 1000, 2000, 5000],
+        "auto_rotate_days" => &[30, 60, 90, 180, 365],
+        _ => &[1, 5, 10, 20],
+    };
+    let curr_idx = presets.iter().position(|&p| p == curr).unwrap_or(0);
+    presets[(curr_idx + 1) % presets.len()]
+}
+
+fn next_str_preset(leaf: &str, curr: &str) -> Option<String> {
+    let presets: &[&str] = match leaf {
+        "font_family" => &["JetBrains Mono, monospace", "Fira Code, monospace", "SF Mono, monospace"],
+        "ciphers" => &[
+            "chacha20-poly1305@openssh.com,aes256-gcm@openssh.com",
+            "aes256-gcm@openssh.com",
+            "chacha20-poly1305@openssh.com",
+        ],
+        "default_identity" => &["~/.ssh/id_ed25519", "~/.ssh/id_ed25519_bastion", "~/.ssh/id_rsa"],
+        _ => return None,
+    };
+    let curr_idx = presets.iter().position(|&p| p == curr).unwrap_or(0);
+    Some(presets[(curr_idx + 1) % presets.len()].to_string())
+}
+
+fn render_setting_control(
+    app: Entity<CrowApp>,
+    idx: usize,
+    row_id: &str,
+    leaf: &str,
+    field: Option<&crow_config_core::ir::FieldIr>,
+    is_changed: bool,
+) -> impl IntoElement {
+    let target_row_id = row_id.to_string();
+    let leaf_str = leaf.to_string();
+
+    match field.map(|f| &f.field_type) {
+        Some(FieldType::Bool) => {
+            let curr_val = field.and_then(|f| f.value.as_bool()).unwrap_or(false);
+            let next_val = !curr_val;
+            let app_toggle = app.clone();
+            let row_id_clone = target_row_id.clone();
+
+            div()
+                .id(ElementId::NamedInteger("ctl-bool".into(), idx as u64))
+                .flex()
+                .border_1()
+                .border_color(if is_changed { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
+                .cursor_pointer()
+                .hover(|s| s.border_color(TEXT_SECONDARY))
+                .on_click(move |_ev, _window, cx| {
+                    let r_id = row_id_clone.clone();
+                    app_toggle.update(cx, |this, cx| {
+                        this.update_config_field(&r_id, serde_json::Value::Bool(next_val), cx);
+                    });
+                })
+                .child(
+                    div()
+                        .px(px(9.0))
+                        .py(px(3.0))
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.0))
+                        .font_weight(FontWeight::BOLD)
+                        .border_r_1()
+                        .border_color(BORDER_DEFAULT)
+                        .bg(if curr_val { OK_BG } else { hex_rgba(0, 0.0) })
+                        .text_color(if curr_val { OK } else { TEXT_FAINT })
+                        .child("ON"),
+                )
+                .child(
+                    div()
+                        .px(px(9.0))
+                        .py(px(3.0))
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.0))
+                        .font_weight(FontWeight::BOLD)
+                        .bg(if !curr_val { BG_CHIP } else { hex_rgba(0, 0.0) })
+                        .text_color(if !curr_val { TEXT_DIM } else { TEXT_FAINT })
+                        .child("OFF"),
+                )
+        }
+        Some(FieldType::Enum) => {
+            let curr_str = field.and_then(|f| f.value.as_str()).unwrap_or("");
+            let options = field.and_then(|f| f.options.clone()).unwrap_or_default();
+            let app_enum = app.clone();
+            let row_id_clone = target_row_id.clone();
+
+            let next_val = if !options.is_empty() {
+                let curr_idx = options.iter().position(|o| o.value == curr_str).unwrap_or(0);
+                let next_idx = (curr_idx + 1) % options.len();
+                options[next_idx].value.clone()
+            } else {
+                curr_str.to_string()
+            };
+
+            div()
+                .id(ElementId::NamedInteger("ctl-enum".into(), idx as u64))
+                .flex()
+                .items_center()
+                .gap(px(6.0))
+                .px(px(9.0))
+                .py(px(4.0))
+                .bg(BG_OVERLAY_PANEL)
+                .border_1()
+                .border_color(if is_changed { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
+                .cursor_pointer()
+                .hover(|s| s.bg(BG_ROW_HOVER))
+                .on_click(move |_ev, _window, cx| {
+                    let r_id = row_id_clone.clone();
+                    let n_val = next_val.clone();
+                    app_enum.update(cx, |this, cx| {
+                        this.update_config_field(&r_id, serde_json::Value::String(n_val), cx);
+                    });
+                })
+                .child(
+                    div()
+                        .font_family(FONT_MONO)
+                        .text_size(px(11.0))
+                        .text_color(if is_changed { TEXT_MAX } else { TEXT_PRIMARY })
+                        .child(curr_str.to_string()),
+                )
+                .child(
+                    div()
+                        .font_family(FONT_MONO)
+                        .text_size(px(9.0))
+                        .text_color(TEXT_FAINT)
+                        .child("▾"),
+                )
+        }
+        Some(FieldType::Other(cow)) if cow == "integer" => {
+            let curr_num = field.and_then(|f| f.value.as_i64()).unwrap_or(0);
+            let display_str = format_int_val(&leaf_str, curr_num);
+            let next_val = next_int_preset(&leaf_str, curr_num);
+            let app_num = app.clone();
+            let row_id_clone = target_row_id.clone();
+
+            div()
+                .id(ElementId::NamedInteger("ctl-int".into(), idx as u64))
+                .flex()
+                .items_center()
+                .gap(px(6.0))
+                .px(px(9.0))
+                .py(px(4.0))
+                .bg(BG_OVERLAY_PANEL)
+                .border_1()
+                .border_color(if is_changed { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
+                .cursor_pointer()
+                .hover(|s| s.bg(BG_ROW_HOVER))
+                .on_click(move |_ev, _window, cx| {
+                    let r_id = row_id_clone.clone();
+                    app_num.update(cx, |this, cx| {
+                        this.update_config_field(&r_id, serde_json::Value::Number(serde_json::Number::from(next_val)), cx);
+                    });
+                })
+                .child(
+                    div()
+                        .font_family(FONT_MONO)
+                        .text_size(px(11.0))
+                        .text_color(if is_changed { TEXT_MAX } else { TEXT_PRIMARY })
+                        .child(display_str),
+                )
+                .child(
+                    div()
+                        .font_family(FONT_MONO)
+                        .text_size(px(9.0))
+                        .text_color(TEXT_FAINT)
+                        .child("▾"),
+                )
+        }
+        _ => {
+            let curr_str = field.and_then(|f| f.value.as_str()).unwrap_or("");
+            let maybe_next = next_str_preset(&leaf_str, curr_str);
+            let app_str = app.clone();
+            let row_id_clone = target_row_id.clone();
+            let has_preset = maybe_next.is_some();
+
+            div()
+                .id(ElementId::NamedInteger("ctl-str".into(), idx as u64))
+                .flex()
+                .items_center()
+                .gap(px(6.0))
+                .px(px(9.0))
+                .py(px(4.0))
+                .bg(BG_OVERLAY_PANEL)
+                .border_1()
+                .border_color(if is_changed { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
+                .children(if has_preset {
+                    Some(div().cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)))
+                } else {
+                    None
+                })
+                .on_click(move |_ev, _window, cx| {
+                    if let Some(next_str) = &maybe_next {
+                        let r_id = row_id_clone.clone();
+                        let n_val = next_str.clone();
+                        app_str.update(cx, |this, cx| {
+                            this.update_config_field(&r_id, serde_json::Value::String(n_val), cx);
+                        });
+                    }
+                })
+                .child(
+                    div()
+                        .font_family(FONT_MONO)
+                        .text_size(px(11.0))
+                        .text_color(if is_changed { TEXT_MAX } else { TEXT_PRIMARY })
+                        .child(curr_str.to_string()),
+                )
+                .children(if has_preset {
+                    Some(
+                        div()
+                            .font_family(FONT_MONO)
+                            .text_size(px(9.0))
+                            .text_color(TEXT_FAINT)
+                            .child("▾")
+                    )
+                } else {
+                    None
+                })
+        }
+    }
+}
+
+pub fn settings_view(
+    app: Entity<CrowApp>,
+    config: &CrowConfigManager,
+    section: SettingsSection,
+    is_auth_enabled: bool,
+) -> impl IntoElement {
     let nav_items = [
-        ("◈", "General", "", SettingsSection::General, None),
-        ("⇄", "Connection & SSH", "3", SettingsSection::Connection, Some(WARN)),
-        ("⚿", "Keys & Rotation", "", SettingsSection::Keys, None),
-        ("◷", "Telemetry", "", SettingsSection::General, None),
-        ("⌗", "Logs & Retention", "", SettingsSection::General, None),
-        ("◉", "Notifications", "", SettingsSection::General, None),
-        ("◧", "Schema Packs", "4", SettingsSection::General, Some(OK)),
-        ("▲", "Danger Defaults", "", SettingsSection::General, None),
-        ("⌨", "Keymap", "", SettingsSection::General, None),
-        ("🛡", "Vault & Security", "L", SettingsSection::Security, Some(if is_auth_enabled { OK } else { WARN })),
-        ("⬡", "About", "", SettingsSection::General, None),
+        (TablerIcon::AdjustmentsHorizontal, "General", SettingsSection::General),
+        (TablerIcon::Network, "Connection & SSH", SettingsSection::Connection),
+        (TablerIcon::Key, "Keys & Rotation", SettingsSection::Keys),
+        (TablerIcon::ShieldCheck, "Vault & Security", SettingsSection::Security),
     ];
 
-    let connection_rows = [
-        SettingRow {
-            label: "Strict host key checking",
-            desc: "Refuse to connect when a host key changes. Unknown keys must be verified manually on first contact.",
-            key: "strict_host_key_checking = true",
-            is_toggle: true,
-            toggle_val: true,
-            val_str: "",
-            has_chevron: false,
-            is_changed: true,
-        },
-        SettingRow {
-            label: "SSH agent forwarding",
-            desc: "Forward your local agent into sessions. Convenient, and a lateral-movement risk on shared hosts.",
-            key: "agent_forwarding = false",
-            is_toggle: true,
-            toggle_val: false,
-            val_str: "",
-            has_chevron: false,
-            is_changed: true,
-        },
-        SettingRow {
-            label: "Connection multiplexing",
-            desc: "Reuse one TCP connection per host for all panels. Reduces handshakes from ~14 to 1.",
-            key: "control_master = true",
-            is_toggle: true,
-            toggle_val: true,
-            val_str: "",
-            has_chevron: false,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Keepalive interval",
-            desc: "Seconds between keepalive probes. Lower detects dead hosts faster, costs more chatter.",
-            key: "keepalive_interval = 15",
-            is_toggle: false,
-            toggle_val: false,
-            val_str: "15 s",
-            has_chevron: false,
-            is_changed: true,
-        },
-        SettingRow {
-            label: "Connect timeout",
-            desc: "Give up on a TCP handshake after this long.",
-            key: "connect_timeout = 10",
-            is_toggle: false,
-            toggle_val: false,
-            val_str: "10 s",
-            has_chevron: false,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Reconnect backoff",
-            desc: "Delay curve between reconnect attempts after a drop.",
-            key: "reconnect_backoff = exponential",
-            is_toggle: false,
-            toggle_val: false,
-            val_str: "exponential",
-            has_chevron: true,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Preferred ciphers",
-            desc: "Restrict negotiation to modern AEAD ciphers only.",
-            key: "ciphers = chacha20, aes256-gcm",
-            is_toggle: false,
-            toggle_val: false,
-            val_str: "chacha20, aes256-gcm",
-            has_chevron: true,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Jump host",
-            desc: "Route all connections through a bastion by default.",
-            key: "proxy_jump = bastion",
-            is_toggle: false,
-            toggle_val: false,
-            val_str: "bastion",
-            has_chevron: true,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Per-host SSH config",
-            desc: "Read ~/.ssh/config and honour Host blocks, Match rules and IdentityFile.",
-            key: "read_ssh_config = true",
-            is_toggle: true,
-            toggle_val: true,
-            val_str: "",
-            has_chevron: false,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Sudo escalation",
-            desc: "How Crow elevates when an action needs root.",
-            key: "become_method = sudo -n",
-            is_toggle: false,
-            toggle_val: false,
-            val_str: "sudo -n",
-            has_chevron: true,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Command echo in logs",
-            desc: "Record every command Crow runs in the per-host audit log.",
-            key: "echo_commands = true",
-            is_toggle: true,
-            toggle_val: true,
-            val_str: "",
-            has_chevron: false,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Max concurrent sessions",
-            desc: "Ceiling on multiplexed channels before opening a secondary TCP connection.",
-            key: "max_sessions = 10",
-            is_toggle: false,
-            toggle_val: false,
-            val_str: "10",
-            has_chevron: true,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Compression",
-            desc: "Enable zlib compression for slow or metered links. Adds CPU overhead.",
-            key: "compression = false",
-            is_toggle: true,
-            toggle_val: false,
-            val_str: "",
-            has_chevron: false,
-            is_changed: false,
-        },
-    ];
-
-    let general_rows = [
-        SettingRow {
-            label: "Theme",
-            desc: "Window appearance and accent palette.",
-            key: "theme = obsidian_edge",
-            is_toggle: false,
-            toggle_val: false,
-            val_str: "Obsidian Edge",
-            has_chevron: true,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Font family",
-            desc: "Monospace font for all data grids, logs, and code views.",
-            key: "font_family = JetBrains Mono",
-            is_toggle: false,
-            toggle_val: false,
-            val_str: "JetBrains Mono",
-            has_chevron: true,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Font size",
-            desc: "Base font size across all views. UI scales proportionally.",
-            key: "font_size = 12",
-            is_toggle: false,
-            toggle_val: false,
-            val_str: "12 px",
-            has_chevron: true,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Auto-refresh interval",
-            desc: "Frequency of background polling for services, logs, and metrics.",
-            key: "refresh_interval = 2",
-            is_toggle: false,
-            toggle_val: false,
-            val_str: "2 s",
-            has_chevron: true,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Show latency in titlebar",
-            desc: "Display round-trip ping time to the active server in the titlebar.",
-            key: "titlebar_latency = true",
-            is_toggle: true,
-            toggle_val: true,
-            val_str: "",
-            has_chevron: false,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Warn before destructive actions",
-            desc: "Require typed confirmation for restart, stop, and config rollback in PROD.",
-            key: "confirm_destructive = true",
-            is_toggle: true,
-            toggle_val: true,
-            val_str: "",
-            has_chevron: false,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Log buffer depth",
-            desc: "Maximum lines kept in memory per service before FIFO truncation.",
-            key: "log_buffer_lines = 10000",
-            is_toggle: false,
-            toggle_val: false,
-            val_str: "10,000",
-            has_chevron: true,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Notify on service failure",
-            desc: "Send a desktop notification when any monitored service enters failed state.",
-            key: "notify_failures = true",
-            is_toggle: true,
-            toggle_val: true,
-            val_str: "",
-            has_chevron: false,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Check for updates automatically",
-            desc: "Check for new releases on launch. Never installs without confirmation.",
-            key: "auto_update_check = true",
-            is_toggle: true,
-            toggle_val: true,
-            val_str: "",
-            has_chevron: false,
-            is_changed: false,
-        },
-    ];
-
-    let security_rows = [
-        SettingRow {
-            label: "Password Logon & 2FA Protection",
-            desc: "Require master password and RFC 6238 TOTP code to unlock Crow. Password logon always mandates 2FA.",
-            key: "auth_required = dynamic",
-            is_toggle: true,
-            toggle_val: is_auth_enabled,
-            val_str: if is_auth_enabled { "active · enforced" } else { "disabled (default)" },
-            has_chevron: false,
-            is_changed: is_auth_enabled,
-        },
-        SettingRow {
-            label: "Local SQLite Vault",
-            desc: "Zero-knowledge authenticated encrypted database at ~/.config/crow/crow.db.",
-            key: "vault_storage = sqlite_chacha20poly1305",
-            is_toggle: false,
-            toggle_val: false,
-            val_str: if is_auth_enabled { "active · encrypted" } else { "direct local access" },
-            has_chevron: false,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Key Derivation Function",
-            desc: "Argon2id (64 MB memory cost, 3 iterations, 4 lanes).",
-            key: "kdf = argon2id",
-            is_toggle: false,
-            toggle_val: false,
-            val_str: "argon2id (64MB)",
-            has_chevron: false,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Two-factor authentication (2FA)",
-            desc: "Mandatory RFC 6238 TOTP 6-digit code. Password logon ALWAYS requires 2FA.",
-            key: "totp_required = mandatory",
-            is_toggle: true,
-            toggle_val: is_auth_enabled,
-            val_str: "",
-            has_chevron: false,
-            is_changed: is_auth_enabled,
-        },
-        SettingRow {
-            label: "Auto-lock timeout",
-            desc: "Lock vault and wipe decrypted keys from RAM after inactivity.",
-            key: "auto_lock_minutes = 15",
-            is_toggle: false,
-            toggle_val: false,
-            val_str: "15 min",
-            has_chevron: true,
-            is_changed: false,
-        },
-        SettingRow {
-            label: "Wipe memory on lock",
-            desc: "Zeroize MasterKey from memory immediately on lock or exit.",
-            key: "zeroize_on_drop = true",
-            is_toggle: true,
-            toggle_val: true,
-            val_str: "",
-            has_chevron: false,
-            is_changed: false,
-        },
-    ];
-
-    let rows: &[SettingRow] = match section {
-        SettingsSection::Connection => &connection_rows,
-        SettingsSection::General => &general_rows,
-        SettingsSection::Keys => &connection_rows[..3],
-        SettingsSection::Security => &security_rows,
-    };
-
-    let title = match section {
-        SettingsSection::Connection => "CONNECTION & SSH",
-        SettingsSection::General => "GENERAL",
-        SettingsSection::Keys => "KEYS & ROTATION",
-        SettingsSection::Security => "VAULT & SECURITY",
-    };
-
-    let sub = match section {
-        SettingsSection::Connection => "[connection] · applies to every host unless overridden",
-        SettingsSection::General => "[general] · application behavior",
-        SettingsSection::Keys => "[keys] · key distribution & policies",
-        SettingsSection::Security => "[vault] · local encrypted sqlite & master key",
+    let (title, sub) = match section {
+        SettingsSection::General => ("GENERAL", "[general] · application behavior"),
+        SettingsSection::Connection => ("CONNECTION & SSH", "[connection] · applies to every host unless overridden"),
+        SettingsSection::Keys => ("KEYS & ROTATION", "[keys] · key distribution & policies"),
+        SettingsSection::Security => ("VAULT & SECURITY", "[vault] · local encrypted sqlite & master key"),
     };
 
     let keychain = [
@@ -345,9 +305,46 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection, is_auth_ena
         ("yubikey-5c (sk-ed25519)", "not present", TEXT_FAINT),
     ];
 
+    let total_changed = config.total_changed_count();
+    let path_str = config.path.display().to_string();
+    let status_subtitle = if total_changed == 0 {
+        format!("{} · in sync", path_str)
+    } else {
+        format!(
+            "{} · {} pending change{}",
+            path_str,
+            total_changed,
+            if total_changed == 1 { "" } else { "s" }
+        )
+    };
+
+    let sec_prefix = format!("{}.", section.id_prefix());
+    let sec_rows: Vec<_> = config
+        .ir
+        .rows
+        .iter()
+        .filter(|r| r.row_id.starts_with(&sec_prefix))
+        .collect();
+
+    let has_section_changes = config.changed_count_for_section(section.id_prefix()) > 0;
+    let sec_prefix_id = section.id_prefix().to_string();
+
+    let diff_lines = config.generate_diff();
+    let additions = diff_lines.iter().filter(|d| d.kind == DiffKind::Addition).count();
+    let deletions = diff_lines.iter().filter(|d| d.kind == DiffKind::Deletion).count();
+    let diff_badge = if additions == 0 && deletions == 0 {
+        "in sync".to_string()
+    } else {
+        format!("+{} −{}", additions, deletions)
+    };
+    let has_conn_changes = config.changed_count_for_section("connection") > 0;
+
     let app_close = app.clone();
     let app_enable_auth = app.clone();
     let app_lock_now = app.clone();
+    let app_reset = app.clone();
+    let app_edit = app.clone();
+    let app_save = app.clone();
 
     div()
         .size_full()
@@ -383,7 +380,7 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection, is_auth_ena
                                 .font_family(FONT_MONO)
                                 .text_size(px(11.5))
                                 .text_color(TEXT_DIM)
-                                .child("~/.config/crow/config.toml · 3 pending changes"),
+                                .child(status_subtitle),
                         ),
                 )
                 .child(div().flex_1())
@@ -424,19 +421,28 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection, is_auth_ena
                         .border_r_1()
                         .border_color(BORDER_PANEL)
                         .pt(px(6.0))
-                        .children(nav_items.into_iter().enumerate().map(|(idx, (icon, label, badge, sec, badge_c))| {
+                        .children(nav_items.into_iter().enumerate().map(|(idx, (icon, label, sec))| {
                             let app_nav = app.clone();
-                            let is_active = sec == section && (
-                                (sec == SettingsSection::Connection && label == "Connection & SSH")
-                                || (sec == SettingsSection::General && label == "General")
-                                || (sec == SettingsSection::Keys && label == "Keys & Rotation")
-                                || (sec == SettingsSection::Security && label == "Vault & Security")
-                            );
+                            let is_active = sec == section;
+                            let changed_in_sec = config.changed_count_for_section(sec.id_prefix());
+                            let (badge, badge_c) = if sec == SettingsSection::Security {
+                                if changed_in_sec > 0 {
+                                    (format!("{}", changed_in_sec), Some(WARN))
+                                } else if is_auth_enabled {
+                                    ("L".to_string(), Some(OK))
+                                } else {
+                                    ("!".to_string(), Some(WARN))
+                                }
+                            } else if changed_in_sec > 0 {
+                                (format!("{}", changed_in_sec), Some(WARN))
+                            } else {
+                                ("".to_string(), None)
+                            };
 
                             div()
                                 .id(ElementId::NamedInteger("settings-nav".into(), idx as u64))
                                 .relative()
-                                .h(px(30.0))
+                                .h(px(34.0))
                                 .flex_none()
                                 .flex()
                                 .items_center()
@@ -457,12 +463,16 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection, is_auth_ena
                                 })
                                 .child(
                                     div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
-                                        .w(px(14.0))
-                                        .text_align(TextAlign::Center)
-                                        .text_color(if is_active { TEXT_PRIMARY } else { TEXT_DIMMER })
-                                        .child(icon),
+                                        .w(px(16.0))
+                                        .h(px(16.0))
+                                        .flex()
+                                        .items_center()
+                                        .justify_center()
+                                        .child(
+                                            tabler_icon(icon)
+                                                .size(px(14.0))
+                                                .text_color(if is_active { TEXT_PRIMARY } else { TEXT_DIMMER }),
+                                        ),
                                 )
                                 .child(
                                     div()
@@ -523,7 +533,7 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection, is_auth_ena
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.0))
                                         .text_color(TEXT_FAINT)
-                                        .child("overrides apply per-server in the server's Config view"),
+                                        .child("overrides apply per-server in Config view"),
                                 ),
                         )
                         // Rows List
@@ -705,8 +715,21 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection, is_auth_ena
                                 } else {
                                     None
                                 })
-                                .children(rows.iter().enumerate().map(|(idx, row)| {
+                                .children(sec_rows.into_iter().enumerate().map(|(idx, row)| {
                                     let is_even = idx % 2 == 0;
+                                    let field = row.get_field(&row.row_id);
+                                    let leaf = row.row_id.split_once('.').map(|(_, k)| k).unwrap_or(&row.row_id);
+                                    let label = format_field_label(leaf);
+                                    let desc = field.and_then(|f| f.help.clone()).unwrap_or_default();
+                                    let is_changed = config.is_field_changed(&row.row_id);
+
+                                    let raw_val_str = match field.map(|f| &f.value) {
+                                        Some(serde_json::Value::Bool(b)) => format!("{}", b),
+                                        Some(serde_json::Value::Number(n)) => format!("{}", n),
+                                        Some(serde_json::Value::String(s)) => format!("\"{}\"", s),
+                                        _ => String::new(),
+                                    };
+                                    let key_repr = format!("{} = {}", leaf, raw_val_str);
 
                                     div()
                                         .id(ElementId::NamedInteger("setting-row".into(), idx as u64))
@@ -719,14 +742,14 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection, is_auth_ena
                                         .py(px(9.0))
                                         .border_b_1()
                                         .border_color(BORDER_ROW)
-                                        .bg(if row.is_changed {
+                                        .bg(if is_changed {
                                             BG_OVERLAY_PANEL
                                         } else if is_even {
                                             BG_APP
                                         } else {
                                             BG_ROW_ALT
                                         })
-                                        .children(if row.is_changed {
+                                        .children(if is_changed {
                                             Some(left_indicator(WARN))
                                         } else {
                                             None
@@ -749,12 +772,12 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection, is_auth_ena
                                                                 .font_family(FONT_MONO)
                                                                 .text_size(px(12.0))
                                                                 .font_weight(FontWeight::MEDIUM)
-                                                                .text_color(if row.is_changed { TEXT_MAX } else { TEXT_PRIMARY })
-                                                                .child(row.label),
+                                                                .text_color(if is_changed { TEXT_MAX } else { TEXT_PRIMARY })
+                                                                .child(label),
                                                         )
                                                         .child(
                                                             div()
-                                                                .children(if row.is_changed {
+                                                                .children(if is_changed {
                                                                     Some(
                                                                         div()
                                                                             .px(px(4.0))
@@ -777,14 +800,14 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection, is_auth_ena
                                                         .text_size(px(10.5))
                                                         .text_color(TEXT_DIM)
                                                         .line_height(relative(1.45))
-                                                        .child(row.desc),
+                                                        .child(desc),
                                                 )
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
                                                         .text_size(px(9.5))
                                                         .text_color(TEXT_FAINTER)
-                                                        .child(row.key),
+                                                        .child(key_repr),
                                                 ),
                                         )
                                         // Right control
@@ -794,59 +817,7 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection, is_auth_ena
                                                 .flex()
                                                 .items_center()
                                                 .justify_end()
-                                                .children(if row.is_toggle {
-                                                    Some(
-                                                        div()
-                                                            .flex()
-                                                            .border_1()
-                                                            .border_color(BORDER_DEFAULT)
-                                                            .child(
-                                                                div()
-                                                                    .px(px(9.0))
-                                                                    .py(px(3.0))
-                                                                    .font_family(FONT_MONO)
-                                                                    .text_size(px(10.0))
-                                                                    .font_weight(FontWeight::BOLD)
-                                                                    .border_r_1()
-                                                                    .border_color(BORDER_DEFAULT)
-                                                                    .bg(if row.toggle_val { OK_BG } else { hex_rgba(0, 0.0) })
-                                                                    .text_color(if row.toggle_val { OK } else { TEXT_FAINT })
-                                                                    .child("ON"),
-                                                            )
-                                                            .child(
-                                                                div()
-                                                                    .px(px(9.0))
-                                                                    .py(px(3.0))
-                                                                    .font_family(FONT_MONO)
-                                                                    .text_size(px(10.0))
-                                                                    .font_weight(FontWeight::BOLD)
-                                                                    .bg(if !row.toggle_val { BG_CHIP } else { hex_rgba(0, 0.0) })
-                                                                    .text_color(if !row.toggle_val { TEXT_DIM } else { TEXT_FAINT })
-                                                                    .child("OFF"),
-                                                            ),
-                                                    )
-                                                } else {
-                                                    Some(
-                                                        div()
-                                                            .flex()
-                                                            .items_center()
-                                                            .gap(px(6.0))
-                                                            .px(px(9.0))
-                                                            .py(px(4.0))
-                                                            .bg(BG_OVERLAY_PANEL)
-                                                            .border_1()
-                                                            .border_color(if row.is_changed { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
-                                                            .font_family(FONT_MONO)
-                                                            .text_size(px(11.0))
-                                                            .text_color(if row.is_changed { TEXT_MAX } else { TEXT_PRIMARY })
-                                                            .child(row.val_str)
-                                                            .children(if row.has_chevron {
-                                                                Some(div().text_color(TEXT_FAINT).child("▾"))
-                                                            } else {
-                                                                None
-                                                            }),
-                                                    )
-                                                }),
+                                                .child(render_setting_control(app.clone(), idx, row.row_id.as_str(), leaf, field, is_changed)),
                                         )
                                 })),
                         )
@@ -866,32 +837,65 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection, is_auth_ena
                                 .text_size(px(10.5))
                                 .child(
                                     div()
+                                        .id("btn-reset-section")
                                         .px(px(9.0))
                                         .py(px(5.0))
                                         .border_1()
-                                        .border_color(BORDER_KEY)
-                                        .text_color(TEXT_TERTIARY)
+                                        .border_color(if has_section_changes { BORDER_KEY } else { BORDER_PANEL })
+                                        .text_color(if has_section_changes { TEXT_PRIMARY } else { TEXT_FAINTER })
+                                        .cursor_pointer()
+                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .on_click(move |_ev, _window, cx| {
+                                            if has_section_changes {
+                                                let prefix = sec_prefix_id.clone();
+                                                app_reset.update(cx, |this, cx| {
+                                                    this.reset_config_section(&prefix, cx);
+                                                });
+                                            }
+                                        })
                                         .child("RESET SECTION"),
                                 )
                                 .child(
                                     div()
+                                        .id("btn-edit-config-toml")
                                         .px(px(9.0))
                                         .py(px(5.0))
                                         .bg(BG_CONTROL)
                                         .border_1()
                                         .border_color(BORDER_DEFAULT)
                                         .text_color(TEXT_SECONDARY)
+                                        .cursor_pointer()
+                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .on_click(move |_ev, _window, cx| {
+                                            app_edit.read(cx).open_config_file();
+                                        })
                                         .child("EDIT config.toml ⌘/"),
                                 )
                                 .child(div().flex_1())
                                 .child(
                                     div()
+                                        .id("btn-save-settings")
                                         .px(px(11.0))
                                         .py(px(6.0))
-                                        .bg(OK)
-                                        .text_color(BG_WINDOW)
+                                        .bg(if total_changed > 0 { OK } else { BG_CONTROL })
+                                        .border_1()
+                                        .border_color(if total_changed > 0 { OK } else { BORDER_DEFAULT })
+                                        .text_color(if total_changed > 0 { BG_WINDOW } else { TEXT_FAINT })
                                         .font_weight(FontWeight::BOLD)
-                                        .child("SAVE ⌘S"),
+                                        .cursor_pointer()
+                                        .hover(|s| s.bg(if total_changed > 0 { rgb(0x4ade80) } else { BG_CONTROL }))
+                                        .on_click(move |_ev, _window, cx| {
+                                            if total_changed > 0 {
+                                                app_save.update(cx, |this, cx| {
+                                                    this.save_config(cx);
+                                                });
+                                            }
+                                        })
+                                        .child(if total_changed > 0 {
+                                            format!("SAVE ⌘S ({} pending)", total_changed)
+                                        } else {
+                                            "SAVE ⌘S".to_string()
+                                        }),
                                 ),
                         ),
                 )
@@ -929,63 +933,102 @@ pub fn settings_view(app: Entity<CrowApp>, section: SettingsSection, is_auth_ena
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.0))
-                                        .text_color(TEXT_DIMMER)
-                                        .child("+3 −3"),
+                                        .text_color(if total_changed > 0 { WARN } else { TEXT_DIMMER })
+                                        .child(diff_badge),
                                 ),
                         )
                         // Diff Snippets
-                        .child(
+                        .child(if diff_lines.is_empty() {
                             div()
+                                .id("pending-diff-empty")
                                 .flex_none()
-                                .py(px(8.0))
+                                .p(px(14.0))
+                                .border_b_1()
+                                .border_color(BORDER_PANEL)
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.5))
+                                .line_height(relative(1.5))
+                                .child(
+                                    div()
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(6.0))
+                                        .text_color(OK)
+                                        .child(tabler_icon(TablerIcon::Check).size(px(12.0)))
+                                        .child("Configuration in sync"),
+                                )
+                                .child(
+                                    div()
+                                        .mt(px(4.0))
+                                        .text_color(TEXT_FAINTER)
+                                        .child("Working copy matches ~/.config/crow/config.toml"),
+                                )
+                        } else {
+                            div()
+                                .id("pending-diff-scroll")
+                                .flex_none()
+                                .max_h(px(280.0))
+                                .overflow_y_scroll()
+                                .py(px(6.0))
                                 .border_b_1()
                                 .border_color(BORDER_PANEL)
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.5))
                                 .line_height(relative(1.55))
-                                .child(div().px(px(12.0)).py(px(1.0)).bg(DIFF_HUNK_BG).text_color(TEXT_DIMMER).child("@@ [connection] @@"))
-                                .child(div().px(px(12.0)).py(px(1.0)).bg(DIFF_DEL_BG).text_color(CRIT_INK).child("- keepalive_interval = 30"))
-                                .child(div().px(px(12.0)).py(px(1.0)).bg(DIFF_ADD_BG).text_color(OK_INK).child("+ keepalive_interval = 15"))
-                                .child(div().px(px(12.0)).py(px(1.0)).bg(DIFF_DEL_BG).text_color(CRIT_INK).child("- strict_host_key_checking = \"ask\""))
-                                .child(div().px(px(12.0)).py(px(1.0)).bg(DIFF_ADD_BG).text_color(OK_INK).child("+ strict_host_key_checking = \"yes\""))
-                                .child(div().px(px(12.0)).py(px(1.0)).bg(DIFF_DEL_BG).text_color(CRIT_INK).child("- agent_forwarding = true"))
-                                .child(div().px(px(12.0)).py(px(1.0)).bg(DIFF_ADD_BG).text_color(OK_INK).child("+ agent_forwarding = false")),
-                        )
-                        // Live Sessions Warning
-                        .child(
-                            div()
-                                .flex_none()
-                                .p(px(12.0))
-                                .border_b_1()
-                                .border_color(BORDER_PANEL)
-                                .bg(hex_rgb(0x0c0a0a))
-                                .flex()
-                                .flex_col()
-                                .gap(px(6.0))
-                                .child(
+                                .children(diff_lines.into_iter().map(|line| {
+                                    let (bg_c, text_c) = match line.kind {
+                                        DiffKind::Hunk => (DIFF_HUNK_BG, TEXT_DIMMER),
+                                        DiffKind::Addition => (DIFF_ADD_BG, OK_INK),
+                                        DiffKind::Deletion => (DIFF_DEL_BG, CRIT_INK),
+                                        DiffKind::Context => (hex_rgba(0, 0.0), TEXT_MUTED),
+                                    };
                                     div()
-                                        .flex()
-                                        .items_center()
-                                        .gap(px(7.0))
-                                        .child(div().font_family(FONT_MONO).text_size(px(10.0)).text_color(WARN).child("▲"))
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(10.0))
-                                                .font_weight(FontWeight::BOLD)
-                                                .text_color(WARN)
-                                                .child("AFFECTS LIVE SESSIONS"),
-                                        ),
-                                )
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(10.5))
-                                        .line_height(relative(1.5))
-                                        .text_color(TEXT_TERTIARY)
-                                        .child("Disabling agent forwarding drops 2 open forwards on bastion. Existing SSH sessions are not renegotiated until reconnect."),
-                                ),
-                        )
+                                        .px(px(12.0))
+                                        .py(px(1.5))
+                                        .bg(bg_c)
+                                        .text_color(text_c)
+                                        .child(line.text)
+                                }))
+                        })
+                        // Live Sessions Warning (shown if connection changes exist)
+                        .children(if has_conn_changes {
+                            Some(
+                                div()
+                                    .flex_none()
+                                    .p(px(12.0))
+                                    .border_b_1()
+                                    .border_color(BORDER_PANEL)
+                                    .bg(hex_rgb(0x0c0a0a))
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(6.0))
+                                    .child(
+                                        div()
+                                            .flex()
+                                            .items_center()
+                                            .gap(px(7.0))
+                                            .child(div().font_family(FONT_MONO).text_size(px(10.0)).text_color(WARN).child("▲"))
+                                            .child(
+                                                div()
+                                                    .font_family(FONT_MONO)
+                                                    .text_size(px(10.0))
+                                                    .font_weight(FontWeight::BOLD)
+                                                    .text_color(WARN)
+                                                    .child("AFFECTS LIVE SESSIONS"),
+                                            ),
+                                    )
+                                    .child(
+                                        div()
+                                            .font_family(FONT_MONO)
+                                            .text_size(px(10.5))
+                                            .line_height(relative(1.5))
+                                            .text_color(TEXT_TERTIARY)
+                                            .child("Pending SSH connection changes take effect upon reconnection. Existing active sessions will retain their current parameters."),
+                                    ),
+                            )
+                        } else {
+                            None
+                        })
                         // Keychain Section
                         .child(
                             div()

@@ -3,6 +3,7 @@ use gpui_kit::*;
 mod app;
 mod components;
 mod theme;
+pub mod config;
 pub mod vault;
 mod views;
 

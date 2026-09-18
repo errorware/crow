@@ -22,6 +22,7 @@ use crate::views::settings::settings_view;
 use crow_config_core::edit::ConfigDocument;
 use crow_config_core::ConfigPlugin;
 use crow_config_schemas::PgHbaPlugin;
+use crate::config::CrowConfigManager;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Screen {
@@ -35,15 +36,27 @@ pub enum Screen {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SettingsSection {
-    Connection,
     General,
+    Connection,
     Keys,
     Security,
+}
+
+impl SettingsSection {
+    pub fn id_prefix(&self) -> &'static str {
+        match self {
+            SettingsSection::General => "general",
+            SettingsSection::Connection => "connection",
+            SettingsSection::Keys => "keys",
+            SettingsSection::Security => "security",
+        }
+    }
 }
 
 pub struct CrowApp {
     focus_handle: FocusHandle,
     pub vault: Vault,
+    pub config: CrowConfigManager,
     pub lock_state: LockState,
     pub setup_state: SetupState,
     pub screen: Screen,
@@ -62,6 +75,7 @@ pub struct CrowApp {
 impl CrowApp {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let vault = Vault::open_default().expect("Failed to initialize vault storage");
+        let config = CrowConfigManager::load();
 
         // Demonstrate integration with crow-config-core & crow-config-schemas
         let plugin = PgHbaPlugin::new();
@@ -87,11 +101,12 @@ host    all             all             10.0.4.0/24             scram-sha-256
         Self {
             focus_handle: cx.focus_handle(),
             vault,
+            config,
             lock_state: LockState::default(),
             setup_state: SetupState::default(),
             screen: Screen::Fleet,
             menu_open: false,
-            settings_section: SettingsSection::Connection,
+            settings_section: SettingsSection::General,
             active_tab_id: "edge-01".to_string(),
             active_view: "overview".to_string(),
             active_services_tab: "services".to_string(),
@@ -218,6 +233,37 @@ host    all             all             10.0.4.0/24             scram-sha-256
     pub fn set_settings_section(&mut self, section: SettingsSection, cx: &mut Context<Self>) {
         self.settings_section = section;
         cx.notify();
+    }
+
+    pub fn update_config_field(&mut self, row_id: &str, new_value: serde_json::Value, cx: &mut Context<Self>) {
+        if let Err(e) = self.config.update_field(row_id, new_value) {
+            eprintln!("Failed to update config field {}: {:?}", row_id, e);
+        }
+        cx.notify();
+    }
+
+    pub fn reset_config_section(&mut self, sec_prefix: &str, cx: &mut Context<Self>) {
+        if let Err(e) = self.config.reset_section(sec_prefix) {
+            eprintln!("Failed to reset config section {}: {:?}", sec_prefix, e);
+        }
+        cx.notify();
+    }
+
+    pub fn save_config(&mut self, cx: &mut Context<Self>) {
+        if let Err(e) = self.config.save() {
+            eprintln!("Failed to save config: {:?}", e);
+        }
+        cx.notify();
+    }
+
+    pub fn open_config_file(&self) {
+        let path = &self.config.path;
+        #[cfg(target_os = "macos")]
+        let _ = std::process::Command::new("open").arg(path).spawn();
+        #[cfg(target_os = "linux")]
+        let _ = std::process::Command::new("xdg-open").arg(path).spawn();
+        #[cfg(target_os = "windows")]
+        let _ = std::process::Command::new("cmd").args(["/c", "start", ""]).arg(path).spawn();
     }
 
     pub fn toggle_palette(&mut self, cx: &mut Context<Self>) {
@@ -453,6 +499,10 @@ impl Render for CrowApp {
                     this.set_view("config", cx);
                 } else if key == "," && is_mod {
                     this.set_screen(Screen::Settings, cx);
+                } else if key == "s" && is_mod && this.screen == Screen::Settings {
+                    this.save_config(cx);
+                } else if key == "/" && is_mod && this.screen == Screen::Settings {
+                    this.open_config_file();
                 } else if key == "n" && is_mod {
                     this.set_screen(Screen::Onboard, cx);
                 } else if key == "f" && is_mod && is_shift {
@@ -605,7 +655,7 @@ impl Render for CrowApp {
                                     Screen::Settings => Some(
                                         div()
                                             .size_full()
-                                            .child(settings_view(app_view.clone(), self.settings_section, self.vault.is_password_auth_enabled())),
+                                            .child(settings_view(app_view.clone(), &self.config, self.settings_section, self.vault.is_password_auth_enabled())),
                                     ),
                                     Screen::Onboard => Some(
                                         div()
