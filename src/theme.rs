@@ -88,3 +88,45 @@ pub const DIFF_HUNK_BG: Rgba = hex_rgb(0x101116);
 // Fonts — Unified Monospace Default across the entire application
 pub const FONT_MONO: &str = "JetBrains Mono";
 pub const FONT_SANS: &str = "JetBrains Mono";
+
+/// Initialize and enforce the Obsidian Edge dark theme across gpui-component & gpui-kit.
+/// Replaces the default light theme with dark backgrounds, legible high-contrast text,
+/// emerald caret, and sharp terminal corners (2px radius).
+pub fn init_obsidian_theme(cx: &mut App) {
+    use std::sync::Arc;
+    use gpui_kit::component::theme::{Theme, ThemeMode};
+    use gpui_kit::component::highlighter::HighlightTheme;
+
+    // Switch gpui-component from default light mode to dark mode
+    Theme::change(ThemeMode::Dark, None, cx);
+
+    let theme = Theme::global_mut(cx);
+    // Terminal aesthetic: sharp 2px corners instead of bubbly rounded pills
+    theme.radius = px(2.0);
+    theme.radius_lg = px(4.0);
+    theme.font_family = FONT_MONO.into();
+    theme.mono_font_family = FONT_MONO.into();
+
+    // Obsidian Edge dark palette
+    theme.background = BG_APP.into();
+    theme.foreground = TEXT_MAX.into();
+    theme.muted_foreground = TEXT_MUTED.into();
+    theme.input = BORDER_DEFAULT.into();
+    theme.border = BORDER_DEFAULT.into();
+    theme.caret = OK.into();
+    theme.ring = OK.into();
+    theme.selection = hex_rgba(0x38bdf8, 0.40).into();
+
+    // Configure the editor highlight theme for solid dark background and crisp white foreground
+    let mut highlight_style = theme.highlight_theme.style.clone();
+    highlight_style.editor_background = Some(BG_APP.into());
+    highlight_style.editor_foreground = Some(TEXT_MAX.into());
+    theme.highlight_theme = Arc::new(HighlightTheme {
+        name: "Obsidian Edge".to_string(),
+        appearance: ThemeMode::Dark,
+        style: highlight_style,
+    });
+
+    // Re-project semantic tokens onto the base layer
+    Theme::sync_base(cx);
+}

@@ -13,6 +13,7 @@ use app::CrowApp;
 fn main() {
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
+        crate::theme::init_obsidian_theme(cx);
 
         // Embed JetBrains Mono so it is always available on all platforms (macOS, Linux, Windows)
         let fonts = vec![

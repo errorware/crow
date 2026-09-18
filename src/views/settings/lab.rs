@@ -179,7 +179,10 @@ pub fn render_components_lab(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                                                 .id("lab-input-native")
                                                 .cleanable(true)
                                                 .w_full()
-                                                .font_family(FONT_MONO),
+                                                .font_family(FONT_MONO)
+                                                .bg(BG_APP)
+                                                .border_color(BORDER_DEFAULT)
+                                                .rounded(px(2.0)),
                                         )
                                         .child(
                                             div()
@@ -304,7 +307,10 @@ pub fn render_components_lab(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                                                 .mask_toggle()
                                                 .cleanable(true)
                                                 .w_full()
-                                                .font_family(FONT_MONO),
+                                                .font_family(FONT_MONO)
+                                                .bg(BG_APP)
+                                                .border_color(BORDER_DEFAULT)
+                                                .rounded(px(2.0)),
                                         ),
                                 )
                                 // Cleanable Search Input
@@ -332,7 +338,10 @@ pub fn render_components_lab(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                                                 .cleanable(true)
                                                 .prefix(tabler_icon(TablerIcon::Search).size(px(12.0)).text_color(TEXT_FAINT))
                                                 .w_full()
-                                                .font_family(FONT_MONO),
+                                                .font_family(FONT_MONO)
+                                                .bg(BG_APP)
+                                                .border_color(BORDER_DEFAULT)
+                                                .rounded(px(2.0)),
                                         ),
                                 )
                                 // Prefixed & Suffixed Address Input
@@ -371,7 +380,10 @@ pub fn render_components_lab(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                                                         .child("PORT 22"),
                                                 )
                                                 .w_full()
-                                                .font_family(FONT_MONO),
+                                                .font_family(FONT_MONO)
+                                                .bg(BG_APP)
+                                                .border_color(BORDER_DEFAULT)
+                                                .rounded(px(2.0)),
                                         ),
                                 ),
                         ),
@@ -459,7 +471,10 @@ pub fn render_components_lab(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                                     Textarea::new(&lab.textarea)
                                         .h(px(90.0))
                                         .w_full()
-                                        .font_family(FONT_MONO),
+                                        .font_family(FONT_MONO)
+                                        .bg(BG_APP)
+                                        .border_color(BORDER_DEFAULT)
+                                        .rounded(px(2.0)),
                                 ),
                         ),
                 )
