@@ -11,6 +11,18 @@ use app::CrowApp;
 fn main() {
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
+
+        // Embed JetBrains Mono so it is always available on all platforms (macOS, Linux, Windows)
+        let fonts = vec![
+            std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-Regular.ttf").as_slice()),
+            std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-Medium.ttf").as_slice()),
+            std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-Bold.ttf").as_slice()),
+            std::borrow::Cow::Borrowed(include_bytes!("../assets/fonts/JetBrainsMono-Italic.ttf").as_slice()),
+        ];
+        if let Err(err) = cx.text_system().add_fonts(fonts) {
+            eprintln!("Failed to load embedded JetBrains Mono fonts: {err}");
+        }
+
         cx.spawn(async move |cx| {
             let mut options = WindowOptions::default();
             options.window_bounds = Some(WindowBounds::Windowed(Bounds {
