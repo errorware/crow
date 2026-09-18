@@ -4,6 +4,12 @@ use gpui_kit::Rgba;
 use crate::theme::*;
 
 pub mod reader;
+pub mod retention;
+
+pub use retention::{
+    generate_journald_conf, read_retention_for_server, JournalRetentionConfig,
+    JournalStorageMode, JournalTelemetry,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub enum JournalPriority {

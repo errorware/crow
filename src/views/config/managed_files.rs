@@ -1,4 +1,5 @@
 use gpui_kit::*;
+use crate::app::CrowApp;
 use crate::theme::*;
 
 pub struct ManagedFileDef {
@@ -6,11 +7,13 @@ pub struct ManagedFileDef {
     pub path: &'static str,
     pub pill: &'static str,
     pub color: Rgba,
+    #[allow(dead_code)]
     pub is_selected: bool,
 }
 
 pub fn default_managed_files() -> &'static [ManagedFileDef] {
     &[
+        ManagedFileDef { name: "journald.conf", path: "/etc/systemd", pill: "CRASH-SAFE", color: OK, is_selected: false },
         ManagedFileDef { name: "pg_hba.conf", path: "/etc/postgresql/16/main", pill: "EDITED", color: WARN, is_selected: true },
         ManagedFileDef { name: "sshd_config", path: "/etc/ssh", pill: "OK", color: OK, is_selected: false },
         ManagedFileDef { name: "postgresql.conf", path: "/etc/postgresql/16/main", pill: "OK", color: OK, is_selected: false },
@@ -26,7 +29,11 @@ pub fn default_managed_files() -> &'static [ManagedFileDef] {
     ]
 }
 
-pub fn managed_files_rail() -> impl IntoElement {
+pub fn managed_files_rail(selected_file: &str, app: Entity<CrowApp>) -> impl IntoElement {
+    let files = default_managed_files();
+    let app_clone = app.clone();
+    let sel_file = selected_file.to_string();
+
     div()
         .w(px(216.0))
         .flex_none()
@@ -60,7 +67,7 @@ pub fn managed_files_rail() -> impl IntoElement {
                         .font_family("JetBrains Mono")
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
-                        .child("12"),
+                        .child(files.len().to_string()),
                 ),
         )
         // File items
@@ -72,16 +79,21 @@ pub fn managed_files_rail() -> impl IntoElement {
                 .overflow_y_scroll()
                 .flex()
                 .flex_col()
-                .children(default_managed_files().iter().map(|f| {
-                    let is_sel = f.is_selected;
+                .children(files.iter().enumerate().map(|(idx, f)| {
+                    let is_sel = f.name == sel_file;
                     let pill_bg = match f.pill {
                         "OK" => OK_BG,
+                        "CRASH-SAFE" => OK_BG,
                         "EDITED" => WARN_BG,
                         "DRIFT" => CRIT_BG,
                         _ => BG_CHIP,
                     };
 
+                    let app_click = app_clone.clone();
+                    let f_name = f.name;
+
                     div()
+                        .id(ElementId::NamedInteger("managed-file-item".into(), idx as u64))
                         .relative()
                         .flex()
                         .flex_col()
@@ -97,6 +109,12 @@ pub fn managed_files_rail() -> impl IntoElement {
                             None
                         })
                         .cursor_pointer()
+                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .on_click(move |_ev, _window, cx| {
+                            app_click.update(cx, |this, cx| {
+                                this.select_managed_file(f_name, cx);
+                            });
+                        })
                         .child(
                             div()
                                 .flex()
@@ -157,14 +175,14 @@ pub fn managed_files_rail() -> impl IntoElement {
                         .font_family("JetBrains Mono")
                         .text_size(px(10.0))
                         .text_color(TEXT_DIM)
-                        .child("openssh 9.6 · postgres 16"),
+                        .child("systemd 255 · postgres 16"),
                 )
                 .child(
                     div()
                         .font_family("JetBrains Mono")
                         .text_size(px(10.0))
                         .text_color(TEXT_DIM)
-                        .child("ufw 0.36 · nginx 1.24"),
+                        .child("openssh 9.6 · ufw · nginx"),
                 ),
         )
 }

@@ -1,8 +1,10 @@
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
-use crate::journal::{JournalEntry, JournalPriority};
+use crate::journal::{JournalEntry, JournalPriority, JournalStorageMode};
 use crate::keys::copy_to_clipboard_system;
+
+pub mod retention_modal;
 
 pub fn logs_explorer_view(
     app: Entity<CrowApp>,
@@ -53,6 +55,7 @@ pub fn logs_explorer_view(
     let filtered_count = filtered_entries.len();
 
     div()
+        .relative()
         .size_full()
         .flex()
         .flex_col()
@@ -101,16 +104,57 @@ pub fn logs_explorer_view(
                                 .child(format!("{}/{} entries", filtered_count, total_count)),
                         ),
                 )
-                // Right controls: Live tail toggle, Clear, Copy
+                // Right controls: Live tail toggle, Retention boundaries, Clear
                 .child({
                     let app_tail = app_clone.clone();
                     let app_clear = app_clone.clone();
+                    let app_bound = app_clone.clone();
                     let is_tail = app_data.journal_live_tail;
+                    let is_warn = app_data.journal_telemetry.is_volatile_warning
+                        || app_data.journal_retention.storage != JournalStorageMode::Persistent;
+                    let bound_text = if is_warn {
+                        "⚠ VOLATILE (30m RISK)"
+                    } else {
+                        "30d · 4GB PERSISTENT"
+                    };
+                    let (bound_color, bound_bg) = if is_warn {
+                        (CRIT, CRIT_BG)
+                    } else {
+                        (OK, OK_BG)
+                    };
 
                     div()
                         .flex()
                         .items_center()
                         .gap(px(8.0))
+                        // Boundaries & Retention button
+                        .child(
+                            div()
+                                .id("journal-boundaries-btn")
+                                .flex()
+                                .items_center()
+                                .gap(px(6.0))
+                                .px(px(9.0))
+                                .py(px(3.5))
+                                .bg(bound_bg)
+                                .border_1()
+                                .border_color(bound_color)
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .on_click(move |_ev, _window, cx| {
+                                    app_bound.update(cx, |this, cx| {
+                                        this.toggle_journal_retention_modal(cx);
+                                    });
+                                })
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(10.0))
+                                        .font_weight(FontWeight::BOLD)
+                                        .text_color(bound_color)
+                                        .child(format!("⚙ BOUNDARIES: {}", bound_text)),
+                                ),
+                        )
                         // Live tail toggle
                         .child(
                             div()
@@ -449,6 +493,15 @@ pub fn logs_explorer_view(
                         .collect()
                 }),
         )
+        .children(if app_data.show_journal_retention_modal {
+            Some(retention_modal::retention_boundaries_modal(
+                &app_data.journal_retention,
+                &app_data.journal_telemetry,
+                app_clone.clone(),
+            ))
+        } else {
+            None
+        })
 }
 
 fn render_journal_row(

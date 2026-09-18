@@ -19,7 +19,10 @@ use crate::views::lock::{
 use crate::views::onboard::{
     append_to_known_hosts, onboard_view, probe_host, OnboardFieldFocus, OnboardState, OnboardStep,
 };
-use crate::journal::{JournalEntry, JournalPriority, reader::read_journal_for_server};
+use crate::journal::{
+    JournalEntry, JournalPriority, reader::read_journal_for_server,
+    retention::{generate_journald_conf, read_retention_for_server, JournalRetentionConfig, JournalStorageMode, JournalTelemetry},
+};
 use crate::views::logs::logs_explorer_view;
 use crate::views::overview::log_tail::log_tail;
 use crate::views::overview::services_table::{default_services, services_table, ServiceUnit};
@@ -126,12 +129,16 @@ pub struct CrowApp {
     // Real Stats & Metrics Telemetry Store
     pub metrics_store: HashMap<String, ServerMetrics>,
     pub _metrics_poll_task: Task<()>,
-    // Systemd Journal Log Explorer
+    // Systemd Journal Log Explorer & Retention Boundaries
     pub journal_entries: Vec<JournalEntry>,
     pub journal_search: String,
     pub journal_severity_filter: Option<JournalPriority>,
     pub journal_unit_filter: Option<String>,
     pub journal_live_tail: bool,
+    pub journal_retention: JournalRetentionConfig,
+    pub journal_telemetry: JournalTelemetry,
+    pub show_journal_retention_modal: bool,
+    pub selected_managed_file: String,
 }
 
 impl CrowApp {
@@ -270,6 +277,12 @@ host    all             all             10.0.4.0/24             scram-sha-256
             Vec::new()
         };
 
+        let (journal_retention, journal_telemetry) = if let Some(first_srv) = servers.first() {
+            read_retention_for_server(&first_srv.host)
+        } else {
+            read_retention_for_server("local")
+        };
+
         Self {
             focus_handle: cx.focus_handle(),
             vault,
@@ -336,6 +349,10 @@ host    all             all             10.0.4.0/24             scram-sha-256
             journal_severity_filter: None,
             journal_unit_filter: None,
             journal_live_tail: true,
+            journal_retention,
+            journal_telemetry,
+            show_journal_retention_modal: false,
+            selected_managed_file: "journald.conf".to_string(),
         }
     }
 
@@ -352,6 +369,8 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 if !fresh_logs.is_empty() {
                     self.journal_entries = fresh_logs;
                 }
+                let (_cfg, telemetry) = read_retention_for_server(&active_srv.host);
+                self.journal_telemetry = telemetry;
             }
         }
 
@@ -391,6 +410,46 @@ host    all             all             10.0.4.0/24             scram-sha-256
 
     pub fn clear_journal(&mut self, cx: &mut Context<Self>) {
         self.journal_entries.clear();
+        cx.notify();
+    }
+
+    pub fn toggle_journal_retention_modal(&mut self, cx: &mut Context<Self>) {
+        self.show_journal_retention_modal = !self.show_journal_retention_modal;
+        cx.notify();
+    }
+
+    pub fn set_journal_quota(&mut self, quota_mb: u64, cx: &mut Context<Self>) {
+        self.journal_retention.system_max_use_mb = quota_mb;
+        self.journal_telemetry.estimated_retained_days = quota_mb as f32 / self.journal_telemetry.daily_burn_rate_mb.max(1.0);
+        cx.notify();
+    }
+
+    pub fn set_journal_retention_days(&mut self, days: u32, cx: &mut Context<Self>) {
+        self.journal_retention.max_retention_days = days;
+        cx.notify();
+    }
+
+    pub fn set_journal_keep_free(&mut self, mb: u64, cx: &mut Context<Self>) {
+        self.journal_retention.system_keep_free_mb = mb;
+        cx.notify();
+    }
+
+    pub fn set_journal_storage_mode(&mut self, mode: JournalStorageMode, cx: &mut Context<Self>) {
+        self.journal_retention.storage = mode;
+        self.journal_telemetry.is_volatile_warning = mode != JournalStorageMode::Persistent;
+        cx.notify();
+    }
+
+    pub fn select_managed_file(&mut self, filename: &str, cx: &mut Context<Self>) {
+        self.selected_managed_file = filename.to_string();
+        cx.notify();
+    }
+
+    pub fn apply_journal_boundaries(&mut self, cx: &mut Context<Self>) {
+        let conf = generate_journald_conf(&self.journal_retention);
+        let _ = std::fs::create_dir_all("/tmp/crow-config");
+        let _ = std::fs::write("/tmp/crow-config/journald.conf", conf);
+        self.show_journal_retention_modal = false;
         cx.notify();
     }
 
@@ -1719,12 +1778,22 @@ impl Render for CrowApp {
                                                                         .child(log_tail(&self.journal_entries, app_view.clone()))
                                                                 )
                                                             } else if is_config {
+                                                                let editor_view = if self.selected_managed_file == "journald.conf" {
+                                                                    crate::views::config::journald_editor::journald_editor(
+                                                                        &self.journal_retention,
+                                                                        &self.journal_telemetry,
+                                                                        app_view.clone(),
+                                                                    ).into_any_element()
+                                                                } else {
+                                                                    rules_editor(&self.hba_rules, app_view.clone()).into_any_element()
+                                                                };
+
                                                                 Some(
                                                                     div()
                                                                         .size_full()
                                                                         .flex()
-                                                                        .child(managed_files_rail())
-                                                                        .child(rules_editor(&self.hba_rules, app_view.clone()))
+                                                                        .child(managed_files_rail(&self.selected_managed_file, app_view.clone()))
+                                                                        .child(editor_view)
                                                                         .child(pending_diff_rail())
                                                                 )
                                                             } else if self.active_view == "logs" {
