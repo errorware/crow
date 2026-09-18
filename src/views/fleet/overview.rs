@@ -1,6 +1,7 @@
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::{CrowApp, Screen};
+use crate::components::icons::{TablerIcon, tabler_icon};
 
 pub struct FleetHost {
     pub name: String,
@@ -25,83 +26,6 @@ pub struct FleetHost {
     pub is_selected: bool,
 }
 
-pub fn default_fleet_hosts() -> Vec<FleetHost> {
-    vec![
-        FleetHost {
-            name: "edge-01".into(), ip: "159.223.84.17".into(), role: "web · nginx".into(), env: "PROD".into(),
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 38, cpu_label: "38%".into(), mem_pct: 73, mem_label: "73%".into(),
-            disk: "43%".into(), uptime: "64d 07h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
-            alerts: "2".into(), alert_color: WARN, status_color: OK, is_critical_border: false, pill: "OK".into(), is_selected: true,
-        },
-        FleetHost {
-            name: "edge-02".into(), ip: "159.223.84.22".into(), role: "web · nginx".into(), env: "PROD".into(),
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 31, cpu_label: "31%".into(), mem_pct: 61, mem_label: "61%".into(),
-            disk: "39%".into(), uptime: "64d 07h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
-            alerts: "0".into(), alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK".into(), is_selected: false,
-        },
-        FleetHost {
-            name: "db-primary".into(), ip: "10.0.4.11".into(), role: "postgres 16".into(), env: "PROD".into(),
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 64, cpu_label: "64%".into(), mem_pct: 82, mem_label: "82%".into(),
-            disk: "77%".into(), uptime: "121d 03h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
-            alerts: "3".into(), alert_color: WARN, status_color: WARN, is_critical_border: false, pill: "DEGRADED".into(), is_selected: false,
-        },
-        FleetHost {
-            name: "db-replica-01".into(), ip: "10.0.4.12".into(), role: "postgres 16".into(), env: "PROD".into(),
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 22, cpu_label: "22%".into(), mem_pct: 58, mem_label: "58%".into(),
-            disk: "74%".into(), uptime: "121d 03h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
-            alerts: "0".into(), alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK".into(), is_selected: false,
-        },
-        FleetHost {
-            name: "redis-01".into(), ip: "10.0.4.18".into(), role: "cache · queue".into(), env: "PROD".into(),
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 47, cpu_label: "47%".into(), mem_pct: 44, mem_label: "44%".into(),
-            disk: "18%".into(), uptime: "89d 11h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
-            alerts: "1".into(), alert_color: WARN, status_color: WARN, is_critical_border: false, pill: "DEGRADED".into(), is_selected: false,
-        },
-        FleetHost {
-            name: "worker-04".into(), ip: "10.0.4.31".into(), role: "sidekiq".into(), env: "PROD".into(),
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 0, cpu_label: "—".into(), mem_pct: 0, mem_label: "—".into(),
-            disk: "—".into(), uptime: "—".into(), agent: "0.8.1".into(), agent_color: WARN,
-            alerts: "2".into(), alert_color: CRIT, status_color: CRIT, is_critical_border: true, pill: "UNREACHABLE".into(), is_selected: false,
-        },
-        FleetHost {
-            name: "worker-05".into(), ip: "10.0.4.32".into(), role: "sidekiq".into(), env: "PROD".into(),
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 71, cpu_label: "71%".into(), mem_pct: 66, mem_label: "66%".into(),
-            disk: "31%".into(), uptime: "12d 19h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
-            alerts: "0".into(), alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK".into(), is_selected: false,
-        },
-        FleetHost {
-            name: "metrics-01".into(), ip: "10.0.4.40".into(), role: "prometheus".into(), env: "PROD".into(),
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 18, cpu_label: "18%".into(), mem_pct: 39, mem_label: "39%".into(),
-            disk: "62%".into(), uptime: "31d 18h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
-            alerts: "0".into(), alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK".into(), is_selected: false,
-        },
-        FleetHost {
-            name: "bastion".into(), ip: "159.223.84.9".into(), role: "ssh jump".into(), env: "PROD".into(),
-            env_bg: CRIT_BG, env_fg: CRIT, cpu_pct: 3, cpu_label: "3%".into(), mem_pct: 12, mem_label: "12%".into(),
-            disk: "9%".into(), uptime: "204d 02h".into(), agent: "—".into(), agent_color: TEXT_FAINT,
-            alerts: "1".into(), alert_color: WARN, status_color: TEXT_FAINT, is_critical_border: false, pill: "NO AGENT".into(), is_selected: false,
-        },
-        FleetHost {
-            name: "stage-web-01".into(), ip: "10.1.2.11".into(), role: "web · nginx".into(), env: "STAGE".into(),
-            env_bg: WARN_BG, env_fg: WARN, cpu_pct: 12, cpu_label: "12%".into(), mem_pct: 28, mem_label: "28%".into(),
-            disk: "22%".into(), uptime: "8d 04h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
-            alerts: "0".into(), alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK".into(), is_selected: false,
-        },
-        FleetHost {
-            name: "stage-db-01".into(), ip: "10.1.2.21".into(), role: "postgres 16".into(), env: "STAGE".into(),
-            env_bg: WARN_BG, env_fg: WARN, cpu_pct: 8, cpu_label: "8%".into(), mem_pct: 34, mem_label: "34%".into(),
-            disk: "28%".into(), uptime: "8d 04h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
-            alerts: "0".into(), alert_color: TEXT_FAINT, status_color: OK, is_critical_border: false, pill: "OK".into(), is_selected: false,
-        },
-        FleetHost {
-            name: "build-01".into(), ip: "10.1.9.5".into(), role: "ci runner".into(), env: "DEV".into(),
-            env_bg: hex_rgb(0x1a1b21), env_fg: TEXT_MUTED, cpu_pct: 92, cpu_label: "92%".into(), mem_pct: 71, mem_label: "71%".into(),
-            disk: "88%".into(), uptime: "2d 06h".into(), agent: "0.9.4".into(), agent_color: TEXT_FAINT,
-            alerts: "1".into(), alert_color: WARN, status_color: WARN, is_critical_border: false, pill: "DEGRADED".into(), is_selected: false,
-        },
-    ]
-}
-
 pub fn fleet_stat_strip(
     server_count: usize,
     agent_count: usize,
@@ -111,18 +35,32 @@ pub fn fleet_stat_strip(
     let s_count = server_count.to_string();
     let a_cov = agent_count.to_string();
     let a_tot = format!("/{}", server_count);
-    let load_val = avg_load.map(|l| format!("{:.2}", l)).unwrap_or_else(|| "1.42".to_string());
-    let vcpu_note = if total_vcpu > 0 {
+    let load_val = if server_count == 0 {
+        "—".to_string()
+    } else {
+        avg_load.map(|l| format!("{:.2}", l)).unwrap_or_else(|| "0.00".to_string())
+    };
+    let vcpu_note = if server_count == 0 {
+        "0 vCPU across fleet".to_string()
+    } else if total_vcpu > 0 {
         format!("weighted avg · {} vCPU", total_vcpu)
     } else {
-        "weighted avg · 96 vCPU".to_string()
+        "weighted avg · 1 vCPU".to_string()
     };
+    let alert_count_str = if server_count == 0 { "0".to_string() } else { "0".to_string() };
+    let alert_note = if server_count == 0 { "all systems normal".to_string() } else { "0 crit · 0 warn".to_string() };
+    let drift_str = "0".to_string();
+    let drift_note = if server_count == 0 { "baseline unconfigured".to_string() } else { "in sync with policy".to_string() };
+    let host_key_age = if server_count == 0 { "—".to_string() } else { "0".to_string() };
+    let host_key_unit = if server_count == 0 { "".to_string() } else { "d".to_string() };
+    let host_key_note = if server_count == 0 { "no enrolled keys".to_string() } else { "within 90d policy".to_string() };
+
     let stats = [
-        ("SERVERS", s_count, "".to_string(), "3 regions · 4 groups".to_string(), TEXT_PRIMARY),
-        ("OPEN ALERTS", "7".to_string(), "".to_string(), "2 crit · 5 warn".to_string(), WARN),
-        ("CONFIG DRIFT", "3".to_string(), " hosts".to_string(), "authorized_keys, ufw".to_string(), WARN),
+        ("SERVERS", s_count, "".to_string(), if server_count == 0 { "no regions enrolled".to_string() } else { "1 region · 1 group".to_string() }, TEXT_PRIMARY),
+        ("OPEN ALERTS", alert_count_str, "".to_string(), alert_note, if server_count == 0 { TEXT_MUTED } else { OK }),
+        ("CONFIG DRIFT", drift_str, " hosts".to_string(), drift_note, if server_count == 0 { TEXT_MUTED } else { OK }),
         ("FLEET LOAD", load_val, "".to_string(), vcpu_note, TEXT_PRIMARY),
-        ("OLDEST HOST KEY", "214".to_string(), "d".to_string(), "worker-04 · policy 90d".to_string(), CRIT),
+        ("OLDEST HOST KEY", host_key_age, host_key_unit, host_key_note, if server_count == 0 { TEXT_MUTED } else { OK }),
         ("AGENT COVERAGE", a_cov, a_tot, "telemetry coverage".to_string(), TEXT_PRIMARY),
     ];
 
@@ -216,21 +154,10 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                     )
                 }
             } else {
-                match s.name.as_str() {
-                    "edge-01" => (38, "38%".into(), 73, "73%".into(), "43%".into(), "64d 07h".into()),
-                    "edge-02" => (31, "31%".into(), 61, "61%".into(), "39%".into(), "64d 07h".into()),
-                    "db-primary" => (64, "64%".into(), 82, "82%".into(), "77%".into(), "121d 03h".into()),
-                    "db-replica-01" => (22, "22%".into(), 58, "58%".into(), "74%".into(), "121d 03h".into()),
-                    "redis-01" => (47, "47%".into(), 44, "44%".into(), "18%".into(), "89d 11h".into()),
-                    "worker-04" => (0, "—".into(), 0, "—".into(), "—".into(), "—".into()),
-                    "worker-05" => (71, "71%".into(), 66, "66%".into(), "31%".into(), "12d 19h".into()),
-                    _ => {
-                        if s.status == "online" {
-                            (18, "18%".into(), 34, "34%".into(), "24%".into(), "1d 04h".into())
-                        } else {
-                            (0, "—".into(), 0, "—".into(), "—".into(), "—".into())
-                        }
-                    }
+                if s.status == "online" {
+                    (0, "0%".into(), 0, "0%".into(), "—".into(), "—".into())
+                } else {
+                    (0, "—".into(), 0, "—".into(), "—".into(), "—".into())
                 }
             };
             FleetHost {
@@ -257,7 +184,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
             }
         }).collect()
     } else {
-        default_fleet_hosts()
+        Vec::new()
     };
 
     let server_count = hosts.len();
@@ -275,32 +202,32 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
         None
     };
 
-    let alerts = [
-        ("CRIT", CRIT, CRIT_BG, "worker-04", "ssh handshake timeout — 6 consecutive probes failed", "4m"),
-        ("CRIT", CRIT, CRIT_BG, "worker-04", "host key older than policy (214d > 90d)", "4m"),
-        ("WARN", WARN, WARN_BG, "db-primary", "pg_hba.conf allows md5 from 0.0.0.0/0", "22m"),
-        ("WARN", WARN, WARN_BG, "db-primary", "memory 82% — shared_buffers may be oversized", "1h"),
-        ("WARN", WARN, WARN_BG, "build-01", "disk 88% — /var/lib/docker growing 4GB/day", "2h"),
-        ("WARN", WARN, WARN_BG, "redis-01", "no persistence to disk (errno 28)", "3h"),
-        ("WARN", WARN, WARN_BG, "bastion", "crow-agent not installed — telemetry unavailable", "1d"),
-    ];
+    let alerts: Vec<(&'static str, Rgba, Rgba, String, String, String)> = app_data.servers.iter()
+        .filter(|s| s.status == "unreachable" || s.status == "offline" || s.status == "degraded" || s.status == "warn" || s.status == "crit")
+        .map(|s| {
+            let (lvl, fg, bg) = if s.status == "unreachable" || s.status == "offline" || s.status == "crit" {
+                ("CRIT", CRIT, CRIT_BG)
+            } else {
+                ("WARN", WARN, WARN_BG)
+            };
+            let msg = if s.status == "unreachable" || s.status == "offline" {
+                format!("Host unreachable or offline (port {})", s.port)
+            } else {
+                "Health degraded or warning status reported".to_string()
+            };
+            (lvl, fg, bg, s.name.clone(), msg, "now".to_string())
+        })
+        .collect();
 
-    let activities = [
-        ("03:41:09", "maya", hex_rgb(0x8ab4ff), "staged pg_hba.conf edit on db-primary", TEXT_PRIMARY),
-        ("03:38:52", "crow", TEXT_FAINT, "auto-rollback armed for db-primary", WARN),
-        ("03:31:20", "maya", hex_rgb(0x8ab4ff), "opened tab edge-01", TEXT_MUTED),
-        ("03:22:44", "crow", TEXT_FAINT, "probe failed worker-04 (attempt 6)", CRIT),
-        ("03:14:02", "ravi", hex_rgb(0x8ab4ff), "restarted sidekiq@web on worker-05", TEXT_PRIMARY),
-        ("03:12:36", "ravi", hex_rgb(0x8ab4ff), "saved fleet settings (3 keys)", TEXT_PRIMARY),
-        ("02:58:11", "crow", TEXT_FAINT, "rotated host key on stage-web-01", OK),
-        ("02:41:07", "crow", TEXT_FAINT, "snapshot edge-02 complete (1.2 GB)", TEXT_MUTED),
-        ("02:30:55", "maya", hex_rgb(0x8ab4ff), "flushed ufw rule 7 on edge-01", WARN),
-        ("02:11:19", "crow", TEXT_FAINT, "agent upgraded 0.9.3 → 0.9.4 on 10 hosts", OK),
-        ("01:52:40", "ravi", hex_rgb(0x8ab4ff), "granted deploy access to sam@acme.dev (30d)", TEXT_PRIMARY),
-        ("01:33:08", "crow", TEXT_FAINT, "baseline drift detected on /root/.ssh", WARN),
-        ("01:20:44", "maya", hex_rgb(0x8ab4ff), "closed tab stage-db-01", TEXT_MUTED),
-        ("00:58:02", "crow", TEXT_FAINT, "nightly backup verified on 12 hosts", OK),
-    ];
+    let activities: Vec<(String, &'static str, Rgba, String, Rgba)> = app_data.servers.iter().take(10).map(|s| {
+        (
+            s.last_seen_at.as_deref().and_then(|t| t.split('T').nth(1)).and_then(|t| t.get(0..8)).unwrap_or("00:00:00").to_string(),
+            "crow",
+            TEXT_FAINT,
+            format!("enrolled host {} ({}:{})", s.name, s.host, s.port),
+            TEXT_PRIMARY,
+        )
+    }).collect();
 
     div()
         .relative()
@@ -348,10 +275,9 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                         .font_weight(FontWeight::BOLD)
                                         .child(format!("ALL ({})", server_count)),
                                 )
-                                .child(div().text_color(TEXT_MUTED).child("PRODUCTION (8)"))
-                                .child(div().text_color(TEXT_MUTED).child("STAGING (2)"))
-                                .child(div().text_color(TEXT_MUTED).child("EDGE"))
-                                .child(div().text_color(TEXT_MUTED).child("DATA"))
+                                .child(div().text_color(TEXT_MUTED).child(format!("PRODUCTION ({})", hosts.iter().filter(|h| h.env == "PROD").count())))
+                                .child(div().text_color(TEXT_MUTED).child(format!("STAGING ({})", hosts.iter().filter(|h| h.env == "STAGE").count())))
+                                .child(div().text_color(TEXT_MUTED).child(format!("DEV / LAB ({})", hosts.iter().filter(|h| h.env == "DEV" || h.env == "LAB").count())))
                                 .child(div().text_color(TEXT_MUTED).child("BY REGION"))
                                 .child({
                                     let app_lab = app.clone();
@@ -417,243 +343,347 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                 .id("fleet-host-list")
                                 .flex_1()
                                 .overflow_y_scroll()
-                                .children(hosts.into_iter().enumerate().map(|(idx, host)| {
-                                    let app_host = app.clone();
-                                    let host_name = host.name.clone();
-                                    let is_even = idx % 2 == 0;
+                                .children(if hosts.is_empty() {
+                                    let app_lab = app.clone();
+                                    let app_add = app.clone();
+                                    Some(
+                                        div()
+                                            .id("fleet-empty-state")
+                                            .size_full()
+                                            .flex()
+                                            .flex_col()
+                                            .items_center()
+                                            .justify_center()
+                                            .gap(px(16.0))
+                                            .p(px(32.0))
+                                            // Empty State Icon & Banner
+                                            .child(
+                                                div()
+                                                    .size(px(48.0))
+                                                    .border_1()
+                                                    .border_color(BORDER_STRONG)
+                                                    .bg(BG_PANEL)
+                                                    .flex()
+                                                    .items_center()
+                                                    .justify_center()
+                                                    .child(
+                                                        tabler_icon(TablerIcon::Server)
+                                                            .size(px(24.0))
+                                                            .text_color(TEXT_MUTED),
+                                                    ),
+                                            )
+                                            .child(
+                                                div()
+                                                    .flex()
+                                                    .flex_col()
+                                                    .items_center()
+                                                    .gap(px(4.0))
+                                                    .child(
+                                                        div()
+                                                            .font_family(FONT_MONO)
+                                                            .font_weight(FontWeight::BOLD)
+                                                            .text_size(px(13.0))
+                                                            .text_color(TEXT_MAX)
+                                                            .child("NO SERVERS ENROLLED"),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .font_family(FONT_MONO)
+                                                            .text_size(px(11.0))
+                                                            .text_color(TEXT_DIM)
+                                                            .child("Connect remote Linux servers via SSH or spin up local isolated lab nodes."),
+                                                    ),
+                                            )
+                                            // CTAs
+                                            .child(
+                                                div()
+                                                    .flex()
+                                                    .items_center()
+                                                    .gap(px(12.0))
+                                                    .mt(px(8.0))
+                                                    .child(
+                                                        div()
+                                                            .id("btn-empty-local-lab")
+                                                            .px(px(14.0))
+                                                            .py(px(7.0))
+                                                            .bg(OK_BG)
+                                                            .border_1()
+                                                            .border_color(OK)
+                                                            .text_color(OK)
+                                                            .hover(|s| s.bg(BG_ROW_HOVER))
+                                                            .cursor_pointer()
+                                                            .font_family(FONT_MONO)
+                                                            .font_weight(FontWeight::BOLD)
+                                                            .text_size(px(11.0))
+                                                            .on_click(move |_ev, _window, cx| {
+                                                                app_lab.update(cx, |this, cx| {
+                                                                    this.toggle_local_lab_modal(cx);
+                                                                });
+                                                            })
+                                                            .child("⚡ ENROLL LOCAL LAB NODE"),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .id("btn-empty-add-server")
+                                                            .px(px(14.0))
+                                                            .py(px(7.0))
+                                                            .bg(BG_PANEL)
+                                                            .border_1()
+                                                            .border_color(BORDER_STRONG)
+                                                            .text_color(TEXT_PRIMARY)
+                                                            .hover(|s| s.bg(BG_ROW_HOVER))
+                                                            .cursor_pointer()
+                                                            .font_family(FONT_MONO)
+                                                            .font_weight(FontWeight::BOLD)
+                                                            .text_size(px(11.0))
+                                                            .on_click(move |_ev, _window, cx| {
+                                                                app_add.update(cx, |this, cx| {
+                                                                    this.set_screen(Screen::Onboard, cx);
+                                                                });
+                                                            })
+                                                            .child("+ ADD REMOTE SERVER (SSH)"),
+                                                    ),
+                                            )
+                                    ).into_iter().collect::<Vec<_>>()
+                                } else {
+                                    hosts.into_iter().enumerate().map(|(idx, host)| {
+                                        let app_host = app.clone();
+                                        let host_name = host.name.clone();
+                                        let is_even = idx % 2 == 0;
 
-                                    div()
-                                        .id(ElementId::NamedInteger("fleet-row".into(), idx as u64))
-                                        .relative()
-                                        .h(px(32.0))
-                                        .flex_none()
-                                        .flex()
-                                        .items_center()
-                                        .px(px(12.0))
-                                        .bg(if host.is_selected {
-                                            BG_ROW_SELECTED
-                                        } else if is_even {
-                                            BG_APP
-                                        } else {
-                                            BG_ROW_ALT
-                                        })
-                                        .border_b_1()
-                                        .border_color(BORDER_ROW)
-                                        .children(if host.is_selected {
-                                            Some(left_indicator(TEXT_PRIMARY))
-                                        } else if host.is_critical_border {
-                                            Some(left_indicator(CRIT))
-                                        } else {
-                                            None
-                                        })
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
-                                        .cursor_pointer()
-                                        .on_click(move |_ev, _window, cx| {
-                                            let hn = host_name.clone();
-                                            app_host.update(cx, |this, cx| {
-                                                this.switch_tab(&hn, cx);
-                                                this.set_screen(Screen::Server, cx);
-                                            });
-                                        })
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(11.5))
-                                        // Status dot / glyph
-                                        .child(
-                                            div()
-                                                .w(px(22.0))
-                                                .flex()
-                                                .items_center()
-                                                .justify_center()
-                                                .child(
-                                                    div()
-                                                        .size(px(6.0))
-                                                        .rounded_full()
-                                                        .bg(host.status_color),
-                                                ),
-                                        )
-                                        // Host name + pill
-                                        .child(
-                                            div()
-                                                .w(px(160.0))
-                                                .flex()
-                                                .items_center()
-                                                .gap(px(6.0))
-                                                .child(
-                                                    div()
-                                                        .font_weight(if host.is_selected {
-                                                            FontWeight::BOLD
-                                                        } else {
-                                                            FontWeight::NORMAL
-                                                        })
-                                                        .text_color(if host.is_selected {
-                                                            TEXT_MAX
-                                                        } else {
-                                                            TEXT_PRIMARY
-                                                        })
-                                                        .child(host.name),
-                                                )
-                                                .child(
-                                                    div()
-                                                        .px(px(4.0))
-                                                        .py(px(1.5))
-                                                        .bg(if host.pill == "UNREACHABLE" {
-                                                            CRIT_BG
-                                                        } else if host.pill == "DEGRADED" {
-                                                            WARN_BG
-                                                        } else {
-                                                            OK_BG
-                                                        })
-                                                        .text_color(if host.pill == "UNREACHABLE" {
-                                                            CRIT
-                                                        } else if host.pill == "DEGRADED" {
-                                                            WARN
-                                                        } else {
-                                                            OK
-                                                        })
-                                                        .text_size(px(8.5))
-                                                        .font_weight(FontWeight::BOLD)
-                                                        .child(host.pill),
-                                                ),
-                                        )
-                                        // Address
-                                        .child(
-                                            div()
-                                                .w(px(120.0))
-                                                .text_color(TEXT_DIM)
-                                                .child(host.ip),
-                                        )
-                                        // Role
-                                        .child(
-                                            div()
-                                                .w(px(110.0))
-                                                .text_size(px(11.0))
-                                                .text_color(TEXT_TERTIARY)
-                                                .child(host.role),
-                                        )
-                                        // Env
-                                        .child(
-                                            div()
-                                                .w(px(60.0))
-                                                .child(
-                                                    div()
-                                                        .px(px(4.0))
-                                                        .py(px(1.5))
-                                                        .bg(host.env_bg)
-                                                        .text_color(host.env_fg)
-                                                        .text_size(px(8.5))
-                                                        .font_weight(FontWeight::BOLD)
-                                                        .child(host.env),
-                                                ),
-                                        )
-                                        // CPU mini meter
-                                        .child(
-                                            div()
-                                                .w(px(95.0))
-                                                .flex()
-                                                .items_center()
-                                                .gap(px(6.0))
-                                                .child(
-                                                    div()
-                                                        .w(px(34.0))
-                                                        .h(px(3.0))
-                                                        .bg(hex_rgb(0x1a1b21))
-                                                        .flex_none()
-                                                        .child(
-                                                            div()
-                                                                .w(px(34.0 * (host.cpu_pct as f32 / 100.0)))
-                                                                .h(px(3.0))
-                                                                .bg(if host.cpu_pct > 85 {
-                                                                    CRIT
-                                                                } else if host.cpu_pct > 60 {
-                                                                    WARN
-                                                                } else {
-                                                                    OK
-                                                                }),
-                                                        ),
-                                                )
-                                                .child(
-                                                    div()
-                                                        .text_size(px(10.5))
-                                                        .text_color(TEXT_SECONDARY)
-                                                        .child(host.cpu_label),
-                                                ),
-                                        )
-                                        // MEM mini meter
-                                        .child(
-                                            div()
-                                                .w(px(95.0))
-                                                .flex()
-                                                .items_center()
-                                                .gap(px(6.0))
-                                                .child(
-                                                    div()
-                                                        .w(px(34.0))
-                                                        .h(px(3.0))
-                                                        .bg(hex_rgb(0x1a1b21))
-                                                        .flex_none()
-                                                        .child(
-                                                            div()
-                                                                .w(px(34.0 * (host.mem_pct as f32 / 100.0)))
-                                                                .h(px(3.0))
-                                                                .bg(if host.mem_pct > 85 {
-                                                                    CRIT
-                                                                } else if host.mem_pct > 60 {
-                                                                    WARN
-                                                                } else {
-                                                                    OK
-                                                                }),
-                                                        ),
-                                                )
-                                                .child(
-                                                    div()
-                                                        .text_size(px(10.5))
-                                                        .text_color(TEXT_SECONDARY)
-                                                        .child(host.mem_label),
-                                                ),
-                                        )
-                                        // Disk
-                                        .child(
-                                            div()
-                                                .w(px(55.0))
-                                                .text_align(TextAlign::Right)
-                                                .text_color(if host.disk.starts_with("7") || host.disk.starts_with("8") {
-                                                    WARN
-                                                } else {
-                                                    TEXT_PRIMARY
-                                                })
-                                                .child(host.disk),
-                                        )
-                                        // Uptime
-                                        .child(
-                                            div()
-                                                .w(px(80.0))
-                                                .text_align(TextAlign::Right)
-                                                .text_color(TEXT_DIM)
-                                                .child(host.uptime),
-                                        )
-                                        // Agent
-                                        .child(
-                                            div()
-                                                .w(px(70.0))
-                                                .text_align(TextAlign::Right)
-                                                .text_size(px(10.5))
-                                                .text_color(host.agent_color)
-                                                .child(host.agent),
-                                        )
-                                        // Alerts
-                                        .child(
-                                            div()
-                                                .w(px(65.0))
-                                                .text_align(TextAlign::Right)
-                                                .font_weight(if host.alerts == "0" {
-                                                    FontWeight::NORMAL
-                                                } else {
-                                                    FontWeight::BOLD
-                                                })
-                                                .text_color(host.alert_color)
-                                                .child(host.alerts),
-                                        )
-                                })),
+                                        div()
+                                            .id(ElementId::NamedInteger("fleet-row".into(), idx as u64))
+                                            .relative()
+                                            .h(px(32.0))
+                                            .flex_none()
+                                            .flex()
+                                            .items_center()
+                                            .px(px(12.0))
+                                            .bg(if host.is_selected {
+                                                BG_ROW_SELECTED
+                                            } else if is_even {
+                                                BG_APP
+                                            } else {
+                                                BG_ROW_ALT
+                                            })
+                                            .border_b_1()
+                                            .border_color(BORDER_ROW)
+                                            .children(if host.is_selected {
+                                                Some(left_indicator(TEXT_PRIMARY))
+                                            } else if host.is_critical_border {
+                                                Some(left_indicator(CRIT))
+                                            } else {
+                                                None
+                                            })
+                                            .hover(|s| s.bg(BG_ROW_HOVER))
+                                            .cursor_pointer()
+                                            .on_click(move |_ev, _window, cx| {
+                                                let hn = host_name.clone();
+                                                app_host.update(cx, |this, cx| {
+                                                    this.switch_tab(&hn, cx);
+                                                    this.set_screen(Screen::Server, cx);
+                                                });
+                                            })
+                                            .font_family(FONT_MONO)
+                                            .text_size(px(11.5))
+                                            // Status dot / glyph
+                                            .child(
+                                                div()
+                                                    .w(px(22.0))
+                                                    .flex()
+                                                    .items_center()
+                                                    .justify_center()
+                                                    .child(
+                                                        div()
+                                                            .size(px(6.0))
+                                                            .rounded_full()
+                                                            .bg(host.status_color),
+                                                    ),
+                                            )
+                                            // Host name + pill
+                                            .child(
+                                                div()
+                                                    .w(px(160.0))
+                                                    .flex()
+                                                    .items_center()
+                                                    .gap(px(6.0))
+                                                    .child(
+                                                        div()
+                                                            .font_weight(if host.is_selected {
+                                                                FontWeight::BOLD
+                                                            } else {
+                                                                FontWeight::NORMAL
+                                                            })
+                                                            .text_color(if host.is_selected {
+                                                                TEXT_MAX
+                                                            } else {
+                                                                TEXT_PRIMARY
+                                                            })
+                                                            .child(host.name),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .px(px(4.0))
+                                                            .py(px(1.5))
+                                                            .bg(if host.pill == "UNREACHABLE" {
+                                                                CRIT_BG
+                                                            } else if host.pill == "DEGRADED" {
+                                                                WARN_BG
+                                                            } else {
+                                                                OK_BG
+                                                            })
+                                                            .text_color(if host.pill == "UNREACHABLE" {
+                                                                CRIT
+                                                            } else if host.pill == "DEGRADED" {
+                                                                WARN
+                                                            } else {
+                                                                OK
+                                                            })
+                                                            .text_size(px(8.5))
+                                                            .font_weight(FontWeight::BOLD)
+                                                            .child(host.pill),
+                                                    ),
+                                            )
+                                            // Address
+                                            .child(
+                                                div()
+                                                    .w(px(120.0))
+                                                    .text_color(TEXT_DIM)
+                                                    .child(host.ip),
+                                            )
+                                            // Role
+                                            .child(
+                                                div()
+                                                    .w(px(110.0))
+                                                    .text_size(px(11.0))
+                                                    .text_color(TEXT_TERTIARY)
+                                                    .child(host.role),
+                                            )
+                                            // Env
+                                            .child(
+                                                div()
+                                                    .w(px(60.0))
+                                                    .child(
+                                                        div()
+                                                            .px(px(4.0))
+                                                            .py(px(1.5))
+                                                            .bg(host.env_bg)
+                                                            .text_color(host.env_fg)
+                                                            .text_size(px(8.5))
+                                                            .font_weight(FontWeight::BOLD)
+                                                            .child(host.env),
+                                                    ),
+                                            )
+                                            // CPU mini meter
+                                            .child(
+                                                div()
+                                                    .w(px(95.0))
+                                                    .flex()
+                                                    .items_center()
+                                                    .gap(px(6.0))
+                                                    .child(
+                                                        div()
+                                                            .w(px(34.0))
+                                                            .h(px(3.0))
+                                                            .bg(hex_rgb(0x1a1b21))
+                                                            .flex_none()
+                                                            .child(
+                                                                div()
+                                                                    .w(px(34.0 * (host.cpu_pct as f32 / 100.0)))
+                                                                    .h(px(3.0))
+                                                                    .bg(if host.cpu_pct > 85 {
+                                                                        CRIT
+                                                                    } else if host.cpu_pct > 60 {
+                                                                        WARN
+                                                                    } else {
+                                                                        OK
+                                                                    }),
+                                                            ),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .text_size(px(10.5))
+                                                            .text_color(TEXT_SECONDARY)
+                                                            .child(host.cpu_label),
+                                                    ),
+                                            )
+                                            // MEM mini meter
+                                            .child(
+                                                div()
+                                                    .w(px(95.0))
+                                                    .flex()
+                                                    .items_center()
+                                                    .gap(px(6.0))
+                                                    .child(
+                                                        div()
+                                                            .w(px(34.0))
+                                                            .h(px(3.0))
+                                                            .bg(hex_rgb(0x1a1b21))
+                                                            .flex_none()
+                                                            .child(
+                                                                div()
+                                                                    .w(px(34.0 * (host.mem_pct as f32 / 100.0)))
+                                                                    .h(px(3.0))
+                                                                    .bg(if host.mem_pct > 85 {
+                                                                        CRIT
+                                                                    } else if host.mem_pct > 60 {
+                                                                        WARN
+                                                                    } else {
+                                                                        OK
+                                                                    }),
+                                                            ),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .text_size(px(10.5))
+                                                            .text_color(TEXT_SECONDARY)
+                                                            .child(host.mem_label),
+                                                    ),
+                                            )
+                                            // Disk
+                                            .child(
+                                                div()
+                                                    .w(px(55.0))
+                                                    .text_align(TextAlign::Right)
+                                                    .text_color(if host.disk.starts_with("7") || host.disk.starts_with("8") {
+                                                        WARN
+                                                    } else {
+                                                        TEXT_PRIMARY
+                                                    })
+                                                    .child(host.disk),
+                                            )
+                                            // Uptime
+                                            .child(
+                                                div()
+                                                    .w(px(80.0))
+                                                    .text_align(TextAlign::Right)
+                                                    .text_color(TEXT_DIM)
+                                                    .child(host.uptime),
+                                            )
+                                            // Agent
+                                            .child(
+                                                div()
+                                                    .w(px(70.0))
+                                                    .text_align(TextAlign::Right)
+                                                    .text_size(px(10.5))
+                                                    .text_color(host.agent_color)
+                                                    .child(host.agent),
+                                            )
+                                            // Alerts
+                                            .child(
+                                                div()
+                                                    .w(px(65.0))
+                                                    .text_align(TextAlign::Right)
+                                                    .font_weight(if host.alerts == "0" {
+                                                        FontWeight::NORMAL
+                                                    } else {
+                                                        FontWeight::BOLD
+                                                    })
+                                                    .text_color(host.alert_color)
+                                                    .child(host.alerts),
+                                            )
+                                    }).collect::<Vec<_>>()
+                                }),
                         ),
                 )
                 // Right Rail: Fleet Alerts (top) & Activity Log (bottom)
@@ -691,7 +721,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.0))
                                         .text_color(TEXT_DIMMER)
-                                        .child("7 open"),
+                                        .child(if alerts.is_empty() { "0 open".to_string() } else { format!("{} open", alerts.len()) }),
                                 )
                                 .child(div().flex_1())
                                 .child(
@@ -710,62 +740,78 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                 .flex_col()
                                 .border_b_1()
                                 .border_color(BORDER_PANEL)
-                                .children(alerts.iter().map(|(lvl, fg, bg, host, msg, age)| {
-                                    div()
-                                        .relative()
-                                        .flex()
-                                        .flex_col()
-                                        .gap(px(3.0))
-                                        .px(px(12.0))
-                                        .py(px(7.0))
-                                        .border_b_1()
-                                        .border_color(BORDER_ROW)
-                                        .bg(if *lvl == "CRIT" { CRIT_LOG_BG } else { hex_rgba(0, 0.0) })
-                                        .children(if *lvl == "CRIT" {
-                                            Some(left_indicator(CRIT))
-                                        } else {
-                                            None
-                                        })
-                                        .child(
-                                            div()
-                                                .flex()
-                                                .items_center()
-                                                .gap(px(8.0))
-                                                .child(
-                                                    div()
-                                                        .font_family(FONT_MONO)
-                                                        .text_size(px(8.5))
-                                                        .font_weight(FontWeight::BOLD)
-                                                        .px(px(4.0))
-                                                        .py(px(1.5))
-                                                        .bg(*bg)
-                                                        .text_color(*fg)
-                                                        .child(*lvl),
-                                                )
-                                                .child(
-                                                    div()
-                                                        .flex_1()
-                                                        .font_family(FONT_MONO)
-                                                        .text_size(px(11.0))
-                                                        .text_color(TEXT_SECONDARY)
-                                                        .child(*host),
-                                                )
-                                                .child(
-                                                    div()
-                                                        .font_family(FONT_MONO)
-                                                        .text_size(px(10.0))
-                                                        .text_color(TEXT_FAINT)
-                                                        .child(*age),
-                                                ),
-                                        )
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(10.5))
-                                                .text_color(if *lvl == "CRIT" { CRIT_INK } else { WARN_INK })
-                                                .child(*msg),
-                                        )
-                                })),
+                                .children(if alerts.is_empty() {
+                                    Some(
+                                        div()
+                                            .px(px(12.0))
+                                            .py(px(14.0))
+                                            .flex()
+                                            .items_center()
+                                            .gap(px(8.0))
+                                            .font_family(FONT_MONO)
+                                            .text_size(px(10.5))
+                                            .text_color(TEXT_MUTED)
+                                            .child(div().size(px(6.0)).rounded_full().bg(OK))
+                                            .child("✓ All fleet systems operational"),
+                                    ).into_iter().collect::<Vec<_>>()
+                                } else {
+                                    alerts.iter().map(|(lvl, fg, bg, host, msg, age)| {
+                                        div()
+                                            .relative()
+                                            .flex()
+                                            .flex_col()
+                                            .gap(px(3.0))
+                                            .px(px(12.0))
+                                            .py(px(7.0))
+                                            .border_b_1()
+                                            .border_color(BORDER_ROW)
+                                            .bg(if *lvl == "CRIT" { CRIT_LOG_BG } else { hex_rgba(0, 0.0) })
+                                            .children(if *lvl == "CRIT" {
+                                                Some(left_indicator(CRIT))
+                                            } else {
+                                                None
+                                            })
+                                            .child(
+                                                div()
+                                                    .flex()
+                                                    .items_center()
+                                                    .gap(px(8.0))
+                                                    .child(
+                                                        div()
+                                                            .font_family(FONT_MONO)
+                                                            .text_size(px(9.5))
+                                                            .font_weight(FontWeight::BOLD)
+                                                            .px(px(4.0))
+                                                            .py(px(1.5))
+                                                            .bg(*bg)
+                                                            .text_color(*fg)
+                                                            .child((*lvl).to_string()),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .flex_1()
+                                                            .font_family(FONT_MONO)
+                                                            .text_size(px(11.0))
+                                                            .text_color(TEXT_SECONDARY)
+                                                            .child(host.clone()),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .font_family(FONT_MONO)
+                                                            .text_size(px(10.0))
+                                                            .text_color(TEXT_FAINT)
+                                                            .child(age.clone()),
+                                                    ),
+                                            )
+                                            .child(
+                                                div()
+                                                    .font_family(FONT_MONO)
+                                                    .text_size(px(10.5))
+                                                    .text_color(if *lvl == "CRIT" { CRIT_INK } else { WARN_INK })
+                                                    .child(msg.clone()),
+                                            )
+                                    }).collect::<Vec<_>>()
+                                }),
                         )
                         // Activity Header
                         .child(
@@ -802,35 +848,47 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                 .flex_1()
                                 .overflow_y_scroll()
                                 .py(px(5.0))
-                                .children(activities.iter().map(|(ts, actor, actor_color, msg, text_c)| {
-                                    div()
-                                        .flex()
-                                        .gap(px(8.0))
-                                        .px(px(12.0))
-                                        .py(px(2.0))
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(10.5))
-                                        .line_height(relative(1.45))
-                                        .child(
-                                            div()
-                                                .text_color(TEXT_FAINTER)
-                                                .flex_none()
-                                                .child(*ts),
-                                        )
-                                        .child(
-                                            div()
-                                                .w(px(52.0))
-                                                .text_color(*actor_color)
-                                                .flex_none()
-                                                .child(*actor),
-                                        )
-                                        .child(
-                                            div()
-                                                .flex_1()
-                                                .text_color(*text_c)
-                                                .child(*msg),
-                                        )
-                                })),
+                                .children(if activities.is_empty() {
+                                    Some(
+                                        div()
+                                            .px(px(12.0))
+                                            .py(px(14.0))
+                                            .font_family(FONT_MONO)
+                                            .text_size(px(10.5))
+                                            .text_color(TEXT_DIMMER)
+                                            .child("No recent fleet activity recorded"),
+                                    ).into_iter().collect::<Vec<_>>()
+                                } else {
+                                    activities.iter().map(|(ts, actor, actor_color, msg, text_c)| {
+                                        div()
+                                            .flex()
+                                            .gap(px(8.0))
+                                            .px(px(12.0))
+                                            .py(px(2.0))
+                                            .font_family(FONT_MONO)
+                                            .text_size(px(10.5))
+                                            .line_height(relative(1.45))
+                                            .child(
+                                                div()
+                                                    .text_color(TEXT_FAINTER)
+                                                    .flex_none()
+                                                    .child(ts.clone()),
+                                            )
+                                            .child(
+                                                div()
+                                                    .w(px(52.0))
+                                                    .text_color(*actor_color)
+                                                    .flex_none()
+                                                    .child((*actor).to_string()),
+                                            )
+                                            .child(
+                                                div()
+                                                    .flex_1()
+                                                    .text_color(*text_c)
+                                                    .child(msg.clone()),
+                                            )
+                                    }).collect::<Vec<_>>()
+                                }),
                         ),
                 ),
         )

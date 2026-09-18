@@ -308,40 +308,6 @@ impl VaultDb {
             }
         }
 
-        // Seed default servers if empty
-        let server_count: i64 = self.conn.query_row(
-            "SELECT COUNT(*) FROM servers",
-            [],
-            |r| r.get(0),
-        )?;
-        if server_count == 0 {
-            let now = Utc::now().to_rfc3339();
-            let default_hosts = [
-                ("edge-01", "edge-01", "159.223.84.17", 22, "root", "publickey", "PROD", "web · nginx", "edge", r#"["web", "nginx", "ingress"]"#, 1, Some("0.9.4"), "online"),
-                ("edge-02", "edge-02", "159.223.84.22", 22, "root", "publickey", "PROD", "web · nginx", "edge", r#"["web", "nginx", "ingress"]"#, 1, Some("0.9.4"), "online"),
-                ("db-primary", "db-primary", "10.0.4.11", 22, "postgres", "publickey", "PROD", "postgres 16", "data", r#"["database", "postgres", "primary"]"#, 1, Some("0.9.4"), "degraded"),
-                ("db-replica-01", "db-replica-01", "10.0.4.12", 22, "postgres", "publickey", "PROD", "postgres 16", "data", r#"["database", "postgres", "replica"]"#, 1, Some("0.9.4"), "online"),
-                ("redis-01", "redis-01", "10.0.4.18", 22, "redis", "publickey", "PROD", "cache · queue", "data", r#"["redis", "cache"]"#, 1, Some("0.9.4"), "degraded"),
-                ("worker-04", "worker-04", "10.0.4.31", 22, "ubuntu", "publickey", "PROD", "sidekiq", "workers", r#"["sidekiq", "queue"]"#, 1, Some("0.8.1"), "unreachable"),
-                ("worker-05", "worker-05", "10.0.4.32", 22, "ubuntu", "publickey", "PROD", "sidekiq", "workers", r#"["sidekiq", "queue", "ruby"]"#, 1, Some("0.9.4"), "online"),
-                ("metrics-01", "metrics-01", "10.0.4.40", 22, "root", "publickey", "PROD", "prometheus", "data", r#"["monitoring", "prometheus"]"#, 1, Some("0.9.4"), "online"),
-                ("bastion", "bastion", "159.223.84.9", 22, "admin", "publickey", "PROD", "ssh jump", "edge", r#"["bastion", "jump"]"#, 0, None, "online"),
-                ("stage-web-01", "stage-web-01", "10.1.2.11", 22, "ubuntu", "publickey", "STAGE", "web · nginx", "staging", r#"["staging", "web"]"#, 1, Some("0.9.4"), "online"),
-                ("stage-db-01", "stage-db-01", "10.1.2.21", 22, "postgres", "publickey", "STAGE", "postgres 16", "staging", r#"["staging", "database"]"#, 1, Some("0.9.4"), "online"),
-                ("build-01", "build-01", "10.1.9.5", 22, "runner", "publickey", "DEV", "ci runner", "workers", r#"["ci", "build"]"#, 1, Some("0.9.4"), "degraded"),
-            ];
-
-            for (id, name, host, port, user, auth, env, role, grp, tags, agent_inst, agent_ver, status) in default_hosts {
-                let _ = self.conn.execute(
-                    "INSERT OR IGNORE INTO servers (
-                        id, name, host, port, login_user, auth_method, env, role, group_name, tags,
-                        agent_installed, agent_version, status, created_at
-                    ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14)",
-                    params![id, name, host, port, user, auth, env, role, grp, tags, agent_inst, agent_ver, status, now],
-                );
-            }
-        }
-
         Ok(())
     }
 
@@ -1134,10 +1100,7 @@ mod tests {
     fn test_default_servers_seeding() {
         let db = VaultDb::open_in_memory().unwrap();
         let servers = db.list_servers().unwrap();
-        assert_eq!(servers.len(), 12);
-        assert!(servers.iter().any(|s| s.name == "edge-01"));
-        assert!(servers.iter().any(|s| s.name == "worker-05"));
-        assert!(servers.iter().any(|s| s.name == "bastion"));
+        assert_eq!(servers.len(), 0);
     }
 
     #[test]

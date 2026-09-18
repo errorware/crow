@@ -37,6 +37,8 @@ pub fn titlebar(
     active_tab_id: &str,
     current_screen: Screen,
     menu_open: bool,
+    server_count: usize,
+    agent_count: usize,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
     let mut bar = div()
@@ -69,7 +71,7 @@ pub fn titlebar(
             .flex()
             .items_center()
             .gap(px(8.0))
-            .px(px(11.0))
+            .px(px(14.0))
             .border_r_1()
             .border_color(BORDER_PANEL)
             .bg(menu_bg)
@@ -85,39 +87,32 @@ pub fn titlebar(
             .child(
                 div()
                     .font_family(FONT_MONO)
-                    .text_size(px(11.0))
+                    .text_size(px(11.5))
                     .font_weight(FontWeight::BOLD)
                     .text_color(menu_ink)
                     .child("CROW"),
             ),
     );
 
-    // 3. Tab strip: Pinned Fleet Tab, Server Tabs, and Add Server (+)
+    // 3. Dynamic Server / Context Tabs Strip
     let is_fleet_active = current_screen == Screen::Fleet;
     let app_fleet = app.clone();
     let app_plus = app.clone();
 
     bar = bar.child(
         div()
+            .flex_1()
             .flex()
             .items_stretch()
-            .flex_1()
-            .min_w(px(0.0))
-            .on_mouse_down(MouseButton::Left, |ev, window, _cx| {
-                if ev.click_count == 2 {
-                    window.zoom_window();
-                } else {
-                    window.start_window_move();
-                }
-            })
-            // Pinned FLEET Tab (never closeable, has pin indicator ⌾)
+            .overflow_hidden()
+            // Fleet Root Tab
             .child(
                 div()
-                    .id("tab-pinned-fleet")
+                    .id("tab-btn-fleet")
                     .flex()
                     .items_center()
-                    .gap(px(7.0))
-                    .px(px(13.0))
+                    .gap(px(6.0))
+                    .px(px(14.0))
                     .border_r_1()
                     .border_color(BORDER_PANEL)
                     .bg(if is_fleet_active { BG_OVERLAY_PANEL } else { hex_rgba(0, 0.0) })
@@ -131,31 +126,19 @@ pub fn titlebar(
                     .child(
                         div()
                             .font_family(FONT_MONO)
-                            .text_size(px(10.0))
-                            .text_color(if is_fleet_active { OK } else { TEXT_DIMMER })
-                            .child("⬢"),
-                    )
-                    .child(
-                        div()
-                            .font_family(FONT_MONO)
                             .text_size(px(11.0))
                             .font_weight(if is_fleet_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                             .text_color(if is_fleet_active { TEXT_PRIMARY } else { TEXT_MUTED })
                             .child("FLEET"),
-                    )
-                    .child(
-                        div()
-                            .font_family(FONT_MONO)
-                            .text_size(px(9.0))
-                            .text_color(TEXT_GHOST)
-                            .child("⌾"),
                     ),
             )
             // Server Tabs (each with close affordance)
             .children(tabs.iter().enumerate().map(|(idx, tab)| {
                 let is_active = current_screen == Screen::Server && tab.id == active_tab_id;
                 let tab_id = tab.id.clone();
+                let close_tab_id = tab.id.clone();
                 let app_tab = app.clone();
+                let app_close = app.clone();
 
                 div()
                     .id(ElementId::NamedInteger("server-tab".into(), idx as u64))
@@ -190,9 +173,21 @@ pub fn titlebar(
                             .child(tab.name.clone()),
                     )
                     .child(
-                        tabler_icon(TablerIcon::X)
-                            .size(px(11.0))
-                            .text_color(rgb(0x6b7280)),
+                        div()
+                            .id(ElementId::NamedInteger("close-tab".into(), idx as u64))
+                            .cursor_pointer()
+                            .hover(|s| s.text_color(TEXT_PRIMARY))
+                            .on_click(move |_ev, _window, cx| {
+                                let tid = close_tab_id.clone();
+                                app_close.update(cx, |this, cx| {
+                                    this.close_tab(&tid, cx);
+                                });
+                            })
+                            .child(
+                                tabler_icon(TablerIcon::X)
+                                    .size(px(11.0))
+                                    .text_color(rgb(0x6b7280)),
+                            ),
                     )
             }))
             // Add Server Button (+)
@@ -224,10 +219,17 @@ pub fn titlebar(
 
     // 4. Session meta (varies by screen)
     let meta_text = if current_screen == Screen::Fleet {
-        "12 hosts · 11 agents"
+        format!(
+            "{} host{} · {} agent{}",
+            server_count,
+            if server_count == 1 { "" } else { "s" },
+            agent_count,
+            if agent_count == 1 { "" } else { "s" }
+        )
     } else {
-        "SSH ED25519 · lat 12ms"
+        "SSH ED25519 · active".to_string()
     };
+    let time_text = chrono::Utc::now().format("%H:%M:%S UTC").to_string();
 
     bar = bar.child(
         div()
@@ -241,7 +243,7 @@ pub fn titlebar(
             .border_l_1()
             .border_color(BORDER_PANEL)
             .child(div().child(meta_text))
-            .child(div().child("03:41:22 UTC")),
+            .child(div().child(time_text)),
     );
 
     // 5. Linux / Windows platform window controls
@@ -316,32 +318,38 @@ pub fn titlebar(
     bar
 }
 
-pub fn burger_menu_overlay(app: Entity<CrowApp>, current_screen: Screen) -> impl IntoElement {
+pub fn burger_menu_overlay(app: Entity<CrowApp>, current_screen: Screen, active_server_name: Option<String>) -> impl IntoElement {
     let app_backdrop = app.clone();
 
+    let server_overview_label = if let Some(ref name) = active_server_name {
+        format!("{} · Overview", name)
+    } else {
+        "Server Overview".to_string()
+    };
+
     // Menu entries: (icon, label, key_shortcut, screen_target, view_target, is_danger, is_header)
-    let items = [
+    let items: Vec<(&'static str, String, &'static str, Option<Screen>, Option<&'static str>, bool, bool)> = vec![
         // Section 1: FLEET
-        ("", "FLEET", "", None, None, false, true),
-        ("⬢", "Fleet Overview", "⌘1", Some(Screen::Fleet), None, false, false),
-        ("⬡", "Fleet Setup — topology & policy", "⌘⇧F", Some(Screen::FleetSetup), None, false, false),
-        ("+", "Add Server…", "⌘N", Some(Screen::Onboard), None, false, false),
-        ("⇄", "Import from Terraform / Ansible", "", None, None, false, false),
+        ("", "FLEET".to_string(), "", None, None, false, true),
+        ("⬢", "Fleet Overview".to_string(), "⌘1", Some(Screen::Fleet), None, false, false),
+        ("⬡", "Fleet Setup — topology & policy".to_string(), "⌘⇧F", Some(Screen::FleetSetup), None, false, false),
+        ("+", "Add Server…".to_string(), "⌘N", Some(Screen::Onboard), None, false, false),
+        ("⇄", "Import from Terraform / Ansible".to_string(), "", None, None, false, false),
         // Section 2: THIS SERVER
-        ("", "THIS SERVER", "", None, None, false, true),
-        ("◈", "edge-01 · Overview", "⌘2", Some(Screen::Server), Some("overview"), false, false),
-        ("◧", "Config files", "⌘3", Some(Screen::Server), Some("config"), false, false),
-        ("▶", "Open terminal", "⌘T", None, None, false, false),
-        ("⇩", "Download diagnostics bundle", "", None, None, false, false),
+        ("", "THIS SERVER".to_string(), "", None, None, false, true),
+        ("◈", server_overview_label, "⌘2", Some(Screen::Server), Some("overview"), false, false),
+        ("◧", "Config files".to_string(), "⌘3", Some(Screen::Server), Some("config"), false, false),
+        ("▶", "Open terminal".to_string(), "⌘T", None, None, false, false),
+        ("⇩", "Download diagnostics bundle".to_string(), "", None, None, false, false),
         // Section 3: APPLICATION
-        ("", "APPLICATION", "", None, None, false, true),
-        ("⚙", "Settings", "⌘,", Some(Screen::Settings), None, false, false),
-        ("⌨", "Keyboard shortcuts", "⌘/", None, None, false, false),
-        ("↻", "Check for updates — v1.4.2", "", None, None, false, false),
+        ("", "APPLICATION".to_string(), "", None, None, false, true),
+        ("⚙", "Settings".to_string(), "⌘,", Some(Screen::Settings), None, false, false),
+        ("⌨", "Keyboard shortcuts".to_string(), "⌘/", None, None, false, false),
+        ("↻", "Check for updates — v1.4.2".to_string(), "", None, None, false, false),
         // Section 4: SESSION
-        ("", "SESSION", "", None, None, false, true),
-        ("⏻", "Lock & disconnect all hosts", "⇧⌘L", None, None, true, false),
-        ("✕", "Quit Crow", "⌘Q", None, None, true, false),
+        ("", "SESSION".to_string(), "", None, None, false, true),
+        ("⏻", "Lock & disconnect all hosts".to_string(), "⇧⌘L", None, None, true, false),
+        ("✕", "Quit Crow".to_string(), "⌘Q", None, None, true, false),
     ];
 
     div()
@@ -390,6 +398,7 @@ pub fn burger_menu_overlay(app: Entity<CrowApp>, current_screen: Screen) -> impl
                     let is_active = target_screen == Some(current_screen);
                     let app_item = app.clone();
 
+                    let label_click = label.clone();
                     div()
                         .id(ElementId::NamedInteger("menu-item".into(), idx as u64))
                         .relative()
@@ -408,11 +417,11 @@ pub fn burger_menu_overlay(app: Entity<CrowApp>, current_screen: Screen) -> impl
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_KEY))
                         .on_click(move |_ev, _window, cx| {
-                            if label == "Quit Crow" {
+                            if label_click == "Quit Crow" {
                                 cx.quit();
                                 return;
                             }
-                            if label == "Lock & disconnect all hosts" {
+                            if label_click == "Lock & disconnect all hosts" {
                                 app_item.update(cx, |this, cx| {
                                     this.lock(cx);
                                 });

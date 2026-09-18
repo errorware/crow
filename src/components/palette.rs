@@ -20,9 +20,10 @@ pub fn palette_actions() -> &'static [PaletteActionDef] {
     ]
 }
 
-pub fn palette_overlay(app: Entity<CrowApp>) -> impl IntoElement {
+pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str) -> impl IntoElement {
     let app_close1 = app.clone();
     let app_close2 = app.clone();
+    let scope_text = format!("{} · 6 results", scope_label);
 
     div()
         .id("palette-scrim")
@@ -81,7 +82,7 @@ pub fn palette_overlay(app: Entity<CrowApp>) -> impl IntoElement {
                                 .font_family("JetBrains Mono")
                                 .text_size(px(10.0))
                                 .text_color(TEXT_DIMMER)
-                                .child("edge-01 · 6 results"),
+                                .child(scope_text),
                         ),
                 )
                 // Result rows

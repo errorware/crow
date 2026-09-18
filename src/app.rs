@@ -210,29 +210,19 @@ host    all             all             10.0.4.0/24             scram-sha-256
             }
         }
 
-        let tabs = if !servers.is_empty() {
-            servers.iter().take(5).map(|s| {
-                ServerTab {
-                    id: s.id.clone(),
-                    name: s.name.clone(),
-                    status_color: match s.status.as_str() {
-                        "online" => OK,
-                        "warn" => WARN,
-                        "crit" => CRIT,
-                        _ => TEXT_FAINTER,
-                    },
-                    is_active: s.id == "edge-01",
-                }
-            }).collect()
-        } else {
-            vec![
-                ServerTab { id: "edge-01".into(), name: "edge-01".into(), status_color: OK, is_active: true },
-                ServerTab { id: "edge-02".into(), name: "edge-02".into(), status_color: OK, is_active: false },
-                ServerTab { id: "db-primary".into(), name: "db-primary".into(), status_color: WARN, is_active: false },
-                ServerTab { id: "worker-04".into(), name: "worker-04".into(), status_color: CRIT, is_active: false },
-                ServerTab { id: "bastion".into(), name: "bastion".into(), status_color: TEXT_FAINTER, is_active: false },
-            ]
-        };
+        let tabs: Vec<ServerTab> = servers.iter().take(5).map(|s| {
+            ServerTab {
+                id: s.id.clone(),
+                name: s.name.clone(),
+                status_color: match s.status.as_str() {
+                    "online" => OK,
+                    "warn" => WARN,
+                    "crit" => CRIT,
+                    _ => TEXT_FAINTER,
+                },
+                is_active: false,
+            }
+        }).collect();
 
         let onboard_state = OnboardState::new(&enrolled_keys);
 
@@ -304,7 +294,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
             screen: Screen::Fleet,
             menu_open: false,
             settings_section: SettingsSection::General,
-            active_tab_id: "edge-01".to_string(),
+            active_tab_id: servers.first().map(|s| s.id.clone()).unwrap_or_default(),
             active_view: "overview".to_string(),
             active_services_tab: "services".to_string(),
             tabs,
@@ -514,6 +504,14 @@ host    all             all             10.0.4.0/24             scram-sha-256
                     let m = sample_server(&record, None, &mut local_prev);
                     self.metrics_store.insert(record.id.clone(), m.clone());
                     self.metrics_store.insert(record.name.clone(), m);
+                    if !self.tabs.iter().any(|t| t.id == record.id) {
+                        self.tabs.push(ServerTab {
+                            id: record.id.clone(),
+                            name: record.name.clone(),
+                            status_color: OK,
+                            is_active: true,
+                        });
+                    }
                     self.active_tab_id = record.id.clone();
                     self.screen = Screen::Server;
                     self.active_view = "overview".to_string();
@@ -552,6 +550,14 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 let m = sample_server(&record, None, &mut local_prev);
                 self.metrics_store.insert(record.id.clone(), m.clone());
                 self.metrics_store.insert(record.name.clone(), m);
+                if !self.tabs.iter().any(|t| t.id == record.id) {
+                    self.tabs.push(ServerTab {
+                        id: record.id.clone(),
+                        name: record.name.clone(),
+                        status_color: OK,
+                        is_active: true,
+                    });
+                }
                 self.active_tab_id = record.id.clone();
                 self.screen = Screen::Server;
                 self.active_view = "overview".to_string();
@@ -818,6 +824,21 @@ host    all             all             10.0.4.0/24             scram-sha-256
         self.active_tab_id = tab_id.to_string();
         self.screen = Screen::Server;
         cx.notify();
+    }
+
+    pub fn close_tab(&mut self, tab_id: &str, cx: &mut Context<Self>) {
+        if let Some(pos) = self.tabs.iter().position(|t| t.id == tab_id) {
+            self.tabs.remove(pos);
+            if self.active_tab_id == tab_id {
+                if let Some(next_tab) = self.tabs.get(pos).or_else(|| self.tabs.last()) {
+                    self.active_tab_id = next_tab.id.clone();
+                } else {
+                    self.active_tab_id.clear();
+                    self.screen = Screen::Fleet;
+                }
+            }
+            cx.notify();
+        }
     }
 
     pub fn focus_service(&mut self, name: &str, cx: &mut Context<Self>) {
@@ -1850,6 +1871,8 @@ impl Render for CrowApp {
                             &self.active_tab_id,
                             self.screen,
                             self.menu_open,
+                            self.servers.len(),
+                            self.servers.iter().filter(|s| s.agent_installed).count(),
                             app_view.clone(),
                         ))
                         // 2. Main Screen Area
@@ -1864,30 +1887,124 @@ impl Render for CrowApp {
                                     Screen::Server => {
                                         let active_srv = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id);
                                         let active_mtr = self.metrics_store.get(&self.active_tab_id).or_else(|| active_srv.and_then(|s| self.metrics_store.get(&s.id)));
-                                        Some(
-                                            div()
-                                                .size_full()
-                                                .flex()
-                                                .flex_col()
-                                                // Server Identity Bar
-                                                .child(identity_bar(active_srv, app_view.clone()))
-                                                // Server Stat Strip
-                                                .child(stat_strip(active_mtr))
-                                            // Main Server Body: Sidebar + Content
-                                            .child(
+                                        if self.servers.is_empty() || active_srv.is_none() {
+                                            let app_fleet = app_view.clone();
+                                            let app_add = app_view.clone();
+                                            Some(
                                                 div()
-                                                    .flex_1()
-                                                    .min_h(px(0.0))
+                                                    .size_full()
+                                                    .bg(BG_APP)
                                                     .flex()
-                                                    .w_full()
-                                                    // Sidebar
-                                                    .child(sidebar(&self.active_view, self.sidebar_collapsed, app_view.clone()))
-                                                    // Content Area (Overview or Config or other server view)
+                                                    .flex_col()
+                                                    .items_center()
+                                                    .justify_center()
+                                                    .gap(px(16.0))
+                                                    .p(px(32.0))
                                                     .child(
                                                         div()
-                                                            .flex_1()
-                                                            .min_w(px(0.0))
-                                                            .h_full()
+                                                            .size(px(48.0))
+                                                            .border_1()
+                                                            .border_color(BORDER_STRONG)
+                                                            .bg(BG_PANEL)
+                                                            .flex()
+                                                            .items_center()
+                                                            .justify_center()
+                                                            .child(
+                                                                crate::components::icons::tabler_icon(crate::components::icons::TablerIcon::Server)
+                                                                    .size(px(24.0))
+                                                                    .text_color(TEXT_MUTED),
+                                                            ),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .font_family(FONT_MONO)
+                                                            .font_weight(FontWeight::BOLD)
+                                                            .text_size(px(13.0))
+                                                            .text_color(TEXT_MAX)
+                                                            .child("NO ACTIVE SERVER SELECTED"),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .font_family(FONT_MONO)
+                                                            .text_size(px(11.0))
+                                                            .text_color(TEXT_DIM)
+                                                            .child("Select a server tab or enroll a new Linux host to inspect services and config."),
+                                                    )
+                                                    .child(
+                                                        div()
+                                                            .flex()
+                                                            .items_center()
+                                                            .gap(px(12.0))
+                                                            .mt(px(8.0))
+                                                            .child(
+                                                                div()
+                                                                    .id("empty-server-goto-fleet")
+                                                                    .px(px(14.0))
+                                                                    .py(px(7.0))
+                                                                    .bg(BG_PANEL)
+                                                                    .border_1()
+                                                                    .border_color(BORDER_STRONG)
+                                                                    .text_color(TEXT_PRIMARY)
+                                                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                                                    .cursor_pointer()
+                                                                    .font_family(FONT_MONO)
+                                                                    .font_weight(FontWeight::BOLD)
+                                                                    .text_size(px(11.0))
+                                                                    .on_click(move |_ev, _window, cx| {
+                                                                        app_fleet.update(cx, |this, cx| {
+                                                                            this.set_screen(Screen::Fleet, cx);
+                                                                        });
+                                                                    })
+                                                                    .child("⬢ GO TO FLEET OVERVIEW"),
+                                                            )
+                                                            .child(
+                                                                div()
+                                                                    .id("empty-server-enroll-btn")
+                                                                    .px(px(14.0))
+                                                                    .py(px(7.0))
+                                                                    .bg(OK_BG)
+                                                                    .border_1()
+                                                                    .border_color(OK)
+                                                                    .text_color(OK)
+                                                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                                                    .cursor_pointer()
+                                                                    .font_family(FONT_MONO)
+                                                                    .font_weight(FontWeight::BOLD)
+                                                                    .text_size(px(11.0))
+                                                                    .on_click(move |_ev, _window, cx| {
+                                                                        app_add.update(cx, |this, cx| {
+                                                                            this.set_screen(Screen::Onboard, cx);
+                                                                        });
+                                                                    })
+                                                                    .child("+ ENROLL NEW SERVER"),
+                                                            ),
+                                                    ),
+                                            )
+                                        } else {
+                                            Some(
+                                                div()
+                                                    .size_full()
+                                                    .flex()
+                                                    .flex_col()
+                                                    // Server Identity Bar
+                                                    .child(identity_bar(active_srv, app_view.clone()))
+                                                    // Server Stat Strip
+                                                    .child(stat_strip(active_mtr))
+                                                // Main Server Body: Sidebar + Content
+                                                .child(
+                                                    div()
+                                                        .flex_1()
+                                                        .min_h(px(0.0))
+                                                        .flex()
+                                                        .w_full()
+                                                        // Sidebar
+                                                        .child(sidebar(&self.active_view, self.sidebar_collapsed, app_view.clone()))
+                                                        // Content Area (Overview or Config or other server view)
+                                                        .child(
+                                                            div()
+                                                                .flex_1()
+                                                                .min_w(px(0.0))
+                                                                .h_full()
                                                             .flex()
                                                             .children(if is_overview {
                                                                 Some(
@@ -1970,6 +2087,7 @@ impl Render for CrowApp {
                                             .child(danger_zone()),
                                         )
                                     }
+                                },
                                     Screen::Fleet => Some(
                                         div()
                                             .size_full()
@@ -2003,13 +2121,20 @@ impl Render for CrowApp {
                         )
                         // 3. Burger Menu Overlay
                         .children(if menu_open {
-                            Some(burger_menu_overlay(app_view.clone(), self.screen))
+                            let active_name = self.servers.iter()
+                                .find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id)
+                                .map(|s| s.name.clone());
+                            Some(burger_menu_overlay(app_view.clone(), self.screen, active_name))
                         } else {
                             None
                         })
                         // 4. Command Palette Overlay (⌘K)
                         .children(if palette_open {
-                            Some(palette_overlay(app_view.clone()))
+                            let scope = self.servers.iter()
+                                .find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id)
+                                .map(|s| s.name.as_str())
+                                .unwrap_or("Fleet");
+                            Some(palette_overlay(app_view.clone(), scope))
                         } else {
                             None
                         })
