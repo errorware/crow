@@ -19,6 +19,8 @@ use crate::views::lock::{
 use crate::views::onboard::{
     append_to_known_hosts, onboard_view, probe_host, OnboardFieldFocus, OnboardState, OnboardStep,
 };
+use crate::journal::{JournalEntry, JournalPriority, reader::read_journal_for_server};
+use crate::views::logs::logs_explorer_view;
 use crate::views::overview::log_tail::log_tail;
 use crate::views::overview::services_table::{default_services, services_table, ServiceUnit};
 use crate::views::settings::settings_view;
@@ -124,6 +126,12 @@ pub struct CrowApp {
     // Real Stats & Metrics Telemetry Store
     pub metrics_store: HashMap<String, ServerMetrics>,
     pub _metrics_poll_task: Task<()>,
+    // Systemd Journal Log Explorer
+    pub journal_entries: Vec<JournalEntry>,
+    pub journal_search: String,
+    pub journal_severity_filter: Option<JournalPriority>,
+    pub journal_unit_filter: Option<String>,
+    pub journal_live_tail: bool,
 }
 
 impl CrowApp {
@@ -256,6 +264,12 @@ host    all             all             10.0.4.0/24             scram-sha-256
             metrics_store.insert(s.name.clone(), m);
         }
 
+        let initial_journal = if let Some(first_srv) = servers.first() {
+            read_journal_for_server(first_srv, 60, None, None)
+        } else {
+            Vec::new()
+        };
+
         Self {
             focus_handle: cx.focus_handle(),
             vault,
@@ -317,6 +331,11 @@ host    all             all             10.0.4.0/24             scram-sha-256
                     }
                 }
             }),
+            journal_entries: initial_journal,
+            journal_search: String::new(),
+            journal_severity_filter: None,
+            journal_unit_filter: None,
+            journal_live_tail: true,
         }
     }
 
@@ -326,6 +345,14 @@ host    all             all             10.0.4.0/24             scram-sha-256
             let updated = sample_server(&active_srv, prev, local_prev);
             self.metrics_store.insert(active_srv.id.clone(), updated.clone());
             self.metrics_store.insert(active_srv.name.clone(), updated);
+
+            // If live tail is enabled, poll fresh journal entries
+            if self.journal_live_tail {
+                let fresh_logs = read_journal_for_server(&active_srv, 60, self.journal_unit_filter.as_deref(), self.journal_severity_filter);
+                if !fresh_logs.is_empty() {
+                    self.journal_entries = fresh_logs;
+                }
+            }
         }
 
         if self.screen == Screen::Fleet {
@@ -336,6 +363,40 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 self.metrics_store.insert(s.name.clone(), updated);
             }
         }
+    }
+
+    pub fn toggle_journal_expanded(&mut self, id: &str, cx: &mut Context<Self>) {
+        for entry in &mut self.journal_entries {
+            if entry.id == id {
+                entry.is_expanded = !entry.is_expanded;
+            }
+        }
+        cx.notify();
+    }
+
+    pub fn set_journal_severity(&mut self, prio: Option<JournalPriority>, cx: &mut Context<Self>) {
+        self.journal_severity_filter = prio;
+        cx.notify();
+    }
+
+    pub fn set_journal_unit(&mut self, unit: Option<String>, cx: &mut Context<Self>) {
+        self.journal_unit_filter = unit;
+        cx.notify();
+    }
+
+    pub fn toggle_journal_live_tail(&mut self, cx: &mut Context<Self>) {
+        self.journal_live_tail = !self.journal_live_tail;
+        cx.notify();
+    }
+
+    pub fn clear_journal(&mut self, cx: &mut Context<Self>) {
+        self.journal_entries.clear();
+        cx.notify();
+    }
+
+    pub fn set_active_view(&mut self, view: &str, cx: &mut Context<Self>) {
+        self.active_view = view.to_string();
+        cx.notify();
     }
 
     pub fn lock(&mut self, cx: &mut Context<Self>) {
@@ -1655,7 +1716,7 @@ impl Render for CrowApp {
                                                                         .size_full()
                                                                         .flex()
                                                                         .child(services_table(&self.services, &self.active_services_tab, app_view.clone()))
-                                                                        .child(log_tail())
+                                                                        .child(log_tail(&self.journal_entries, app_view.clone()))
                                                                 )
                                                             } else if is_config {
                                                                 Some(
@@ -1671,7 +1732,7 @@ impl Render for CrowApp {
                                                                     div()
                                                                         .size_full()
                                                                         .flex()
-                                                                        .child(log_tail())
+                                                                        .child(logs_explorer_view(app_view.clone(), self))
                                                                 )
                                                             } else {
                                                                 Some(

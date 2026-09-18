@@ -1,46 +1,18 @@
 use gpui_kit::*;
 use crate::theme::*;
+use crate::app::CrowApp;
+use crate::journal::JournalEntry;
 
-pub struct LogLine {
-    pub ts: &'static str,
-    pub level: &'static str,
-    pub msg: &'static str,
-}
+pub fn log_tail(
+    entries: &[JournalEntry],
+    app: Entity<CrowApp>,
+) -> impl IntoElement {
+    let app_expand = app.clone();
 
-pub fn sample_logs() -> &'static [LogLine] {
-    &[
-        LogLine { ts: "03:41:22.481", level: "INFO", msg: "nginx: 159.223.84.17 GET /api/v2/orders 200 14ms" },
-        LogLine { ts: "03:41:22.106", level: "INFO", msg: "sidekiq: MailerJob JID-9f21ac done in 212ms" },
-        LogLine { ts: "03:41:21.884", level: "WARN", msg: "redis: latency spike 84ms on BLPOP queue:default" },
-        LogLine { ts: "03:41:21.552", level: "INFO", msg: "postgres: checkpoint complete, wrote 1428 buffers" },
-        LogLine { ts: "03:41:21.310", level: "ERROR", msg: "freshclam: signature mirror timeout after 30s" },
-        LogLine { ts: "03:41:20.998", level: "INFO", msg: "docker: container web.2 healthcheck ok" },
-        LogLine { ts: "03:41:20.744", level: "INFO", msg: "nginx: 10.0.4.19 POST /webhooks/stripe 204 8ms" },
-        LogLine { ts: "03:41:20.401", level: "WARN", msg: "fail2ban: ban 45.134.26.7 (sshd, 6 failures)" },
-        LogLine { ts: "03:41:20.118", level: "INFO", msg: "crow-agent: metrics flush 312 series" },
-        LogLine { ts: "03:41:19.877", level: "INFO", msg: "prometheus: scrape node_exporter 9100 ok" },
-        LogLine { ts: "03:41:19.503", level: "ERROR", msg: "redis: MISCONF unable to persist to disk (errno 28)" },
-        LogLine { ts: "03:41:19.244", level: "INFO", msg: "nginx: 159.223.84.17 GET /healthz 200 1ms" },
-        LogLine { ts: "03:41:18.912", level: "WARN", msg: "systemd: unattended-upgrades holding 3 packages" },
-        LogLine { ts: "03:41:18.660", level: "INFO", msg: "postgres: autovacuum on public.events (21s)" },
-        LogLine { ts: "03:41:18.331", level: "INFO", msg: "sidekiq: enqueue ReindexJob queue=low" },
-        LogLine { ts: "03:41:18.007", level: "INFO", msg: "docker: pulled ghcr.io/acme/api@sha256:4f1c9b" },
-        LogLine { ts: "03:41:17.771", level: "WARN", msg: "kernel: TCP: request_sock_TCP overflow on eth0" },
-        LogLine { ts: "03:41:17.442", level: "INFO", msg: "nginx: 10.0.4.22 GET /assets/app.js 304 2ms" },
-        LogLine { ts: "03:41:17.119", level: "INFO", msg: "chrony: offset -0.000184s, stratum 2" },
-        LogLine { ts: "03:41:16.880", level: "ERROR", msg: "sidekiq: Net::ReadTimeout retry 2/25 JID-c04e18" },
-        LogLine { ts: "03:41:16.551", level: "INFO", msg: "crow-agent: ssh keepalive ok (12ms)" },
-        LogLine { ts: "03:41:16.203", level: "WARN", msg: "disk: / at 43% growth +2.1GB/24h" },
-        LogLine { ts: "03:41:15.964", level: "INFO", msg: "postgres: connection from 10.0.4.19 authenticated" },
-        LogLine { ts: "03:41:15.612", level: "INFO", msg: "nginx: 10.0.4.19 GET /api/v2/quotes 200 31ms" },
-        LogLine { ts: "03:41:15.288", level: "INFO", msg: "grafana: alert rule 'cpu_high' evaluated ok" },
-        LogLine { ts: "03:41:14.955", level: "ERROR", msg: "ufw: BLOCK IN=eth0 SRC=185.220.101.4 DPT=23" },
-        LogLine { ts: "03:41:14.702", level: "INFO", msg: "journald: rotated system.journal (128M)" },
-        LogLine { ts: "03:41:14.410", level: "INFO", msg: "nginx: 159.223.84.17 GET /api/v2/orders 200 11ms" },
-    ]
-}
+    let err_count = entries.iter().filter(|e| e.priority.is_error()).count();
+    let warn_count = entries.iter().filter(|e| e.priority.is_warn()).count();
+    let info_count = entries.len().saturating_sub(err_count + warn_count);
 
-pub fn log_tail() -> impl IntoElement {
     div()
         .w(px(400.0))
         .flex_none()
@@ -75,22 +47,37 @@ pub fn log_tail() -> impl IntoElement {
                         .font_family("JetBrains Mono")
                         .text_size(px(10.0))
                         .text_color(TEXT_DIMMER)
-                        .child("journalctl -f -u *"),
+                        .child("journalctl -f"),
                 )
                 .child(div().flex_1())
+                // Expand to full view button
+                .child(
+                    div()
+                        .id("log-tail-expand-btn")
+                        .px(px(6.0))
+                        .py(px(2.0))
+                        .bg(BG_CONTROL)
+                        .border_1()
+                        .border_color(BORDER_DEFAULT)
+                        .text_color(TEXT_MUTED)
+                        .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
+                        .cursor_pointer()
+                        .font_family(FONT_MONO)
+                        .text_size(px(9.5))
+                        .font_weight(FontWeight::BOLD)
+                        .on_click(move |_ev, _window, cx| {
+                            app_expand.update(cx, |this, cx| {
+                                this.set_active_view("logs", cx);
+                            });
+                        })
+                        .child("EXPAND ↗"),
+                )
                 .child(
                     div()
                         .size(px(6.0))
                         .rounded_full()
                         .bg(OK)
                         .flex_none(),
-                )
-                .child(
-                    div()
-                        .font_family("JetBrains Mono")
-                        .text_size(px(10.0))
-                        .text_color(TEXT_DIM)
-                        .child("AUTOSCROLL · pause on hover"),
                 ),
         )
         // Filter bar
@@ -108,21 +95,21 @@ pub fn log_tail() -> impl IntoElement {
                 .text_size(px(10.0))
                 .child(
                     div()
-                        .bg(CRIT)
-                        .text_color(rgb(0x0a0a0c))
+                        .bg(if err_count > 0 { CRIT } else { BG_CONTROL })
+                        .text_color(if err_count > 0 { rgb(0x0a0a0c) } else { TEXT_DIMMER })
                         .font_weight(FontWeight::BOLD)
                         .px(px(5.0))
                         .py(px(2.0))
-                        .child("ERROR 4"),
+                        .child(format!("ERROR {}", err_count)),
                 )
                 .child(
                     div()
-                        .bg(WARN)
-                        .text_color(rgb(0x0a0a0c))
+                        .bg(if warn_count > 0 { WARN } else { BG_CONTROL })
+                        .text_color(if warn_count > 0 { rgb(0x0a0a0c) } else { TEXT_DIMMER })
                         .font_weight(FontWeight::BOLD)
                         .px(px(5.0))
                         .py(px(2.0))
-                        .child("WARN 17"),
+                        .child(format!("WARN {}", warn_count)),
                 )
                 .child(
                     div()
@@ -131,13 +118,13 @@ pub fn log_tail() -> impl IntoElement {
                         .font_weight(FontWeight::BOLD)
                         .px(px(5.0))
                         .py(px(2.0))
-                        .child("INFO 1.2k"),
+                        .child(format!("INFO {}", info_count)),
                 )
                 .child(div().flex_1())
                 .child(
                     div()
                         .text_color(TEXT_FAINT)
-                        .child("wrap off"),
+                        .child("stream active"),
                 ),
         )
         // Log stream
@@ -150,9 +137,9 @@ pub fn log_tail() -> impl IntoElement {
                 .flex()
                 .flex_col()
                 .py(px(6.0))
-                .children(sample_logs().iter().map(|line| {
-                    let is_err = line.level == "ERROR";
-                    let is_warn = line.level == "WARN";
+                .children(entries.iter().map(|entry| {
+                    let is_err = entry.priority.is_error();
+                    let is_warn = entry.priority.is_warn();
 
                     let (lvl_color, msg_color, row_bg) = if is_err {
                         (CRIT, CRIT_INK, CRIT_LOG_BG)
@@ -168,32 +155,33 @@ pub fn log_tail() -> impl IntoElement {
                         .px(px(12.0))
                         .py(px(2.0))
                         .bg(row_bg)
+                        .hover(|s| s.bg(BG_ROW_HOVER))
                         .font_family("JetBrains Mono")
                         .text_size(px(10.5))
                         .child(
                             div()
                                 .text_color(TEXT_FAINTER)
                                 .flex_none()
-                                .child(line.ts),
+                                .child(entry.timestamp_formatted.clone()),
                         )
                         .child(
                             div()
-                                .w(px(36.0))
+                                .w(px(40.0))
                                 .flex_none()
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(lvl_color)
-                                .child(line.level),
+                                .child(entry.priority.label()),
                         )
                         .child(
                             div()
                                 .flex_1()
                                 .min_w(px(0.0))
                                 .text_color(msg_color)
-                                .child(line.msg),
+                                .child(entry.message.clone()),
                         )
                 })),
         )
-        // Inline terminal escape hatch
+        // Inline terminal prompt hatch
         .child(
             div()
                 .h(px(30.0))
@@ -220,7 +208,7 @@ pub fn log_tail() -> impl IntoElement {
                 .child(
                     div()
                         .text_color(TEXT_SECONDARY)
-                        .child("systemctl status redis"),
+                        .child("journalctl -f"),
                 )
                 .child(
                     div()
