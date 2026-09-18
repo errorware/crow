@@ -47,6 +47,7 @@ pub enum SettingsSection {
     Connection,
     Keys,
     Security,
+    Components,
 }
 
 impl SettingsSection {
@@ -56,8 +57,24 @@ impl SettingsSection {
             SettingsSection::Connection => "connection",
             SettingsSection::Keys => "keys",
             SettingsSection::Security => "security",
+            SettingsSection::Components => "components",
         }
     }
+}
+
+use gpui_kit::component::input::{InputState, TextareaState, OtpState};
+
+pub struct LabState {
+    pub text_input: Entity<InputState>,
+    pub cleanable_input: Entity<InputState>,
+    pub password_input: Entity<InputState>,
+    pub prefix_input: Entity<InputState>,
+    pub textarea: Entity<TextareaState>,
+    pub otp_input: Entity<OtpState>,
+    pub custom_compare_text: String,
+    pub custom_compare_cursor: usize,
+    pub custom_compare_selection: Option<(usize, usize)>,
+    pub custom_compare_drag_anchor: Option<usize>,
 }
 
 pub struct CrowApp {
@@ -94,6 +111,8 @@ pub struct CrowApp {
     // Server Enrollment Subsystem
     pub servers: Vec<ServerRecord>,
     pub onboard_state: OnboardState,
+    // UI Components Lab Sandbox
+    pub lab_state: LabState,
     // Text input caret and selection state
     pub cursor_blink: bool,
     pub input_cursor: usize,
@@ -103,7 +122,7 @@ pub struct CrowApp {
 }
 
 impl CrowApp {
-    pub fn new(cx: &mut Context<Self>) -> Self {
+    pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let vault = Vault::open_default().expect("Failed to initialize vault storage");
         let config = CrowConfigManager::load();
 
@@ -188,6 +207,42 @@ host    all             all             10.0.4.0/24             scram-sha-256
 
         let onboard_state = OnboardState::new(&enrolled_keys);
 
+        let lab_state = LabState {
+            text_input: cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder("Type something here to test gpui-component...")
+                    .default_value("prod-db-cluster.internal")
+            }),
+            cleanable_input: cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder("Type to reveal clear button...")
+                    .default_value("search fleet by tag or region...")
+            }),
+            password_input: cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder("Enter sensitive secret...")
+                    .masked(true)
+                    .default_value("crow_vault_master_key_9981")
+            }),
+            prefix_input: cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder("10.0.0.1")
+                    .default_value("bastion.eu-west-1.aws")
+            }),
+            textarea: cx.new(|cx| {
+                TextareaState::new(window, cx).default_value(
+                    "# Fleet Deployment Manifest\nenv: production\nreplicas: 4\nregion: us-east-1\nauto_drain: true",
+                )
+            }),
+            otp_input: cx.new(|cx| {
+                OtpState::new(6, window, cx).default_value("849201")
+            }),
+            custom_compare_text: "prod-db-cluster.internal".to_string(),
+            custom_compare_cursor: 24,
+            custom_compare_selection: None,
+            custom_compare_drag_anchor: None,
+        };
+
         Self {
             focus_handle: cx.focus_handle(),
             vault,
@@ -220,6 +275,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
             key_toast: None,
             servers,
             onboard_state,
+            lab_state,
             cursor_blink: true,
             input_cursor: 0,
             input_selection: None,

@@ -52,8 +52,8 @@ fn main() {
             options.is_resizable = true;
             options.is_minimizable = true;
 
-            cx.open_window(options, |_window, cx| {
-                cx.new(|cx| CrowApp::new(cx))
+            cx.open_window(options, |window, cx| {
+                cx.new(|cx| CrowApp::new(window, cx))
             })
             .expect("failed to open Crow window");
         })

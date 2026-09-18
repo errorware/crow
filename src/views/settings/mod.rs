@@ -8,6 +8,7 @@ use crow_config_core::schema::FieldType;
 
 pub mod keys;
 use self::keys::{render_key_modals, render_keys_center_column, render_keys_right_rail};
+pub mod lab;
 
 fn format_field_label(leaf: &str) -> String {
     match leaf {
@@ -227,6 +228,7 @@ pub fn settings_view(
         (TablerIcon::Network, "Connection & SSH", SettingsSection::Connection),
         (TablerIcon::Key, "Keys & Rotation", SettingsSection::Keys),
         (TablerIcon::ShieldCheck, "Vault & Security", SettingsSection::Security),
+        (TablerIcon::Box, "UI Components Lab", SettingsSection::Components),
     ];
 
     let (title, sub) = match section {
@@ -234,6 +236,7 @@ pub fn settings_view(
         SettingsSection::Connection => ("CONNECTION & SSH", "[connection] · applies to every host unless overridden"),
         SettingsSection::Keys => ("KEYS & ROTATION", "[keys] · key distribution & policies"),
         SettingsSection::Security => ("VAULT & SECURITY", "[vault] · local encrypted sqlite & master key"),
+        SettingsSection::Components => ("UI COMPONENTS LAB", "[lab] · gpui-component testbed & sandbox"),
     };
 
     let keychain = [
@@ -435,11 +438,13 @@ pub fn settings_view(
                 )
                 // Center Settings Rows Column
                 .children(if section == SettingsSection::Keys {
-                    Some(render_keys_center_column(app.clone(), app_data))
+                    Some(render_keys_center_column(app.clone(), app_data).into_any_element())
+                } else if section == SettingsSection::Components {
+                    Some(lab::render_components_lab(app.clone(), app_data).into_any_element())
                 } else {
                     None
                 })
-                .children(if section != SettingsSection::Keys {
+                .children(if section != SettingsSection::Keys && section != SettingsSection::Components {
                     Some(
                         div()
                             .flex_1()
@@ -1166,8 +1171,9 @@ pub fn settings_view(
                     None
                 })
                 // Right Rail: Pending Diff, Session Warning, Keychain (340px)
-                .child(
-                    div()
+                .children(if section != SettingsSection::Components {
+                    Some(
+                        div()
                         .w(px(340.0))
                         .flex_none()
                         .flex()
@@ -1353,7 +1359,10 @@ pub fn settings_view(
                 } else {
                     None
                 }),
-        )
+                        )
+                } else {
+                    None
+                }),
         )
         .children(render_key_modals(app.clone(), app_data))
 }
