@@ -14,26 +14,13 @@ pub fn hamburger_icon(ink: Rgba) -> impl IntoElement {
         .child(div().h(px(1.5)).bg(ink))
 }
 
-pub fn diamond_mark(ink: Rgba) -> impl IntoElement {
-    canvas(
-        |_bounds, _window, _cx| (),
-        move |bounds, (), window, _cx| {
-            let mut path = PathBuilder::fill();
-            let mid_x = bounds.origin.x + bounds.size.width / 2.0;
-            let mid_y = bounds.origin.y + bounds.size.height / 2.0;
-            path.move_to(point(mid_x, bounds.origin.y));
-            path.line_to(point(bounds.origin.x + bounds.size.width, mid_y));
-            path.line_to(point(mid_x, bounds.origin.y + bounds.size.height));
-            path.line_to(point(bounds.origin.x, mid_y));
-            path.close();
-            if let Ok(built) = path.build() {
-                window.paint_path(built, ink);
-            }
-        },
-    )
-    .w(px(13.0))
-    .h(px(13.0))
-    .flex_none()
+pub fn crow_logo(ink: Rgba) -> impl IntoElement {
+    svg()
+        .data(include_bytes!("../../assets/logo.svg").as_slice())
+        .w(px(16.0))
+        .h(px(14.0))
+        .text_color(ink)
+        .flex_none()
 }
 
 #[derive(Clone, Debug)]
@@ -94,7 +81,7 @@ pub fn titlebar(
                 });
             })
             .child(hamburger_icon(menu_ink))
-            .child(diamond_mark(menu_ink))
+            .child(crow_logo(menu_ink))
             .child(
                 div()
                     .font_family(FONT_MONO)
