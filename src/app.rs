@@ -23,6 +23,11 @@ use crow_config_core::edit::ConfigDocument;
 use crow_config_core::ConfigPlugin;
 use crow_config_schemas::PgHbaPlugin;
 use crate::config::CrowConfigManager;
+use crate::keys::{
+    copy_to_clipboard_system, expand_tilde, scan_directory, AddScanPathModalState,
+    DiscoveredKey, EditKeyModalState, KeyGenFieldFocus, KeyGenModalState,
+    NewGroupModalState, SshKeyGroup, SshKeyRecord, SshScanPath,
+};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Screen {
@@ -72,12 +77,57 @@ pub struct CrowApp {
     pub sidebar_collapsed: bool,
     pub settings_dropdown_open: Option<String>,
     pub settings_custom_input: String,
+    // SSH Key Management Hub
+    pub enrolled_keys: Vec<SshKeyRecord>,
+    pub key_groups: Vec<SshKeyGroup>,
+    pub scan_paths: Vec<SshScanPath>,
+    pub discovered_keys: Vec<DiscoveredKey>,
+    pub selected_key_group_filter: Option<String>,
+    pub scan_status_message: Option<String>,
+    pub key_gen_modal: Option<KeyGenModalState>,
+    pub new_group_modal: Option<NewGroupModalState>,
+    pub add_scan_path_modal: Option<AddScanPathModalState>,
+    pub edit_key_modal: Option<EditKeyModalState>,
+    pub key_toast: Option<String>,
 }
 
 impl CrowApp {
     pub fn new(cx: &mut Context<Self>) -> Self {
         let vault = Vault::open_default().expect("Failed to initialize vault storage");
         let config = CrowConfigManager::load();
+
+        // Load SSH Key Management records and run initial scan
+        let (enrolled_keys, key_groups, scan_paths, discovered_keys, scan_status_message) = {
+            let db = vault.db();
+            let res = if let Ok(db_guard) = db.lock() {
+                let paths = db_guard.list_scan_paths().unwrap_or_default();
+                let groups = db_guard.list_key_groups().unwrap_or_default();
+                let keys = db_guard.list_ssh_keys().unwrap_or_default();
+                let mut discovered = Vec::new();
+                for p in &paths {
+                    let expanded = expand_tilde(&p.path);
+                    let found = scan_directory(&expanded, &keys);
+                    for k in found {
+                        if !discovered.iter().any(|d: &DiscoveredKey| d.fingerprint == k.fingerprint) {
+                            discovered.push(k);
+                        }
+                    }
+                }
+                let new_count = discovered.iter().filter(|d| !d.is_enrolled).count();
+                let msg = format!(
+                    "Scanned {} path{} · {} key{} found ({} new)",
+                    paths.len(),
+                    if paths.len() == 1 { "" } else { "s" },
+                    discovered.len(),
+                    if discovered.len() == 1 { "" } else { "s" },
+                    new_count
+                );
+                (keys, groups, paths, discovered, Some(msg))
+            } else {
+                (Vec::new(), Vec::new(), Vec::new(), Vec::new(), None)
+            };
+            res
+        };
 
         // Demonstrate integration with crow-config-core & crow-config-schemas
         let plugin = PgHbaPlugin::new();
@@ -125,6 +175,17 @@ host    all             all             10.0.4.0/24             scram-sha-256
             sidebar_collapsed: false,
             settings_dropdown_open: None,
             settings_custom_input: String::new(),
+            enrolled_keys,
+            key_groups,
+            scan_paths,
+            discovered_keys,
+            selected_key_group_filter: None,
+            scan_status_message,
+            key_gen_modal: None,
+            new_group_modal: None,
+            add_scan_path_modal: None,
+            edit_key_modal: None,
+            key_toast: None,
         }
     }
 
@@ -401,6 +462,279 @@ host    all             all             10.0.4.0/24             scram-sha-256
         }
         cx.notify();
     }
+
+    // --- SSH Key Management Subsystem ---
+
+    pub fn refresh_keys(&mut self, cx: &mut Context<Self>) {
+        let db = self.vault.db();
+        if let Ok(db_guard) = db.lock() {
+            self.scan_paths = db_guard.list_scan_paths().unwrap_or_default();
+            self.key_groups = db_guard.list_key_groups().unwrap_or_default();
+            self.enrolled_keys = db_guard.list_ssh_keys().unwrap_or_default();
+            let mut discovered = Vec::new();
+            for p in &self.scan_paths {
+                let expanded = expand_tilde(&p.path);
+                let found = scan_directory(&expanded, &self.enrolled_keys);
+                for k in found {
+                    if !discovered.iter().any(|d: &DiscoveredKey| d.fingerprint == k.fingerprint) {
+                        discovered.push(k);
+                    }
+                }
+            }
+            let new_count = discovered.iter().filter(|d| !d.is_enrolled).count();
+            self.scan_status_message = Some(format!(
+                "Scanned {} path{} · {} key{} found ({} new)",
+                self.scan_paths.len(),
+                if self.scan_paths.len() == 1 { "" } else { "s" },
+                discovered.len(),
+                if discovered.len() == 1 { "" } else { "s" },
+                new_count
+            ));
+            self.discovered_keys = discovered;
+        }
+        cx.notify();
+    }
+
+    pub fn set_key_group_filter(&mut self, group_id: Option<String>, cx: &mut Context<Self>) {
+        self.selected_key_group_filter = group_id;
+        cx.notify();
+    }
+
+    pub fn import_discovered_key(&mut self, fingerprint: &str, group_id: Option<&str>, cx: &mut Context<Self>) {
+        let key_opt = self.discovered_keys.iter().find(|k| k.fingerprint == fingerprint).cloned();
+        if let Some(disc) = key_opt {
+            let target_group = group_id.unwrap_or("fleet");
+            let id = format!("key-{}", &fingerprint.replace("SHA256:", "").chars().take(12).collect::<String>());
+            let record = SshKeyRecord {
+                id,
+                name: disc.suggested_name,
+                group_id: target_group.to_string(),
+                public_key: disc.public_key,
+                fingerprint: disc.fingerprint,
+                algorithm: disc.algorithm,
+                comment: disc.comment,
+                private_key_path: if disc.has_private_key { Some(disc.file_path) } else { None },
+                attached_servers: Vec::new(),
+                created_at: chrono::Utc::now().to_rfc3339(),
+                updated_at: chrono::Utc::now().to_rfc3339(),
+            };
+
+            let db = self.vault.db();
+            if let Ok(db_guard) = db.lock() {
+                let _ = db_guard.upsert_ssh_key(&record);
+            }
+            self.key_toast = Some(format!("Enrolled '{}' into group '{}'", record.name, target_group));
+            self.refresh_keys(cx);
+        }
+    }
+
+    pub fn delete_enrolled_key(&mut self, key_id: &str, cx: &mut Context<Self>) {
+        let db = self.vault.db();
+        if let Ok(db_guard) = db.lock() {
+            let _ = db_guard.delete_ssh_key(key_id);
+        }
+        self.key_toast = Some("Removed key from memory (file preserved)".to_string());
+        self.refresh_keys(cx);
+    }
+
+    pub fn open_key_gen_modal(&mut self, cx: &mut Context<Self>) {
+        self.key_gen_modal = Some(KeyGenModalState::default());
+        cx.notify();
+    }
+
+    pub fn close_key_gen_modal(&mut self, cx: &mut Context<Self>) {
+        self.key_gen_modal = None;
+        self.refresh_keys(cx);
+    }
+
+    pub fn submit_key_generation(&mut self, cx: &mut Context<Self>) {
+        if let Some(ref mut state) = self.key_gen_modal {
+            let name = state.name_input.trim();
+            if name.is_empty() {
+                state.error_message = Some("Key name cannot be empty".to_string());
+                cx.notify();
+                return;
+            }
+
+            let target_dir = expand_tilde(state.custom_dir_input.trim());
+            let comment = if state.comment_input.trim().is_empty() {
+                None
+            } else {
+                Some(state.comment_input.trim())
+            };
+
+            match crate::keys::generate_keypair(
+                name,
+                state.algo,
+                comment,
+                &state.group_id,
+                &target_dir,
+                None,
+            ) {
+                Ok((record, pub_key_openssh, priv_path, _pub_path)) => {
+                    let db = self.vault.db();
+                    if let Ok(db_guard) = db.lock() {
+                        let _ = db_guard.upsert_ssh_key(&record);
+                    }
+                    state.error_message = None;
+                    state.generated_public_key = Some(pub_key_openssh);
+                    state.generated_priv_path = Some(priv_path.display().to_string());
+                    state.generated_fingerprint = Some(record.fingerprint);
+                    cx.notify();
+                }
+                Err(err) => {
+                    state.error_message = Some(err);
+                    cx.notify();
+                }
+            }
+        }
+    }
+
+    pub fn open_new_group_modal(&mut self, cx: &mut Context<Self>) {
+        self.new_group_modal = Some(NewGroupModalState {
+            name_input: String::new(),
+            color_input: "#4ade80".to_string(),
+            error_message: None,
+        });
+        cx.notify();
+    }
+
+    pub fn close_new_group_modal(&mut self, cx: &mut Context<Self>) {
+        self.new_group_modal = None;
+        cx.notify();
+    }
+
+    pub fn submit_new_group(&mut self, cx: &mut Context<Self>) {
+        if let Some(ref mut state) = self.new_group_modal {
+            let name = state.name_input.trim();
+            if name.is_empty() {
+                state.error_message = Some("Group name cannot be empty".to_string());
+                cx.notify();
+                return;
+            }
+            let slug = name.to_lowercase().replace(' ', "-").replace('_', "-");
+            let color = if state.color_input.is_empty() { "#60a5fa" } else { &state.color_input };
+
+            let db = self.vault.db();
+            if let Ok(db_guard) = db.lock() {
+                let _ = db_guard.add_key_group(&slug, name, color);
+            }
+            self.new_group_modal = None;
+            self.refresh_keys(cx);
+        }
+    }
+
+    pub fn delete_key_group(&mut self, group_id: &str, cx: &mut Context<Self>) {
+        let db = self.vault.db();
+        if let Ok(db_guard) = db.lock() {
+            let _ = db_guard.delete_key_group(group_id);
+        }
+        if self.selected_key_group_filter.as_deref() == Some(group_id) {
+            self.selected_key_group_filter = None;
+        }
+        self.refresh_keys(cx);
+    }
+
+    pub fn open_add_scan_path_modal(&mut self, cx: &mut Context<Self>) {
+        self.add_scan_path_modal = Some(AddScanPathModalState::default());
+        cx.notify();
+    }
+
+    pub fn close_add_scan_path_modal(&mut self, cx: &mut Context<Self>) {
+        self.add_scan_path_modal = None;
+        cx.notify();
+    }
+
+    pub fn submit_add_scan_path(&mut self, cx: &mut Context<Self>) {
+        if let Some(ref mut state) = self.add_scan_path_modal {
+            let path = state.path_input.trim();
+            if path.is_empty() {
+                state.error_message = Some("Path cannot be empty".to_string());
+                cx.notify();
+                return;
+            }
+            let expanded = expand_tilde(path);
+            if !expanded.exists() || !expanded.is_dir() {
+                state.error_message = Some(format!("Directory does not exist: {}", expanded.display()));
+                cx.notify();
+                return;
+            }
+
+            let db = self.vault.db();
+            if let Ok(db_guard) = db.lock() {
+                let _ = db_guard.add_scan_path(path);
+            }
+            self.add_scan_path_modal = None;
+            self.refresh_keys(cx);
+        }
+    }
+
+    pub fn remove_scan_path(&mut self, id: i64, cx: &mut Context<Self>) {
+        let db = self.vault.db();
+        if let Ok(db_guard) = db.lock() {
+            let _ = db_guard.remove_scan_path(id);
+        }
+        self.refresh_keys(cx);
+    }
+
+    pub fn open_edit_key_modal(&mut self, key_id: &str, cx: &mut Context<Self>) {
+        if let Some(key) = self.enrolled_keys.iter().find(|k| k.id == key_id) {
+            self.edit_key_modal = Some(EditKeyModalState {
+                key_id: key.id.clone(),
+                name_input: key.name.clone(),
+                group_id: key.group_id.clone(),
+                attached_servers: key.attached_servers.clone(),
+                error_message: None,
+            });
+            cx.notify();
+        }
+    }
+
+    pub fn close_edit_key_modal(&mut self, cx: &mut Context<Self>) {
+        self.edit_key_modal = None;
+        cx.notify();
+    }
+
+    pub fn submit_edit_key(&mut self, cx: &mut Context<Self>) {
+        if let Some(ref mut state) = self.edit_key_modal {
+            let name = state.name_input.trim();
+            if name.is_empty() {
+                state.error_message = Some("Key name cannot be empty".to_string());
+                cx.notify();
+                return;
+            }
+
+            let db = self.vault.db();
+            if let Ok(db_guard) = db.lock() {
+                let _ = db_guard.update_ssh_key_name_and_group(&state.key_id, name, &state.group_id);
+                let _ = db_guard.update_ssh_key_attached_servers(&state.key_id, &state.attached_servers);
+            }
+            self.edit_key_modal = None;
+            self.refresh_keys(cx);
+        }
+    }
+
+    pub fn toggle_edit_key_server(&mut self, server_id: &str, cx: &mut Context<Self>) {
+        if let Some(ref mut state) = self.edit_key_modal {
+            if let Some(idx) = state.attached_servers.iter().position(|s| s == server_id) {
+                state.attached_servers.remove(idx);
+            } else {
+                state.attached_servers.push(server_id.to_string());
+            }
+            cx.notify();
+        }
+    }
+
+    pub fn copy_text_with_toast(&mut self, text: &str, toast: &str, cx: &mut Context<Self>) {
+        copy_to_clipboard_system(text);
+        self.key_toast = Some(toast.to_string());
+        cx.notify();
+    }
+
+    pub fn clear_key_toast(&mut self, cx: &mut Context<Self>) {
+        self.key_toast = None;
+        cx.notify();
+    }
 }
 
 impl Render for CrowApp {
@@ -515,6 +849,122 @@ impl Render for CrowApp {
                                     cx.notify();
                                 }
                             }
+                        }
+                    }
+                    return;
+                }
+
+                // SSH Key Management Modal Keyboard Routing
+                if let Some(ref mut gen) = this.key_gen_modal {
+                    if ev.keystroke.key == "escape" {
+                        this.close_key_gen_modal(cx);
+                    } else if key == "enter" {
+                        if gen.generated_public_key.is_some() {
+                            this.close_key_gen_modal(cx);
+                        } else {
+                            this.submit_key_generation(cx);
+                        }
+                    } else if key == "tab" {
+                        gen.active_focus = match gen.active_focus {
+                            KeyGenFieldFocus::Name => KeyGenFieldFocus::Comment,
+                            KeyGenFieldFocus::Comment => KeyGenFieldFocus::Directory,
+                            KeyGenFieldFocus::Directory => KeyGenFieldFocus::Name,
+                        };
+                        cx.notify();
+                    } else if key == "backspace" {
+                        match gen.active_focus {
+                            KeyGenFieldFocus::Name => { gen.name_input.pop(); }
+                            KeyGenFieldFocus::Comment => { gen.comment_input.pop(); }
+                            KeyGenFieldFocus::Directory => { gen.custom_dir_input.pop(); }
+                        }
+                        gen.error_message = None;
+                        cx.notify();
+                    } else if !is_mod {
+                        let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
+                            Some(ev.keystroke.key.as_str())
+                        } else {
+                            None
+                        });
+                        if let Some(c) = char_to_insert {
+                            match gen.active_focus {
+                                KeyGenFieldFocus::Name => gen.name_input.push_str(c),
+                                KeyGenFieldFocus::Comment => gen.comment_input.push_str(c),
+                                KeyGenFieldFocus::Directory => gen.custom_dir_input.push_str(c),
+                            }
+                            gen.error_message = None;
+                            cx.notify();
+                        }
+                    }
+                    return;
+                }
+
+                if let Some(ref mut grp) = this.new_group_modal {
+                    if ev.keystroke.key == "escape" {
+                        this.close_new_group_modal(cx);
+                    } else if key == "enter" {
+                        this.submit_new_group(cx);
+                    } else if key == "backspace" {
+                        grp.name_input.pop();
+                        grp.error_message = None;
+                        cx.notify();
+                    } else if !is_mod {
+                        let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
+                            Some(ev.keystroke.key.as_str())
+                        } else {
+                            None
+                        });
+                        if let Some(c) = char_to_insert {
+                            grp.name_input.push_str(c);
+                            grp.error_message = None;
+                            cx.notify();
+                        }
+                    }
+                    return;
+                }
+
+                if let Some(ref mut sp) = this.add_scan_path_modal {
+                    if ev.keystroke.key == "escape" {
+                        this.close_add_scan_path_modal(cx);
+                    } else if key == "enter" {
+                        this.submit_add_scan_path(cx);
+                    } else if key == "backspace" {
+                        sp.path_input.pop();
+                        sp.error_message = None;
+                        cx.notify();
+                    } else if !is_mod {
+                        let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
+                            Some(ev.keystroke.key.as_str())
+                        } else {
+                            None
+                        });
+                        if let Some(c) = char_to_insert {
+                            sp.path_input.push_str(c);
+                            sp.error_message = None;
+                            cx.notify();
+                        }
+                    }
+                    return;
+                }
+
+                if let Some(ref mut edit) = this.edit_key_modal {
+                    if ev.keystroke.key == "escape" {
+                        this.close_edit_key_modal(cx);
+                    } else if key == "enter" {
+                        this.submit_edit_key(cx);
+                    } else if key == "backspace" {
+                        edit.name_input.pop();
+                        edit.error_message = None;
+                        cx.notify();
+                    } else if !is_mod {
+                        let char_to_insert = ev.keystroke.key_char.as_deref().or(if ev.keystroke.key.chars().count() == 1 {
+                            Some(ev.keystroke.key.as_str())
+                        } else {
+                            None
+                        });
+                        if let Some(c) = char_to_insert {
+                            edit.name_input.push_str(c);
+                            edit.error_message = None;
+                            cx.notify();
                         }
                     }
                     return;
@@ -741,11 +1191,8 @@ impl Render for CrowApp {
                                             .size_full()
                                             .child(settings_view(
                                                 app_view.clone(),
-                                                &self.config,
+                                                self,
                                                 self.settings_section,
-                                                self.vault.is_password_auth_enabled(),
-                                                self.settings_dropdown_open.as_deref(),
-                                                &self.settings_custom_input,
                                             )),
                                     ),
                                     Screen::Onboard => Some(

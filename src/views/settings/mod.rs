@@ -1,9 +1,12 @@
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::{CrowApp, Screen, SettingsSection};
-use crate::config::{CrowConfigManager, DiffKind};
+use crate::config::DiffKind;
 use crate::components::icons::{TablerIcon, tabler_icon};
 use crow_config_core::schema::FieldType;
+
+pub mod keys;
+use self::keys::{render_key_modals, render_keys_center_column, render_keys_right_rail};
 
 fn format_field_label(leaf: &str) -> String {
     match leaf {
@@ -211,12 +214,13 @@ fn get_field_options(
 
 pub fn settings_view(
     app: Entity<CrowApp>,
-    config: &CrowConfigManager,
+    app_data: &CrowApp,
     section: SettingsSection,
-    is_auth_enabled: bool,
-    open_dropdown: Option<&str>,
-    custom_input: &str,
 ) -> impl IntoElement {
+    let config = &app_data.config;
+    let is_auth_enabled = app_data.vault.is_password_auth_enabled();
+    let open_dropdown = app_data.settings_dropdown_open.as_deref();
+    let custom_input = &app_data.settings_custom_input;
     let nav_items = [
         (TablerIcon::AdjustmentsHorizontal, "General", SettingsSection::General),
         (TablerIcon::Network, "Connection & SSH", SettingsSection::Connection),
@@ -280,6 +284,7 @@ pub fn settings_view(
     let app_save = app.clone();
 
     div()
+        .relative()
         .size_full()
         .flex()
         .flex_col()
@@ -428,13 +433,19 @@ pub fn settings_view(
                         })),
                 )
                 // Center Settings Rows Column
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w(px(0.0))
-                        .flex()
-                        .flex_col()
-                        .bg(BG_APP)
+                .children(if section == SettingsSection::Keys {
+                    Some(render_keys_center_column(app.clone(), app_data))
+                } else {
+                    None
+                })
+                .children(if section != SettingsSection::Keys {
+                    Some(
+                        div()
+                            .flex_1()
+                            .min_w(px(0.0))
+                            .flex()
+                            .flex_col()
+                            .bg(BG_APP)
                         // Section Header
                         .child(
                             div()
@@ -1139,9 +1150,12 @@ pub fn settings_view(
                                         } else {
                                             "SAVE ⌘S".to_string()
                                         }),
-                                ),
+                                 ),
                         ),
-                )
+                    )
+                } else {
+                    None
+                })
                 // Right Rail: Pending Diff, Session Warning, Keychain (340px)
                 .child(
                     div()
@@ -1152,34 +1166,45 @@ pub fn settings_view(
                         .bg(BG_RAIL)
                         .border_l_1()
                         .border_color(BORDER_PANEL)
-                        // Pending Diff Header
-                        .child(
-                            div()
-                                .h(px(34.0))
-                                .flex_none()
-                                .flex()
-                                .items_center()
-                                .px(px(12.0))
-                                .bg(BG_PANEL)
-                                .border_b_1()
-                                .border_color(BORDER_PANEL)
-                                .gap(px(8.0))
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
-                                        .font_weight(FontWeight::SEMIBOLD)
-                                        .text_color(TEXT_PRIMARY)
-                                        .child("PENDING DIFF"),
-                                )
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
-                                        .text_color(if total_changed > 0 { WARN } else { TEXT_DIMMER })
-                                        .child(diff_badge),
-                                ),
-                        )
+                        .children(if section == SettingsSection::Keys {
+                            Some(render_keys_right_rail(app.clone(), app_data))
+                        } else {
+                            None
+                        })
+                        .children(if section != SettingsSection::Keys {
+                            Some(
+                                div()
+                                    .size_full()
+                                    .flex()
+                                    .flex_col()
+                                    // Pending Diff Header
+                                    .child(
+                                        div()
+                                            .h(px(34.0))
+                                            .flex_none()
+                                            .flex()
+                                            .items_center()
+                                            .px(px(12.0))
+                                            .bg(BG_PANEL)
+                                            .border_b_1()
+                                            .border_color(BORDER_PANEL)
+                                            .gap(px(8.0))
+                                            .child(
+                                                div()
+                                                    .font_family(FONT_MONO)
+                                                    .text_size(px(11.0))
+                                                    .font_weight(FontWeight::SEMIBOLD)
+                                                    .text_color(TEXT_PRIMARY)
+                                                    .child("PENDING DIFF"),
+                                            )
+                                            .child(
+                                                div()
+                                                    .font_family(FONT_MONO)
+                                                    .text_size(px(10.0))
+                                                    .text_color(if total_changed > 0 { WARN } else { TEXT_DIMMER })
+                                                    .child(diff_badge),
+                                            ),
+                                    )
                         // Diff Snippets
                         .child(if diff_lines.is_empty() {
                             div()
@@ -1315,6 +1340,11 @@ pub fn settings_view(
                                         )
                                 })),
                         ),
-                ),
+                    )
+                } else {
+                    None
+                }),
         )
+        )
+        .children(render_key_modals(app.clone(), app_data))
 }

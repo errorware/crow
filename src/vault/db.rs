@@ -74,6 +74,36 @@ pub struct VaultMeta {
     pub updated_at: String,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SshScanPath {
+    pub id: i64,
+    pub path: String,
+    pub created_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SshKeyGroup {
+    pub id: String,
+    pub name: String,
+    pub color: String,
+    pub created_at: String,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub struct SshKeyRecord {
+    pub id: String,
+    pub name: String,
+    pub group_id: String,
+    pub public_key: String,
+    pub fingerprint: String,
+    pub algorithm: String,
+    pub comment: Option<String>,
+    pub private_key_path: Option<String>,
+    pub attached_servers: Vec<String>,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
 pub struct VaultDb {
     conn: Connection,
     path: PathBuf,
@@ -149,8 +179,79 @@ impl VaultDb {
                 updated_at TEXT NOT NULL
             );
 
-            CREATE INDEX IF NOT EXISTS idx_entries_category ON vault_entries (category);",
+            CREATE INDEX IF NOT EXISTS idx_entries_category ON vault_entries (category);
+
+            CREATE TABLE IF NOT EXISTS ssh_scan_paths (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                path TEXT NOT NULL UNIQUE,
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS ssh_key_groups (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                color TEXT NOT NULL DEFAULT '#60a5fa',
+                created_at TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS ssh_keys (
+                id TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                group_id TEXT NOT NULL DEFAULT 'default',
+                public_key TEXT NOT NULL,
+                fingerprint TEXT NOT NULL,
+                algorithm TEXT NOT NULL,
+                comment TEXT,
+                private_key_path TEXT,
+                attached_servers TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
+            CREATE INDEX IF NOT EXISTS idx_ssh_keys_group ON ssh_keys (group_id);
+            CREATE INDEX IF NOT EXISTS idx_ssh_keys_fingerprint ON ssh_keys (fingerprint);",
         )?;
+
+        // Seed default scan path if empty
+        let scan_path_count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM ssh_scan_paths",
+            [],
+            |r| r.get(0),
+        )?;
+        if scan_path_count == 0 {
+            let now = Utc::now().to_rfc3339();
+            let default_scan = dirs::home_dir()
+                .map(|h| h.join(".ssh").display().to_string())
+                .unwrap_or_else(|| "~/.ssh".to_string());
+            let _ = self.conn.execute(
+                "INSERT OR IGNORE INTO ssh_scan_paths (path, created_at) VALUES (?1, ?2)",
+                params![default_scan, now],
+            );
+        }
+
+        // Seed default groups if empty
+        let group_count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM ssh_key_groups",
+            [],
+            |r| r.get(0),
+        )?;
+        if group_count == 0 {
+            let now = Utc::now().to_rfc3339();
+            let defaults = [
+                ("default", "Default", "#94a3b8"),
+                ("fleet", "Fleet", "#4ade80"),
+                ("bastions", "Bastions", "#60a5fa"),
+                ("production", "Production", "#f59e0b"),
+                ("legacy", "Legacy", "#f87171"),
+            ];
+            for (id, name, color) in defaults {
+                let _ = self.conn.execute(
+                    "INSERT OR IGNORE INTO ssh_key_groups (id, name, color, created_at) VALUES (?1, ?2, ?3, ?4)",
+                    params![id, name, color, now],
+                );
+            }
+        }
+
         Ok(())
     }
 
@@ -401,6 +502,231 @@ impl VaultDb {
         meta.ok_or(VaultError::NotInitialized)
     }
 
+    // --- SSH Scan Paths ---
+    pub fn list_scan_paths(&self) -> Result<Vec<SshScanPath>, VaultError> {
+        let mut stmt = self.conn.prepare("SELECT id, path, created_at FROM ssh_scan_paths ORDER BY id ASC")?;
+        let rows = stmt.query_map([], |r| {
+            Ok(SshScanPath {
+                id: r.get(0)?,
+                path: r.get(1)?,
+                created_at: r.get(2)?,
+            })
+        })?;
+        let mut res = Vec::new();
+        for r in rows {
+            res.push(r?);
+        }
+        Ok(res)
+    }
+
+    pub fn add_scan_path(&self, path: &str) -> Result<SshScanPath, VaultError> {
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "INSERT OR IGNORE INTO ssh_scan_paths (path, created_at) VALUES (?1, ?2)",
+            params![path, now],
+        )?;
+        let row = self.conn.query_row(
+            "SELECT id, path, created_at FROM ssh_scan_paths WHERE path = ?1",
+            params![path],
+            |r| {
+                Ok(SshScanPath {
+                    id: r.get(0)?,
+                    path: r.get(1)?,
+                    created_at: r.get(2)?,
+                })
+            },
+        )?;
+        Ok(row)
+    }
+
+    pub fn remove_scan_path(&self, id: i64) -> Result<bool, VaultError> {
+        let rows = self.conn.execute("DELETE FROM ssh_scan_paths WHERE id = ?1", params![id])?;
+        Ok(rows > 0)
+    }
+
+    // --- SSH Key Groups ---
+    pub fn list_key_groups(&self) -> Result<Vec<SshKeyGroup>, VaultError> {
+        let mut stmt = self.conn.prepare("SELECT id, name, color, created_at FROM ssh_key_groups ORDER BY rowid ASC")?;
+        let rows = stmt.query_map([], |r| {
+            Ok(SshKeyGroup {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                color: r.get(2)?,
+                created_at: r.get(3)?,
+            })
+        })?;
+        let mut res = Vec::new();
+        for r in rows {
+            res.push(r?);
+        }
+        Ok(res)
+    }
+
+    pub fn add_key_group(&self, id: &str, name: &str, color: &str) -> Result<SshKeyGroup, VaultError> {
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "INSERT INTO ssh_key_groups (id, name, color, created_at)
+             VALUES (?1, ?2, ?3, ?4)
+             ON CONFLICT(id) DO UPDATE SET name = excluded.name, color = excluded.color",
+            params![id, name, color, now],
+        )?;
+        Ok(SshKeyGroup {
+            id: id.to_string(),
+            name: name.to_string(),
+            color: color.to_string(),
+            created_at: now,
+        })
+    }
+
+    pub fn delete_key_group(&self, id: &str) -> Result<bool, VaultError> {
+        if id == "default" {
+            return Ok(false); // Protect default group
+        }
+        self.conn.execute("UPDATE ssh_keys SET group_id = 'default' WHERE group_id = ?1", params![id])?;
+        let rows = self.conn.execute("DELETE FROM ssh_key_groups WHERE id = ?1", params![id])?;
+        Ok(rows > 0)
+    }
+
+    // --- SSH Keys ---
+    pub fn list_ssh_keys(&self) -> Result<Vec<SshKeyRecord>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, name, group_id, public_key, fingerprint, algorithm, comment, private_key_path, attached_servers, created_at, updated_at
+             FROM ssh_keys ORDER BY name ASC"
+        )?;
+        let rows = stmt.query_map([], |r| {
+            let servers_json: String = r.get(8)?;
+            let servers: Vec<String> = serde_json::from_str(&servers_json).unwrap_or_default();
+            Ok(SshKeyRecord {
+                id: r.get(0)?,
+                name: r.get(1)?,
+                group_id: r.get(2)?,
+                public_key: r.get(3)?,
+                fingerprint: r.get(4)?,
+                algorithm: r.get(5)?,
+                comment: r.get(6)?,
+                private_key_path: r.get(7)?,
+                attached_servers: servers,
+                created_at: r.get(9)?,
+                updated_at: r.get(10)?,
+            })
+        })?;
+        let mut res = Vec::new();
+        for r in rows {
+            res.push(r?);
+        }
+        Ok(res)
+    }
+
+    pub fn get_ssh_key(&self, id: &str) -> Result<Option<SshKeyRecord>, VaultError> {
+        let res = self.conn.query_row(
+            "SELECT id, name, group_id, public_key, fingerprint, algorithm, comment, private_key_path, attached_servers, created_at, updated_at
+             FROM ssh_keys WHERE id = ?1",
+            params![id],
+            |r| {
+                let servers_json: String = r.get(8)?;
+                let servers: Vec<String> = serde_json::from_str(&servers_json).unwrap_or_default();
+                Ok(SshKeyRecord {
+                    id: r.get(0)?,
+                    name: r.get(1)?,
+                    group_id: r.get(2)?,
+                    public_key: r.get(3)?,
+                    fingerprint: r.get(4)?,
+                    algorithm: r.get(5)?,
+                    comment: r.get(6)?,
+                    private_key_path: r.get(7)?,
+                    attached_servers: servers,
+                    created_at: r.get(9)?,
+                    updated_at: r.get(10)?,
+                })
+            }
+        ).optional()?;
+        Ok(res)
+    }
+
+    pub fn get_ssh_key_by_fingerprint(&self, fingerprint: &str) -> Result<Option<SshKeyRecord>, VaultError> {
+        let res = self.conn.query_row(
+            "SELECT id, name, group_id, public_key, fingerprint, algorithm, comment, private_key_path, attached_servers, created_at, updated_at
+             FROM ssh_keys WHERE fingerprint = ?1",
+            params![fingerprint],
+            |r| {
+                let servers_json: String = r.get(8)?;
+                let servers: Vec<String> = serde_json::from_str(&servers_json).unwrap_or_default();
+                Ok(SshKeyRecord {
+                    id: r.get(0)?,
+                    name: r.get(1)?,
+                    group_id: r.get(2)?,
+                    public_key: r.get(3)?,
+                    fingerprint: r.get(4)?,
+                    algorithm: r.get(5)?,
+                    comment: r.get(6)?,
+                    private_key_path: r.get(7)?,
+                    attached_servers: servers,
+                    created_at: r.get(9)?,
+                    updated_at: r.get(10)?,
+                })
+            }
+        ).optional()?;
+        Ok(res)
+    }
+
+    pub fn upsert_ssh_key(&self, key: &SshKeyRecord) -> Result<(), VaultError> {
+        let servers_json = serde_json::to_string(&key.attached_servers).unwrap_or_else(|_| "[]".to_string());
+        let now = Utc::now().to_rfc3339();
+        let created = if key.created_at.is_empty() { &now } else { &key.created_at };
+        self.conn.execute(
+            "INSERT INTO ssh_keys (id, name, group_id, public_key, fingerprint, algorithm, comment, private_key_path, attached_servers, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)
+             ON CONFLICT(id) DO UPDATE SET
+                 name = excluded.name,
+                 group_id = excluded.group_id,
+                 public_key = excluded.public_key,
+                 fingerprint = excluded.fingerprint,
+                 algorithm = excluded.algorithm,
+                 comment = excluded.comment,
+                 private_key_path = excluded.private_key_path,
+                 attached_servers = excluded.attached_servers,
+                 updated_at = excluded.updated_at",
+            params![
+                key.id,
+                key.name,
+                key.group_id,
+                key.public_key,
+                key.fingerprint,
+                key.algorithm,
+                key.comment,
+                key.private_key_path,
+                servers_json,
+                created,
+                now,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn delete_ssh_key(&self, id: &str) -> Result<bool, VaultError> {
+        let rows = self.conn.execute("DELETE FROM ssh_keys WHERE id = ?1", params![id])?;
+        Ok(rows > 0)
+    }
+
+    pub fn update_ssh_key_name_and_group(&self, id: &str, name: &str, group_id: &str) -> Result<(), VaultError> {
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "UPDATE ssh_keys SET name = ?1, group_id = ?2, updated_at = ?3 WHERE id = ?4",
+            params![name, group_id, now, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_ssh_key_attached_servers(&self, id: &str, servers: &[String]) -> Result<(), VaultError> {
+        let now = Utc::now().to_rfc3339();
+        let servers_json = serde_json::to_string(servers).unwrap_or_else(|_| "[]".to_string());
+        self.conn.execute(
+            "UPDATE ssh_keys SET attached_servers = ?1, updated_at = ?2 WHERE id = ?3",
+            params![servers_json, now, id],
+        )?;
+        Ok(())
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
     }
@@ -467,5 +793,87 @@ mod tests {
 
         let res_valid = db.unlock(password, Some(&valid_code));
         assert!(res_valid.is_ok());
+    }
+
+    #[test]
+    fn test_ssh_scan_paths_and_groups_lifecycle() {
+        let db = VaultDb::open_in_memory().unwrap();
+
+        // Check seeded scan path
+        let paths = db.list_scan_paths().unwrap();
+        assert!(!paths.is_empty());
+
+        // Add custom scan path
+        let added = db.add_scan_path("/custom/ssh/keys").unwrap();
+        assert_eq!(added.path, "/custom/ssh/keys");
+
+        let updated_paths = db.list_scan_paths().unwrap();
+        assert_eq!(updated_paths.len(), paths.len() + 1);
+
+        // Remove custom scan path
+        let removed = db.remove_scan_path(added.id).unwrap();
+        assert!(removed);
+        let final_paths = db.list_scan_paths().unwrap();
+        assert_eq!(final_paths.len(), paths.len());
+
+        // Check seeded groups
+        let groups = db.list_key_groups().unwrap();
+        assert!(groups.iter().any(|g| g.id == "fleet"));
+        assert!(groups.iter().any(|g| g.id == "bastions"));
+
+        // Add custom group
+        let custom_grp = db.add_key_group("custom-zone", "Custom Zone", "#10b981").unwrap();
+        assert_eq!(custom_grp.name, "Custom Zone");
+
+        let grp_list = db.list_key_groups().unwrap();
+        assert!(grp_list.iter().any(|g| g.id == "custom-zone"));
+
+        // Delete group
+        let del = db.delete_key_group("custom-zone").unwrap();
+        assert!(del);
+    }
+
+    #[test]
+    fn test_ssh_keys_crud_lifecycle() {
+        let db = VaultDb::open_in_memory().unwrap();
+
+        let key = SshKeyRecord {
+            id: "key-1".into(),
+            name: "Fleet Ed25519".into(),
+            group_id: "fleet".into(),
+            public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI... nelson@crow".into(),
+            fingerprint: "SHA256:49c83fbc7d9...".into(),
+            algorithm: "Ed25519".into(),
+            comment: Some("nelson@crow".into()),
+            private_key_path: Some("~/.ssh/id_ed25519".into()),
+            attached_servers: vec!["edge-01".into(), "edge-02".into()],
+            created_at: String::new(),
+            updated_at: String::new(),
+        };
+
+        db.upsert_ssh_key(&key).unwrap();
+
+        let fetched = db.get_ssh_key("key-1").unwrap().unwrap();
+        assert_eq!(fetched.name, "Fleet Ed25519");
+        assert_eq!(fetched.attached_servers.len(), 2);
+
+        let by_fp = db.get_ssh_key_by_fingerprint("SHA256:49c83fbc7d9...").unwrap().unwrap();
+        assert_eq!(by_fp.id, "key-1");
+
+        // Update name and group
+        db.update_ssh_key_name_and_group("key-1", "Fleet Primary Master", "bastions").unwrap();
+        let updated = db.get_ssh_key("key-1").unwrap().unwrap();
+        assert_eq!(updated.name, "Fleet Primary Master");
+        assert_eq!(updated.group_id, "bastions");
+
+        // Update attached servers
+        db.update_ssh_key_attached_servers("key-1", &["edge-01".into(), "bastion".into(), "db-primary".into()]).unwrap();
+        let updated_servers = db.get_ssh_key("key-1").unwrap().unwrap();
+        assert_eq!(updated_servers.attached_servers.len(), 3);
+
+        // Delete key
+        let deleted = db.delete_ssh_key("key-1").unwrap();
+        assert!(deleted);
+        assert!(db.get_ssh_key("key-1").unwrap().is_none());
     }
 }

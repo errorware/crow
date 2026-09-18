@@ -21,3 +21,4 @@ rand = "0.10.2"
 dirs = "7.0.0"
 toml = "0.8"
 toml_edit = "0.22"
+ssh-key = { version = "0.6.7", features = ["ed25519", "rsa", "rand_core", "std", "getrandom", "crypto"] }

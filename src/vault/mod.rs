@@ -7,7 +7,7 @@ use std::time::Instant;
 pub use crypto::{
     generate_salt, generate_totp_secret, totp_auth_url, verify_totp_code, MasterKey,
 };
-pub use db::{VaultDb, VaultEntryMeta, VaultError, VaultMeta};
+pub use db::{SshKeyGroup, SshKeyRecord, SshScanPath, VaultDb, VaultEntryMeta, VaultError, VaultMeta};
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum VaultStatus {
