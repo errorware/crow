@@ -1033,6 +1033,8 @@ fn render_journal_row(
                     div()
                         .w(px(60.0))
                         .flex_none()
+                        .flex()
+                        .items_center()
                         .child(if let Some(pid) = entry.pid {
                             let app_pid = app.clone();
                             let is_filtered = app_data.journal_pid_filter == Some(pid);
