@@ -164,7 +164,6 @@ pub struct CrowApp {
     pub group_services: bool,
     pub collapsed_process_groups: HashSet<String>,
     pub collapsed_service_groups: HashSet<String>,
-    pub hover_pid_tooltip: Option<u32>,
     pub journal_pid_filter: Option<u32>,
     pub journal_pid_kill_confirm: bool,
     pub journal_search_focused: bool,
@@ -443,7 +442,6 @@ host    all             all             10.0.4.0/24             scram-sha-256
             group_services: false,
             collapsed_process_groups: HashSet::new(),
             collapsed_service_groups: HashSet::new(),
-            hover_pid_tooltip: None,
             journal_pid_filter: None,
             journal_pid_kill_confirm: false,
             journal_search_focused: false,
@@ -602,11 +600,6 @@ host    all             all             10.0.4.0/24             scram-sha-256
         if now_expanded {
             self.journal_live_tail = false;
         }
-        cx.notify();
-    }
-
-    pub fn set_hover_pid_tooltip(&mut self, pid: Option<u32>, cx: &mut Context<Self>) {
-        self.hover_pid_tooltip = pid;
         cx.notify();
     }
 

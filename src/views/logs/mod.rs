@@ -1035,76 +1035,26 @@ fn render_journal_row(
                         .flex_none()
                         .child(if let Some(pid) = entry.pid {
                             let app_pid = app.clone();
-                            let app_hover = app.clone();
-                            let show_tip = app_data.hover_pid_tooltip == Some(pid);
-                            let proc_match = app_data.processes.iter().find(|p| p.pid == pid);
+                            let is_filtered = app_data.journal_pid_filter == Some(pid);
 
                             div()
                                 .id(ElementId::NamedInteger("journal-pid".into(), idx as u64))
-                                .relative()
-                                .text_color(TEXT_FAINT)
-                                .hover(|s| s.text_color(hex_rgb(0x8ab4ff)).underline())
+                                .px(px(4.0))
+                                .py(px(1.0))
+                                .rounded_sm()
+                                .bg(if is_filtered { hex_rgba(0x8ab4ff, 0.18) } else { hex_rgba(0, 0.0) })
+                                .text_color(if is_filtered { hex_rgb(0x8ab4ff) } else { TEXT_FAINT })
+                                .font_weight(if is_filtered { FontWeight::BOLD } else { FontWeight::NORMAL })
+                                .hover(|s| s.text_color(hex_rgb(0x8ab4ff)).bg(hex_rgba(0x8ab4ff, 0.12)))
                                 .cursor_pointer()
-                                .on_hover(move |hovered, _window, cx| {
-                                    let val = if *hovered { Some(pid) } else { None };
-                                    app_hover.update(cx, |this, cx| {
-                                        this.set_hover_pid_tooltip(val, cx);
-                                    });
-                                })
                                 .on_click(move |_ev, _window, cx| {
                                     cx.stop_propagation();
                                     app_pid.update(cx, |this, cx| {
-                                        this.set_journal_pid_filter(Some(pid), cx);
+                                        let next = if is_filtered { None } else { Some(pid) };
+                                        this.set_journal_pid_filter(next, cx);
                                     });
                                 })
                                 .child(pid.to_string())
-                                .children(if show_tip {
-                                    Some(
-                                        div()
-                                            .absolute()
-                                            .bottom(px(22.0))
-                                            .left_0()
-                                            .w(px(230.0))
-                                            .p(px(9.0))
-                                            .bg(BG_OVERLAY_PANEL)
-                                            .border_1()
-                                            .border_color(BORDER_STRONG)
-                                            .shadow_lg()
-                                            .flex()
-                                            .flex_col()
-                                            .gap(px(4.0))
-                                            .font_family(FONT_MONO)
-                                            .text_size(px(10.0))
-                                            .child(
-                                                div()
-                                                    .text_color(TEXT_PRIMARY)
-                                                    .font_weight(FontWeight::SEMIBOLD)
-                                                    .child(format!("PID {}", pid)),
-                                            )
-                                            .child(if let Some(p) = proc_match {
-                                                div()
-                                                    .flex()
-                                                    .flex_col()
-                                                    .gap(px(2.0))
-                                                    .child(div().text_color(TEXT_SECONDARY).child(p.command.clone()))
-                                                    .child(
-                                                        div()
-                                                            .text_color(TEXT_DIM)
-                                                            .child(format!("{} · cpu {:.1}% · mem {:.1}%", p.user, p.cpu, p.mem)),
-                                                    )
-                                            } else {
-                                                div().text_color(TEXT_DIMMER).child("No live process table match")
-                                            })
-                                            .child(
-                                                div()
-                                                    .text_color(TEXT_FAINT)
-                                                    .text_size(px(9.0))
-                                                    .child("click to filter logs to this PID"),
-                                            ),
-                                    )
-                                } else {
-                                    None
-                                })
                                 .into_any_element()
                         } else {
                             div().text_color(TEXT_FAINT).child("—").into_any_element()
