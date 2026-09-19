@@ -20,6 +20,11 @@ use crate::views::config::raw_config_editor;
 use crate::views::users::{
     default_system_users, user_management_view, NewUserState, SystemUserRecord, UserFilterTab, UserSshKeySummary,
 };
+use crate::views::firewall::{
+    default_active_ufw_state, default_ufw_rules, detect_firewall_status, firewall_view,
+    FirewallOperationalState, FirewallRule, FirewallStatusSummary, NewRuleState,
+    RuleAction, RuleDirection, RuleProtocol,
+};
 use crate::config::{crawl_machine_configs, sample_config_content, ConfigFileState, DiscoveredConfigFile, CrowConfigManager};
 use crate::views::fleet::{fleet_overview_view, fleet_setup_view};
 use crate::views::lock::{
@@ -230,6 +235,13 @@ pub struct CrowApp {
     pub user_search_query: String,
     pub user_filter_tab: UserFilterTab,
     pub user_toast_message: Option<String>,
+    // Firewall & Network Security Subsystem
+    pub firewall_state: FirewallOperationalState,
+    pub firewall_search_query: String,
+    pub firewall_action_filter: Option<RuleAction>,
+    pub show_new_firewall_rule_modal: bool,
+    pub new_firewall_rule_state: NewRuleState,
+    pub firewall_toast_message: Option<String>,
 }
 
 impl CrowApp {
@@ -445,6 +457,10 @@ host    all             all             10.0.4.0/24             scram-sha-256
             .first()
             .map(|f| f.name.clone())
             .unwrap_or_else(|| "journald.conf".to_string());
+        let initial_firewall_state = servers
+            .first()
+            .map(|s| detect_firewall_status(s))
+            .unwrap_or_else(default_active_ufw_state);
 
         Self {
             focus_handle: cx.focus_handle(),
@@ -561,6 +577,12 @@ host    all             all             10.0.4.0/24             scram-sha-256
             user_search_query: String::new(),
             user_filter_tab: UserFilterTab::All,
             user_toast_message: None,
+            firewall_state: initial_firewall_state,
+            firewall_search_query: String::new(),
+            firewall_action_filter: None,
+            show_new_firewall_rule_modal: false,
+            new_firewall_rule_state: NewRuleState::default(),
+            firewall_toast_message: None,
         }
     }
 
@@ -1280,6 +1302,147 @@ host    all             all             10.0.4.0/24             scram-sha-256
         self.users.retain(|u| u.username != username);
         self.user_toast_message = Some(format!("Deleted user account '{}'", username));
         cx.notify();
+    }
+
+    // ==========================================
+    // Firewall & Network Security Methods
+    // ==========================================
+
+    pub fn set_firewall_search(&mut self, query: &str, cx: &mut Context<Self>) {
+        self.firewall_search_query = query.to_string();
+        cx.notify();
+    }
+
+    pub fn set_firewall_action_filter(&mut self, filter: Option<RuleAction>, cx: &mut Context<Self>) {
+        self.firewall_action_filter = filter;
+        cx.notify();
+    }
+
+    pub fn open_new_firewall_rule_modal(&mut self, cx: &mut Context<Self>) {
+        self.show_new_firewall_rule_modal = true;
+        self.new_firewall_rule_state = NewRuleState::default();
+        cx.notify();
+    }
+
+    pub fn close_new_firewall_rule_modal(&mut self, cx: &mut Context<Self>) {
+        self.show_new_firewall_rule_modal = false;
+        cx.notify();
+    }
+
+    pub fn toggle_firewall_active(&mut self, cx: &mut Context<Self>) {
+        match &mut self.firewall_state {
+            FirewallOperationalState::Active(summary) => {
+                summary.is_active = !summary.is_active;
+                let status_str = if summary.is_active { "ENABLED (ufw enable)" } else { "DISABLED (ufw disable)" };
+                self.firewall_toast_message = Some(format!("Executed: sudo {}", status_str));
+            }
+            FirewallOperationalState::Inactive { backend, .. } => {
+                let be = *backend;
+                self.firewall_state = FirewallOperationalState::Active(FirewallStatusSummary {
+                    backend: be,
+                    is_active: true,
+                    default_incoming: RuleAction::Deny,
+                    default_outgoing: RuleAction::Allow,
+                    default_forward: RuleAction::Deny,
+                    rules: default_ufw_rules(),
+                    raw_output: "Status: active".into(),
+                });
+                self.firewall_toast_message = Some("Executed: sudo ufw enable".into());
+            }
+            FirewallOperationalState::Unmanaged { .. } => {
+                self.firewall_state = default_active_ufw_state();
+                self.firewall_toast_message = Some("Initialized UFW packet filter".into());
+            }
+        }
+        cx.notify();
+    }
+
+    pub fn reload_firewall(&mut self, cx: &mut Context<Self>) {
+        self.firewall_toast_message = Some("Executed: sudo ufw reload (Firewall reloaded)".into());
+        cx.notify();
+    }
+
+    pub fn toggle_quick_port(&mut self, port: u16, proto: RuleProtocol, label: &str, cx: &mut Context<Self>) {
+        let port_str = port.to_string();
+        if let FirewallOperationalState::Active(ref mut summary) = self.firewall_state {
+            if let Some(pos) = summary.rules.iter().position(|r| r.action == RuleAction::Allow && r.port == port_str) {
+                summary.rules.remove(pos);
+                self.firewall_toast_message = Some(format!("Executed: ufw delete allow {}/tcp ({})", port, label));
+            } else {
+                let next_num = summary.rules.iter().map(|r| r.number).max().unwrap_or(0) + 1;
+                summary.rules.push(FirewallRule {
+                    id: format!("rule-{}", next_num),
+                    number: next_num,
+                    action: RuleAction::Allow,
+                    direction: RuleDirection::Inbound,
+                    port: port_str.clone(),
+                    protocol: proto,
+                    source: "Anywhere".to_string(),
+                    destination: "Anywhere".to_string(),
+                    comment: Some(format!("{} Service Ingress", label)),
+                    is_ipv6: false,
+                });
+                self.firewall_toast_message = Some(format!("Executed: ufw allow {}/tcp ({})", port, label));
+            }
+            cx.notify();
+        }
+    }
+
+    pub fn delete_firewall_rule(&mut self, rule_id: &str, cx: &mut Context<Self>) {
+        if let FirewallOperationalState::Active(ref mut summary) = self.firewall_state {
+            if let Some(pos) = summary.rules.iter().position(|r| r.id == rule_id) {
+                let removed = summary.rules.remove(pos);
+                self.firewall_toast_message = Some(format!("Executed: ufw delete [{}] ({})", removed.number, removed.display_port_proto()));
+                // Re-index remaining rules
+                for (i, r) in summary.rules.iter_mut().enumerate() {
+                    r.number = i + 1;
+                }
+            }
+            cx.notify();
+        }
+    }
+
+    pub fn submit_new_firewall_rule(&mut self, cx: &mut Context<Self>) {
+        let cmd = self.new_firewall_rule_state.generate_ufw_command();
+        let port = self.new_firewall_rule_state.port_input.trim().to_string();
+        let source = if self.new_firewall_rule_state.is_anywhere || self.new_firewall_rule_state.source_input.trim().is_empty() {
+            "Anywhere".to_string()
+        } else {
+            self.new_firewall_rule_state.source_input.trim().to_string()
+        };
+        let comment = if self.new_firewall_rule_state.comment_input.trim().is_empty() {
+            None
+        } else {
+            Some(self.new_firewall_rule_state.comment_input.trim().to_string())
+        };
+
+        if let FirewallOperationalState::Active(ref mut summary) = self.firewall_state {
+            let next_num = summary.rules.iter().map(|r| r.number).max().unwrap_or(0) + 1;
+            summary.rules.push(FirewallRule {
+                id: format!("rule-{}", next_num),
+                number: next_num,
+                action: self.new_firewall_rule_state.action,
+                direction: self.new_firewall_rule_state.direction,
+                port,
+                protocol: self.new_firewall_rule_state.protocol,
+                source,
+                destination: "Anywhere".to_string(),
+                comment,
+                is_ipv6: false,
+            });
+            self.show_new_firewall_rule_modal = false;
+            self.firewall_toast_message = Some(format!("Executed: {}", cmd));
+            cx.notify();
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn flush_firewall_rules(&mut self, cx: &mut Context<Self>) {
+        if let FirewallOperationalState::Active(ref mut summary) = self.firewall_state {
+            summary.rules.clear();
+            self.firewall_toast_message = Some("Executed: sudo ufw reset (Flushed all firewall rules)".into());
+            cx.notify();
+        }
     }
 
     pub fn apply_journal_boundaries(&mut self, cx: &mut Context<Self>) {
@@ -3099,7 +3262,11 @@ impl Render for CrowApp {
                     }
                 }
                 if ev.keystroke.key == "escape" {
-                    if this.show_about_modal {
+                    if this.show_new_firewall_rule_modal {
+                        this.close_new_firewall_rule_modal(cx);
+                    } else if this.show_new_user_modal {
+                        this.close_new_user_modal(cx);
+                    } else if this.show_about_modal {
                         this.close_about_modal(cx);
                     } else if this.menu_open {
                         this.menu_open = false;
@@ -3389,6 +3556,12 @@ impl Render for CrowApp {
                                                                     div()
                                                                         .size_full()
                                                                         .child(user_management_view(app_view.clone(), self))
+                                                                )
+                                                            } else if self.active_view == "firewall" {
+                                                                Some(
+                                                                    div()
+                                                                        .size_full()
+                                                                        .child(firewall_view(app_view.clone(), self))
                                                                 )
                                                             } else {
                                                                 Some(
