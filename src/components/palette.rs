@@ -31,6 +31,7 @@ pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str) -> impl IntoElem
         .inset_0()
         .bg(hex_rgba(0x050507, 0.62))
         .flex()
+        .items_start()
         .justify_center()
         .pt(px(140.0))
         .on_click(move |_ev, _window, cx| {
@@ -42,6 +43,10 @@ pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str) -> impl IntoElem
             div()
                 .id("palette-panel")
                 .w(px(620.0))
+                .max_h(px(480.0))
+                .flex()
+                .flex_col()
+                .overflow_hidden()
                 .bg(BG_OVERLAY_PANEL)
                 .border_1()
                 .border_color(BORDER_STRONG)

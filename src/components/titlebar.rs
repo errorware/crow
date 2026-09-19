@@ -1,4 +1,5 @@
 use gpui_kit::*;
+use gpui_kit::base::InteractiveElementExt;
 use crate::theme::*;
 use crate::app::{CrowApp, Screen};
 use crate::components::icons::{TablerIcon, tabler_icon};
@@ -115,7 +116,7 @@ pub fn titlebar(
                     .px(px(14.0))
                     .border_r_1()
                     .border_color(BORDER_PANEL)
-                    .bg(if is_fleet_active { BG_OVERLAY_PANEL } else { hex_rgba(0, 0.0) })
+                    .bg(if is_fleet_active { BG_APP } else { hex_rgba(0, 0.0) })
                     .cursor_pointer()
                     .hover(|s| s.bg(BG_ROW_HOVER))
                     .on_click(move |_ev, _window, cx| {
@@ -147,10 +148,10 @@ pub fn titlebar(
                     .gap(px(7.0))
                     .px(px(14.0))
                     .border_r_1()
-                    .border_color(BORDER_PANEL)
-                    .bg(if is_active { BG_OVERLAY_PANEL } else { hex_rgba(0, 0.0) })
+                    .border_color(if is_active { BORDER_STRONG } else { BORDER_PANEL })
+                    .bg(if is_active { BG_APP } else { hex_rgba(0, 0.0) })
                     .cursor_pointer()
-                    .hover(|s| s.bg(BG_ROW_HOVER))
+                    .hover(|s| s.bg(if is_active { BG_APP } else { BG_ROW_HOVER }))
                     .on_click(move |_ev, _window, cx| {
                         let tid = tab_id.clone();
                         app_tab.update(cx, |this, cx| {
@@ -169,7 +170,8 @@ pub fn titlebar(
                         div()
                             .font_family(FONT_MONO)
                             .text_size(px(11.0))
-                            .text_color(if is_active { TEXT_PRIMARY } else { TEXT_MUTED })
+                            .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+                            .text_color(if is_active { TEXT_MAX } else { TEXT_MUTED })
                             .child(tab.name.clone()),
                     )
                     .child(
@@ -212,8 +214,15 @@ pub fn titlebar(
             )
             .child(
                 div()
+                    .id("titlebar-drag-region")
                     .flex_1()
-                    .h_full(),
+                    .h_full()
+                    .on_mouse_down(MouseButton::Left, |_ev, window, _cx| {
+                        window.start_window_move();
+                    })
+                    .on_double_click(|_ev, window, _cx| {
+                        window.zoom_window();
+                    }),
             ),
     );
 
@@ -229,10 +238,12 @@ pub fn titlebar(
     } else {
         "SSH ED25519 · active".to_string()
     };
-    let time_text = chrono::Utc::now().format("%H:%M:%S UTC").to_string();
+    let server_time_text = chrono::Utc::now().format("%H:%M:%S").to_string();
+    let local_time_text = chrono::Local::now().format("%H:%M:%S").to_string();
 
     bar = bar.child(
         div()
+            .id("titlebar-meta-drag-region")
             .flex()
             .items_center()
             .gap(px(14.0))
@@ -242,8 +253,44 @@ pub fn titlebar(
             .text_color(TEXT_FAINT)
             .border_l_1()
             .border_color(BORDER_PANEL)
+            .on_mouse_down(MouseButton::Left, |_ev, window, _cx| {
+                window.start_window_move();
+            })
+            .on_double_click(|_ev, window, _cx| {
+                window.zoom_window();
+            })
             .child(div().child(meta_text))
-            .child(div().child(time_text)),
+            .children(if current_screen == Screen::Server {
+                Some(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(5.0))
+                        .child(div().text_color(TEXT_DIMMER).child("SRV"))
+                        .child(
+                            div()
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(TEXT_SECONDARY)
+                                .child(server_time_text),
+                        )
+                        .child(div().text_color(TEXT_DIMMER).child("UTC")),
+                )
+            } else {
+                None
+            })
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(5.0))
+                    .child(div().text_color(TEXT_DIMMER).child("YOU"))
+                    .child(
+                        div()
+                            .font_weight(FontWeight::SEMIBOLD)
+                            .text_color(TEXT_SECONDARY)
+                            .child(local_time_text),
+                    ),
+            ),
     );
 
     // 5. Linux / Windows platform window controls

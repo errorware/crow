@@ -325,11 +325,11 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .text_color(TEXT_DIMMER)
-                                .child(div().w(px(22.0)).child(""))
-                                .child(div().w(px(160.0)).child("HOST"))
-                                .child(div().w(px(120.0)).child("ADDRESS"))
-                                .child(div().w(px(110.0)).child("ROLE"))
-                                .child(div().w(px(60.0)).child("ENV"))
+                                .child(div().w(px(22.0)).flex_none().child(""))
+                                .child(div().flex_grow(3.0).min_w(px(140.0)).child("HOST"))
+                                .child(div().flex_grow(2.0).min_w(px(100.0)).child("ADDRESS"))
+                                .child(div().flex_grow(2.0).min_w(px(90.0)).child("ROLE"))
+                                .child(div().w(px(60.0)).flex_none().child("ENV"))
                                 .child(div().w(px(95.0)).child("CPU"))
                                 .child(div().w(px(95.0)).child("MEM"))
                                 .child(div().w(px(55.0)).text_align(TextAlign::Right).child("DISK"))
@@ -490,6 +490,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                             .child(
                                                 div()
                                                     .w(px(22.0))
+                                                    .flex_none()
                                                     .flex()
                                                     .items_center()
                                                     .justify_center()
@@ -503,7 +504,8 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                             // Host name + pill
                                             .child(
                                                 div()
-                                                    .w(px(160.0))
+                                                    .flex_grow(3.0)
+                                                    .min_w(px(140.0))
                                                     .flex()
                                                     .items_center()
                                                     .gap(px(6.0))
@@ -547,14 +549,16 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                             // Address
                                             .child(
                                                 div()
-                                                    .w(px(120.0))
+                                                    .flex_grow(2.0)
+                                                    .min_w(px(100.0))
                                                     .text_color(TEXT_DIM)
                                                     .child(host.ip),
                                             )
                                             // Role
                                             .child(
                                                 div()
-                                                    .w(px(110.0))
+                                                    .flex_grow(2.0)
+                                                    .min_w(px(90.0))
                                                     .text_size(px(11.0))
                                                     .text_color(TEXT_TERTIARY)
                                                     .child(host.role),
@@ -563,6 +567,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                             .child(
                                                 div()
                                                     .w(px(60.0))
+                                                    .flex_none()
                                                     .child(
                                                         div()
                                                             .px(px(4.0))

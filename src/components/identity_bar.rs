@@ -63,8 +63,8 @@ pub fn identity_bar(server: Option<&ServerRecord>, app: Entity<CrowApp>) -> impl
         .child(
             div()
                 .flex()
-                .items_baseline()
-                .gap(px(10.0))
+                .flex_col()
+                .gap(px(2.0))
                 .px(px(16.0))
                 .child(
                     div()
@@ -77,8 +77,8 @@ pub fn identity_bar(server: Option<&ServerRecord>, app: Entity<CrowApp>) -> impl
                 .child(
                     div()
                         .font_family("JetBrains Mono")
-                        .text_size(px(11.5))
-                        .text_color(TEXT_DIM)
+                        .text_size(px(9.5))
+                        .text_color(hex_rgb(0x22d3ee))
                         .child(endpoint_str),
                 ),
         )
@@ -188,35 +188,31 @@ pub fn identity_bar(server: Option<&ServerRecord>, app: Entity<CrowApp>) -> impl
                 .id("cmd-palette-trigger")
                 .flex()
                 .items_center()
-                .gap(px(10.0))
+                .gap(px(7.0))
                 .h(px(26.0))
-                .w(px(300.0))
-                .px(px(10.0))
+                .px(px(8.0))
                 .mr(px(12.0))
                 .border_1()
                 .border_color(BORDER_DEFAULT)
                 .bg(hex_rgb(0x0e0f13))
                 .cursor_pointer()
+                .hover(|s| s.border_color(BORDER_STRONG))
                 .on_click(move |_ev, _window, cx| {
                     app_clone.update(cx, |this, cx| {
                         this.toggle_palette(cx);
                     });
                 })
                 .child(
-                    div()
-                        .child(
-                            tabler_icon(TablerIcon::Search)
-                                .size(px(13.0))
-                                .text_color(TEXT_FAINT),
-                        ),
+                    tabler_icon(TablerIcon::Search)
+                        .size(px(13.0))
+                        .text_color(TEXT_FAINT),
                 )
                 .child(
                     div()
-                        .flex_1()
                         .font_family(FONT_MONO)
                         .text_size(px(11.0))
                         .text_color(TEXT_FAINT)
-                        .child("Search or run command…"),
+                        .child("Search"),
                 )
                 .child(
                     div()
