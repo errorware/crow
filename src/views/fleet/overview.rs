@@ -4,6 +4,7 @@ use crate::app::{CrowApp, Screen};
 use crate::components::icons::{TablerIcon, tabler_icon};
 
 pub struct FleetHost {
+    pub id: String,
     pub name: String,
     pub ip: String,
     pub role: String,
@@ -161,6 +162,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                 }
             };
             FleetHost {
+                id: s.id.clone(),
                 name: s.name.clone(),
                 ip: s.host.clone(),
                 role: s.role.clone(),
@@ -448,7 +450,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                 } else {
                                     hosts.into_iter().enumerate().map(|(idx, host)| {
                                         let app_host = app.clone();
-                                        let host_name = host.name.clone();
+                                        let host_id = host.id.clone();
                                         let is_even = idx % 2 == 0;
 
                                         div()
@@ -478,9 +480,9 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                             .hover(|s| s.bg(BG_ROW_HOVER))
                                             .cursor_pointer()
                                             .on_click(move |_ev, _window, cx| {
-                                                let hn = host_name.clone();
+                                                let hid = host_id.clone();
                                                 app_host.update(cx, |this, cx| {
-                                                    this.switch_tab(&hn, cx);
+                                                    this.switch_tab(&hid, cx);
                                                     this.set_screen(Screen::Server, cx);
                                                 });
                                             })

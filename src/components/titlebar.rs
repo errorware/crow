@@ -201,9 +201,18 @@ pub fn titlebar(
                     .child(
                         div()
                             .id(ElementId::NamedInteger("close-tab".into(), idx as u64))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .size(px(16.0))
+                            .rounded_sm()
                             .cursor_pointer()
-                            .hover(|s| s.text_color(TEXT_PRIMARY))
+                            .hover(|s| s.bg(hex_rgba(0xffffff, 0.08)).text_color(TEXT_PRIMARY))
+                            .on_mouse_down(MouseButton::Left, |_ev, _window, cx| {
+                                cx.stop_propagation();
+                            })
                             .on_click(move |_ev, _window, cx| {
+                                cx.stop_propagation();
                                 let tid = close_tab_id.clone();
                                 app_close.update(cx, |this, cx| {
                                     this.close_tab(&tid, cx);

@@ -1228,6 +1228,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 });
             }
             self.active_tab_id = srv.id.clone();
+            for tab in &mut self.tabs {
+                tab.is_active = tab.id == self.active_tab_id;
+            }
             self.screen = Screen::Server;
             if self.active_view == "overview" {
                 match self.active_services_tab.as_str() {
@@ -1244,9 +1247,10 @@ host    all             all             10.0.4.0/24             scram-sha-256
     }
 
     pub fn close_tab(&mut self, tab_id: &str, cx: &mut Context<Self>) {
-        if let Some(pos) = self.tabs.iter().position(|t| t.id == tab_id) {
-            self.tabs.remove(pos);
-            if self.active_tab_id == tab_id {
+        if let Some(pos) = self.tabs.iter().position(|t| t.id == tab_id || t.name == tab_id) {
+            let removed = self.tabs.remove(pos);
+            let was_active = self.active_tab_id == tab_id || self.active_tab_id == removed.id || self.active_tab_id == removed.name;
+            if was_active {
                 if let Some(next_tab) = self.tabs.get(pos).or_else(|| self.tabs.last()) {
                     let next_id = next_tab.id.clone();
                     self.switch_tab(&next_id, cx);
