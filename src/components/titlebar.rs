@@ -34,65 +34,13 @@ pub struct ServerTab {
 }
 
 pub fn active_tab_gradient_bar() -> impl IntoElement {
-    canvas(
-        |_bounds, _window, _cx| (),
-        move |bounds, (), window, _cx| {
-            if bounds.size.width <= px(0.0) {
-                return;
-            }
-            let height = bounds.size.height;
-
-            // Continuous slow phase (approx 3.5s per cycle)
-            let millis = std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_millis())
-                .unwrap_or(0);
-            let phase = ((millis % 3500) as f32) / 3500.0;
-
-            let steps = 30;
-            let slice_w = bounds.size.width / (steps as f32);
-
-            for i in 0..steps {
-                let norm = (i as f32) / (steps as f32);
-                // Travelling wave from left to right: (norm - phase) wrapped around [0, 1)
-                let mut wave = norm - phase;
-                if wave < 0.0 {
-                    wave += 1.0;
-                }
-
-                // Smooth bell-like shimmer: peak alpha around 0.60, base alpha around 0.12
-                let shimmer = ((wave * std::f32::consts::PI * 2.0).sin() + 1.0) * 0.5;
-                let alpha = 0.12 + shimmer * 0.48;
-
-                // Subtle emerald green (#3ecf6e)
-                let color = Rgba {
-                    r: 0.243,
-                    g: 0.812,
-                    b: 0.431,
-                    a: alpha,
-                };
-
-                let x0 = bounds.origin.x + slice_w * (i as f32);
-                let x1 = x0 + slice_w;
-
-                let mut path = PathBuilder::fill();
-                path.move_to(point(x0, bounds.origin.y));
-                path.line_to(point(x1, bounds.origin.y));
-                path.line_to(point(x1, bounds.origin.y + height));
-                path.line_to(point(x0, bounds.origin.y + height));
-                path.close();
-
-                if let Ok(built) = path.build() {
-                    window.paint_path(built, color);
-                }
-            }
-        },
-    )
-    .absolute()
-    .top_0()
-    .left_0()
-    .right_0()
-    .h(px(2.0))
+    div()
+        .absolute()
+        .top_0()
+        .left_0()
+        .right_0()
+        .h(px(2.0))
+        .bg(OK)
 }
 
 pub fn titlebar(
