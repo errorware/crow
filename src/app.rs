@@ -180,6 +180,9 @@ pub struct CrowApp {
     pub lab_nodes: Vec<LocalTestNode>,
     pub show_local_lab_modal: bool,
     pub new_lab_node_distro: String,
+    // About Crow Modal
+    pub show_about_modal: bool,
+    pub about_copied_toast: bool,
 }
 
 impl CrowApp {
@@ -455,6 +458,8 @@ host    all             all             10.0.4.0/24             scram-sha-256
             lab_nodes,
             show_local_lab_modal: false,
             new_lab_node_distro: "noble".to_string(),
+            show_about_modal: false,
+            about_copied_toast: false,
         }
     }
 
@@ -790,6 +795,18 @@ host    all             all             10.0.4.0/24             scram-sha-256
         let _ = std::fs::create_dir_all("/tmp/crow-config");
         let _ = std::fs::write("/tmp/crow-config/journald.conf", conf);
         self.show_journal_retention_modal = false;
+        cx.notify();
+    }
+
+    pub fn open_about_modal(&mut self, cx: &mut Context<Self>) {
+        self.show_about_modal = true;
+        self.about_copied_toast = false;
+        cx.notify();
+    }
+
+    pub fn close_about_modal(&mut self, cx: &mut Context<Self>) {
+        self.show_about_modal = false;
+        self.about_copied_toast = false;
         cx.notify();
     }
 
@@ -2298,7 +2315,9 @@ impl Render for CrowApp {
 
                 // Normal Screens shortcuts
                 if ev.keystroke.key == "escape" {
-                    if this.menu_open {
+                    if this.show_about_modal {
+                        this.close_about_modal(cx);
+                    } else if this.menu_open {
                         this.menu_open = false;
                         cx.notify();
                     } else if this.palette_open {
@@ -2643,6 +2662,12 @@ impl Render for CrowApp {
                                 .map(|s| s.name.as_str())
                                 .unwrap_or("Fleet");
                             Some(palette_overlay(app_view.clone(), scope))
+                        } else {
+                            None
+                        })
+                        // 5. About Crow Modal
+                        .children(if self.show_about_modal {
+                            Some(crate::components::about::about_modal(app_view.clone(), self.about_copied_toast))
                         } else {
                             None
                         })

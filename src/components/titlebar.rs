@@ -371,6 +371,7 @@ pub enum MenuAction {
     NavigateServerView(&'static str),
     ToggleLab,
     TogglePalette,
+    About,
     LockVault,
     Quit,
 }
@@ -501,6 +502,14 @@ pub fn burger_menu_overlay(
         is_danger: false,
         is_header: false,
     });
+    items.push(MenuItem {
+        icon: Some(TablerIcon::InfoCircle),
+        label: "About Crow…".to_string(),
+        shortcut: "",
+        action: Some(MenuAction::About),
+        is_danger: false,
+        is_header: false,
+    });
 
     // Section 4: SESSION
     items.push(MenuItem {
@@ -619,6 +628,12 @@ pub fn burger_menu_overlay(
                                     app_item.update(cx, |this, cx| {
                                         this.close_menu(cx);
                                         this.toggle_palette(cx);
+                                    });
+                                }
+                                Some(MenuAction::About) => {
+                                    app_item.update(cx, |this, cx| {
+                                        this.close_menu(cx);
+                                        this.open_about_modal(cx);
                                     });
                                 }
                                 Some(MenuAction::NavigateScreen(scr)) => {
