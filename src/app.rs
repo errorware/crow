@@ -202,6 +202,7 @@ pub struct CrowApp {
     pub config_file_states: HashMap<String, ConfigFileState>,
     pub config_search_query: String,
     pub config_search_focused: bool,
+    pub show_config_history: bool,
     // Local Lab & Test VMs Subsystem
     pub lab_engines: Vec<EngineStatus>,
     pub lab_nodes: Vec<LocalTestNode>,
@@ -410,6 +411,16 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 ConfigFileState::new(f.full_path.clone(), f.name.clone(), content),
             );
         }
+        let initial_hba = default_hba_rules();
+        let initial_hba_text = crate::views::config::rules_editor::generate_hba_conf(&initial_hba);
+        if let Some(st) = config_file_states.get_mut("pg_hba.conf") {
+            st.update_content(initial_hba_text);
+        }
+        let initial_journald_text = generate_journald_conf(&journal_retention);
+        if let Some(st) = config_file_states.get_mut("journald.conf") {
+            st.baseline_content = initial_journald_text.clone();
+            st.current_content = initial_journald_text;
+        }
         let initial_selected_file = config_files
             .first()
             .map(|f| f.name.clone())
@@ -510,6 +521,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
             config_file_states,
             config_search_query: String::new(),
             config_search_focused: false,
+            show_config_history: false,
             lab_engines,
             lab_nodes,
             show_local_lab_modal: false,
@@ -821,22 +833,49 @@ host    all             all             10.0.4.0/24             scram-sha-256
     pub fn set_journal_quota(&mut self, quota_mb: u64, cx: &mut Context<Self>) {
         self.journal_retention.system_max_use_mb = quota_mb;
         self.journal_telemetry.estimated_retained_days = quota_mb as f32 / self.journal_telemetry.daily_burn_rate_mb.max(1.0);
+        self.sync_journald_to_config_state();
         cx.notify();
+    }
+
+    pub fn default_author(&self) -> String {
+        "Nelson <nelson@errorware.net>".to_string()
+    }
+
+    pub fn toggle_config_history(&mut self, cx: &mut Context<Self>) {
+        self.show_config_history = !self.show_config_history;
+        cx.notify();
+    }
+
+    pub fn sync_hba_to_config_state(&mut self) {
+        let content = crate::views::config::rules_editor::generate_hba_conf(&self.hba_rules);
+        if let Some(state) = self.config_file_states.get_mut("pg_hba.conf") {
+            state.update_content(content);
+        }
+    }
+
+    pub fn sync_journald_to_config_state(&mut self) {
+        let content = generate_journald_conf(&self.journal_retention);
+        if let Some(state) = self.config_file_states.get_mut("journald.conf") {
+            state.update_content(content);
+        }
     }
 
     pub fn set_journal_retention_days(&mut self, days: u32, cx: &mut Context<Self>) {
         self.journal_retention.max_retention_days = days;
+        self.sync_journald_to_config_state();
         cx.notify();
     }
 
     pub fn set_journal_keep_free(&mut self, mb: u64, cx: &mut Context<Self>) {
         self.journal_retention.system_keep_free_mb = mb;
+        self.sync_journald_to_config_state();
         cx.notify();
     }
 
     pub fn set_journal_storage_mode(&mut self, mode: JournalStorageMode, cx: &mut Context<Self>) {
         self.journal_retention.storage = mode;
         self.journal_telemetry.is_volatile_warning = mode != JournalStorageMode::Persistent;
+        self.sync_journald_to_config_state();
         cx.notify();
     }
 
@@ -871,6 +910,18 @@ host    all             all             10.0.4.0/24             scram-sha-256
     }
 
     pub fn revert_managed_config(&mut self, file: &str, cx: &mut Context<Self>) {
+        if file == "pg_hba.conf" {
+            for r in &mut self.hba_rules {
+                if r.num == "09" || r.num == "10" {
+                    r.method = "trust";
+                    r.risk = "CRITICAL";
+                    r.risk_color = CRIT;
+                    r.is_expanded = false;
+                }
+            }
+        } else if file == "journald.conf" {
+            self.journal_retention = JournalRetentionConfig::default();
+        }
         if let Some(state) = self.config_file_states.get_mut(file) {
             state.revert();
             cx.notify();
@@ -878,9 +929,30 @@ host    all             all             10.0.4.0/24             scram-sha-256
     }
 
     pub fn stage_config_version(&mut self, file: &str, description: &str, cx: &mut Context<Self>) {
+        let author = self.default_author();
         if let Some(state) = self.config_file_states.get_mut(file) {
-            state.stage_revision("Nelson <nelson@errorware.net>".to_string(), description.to_string());
+            state.stage_revision(author, description.to_string());
+            let _ = state.save_to_disk();
+            if file == "pg_hba.conf" {
+                for r in &mut self.hba_rules {
+                    if r.risk == "EDITED" {
+                        r.risk = "OK";
+                        r.risk_color = OK;
+                    }
+                }
+            } else if file == "journald.conf" {
+                self.show_journal_retention_modal = false;
+            }
             cx.notify();
+        }
+    }
+
+    pub fn rollback_config_revision(&mut self, file: &str, version: usize, cx: &mut Context<Self>) {
+        if let Some(state) = self.config_file_states.get_mut(file) {
+            if state.rollback_to_revision(version) {
+                let _ = state.save_to_disk();
+                cx.notify();
+            }
         }
     }
 
@@ -902,11 +974,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
     }
 
     pub fn apply_journal_boundaries(&mut self, cx: &mut Context<Self>) {
-        let conf = generate_journald_conf(&self.journal_retention);
-        let _ = std::fs::create_dir_all("/tmp/crow-config");
-        let _ = std::fs::write("/tmp/crow-config/journald.conf", conf);
-        self.show_journal_retention_modal = false;
-        cx.notify();
+        self.stage_config_version("journald.conf", "Applied journald retention boundaries", cx);
     }
 
     pub fn open_about_modal(&mut self, cx: &mut Context<Self>) {
@@ -1545,6 +1613,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 };
             }
         }
+        self.sync_hba_to_config_state();
         cx.notify();
     }
 
@@ -2967,14 +3036,15 @@ impl Render for CrowApp {
                                                                     crate::views::config::journald_editor::journald_editor(
                                                                         &self.journal_retention,
                                                                         &self.journal_telemetry,
+                                                                        self,
                                                                         app_view.clone(),
                                                                     ).into_any_element()
                                                                 } else if self.selected_managed_file == "pg_hba.conf" {
-                                                                    rules_editor(&self.hba_rules, app_view.clone()).into_any_element()
+                                                                    rules_editor(&self.hba_rules, self, app_view.clone()).into_any_element()
                                                                 } else if let Some(st) = self.config_file_states.get(&self.selected_managed_file) {
                                                                     raw_config_editor(st, app_view.clone()).into_any_element()
                                                                 } else {
-                                                                    rules_editor(&self.hba_rules, app_view.clone()).into_any_element()
+                                                                    rules_editor(&self.hba_rules, self, app_view.clone()).into_any_element()
                                                                 };
 
                                                                 Some(

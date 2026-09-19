@@ -264,7 +264,36 @@ fn is_config_file(name: &str, path: &Path) -> bool {
 
 pub fn sample_config_content(filename: &str) -> String {
     let lower = filename.to_lowercase();
-    if lower.contains("nginx") {
+    if lower == "pg_hba.conf" {
+        r#"# PostgreSQL Client Authentication Configuration File
+# ===================================================
+# TYPE  DATABASE        USER            ADDRESS                 METHOD
+local   all             postgres                                peer
+local   all             all                                     peer
+host    all             all             127.0.0.1/32            scram-sha-256
+host    all             all             ::1/128                 scram-sha-256
+host    acme_prod       acme_app        10.0.4.19/32            scram-sha-256
+host    acme_prod       acme_app        10.0.4.22/32            scram-sha-256
+host    acme_prod       analyst         10.0.9.0/24             ldap
+host    all             all             0.0.0.0/0               md5
+host    all             all             10.0.4.0/24             trust
+host    replication     repl            10.0.4.11/32            trust
+hostssl metrics         prom            10.0.4.31/32            cert
+host    template1       all             10.0.4.0/24             reject
+"#.to_string()
+    } else if lower.contains("journald") {
+        r#"# /etc/systemd/journald.conf
+# Managed by Crow Fleet Manager
+[Journal]
+Storage=persistent
+Compress=yes
+SystemMaxUse=4096M
+SystemKeepFree=1024M
+MaxRetentionSec=30day
+MaxFileSec=1month
+ForwardToSyslog=no
+"#.to_string()
+    } else if lower.contains("nginx") {
         r#"user nginx;
 worker_processes auto;
 error_log /var/log/nginx/error.log notice;

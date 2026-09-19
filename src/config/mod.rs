@@ -1,10 +1,12 @@
 pub mod plugin;
 pub mod crawler;
 pub mod versioning;
+pub mod syntax;
 
 pub use plugin::{default_config_toml, CrowConfigPlugin, CROW_CONFIG_MANIFEST};
 pub use crawler::{crawl_machine_configs, detect_schema_kind, sample_config_content, DiscoveredConfigFile, SchemaKind};
 pub use versioning::{compute_unified_diff, ConfigFileState, ConfigRevision};
+pub use syntax::{highlight_config_line, SyntaxToken};
 
 use crow_config_core::cst::CstNode;
 use crow_config_core::edit::{ConfigPlugin, EditError, EditOp};

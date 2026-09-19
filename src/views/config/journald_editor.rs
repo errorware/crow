@@ -6,6 +6,7 @@ use crate::theme::*;
 pub fn journald_editor(
     config: &JournalRetentionConfig,
     telemetry: &JournalTelemetry,
+    app_data: &CrowApp,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
     let app_quota = app.clone();
@@ -15,6 +16,12 @@ pub fn journald_editor(
     let app_volatile = app.clone();
     let app_auto = app.clone();
     let app_apply = app.clone();
+    let app_revert = app.clone();
+    let app_history = app.clone();
+
+    let file_state = app_data.config_file_states.get("journald.conf");
+    let is_modified = file_state.map(|s| s.is_modified()).unwrap_or(false);
+    let rev_count = file_state.map(|s| s.revisions.len()).unwrap_or(1);
 
     let is_persistent = config.storage == JournalStorageMode::Persistent;
     let is_volatile = config.storage == JournalStorageMode::Volatile;
@@ -71,7 +78,28 @@ pub fn journald_editor(
                                 .text_size(px(10.0))
                                 .text_color(TEXT_TERTIARY)
                                 .child("/etc/systemd/journald.conf"),
-                        ),
+                        )
+                        .child(if is_modified {
+                            div()
+                                .bg(WARN_BG)
+                                .text_color(WARN)
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.0))
+                                .font_weight(FontWeight::BOLD)
+                                .px(px(6.0))
+                                .py(px(2.0))
+                                .child("UNSAVED EDITS")
+                        } else {
+                            div()
+                                .bg(OK_BG)
+                                .text_color(OK)
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.0))
+                                .font_weight(FontWeight::BOLD)
+                                .px(px(6.0))
+                                .py(px(2.0))
+                                .child("IN SYNC")
+                        }),
                 )
                 .child(
                     div()
@@ -85,24 +113,72 @@ pub fn journald_editor(
                                 .text_color(TEXT_MUTED)
                                 .child(format!("Usage: {} / {}", telemetry.disk_usage_display(), config.max_use_display())),
                         )
+                        .children(if is_modified {
+                            Some(
+                                div()
+                                    .id("btn-revert-journald-conf")
+                                    .px(px(8.0))
+                                    .py(px(5.0))
+                                    .bg(hex_rgba(0xef4444, 0.15))
+                                    .border_1()
+                                    .border_color(hex_rgba(0xef4444, 0.4))
+                                    .rounded_sm()
+                                    .cursor_pointer()
+                                    .hover(|s| s.bg(hex_rgba(0xef4444, 0.25)))
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(10.0))
+                                    .font_weight(FontWeight::BOLD)
+                                    .text_color(CRIT)
+                                    .on_click(move |_ev, _window, cx| {
+                                        app_revert.update(cx, |this, cx| {
+                                            this.revert_managed_config("journald.conf", cx);
+                                        });
+                                    })
+                                    .child("REVERT")
+                            )
+                        } else {
+                            None
+                        })
                         .child(
                             div()
                                 .id("btn-apply-journald-conf")
                                 .px(px(12.0))
                                 .py(px(5.0))
-                                .bg(TEXT_PRIMARY)
-                                .text_color(rgb(0x0a0a0c))
+                                .bg(if is_modified { OK } else { BG_CONTROL })
+                                .text_color(if is_modified { rgb(0x0a0a0c) } else { TEXT_MUTED })
                                 .font_weight(FontWeight::BOLD)
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
+                                .rounded_sm()
                                 .cursor_pointer()
-                                .hover(|s| s.bg(hex_rgb(0xffffff)))
+                                .hover(|s| s.bg(hex_rgb(0x34d399)))
                                 .on_click(move |_ev, _window, cx| {
                                     app_apply.update(cx, |this, cx| {
                                         this.apply_journal_boundaries(cx);
                                     });
                                 })
                                 .child("STAGE & APPLY CONFIG"),
+                        )
+                        .child(
+                            div()
+                                .id("btn-journald-history")
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .text_color(if app_data.show_config_history { OK } else { TEXT_TERTIARY })
+                                .border_1()
+                                .border_color(if app_data.show_config_history { OK } else { BORDER_DEFAULT })
+                                .bg(if app_data.show_config_history { OK_BG } else { hex_rgba(0, 0.0) })
+                                .px(px(8.0))
+                                .py(px(5.0))
+                                .rounded_sm()
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .on_click(move |_ev, _window, cx| {
+                                    app_history.update(cx, |this, cx| {
+                                        this.toggle_config_history(cx);
+                                    });
+                                })
+                                .child(format!("HISTORY · {}", rev_count)),
                         ),
                 ),
         )

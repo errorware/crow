@@ -88,6 +88,28 @@ impl ConfigFileState {
         let del = diff.iter().filter(|l| l.kind == DiffKind::Deletion).count();
         (add, del)
     }
+
+    pub fn last_author(&self) -> &str {
+        self.revisions.last().map(|r| r.author.as_str()).unwrap_or("Nelson <nelson@errorware.net>")
+    }
+
+    pub fn latest_revision(&self) -> Option<&ConfigRevision> {
+        self.revisions.last()
+    }
+
+    pub fn save_to_disk(&self) -> Result<(), String> {
+        if let Some(parent) = self.path.parent() {
+            let _ = std::fs::create_dir_all(parent);
+        }
+        let write_res = std::fs::write(&self.path, &self.current_content);
+        if write_res.is_err() {
+            let _ = std::fs::create_dir_all("/tmp/crow-config");
+            let fallback_path = format!("/tmp/crow-config/{}", self.filename);
+            std::fs::write(&fallback_path, &self.current_content)
+                .map_err(|e| format!("Failed to write to fallback {}: {}", fallback_path, e))?;
+        }
+        Ok(())
+    }
 }
 
 pub fn compute_unified_diff(baseline: &str, current: &str) -> Vec<ConfigDiffLine> {

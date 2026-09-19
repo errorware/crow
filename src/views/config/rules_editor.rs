@@ -51,7 +51,26 @@ pub fn default_methods() -> &'static [MethodOptionDef] {
     ]
 }
 
-pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElement {
+pub fn generate_hba_conf(rules: &[HbaRuleDef]) -> String {
+    let mut out = String::new();
+    out.push_str("# PostgreSQL Client Authentication Configuration File\n");
+    out.push_str("# ===================================================\n");
+    out.push_str("# TYPE  DATABASE        USER            ADDRESS                 METHOD\n");
+    for r in rules {
+        let addr = if r.address == "—" { "" } else { r.address };
+        out.push_str(&format!("{:<7} {:<15} {:<15} {:<23} {}\n", r.rule_type, r.database, r.user, addr, r.method));
+    }
+    out
+}
+
+pub fn rules_editor(rules: &[HbaRuleDef], app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
+    let file_state = app_data.config_file_states.get("pg_hba.conf");
+    let is_modified = file_state.map(|s| s.is_modified()).unwrap_or(false);
+    let rev_count = file_state.map(|s| s.revisions.len()).unwrap_or(1);
+    let app_apply = app.clone();
+    let app_revert = app.clone();
+    let app_history = app.clone();
+
     div()
         .flex_1()
         .min_w(px(0.0))
@@ -73,7 +92,7 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
                 .border_color(BORDER_PANEL)
                 .child(
                     div()
-                        .font_family("JetBrains Mono")
+                        .font_family(FONT_MONO)
                         .text_size(px(12.0))
                         .font_weight(FontWeight::MEDIUM)
                         .text_color(TEXT_MAX)
@@ -83,48 +102,105 @@ pub fn rules_editor(rules: &[HbaRuleDef], app: Entity<CrowApp>) -> impl IntoElem
                     div()
                         .bg(OK_BG)
                         .text_color(OK)
-                        .font_family("JetBrains Mono")
+                        .font_family(FONT_MONO)
                         .text_size(px(9.0))
                         .font_weight(FontWeight::BOLD)
                         .px(px(5.0))
                         .py(px(2.0))
-                        .child("PARSED 12/12 RULES"),
+                        .child(format!("PARSED {}/{} RULES", rules.len(), rules.len())),
                 )
-                .child(
+                .child(if is_modified {
                     div()
                         .bg(WARN_BG)
                         .text_color(WARN)
-                        .font_family("JetBrains Mono")
+                        .font_family(FONT_MONO)
                         .text_size(px(9.0))
                         .font_weight(FontWeight::BOLD)
-                        .px(px(5.0))
+                        .px(px(6.0))
                         .py(px(2.0))
-                        .child("2 UNAPPLIED EDITS"),
-                )
+                        .child("UNAPPLIED EDITS")
+                } else {
+                    div()
+                        .bg(OK_BG)
+                        .text_color(OK)
+                        .font_family(FONT_MONO)
+                        .text_size(px(9.0))
+                        .font_weight(FontWeight::BOLD)
+                        .px(px(6.0))
+                        .py(px(2.0))
+                        .child("IN SYNC")
+                })
+                .children(if is_modified {
+                    Some(
+                        div()
+                            .id("btn-hba-revert")
+                            .px(px(8.0))
+                            .py(px(3.0))
+                            .bg(hex_rgba(0xef4444, 0.15))
+                            .border_1()
+                            .border_color(hex_rgba(0xef4444, 0.4))
+                            .rounded_sm()
+                            .cursor_pointer()
+                            .hover(|s| s.bg(hex_rgba(0xef4444, 0.25)))
+                            .font_family(FONT_MONO)
+                            .text_size(px(10.0))
+                            .font_weight(FontWeight::BOLD)
+                            .text_color(CRIT)
+                            .on_click(move |_ev, _window, cx| {
+                                app_revert.update(cx, |this, cx| {
+                                    this.revert_managed_config("pg_hba.conf", cx);
+                                });
+                            })
+                            .child("REVERT")
+                    )
+                } else {
+                    None
+                })
+                .children(if is_modified {
+                    Some(
+                        div()
+                            .id("btn-hba-apply")
+                            .px(px(10.0))
+                            .py(px(3.0))
+                            .bg(OK)
+                            .rounded_sm()
+                            .cursor_pointer()
+                            .hover(|s| s.bg(hex_rgb(0x34d399)))
+                            .font_family(FONT_MONO)
+                            .text_size(px(10.0))
+                            .font_weight(FontWeight::BOLD)
+                            .text_color(rgb(0x0a0a0c))
+                            .on_click(move |_ev, _window, cx| {
+                                app_apply.update(cx, |this, cx| {
+                                    this.stage_config_version("pg_hba.conf", "Updated client authentication rules", cx);
+                                });
+                            })
+                            .child("STAGE & APPLY")
+                    )
+                } else {
+                    None
+                })
                 .child(div().flex_1())
                 .child(
                     div()
-                        .font_family("JetBrains Mono")
+                        .id("btn-hba-history")
+                        .font_family(FONT_MONO)
                         .text_size(px(10.5))
-                        .text_color(TEXT_SECONDARY)
-                        .bg(BG_CONTROL)
+                        .text_color(if app_data.show_config_history { OK } else { TEXT_TERTIARY })
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(if app_data.show_config_history { OK } else { BORDER_DEFAULT })
+                        .bg(if app_data.show_config_history { OK_BG } else { hex_rgba(0, 0.0) })
                         .px(px(9.0))
                         .py(px(4.0))
-                        .child("RAW TEXT ")
-                        .child(div().text_color(TEXT_DIMMER).child("⌘/")),
-                )
-                .child(
-                    div()
-                        .font_family("JetBrains Mono")
-                        .text_size(px(10.5))
-                        .text_color(TEXT_TERTIARY)
-                        .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .px(px(9.0))
-                        .py(px(4.0))
-                        .child("HISTORY · 31"),
+                        .rounded_sm()
+                        .cursor_pointer()
+                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .on_click(move |_ev, _window, cx| {
+                            app_history.update(cx, |this, cx| {
+                                this.toggle_config_history(cx);
+                            });
+                        })
+                        .child(format!("HISTORY · {}", rev_count)),
                 ),
         )
         // Order Warning

@@ -1,8 +1,7 @@
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
-use crate::components::icons::{TablerIcon, tabler_icon};
-use crate::config::ConfigFileState;
+use crate::config::{highlight_config_line, ConfigFileState};
 
 pub fn raw_config_editor(
     state: &ConfigFileState,
@@ -11,6 +10,7 @@ pub fn raw_config_editor(
     let app_revert = app.clone();
     let app_stage = app.clone();
     let app_edit = app.clone();
+    let app_hist = app.clone();
 
     let is_modified = state.is_modified();
     let (add_count, del_count) = state.diff_stats();
@@ -25,37 +25,25 @@ pub fn raw_config_editor(
         .flex()
         .flex_col()
         .bg(BG_APP)
-        // 1. Header Toolbar
+        // 1. Editor Header Toolbar
         .child(
             div()
-                .h(px(34.0))
+                .h(px(36.0))
                 .flex_none()
                 .flex()
                 .items_center()
-                .px(px(12.0))
                 .gap(px(10.0))
+                .px(px(14.0))
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(
-                    tabler_icon(TablerIcon::FileText)
-                        .size(px(14.0))
-                        .text_color(hex_rgb(0x8ab4ff)),
-                )
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(px(12.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_MAX)
+                        .text_color(TEXT_PRIMARY)
                         .child(state.filename.clone()),
-                )
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .text_color(TEXT_FAINT)
-                        .child(state.path.to_string_lossy().to_string()),
                 )
                 .child(
                     div()
@@ -85,7 +73,43 @@ pub fn raw_config_editor(
                             format!("v{} (BASELINE)", state.active_revision)
                         }),
                 )
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(4.0))
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.0))
+                        .text_color(TEXT_MUTED)
+                        .child("Author:")
+                        .child(
+                            div()
+                                .text_color(TEXT_SECONDARY)
+                                .font_weight(FontWeight::MEDIUM)
+                                .child(state.last_author().to_string())
+                        )
+                )
                 .child(div().flex_1())
+                .child(
+                    div()
+                        .id("btn-raw-history")
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.0))
+                        .text_color(TEXT_TERTIARY)
+                        .border_1()
+                        .border_color(BORDER_DEFAULT)
+                        .px(px(8.0))
+                        .py(px(3.0))
+                        .rounded_sm()
+                        .cursor_pointer()
+                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .on_click(move |_ev, _window, cx| {
+                            app_hist.update(cx, |this, cx| {
+                                this.toggle_config_history(cx);
+                            });
+                        })
+                        .child(format!("HISTORY · {}", state.revisions.len()))
+                )
                 // Quick Line Tweak Action (convenience shortcut for editing in GUI)
                 .child({
                     let fn_clone = state.filename.clone();
@@ -213,19 +237,7 @@ pub fn raw_config_editor(
                         .flex()
                         .flex_col()
                         .children(lines.iter().enumerate().map(|(idx, line)| {
-                            let is_comment = line.trim_start().starts_with('#') || line.trim_start().starts_with(';');
-                            let is_section = line.trim_start().starts_with('[') && line.trim_end().ends_with(']');
-                            let is_directive = !is_comment && !is_section && line.contains('=');
-
-                            let line_color = if is_comment {
-                                TEXT_FAINT
-                            } else if is_section {
-                                hex_rgb(0x8ab4ff)
-                            } else if is_directive {
-                                TEXT_PRIMARY
-                            } else {
-                                TEXT_SECONDARY
-                            };
+                            let tokens = highlight_config_line(line, &state.filename);
 
                             div()
                                 .id(ElementId::NamedInteger("editor-line".into(), idx as u64))
@@ -233,8 +245,15 @@ pub fn raw_config_editor(
                                 .flex()
                                 .items_center()
                                 .hover(|s| s.bg(BG_ROW_HOVER))
-                                .text_color(line_color)
-                                .child(if line.is_empty() { " ".to_string() } else { line.to_string() })
+                                .children(tokens.into_iter().map(|tok| {
+                                    let mut el = div()
+                                        .text_color(tok.color)
+                                        .child(tok.text);
+                                    if tok.is_bold {
+                                        el = el.font_weight(FontWeight::BOLD);
+                                    }
+                                    el
+                                }))
                         })),
                 ),
         )
