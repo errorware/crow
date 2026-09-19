@@ -9,6 +9,7 @@ use crow_config_core::schema::FieldType;
 pub mod keys;
 use self::keys::{render_key_modals, render_keys_center_column, render_keys_right_rail};
 pub mod lab;
+pub mod clankers;
 
 fn format_field_label(leaf: &str) -> String {
     match leaf {
@@ -229,6 +230,7 @@ pub fn settings_view(
         (TablerIcon::Key, "Keys & Rotation", SettingsSection::Keys),
         (TablerIcon::ShieldCheck, "Vault & Security", SettingsSection::Security),
         (TablerIcon::Box, "UI Components Lab", SettingsSection::Components),
+        (TablerIcon::Cpu, "Clankers (AI)", SettingsSection::Clankers),
     ];
 
     let (title, sub) = match section {
@@ -237,6 +239,7 @@ pub fn settings_view(
         SettingsSection::Keys => ("KEYS & ROTATION", "[keys] · key distribution & policies"),
         SettingsSection::Security => ("VAULT & SECURITY", "[vault] · local encrypted sqlite & master key"),
         SettingsSection::Components => ("UI COMPONENTS LAB", "[lab] · gpui-component testbed & sandbox"),
+        SettingsSection::Clankers => ("CLANKERS (AI USABILITY)", "[clankers] · api keys & log eli5 helpers"),
     };
 
     let keychain = [
@@ -441,10 +444,12 @@ pub fn settings_view(
                     Some(render_keys_center_column(app.clone(), app_data).into_any_element())
                 } else if section == SettingsSection::Components {
                     Some(lab::render_components_lab(app.clone(), app_data).into_any_element())
+                } else if section == SettingsSection::Clankers {
+                    Some(clankers::render_clankers_view(app.clone(), app_data).into_any_element())
                 } else {
                     None
                 })
-                .children(if section != SettingsSection::Keys && section != SettingsSection::Components {
+                .children(if section != SettingsSection::Keys && section != SettingsSection::Components && section != SettingsSection::Clankers {
                     Some(
                         div()
                             .flex_1()
@@ -1171,7 +1176,7 @@ pub fn settings_view(
                     None
                 })
                 // Right Rail: Pending Diff, Session Warning, Keychain (340px)
-                .children(if section != SettingsSection::Components {
+                .children(if section != SettingsSection::Components && section != SettingsSection::Clankers {
                     Some(
                         div()
                         .w(px(340.0))
@@ -1365,4 +1370,5 @@ pub fn settings_view(
                 }),
         )
         .children(render_key_modals(app.clone(), app_data))
+        .children(clankers::render_clanker_modals(app.clone(), app_data))
 }

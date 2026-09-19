@@ -1,0 +1,1048 @@
+use gpui_kit::*;
+use crate::theme::*;
+use crate::app::{CrowApp, ClankerModalFocus};
+use crate::components::icons::{TablerIcon, tabler_icon};
+use crate::components::sparkline::dynamic_sparkline;
+use crate::components::terminal_text_input_styled;
+use crate::vault::ClankerProviderConfig;
+
+pub fn render_clankers_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElement {
+    let providers = &app_data.clanker_providers;
+    let total_calls_30d: u64 = providers.iter().map(|p| p.calls_30d).sum();
+    let configured_count = providers.iter().filter(|p| !p.api_key.trim().is_empty()).count();
+    let default_provider = providers.iter().find(|p| p.is_default).cloned();
+
+    let demo_log = &app_data.clanker_demo_log;
+    let demo_output = app_data.clanker_demo_output.as_deref();
+
+    div()
+        .flex_1()
+        .min_w(px(0.0))
+        .flex()
+        .flex_col()
+        .bg(BG_APP)
+        // 1. Subheader / Top Bar
+        .child(
+            div()
+                .h(px(40.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_between()
+                .px(px(14.0))
+                .bg(BG_PANEL)
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(10.0))
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(12.0))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(TEXT_PRIMARY)
+                                .child("CLANKERS · LLM PROVIDERS & KEYS"),
+                        )
+                        .child(
+                            div()
+                                .px(px(6.0))
+                                .py(px(2.0))
+                                .bg(hex_rgb(0x181822))
+                                .border_1()
+                                .border_color(BORDER_DEFAULT)
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.5))
+                                .text_color(TEXT_SECONDARY)
+                                .child(format!("{}/{} CONFIGURED", configured_count, providers.len())),
+                        ),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(12.0))
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(px(6.0))
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(10.5))
+                                        .text_color(TEXT_DIM)
+                                        .child("30d Cumulative Calls:"),
+                                )
+                                .child(
+                                    div()
+                                        .px(px(6.0))
+                                        .py(px(2.0))
+                                        .bg(hex_rgb(0x122416))
+                                        .border_1()
+                                        .border_color(OK)
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(10.5))
+                                        .font_weight(FontWeight::BOLD)
+                                        .text_color(OK)
+                                        .child(format!("{} calls", total_calls_30d)),
+                                ),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(px(6.0))
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(10.5))
+                                        .text_color(TEXT_DIM)
+                                        .child("Active Default:"),
+                                )
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(10.5))
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .text_color(TEXT_PRIMARY)
+                                        .child(default_provider.map(|p| p.display_name).unwrap_or_else(|| "None".into())),
+                                ),
+                        ),
+                ),
+        )
+        // 2. Scrollable Body Content
+        .child(
+            div()
+                .id("clankers-content-scroll")
+                .flex_1()
+                .overflow_y_scroll()
+                .p(px(14.0))
+                .flex()
+                .flex_col()
+                .gap(px(16.0))
+                // Section Info Banner
+                .child(
+                    div()
+                        .p(px(12.0))
+                        .bg(BG_OVERLAY_PANEL)
+                        .border_1()
+                        .border_color(BORDER_PANEL)
+                        .flex()
+                        .items_start()
+                        .gap(px(10.0))
+                        .child(
+                            div()
+                                .w(px(20.0))
+                                .h(px(20.0))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_color(TEXT_PRIMARY)
+                                .child(tabler_icon(TablerIcon::Cpu).size(px(16.0))),
+                        )
+                        .child(
+                            div()
+                                .flex_1()
+                                .flex()
+                                .flex_col()
+                                .gap(px(3.0))
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(11.5))
+                                        .font_weight(FontWeight::BOLD)
+                                        .text_color(TEXT_PRIMARY)
+                                        .child("AI Usability Engine (Log Clarification & ELI5 Assistance)"),
+                                )
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(10.5))
+                                        .text_color(TEXT_MUTED)
+                                        .line_height(px(15.0))
+                                        .child(
+                                            "Configure API keys for LLM providers. Crow uses lightweight AI calls strictly for on-demand assistance like decoding cryptic systemd journal panics or kernel OOM messages into plain English with immediate actionable commands. Keys remain encrypted locally in your SQLite vault."
+                                        ),
+                                ),
+                        ),
+                )
+                // Providers Grid
+                .child(
+                    div()
+                        .font_family(FONT_MONO)
+                        .text_size(px(11.0))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(TEXT_SECONDARY)
+                        .child("SUPPORTED CLANKER PROVIDERS & 30-DAY TELEMETRY"),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .flex_wrap()
+                        .gap(px(12.0))
+                        .children(providers.iter().map(|prov| {
+                            render_provider_card(app.clone(), prov)
+                        })),
+                )
+                // Interactive AI Usability Sandbox ("WTF is this log trying to say?")
+                .child(render_eli5_sandbox(app.clone(), app_data, demo_log, demo_output)),
+        )
+}
+
+fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig) -> impl IntoElement {
+    let p_id = prov.id.clone();
+    let is_configured = !prov.api_key.trim().is_empty();
+    let masked_key = if is_configured {
+        let k = prov.api_key.trim();
+        if k.len() > 8 {
+            format!("{}...{}", &k[..4], &k[k.len() - 4..])
+        } else {
+            "••••••••".to_string()
+        }
+    } else {
+        "NO KEY CONFIGURED".to_string()
+    };
+
+    let app_edit = app.clone();
+    let p_id_edit = p_id.clone();
+    let app_default = app.clone();
+    let p_id_default = p_id.clone();
+    let app_test = app.clone();
+    let p_id_test = p_id.clone();
+    let app_reset = app.clone();
+    let p_id_reset = p_id.clone();
+
+    div()
+        .w(px(380.0))
+        .flex_none()
+        .p(px(12.0))
+        .bg(BG_PANEL)
+        .border_1()
+        .border_color(if prov.is_default { OK } else { BORDER_DEFAULT })
+        .flex()
+        .flex_col()
+        .gap(px(10.0))
+        // Card Header
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .justify_between()
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(12.5))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(TEXT_MAX)
+                                .child(prov.display_name.clone()),
+                        )
+                        .children(if prov.is_default {
+                            Some(
+                                div()
+                                    .px(px(6.0))
+                                    .py(px(1.5))
+                                    .bg(OK_BG)
+                                    .border_1()
+                                    .border_color(OK)
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(9.0))
+                                    .font_weight(FontWeight::BOLD)
+                                    .text_color(OK)
+                                    .child("★ ACTIVE DEFAULT"),
+                            )
+                        } else {
+                            None
+                        }),
+                )
+                .child(
+                    div()
+                        .px(px(6.0))
+                        .py(px(2.0))
+                        .bg(if is_configured { hex_rgb(0x132216) } else { hex_rgb(0x201416) })
+                        .border_1()
+                        .border_color(if is_configured { OK } else { BORDER_DEFAULT })
+                        .font_family(FONT_MONO)
+                        .text_size(px(9.5))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(if is_configured { OK } else { TEXT_DIM })
+                        .child(if is_configured { "READY" } else { "NOT SETUP" }),
+                ),
+        )
+        // Key and Model Preview Strip
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(4.0))
+                .p(px(8.0))
+                .bg(BG_OVERLAY_PANEL)
+                .border_1()
+                .border_color(hex_rgb(0x1e1e28))
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .text_color(TEXT_DIM)
+                                .child("API Key:"),
+                        )
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .font_weight(FontWeight::MEDIUM)
+                                .text_color(if is_configured { TEXT_PRIMARY } else { TEXT_FAINT })
+                                .child(masked_key),
+                        ),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .text_color(TEXT_DIM)
+                                .child("Model:"),
+                        )
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .text_color(TEXT_SECONDARY)
+                                .child(prov.model.clone()),
+                        ),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.5))
+                                .text_color(TEXT_DIM)
+                                .child("Endpoint:"),
+                        )
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.5))
+                                .text_color(TEXT_DIMMER)
+                                .child(prov.base_url.clone()),
+                        ),
+                ),
+        )
+        // 30-Day Activity Sparkline & Counters
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .justify_between()
+                .p(px(8.0))
+                .bg(BG_APP)
+                .border_1()
+                .border_color(BORDER_DEFAULT)
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(2.0))
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.5))
+                                .text_color(TEXT_DIM)
+                                .child("30-Day Activity:"),
+                        )
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(14.0))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(if prov.calls_30d > 0 { OK } else { TEXT_DIM })
+                                .child(format!("{} calls", prov.calls_30d)),
+                        )
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.0))
+                                .text_color(TEXT_FAINT)
+                                .child(format!("{} all-time", prov.total_calls)),
+                        ),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .flex_col()
+                        .items_end()
+                        .gap(px(4.0))
+                        .child(dynamic_sparkline(&prov.daily_history, Some(0.0), None, if prov.calls_30d > 0 { OK } else { TEXT_FAINT }))
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.0))
+                                .text_color(TEXT_DIMMER)
+                                .child(
+                                    prov.last_used_at.as_deref()
+                                        .map(|ts| {
+                                            if ts.len() >= 19 {
+                                                format!("Last used: {}", &ts[..10])
+                                            } else {
+                                                format!("Last used: {}", ts)
+                                            }
+                                        })
+                                        .unwrap_or_else(|| "Never used".into())
+                                ),
+                        ),
+                ),
+        )
+        // Card Actions
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .justify_between()
+                .pt(px(4.0))
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(6.0))
+                        // Edit Key & Model Button
+                        .child(
+                            div()
+                                .id(ElementId::NamedInteger("btn-edit-clanker".into(), prov.daily_history.len() as u64 + prov.calls_30d))
+                                .px(px(8.0))
+                                .py(px(4.0))
+                                .bg(BG_CONTROL)
+                                .border_1()
+                                .border_color(BORDER_DEFAULT)
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .text_color(TEXT_PRIMARY)
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .on_click(move |_ev, _window, cx| {
+                                    let id = p_id_edit.clone();
+                                    app_edit.update(cx, |this, cx| {
+                                        this.open_edit_clanker_modal(&id, cx);
+                                    });
+                                })
+                                .child("⚙ Edit Key"),
+                        )
+                        // Test Call Button
+                        .child(
+                            div()
+                                .id(ElementId::NamedInteger("btn-test-clanker".into(), prov.daily_history.len() as u64 + prov.calls_30d))
+                                .px(px(8.0))
+                                .py(px(4.0))
+                                .bg(BG_CONTROL)
+                                .border_1()
+                                .border_color(BORDER_DEFAULT)
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .text_color(TEXT_SECONDARY)
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .on_click(move |_ev, _window, cx| {
+                                    let id = p_id_test.clone();
+                                    app_test.update(cx, |this, cx| {
+                                        this.simulate_clanker_call(&id, cx);
+                                    });
+                                })
+                                .child("⚡ Test Call"),
+                        ),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(6.0))
+                        // Reset usage
+                        .children(if prov.total_calls > 0 {
+                            Some(
+                                div()
+                                    .id(ElementId::NamedInteger("btn-reset-clanker".into(), prov.daily_history.len() as u64 + prov.calls_30d))
+                                    .px(px(6.0))
+                                    .py(px(4.0))
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(9.5))
+                                    .text_color(TEXT_FAINT)
+                                    .cursor_pointer()
+                                    .hover(|s| s.text_color(WARN))
+                                    .on_click(move |_ev, _window, cx| {
+                                        let id = p_id_reset.clone();
+                                        app_reset.update(cx, |this, cx| {
+                                            this.reset_clanker_stats(&id, cx);
+                                        });
+                                    })
+                                    .child("Reset"),
+                            )
+                        } else {
+                            None
+                        })
+                        // Set as default
+                        .children(if !prov.is_default {
+                            Some(
+                                div()
+                                    .id(ElementId::NamedInteger("btn-default-clanker".into(), prov.daily_history.len() as u64 + prov.calls_30d))
+                                    .px(px(8.0))
+                                    .py(px(4.0))
+                                    .bg(BG_KEY)
+                                    .border_1()
+                                    .border_color(BORDER_DEFAULT)
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(10.0))
+                                    .font_weight(FontWeight::SEMIBOLD)
+                                    .text_color(OK)
+                                    .cursor_pointer()
+                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                    .on_click(move |_ev, _window, cx| {
+                                        let id = p_id_default.clone();
+                                        app_default.update(cx, |this, cx| {
+                                            this.set_default_clanker(&id, cx);
+                                        });
+                                    })
+                                    .child("Set Default"),
+                            )
+                        } else {
+                            None
+                        }),
+                ),
+        )
+}
+
+fn render_eli5_sandbox(
+    app: Entity<CrowApp>,
+    _app_data: &CrowApp,
+    demo_log: &str,
+    demo_output: Option<&str>,
+) -> impl IntoElement {
+    let app_preset1 = app.clone();
+    let app_preset2 = app.clone();
+    let app_preset3 = app.clone();
+    let app_run = app.clone();
+
+    div()
+        .mt(px(8.0))
+        .p(px(14.0))
+        .bg(BG_PANEL)
+        .border_1()
+        .border_color(BORDER_PANEL)
+        .flex()
+        .flex_col()
+        .gap(px(12.0))
+        // Header
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .justify_between()
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(12.0))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(TEXT_PRIMARY)
+                                .child("AI USABILITY SANDBOX: \"WTF IS THIS LOG TRYING TO SAY?\""),
+                        )
+                        .child(
+                            div()
+                                .px(px(6.0))
+                                .py(px(1.5))
+                                .bg(hex_rgb(0x1a1622))
+                                .border_1()
+                                .border_color(hex_rgb(0x604080))
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.0))
+                                .text_color(hex_rgb(0xbb9af7))
+                                .child("ELI5 ASSISTANT PREVIEW"),
+                        ),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(6.0))
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.5))
+                                .text_color(TEXT_DIM)
+                                .child("Load Presets:"),
+                        )
+                        .child(
+                            div()
+                                .id("btn-preset-oom")
+                                .px(px(6.0))
+                                .py(px(2.0))
+                                .bg(BG_CONTROL)
+                                .border_1()
+                                .border_color(BORDER_DEFAULT)
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.5))
+                                .text_color(WARN)
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .on_click(move |_ev, _window, cx| {
+                                    app_preset1.update(cx, |this, cx| {
+                                        this.clanker_demo_log = "kernel: [  129.412033] Out of memory: Kill process 28419 (mysqld) score 812 or sacrifice child".into();
+                                        this.clanker_demo_output = None;
+                                        cx.notify();
+                                    });
+                                })
+                                .child("OOM Killer"),
+                        )
+                        .child(
+                            div()
+                                .id("btn-preset-segfault")
+                                .px(px(6.0))
+                                .py(px(2.0))
+                                .bg(BG_CONTROL)
+                                .border_1()
+                                .border_color(BORDER_DEFAULT)
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.5))
+                                .text_color(CRIT)
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .on_click(move |_ev, _window, cx| {
+                                    app_preset2.update(cx, |this, cx| {
+                                        this.clanker_demo_log = "nginx[1482]: segfault at 0 ip 00007f3b48201a08 sp 00007ffe3410 error 4 in libc.so.6".into();
+                                        this.clanker_demo_output = None;
+                                        cx.notify();
+                                    });
+                                })
+                                .child("Segfault in Libc"),
+                        )
+                        .child(
+                            div()
+                                .id("btn-preset-systemd")
+                                .px(px(6.0))
+                                .py(px(2.0))
+                                .bg(BG_CONTROL)
+                                .border_1()
+                                .border_color(BORDER_DEFAULT)
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.5))
+                                .text_color(TEXT_SECONDARY)
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .on_click(move |_ev, _window, cx| {
+                                    app_preset3.update(cx, |this, cx| {
+                                        this.clanker_demo_log = "systemd[1]: postgresql@16-main.service: Main process exited, code=exited, status=1/FAILURE".into();
+                                        this.clanker_demo_output = None;
+                                        cx.notify();
+                                    });
+                                })
+                                .child("Systemd Failure"),
+                        ),
+                ),
+        )
+        // Input Box & Trigger
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(6.0))
+                .child(
+                    div()
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.0))
+                        .text_color(TEXT_DIM)
+                        .child("Sample Raw Journal / Kernel Panic Log Line:"),
+                )
+                .child(
+                    div()
+                        .p(px(10.0))
+                        .bg(hex_rgb(0x0a0a0f))
+                        .border_1()
+                        .border_color(hex_rgb(0x2d2d3d))
+                        .font_family(FONT_MONO)
+                        .text_size(px(11.0))
+                        .text_color(TEXT_MAX)
+                        .child(demo_log.to_string()),
+                )
+                .child(
+                    div()
+                        .flex()
+                        .justify_end()
+                        .child(
+                            div()
+                                .id("btn-run-eli5")
+                                .px(px(12.0))
+                                .py(px(6.0))
+                                .bg(hex_rgb(0x183020))
+                                .border_1()
+                                .border_color(OK)
+                                .font_family(FONT_MONO)
+                                .text_size(px(11.0))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(OK)
+                                .cursor_pointer()
+                                .hover(|s| s.bg(hex_rgb(0x22442c)))
+                                .on_click(move |_ev, _window, cx| {
+                                    app_run.update(cx, |this, cx| {
+                                        this.run_clanker_eli5(cx);
+                                    });
+                                })
+                                .child("TRANSLATE LOG (ELI5) ↵"),
+                        ),
+                ),
+        )
+        // Output Translation Card
+        .children(if let Some(out) = demo_output {
+            Some(
+                div()
+                    .p(px(12.0))
+                    .bg(hex_rgb(0x0c0c14))
+                    .border_1()
+                    .border_color(OK)
+                    .flex()
+                    .flex_col()
+                    .gap(px(6.0))
+                    .child(
+                        div()
+                            .font_family(FONT_MONO)
+                            .text_size(px(11.0))
+                            .text_color(TEXT_PRIMARY)
+                            .line_height(px(17.0))
+                            .child(out.to_string()),
+                    ),
+            )
+        } else {
+            None
+        })
+}
+
+pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option<impl IntoElement> {
+    let state = app_data.editing_clanker.as_ref()?;
+    let p_name = state.display_name.clone();
+    let err = state.error_message.clone();
+
+    let app_backdrop = app.clone();
+    let app_close = app.clone();
+    let app_submit = app.clone();
+
+    let app_focus_key = app.clone();
+    let app_focus_model = app.clone();
+    let app_focus_url = app.clone();
+
+    let is_key_focused = state.focus == ClankerModalFocus::ApiKey;
+    let is_model_focused = state.focus == ClankerModalFocus::Model;
+    let is_url_focused = state.focus == ClankerModalFocus::BaseUrl;
+
+    let key_val = state.api_key_input.clone();
+    let model_val = state.model_input.clone();
+    let url_val = state.base_url_input.clone();
+
+    Some(
+        div()
+            .id("clanker-modal-scrim")
+            .occlude()
+            .absolute()
+            .inset_0()
+            .bg(rgba(0x000000aa))
+            .flex()
+            .items_center()
+            .justify_center()
+            .on_click(move |_ev, _window, cx| {
+                app_backdrop.update(cx, |this, cx| {
+                    this.close_edit_clanker_modal(cx);
+                });
+            })
+            .child(
+                div()
+                    .id("clanker-modal-box")
+                    .w(px(520.0))
+                    .p(px(20.0))
+                    .bg(BG_PANEL)
+                    .border_1()
+                    .border_color(BORDER_DEFAULT)
+                    .shadow_lg()
+                    .flex()
+                    .flex_col()
+                    .gap(px(14.0))
+                    .on_click(|_ev, _window, _cx| {})
+                    // Header
+                    .child(
+                        div()
+                            .flex()
+                            .items_center()
+                            .justify_between()
+                            .child(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(8.0))
+                                    .child(
+                                        div()
+                                            .w(px(16.0))
+                                            .h(px(16.0))
+                                            .text_color(TEXT_PRIMARY)
+                                            .child(tabler_icon(TablerIcon::Key).size(px(14.0))),
+                                    )
+                                    .child(
+                                        div()
+                                            .font_family(FONT_MONO)
+                                            .text_size(px(13.0))
+                                            .font_weight(FontWeight::BOLD)
+                                            .text_color(TEXT_MAX)
+                                            .child(format!("Configure {} Clanker API Key", p_name)),
+                                    ),
+                            )
+                            .child(
+                                div()
+                                    .id("btn-close-clanker-modal")
+                                    .cursor_pointer()
+                                    .text_color(TEXT_DIM)
+                                    .hover(|s| s.text_color(TEXT_PRIMARY))
+                                    .on_click(move |_ev, _window, cx| {
+                                        app_close.update(cx, |this, cx| {
+                                            this.close_edit_clanker_modal(cx);
+                                        });
+                                    })
+                                    .child(tabler_icon(TablerIcon::X).size(px(14.0))),
+                            ),
+                    )
+                    // API Key input
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap(px(4.0))
+                            .child(
+                                div()
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(10.5))
+                                    .text_color(TEXT_DIM)
+                                    .child("API Key (saved encrypted in local SQLite vault):"),
+                            )
+                            .child(
+                                div()
+                                    .id("wrap-input-key")
+                                    .on_click(move |_ev, _window, cx| {
+                                        app_focus_key.update(cx, |this, cx| {
+                                            if let Some(ref mut st) = this.editing_clanker {
+                                                st.focus = ClankerModalFocus::ApiKey;
+                                                this.input_cursor = st.api_key_input.chars().count();
+                                                this.input_selection = None;
+                                                cx.notify();
+                                            }
+                                        });
+                                    })
+                                    .child(
+                                        terminal_text_input_styled(
+                                            "input-clanker-key",
+                                            &key_val,
+                                            "e.g. sk-proj-...",
+                                            is_key_focused,
+                                            false,
+                                            32.0,
+                                            11.0,
+                                            if is_key_focused { app_data.input_cursor } else { 0 },
+                                            if is_key_focused { app_data.input_selection } else { None },
+                                            if is_key_focused { app_data.input_drag_anchor } else { None },
+                                            app_data.cursor_blink,
+                                            {
+                                                let app = app.clone();
+                                                move |cursor, anchor, selection, _window, cx| {
+                                                    app.update(cx, |this, cx| {
+                                                        if let Some(ref mut st) = this.editing_clanker {
+                                                            st.focus = ClankerModalFocus::ApiKey;
+                                                        }
+                                                        this.input_cursor = cursor;
+                                                        this.input_drag_anchor = anchor;
+                                                        this.input_selection = selection;
+                                                        this.cursor_blink = true;
+                                                        cx.notify();
+                                                    });
+                                                }
+                                            },
+                                        )
+                                    ),
+                            ),
+                    )
+                    // Model input
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap(px(4.0))
+                            .child(
+                                div()
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(10.5))
+                                    .text_color(TEXT_DIM)
+                                    .child("Default Model:"),
+                            )
+                            .child(
+                                div()
+                                    .id("wrap-input-model")
+                                    .on_click(move |_ev, _window, cx| {
+                                        app_focus_model.update(cx, |this, cx| {
+                                            if let Some(ref mut st) = this.editing_clanker {
+                                                st.focus = ClankerModalFocus::Model;
+                                                this.input_cursor = st.model_input.chars().count();
+                                                this.input_selection = None;
+                                                cx.notify();
+                                            }
+                                        });
+                                    })
+                                    .child(
+                                        terminal_text_input_styled(
+                                            "input-clanker-model",
+                                            &model_val,
+                                            "e.g. gpt-4o-mini",
+                                            is_model_focused,
+                                            false,
+                                            32.0,
+                                            11.0,
+                                            if is_model_focused { app_data.input_cursor } else { 0 },
+                                            if is_model_focused { app_data.input_selection } else { None },
+                                            if is_model_focused { app_data.input_drag_anchor } else { None },
+                                            app_data.cursor_blink,
+                                            {
+                                                let app = app.clone();
+                                                move |cursor, anchor, selection, _window, cx| {
+                                                    app.update(cx, |this, cx| {
+                                                        if let Some(ref mut st) = this.editing_clanker {
+                                                            st.focus = ClankerModalFocus::Model;
+                                                        }
+                                                        this.input_cursor = cursor;
+                                                        this.input_drag_anchor = anchor;
+                                                        this.input_selection = selection;
+                                                        this.cursor_blink = true;
+                                                        cx.notify();
+                                                    });
+                                                }
+                                            },
+                                        )
+                                    ),
+                            ),
+                    )
+                    // Custom Base URL input
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap(px(4.0))
+                            .child(
+                                div()
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(10.5))
+                                    .text_color(TEXT_DIM)
+                                    .child("Custom API Endpoint / Proxy (optional):"),
+                            )
+                            .child(
+                                div()
+                                    .id("wrap-input-url")
+                                    .on_click(move |_ev, _window, cx| {
+                                        app_focus_url.update(cx, |this, cx| {
+                                            if let Some(ref mut st) = this.editing_clanker {
+                                                st.focus = ClankerModalFocus::BaseUrl;
+                                                this.input_cursor = st.base_url_input.chars().count();
+                                                this.input_selection = None;
+                                                cx.notify();
+                                            }
+                                        });
+                                    })
+                                    .child(
+                                        terminal_text_input_styled(
+                                            "input-clanker-url",
+                                            &url_val,
+                                            "https://api.openai.com/v1",
+                                            is_url_focused,
+                                            false,
+                                            32.0,
+                                            11.0,
+                                            if is_url_focused { app_data.input_cursor } else { 0 },
+                                            if is_url_focused { app_data.input_selection } else { None },
+                                            if is_url_focused { app_data.input_drag_anchor } else { None },
+                                            app_data.cursor_blink,
+                                            {
+                                                let app = app.clone();
+                                                move |cursor, anchor, selection, _window, cx| {
+                                                    app.update(cx, |this, cx| {
+                                                        if let Some(ref mut st) = this.editing_clanker {
+                                                            st.focus = ClankerModalFocus::BaseUrl;
+                                                        }
+                                                        this.input_cursor = cursor;
+                                                        this.input_drag_anchor = anchor;
+                                                        this.input_selection = selection;
+                                                        this.cursor_blink = true;
+                                                        cx.notify();
+                                                    });
+                                                }
+                                            },
+                                        )
+                                    ),
+                            ),
+                    )
+                    // Error message
+                    .children(if let Some(ref e) = err {
+                        Some(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .text_color(CRIT)
+                                .child(e.clone()),
+                        )
+                    } else {
+                        None
+                    })
+                    // Action Buttons
+                    .child(
+                        div()
+                            .flex()
+                            .justify_end()
+                            .gap(px(8.0))
+                            .child(
+                                div()
+                                    .id("btn-submit-clanker")
+                                    .px(px(12.0))
+                                    .py(px(6.0))
+                                    .bg(BG_KEY)
+                                    .border_1()
+                                    .border_color(BORDER_DEFAULT)
+                                    .cursor_pointer()
+                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                    .on_click(move |_ev, _window, cx| {
+                                        app_submit.update(cx, |this, cx| {
+                                            this.submit_edit_clanker(cx);
+                                        });
+                                    })
+                                    .child(
+                                        div()
+                                            .font_family(FONT_MONO)
+                                            .text_size(px(11.0))
+                                            .font_weight(FontWeight::BOLD)
+                                            .text_color(OK)
+                                            .child("SAVE CONFIG ↵"),
+                                    ),
+                            ),
+                    ),
+            ),
+    )
+}

@@ -131,6 +131,20 @@ pub struct ServerRecord {
     pub last_seen_at: Option<String>,
 }
 
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ClankerProviderConfig {
+    pub id: String,
+    pub display_name: String,
+    pub api_key: String,
+    pub model: String,
+    pub base_url: String,
+    pub is_default: bool,
+    pub total_calls: u64,
+    pub calls_30d: u64,
+    pub last_used_at: Option<String>,
+    pub daily_history: Vec<f32>,
+}
+
 pub struct VaultDb {
     conn: Connection,
     path: PathBuf,
@@ -265,7 +279,20 @@ impl VaultDb {
             );
 
             CREATE INDEX IF NOT EXISTS idx_servers_env ON servers (env);
-            CREATE INDEX IF NOT EXISTS idx_servers_group ON servers (group_name);",
+            CREATE INDEX IF NOT EXISTS idx_servers_group ON servers (group_name);
+
+            CREATE TABLE IF NOT EXISTS clanker_providers (
+                id TEXT PRIMARY KEY,
+                display_name TEXT NOT NULL,
+                api_key TEXT NOT NULL DEFAULT '',
+                model TEXT NOT NULL,
+                base_url TEXT NOT NULL,
+                is_default INTEGER NOT NULL DEFAULT 0,
+                total_calls INTEGER NOT NULL DEFAULT 0,
+                calls_30d INTEGER NOT NULL DEFAULT 0,
+                last_used_at TEXT,
+                daily_history TEXT NOT NULL DEFAULT '[]'
+            );",
         )?;
 
         // Seed default scan path if empty
@@ -304,6 +331,42 @@ impl VaultDb {
                 let _ = self.conn.execute(
                     "INSERT OR IGNORE INTO ssh_key_groups (id, name, color, created_at) VALUES (?1, ?2, ?3, ?4)",
                     params![id, name, color, now],
+                );
+            }
+        }
+
+        // Seed default Clanker providers if empty
+        let clanker_count: i64 = self.conn.query_row(
+            "SELECT COUNT(*) FROM clanker_providers",
+            [],
+            |r| r.get(0),
+        )?;
+        if clanker_count == 0 {
+            let default_clankers = [
+                ("openai", "OpenAI", "gpt-4o-mini", "https://api.openai.com/v1", true, 26, 26, "[0,1,0,0,2,0,1,3,0,1,2,0,0,4,1,0,2,1,0,3,1,0,0,1,2,0,1,0,0,1]"),
+                ("anthropic", "Anthropic", "claude-3-5-sonnet-20241022", "https://api.anthropic.com/v1", false, 14, 14, "[0,0,1,0,0,1,0,2,0,0,1,1,0,0,2,0,1,0,0,1,0,2,0,0,1,0,0,1,0,0]"),
+                ("mistral", "Mistral AI", "mistral-small-latest", "https://api.mistral.ai/v1", false, 8, 8, "[0,0,0,1,0,0,0,1,0,0,0,2,0,0,1,0,0,0,1,0,0,0,1,0,0,1,0,0,0,0]"),
+                ("deepseek", "DeepSeek", "deepseek-chat", "https://api.deepseek.com/v1", false, 42, 42, "[1,2,0,1,3,2,1,0,4,1,2,0,3,1,2,0,1,4,2,1,0,3,2,1,0,2,1,0,1,2]"),
+                ("xiaomi", "Xiaomi", "mimax-v1", "https://api.xiaomi.com/v1", false, 0, 0, "[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"),
+                ("qwen", "Qwen (Alibaba)", "qwen-2.5-coder-32b", "https://dashscope.aliyuncs.com/compatible-mode/v1", false, 19, 19, "[0,1,0,2,1,0,0,1,2,0,1,0,0,2,1,0,1,2,0,0,1,1,0,0,2,0,1,0,0,0]"),
+            ];
+
+            for (id, display_name, model, base_url, is_def, total_calls, calls_30d, daily_hist) in default_clankers {
+                let _ = self.conn.execute(
+                    "INSERT OR IGNORE INTO clanker_providers (
+                        id, display_name, api_key, model, base_url, is_default,
+                        total_calls, calls_30d, last_used_at, daily_history
+                    ) VALUES (?1, ?2, '', ?3, ?4, ?5, ?6, ?7, NULL, ?8)",
+                    params![
+                        id,
+                        display_name,
+                        model,
+                        base_url,
+                        if is_def { 1 } else { 0 },
+                        total_calls,
+                        calls_30d,
+                        daily_hist
+                    ],
                 );
             }
         }
@@ -946,6 +1009,144 @@ impl VaultDb {
         Ok(())
     }
 
+    // ==========================================
+    // Clankers AI Providers Storage & Metrics
+    // ==========================================
+
+    pub fn list_clanker_providers(&self) -> Result<Vec<ClankerProviderConfig>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, display_name, api_key, model, base_url, is_default, total_calls, calls_30d, last_used_at, daily_history
+             FROM clanker_providers ORDER BY CASE id
+                WHEN 'openai' THEN 1
+                WHEN 'anthropic' THEN 2
+                WHEN 'mistral' THEN 3
+                WHEN 'deepseek' THEN 4
+                WHEN 'xiaomi' THEN 5
+                WHEN 'qwen' THEN 6
+                ELSE 7 END"
+        )?;
+
+        let rows = stmt.query_map([], |r| {
+            let is_def_int: i64 = r.get(5)?;
+            let total_calls: i64 = r.get(6)?;
+            let calls_30d: i64 = r.get(7)?;
+            let hist_json: String = r.get(9)?;
+            let daily_history: Vec<f32> = serde_json::from_str(&hist_json).unwrap_or_default();
+
+            Ok(ClankerProviderConfig {
+                id: r.get(0)?,
+                display_name: r.get(1)?,
+                api_key: r.get(2)?,
+                model: r.get(3)?,
+                base_url: r.get(4)?,
+                is_default: is_def_int > 0,
+                total_calls: total_calls.max(0) as u64,
+                calls_30d: calls_30d.max(0) as u64,
+                last_used_at: r.get(8)?,
+                daily_history,
+            })
+        })?;
+
+        let mut out = Vec::new();
+        for item in rows {
+            out.push(item?);
+        }
+        Ok(out)
+    }
+
+    pub fn get_clanker_provider(&self, id: &str) -> Result<Option<ClankerProviderConfig>, VaultError> {
+        let res = self.conn.query_row(
+            "SELECT id, display_name, api_key, model, base_url, is_default, total_calls, calls_30d, last_used_at, daily_history
+             FROM clanker_providers WHERE id = ?1",
+            params![id],
+            |r| {
+                let is_def_int: i64 = r.get(5)?;
+                let total_calls: i64 = r.get(6)?;
+                let calls_30d: i64 = r.get(7)?;
+                let hist_json: String = r.get(9)?;
+                let daily_history: Vec<f32> = serde_json::from_str(&hist_json).unwrap_or_default();
+
+                Ok(ClankerProviderConfig {
+                    id: r.get(0)?,
+                    display_name: r.get(1)?,
+                    api_key: r.get(2)?,
+                    model: r.get(3)?,
+                    base_url: r.get(4)?,
+                    is_default: is_def_int > 0,
+                    total_calls: total_calls.max(0) as u64,
+                    calls_30d: calls_30d.max(0) as u64,
+                    last_used_at: r.get(8)?,
+                    daily_history,
+                })
+            }
+        ).optional()?;
+        Ok(res)
+    }
+
+    pub fn upsert_clanker_provider(&self, config: &ClankerProviderConfig) -> Result<(), VaultError> {
+        let hist_json = serde_json::to_string(&config.daily_history).unwrap_or_else(|_| "[]".to_string());
+        self.conn.execute(
+            "INSERT INTO clanker_providers (
+                id, display_name, api_key, model, base_url, is_default, total_calls, calls_30d, last_used_at, daily_history
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+            ON CONFLICT(id) DO UPDATE SET
+                display_name = excluded.display_name,
+                api_key = excluded.api_key,
+                model = excluded.model,
+                base_url = excluded.base_url,
+                is_default = excluded.is_default,
+                total_calls = excluded.total_calls,
+                calls_30d = excluded.calls_30d,
+                last_used_at = excluded.last_used_at,
+                daily_history = excluded.daily_history",
+            params![
+                config.id,
+                config.display_name,
+                config.api_key,
+                config.model,
+                config.base_url,
+                if config.is_default { 1 } else { 0 },
+                config.total_calls as i64,
+                config.calls_30d as i64,
+                config.last_used_at,
+                hist_json
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn set_default_clanker_provider(&self, provider_id: &str) -> Result<(), VaultError> {
+        self.conn.execute("UPDATE clanker_providers SET is_default = 0", [])?;
+        self.conn.execute("UPDATE clanker_providers SET is_default = 1 WHERE id = ?1", params![provider_id])?;
+        Ok(())
+    }
+
+    pub fn record_clanker_usage(&self, provider_id: &str) -> Result<(), VaultError> {
+        let now = Utc::now().to_rfc3339();
+        if let Some(mut current) = self.get_clanker_provider(provider_id)? {
+            current.total_calls += 1;
+            current.calls_30d += 1;
+            current.last_used_at = Some(now);
+            if current.daily_history.is_empty() {
+                current.daily_history = vec![0.0; 29];
+                current.daily_history.push(1.0);
+            } else {
+                let last_idx = current.daily_history.len() - 1;
+                current.daily_history[last_idx] += 1.0;
+            }
+            self.upsert_clanker_provider(&current)?;
+        }
+        Ok(())
+    }
+
+    pub fn reset_clanker_usage(&self, provider_id: &str) -> Result<(), VaultError> {
+        self.conn.execute(
+            "UPDATE clanker_providers SET total_calls = 0, calls_30d = 0, last_used_at = NULL, daily_history = ?1 WHERE id = ?2",
+            params!["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]", provider_id],
+        )?;
+        Ok(())
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
     }
@@ -1152,4 +1353,52 @@ mod tests {
         db.delete_server("srv-custom-01").unwrap();
         assert!(db.get_server("srv-custom-01").unwrap().is_none());
     }
+
+    #[test]
+    fn test_clanker_providers_seeding_and_crud() {
+        let db = VaultDb::open_in_memory().unwrap();
+        let providers = db.list_clanker_providers().unwrap();
+
+        // 6 providers seeded
+        assert_eq!(providers.len(), 6);
+        assert!(providers.iter().any(|p| p.id == "openai"));
+        assert!(providers.iter().any(|p| p.id == "anthropic"));
+        assert!(providers.iter().any(|p| p.id == "mistral"));
+        assert!(providers.iter().any(|p| p.id == "deepseek"));
+        assert!(providers.iter().any(|p| p.id == "xiaomi"));
+        assert!(providers.iter().any(|p| p.id == "qwen"));
+
+        let openai = db.get_clanker_provider("openai").unwrap().unwrap();
+        assert!(openai.is_default);
+        assert_eq!(openai.model, "gpt-4o-mini");
+
+        // Set default to deepseek
+        db.set_default_clanker_provider("deepseek").unwrap();
+        let deepseek = db.get_clanker_provider("deepseek").unwrap().unwrap();
+        assert!(deepseek.is_default);
+        let openai_after = db.get_clanker_provider("openai").unwrap().unwrap();
+        assert!(!openai_after.is_default);
+
+        // Record usage
+        let before_calls = deepseek.calls_30d;
+        db.record_clanker_usage("deepseek").unwrap();
+        let deepseek_after = db.get_clanker_provider("deepseek").unwrap().unwrap();
+        assert_eq!(deepseek_after.calls_30d, before_calls + 1);
+        assert!(deepseek_after.last_used_at.is_some());
+
+        // Update API key
+        let mut custom = deepseek_after.clone();
+        custom.api_key = "sk-deepseek-test-key-12345".into();
+        db.upsert_clanker_provider(&custom).unwrap();
+        let deepseek_updated = db.get_clanker_provider("deepseek").unwrap().unwrap();
+        assert_eq!(deepseek_updated.api_key, "sk-deepseek-test-key-12345");
+
+        // Reset usage
+        db.reset_clanker_usage("deepseek").unwrap();
+        let deepseek_reset = db.get_clanker_provider("deepseek").unwrap().unwrap();
+        assert_eq!(deepseek_reset.total_calls, 0);
+        assert_eq!(deepseek_reset.calls_30d, 0);
+        assert!(deepseek_reset.last_used_at.is_none());
+    }
 }
+

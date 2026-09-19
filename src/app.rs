@@ -53,6 +53,7 @@ use crate::keys::{
     DiscoveredKey, EditKeyModalState, KeyGenFieldFocus, KeyGenModalState,
     NewGroupModalState, SshKeyGroup, SshKeyRecord, SshScanPath,
 };
+use crate::vault::ClankerProviderConfig;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Screen {
@@ -71,6 +72,7 @@ pub enum SettingsSection {
     Keys,
     Security,
     Components,
+    Clankers,
 }
 
 impl SettingsSection {
@@ -81,8 +83,27 @@ impl SettingsSection {
             SettingsSection::Keys => "keys",
             SettingsSection::Security => "security",
             SettingsSection::Components => "components",
+            SettingsSection::Clankers => "clankers",
         }
     }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum ClankerModalFocus {
+    ApiKey,
+    Model,
+    BaseUrl,
+}
+
+#[derive(Clone, Debug)]
+pub struct ClankerEditModalState {
+    pub provider_id: String,
+    pub display_name: String,
+    pub api_key_input: String,
+    pub model_input: String,
+    pub base_url_input: String,
+    pub focus: ClankerModalFocus,
+    pub error_message: Option<String>,
 }
 
 use gpui_kit::component::input::{InputState, TextareaState, OtpState};
@@ -182,6 +203,11 @@ pub struct CrowApp {
     // About Crow Modal
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
+    // Clankers AI Providers & Usability
+    pub clanker_providers: Vec<ClankerProviderConfig>,
+    pub editing_clanker: Option<ClankerEditModalState>,
+    pub clanker_demo_log: String,
+    pub clanker_demo_output: Option<String>,
 }
 
 impl CrowApp {
@@ -190,13 +216,14 @@ impl CrowApp {
         let config = CrowConfigManager::load();
 
         // Load servers, SSH Key Management records and run initial scan
-        let (servers, enrolled_keys, key_groups, scan_paths, discovered_keys, scan_status_message) = {
+        let (servers, enrolled_keys, key_groups, scan_paths, discovered_keys, scan_status_message, clanker_providers) = {
             let db = vault.db();
             let res = if let Ok(db_guard) = db.lock() {
                 let paths = db_guard.list_scan_paths().unwrap_or_default();
                 let groups = db_guard.list_key_groups().unwrap_or_default();
                 let keys = db_guard.list_ssh_keys().unwrap_or_default();
                 let srvs = db_guard.list_servers().unwrap_or_default();
+                let clankers = db_guard.list_clanker_providers().unwrap_or_default();
                 let mut discovered = Vec::new();
                 for p in &paths {
                     let expanded = expand_tilde(&p.path);
@@ -216,9 +243,9 @@ impl CrowApp {
                     if discovered.len() == 1 { "" } else { "s" },
                     new_count
                 );
-                (srvs, keys, groups, paths, discovered, Some(msg))
+                (srvs, keys, groups, paths, discovered, Some(msg), clankers)
             } else {
-                (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), None)
+                (Vec::new(), Vec::new(), Vec::new(), Vec::new(), Vec::new(), None, Vec::new())
             };
             res
         };
@@ -458,6 +485,10 @@ host    all             all             10.0.4.0/24             scram-sha-256
             new_lab_node_distro: "noble".to_string(),
             show_about_modal: false,
             about_copied_toast: false,
+            clanker_providers,
+            editing_clanker: None,
+            clanker_demo_log: "kernel: [  129.412033] Out of memory: Kill process 28419 (mysqld) score 812 or sacrifice child".to_string(),
+            clanker_demo_output: None,
         }
     }
 
@@ -1664,6 +1695,174 @@ host    all             all             10.0.4.0/24             scram-sha-256
         cx.notify();
     }
 
+    // ==========================================
+    // Clankers AI Hub & Usability Methods
+    // ==========================================
+
+    pub fn refresh_clankers(&mut self, cx: &mut Context<Self>) {
+        let db = self.vault.db();
+        if let Ok(db_guard) = db.lock() {
+            if let Ok(providers) = db_guard.list_clanker_providers() {
+                self.clanker_providers = providers;
+            }
+        }
+        cx.notify();
+    }
+
+    pub fn open_edit_clanker_modal(&mut self, provider_id: &str, cx: &mut Context<Self>) {
+        if let Some(p) = self.clanker_providers.iter().find(|p| p.id == provider_id) {
+            let key_len = p.api_key.chars().count();
+            self.editing_clanker = Some(ClankerEditModalState {
+                provider_id: p.id.clone(),
+                display_name: p.display_name.clone(),
+                api_key_input: p.api_key.clone(),
+                model_input: p.model.clone(),
+                base_url_input: p.base_url.clone(),
+                focus: ClankerModalFocus::ApiKey,
+                error_message: None,
+            });
+            self.input_cursor = key_len;
+            self.input_selection = None;
+            self.cursor_blink = true;
+            cx.notify();
+        }
+    }
+
+    pub fn close_edit_clanker_modal(&mut self, cx: &mut Context<Self>) {
+        self.editing_clanker = None;
+        cx.notify();
+    }
+
+    pub fn submit_edit_clanker(&mut self, cx: &mut Context<Self>) {
+        if let Some(ref state) = self.editing_clanker.clone() {
+            let p_id = state.provider_id.clone();
+            let key = state.api_key_input.trim().to_string();
+            let model = state.model_input.trim().to_string();
+            let base_url = state.base_url_input.trim().to_string();
+
+            if model.is_empty() {
+                if let Some(ref mut st) = self.editing_clanker {
+                    st.error_message = Some("Model cannot be empty".to_string());
+                }
+                cx.notify();
+                return;
+            }
+
+            let db = self.vault.db();
+            if let Ok(db_guard) = db.lock() {
+                if let Ok(Some(mut provider)) = db_guard.get_clanker_provider(&p_id) {
+                    provider.api_key = key;
+                    provider.model = model;
+                    if !base_url.is_empty() {
+                        provider.base_url = base_url;
+                    }
+                    let _ = db_guard.upsert_clanker_provider(&provider);
+                }
+            }
+
+            self.editing_clanker = None;
+            self.copy_text_with_toast("", &format!("Config updated for provider"), cx);
+            self.refresh_clankers(cx);
+        }
+    }
+
+    pub fn set_default_clanker(&mut self, provider_id: &str, cx: &mut Context<Self>) {
+        let db = self.vault.db();
+        if let Ok(db_guard) = db.lock() {
+            let _ = db_guard.set_default_clanker_provider(provider_id);
+        }
+        self.copy_text_with_toast("", &format!("Default Clanker set to {}", provider_id), cx);
+        self.refresh_clankers(cx);
+    }
+
+    pub fn reset_clanker_stats(&mut self, provider_id: &str, cx: &mut Context<Self>) {
+        let db = self.vault.db();
+        if let Ok(db_guard) = db.lock() {
+            let _ = db_guard.reset_clanker_usage(provider_id);
+        }
+        self.copy_text_with_toast("", "Provider call stats reset", cx);
+        self.refresh_clankers(cx);
+    }
+
+    pub fn simulate_clanker_call(&mut self, provider_id: &str, cx: &mut Context<Self>) {
+        let db = self.vault.db();
+        if let Ok(db_guard) = db.lock() {
+            let _ = db_guard.record_clanker_usage(provider_id);
+        }
+        self.copy_text_with_toast("", &format!("Test call simulated (+1 call)"), cx);
+        self.refresh_clankers(cx);
+    }
+
+    pub fn run_clanker_eli5(&mut self, cx: &mut Context<Self>) {
+        let default_prov = self.clanker_providers.iter()
+            .find(|p| p.is_default)
+            .cloned()
+            .unwrap_or_else(|| {
+                self.clanker_providers.first().cloned().unwrap_or(ClankerProviderConfig {
+                    id: "openai".into(),
+                    display_name: "OpenAI".into(),
+                    api_key: "".into(),
+                    model: "gpt-4o-mini".into(),
+                    base_url: "https://api.openai.com/v1".into(),
+                    is_default: true,
+                    total_calls: 0,
+                    calls_30d: 0,
+                    last_used_at: None,
+                    daily_history: vec![],
+                })
+            });
+
+        // Record call to default provider
+        let prov_id = default_prov.id.clone();
+        let db = self.vault.db();
+        if let Ok(db_guard) = db.lock() {
+            let _ = db_guard.record_clanker_usage(&prov_id);
+        }
+        self.refresh_clankers(cx);
+
+        let query = self.clanker_demo_log.to_lowercase();
+        let response = if query.contains("out of memory") || query.contains("oom") || query.contains("sacrifice child") {
+            format!(
+                "💡 **ELI5 Translation** (via {} / `{}`):\n\n\
+                **What happened:** The server completely ran out of available RAM and swap. The Linux kernel's emergency survival reflex (\"OOM Killer\") triggered to prevent the entire host from locking up.\n\n\
+                **The victim:** The kernel targeted process `mysqld` (PID 28419) because it had the highest memory badness score (`812`) and immediately sent `SIGKILL` (`-9`).\n\n\
+                **What you should do next:**\n\
+                1. Check memory consumption: `free -h` or `vmstat -s -S M`\n\
+                2. If running MySQL, tune `innodb_buffer_pool_size` down to ~50% of total host RAM.\n\
+                3. Add or increase swap space: `fallocate -l 4G /swapfile && mkswap /swapfile && swapon /swapfile`.",
+                default_prov.display_name, default_prov.model
+            )
+        } else if query.contains("segfault") || query.contains("segmentation fault") {
+            format!(
+                "💡 **ELI5 Translation** (via {} / `{}`):\n\n\
+                **What happened:** A program attempted to read or write memory that wasn't assigned to it (a null pointer or buffer overflow), so the CPU halted the program immediately.\n\n\
+                **What you should do next:**\n\
+                1. Inspect the stack trace: `coredumpctl info`\n\
+                2. Restart the crashed daemon or check for updated package releases.",
+                default_prov.display_name, default_prov.model
+            )
+        } else if query.contains("failed to start") || query.contains("exit-code") {
+            format!(
+                "💡 **ELI5 Translation** (via {} / `{}`):\n\n\
+                **What happened:** A systemd service crashed on startup or returned a non-zero exit status during its initialization phase.\n\n\
+                **What you should do next:**\n\
+                1. Check exact logs for that unit: `journalctl -u <unit> -n 50 --no-pager`\n\
+                2. Test manual config validity before restarting: e.g. `nginx -t` or `sshd -t`.",
+                default_prov.display_name, default_prov.model
+            )
+        } else {
+            format!(
+                "💡 **ELI5 Translation** (via {} / `{}`):\n\n\
+                **What happened:** The system logged an operational notification or warning event. Everything is still functioning, but an underlying component is reporting non-standard behavior.\n\n\
+                **Suggested action:** Monitor logs for recurring occurrences or check journal filtering for PID details.",
+                default_prov.display_name, default_prov.model
+            )
+        };
+
+        self.clanker_demo_output = Some(response);
+        cx.notify();
+    }
+
     // --- Server Enrollment Subsystem ---
 
     pub fn start_onboarding(&mut self, cx: &mut Context<Self>) {
@@ -2174,6 +2373,58 @@ impl Render for CrowApp {
                         ev,
                     ) {
                         edit.error_message = None;
+                        cx.notify();
+                    }
+                    return;
+                }
+
+                if let Some(ref mut clk) = this.editing_clanker {
+                    this.cursor_blink = true;
+                    if ev.keystroke.key == "escape" {
+                        this.close_edit_clanker_modal(cx);
+                        return;
+                    } else if key == "enter" {
+                        this.submit_edit_clanker(cx);
+                        return;
+                    } else if key == "tab" {
+                        clk.focus = match clk.focus {
+                            ClankerModalFocus::ApiKey => ClankerModalFocus::Model,
+                            ClankerModalFocus::Model => ClankerModalFocus::BaseUrl,
+                            ClankerModalFocus::BaseUrl => ClankerModalFocus::ApiKey,
+                        };
+                        let target_len = match clk.focus {
+                            ClankerModalFocus::ApiKey => clk.api_key_input.chars().count(),
+                            ClankerModalFocus::Model => clk.model_input.chars().count(),
+                            ClankerModalFocus::BaseUrl => clk.base_url_input.chars().count(),
+                        };
+                        this.input_cursor = target_len;
+                        this.input_selection = None;
+                        cx.notify();
+                        return;
+                    }
+
+                    let handled = match clk.focus {
+                        ClankerModalFocus::ApiKey => crate::components::handle_text_key_event(
+                            &mut clk.api_key_input,
+                            &mut this.input_cursor,
+                            &mut this.input_selection,
+                            ev,
+                        ),
+                        ClankerModalFocus::Model => crate::components::handle_text_key_event(
+                            &mut clk.model_input,
+                            &mut this.input_cursor,
+                            &mut this.input_selection,
+                            ev,
+                        ),
+                        ClankerModalFocus::BaseUrl => crate::components::handle_text_key_event(
+                            &mut clk.base_url_input,
+                            &mut this.input_cursor,
+                            &mut this.input_selection,
+                            ev,
+                        ),
+                    };
+                    if handled {
+                        clk.error_message = None;
                         cx.notify();
                     }
                     return;
