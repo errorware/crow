@@ -4,7 +4,7 @@ use std::time::Instant;
 use crate::vault::ServerRecord;
 use super::{format_uptime, LiveServiceStatus, ServerMetrics, MAX_HISTORY_POINTS};
 
-/// Holds previous tick state to compute rates (CPU delta, Net RX/TX delta).
+/// Holds previous tick state to compute rates (CPU delta, Net RX/TX delta) and cache slow checks.
 #[derive(Clone, Debug)]
 pub struct CollectorPreviousState {
     pub last_tick: Instant,
@@ -12,6 +12,9 @@ pub struct CollectorPreviousState {
     pub prev_cpu_idle: u64,
     pub prev_net_rx: u64,
     pub prev_net_tx: u64,
+    pub last_slow_sample: Instant,
+    pub cached_disk: Option<(u64, u64, f32)>,
+    pub cached_services: Vec<LiveServiceStatus>,
 }
 
 impl Default for CollectorPreviousState {
@@ -22,6 +25,9 @@ impl Default for CollectorPreviousState {
             prev_cpu_idle: 0,
             prev_net_rx: 0,
             prev_net_tx: 0,
+            last_slow_sample: Instant::now().checked_sub(std::time::Duration::from_secs(60)).unwrap_or_else(Instant::now),
+            cached_disk: None,
+            cached_services: Vec::new(),
         }
     }
 }
@@ -74,8 +80,23 @@ impl LocalCollector {
             prev_state.prev_net_tx = tx_bytes;
         }
 
-        // 6. Disk utilization via df
-        if let Ok((used_b, total_b, inodes_pct)) = Self::read_disk_stats("/") {
+        // 6. Disk utilization via df & 7. Live Services (decoupled to 15s cadence to eliminate subprocess thrashing)
+        let needs_slow_check = prev_state.cached_disk.is_none()
+            || now.duration_since(prev_state.last_slow_sample).as_secs() >= 15;
+
+        if needs_slow_check {
+            if let Ok(stats) = Self::read_disk_stats("/") {
+                prev_state.cached_disk = Some(stats);
+            }
+            if let Ok(svcs) = Self::read_systemd_services() {
+                if !svcs.is_empty() {
+                    prev_state.cached_services = svcs;
+                }
+            }
+            prev_state.last_slow_sample = now;
+        }
+
+        if let Some((used_b, total_b, inodes_pct)) = prev_state.cached_disk {
             m.disk_used_bytes = used_b;
             m.disk_total_bytes = total_b;
             m.disk_pct = ((used_b as f64 / total_b.max(1) as f64) * 100.0).clamp(0.0, 100.0) as f32;
@@ -84,11 +105,8 @@ impl LocalCollector {
             m.iowait_pct = 0.4;
         }
 
-        // 7. Live Services
-        if let Ok(svcs) = Self::read_systemd_services() {
-            if !svcs.is_empty() {
-                m.services = svcs;
-            }
+        if !prev_state.cached_services.is_empty() {
+            m.services = prev_state.cached_services.clone();
         }
 
         m.last_sample_ts = chrono::Local::now().format("%H:%M:%S").to_string();

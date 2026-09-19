@@ -518,10 +518,16 @@ host    all             all             10.0.4.0/24             scram-sha-256
             _cursor_blink_task: cx.spawn(async move |entity, cx| {
                 loop {
                     cx.background_executor().timer(std::time::Duration::from_millis(530)).await;
-                    if entity.update(cx, |this, cx| {
-                        this.cursor_blink = !this.cursor_blink;
-                        cx.notify();
-                    }).is_err() {
+                    let should_notify = entity.update(cx, |this, cx| {
+                        if this.has_active_text_input() {
+                            this.cursor_blink = !this.cursor_blink;
+                            cx.notify();
+                            true
+                        } else {
+                            false
+                        }
+                    });
+                    if should_notify.is_err() {
                         break;
                     }
                 }
@@ -534,8 +540,22 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 let mut local_prev = CollectorPreviousState::default();
                 loop {
                     cx.background_executor().timer(std::time::Duration::from_millis(2000)).await;
+                    let req_res = entity.update(cx, |this, _cx| {
+                        this.prepare_poll_request()
+                    });
+                    let req = match req_res {
+                        Ok(r) => r,
+                        Err(_) => break,
+                    };
+
+                    let (res, next_prev) = cx.background_executor().spawn(async move {
+                        run_background_poll(req, local_prev)
+                    }).await;
+
+                    local_prev = next_prev;
+
                     if entity.update(cx, |this, cx| {
-                        this.poll_metrics(&mut local_prev);
+                        this.apply_poll_result(res);
                         cx.notify();
                     }).is_err() {
                         break;
@@ -598,129 +618,302 @@ host    all             all             10.0.4.0/24             scram-sha-256
             show_firewall_audit_rail: true,
         }
     }
+}
 
-    pub fn poll_metrics(&mut self, local_prev: &mut CollectorPreviousState) {
+#[derive(Clone)]
+#[allow(dead_code)]
+pub struct BackgroundPollRequest {
+    pub now_secs: u64,
+    pub screen: Screen,
+    pub active_view: String,
+    pub active_services_tab: String,
+    pub active_server: Option<ServerRecord>,
+    pub prev_active_metrics: Option<ServerMetrics>,
+    pub should_poll_overview_subtab: bool,
+    pub should_poll_journal: bool,
+    pub journal_query: Option<JournalQuery>,
+    pub should_poll_retention: bool,
+    pub fleet_servers: Vec<ServerRecord>,
+    pub prev_fleet_metrics: HashMap<String, ServerMetrics>,
+}
+
+pub struct BackgroundPollResult {
+    pub now_secs: u64,
+    pub active_server_id: Option<String>,
+    pub active_metrics: Option<ServerMetrics>,
+    pub services_sample: Option<Vec<ServiceUnit>>,
+    pub processes_sample: Option<Vec<ProcessUnit>>,
+    pub sockets_sample: Option<Vec<SocketUnit>>,
+    pub journal_entries: Option<Vec<JournalEntry>>,
+    pub journal_telemetry: Option<JournalTelemetry>,
+    pub fleet_samples: Vec<(String, String, ServerMetrics)>,
+}
+
+pub fn run_background_poll(
+    req: BackgroundPollRequest,
+    mut local_prev: CollectorPreviousState,
+) -> (BackgroundPollResult, CollectorPreviousState) {
+    let mut result = BackgroundPollResult {
+        now_secs: req.now_secs,
+        active_server_id: req.active_server.as_ref().map(|s| s.id.clone()),
+        active_metrics: None,
+        services_sample: None,
+        processes_sample: None,
+        sockets_sample: None,
+        journal_entries: None,
+        journal_telemetry: None,
+        fleet_samples: Vec::new(),
+    };
+
+    if let Some(ref active_srv) = req.active_server {
+        // 1. Sample active server metrics off-thread
+        let updated_head = sample_server(active_srv, req.prev_active_metrics.as_ref(), &mut local_prev);
+        result.active_metrics = Some(updated_head);
+
+        // 2. Overview subtabs (ps, ss, systemctl) executed on worker threadpool
+        if req.should_poll_overview_subtab {
+            match req.active_services_tab.as_str() {
+                "processes" => {
+                    result.processes_sample = Some(collect_processes_for_server(active_srv));
+                }
+                "sockets" => {
+                    result.sockets_sample = Some(collect_sockets_for_server(active_srv));
+                }
+                _ => {
+                    result.services_sample = Some(collect_services_for_server(active_srv));
+                }
+            }
+        }
+
+        // 3. Journal query (only executed when actively viewing Logs or Overview)
+        if req.should_poll_journal {
+            if let Some(ref query) = req.journal_query {
+                result.journal_entries = Some(read_journal_for_server(active_srv, query));
+            }
+            if req.should_poll_retention {
+                let (_cfg, telemetry) = read_retention_for_server(&active_srv.host);
+                result.journal_telemetry = Some(telemetry);
+            }
+        }
+    }
+
+    // 4. Fleet servers (when on Screen::Fleet) executed off-thread
+    if !req.fleet_servers.is_empty() {
+        for s in &req.fleet_servers {
+            let prev = req.prev_fleet_metrics.get(&s.id);
+            let updated = sample_server(s, prev, &mut local_prev);
+            result.fleet_samples.push((s.id.clone(), s.name.clone(), updated));
+        }
+    }
+
+    (result, local_prev)
+}
+
+impl CrowApp {
+    pub fn has_active_text_input(&self) -> bool {
+        if self.palette_open {
+            return true;
+        }
+        if self.show_new_user_modal
+            || self.show_new_firewall_rule_modal
+            || self.show_journal_retention_modal
+            || self.show_about_modal
+        {
+            return true;
+        }
+        if self.key_gen_modal.is_some()
+            || self.new_group_modal.is_some()
+            || self.add_scan_path_modal.is_some()
+            || self.edit_key_modal.is_some()
+            || self.editing_clanker.is_some()
+        {
+            return true;
+        }
+        if self.vault.status() == VaultStatus::Locked {
+            return true;
+        }
+        if self.screen == Screen::VaultSetup {
+            return true;
+        }
+        if self.screen == Screen::Onboard {
+            return self.onboard_state.focus != OnboardFieldFocus::None;
+        }
+        if self.screen == Screen::Server {
+            if self.active_view == "logs" && self.journal_search_focused {
+                return true;
+            }
+            if (self.active_view == "config" || self.active_view == "configure")
+                && self.config_search_focused
+            {
+                return true;
+            }
+        }
+        if self.screen == Screen::Settings && self.settings_dropdown_open.is_some() {
+            return true;
+        }
+        false
+    }
+
+    pub fn prepare_poll_request(&self) -> BackgroundPollRequest {
         let now_secs = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
             .map(|d| d.as_secs())
             .unwrap_or(0);
 
-        if let Some(active_srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
-            let prev = self.buffered_stores.get(&active_srv.id).and_then(|b| b.head()).map(|h| &h.metrics).or_else(|| self.metrics_store.get(&active_srv.id));
-            let updated_head = sample_server(&active_srv, prev, local_prev);
+        let active_srv = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned();
+        let prev_active_metrics = active_srv.as_ref().and_then(|srv| {
+            self.buffered_stores.get(&srv.id).and_then(|b| b.head()).map(|h| h.metrics.clone()).or_else(|| self.metrics_store.get(&srv.id).cloned())
+        });
 
-            // Collect active subtab data for overview
-            let (services_sample, processes_sample, sockets_sample) = if self.active_view == "overview" {
-                match self.active_services_tab.as_str() {
-                    "processes" => (
-                        self.services.clone(),
-                        collect_processes_for_server(&active_srv),
-                        self.sockets.clone(),
-                    ),
-                    "sockets" => (
-                        self.services.clone(),
-                        self.processes.clone(),
-                        collect_sockets_for_server(&active_srv),
-                    ),
-                    _ => (
-                        collect_services_for_server(&active_srv),
-                        self.processes.clone(),
-                        self.sockets.clone(),
-                    ),
-                }
-            } else {
-                (self.services.clone(), self.processes.clone(), self.sockets.clone())
-            };
+        let should_poll_overview = self.screen == Screen::Server && self.active_view == "overview";
+        let should_poll_journal = self.journal_live_tail
+            && self.screen == Screen::Server
+            && (self.active_view == "logs" || self.active_view == "overview");
+        let should_poll_retention = self.screen == Screen::Server && self.active_view == "logs";
 
-            // Ingest sample into ring buffer at T_head
-            let buf = self.buffered_stores.entry(active_srv.id.clone()).or_insert_with(ServerTimeSeriesBuffer::default);
-            buf.push_sample(MetricSample {
-                timestamp_secs: now_secs,
-                metrics: updated_head.clone(),
-                services: services_sample,
-                processes: processes_sample,
-                sockets: sockets_sample,
-            });
+        let journal_query = if should_poll_journal {
+            let mut q = self.build_journal_query();
+            // In live-tail mode, fetch a lean window of 60 entries for rapid, non-laggy updates
+            q.limit = 60;
+            Some(q)
+        } else {
+            None
+        };
 
-            // Foreknowledge: scan lookahead window (T_playback, T_head] for upcoming surges
-            self.active_surge_alert = buf.detect_upcoming_surge(self.metrics_lag_secs);
-
-            // Playback: query lagged sample from local time-series ring buffer (lag_secs behind)
-            if let Some(lagged) = buf.query_lagged(self.metrics_lag_secs) {
-                self.metrics_store.insert(active_srv.id.clone(), lagged.metrics.clone());
-                self.metrics_store.insert(active_srv.name.clone(), lagged.metrics.clone());
-                // Every poll tick rebuilds these lists from scratch (fresh ServiceUnit/
-                // ProcessUnit/SocketUnit values always start unfocused), so a row the
-                // user just clicked would revert within one tick unless we carry the
-                // selection forward by name/pid across the replacement.
-                if !lagged.services.is_empty() {
-                    let focused_name = self.services.iter().find(|s| s.is_focused).map(|s| s.name.clone());
-                    self.services = lagged.services.clone();
-                    if let Some(name) = focused_name {
-                        for svc in &mut self.services {
-                            svc.is_focused = svc.name == name;
-                        }
-                    }
+        let (fleet_servers, prev_fleet_metrics) = if self.screen == Screen::Fleet {
+            let mut prev_map = HashMap::new();
+            for s in &self.servers {
+                if let Some(m) = self.buffered_stores.get(&s.id).and_then(|b| b.head()).map(|h| h.metrics.clone()).or_else(|| self.metrics_store.get(&s.id).cloned()) {
+                    prev_map.insert(s.id.clone(), m);
                 }
-                if !lagged.processes.is_empty() {
-                    let focused_pid = self.processes.iter().find(|p| p.is_focused).map(|p| p.pid);
-                    self.processes = lagged.processes.clone();
-                    if let Some(pid) = focused_pid {
-                        for proc in &mut self.processes {
-                            proc.is_focused = proc.pid == pid;
-                        }
-                    }
-                }
-                if !lagged.sockets.is_empty() {
-                    let focused_idx = self.sockets.iter().position(|s| s.is_focused);
-                    self.sockets = lagged.sockets.clone();
-                    if let Some(idx) = focused_idx {
-                        if let Some(sock) = self.sockets.get_mut(idx) {
-                            sock.is_focused = true;
-                        }
-                    }
-                }
-            } else {
-                self.metrics_store.insert(active_srv.id.clone(), updated_head.clone());
-                self.metrics_store.insert(active_srv.name.clone(), updated_head);
             }
+            (self.servers.clone(), prev_map)
+        } else {
+            (Vec::new(), HashMap::new())
+        };
 
-            let buf_clone = buf.clone();
-            self.buffered_stores.insert(active_srv.name.clone(), buf_clone);
+        BackgroundPollRequest {
+            now_secs,
+            screen: self.screen,
+            active_view: self.active_view.clone(),
+            active_services_tab: self.active_services_tab.clone(),
+            active_server: active_srv,
+            prev_active_metrics,
+            should_poll_overview_subtab: should_poll_overview,
+            should_poll_journal,
+            journal_query,
+            should_poll_retention,
+            fleet_servers,
+            prev_fleet_metrics,
+        }
+    }
 
-            // If live tail is enabled, poll fresh journal entries — same query-building
-            // path an explicit search uses, so tailing and searching never disagree.
-            if self.journal_live_tail {
-                let query = self.build_journal_query();
-                self.journal_entries = read_journal_for_server(&active_srv, &query);
-                let (_cfg, telemetry) = read_retention_for_server(&active_srv.host);
-                self.journal_telemetry = telemetry;
+    pub fn apply_poll_result(&mut self, res: BackgroundPollResult) {
+        if let Some(ref srv_id) = res.active_server_id {
+            if let Some(updated_head) = res.active_metrics {
+                // Retrieve current services/processes/sockets or new sample
+                let services_sample = res.services_sample.unwrap_or_else(|| self.services.clone());
+                let processes_sample = res.processes_sample.unwrap_or_else(|| self.processes.clone());
+                let sockets_sample = res.sockets_sample.unwrap_or_else(|| self.sockets.clone());
+
+                // Ingest sample into ring buffer at T_head
+                let buf = self.buffered_stores.entry(srv_id.clone()).or_insert_with(ServerTimeSeriesBuffer::default);
+                buf.push_sample(MetricSample {
+                    timestamp_secs: res.now_secs,
+                    metrics: updated_head.clone(),
+                    services: services_sample,
+                    processes: processes_sample,
+                    sockets: sockets_sample,
+                });
+
+                // Foreknowledge: scan lookahead window (T_playback, T_head] for upcoming surges
+                self.active_surge_alert = buf.detect_upcoming_surge(self.metrics_lag_secs);
+
+                // Playback: query lagged sample from local time-series ring buffer (lag_secs behind)
+                if let Some(lagged) = buf.query_lagged(self.metrics_lag_secs) {
+                    self.metrics_store.insert(srv_id.clone(), lagged.metrics.clone());
+                    if let Some(active_srv) = self.servers.iter().find(|s| s.id == *srv_id) {
+                        self.metrics_store.insert(active_srv.name.clone(), lagged.metrics.clone());
+                    }
+
+                    // Preserve row focus across replacements
+                    if !lagged.services.is_empty() {
+                        let focused_name = self.services.iter().find(|s| s.is_focused).map(|s| s.name.clone());
+                        self.services = lagged.services.clone();
+                        if let Some(name) = focused_name {
+                            for svc in &mut self.services {
+                                svc.is_focused = svc.name == name;
+                            }
+                        }
+                    }
+                    if !lagged.processes.is_empty() {
+                        let focused_pid = self.processes.iter().find(|p| p.is_focused).map(|p| p.pid);
+                        self.processes = lagged.processes.clone();
+                        if let Some(pid) = focused_pid {
+                            for proc in &mut self.processes {
+                                proc.is_focused = proc.pid == pid;
+                            }
+                        }
+                    }
+                    if !lagged.sockets.is_empty() {
+                        let focused_idx = self.sockets.iter().position(|s| s.is_focused);
+                        self.sockets = lagged.sockets.clone();
+                        if let Some(idx) = focused_idx {
+                            if let Some(sock) = self.sockets.get_mut(idx) {
+                                sock.is_focused = true;
+                            }
+                        }
+                    }
+                } else {
+                    self.metrics_store.insert(srv_id.clone(), updated_head.clone());
+                    if let Some(active_srv) = self.servers.iter().find(|s| s.id == *srv_id) {
+                        self.metrics_store.insert(active_srv.name.clone(), updated_head);
+                    }
+                }
+
+                let buf_clone = buf.clone();
+                if let Some(active_srv) = self.servers.iter().find(|s| s.id == *srv_id) {
+                    self.buffered_stores.insert(active_srv.name.clone(), buf_clone);
+                }
             }
         }
 
-        if self.screen == Screen::Fleet {
-            for s in self.servers.clone() {
-                let prev = self.buffered_stores.get(&s.id).and_then(|b| b.head()).map(|h| &h.metrics).or_else(|| self.metrics_store.get(&s.id));
-                let updated = sample_server(&s, prev, local_prev);
-                let buf = self.buffered_stores.entry(s.id.clone()).or_insert_with(ServerTimeSeriesBuffer::default);
+        if let Some(entries) = res.journal_entries {
+            self.journal_entries = entries;
+        }
+        if let Some(telemetry) = res.journal_telemetry {
+            self.journal_telemetry = telemetry;
+        }
+
+        if !res.fleet_samples.is_empty() {
+            for (id, name, m) in res.fleet_samples {
+                let buf = self.buffered_stores.entry(id.clone()).or_insert_with(ServerTimeSeriesBuffer::default);
                 buf.push_sample(MetricSample {
-                    timestamp_secs: now_secs,
-                    metrics: updated.clone(),
+                    timestamp_secs: res.now_secs,
+                    metrics: m.clone(),
                     services: Vec::new(),
                     processes: Vec::new(),
                     sockets: Vec::new(),
                 });
                 if let Some(lagged) = buf.query_lagged(self.metrics_lag_secs) {
-                    self.metrics_store.insert(s.id.clone(), lagged.metrics.clone());
-                    self.metrics_store.insert(s.name.clone(), lagged.metrics.clone());
+                    self.metrics_store.insert(id.clone(), lagged.metrics.clone());
+                    self.metrics_store.insert(name.clone(), lagged.metrics.clone());
                 } else {
-                    self.metrics_store.insert(s.id.clone(), updated.clone());
-                    self.metrics_store.insert(s.name.clone(), updated);
+                    self.metrics_store.insert(id.clone(), m.clone());
+                    self.metrics_store.insert(name.clone(), m);
                 }
                 let buf_clone = buf.clone();
-                self.buffered_stores.insert(s.name.clone(), buf_clone);
+                self.buffered_stores.insert(name, buf_clone);
             }
         }
+    }
+
+    #[allow(dead_code)]
+    pub fn poll_metrics(&mut self, local_prev: &mut CollectorPreviousState) {
+        let req = self.prepare_poll_request();
+        let (res, next_prev) = run_background_poll(req, local_prev.clone());
+        *local_prev = next_prev;
+        self.apply_poll_result(res);
     }
 
     pub fn toggle_journal_expanded(&mut self, id: &str, cx: &mut Context<Self>) {
@@ -766,9 +959,16 @@ host    all             all             10.0.4.0/24             scram-sha-256
     pub fn run_journal_query(&mut self, cx: &mut Context<Self>) {
         if let Some(active_srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
             let query = self.build_journal_query();
-            self.journal_entries = read_journal_for_server(&active_srv, &query);
+            cx.spawn(async move |entity, cx| {
+                let entries = cx.background_executor().spawn(async move {
+                    read_journal_for_server(&active_srv, &query)
+                }).await;
+                let _ = entity.update(cx, |this, cx| {
+                    this.journal_entries = entries;
+                    cx.notify();
+                });
+            }).detach();
         }
-        cx.notify();
     }
 
     pub fn set_journal_pid_filter(&mut self, pid: Option<u32>, cx: &mut Context<Self>) {
@@ -1889,11 +2089,38 @@ host    all             all             10.0.4.0/24             scram-sha-256
     pub fn set_services_tab(&mut self, tab: &str, cx: &mut Context<Self>) {
         self.active_services_tab = tab.to_string();
         if let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
-            match tab {
-                "processes" => self.processes = collect_processes_for_server(&srv),
-                "sockets" => self.sockets = collect_sockets_for_server(&srv),
-                _ => self.services = collect_services_for_server(&srv),
-            }
+            let tab_owned = tab.to_string();
+            cx.spawn(async move |entity, cx| {
+                match tab_owned.as_str() {
+                    "processes" => {
+                        let procs = cx.background_executor().spawn(async move {
+                            collect_processes_for_server(&srv)
+                        }).await;
+                        let _ = entity.update(cx, |this, cx| {
+                            this.processes = procs;
+                            cx.notify();
+                        });
+                    }
+                    "sockets" => {
+                        let socks = cx.background_executor().spawn(async move {
+                            collect_sockets_for_server(&srv)
+                        }).await;
+                        let _ = entity.update(cx, |this, cx| {
+                            this.sockets = socks;
+                            cx.notify();
+                        });
+                    }
+                    _ => {
+                        let svcs = cx.background_executor().spawn(async move {
+                            collect_services_for_server(&srv)
+                        }).await;
+                        let _ = entity.update(cx, |this, cx| {
+                            this.services = svcs;
+                            cx.notify();
+                        });
+                    }
+                }
+            }).detach();
         }
         cx.notify();
     }
@@ -1920,11 +2147,39 @@ host    all             all             10.0.4.0/24             scram-sha-256
             }
             self.screen = Screen::Server;
             if self.active_view == "overview" {
-                match self.active_services_tab.as_str() {
-                    "processes" => self.processes = collect_processes_for_server(&srv),
-                    "sockets" => self.sockets = collect_sockets_for_server(&srv),
-                    _ => self.services = collect_services_for_server(&srv),
-                }
+                let tab_owned = self.active_services_tab.clone();
+                let srv_clone = srv.clone();
+                cx.spawn(async move |entity, cx| {
+                    match tab_owned.as_str() {
+                        "processes" => {
+                            let procs = cx.background_executor().spawn(async move {
+                                collect_processes_for_server(&srv_clone)
+                            }).await;
+                            let _ = entity.update(cx, |this, cx| {
+                                this.processes = procs;
+                                cx.notify();
+                            });
+                        }
+                        "sockets" => {
+                            let socks = cx.background_executor().spawn(async move {
+                                collect_sockets_for_server(&srv_clone)
+                            }).await;
+                            let _ = entity.update(cx, |this, cx| {
+                                this.sockets = socks;
+                                cx.notify();
+                            });
+                        }
+                        _ => {
+                            let svcs = cx.background_executor().spawn(async move {
+                                collect_services_for_server(&srv_clone)
+                            }).await;
+                            let _ = entity.update(cx, |this, cx| {
+                                this.services = svcs;
+                                cx.notify();
+                            });
+                        }
+                    }
+                }).detach();
             }
         } else {
             self.active_tab_id = tab_id.to_string();
