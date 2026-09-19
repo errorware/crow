@@ -15,6 +15,7 @@ use crate::vault::{ServerRecord, Vault, VaultStatus};
 use crate::views::config::managed_files::managed_files_rail;
 use crate::views::config::pending_diff_rail::pending_diff_rail;
 use crate::views::config::rules_editor::{default_hba_rules, rules_editor, HbaRuleDef};
+use crate::views::config::cron_editor::{cron_editor, default_cron_jobs, generate_crontab_content, CronJobDef};
 use crate::views::config::raw_config_editor;
 use crate::config::{crawl_machine_configs, sample_config_content, ConfigFileState, DiscoveredConfigFile, CrowConfigManager};
 use crate::views::fleet::{fleet_overview_view, fleet_setup_view};
@@ -200,6 +201,7 @@ pub struct CrowApp {
     pub selected_managed_file: String,
     pub config_files: Vec<DiscoveredConfigFile>,
     pub config_file_states: HashMap<String, ConfigFileState>,
+    pub cron_jobs: Vec<CronJobDef>,
     pub config_search_query: String,
     pub config_search_focused: bool,
     pub show_config_history: bool,
@@ -421,6 +423,12 @@ host    all             all             10.0.4.0/24             scram-sha-256
             st.baseline_content = initial_journald_text.clone();
             st.current_content = initial_journald_text;
         }
+        let initial_cron_jobs = default_cron_jobs();
+        let initial_cron_text = generate_crontab_content(&initial_cron_jobs);
+        if let Some(st) = config_file_states.get_mut("crontab") {
+            st.baseline_content = initial_cron_text.clone();
+            st.current_content = initial_cron_text;
+        }
         let initial_selected_file = config_files
             .first()
             .map(|f| f.name.clone())
@@ -519,6 +527,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
             selected_managed_file: initial_selected_file,
             config_files,
             config_file_states,
+            cron_jobs: initial_cron_jobs,
             config_search_query: String::new(),
             config_search_focused: false,
             show_config_history: false,
@@ -921,6 +930,8 @@ host    all             all             10.0.4.0/24             scram-sha-256
             }
         } else if file == "journald.conf" {
             self.journal_retention = JournalRetentionConfig::default();
+        } else if file == "crontab" {
+            self.cron_jobs = default_cron_jobs();
         }
         if let Some(state) = self.config_file_states.get_mut(file) {
             state.revert();
@@ -971,6 +982,123 @@ host    all             all             10.0.4.0/24             scram-sha-256
             }
             cx.notify();
         }
+    }
+
+    pub fn sync_cron_to_config_state(&mut self) {
+        let content = generate_crontab_content(&self.cron_jobs);
+        if let Some(st) = self.config_file_states.get_mut("crontab") {
+            st.update_content(content);
+        }
+    }
+
+    pub fn toggle_cron_job_enabled(&mut self, job_id: &str, cx: &mut Context<Self>) {
+        if let Some(job) = self.cron_jobs.iter_mut().find(|j| j.id == job_id) {
+            job.enabled = !job.enabled;
+            self.sync_cron_to_config_state();
+            cx.notify();
+        }
+    }
+
+    pub fn toggle_cron_job_expanded(&mut self, job_id: &str, cx: &mut Context<Self>) {
+        if let Some(job) = self.cron_jobs.iter_mut().find(|j| j.id == job_id) {
+            job.is_expanded = !job.is_expanded;
+            cx.notify();
+        }
+    }
+
+    pub fn apply_cron_preset(
+        &mut self,
+        job_id: &str,
+        minute: &str,
+        hour: &str,
+        day_of_month: &str,
+        month: &str,
+        day_of_week: &str,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(job) = self.cron_jobs.iter_mut().find(|j| j.id == job_id) {
+            job.minute = minute.to_string();
+            job.hour = hour.to_string();
+            job.day_of_month = day_of_month.to_string();
+            job.month = month.to_string();
+            job.day_of_week = day_of_week.to_string();
+            self.sync_cron_to_config_state();
+            cx.notify();
+        }
+    }
+
+    pub fn update_cron_field(
+        &mut self,
+        job_id: &str,
+        field: &str,
+        value: &str,
+        cx: &mut Context<Self>,
+    ) {
+        if let Some(job) = self.cron_jobs.iter_mut().find(|j| j.id == job_id) {
+            match field {
+                "minute" => job.minute = value.to_string(),
+                "hour" => job.hour = value.to_string(),
+                "day_of_month" | "dom" => job.day_of_month = value.to_string(),
+                "month" | "mon" => job.month = value.to_string(),
+                "day_of_week" | "dow" => job.day_of_week = value.to_string(),
+                "user" => job.user = value.to_string(),
+                "command" => job.command = value.to_string(),
+                _ => {}
+            }
+            self.sync_cron_to_config_state();
+            cx.notify();
+        }
+    }
+
+    pub fn move_cron_job_up(&mut self, job_id: &str, cx: &mut Context<Self>) {
+        if let Some(idx) = self.cron_jobs.iter().position(|j| j.id == job_id) {
+            if idx > 0 {
+                self.cron_jobs.swap(idx, idx - 1);
+                self.sync_cron_to_config_state();
+                cx.notify();
+            }
+        }
+    }
+
+    pub fn move_cron_job_down(&mut self, job_id: &str, cx: &mut Context<Self>) {
+        if let Some(idx) = self.cron_jobs.iter().position(|j| j.id == job_id) {
+            if idx + 1 < self.cron_jobs.len() {
+                self.cron_jobs.swap(idx, idx + 1);
+                self.sync_cron_to_config_state();
+                cx.notify();
+            }
+        }
+    }
+
+    pub fn delete_cron_job(&mut self, job_id: &str, cx: &mut Context<Self>) {
+        self.cron_jobs.retain(|j| j.id != job_id);
+        self.sync_cron_to_config_state();
+        cx.notify();
+    }
+
+    pub fn add_cron_job(&mut self, cx: &mut Context<Self>) {
+        let new_id = format!(
+            "cron_{:x}",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0)
+        );
+        self.cron_jobs.push(CronJobDef {
+            id: new_id,
+            minute: "0".to_string(),
+            hour: "2".to_string(),
+            day_of_month: "*".to_string(),
+            month: "*".to_string(),
+            day_of_week: "*".to_string(),
+            user: "root".to_string(),
+            command: "/usr/local/bin/backup-sync.sh".to_string(),
+            comment: Some("Nightly backup routine".to_string()),
+            enabled: true,
+            is_expanded: true,
+        });
+        self.sync_cron_to_config_state();
+        cx.notify();
     }
 
     pub fn apply_journal_boundaries(&mut self, cx: &mut Context<Self>) {
@@ -3041,6 +3169,8 @@ impl Render for CrowApp {
                                                                     ).into_any_element()
                                                                 } else if self.selected_managed_file == "pg_hba.conf" {
                                                                     rules_editor(&self.hba_rules, self, app_view.clone()).into_any_element()
+                                                                } else if self.selected_managed_file == "crontab" || self.selected_managed_file.contains("cron") {
+                                                                    cron_editor(&self.cron_jobs, self, app_view.clone()).into_any_element()
                                                                 } else if let Some(st) = self.config_file_states.get(&self.selected_managed_file) {
                                                                     raw_config_editor(st, app_view.clone()).into_any_element()
                                                                 } else {

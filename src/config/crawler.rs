@@ -5,6 +5,7 @@ use std::fs;
 pub enum SchemaKind {
     PgHba,
     Journald,
+    Cron,
     Sshd,
     Hosts,
     Ufw,
@@ -16,6 +17,7 @@ impl SchemaKind {
         match self {
             Self::PgHba => "postgres 16",
             Self::Journald => "systemd 255",
+            Self::Cron => "vixie-cron",
             Self::Sshd => "openssh 9.6",
             Self::Hosts => "linux-net",
             Self::Ufw => "ufw firewall",
@@ -27,6 +29,7 @@ impl SchemaKind {
         match self {
             Self::PgHba => "RULE TABLE UI",
             Self::Journald => "CRASH-SAFE UI",
+            Self::Cron => "SCHEDULE UI",
             Self::Sshd => "DIRECTIVE UI",
             Self::Hosts => "KEY-VALUE UI",
             Self::Ufw => "FIREWALL UI",
@@ -74,6 +77,8 @@ pub fn detect_schema_kind(name: &str, path: &Path) -> Option<SchemaKind> {
         Some(SchemaKind::PgHba)
     } else if lower_name == "journald.conf" || path_str.contains("journald.conf") {
         Some(SchemaKind::Journald)
+    } else if lower_name == "crontab" || lower_name.ends_with(".cron") || path_str.contains("cron.d") || path_str.contains("crontab") {
+        Some(SchemaKind::Cron)
     } else if lower_name == "sshd_config" || lower_name.starts_with("sshd_config.d") || path_str.contains("ssh/sshd_config") {
         Some(SchemaKind::Sshd)
     } else if lower_name == "hosts" && (path_str == "/etc" || path_str.ends_with("/etc/hosts") || path_str.ends_with("hosts")) {
@@ -179,7 +184,7 @@ pub fn crawl_machine_configs() -> Vec<DiscoveredConfigFile> {
         ("authorized_keys", "/root/.ssh", None, 1024, "DRIFT", "security"),
         ("fail2ban/jail.local", "/etc/fail2ban", None, 2150, "OK", "security"),
         ("sysctl.d/99-tuning", "/etc", None, 640, "OK", "kernel"),
-        ("crontab", "/etc", None, 1180, "OK", "scheduler"),
+        ("crontab", "/etc", Some(SchemaKind::Cron), 1180, "OK", "vixie-cron"),
         ("resolv.conf", "/etc", None, 340, "LOCKED", "dns"),
         ("docker/daemon.json", "/etc", None, 580, "OK", "containers"),
     ];
@@ -220,10 +225,11 @@ pub fn crawl_machine_configs() -> Vec<DiscoveredConfigFile> {
                     match name {
                         "pg_hba.conf" => 0,
                         "journald.conf" => 1,
-                        "sshd_config" => 2,
-                        "hosts" => 3,
-                        "user.rules" => 4,
-                        "config.toml" => 5,
+                        "crontab" => 2,
+                        "sshd_config" => 3,
+                        "hosts" => 4,
+                        "user.rules" => 5,
+                        "config.toml" => 6,
                         _ => 10,
                     }
                 };
