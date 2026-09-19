@@ -242,6 +242,7 @@ pub struct CrowApp {
     pub show_new_firewall_rule_modal: bool,
     pub new_firewall_rule_state: NewRuleState,
     pub firewall_toast_message: Option<String>,
+    pub show_firewall_audit_rail: bool,
 }
 
 impl CrowApp {
@@ -461,6 +462,17 @@ host    all             all             10.0.4.0/24             scram-sha-256
             .first()
             .map(|s| detect_firewall_status(s))
             .unwrap_or_else(default_active_ufw_state);
+        if let FirewallOperationalState::Active(ref summary) = initial_firewall_state {
+            let fw_text = crate::views::firewall::generate_user_rules_content(&summary.rules);
+            if let Some(st) = config_file_states.get_mut("user.rules") {
+                st.baseline_content = fw_text.clone();
+                st.current_content = fw_text;
+            } else {
+                let mut st = ConfigFileState::new(std::path::PathBuf::from("/etc/ufw/user.rules"), "user.rules".to_string(), fw_text.clone());
+                st.baseline_content = fw_text;
+                config_file_states.insert("user.rules".to_string(), st);
+            }
+        }
 
         Self {
             focus_handle: cx.focus_handle(),
@@ -583,6 +595,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
             show_new_firewall_rule_modal: false,
             new_firewall_rule_state: NewRuleState::default(),
             firewall_toast_message: None,
+            show_firewall_audit_rail: true,
         }
     }
 
@@ -974,6 +987,14 @@ host    all             all             10.0.4.0/24             scram-sha-256
             self.journal_retention = JournalRetentionConfig::default();
         } else if file == "crontab" {
             self.cron_jobs = default_cron_jobs();
+        } else if file == "user.rules" {
+            if let Some(state) = self.config_file_states.get(file) {
+                let rules = crate::views::firewall::parse_user_rules_content(&state.baseline_content);
+                if let FirewallOperationalState::Active(ref mut summary) = self.firewall_state {
+                    summary.rules = rules;
+                }
+            }
+            self.firewall_toast_message = Some("Reverted firewall rules to baseline".to_string());
         }
         if let Some(state) = self.config_file_states.get_mut(file) {
             state.revert();
@@ -995,6 +1016,8 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 }
             } else if file == "journald.conf" {
                 self.show_journal_retention_modal = false;
+            } else if file == "user.rules" {
+                self.firewall_toast_message = Some(format!("Audit commit created: {}", description));
             }
             cx.notify();
         }
@@ -1004,6 +1027,13 @@ host    all             all             10.0.4.0/24             scram-sha-256
         if let Some(state) = self.config_file_states.get_mut(file) {
             if state.rollback_to_revision(version) {
                 let _ = state.save_to_disk();
+                if file == "user.rules" {
+                    let rules = crate::views::firewall::parse_user_rules_content(&state.current_content);
+                    if let FirewallOperationalState::Active(ref mut summary) = self.firewall_state {
+                        summary.rules = rules;
+                    }
+                    self.firewall_toast_message = Some(format!("Rolled back firewall to revision v{}", version));
+                }
                 cx.notify();
             }
         }
@@ -1329,6 +1359,25 @@ host    all             all             10.0.4.0/24             scram-sha-256
         cx.notify();
     }
 
+    pub fn sync_firewall_to_config_state(&mut self) {
+        if let FirewallOperationalState::Active(ref summary) = self.firewall_state {
+            let content = crate::views::firewall::generate_user_rules_content(&summary.rules);
+            if let Some(st) = self.config_file_states.get_mut("user.rules") {
+                st.update_content(content);
+            }
+        }
+    }
+
+    pub fn toggle_firewall_audit_rail(&mut self, cx: &mut Context<Self>) {
+        self.show_firewall_audit_rail = !self.show_firewall_audit_rail;
+        cx.notify();
+    }
+
+    pub fn stage_firewall_rules(&mut self, message: &str, cx: &mut Context<Self>) {
+        self.sync_firewall_to_config_state();
+        self.stage_config_version("user.rules", message, cx);
+    }
+
     pub fn toggle_firewall_active(&mut self, cx: &mut Context<Self>) {
         match &mut self.firewall_state {
             FirewallOperationalState::Active(summary) => {
@@ -1354,6 +1403,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 self.firewall_toast_message = Some("Initialized UFW packet filter".into());
             }
         }
+        self.sync_firewall_to_config_state();
         cx.notify();
     }
 
@@ -1384,6 +1434,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 });
                 self.firewall_toast_message = Some(format!("Executed: ufw allow {}/tcp ({})", port, label));
             }
+            self.sync_firewall_to_config_state();
             cx.notify();
         }
     }
@@ -1398,6 +1449,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
                     r.number = i + 1;
                 }
             }
+            self.sync_firewall_to_config_state();
             cx.notify();
         }
     }
@@ -1432,6 +1484,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
             });
             self.show_new_firewall_rule_modal = false;
             self.firewall_toast_message = Some(format!("Executed: {}", cmd));
+            self.sync_firewall_to_config_state();
             cx.notify();
         }
     }
@@ -1441,6 +1494,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
         if let FirewallOperationalState::Active(ref mut summary) = self.firewall_state {
             summary.rules.clear();
             self.firewall_toast_message = Some("Executed: sudo ufw reset (Flushed all firewall rules)".into());
+            self.sync_firewall_to_config_state();
             cx.notify();
         }
     }
@@ -1823,6 +1877,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
         } else if view == "cron" {
             self.active_view = "cron".to_string();
             self.selected_managed_file = "crontab".to_string();
+        } else if view == "firewall" {
+            self.active_view = "firewall".to_string();
+            self.selected_managed_file = "user.rules".to_string();
         } else {
             self.active_view = view.to_string();
         }
@@ -3561,7 +3618,19 @@ impl Render for CrowApp {
                                                                 Some(
                                                                     div()
                                                                         .size_full()
-                                                                        .child(firewall_view(app_view.clone(), self))
+                                                                        .flex()
+                                                                        .child(
+                                                                            div()
+                                                                                .flex_1()
+                                                                                .min_w(px(0.0))
+                                                                                .h_full()
+                                                                                .child(firewall_view(app_view.clone(), self))
+                                                                        )
+                                                                        .children(if self.show_firewall_audit_rail {
+                                                                            Some(pending_diff_rail(self, app_view.clone()))
+                                                                        } else {
+                                                                            None
+                                                                        })
                                                                 )
                                                             } else {
                                                                 Some(

@@ -2,6 +2,7 @@ pub mod models;
 pub mod detector;
 pub mod non_operational;
 pub mod new_rule_modal;
+pub mod rules_format;
 
 #[allow(unused_imports)]
 pub use models::{
@@ -12,6 +13,8 @@ pub use models::{
 pub use detector::detect_firewall_status;
 pub use non_operational::non_operational_view;
 pub use new_rule_modal::{new_rule_modal, NewRuleState};
+#[allow(unused_imports)]
+pub use rules_format::{generate_user_rules_content, parse_user_rules_content};
 
 use gpui_kit::*;
 use crate::theme::*;
@@ -51,6 +54,16 @@ fn render_active_firewall(
     let app_toggle_active = app.clone();
     let app_inspect_cfg = app.clone();
     let app_reload = app.clone();
+    let app_stage = app.clone();
+    let app_toggle_audit = app.clone();
+
+    let file_state = app_data.config_file_states.get("user.rules");
+    let (is_modified, add_count, del_count, active_rev) = if let Some(st) = file_state {
+        let (a, d) = st.diff_stats();
+        (st.is_modified(), a, d, st.active_revision)
+    } else {
+        (false, 0, 0, 1)
+    };
 
     let query = app_data.firewall_search_query.to_lowercase();
     let action_filter = app_data.firewall_action_filter;
@@ -146,13 +159,88 @@ fn render_active_firewall(
                                 .py(px(2.0))
                                 .rounded_sm()
                                 .child(format!("{} ACTIVE RULES", total_rules)),
-                        ),
+                        )
+                        .child(if is_modified {
+                            div()
+                                .bg(hex_rgba(0xf59e0b, 0.15))
+                                .border_1()
+                                .border_color(hex_rgba(0xf59e0b, 0.5))
+                                .text_color(WARN)
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.0))
+                                .font_weight(FontWeight::BOLD)
+                                .px(px(6.0))
+                                .py(px(2.0))
+                                .rounded_sm()
+                                .child(format!("DIFF: +{} −{}", add_count, del_count))
+                        } else {
+                            div()
+                                .bg(hex_rgba(0x3ecf6e, 0.1))
+                                .border_1()
+                                .border_color(hex_rgba(0x3ecf6e, 0.3))
+                                .text_color(OK)
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.0))
+                                .font_weight(FontWeight::BOLD)
+                                .px(px(6.0))
+                                .py(px(2.0))
+                                .rounded_sm()
+                                .child(format!("v{} · AUDITED", active_rev))
+                        }),
                 )
                 .child(
                     div()
                         .flex()
                         .items_center()
                         .gap(px(8.0))
+                        // STAGE AUDIT COMMIT (if modified)
+                        .children(if is_modified {
+                            Some(
+                                div()
+                                    .id("btn-stage-firewall-rules")
+                                    .px(px(10.0))
+                                    .py(px(4.5))
+                                    .bg(OK)
+                                    .rounded_sm()
+                                    .cursor_pointer()
+                                    .hover(|s| s.bg(hex_rgb(0x34d399)))
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(10.0))
+                                    .font_weight(FontWeight::BOLD)
+                                    .text_color(rgb(0x0a0a0c))
+                                    .on_click(move |_ev, _window, cx| {
+                                        app_stage.update(cx, |this, cx| {
+                                            this.stage_firewall_rules("Staged firewall rule changes", cx);
+                                        });
+                                    })
+                                    .child(format!("STAGE AUDIT (+{} −{})", add_count, del_count)),
+                            )
+                        } else {
+                            None
+                        })
+                        // AUDIT RAIL TOGGLE
+                        .child(
+                            div()
+                                .id("btn-toggle-firewall-audit-rail")
+                                .px(px(10.0))
+                                .py(px(4.5))
+                                .bg(if app_data.show_firewall_audit_rail { hex_rgba(0x8ab4ff, 0.15) } else { BG_CONTROL })
+                                .border_1()
+                                .border_color(if app_data.show_firewall_audit_rail { hex_rgba(0x8ab4ff, 0.4) } else { BORDER_DEFAULT })
+                                .rounded_sm()
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(if app_data.show_firewall_audit_rail { hex_rgb(0x8ab4ff) } else { TEXT_SECONDARY })
+                                .on_click(move |_ev, _window, cx| {
+                                    app_toggle_audit.update(cx, |this, cx| {
+                                        this.toggle_firewall_audit_rail(cx);
+                                    });
+                                })
+                                .child(if app_data.show_firewall_audit_rail { "AUDIT RAIL [ON]" } else { "AUDIT RAIL [OFF]" }),
+                        )
                         // Reload Firewall Button
                         .child(
                             div()
