@@ -1476,6 +1476,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
         } else if view == "sockets" {
             self.active_view = "overview".to_string();
             self.set_services_tab("sockets", cx);
+        } else if view == "cron" {
+            self.active_view = "cron".to_string();
+            self.selected_managed_file = "crontab".to_string();
         } else {
             self.active_view = view.to_string();
         }
@@ -3191,6 +3194,14 @@ impl Render for CrowApp {
                                                                         .size_full()
                                                                         .flex()
                                                                         .child(logs_explorer_view(app_view.clone(), self))
+                                                                )
+                                                            } else if self.active_view == "cron" {
+                                                                Some(
+                                                                    div()
+                                                                        .size_full()
+                                                                        .flex()
+                                                                        .child(cron_editor(&self.cron_jobs, self, app_view.clone()))
+                                                                        .child(pending_diff_rail(self, app_view.clone()))
                                                                 )
                                                             } else {
                                                                 Some(

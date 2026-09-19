@@ -21,7 +21,7 @@ pub fn nav_items() -> &'static [NavItemDef] {
         NavItemDef { icon: TablerIcon::AdjustmentsHorizontal, label: "Config", badge: "2", view_id: Some("config"), badge_color: Some(WARN) },
         NavItemDef { icon: TablerIcon::FileText, label: "Logs", badge: "4", view_id: Some("logs"), badge_color: Some(CRIT) },
         NavItemDef { icon: TablerIcon::Folder, label: "Files", badge: "", view_id: Some("files"), badge_color: None },
-        NavItemDef { icon: TablerIcon::Clock, label: "Cron", badge: "9", view_id: Some("cron"), badge_color: None },
+        NavItemDef { icon: TablerIcon::Clock, label: "Cron", badge: "4", view_id: Some("cron"), badge_color: None },
         NavItemDef { icon: TablerIcon::Users, label: "Users", badge: "6", view_id: Some("users"), badge_color: None },
         NavItemDef { icon: TablerIcon::ShieldCheck, label: "Firewall", badge: "ON", view_id: Some("firewall"), badge_color: Some(OK) },
         NavItemDef { icon: TablerIcon::Terminal2, label: "Terminal", badge: "⌘T", view_id: Some("terminal"), badge_color: None },
