@@ -33,6 +33,68 @@ pub struct ServerTab {
     pub is_active: bool,
 }
 
+pub fn active_tab_gradient_bar() -> impl IntoElement {
+    canvas(
+        |_bounds, _window, _cx| (),
+        move |bounds, (), window, _cx| {
+            if bounds.size.width <= px(0.0) {
+                return;
+            }
+            let height = bounds.size.height;
+
+            // Continuous slow phase (approx 3.5s per cycle)
+            let millis = std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_millis())
+                .unwrap_or(0);
+            let phase = ((millis % 3500) as f32) / 3500.0;
+
+            let steps = 30;
+            let slice_w = bounds.size.width / (steps as f32);
+
+            for i in 0..steps {
+                let norm = (i as f32) / (steps as f32);
+                // Travelling wave from left to right: (norm - phase) wrapped around [0, 1)
+                let mut wave = norm - phase;
+                if wave < 0.0 {
+                    wave += 1.0;
+                }
+
+                // Smooth bell-like shimmer: peak alpha around 0.60, base alpha around 0.12
+                let shimmer = ((wave * std::f32::consts::PI * 2.0).sin() + 1.0) * 0.5;
+                let alpha = 0.12 + shimmer * 0.48;
+
+                // Subtle emerald green (#3ecf6e)
+                let color = Rgba {
+                    r: 0.243,
+                    g: 0.812,
+                    b: 0.431,
+                    a: alpha,
+                };
+
+                let x0 = bounds.origin.x + slice_w * (i as f32);
+                let x1 = x0 + slice_w;
+
+                let mut path = PathBuilder::fill();
+                path.move_to(point(x0, bounds.origin.y));
+                path.line_to(point(x1, bounds.origin.y));
+                path.line_to(point(x1, bounds.origin.y + height));
+                path.line_to(point(x0, bounds.origin.y + height));
+                path.close();
+
+                if let Ok(built) = path.build() {
+                    window.paint_path(built, color);
+                }
+            }
+        },
+    )
+    .absolute()
+    .top_0()
+    .left_0()
+    .right_0()
+    .h(px(2.0))
+}
+
 pub fn titlebar(
     tabs: &[ServerTab],
     active_tab_id: &str,
@@ -110,6 +172,8 @@ pub fn titlebar(
             .child(
                 div()
                     .id("tab-btn-fleet")
+                    .relative()
+                    .overflow_hidden()
                     .flex()
                     .items_center()
                     .gap(px(6.0))
@@ -123,6 +187,11 @@ pub fn titlebar(
                         app_fleet.update(cx, |this, cx| {
                             this.set_screen(Screen::Fleet, cx);
                         });
+                    })
+                    .children(if is_fleet_active {
+                        Some(active_tab_gradient_bar())
+                    } else {
+                        None
                     })
                     .child(
                         div()
@@ -143,6 +212,8 @@ pub fn titlebar(
 
                 div()
                     .id(ElementId::NamedInteger("server-tab".into(), idx as u64))
+                    .relative()
+                    .overflow_hidden()
                     .flex()
                     .items_center()
                     .gap(px(7.0))
@@ -158,6 +229,11 @@ pub fn titlebar(
                             this.switch_tab(&tid, cx);
                             this.set_screen(Screen::Server, cx);
                         });
+                    })
+                    .children(if is_active {
+                        Some(active_tab_gradient_bar())
+                    } else {
+                        None
                     })
                     .child(
                         div()

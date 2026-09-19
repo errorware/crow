@@ -1212,9 +1212,23 @@ host    all             all             10.0.4.0/24             scram-sha-256
     }
 
     pub fn switch_tab(&mut self, tab_id: &str, cx: &mut Context<Self>) {
-        self.active_tab_id = tab_id.to_string();
-        self.screen = Screen::Server;
         if let Some(srv) = self.servers.iter().find(|s| s.id == tab_id || s.name == tab_id).cloned() {
+            if !self.tabs.iter().any(|t| t.id == srv.id || t.name == srv.name) {
+                let status_color = match srv.status.as_str() {
+                    "online" => OK,
+                    "warn" => WARN,
+                    "crit" => CRIT,
+                    _ => TEXT_FAINTER,
+                };
+                self.tabs.push(ServerTab {
+                    id: srv.id.clone(),
+                    name: srv.name.clone(),
+                    status_color,
+                    is_active: true,
+                });
+            }
+            self.active_tab_id = srv.id.clone();
+            self.screen = Screen::Server;
             if self.active_view == "overview" {
                 match self.active_services_tab.as_str() {
                     "processes" => self.processes = collect_processes_for_server(&srv),
@@ -1222,6 +1236,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
                     _ => self.services = collect_services_for_server(&srv),
                 }
             }
+        } else {
+            self.active_tab_id = tab_id.to_string();
+            self.screen = Screen::Server;
         }
         cx.notify();
     }
@@ -1231,7 +1248,8 @@ host    all             all             10.0.4.0/24             scram-sha-256
             self.tabs.remove(pos);
             if self.active_tab_id == tab_id {
                 if let Some(next_tab) = self.tabs.get(pos).or_else(|| self.tabs.last()) {
-                    self.active_tab_id = next_tab.id.clone();
+                    let next_id = next_tab.id.clone();
+                    self.switch_tab(&next_id, cx);
                 } else {
                     self.active_tab_id.clear();
                     self.screen = Screen::Fleet;
