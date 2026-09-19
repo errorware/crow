@@ -15,6 +15,8 @@ use crate::vault::{ServerRecord, Vault, VaultStatus};
 use crate::views::config::managed_files::managed_files_rail;
 use crate::views::config::pending_diff_rail::pending_diff_rail;
 use crate::views::config::rules_editor::{default_hba_rules, rules_editor, HbaRuleDef};
+use crate::views::config::raw_config_editor;
+use crate::config::{crawl_machine_configs, sample_config_content, ConfigFileState, DiscoveredConfigFile, CrowConfigManager};
 use crate::views::fleet::{fleet_overview_view, fleet_setup_view};
 use crate::views::lock::{
     vault_lock_view, vault_setup_view, LockFieldFocus, LockState, SetupFieldFocus, SetupState, SetupStep,
@@ -47,7 +49,6 @@ use crate::views::settings::settings_view;
 use crow_config_core::edit::ConfigDocument;
 use crow_config_core::ConfigPlugin;
 use crow_config_schemas::PgHbaPlugin;
-use crate::config::CrowConfigManager;
 use crate::keys::{
     copy_to_clipboard_system, expand_tilde, scan_directory, AddScanPathModalState,
     DiscoveredKey, EditKeyModalState, KeyGenFieldFocus, KeyGenModalState,
@@ -197,6 +198,10 @@ pub struct CrowApp {
     pub collapsed_journal_dupe_groups: HashSet<String>,
     pub journal_action_markers: Vec<JournalEntry>,
     pub selected_managed_file: String,
+    pub config_files: Vec<DiscoveredConfigFile>,
+    pub config_file_states: HashMap<String, ConfigFileState>,
+    pub config_search_query: String,
+    pub config_search_focused: bool,
     // Local Lab & Test VMs Subsystem
     pub lab_engines: Vec<EngineStatus>,
     pub lab_nodes: Vec<LocalTestNode>,
@@ -392,6 +397,24 @@ host    all             all             10.0.4.0/24             scram-sha-256
         let lab_engines = detect_local_engines();
         let lab_nodes = scan_local_test_nodes(&servers);
 
+        let config_files = crawl_machine_configs();
+        let mut config_file_states = HashMap::new();
+        for f in &config_files {
+            let content = if f.full_path.exists() {
+                std::fs::read_to_string(&f.full_path).unwrap_or_else(|_| sample_config_content(&f.name))
+            } else {
+                sample_config_content(&f.name)
+            };
+            config_file_states.insert(
+                f.name.clone(),
+                ConfigFileState::new(f.full_path.clone(), f.name.clone(), content),
+            );
+        }
+        let initial_selected_file = config_files
+            .first()
+            .map(|f| f.name.clone())
+            .unwrap_or_else(|| "journald.conf".to_string());
+
         Self {
             focus_handle: cx.focus_handle(),
             vault,
@@ -482,7 +505,11 @@ host    all             all             10.0.4.0/24             scram-sha-256
             journal_dedupe: false,
             collapsed_journal_dupe_groups: HashSet::new(),
             journal_action_markers: Vec::new(),
-            selected_managed_file: "journald.conf".to_string(),
+            selected_managed_file: initial_selected_file,
+            config_files,
+            config_file_states,
+            config_search_query: String::new(),
+            config_search_focused: false,
             lab_engines,
             lab_nodes,
             show_local_lab_modal: false,
@@ -816,6 +843,62 @@ host    all             all             10.0.4.0/24             scram-sha-256
     pub fn select_managed_file(&mut self, filename: &str, cx: &mut Context<Self>) {
         self.selected_managed_file = filename.to_string();
         cx.notify();
+    }
+
+    pub fn crawl_system_configs(&mut self, cx: &mut Context<Self>) {
+        let discovered = crawl_machine_configs();
+        for f in &discovered {
+            if !self.config_file_states.contains_key(&f.name) {
+                let content = if f.full_path.exists() {
+                    std::fs::read_to_string(&f.full_path).unwrap_or_else(|_| sample_config_content(&f.name))
+                } else {
+                    sample_config_content(&f.name)
+                };
+                self.config_file_states.insert(
+                    f.name.clone(),
+                    ConfigFileState::new(f.full_path.clone(), f.name.clone(), content),
+                );
+            }
+        }
+        self.config_files = discovered;
+        cx.notify();
+    }
+
+    #[allow(dead_code)]
+    pub fn set_config_search_query(&mut self, query: String, cx: &mut Context<Self>) {
+        self.config_search_query = query;
+        cx.notify();
+    }
+
+    pub fn revert_managed_config(&mut self, file: &str, cx: &mut Context<Self>) {
+        if let Some(state) = self.config_file_states.get_mut(file) {
+            state.revert();
+            cx.notify();
+        }
+    }
+
+    pub fn stage_config_version(&mut self, file: &str, description: &str, cx: &mut Context<Self>) {
+        if let Some(state) = self.config_file_states.get_mut(file) {
+            state.stage_revision("Nelson <nelson@errorware.net>".to_string(), description.to_string());
+            cx.notify();
+        }
+    }
+
+    pub fn toggle_sample_edit_on_config(&mut self, file: &str, cx: &mut Context<Self>) {
+        if let Some(state) = self.config_file_states.get_mut(file) {
+            if state.is_modified() {
+                state.revert();
+            } else {
+                let mut edited = state.current_content.clone();
+                if !edited.ends_with('\n') {
+                    edited.push('\n');
+                }
+                edited.push_str("# [Crow Managed Adjustment]\n");
+                edited.push_str("crow_managed_sync = true\n");
+                state.update_content(edited);
+            }
+            cx.notify();
+        }
     }
 
     pub fn apply_journal_boundaries(&mut self, cx: &mut Context<Self>) {
@@ -2613,7 +2696,27 @@ impl Render for CrowApp {
                     }
                 }
 
-                // Normal Screens shortcuts
+                // Config Screen: config file search box keyboard interaction
+                if this.screen == Screen::Server && (this.active_view == "config" || this.active_view == "configure") && this.config_search_focused {
+                    this.cursor_blink = true;
+                    if ev.keystroke.key == "escape" {
+                        this.config_search_focused = false;
+                        this.config_search_query.clear();
+                        cx.notify();
+                        return;
+                    } else {
+                        let changed = crate::components::handle_text_key_event(
+                            &mut this.config_search_query,
+                            &mut this.input_cursor,
+                            &mut this.input_selection,
+                            ev,
+                        );
+                        if changed {
+                            cx.notify();
+                        }
+                        return;
+                    }
+                }
                 if ev.keystroke.key == "escape" {
                     if this.show_about_modal {
                         this.close_about_modal(cx);
@@ -2866,6 +2969,10 @@ impl Render for CrowApp {
                                                                         &self.journal_telemetry,
                                                                         app_view.clone(),
                                                                     ).into_any_element()
+                                                                } else if self.selected_managed_file == "pg_hba.conf" {
+                                                                    rules_editor(&self.hba_rules, app_view.clone()).into_any_element()
+                                                                } else if let Some(st) = self.config_file_states.get(&self.selected_managed_file) {
+                                                                    raw_config_editor(st, app_view.clone()).into_any_element()
                                                                 } else {
                                                                     rules_editor(&self.hba_rules, app_view.clone()).into_any_element()
                                                                 };
@@ -2874,9 +2981,9 @@ impl Render for CrowApp {
                                                                     div()
                                                                         .size_full()
                                                                         .flex()
-                                                                        .child(managed_files_rail(&self.selected_managed_file, app_view.clone()))
+                                                                        .child(managed_files_rail(&self.selected_managed_file, self, app_view.clone()))
                                                                         .child(editor_view)
-                                                                        .child(pending_diff_rail())
+                                                                        .child(pending_diff_rail(self, app_view.clone()))
                                                                 )
                                                             } else if self.active_view == "logs" {
                                                                 Some(
