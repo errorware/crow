@@ -2,6 +2,7 @@ use gpui_kit::*;
 use crate::theme::*;
 use crate::app::{CrowApp, Screen};
 use crate::components::terminal_text_input;
+use crate::os_detect::classify_distro_family;
 
 pub mod probe;
 #[allow(unused_imports)]
@@ -1792,6 +1793,50 @@ fn render_right_rail(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                     }).collect()
                 }),
         )
+        // Unverified distro warning — Crow only knows Debian- and Red Hat-family
+        // conventions; say so plainly instead of quietly guessing wrong paths.
+        .children(if !classify_distro_family(&state.facts.distro).is_supported() {
+            Some(
+                div()
+                    .p(px(10.0))
+                    .bg(hex_rgba(0xfbbf24, 0.08))
+                    .border_b_1()
+                    .border_color(WARN)
+                    .flex()
+                    .items_start()
+                    .gap(px(8.0))
+                    .child(
+                        div()
+                            .font_family(FONT_MONO)
+                            .text_size(px(12.0))
+                            .text_color(WARN)
+                            .child("⚠"),
+                    )
+                    .child(
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap(px(2.0))
+                            .child(
+                                div()
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(10.5))
+                                    .font_weight(FontWeight::BOLD)
+                                    .text_color(WARN)
+                                    .child("Unverified distro"),
+                            )
+                            .child(
+                                div()
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(10.0))
+                                    .text_color(TEXT_DIM)
+                                    .child("Crow only knows Debian- and Red Hat-family config layouts. Config discovery on this host may miss files or point at the wrong paths."),
+                            ),
+                    ),
+            )
+        } else {
+            None
+        })
         // Detected Facts Grid
         .child(
             div()

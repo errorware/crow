@@ -4,6 +4,7 @@ use std::time::{Duration, Instant};
 use chrono::Local;
 use gpui_kit::Rgba;
 use crate::theme::*;
+use crate::os_detect::detect_local_os_release;
 
 #[derive(Clone, Debug)]
 pub struct ProbeLog {
@@ -98,7 +99,7 @@ pub fn probe_host(
                     error: Some(format!("Could not resolve host '{}': {}", host, e)),
                 },
                 logs,
-                facts_for_role(role),
+                facts_for_role(role, host),
             );
         }
     };
@@ -121,7 +122,7 @@ pub fn probe_host(
                 error: Some(format!("No IP address found for host '{}'", host)),
             },
             logs,
-            facts_for_role(role),
+            facts_for_role(role, host),
         );
     }
 
@@ -186,7 +187,7 @@ pub fn probe_host(
                     error: Some(format!("TCP connection to {}:{} refused: {}", host, port, e)),
                 },
                 logs,
-                facts_for_role(role),
+                facts_for_role(role, host),
             );
         }
     };
@@ -291,7 +292,7 @@ pub fn probe_host(
             error: None,
         },
         logs,
-        facts_for_role(role),
+        facts_for_role(role, host),
     )
 }
 
@@ -367,8 +368,18 @@ pub fn append_to_known_hosts(host: &str, port: u16, key_type: &str, pubkey_b64: 
     Ok(())
 }
 
-fn facts_for_role(role: &str) -> DetectedFacts {
+fn facts_for_role(role: &str, host: &str) -> DetectedFacts {
     let mut f = DetectedFacts::default();
+
+    // Real detection where we actually can: this machine's own /etc/os-release.
+    // Remote hosts have no transport yet, so they keep the role-based placeholder.
+    let is_localhost = host == "127.0.0.1" || host == "localhost" || host == "::1";
+    if is_localhost {
+        if let Some(real_distro) = detect_local_os_release() {
+            f.distro = real_distro;
+        }
+    }
+
     match role.to_lowercase().as_str() {
         r if r.contains("db") || r.contains("postgres") => {
             f.open_ports = "22, 5432, 9100".into();

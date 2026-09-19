@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::fs;
+use crate::os_detect::DistroFamily;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SchemaKind {
@@ -49,6 +50,11 @@ pub struct DiscoveredConfigFile {
     pub is_readonly: bool,
     pub pill: String,
     pub schema_pack: Option<&'static str>,
+    /// True for a baseline-seed placeholder (a well-known config Crow expects
+    /// for this distro family but did not actually find on disk) — never a
+    /// real discovery. The UI must never present this with the same
+    /// confidence as a genuinely found file.
+    pub is_synthetic: bool,
 }
 
 impl DiscoveredConfigFile {
@@ -94,24 +100,49 @@ pub fn detect_schema_kind(name: &str, path: &Path) -> Option<SchemaKind> {
 
 /// Crawls the local system and well-known configuration paths.
 /// Returns a list of configuration files, with all schema-mapped files bumped to the top.
-pub fn crawl_machine_configs() -> Vec<DiscoveredConfigFile> {
+/// `family` narrows both which directories get scanned and which baseline
+/// placeholders (see below) are plausible for this host — on an unrecognized
+/// distro, Crow scans a generic path set and fabricates no placeholders at
+/// all, rather than presenting Debian-shaped guesses as if they were real.
+pub fn crawl_machine_configs(family: DistroFamily) -> Vec<DiscoveredConfigFile> {
     let mut discovered: Vec<DiscoveredConfigFile> = Vec::new();
     let mut seen_paths: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
 
-    // Standard directories to inspect for actual machine files
-    let scan_dirs = [
-        "/etc",
-        "/etc/systemd",
-        "/etc/ssh",
-        "/etc/nginx",
-        "/etc/nginx/sites-available",
-        "/etc/nginx/sites-enabled",
-        "/etc/postgresql",
-        "/etc/ufw",
-        "/etc/fail2ban",
-        "/etc/sysctl.d",
-        "/etc/docker",
-    ];
+    // Standard directories to inspect for actual machine files — the flat,
+    // non-nested locations for this distro family's real package layout.
+    let scan_dirs: Vec<&str> = match family {
+        DistroFamily::Debian => vec![
+            "/etc",
+            "/etc/systemd",
+            "/etc/ssh",
+            "/etc/nginx",
+            "/etc/nginx/sites-available",
+            "/etc/nginx/sites-enabled",
+            "/etc/postgresql",
+            "/etc/ufw",
+            "/etc/fail2ban",
+            "/etc/sysctl.d",
+            "/etc/docker",
+        ],
+        DistroFamily::RedHat => vec![
+            "/etc",
+            "/etc/systemd",
+            "/etc/ssh",
+            "/etc/nginx",
+            "/etc/nginx/conf.d",
+            "/etc/firewalld",
+            "/etc/fail2ban",
+            "/etc/sysctl.d",
+            "/etc/docker",
+            "/etc/cron.d",
+        ],
+        DistroFamily::Unknown => vec![
+            "/etc",
+            "/etc/systemd",
+            "/etc/ssh",
+            "/etc/sysctl.d",
+        ],
+    };
 
     for dir_str in &scan_dirs {
         let dir_path = Path::new(dir_str);
@@ -143,6 +174,7 @@ pub fn crawl_machine_configs() -> Vec<DiscoveredConfigFile> {
                                 is_readonly: readonly,
                                 pill,
                                 schema_pack: schema.map(|s| s.label()),
+                                is_synthetic: false,
                             });
                         }
                     }
@@ -166,32 +198,56 @@ pub fn crawl_machine_configs() -> Vec<DiscoveredConfigFile> {
                 is_readonly: false,
                 pill: "CROW UI".to_string(),
                 schema_pack: Some("crow core"),
+                is_synthetic: false,
             });
         }
     }
 
-    // Baseline Seeded Known Configs (ensures all mapped schema tools and sample configs
-    // are available even if the host machine doesn't have postgres or ufw installed locally)
-    let baseline_seeds = [
-        ("journald.conf", "/etc/systemd", Some(SchemaKind::Journald), 2840, "CRASH-SAFE", "systemd 255"),
-        ("pg_hba.conf", "/etc/postgresql/16/main", Some(SchemaKind::PgHba), 4510, "EDITED", "postgres 16"),
-        ("sshd_config", "/etc/ssh", Some(SchemaKind::Sshd), 3240, "OK", "openssh 9.6"),
-        ("hosts", "/etc", Some(SchemaKind::Hosts), 820, "OK", "linux-net"),
-        ("user.rules", "/etc/ufw", Some(SchemaKind::Ufw), 1840, "EDITED", "ufw firewall"),
-        ("postgresql.conf", "/etc/postgresql/16/main", None, 28900, "OK", "postgres 16"),
-        ("nginx.conf", "/etc/nginx", None, 1480, "OK", "web"),
-        ("sites-enabled/api", "/etc/nginx", None, 920, "OK", "web"),
-        ("authorized_keys", "/root/.ssh", None, 1024, "DRIFT", "security"),
-        ("fail2ban/jail.local", "/etc/fail2ban", None, 2150, "OK", "security"),
-        ("sysctl.d/99-tuning", "/etc", None, 640, "OK", "kernel"),
-        ("crontab", "/etc", Some(SchemaKind::Cron), 1180, "OK", "vixie-cron"),
-        ("passwd", "/etc", None, 2140, "OK", "accounts"),
-        ("group", "/etc", None, 980, "OK", "accounts"),
-        ("resolv.conf", "/etc", None, 340, "LOCKED", "dns"),
-        ("docker/daemon.json", "/etc", None, 580, "OK", "containers"),
-    ];
+    // Baseline Seeded Known Configs — plausible-for-this-family placeholders so
+    // the mapped schema tools stay browsable even if e.g. postgres isn't
+    // actually installed locally. Every entry here is marked `is_synthetic`;
+    // the UI must show that distinction. On an unrecognized distro, Crow
+    // fabricates none of these at all — a real discovery or nothing.
+    let baseline_seeds: &[(&str, &str, Option<SchemaKind>, u64, &str, &str)] = match family {
+        DistroFamily::Debian => &[
+            ("journald.conf", "/etc/systemd", Some(SchemaKind::Journald), 2840, "CRASH-SAFE", "systemd 255"),
+            ("pg_hba.conf", "/etc/postgresql/16/main", Some(SchemaKind::PgHba), 4510, "EDITED", "postgres 16"),
+            ("sshd_config", "/etc/ssh", Some(SchemaKind::Sshd), 3240, "OK", "openssh 9.6"),
+            ("hosts", "/etc", Some(SchemaKind::Hosts), 820, "OK", "linux-net"),
+            ("user.rules", "/etc/ufw", Some(SchemaKind::Ufw), 1840, "EDITED", "ufw firewall"),
+            ("postgresql.conf", "/etc/postgresql/16/main", None, 28900, "OK", "postgres 16"),
+            ("nginx.conf", "/etc/nginx", None, 1480, "OK", "web"),
+            ("sites-enabled/api", "/etc/nginx", None, 920, "OK", "web"),
+            ("authorized_keys", "/root/.ssh", None, 1024, "DRIFT", "security"),
+            ("fail2ban/jail.local", "/etc/fail2ban", None, 2150, "OK", "security"),
+            ("sysctl.d/99-tuning", "/etc", None, 640, "OK", "kernel"),
+            ("crontab", "/etc", Some(SchemaKind::Cron), 1180, "OK", "vixie-cron"),
+            ("passwd", "/etc", None, 2140, "OK", "accounts"),
+            ("group", "/etc", None, 980, "OK", "accounts"),
+            ("resolv.conf", "/etc", None, 340, "LOCKED", "dns"),
+            ("docker/daemon.json", "/etc", None, 580, "OK", "containers"),
+        ],
+        DistroFamily::RedHat => &[
+            ("journald.conf", "/etc/systemd", Some(SchemaKind::Journald), 2840, "CRASH-SAFE", "systemd 255"),
+            ("pg_hba.conf", "/var/lib/pgsql/16/data", Some(SchemaKind::PgHba), 4510, "EDITED", "postgres 16"),
+            ("sshd_config", "/etc/ssh", Some(SchemaKind::Sshd), 3240, "OK", "openssh 9.6"),
+            ("hosts", "/etc", Some(SchemaKind::Hosts), 820, "OK", "linux-net"),
+            ("postgresql.conf", "/var/lib/pgsql/16/data", None, 28900, "OK", "postgres 16"),
+            ("nginx.conf", "/etc/nginx", None, 1480, "OK", "web"),
+            ("default.conf", "/etc/nginx/conf.d", None, 920, "OK", "web"),
+            ("authorized_keys", "/root/.ssh", None, 1024, "DRIFT", "security"),
+            ("fail2ban/jail.local", "/etc/fail2ban", None, 2150, "OK", "security"),
+            ("sysctl.d/99-tuning", "/etc", None, 640, "OK", "kernel"),
+            ("crontab", "/etc", Some(SchemaKind::Cron), 1180, "OK", "vixie-cron"),
+            ("passwd", "/etc", None, 2140, "OK", "accounts"),
+            ("group", "/etc", None, 980, "OK", "accounts"),
+            ("resolv.conf", "/etc", None, 340, "LOCKED", "dns"),
+            ("docker/daemon.json", "/etc", None, 580, "OK", "containers"),
+        ],
+        DistroFamily::Unknown => &[],
+    };
 
-    for (name, path, schema, size, pill, pack) in &baseline_seeds {
+    for (name, path, schema, size, pill, pack) in baseline_seeds {
         let pb = PathBuf::from(format!("{}/{}", path, name));
         let already_present = discovered.iter().any(|d| d.name == *name || d.full_path == pb);
         if !already_present {
@@ -211,6 +267,7 @@ pub fn crawl_machine_configs() -> Vec<DiscoveredConfigFile> {
                 is_readonly: *pill == "LOCKED",
                 pill: final_pill,
                 schema_pack: Some(pack),
+                is_synthetic: true,
             });
         }
     }

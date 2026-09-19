@@ -3,6 +3,7 @@ use crate::theme::*;
 use crate::app::CrowApp;
 use crate::vault::ServerRecord;
 use crate::components::icons::{TablerIcon, tabler_icon};
+use crate::os_detect::{classify_distro_family, DistroFamily};
 
 pub fn identity_bar(server: Option<&ServerRecord>, app: Entity<CrowApp>) -> impl IntoElement {
     let app_clone = app.clone();
@@ -28,6 +29,9 @@ pub fn identity_bar(server: Option<&ServerRecord>, app: Entity<CrowApp>) -> impl
             }
         })
         .unwrap_or_else(|| "LINUX".to_string());
+    let distro_family = server
+        .map(|s| classify_distro_family(&s.os_distro))
+        .unwrap_or(DistroFamily::Unknown);
 
     let env_str = server.map(|s| s.env.as_str()).unwrap_or("LOCAL");
     let (env_bg, env_fg) = match env_str {
@@ -129,6 +133,23 @@ pub fn identity_bar(server: Option<&ServerRecord>, app: Entity<CrowApp>) -> impl
                         .py(px(3.0))
                         .child(distro_str),
                 )
+                .children(if !distro_family.is_supported() {
+                    Some(
+                        div()
+                            .bg(hex_rgba(0xfbbf24, 0.12))
+                            .border_1()
+                            .border_color(WARN)
+                            .text_color(WARN)
+                            .font_family("JetBrains Mono")
+                            .text_size(px(9.5))
+                            .font_weight(FontWeight::BOLD)
+                            .px(px(6.0))
+                            .py(px(2.5))
+                            .child("⚠ UNVERIFIED DISTRO"),
+                    )
+                } else {
+                    None
+                })
                 .child(
                     div()
                         .bg(env_bg)

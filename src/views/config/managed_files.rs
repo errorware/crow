@@ -104,6 +104,24 @@ pub fn managed_files_rail(selected_file: &str, app_data: &CrowApp, app: Entity<C
                         ),
                 ),
         )
+        // Unverified distro warning — the crawler only trusted a generic /etc
+        // scan for this host; no placeholder configs were fabricated either.
+        .children(if !app_data.local_distro_family.is_supported() {
+            Some(
+                div()
+                    .px(px(10.0))
+                    .py(px(6.0))
+                    .bg(hex_rgba(0xfbbf24, 0.08))
+                    .border_b_1()
+                    .border_color(WARN)
+                    .font_family(FONT_MONO)
+                    .text_size(px(9.5))
+                    .text_color(WARN)
+                    .child("⚠ Unverified distro — generic scan only, some configs may be missing."),
+            )
+        } else {
+            None
+        })
         // 2. Search / Filter Input
         .child(
             div()
@@ -287,7 +305,24 @@ pub fn managed_files_rail(selected_file: &str, app_data: &CrowApp, app: Entity<C
                                         .rounded_sm()
                                         .flex_none()
                                         .child(pill_text),
-                                ),
+                                )
+                                .children(if f.is_synthetic {
+                                    Some(
+                                        div()
+                                            .bg(hex_rgba(0xfbbf24, 0.15))
+                                            .text_color(WARN)
+                                            .font_family(FONT_MONO)
+                                            .text_size(px(8.5))
+                                            .font_weight(FontWeight::BOLD)
+                                            .px(px(4.0))
+                                            .py(px(1.5))
+                                            .rounded_sm()
+                                            .flex_none()
+                                            .child("SIM"),
+                                    )
+                                } else {
+                                    None
+                                }),
                         )
                         .child(
                             div()
@@ -412,7 +447,24 @@ pub fn managed_files_rail(selected_file: &str, app_data: &CrowApp, app: Entity<C
                                         .rounded_sm()
                                         .flex_none()
                                         .child(pill_text),
-                                ),
+                                )
+                                .children(if f.is_synthetic {
+                                    Some(
+                                        div()
+                                            .bg(hex_rgba(0xfbbf24, 0.15))
+                                            .text_color(WARN)
+                                            .font_family(FONT_MONO)
+                                            .text_size(px(8.5))
+                                            .font_weight(FontWeight::BOLD)
+                                            .px(px(4.0))
+                                            .py(px(1.0))
+                                            .rounded_sm()
+                                            .flex_none()
+                                            .child("SIM"),
+                                    )
+                                } else {
+                                    None
+                                }),
                         )
                         .child(
                             div()

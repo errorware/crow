@@ -9,6 +9,7 @@ pub mod journal;
 pub mod keys;
 pub mod lab;
 pub mod metrics;
+pub mod os_detect;
 pub mod vault;
 mod views;
 

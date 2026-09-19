@@ -26,6 +26,7 @@ use crate::views::firewall::{
     RuleAction, RuleDirection, RuleProtocol,
 };
 use crate::config::{crawl_machine_configs, sample_config_content, ConfigFileState, DiscoveredConfigFile, CrowConfigManager};
+use crate::os_detect::{classify_distro_family, detect_local_os_release, DistroFamily};
 use crate::views::fleet::{fleet_overview_view, fleet_setup_view};
 use crate::views::lock::{
     vault_lock_view, vault_setup_view, LockFieldFocus, LockState, SetupFieldFocus, SetupState, SetupStep,
@@ -168,6 +169,9 @@ pub struct CrowApp {
     pub key_toast: Option<String>,
     // Server Enrollment Subsystem
     pub servers: Vec<ServerRecord>,
+    /// This machine's own /etc/os-release family, detected once at startup —
+    /// drives which config paths the crawler trusts (see crawl_machine_configs).
+    pub local_distro_family: DistroFamily,
     pub onboard_state: OnboardState,
     // UI Components Lab Sandbox
     pub lab_state: LabState,
@@ -427,7 +431,10 @@ host    all             all             10.0.4.0/24             scram-sha-256
         let lab_engines = detect_local_engines();
         let lab_nodes = scan_local_test_nodes(&servers);
 
-        let config_files = crawl_machine_configs();
+        let local_distro_family = detect_local_os_release()
+            .map(|d| classify_distro_family(&d))
+            .unwrap_or(DistroFamily::Unknown);
+        let config_files = crawl_machine_configs(local_distro_family);
         let mut config_file_states = HashMap::new();
         for f in &config_files {
             let content = if f.full_path.exists() {
@@ -511,6 +518,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
             edit_key_modal: None,
             key_toast: None,
             servers,
+            local_distro_family,
             onboard_state,
             lab_state,
             cursor_blink: true,
@@ -1153,7 +1161,7 @@ impl CrowApp {
     }
 
     pub fn crawl_system_configs(&mut self, cx: &mut Context<Self>) {
-        let discovered = crawl_machine_configs();
+        let discovered = crawl_machine_configs(self.local_distro_family);
         for f in &discovered {
             if !self.config_file_states.contains_key(&f.name) {
                 let content = if f.full_path.exists() {
