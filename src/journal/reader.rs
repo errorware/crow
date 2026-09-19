@@ -1,33 +1,44 @@
 use std::process::Command;
 use crate::vault::ServerRecord;
-use super::{parse_journal_json, JournalEntry, JournalPriority};
+use super::{parse_journal_json, JournalEntry, JournalPriority, JournalQuery};
 
 pub struct LocalJournalReader;
 
 impl LocalJournalReader {
-    /// Reads the most recent journal entries from the local host using `journalctl -o json`.
-    pub fn read_recent(
-        limit: usize,
-        unit: Option<&str>,
-        priority: Option<JournalPriority>,
-    ) -> Vec<JournalEntry> {
+    /// Runs a full journal lookup against the local host using `journalctl -o json`.
+    /// Returns `None` only on a hard failure (journalctl missing / failed to spawn) —
+    /// a query that legitimately matches nothing still returns `Some(vec![])`, so
+    /// callers must not treat "no matches" as a reason to fall back to demo data.
+    pub fn read_query(query: &JournalQuery) -> Option<Vec<JournalEntry>> {
         let mut cmd = Command::new("journalctl");
-        cmd.args(["-o", "json", "-n", &limit.to_string(), "--no-pager"]);
+        cmd.args(["-o", "json", "-n", &query.limit.to_string(), "--no-pager"]);
+        cmd.args(["-b", &query.boot.offset().to_string()]);
 
-        if let Some(u) = unit {
-            if !u.is_empty() && u != "ALL UNITS" {
+        if let Some(ref u) = query.unit {
+            if !u.is_empty() && u != "ALL" && u != "ALL UNITS" {
                 cmd.args(["-u", u]);
             }
         }
 
-        if let Some(p) = priority {
+        if let Some(p) = query.priority {
             cmd.args(["-p", &(p as u8).to_string()]);
         }
 
-        let output = match cmd.output() {
-            Ok(out) => out,
-            Err(_) => return Vec::new(),
-        };
+        if let Some(pid) = query.pid {
+            cmd.arg(format!("_PID={}", pid));
+        }
+
+        if let Some(since) = query.time_range.since_str() {
+            cmd.args(["--since", since]);
+        }
+
+        if let Some(ref pattern) = query.grep {
+            if !pattern.trim().is_empty() {
+                cmd.args(["--grep", pattern]);
+            }
+        }
+
+        let output = cmd.output().ok()?;
 
         let mut entries = Vec::new();
         let stdout_str = String::from_utf8_lossy(&output.stdout);
@@ -42,15 +53,18 @@ impl LocalJournalReader {
             }
         }
 
-        entries
+        Some(entries)
     }
 }
 
 pub struct SimulatedJournalReader;
 
 impl SimulatedJournalReader {
-    /// Generates realistic systemd journal streams tailored to the server's role and name.
-    pub fn generate(server: &ServerRecord, limit: usize) -> Vec<JournalEntry> {
+    /// Generates realistic systemd journal streams tailored to the server's role and name,
+    /// then applies the same unit/priority/pid/grep narrowing a real journalctl query would.
+    /// Time range and boot scope are not meaningful against a canned recent-events template
+    /// and are ignored here.
+    pub fn generate(server: &ServerRecord, query: &JournalQuery) -> Vec<JournalEntry> {
         let events = match server.role.to_lowercase().as_str() {
             r if r.contains("db") || r.contains("postgres") => postgres_events(&server.name),
             r if r.contains("redis") || r.contains("cache") => redis_events(&server.name),
@@ -58,10 +72,37 @@ impl SimulatedJournalReader {
             _ => generic_server_events(&server.name, &server.host),
         };
 
+        let events: Vec<_> = events
+            .into_iter()
+            .filter(|(prio, unit, _ident, pid, msg, _cmdline, _exe)| {
+                if let Some(ref u) = query.unit {
+                    if !u.is_empty() && u != "ALL" && u != "ALL UNITS" && !unit.eq_ignore_ascii_case(u) {
+                        return false;
+                    }
+                }
+                if let Some(min_prio) = query.priority {
+                    if *prio > min_prio {
+                        return false;
+                    }
+                }
+                if let Some(want_pid) = query.pid {
+                    if *pid != want_pid {
+                        return false;
+                    }
+                }
+                if let Some(ref pattern) = query.grep {
+                    if !pattern.trim().is_empty() && !msg.to_lowercase().contains(&pattern.to_lowercase()) {
+                        return false;
+                    }
+                }
+                true
+            })
+            .collect();
+
         let now_usec = chrono::Local::now().timestamp_micros() as u64;
         let mut entries = Vec::new();
 
-        for (idx, (prio, unit, ident, pid, msg, cmdline, exe)) in events.into_iter().take(limit).enumerate() {
+        for (idx, (prio, unit, ident, pid, msg, cmdline, exe)) in events.into_iter().take(query.limit).enumerate() {
             let offset_usec = (idx as u64) * 3_500_000 + 400_000;
             let ts = now_usec.saturating_sub(offset_usec);
             let (ts_fmt, rel_fmt) = JournalEntry::format_time(ts);
@@ -159,12 +200,10 @@ fn generic_server_events(_host: &str, _ip: &str) -> Vec<EventTemplate> {
 }
 
 /// Dispatches journal collection depending on whether the server is local or simulated.
-pub fn read_journal_for_server(
-    server: &ServerRecord,
-    limit: usize,
-    unit: Option<&str>,
-    priority: Option<JournalPriority>,
-) -> Vec<JournalEntry> {
+/// A local host that genuinely has zero matches for the query returns an empty list —
+/// it does NOT fall back to simulated data, which would misrepresent a real "no results"
+/// as fabricated demo activity.
+pub fn read_journal_for_server(server: &ServerRecord, query: &JournalQuery) -> Vec<JournalEntry> {
     let is_localhost = server.host == "127.0.0.1"
         || server.host == "localhost"
         || server.host == "::1"
@@ -172,11 +211,10 @@ pub fn read_journal_for_server(
         || server.tags.iter().any(|t| t == "localhost" || t == "local");
 
     if is_localhost {
-        let entries = LocalJournalReader::read_recent(limit, unit, priority);
-        if !entries.is_empty() {
+        if let Some(entries) = LocalJournalReader::read_query(query) {
             return entries;
         }
     }
 
-    SimulatedJournalReader::generate(server, limit)
+    SimulatedJournalReader::generate(server, query)
 }

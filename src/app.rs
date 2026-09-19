@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use gpui_kit::*;
 use crate::theme::*;
 use crate::components::danger_zone::danger_zone;
@@ -23,7 +23,8 @@ use crate::views::onboard::{
     append_to_known_hosts, onboard_view, probe_host, OnboardFieldFocus, OnboardState, OnboardStep,
 };
 use crate::journal::{
-    JournalEntry, JournalPriority, reader::read_journal_for_server,
+    JournalBootScope, JournalEntry, JournalPriority, JournalQuery, JournalTimeRange,
+    reader::read_journal_for_server,
     retention::{generate_journald_conf, read_retention_for_server, JournalRetentionConfig, JournalStorageMode, JournalTelemetry},
 };
 use crate::lab::{
@@ -32,10 +33,11 @@ use crate::lab::{
 };
 use crate::views::logs::logs_explorer_view;
 use crate::views::overview::log_tail::log_tail;
+use crate::views::overview::service_inspector::service_inspector_rail;
 use crate::views::overview::{
     collector::{
         collect_processes_for_server, collect_services_for_server, collect_sockets_for_server,
-        restart_service_unit, terminate_process,
+        systemctl_service_action, terminate_process,
     },
     services_table::services_table,
     ProcessUnit, ServiceUnit, SocketUnit,
@@ -157,6 +159,21 @@ pub struct CrowApp {
     pub journal_retention: JournalRetentionConfig,
     pub journal_telemetry: JournalTelemetry,
     pub show_journal_retention_modal: bool,
+    pub service_panel_pending_action: Option<String>,
+    pub group_processes: bool,
+    pub group_services: bool,
+    pub collapsed_process_groups: HashSet<String>,
+    pub collapsed_service_groups: HashSet<String>,
+    pub hover_pid_tooltip: Option<u32>,
+    pub journal_pid_filter: Option<u32>,
+    pub journal_pid_kill_confirm: bool,
+    pub journal_search_focused: bool,
+    pub journal_time_range: JournalTimeRange,
+    pub journal_boot: JournalBootScope,
+    pub journal_limit: usize,
+    pub journal_dedupe: bool,
+    pub collapsed_journal_dupe_groups: HashSet<String>,
+    pub journal_action_markers: Vec<JournalEntry>,
     pub selected_managed_file: String,
     // Local Lab & Test VMs Subsystem
     pub lab_engines: Vec<EngineStatus>,
@@ -303,7 +320,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
         }
 
         let initial_journal = if let Some(first_srv) = servers.first() {
-            read_journal_for_server(first_srv, 60, None, None)
+            read_journal_for_server(first_srv, &JournalQuery::default())
         } else {
             Vec::new()
         };
@@ -418,6 +435,21 @@ host    all             all             10.0.4.0/24             scram-sha-256
             journal_retention,
             journal_telemetry,
             show_journal_retention_modal: false,
+            service_panel_pending_action: None,
+            group_processes: false,
+            group_services: false,
+            collapsed_process_groups: HashSet::new(),
+            collapsed_service_groups: HashSet::new(),
+            hover_pid_tooltip: None,
+            journal_pid_filter: None,
+            journal_pid_kill_confirm: false,
+            journal_search_focused: false,
+            journal_time_range: JournalTimeRange::Live,
+            journal_boot: JournalBootScope::Current,
+            journal_limit: 200,
+            journal_dedupe: false,
+            collapsed_journal_dupe_groups: HashSet::new(),
+            journal_action_markers: Vec::new(),
             selected_managed_file: "journald.conf".to_string(),
             lab_engines,
             lab_nodes,
@@ -476,14 +508,36 @@ host    all             all             10.0.4.0/24             scram-sha-256
             if let Some(lagged) = buf.query_lagged(self.metrics_lag_secs) {
                 self.metrics_store.insert(active_srv.id.clone(), lagged.metrics.clone());
                 self.metrics_store.insert(active_srv.name.clone(), lagged.metrics.clone());
+                // Every poll tick rebuilds these lists from scratch (fresh ServiceUnit/
+                // ProcessUnit/SocketUnit values always start unfocused), so a row the
+                // user just clicked would revert within one tick unless we carry the
+                // selection forward by name/pid across the replacement.
                 if !lagged.services.is_empty() {
+                    let focused_name = self.services.iter().find(|s| s.is_focused).map(|s| s.name.clone());
                     self.services = lagged.services.clone();
+                    if let Some(name) = focused_name {
+                        for svc in &mut self.services {
+                            svc.is_focused = svc.name == name;
+                        }
+                    }
                 }
                 if !lagged.processes.is_empty() {
+                    let focused_pid = self.processes.iter().find(|p| p.is_focused).map(|p| p.pid);
                     self.processes = lagged.processes.clone();
+                    if let Some(pid) = focused_pid {
+                        for proc in &mut self.processes {
+                            proc.is_focused = proc.pid == pid;
+                        }
+                    }
                 }
                 if !lagged.sockets.is_empty() {
+                    let focused_idx = self.sockets.iter().position(|s| s.is_focused);
                     self.sockets = lagged.sockets.clone();
+                    if let Some(idx) = focused_idx {
+                        if let Some(sock) = self.sockets.get_mut(idx) {
+                            sock.is_focused = true;
+                        }
+                    }
                 }
             } else {
                 self.metrics_store.insert(active_srv.id.clone(), updated_head.clone());
@@ -493,12 +547,11 @@ host    all             all             10.0.4.0/24             scram-sha-256
             let buf_clone = buf.clone();
             self.buffered_stores.insert(active_srv.name.clone(), buf_clone);
 
-            // If live tail is enabled, poll fresh journal entries
+            // If live tail is enabled, poll fresh journal entries — same query-building
+            // path an explicit search uses, so tailing and searching never disagree.
             if self.journal_live_tail {
-                let fresh_logs = read_journal_for_server(&active_srv, 60, self.journal_unit_filter.as_deref(), self.journal_severity_filter);
-                if !fresh_logs.is_empty() {
-                    self.journal_entries = fresh_logs;
-                }
+                let query = self.build_journal_query();
+                self.journal_entries = read_journal_for_server(&active_srv, &query);
                 let (_cfg, telemetry) = read_retention_for_server(&active_srv.host);
                 self.journal_telemetry = telemetry;
             }
@@ -530,27 +583,169 @@ host    all             all             10.0.4.0/24             scram-sha-256
     }
 
     pub fn toggle_journal_expanded(&mut self, id: &str, cx: &mut Context<Self>) {
+        let mut now_expanded = false;
         for entry in &mut self.journal_entries {
             if entry.id == id {
                 entry.is_expanded = !entry.is_expanded;
+                now_expanded = entry.is_expanded;
             }
         }
+        // Reading a log is incompatible with the tail silently replacing entries
+        // out from under the reader every poll tick — pause the stream the moment
+        // something is opened. Resuming is a deliberate action (the live-tail
+        // toggle), not automatic, so the reader keeps control of when it moves again.
+        if now_expanded {
+            self.journal_live_tail = false;
+        }
+        cx.notify();
+    }
+
+    pub fn set_hover_pid_tooltip(&mut self, pid: Option<u32>, cx: &mut Context<Self>) {
+        self.hover_pid_tooltip = pid;
+        cx.notify();
+    }
+
+    /// The single source of truth for what a journal lookup should ask for — built
+    /// fresh from current filter/UI state every time, so the live-tail poll and an
+    /// explicit search never drift into two different notions of "the query."
+    pub fn build_journal_query(&self) -> JournalQuery {
+        JournalQuery {
+            limit: self.journal_limit,
+            unit: self.journal_unit_filter.clone(),
+            priority: self.journal_severity_filter,
+            pid: self.journal_pid_filter,
+            grep: if self.journal_search.trim().is_empty() {
+                None
+            } else {
+                Some(self.journal_search.clone())
+            },
+            time_range: self.journal_time_range,
+            boot: self.journal_boot,
+        }
+    }
+
+    /// Runs the current query against the active server right now, regardless of
+    /// live-tail state — this is what "search" actually means; it reaches into real
+    /// journal history instead of only re-filtering whatever happened to be cached.
+    pub fn run_journal_query(&mut self, cx: &mut Context<Self>) {
+        if let Some(active_srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
+            let query = self.build_journal_query();
+            self.journal_entries = read_journal_for_server(&active_srv, &query);
+        }
+        cx.notify();
+    }
+
+    pub fn set_journal_pid_filter(&mut self, pid: Option<u32>, cx: &mut Context<Self>) {
+        self.journal_pid_filter = pid;
+        self.journal_pid_kill_confirm = false;
+        self.run_journal_query(cx);
+    }
+
+    pub fn toggle_journal_pid_kill_confirm(&mut self, cx: &mut Context<Self>) {
+        self.journal_pid_kill_confirm = !self.journal_pid_kill_confirm;
+        cx.notify();
+    }
+
+    pub fn execute_journal_pid_kill(&mut self, cx: &mut Context<Self>) {
+        if let Some(pid) = self.journal_pid_filter {
+            self.execute_process_kill(pid, cx);
+        }
+        self.journal_pid_kill_confirm = false;
         cx.notify();
     }
 
     pub fn set_journal_severity(&mut self, prio: Option<JournalPriority>, cx: &mut Context<Self>) {
         self.journal_severity_filter = prio;
-        cx.notify();
+        self.run_journal_query(cx);
     }
 
     pub fn set_journal_unit(&mut self, unit: Option<String>, cx: &mut Context<Self>) {
         self.journal_unit_filter = unit;
+        self.run_journal_query(cx);
+    }
+
+    /// Jumps the Logs screen to a specific unit's stream — the "VIEW LOGS" handoff
+    /// from the Service Manager panel.
+    pub fn jump_to_service_logs(&mut self, unit: &str, cx: &mut Context<Self>) {
+        self.journal_unit_filter = Some(unit.to_string());
+        self.journal_severity_filter = None;
+        self.journal_pid_filter = None;
+        self.journal_search.clear();
+        self.journal_time_range = JournalTimeRange::Live;
+        self.journal_boot = JournalBootScope::Current;
+        self.journal_live_tail = true;
+        self.set_view("logs", cx);
+        self.run_journal_query(cx);
+    }
+
+    pub fn set_journal_time_range(&mut self, range: JournalTimeRange, cx: &mut Context<Self>) {
+        self.journal_time_range = range;
+        self.journal_live_tail = range == JournalTimeRange::Live;
+        self.run_journal_query(cx);
+    }
+
+    pub fn set_journal_boot(&mut self, boot: JournalBootScope, cx: &mut Context<Self>) {
+        self.journal_boot = boot;
+        if boot != JournalBootScope::Current {
+            self.journal_live_tail = false;
+        }
+        self.run_journal_query(cx);
+    }
+
+    pub fn load_more_journal(&mut self, cx: &mut Context<Self>) {
+        self.journal_limit += 200;
+        self.run_journal_query(cx);
+    }
+
+    pub fn toggle_journal_dedupe(&mut self, cx: &mut Context<Self>) {
+        self.journal_dedupe = !self.journal_dedupe;
         cx.notify();
+    }
+
+    pub fn toggle_journal_dupe_group_collapsed(&mut self, key: &str, cx: &mut Context<Self>) {
+        if self.collapsed_journal_dupe_groups.contains(key) {
+            self.collapsed_journal_dupe_groups.remove(key);
+        } else {
+            self.collapsed_journal_dupe_groups.insert(key.to_string());
+        }
+        cx.notify();
+    }
+
+/// Records a lightweight "Crow did X" marker so the log stream can show cause
+    /// and effect around an action taken through the app, without needing the full
+    /// crow-history/semantic-diff subsystem this is standing in for ahead of time.
+    pub fn push_journal_action_marker(&mut self, text: String) {
+        let now_usec = chrono::Local::now().timestamp_micros() as u64;
+        let (timestamp_formatted, time_relative) = JournalEntry::format_time(now_usec);
+        self.journal_action_markers.push(JournalEntry {
+            id: format!("crow-action_{}", now_usec),
+            cursor: None,
+            timestamp_usec: now_usec,
+            timestamp_formatted,
+            time_relative,
+            priority: JournalPriority::Notice,
+            unit: "crow-action".to_string(),
+            syslog_identifier: "crow".to_string(),
+            pid: None,
+            message: text,
+            fields: Vec::new(),
+            is_expanded: false,
+        });
+        if self.journal_action_markers.len() > 50 {
+            let excess = self.journal_action_markers.len() - 50;
+            self.journal_action_markers.drain(0..excess);
+        }
     }
 
     pub fn toggle_journal_live_tail(&mut self, cx: &mut Context<Self>) {
         self.journal_live_tail = !self.journal_live_tail;
-        cx.notify();
+        if self.journal_live_tail {
+            self.journal_time_range = JournalTimeRange::Live;
+            self.journal_boot = JournalBootScope::Current;
+            self.run_journal_query(cx);
+        } else {
+            cx.notify();
+        }
     }
 
     pub fn clear_journal(&mut self, cx: &mut Context<Self>) {
@@ -1005,6 +1200,34 @@ host    all             all             10.0.4.0/24             scram-sha-256
         }
     }
 
+    pub fn toggle_group_services(&mut self, cx: &mut Context<Self>) {
+        self.group_services = !self.group_services;
+        cx.notify();
+    }
+
+    pub fn toggle_group_processes(&mut self, cx: &mut Context<Self>) {
+        self.group_processes = !self.group_processes;
+        cx.notify();
+    }
+
+    pub fn toggle_service_group_collapsed(&mut self, key: &str, cx: &mut Context<Self>) {
+        if self.collapsed_service_groups.contains(key) {
+            self.collapsed_service_groups.remove(key);
+        } else {
+            self.collapsed_service_groups.insert(key.to_string());
+        }
+        cx.notify();
+    }
+
+    pub fn toggle_process_group_collapsed(&mut self, key: &str, cx: &mut Context<Self>) {
+        if self.collapsed_process_groups.contains(key) {
+            self.collapsed_process_groups.remove(key);
+        } else {
+            self.collapsed_process_groups.insert(key.to_string());
+        }
+        cx.notify();
+    }
+
     pub fn focus_service(&mut self, name: &str, cx: &mut Context<Self>) {
         for svc in &mut self.services {
             svc.is_focused = svc.name == name;
@@ -1025,8 +1248,9 @@ host    all             all             10.0.4.0/24             scram-sha-256
 
     pub fn execute_service_restart(&mut self, name: &str, cx: &mut Context<Self>) {
         if let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
-            let _ = restart_service_unit(&srv, name);
+            let _ = systemctl_service_action(&srv, name, "restart");
             self.services = collect_services_for_server(&srv);
+            self.push_journal_action_marker(format!("crow: restarted {}", name));
         }
         for svc in &mut self.services {
             svc.show_confirm = false;
@@ -1056,11 +1280,52 @@ host    all             all             10.0.4.0/24             scram-sha-256
         if let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
             let _ = terminate_process(&srv, pid, 15);
             self.processes = collect_processes_for_server(&srv);
+            self.push_journal_action_marker(format!("crow: sent SIGTERM to PID {}", pid));
         }
         for proc in &mut self.processes {
             proc.show_confirm = false;
         }
         cx.notify();
+    }
+
+    /// Non-destructive service lifecycle actions (start / reload) — run immediately,
+    /// no confirm gate, mirroring how a sysadmin would treat them at a real shell.
+    pub fn run_service_panel_action_now(&mut self, action: &str, cx: &mut Context<Self>) {
+        if let Some(name) = self.services.iter().find(|s| s.is_focused).map(|s| s.name.clone()) {
+            if let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
+                let _ = systemctl_service_action(&srv, &name, action);
+                self.services = collect_services_for_server(&srv);
+                for svc in &mut self.services {
+                    svc.is_focused = svc.name == name;
+                }
+                self.push_journal_action_marker(format!("crow: {} {}", action, name));
+            }
+        }
+        cx.notify();
+    }
+
+    /// Arms a disruptive service action (restart / stop) pending inline confirm.
+    pub fn arm_service_panel_action(&mut self, action: &str, cx: &mut Context<Self>) {
+        self.service_panel_pending_action = Some(action.to_string());
+        cx.notify();
+    }
+
+    pub fn cancel_service_panel_action(&mut self, cx: &mut Context<Self>) {
+        self.service_panel_pending_action = None;
+        cx.notify();
+    }
+
+    pub fn execute_service_panel_action(&mut self, cx: &mut Context<Self>) {
+        if let Some(action) = self.service_panel_pending_action.take() {
+            self.run_service_panel_action_now(&action, cx);
+        }
+    }
+
+    /// Jumps to the Config screen pre-selecting the file that governs this service —
+    /// the "swap to crow-config" handoff instead of a service-specific settings UI.
+    pub fn open_config_for_service(&mut self, file: &str, cx: &mut Context<Self>) {
+        self.selected_managed_file = file.to_string();
+        self.set_view("config", cx);
     }
 
     pub fn focus_socket(&mut self, sock_id: &str, cx: &mut Context<Self>) {
@@ -2007,6 +2272,30 @@ impl Render for CrowApp {
                     }
                 }
 
+                // Logs Screen: journal search box keyboard interaction
+                if this.screen == Screen::Server && this.active_view == "logs" && this.journal_search_focused {
+                    this.cursor_blink = true;
+                    if ev.keystroke.key == "escape" {
+                        this.journal_search_focused = false;
+                        cx.notify();
+                        return;
+                    } else if key == "enter" {
+                        this.run_journal_query(cx);
+                        return;
+                    } else {
+                        let changed = crate::components::handle_text_key_event(
+                            &mut this.journal_search,
+                            &mut this.input_cursor,
+                            &mut this.input_selection,
+                            ev,
+                        );
+                        if changed {
+                            cx.notify();
+                        }
+                        return;
+                    }
+                }
+
                 // Normal Screens shortcuts
                 if ev.keystroke.key == "escape" {
                     if this.menu_open {
@@ -2223,8 +2512,12 @@ impl Render for CrowApp {
                                                                     div()
                                                                         .size_full()
                                                                         .flex()
-                                                                        .child(services_table(&self.services, &self.processes, &self.sockets, &self.active_services_tab, app_view.clone()))
-                                                                        .child(log_tail(&self.journal_entries, app_view.clone()))
+                                                                        .child(services_table(self, app_view.clone()))
+                                                                        .child(if self.active_services_tab == "services" {
+                                                                            service_inspector_rail(self, app_view.clone()).into_any_element()
+                                                                        } else {
+                                                                            log_tail(&self.journal_entries, app_view.clone()).into_any_element()
+                                                                        })
                                                                 )
                                                             } else if is_config {
                                                                 let editor_view = if self.selected_managed_file == "journald.conf" {

@@ -1,8 +1,10 @@
+use std::collections::HashSet;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
-use crate::journal::{JournalEntry, JournalPriority, JournalStorageMode};
+use crate::journal::{JournalBootScope, JournalEntry, JournalPriority, JournalStorageMode, JournalTimeRange};
 use crate::keys::copy_to_clipboard_system;
+use crate::components::terminal_text_input_styled;
 
 pub mod retention_modal;
 
@@ -17,10 +19,18 @@ pub fn logs_explorer_view(
     let warn_count = app_data.journal_entries.iter().filter(|e| e.priority.is_warn()).count();
     let total_count = app_data.journal_entries.len();
 
-    // Filter entries based on level, unit, and search query
-    let filtered_entries: Vec<&JournalEntry> = app_data
+    // Merge in Crow's own action markers (restarts, kills, reloads) so cause and
+    // effect show up in the same stream, then filter/sort the combined timeline.
+    let mut combined_entries: Vec<&JournalEntry> = app_data
         .journal_entries
         .iter()
+        .chain(app_data.journal_action_markers.iter())
+        .collect();
+    combined_entries.sort_by_key(|e| e.timestamp_usec);
+
+    // Filter entries based on level, unit, and search query
+    let filtered_entries: Vec<&JournalEntry> = combined_entries
+        .into_iter()
         .filter(|e| {
             // Level filter
             if let Some(prio) = app_data.journal_severity_filter {
@@ -29,6 +39,12 @@ pub fn logs_explorer_view(
                         return false;
                     }
                 } else if e.priority != prio {
+                    return false;
+                }
+            }
+            // PID filter (set by clicking a PID in the table)
+            if let Some(fpid) = app_data.journal_pid_filter {
+                if e.pid != Some(fpid) {
                     return false;
                 }
             }
@@ -53,6 +69,21 @@ pub fn logs_explorer_view(
         .collect();
 
     let filtered_count = filtered_entries.len();
+
+    let export_text = filtered_entries
+        .iter()
+        .map(|e| {
+            format!(
+                "{} [{}] {}{}: {}",
+                e.timestamp_formatted,
+                e.priority.label(),
+                clean_unit_display(&e.unit),
+                e.pid.map(|p| format!("[{}]", p)).unwrap_or_default(),
+                e.message
+            )
+        })
+        .collect::<Vec<_>>()
+        .join("\n");
 
     div()
         .relative()
@@ -109,6 +140,7 @@ pub fn logs_explorer_view(
                     let app_tail = app_clone.clone();
                     let app_clear = app_clone.clone();
                     let app_bound = app_clone.clone();
+                    let export_snapshot = export_text.clone();
                     let is_tail = app_data.journal_live_tail;
                     let is_warn = app_data.journal_telemetry.is_volatile_warning
                         || app_data.journal_retention.storage != JournalStorageMode::Persistent;
@@ -188,6 +220,25 @@ pub fn logs_explorer_view(
                                         .child(if is_tail { "LIVE TAIL ON" } else { "PAUSED" }),
                                 ),
                         )
+                        // Export / copy visible window
+                        .child(
+                            div()
+                                .id("journal-export-btn")
+                                .px(px(8.0))
+                                .py(px(3.5))
+                                .bg(BG_CONTROL)
+                                .border_1()
+                                .border_color(BORDER_DEFAULT)
+                                .text_color(TEXT_MUTED)
+                                .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
+                                .cursor_pointer()
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .on_click(move |_ev, _window, _cx| {
+                                    copy_to_clipboard_system(&export_snapshot);
+                                })
+                                .child("EXPORT ⧉"),
+                        )
                         // Clear button
                         .child(
                             div()
@@ -211,7 +262,114 @@ pub fn logs_explorer_view(
                         )
                 }),
         )
-        // 2. Filter Toolbar (Severity chips + Unit filters + Search)
+        // 2. Time & Scope bar — real history navigation, not just "now"
+        .child(
+            div()
+                .h(px(30.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap(px(6.0))
+                .px(px(16.0))
+                .bg(BG_APP)
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .font_family(FONT_MONO)
+                .text_size(px(9.5))
+                .child(div().text_color(TEXT_DIMMER).child("RANGE"))
+                .children({
+                    let ranges = [
+                        JournalTimeRange::Live,
+                        JournalTimeRange::Last15m,
+                        JournalTimeRange::Last1h,
+                        JournalTimeRange::Last6h,
+                        JournalTimeRange::Last24h,
+                        JournalTimeRange::Last7d,
+                        JournalTimeRange::AllTime,
+                    ];
+                    ranges.into_iter().enumerate().map(|(idx, r)| {
+                        let app_r = app_clone.clone();
+                        let is_sel = app_data.journal_time_range == r;
+                        div()
+                            .id(ElementId::NamedInteger("journal-range-chip".into(), idx as u64))
+                            .px(px(7.0))
+                            .py(px(2.0))
+                            .bg(if is_sel { BG_CHIP } else { hex_rgba(0, 0.0) })
+                            .text_color(if is_sel { TEXT_PRIMARY } else { TEXT_DIMMER })
+                            .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
+                            .hover(|s| s.text_color(TEXT_SECONDARY))
+                            .cursor_pointer()
+                            .on_click(move |_ev, _window, cx| {
+                                app_r.update(cx, |this, cx| {
+                                    this.set_journal_time_range(r, cx);
+                                });
+                            })
+                            .child(r.label())
+                    })
+                })
+                .child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_PANEL).mx(px(6.0)))
+                .child(div().text_color(TEXT_DIMMER).child("BOOT"))
+                .children({
+                    let boots = [JournalBootScope::Current, JournalBootScope::Previous];
+                    boots.into_iter().enumerate().map(|(idx, b)| {
+                        let app_b = app_clone.clone();
+                        let is_sel = app_data.journal_boot == b;
+                        div()
+                            .id(ElementId::NamedInteger("journal-boot-chip".into(), idx as u64))
+                            .px(px(7.0))
+                            .py(px(2.0))
+                            .bg(if is_sel { BG_CHIP } else { hex_rgba(0, 0.0) })
+                            .text_color(if is_sel { TEXT_PRIMARY } else { TEXT_DIMMER })
+                            .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
+                            .hover(|s| s.text_color(TEXT_SECONDARY))
+                            .cursor_pointer()
+                            .on_click(move |_ev, _window, cx| {
+                                app_b.update(cx, |this, cx| {
+                                    this.set_journal_boot(b, cx);
+                                });
+                            })
+                            .child(b.label())
+                    })
+                })
+                .child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_PANEL).mx(px(6.0)))
+                .child({
+                    let app_dedupe = app_clone.clone();
+                    let is_on = app_data.journal_dedupe;
+                    div()
+                        .id("journal-dedupe-toggle")
+                        .px(px(7.0))
+                        .py(px(2.0))
+                        .bg(if is_on { BG_CHIP } else { hex_rgba(0, 0.0) })
+                        .text_color(if is_on { TEXT_PRIMARY } else { TEXT_DIMMER })
+                        .font_weight(if is_on { FontWeight::BOLD } else { FontWeight::NORMAL })
+                        .hover(|s| s.text_color(TEXT_SECONDARY))
+                        .cursor_pointer()
+                        .on_click(move |_ev, _window, cx| {
+                            app_dedupe.update(cx, |this, cx| {
+                                this.toggle_journal_dedupe(cx);
+                            });
+                        })
+                        .child("DEDUPE REPEATS")
+                })
+                .child(div().flex_1())
+                .child({
+                    let app_more = app_clone.clone();
+                    div()
+                        .id("journal-load-more-btn")
+                        .px(px(7.0))
+                        .py(px(2.0))
+                        .text_color(TEXT_DIM)
+                        .hover(|s| s.text_color(TEXT_PRIMARY))
+                        .cursor_pointer()
+                        .on_click(move |_ev, _window, cx| {
+                            app_more.update(cx, |this, cx| {
+                                this.load_more_journal(cx);
+                            });
+                        })
+                        .child(format!("↑ load {} older", app_data.journal_limit))
+                }),
+        )
+        // 3. Filter Toolbar (Severity chips + Unit filters + Search)
         .child(
             div()
                 .h(px(36.0))
@@ -374,37 +532,164 @@ pub fn logs_explorer_view(
                                         })
                                         .child(u)
                                 }))
+                        })
+                        // Active PID filter chip + kill action
+                        .children(if let Some(fpid) = app_data.journal_pid_filter {
+                            let app_clear_pid = app_clone.clone();
+                            let app_kill_toggle = app_clone.clone();
+                            let app_kill_confirm = app_clone.clone();
+                            let app_kill_cancel = app_clone.clone();
+                            let confirming = app_data.journal_pid_kill_confirm;
+
+                            Some(
+                                div()
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(6.0))
+                                    .child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_PANEL).mx(px(4.0)))
+                                    .child(
+                                        div()
+                                            .flex()
+                                            .items_center()
+                                            .gap(px(5.0))
+                                            .px(px(7.0))
+                                            .py(px(2.5))
+                                            .bg(hex_rgba(0x8ab4ff, 0.14))
+                                            .border_1()
+                                            .border_color(hex_rgb(0x8ab4ff))
+                                            .font_family(FONT_MONO)
+                                            .text_size(px(9.5))
+                                            .font_weight(FontWeight::BOLD)
+                                            .text_color(hex_rgb(0x8ab4ff))
+                                            .child(format!("PID {}", fpid))
+                                            .child(
+                                                div()
+                                                    .id("journal-pid-filter-clear")
+                                                    .cursor_pointer()
+                                                    .hover(|s| s.text_color(TEXT_PRIMARY))
+                                                    .on_click(move |_ev, _window, cx| {
+                                                        app_clear_pid.update(cx, |this, cx| {
+                                                            this.set_journal_pid_filter(None, cx);
+                                                        });
+                                                    })
+                                                    .child("✕"),
+                                            ),
+                                    )
+                                    .children(if confirming {
+                                        Some(
+                                            div()
+                                                .flex()
+                                                .items_center()
+                                                .gap(px(5.0))
+                                                .child(
+                                                    div()
+                                                        .font_family(FONT_MONO)
+                                                        .text_size(px(9.5))
+                                                        .text_color(CRIT_INK_DIM)
+                                                        .child(format!("terminate PID {}?", fpid)),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .id("journal-pid-kill-confirm")
+                                                        .px(px(7.0))
+                                                        .py(px(2.5))
+                                                        .bg(CRIT_BG)
+                                                        .border_1()
+                                                        .border_color(CRIT)
+                                                        .cursor_pointer()
+                                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                                        .font_family(FONT_MONO)
+                                                        .text_size(px(9.5))
+                                                        .font_weight(FontWeight::BOLD)
+                                                        .text_color(CRIT)
+                                                        .on_click(move |_ev, _window, cx| {
+                                                            app_kill_confirm.update(cx, |this, cx| {
+                                                                this.execute_journal_pid_kill(cx);
+                                                            });
+                                                        })
+                                                        .child("KILL (SIGTERM) ⏎"),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .id("journal-pid-kill-cancel")
+                                                        .cursor_pointer()
+                                                        .font_family(FONT_MONO)
+                                                        .text_size(px(9.5))
+                                                        .text_color(TEXT_DIM)
+                                                        .hover(|s| s.text_color(TEXT_PRIMARY))
+                                                        .on_click(move |_ev, _window, cx| {
+                                                            app_kill_cancel.update(cx, |this, cx| {
+                                                                this.toggle_journal_pid_kill_confirm(cx);
+                                                            });
+                                                        })
+                                                        .child("cancel"),
+                                                )
+                                                .into_any_element(),
+                                        )
+                                    } else {
+                                        Some(
+                                            div()
+                                                .id("journal-pid-kill-btn")
+                                                .px(px(7.0))
+                                                .py(px(2.5))
+                                                .bg(CRIT_BG)
+                                                .border_1()
+                                                .border_color(BORDER_DANGER_BTN)
+                                                .cursor_pointer()
+                                                .hover(|s| s.border_color(CRIT))
+                                                .font_family(FONT_MONO)
+                                                .text_size(px(9.5))
+                                                .font_weight(FontWeight::BOLD)
+                                                .text_color(CRIT_INK_DIM)
+                                                .on_click(move |_ev, _window, cx| {
+                                                    app_kill_toggle.update(cx, |this, cx| {
+                                                        this.toggle_journal_pid_kill_confirm(cx);
+                                                    });
+                                                })
+                                                .child("⏻ KILL PID")
+                                                .into_any_element(),
+                                        )
+                                    }),
+                            )
+                        } else {
+                            None
                         }),
                 )
-                // Search Input
+                // Search Input — a real query, not a decoration: reaches into full
+                // journal history via `--grep` on Enter, not just the loaded window.
                 .child(
                     div()
                         .flex()
                         .items_center()
-                        .gap(px(8.0))
-                        .w(px(280.0))
-                        .h(px(24.0))
-                        .px(px(8.0))
-                        .bg(hex_rgb(0x0e0f13))
-                        .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .gap(px(6.0))
                         .child(
                             div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .text_color(TEXT_DIMMER)
-                                .child("⌕"),
-                        )
-                        .child(
-                            div()
-                                .flex_1()
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.5))
-                                .text_color(if app_data.journal_search.is_empty() { TEXT_FAINT } else { TEXT_PRIMARY })
-                                .child(if app_data.journal_search.is_empty() {
-                                    "Filter logs…".to_string()
-                                } else {
-                                    app_data.journal_search.clone()
+                                .w(px(260.0))
+                                .child({
+                                    let app_search = app_clone.clone();
+                                    terminal_text_input_styled(
+                                        "input-journal-search",
+                                        &app_data.journal_search,
+                                        "Filter or grep logs… (⏎ to search)",
+                                        app_data.journal_search_focused,
+                                        false,
+                                        24.0,
+                                        10.5,
+                                        if app_data.journal_search_focused { app_data.input_cursor } else { 0 },
+                                        if app_data.journal_search_focused { app_data.input_selection } else { None },
+                                        if app_data.journal_search_focused { app_data.input_drag_anchor } else { None },
+                                        app_data.cursor_blink,
+                                        move |cursor, anchor, selection, _window, cx| {
+                                            app_search.update(cx, |this, cx| {
+                                                this.journal_search_focused = true;
+                                                this.input_cursor = cursor;
+                                                this.input_drag_anchor = anchor;
+                                                this.input_selection = selection;
+                                                this.cursor_blink = true;
+                                                cx.notify();
+                                            });
+                                        },
+                                    )
                                 }),
                         )
                         .children(if !app_data.journal_search.is_empty() {
@@ -420,7 +705,7 @@ pub fn logs_explorer_view(
                                     .on_click(move |_ev, _window, cx| {
                                         app_search_clear.update(cx, |this, cx| {
                                             this.journal_search.clear();
-                                            cx.notify();
+                                            this.run_journal_query(cx);
                                         });
                                     })
                                     .child("✕"),
@@ -430,7 +715,7 @@ pub fn logs_explorer_view(
                         }),
                 ),
         )
-        // 3. Table Column Headers
+        // 4. Table Column Headers
         .child(
             div()
                 .h(px(26.0))
@@ -451,7 +736,7 @@ pub fn logs_explorer_view(
                 .child(div().w(px(60.0)).child("PID"))
                 .child(div().flex_1().child("MESSAGE")),
         )
-        // 4. Log Entries Scrollable Body
+        // 5. Log Entries Scrollable Body
         .child(
             div()
                 .id("journal-log-stream")
@@ -483,12 +768,14 @@ pub fn logs_explorer_view(
                             )
                             .into_any_element()
                     ]
+                } else if app_data.journal_dedupe {
+                    render_journal_rows_deduped(&filtered_entries, &app_data.collapsed_journal_dupe_groups, app_clone.clone(), app_data)
                 } else {
                     filtered_entries
                         .into_iter()
                         .enumerate()
                         .map(|(idx, entry)| {
-                            render_journal_row(entry, idx, app_clone.clone()).into_any_element()
+                            render_journal_row(entry, idx, app_clone.clone(), app_data).into_any_element()
                         })
                         .collect()
                 }),
@@ -504,11 +791,151 @@ pub fn logs_explorer_view(
         })
 }
 
+/// Collapses consecutive runs of identical (unit, message) entries into one
+/// expandable row with an occurrence count — the "same panic x47" case an
+/// operator would otherwise scroll past by hand.
+fn render_journal_rows_deduped(
+    entries: &[&JournalEntry],
+    collapsed: &HashSet<String>,
+    app: Entity<CrowApp>,
+    app_data: &CrowApp,
+) -> Vec<AnyElement> {
+    let mut runs: Vec<Vec<&JournalEntry>> = Vec::new();
+    for &e in entries {
+        if let Some(last_run) = runs.last_mut() {
+            let last = last_run.last().unwrap();
+            if last.unit == e.unit && last.message == e.message {
+                last_run.push(e);
+                continue;
+            }
+        }
+        runs.push(vec![e]);
+    }
+
+    let mut rows = Vec::new();
+    let mut row_idx = 0usize;
+    for run in runs {
+        if run.len() == 1 {
+            rows.push(render_journal_row(run[0], row_idx, app.clone(), app_data).into_any_element());
+            row_idx += 1;
+            continue;
+        }
+
+        let first = run[0];
+        let last = *run.last().unwrap();
+        let key = format!("dupe_{}", first.id);
+        let is_collapsed = collapsed.contains(&key);
+        let app_toggle = app.clone();
+        let toggle_key = key.clone();
+        let count = run.len();
+
+        rows.push(
+            div()
+                .id(ElementId::NamedInteger("journal-dupe-header".into(), row_idx as u64))
+                .relative()
+                .flex()
+                .items_center()
+                .gap(px(8.0))
+                .min_h(px(26.0))
+                .px(px(16.0))
+                .py(px(3.0))
+                .bg(hex_rgba(0xfacc15, 0.06))
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .cursor_pointer()
+                .hover(|s| s.bg(BG_ROW_HOVER))
+                .on_click(move |_ev, _window, cx| {
+                    app_toggle.update(cx, |this, cx| {
+                        this.toggle_journal_dupe_group_collapsed(&toggle_key, cx);
+                    });
+                })
+                .font_family(FONT_MONO)
+                .text_size(px(10.5))
+                .child(
+                    div()
+                        .w(px(14.0))
+                        .text_size(px(9.0))
+                        .text_color(TEXT_DIMMER)
+                        .child(if is_collapsed { "▶" } else { "▼" }),
+                )
+                .child(
+                    div()
+                        .px(px(5.0))
+                        .py(px(1.0))
+                        .bg(hex_rgba(0xfacc15, 0.18))
+                        .text_color(hex_rgb(0xfacc15))
+                        .font_weight(FontWeight::BOLD)
+                        .text_size(px(9.5))
+                        .child(format!("×{}", count)),
+                )
+                .child(
+                    div()
+                        .w(px(150.0))
+                        .flex_none()
+                        .text_color(hex_rgb(0xa1a1aa))
+                        .child(clean_unit_display(&first.unit)),
+                )
+                .child(
+                    div()
+                        .flex_1()
+                        .text_color(TEXT_SECONDARY)
+                        .child(first.message.clone()),
+                )
+                .child(
+                    div()
+                        .text_color(TEXT_FAINT)
+                        .text_size(px(9.5))
+                        .child(format!("{} → {}", first.timestamp_formatted, last.timestamp_formatted)),
+                )
+                .into_any_element(),
+        );
+        row_idx += 1;
+
+        if !is_collapsed {
+            for e in run {
+                rows.push(render_journal_row(e, row_idx, app.clone(), app_data).into_any_element());
+                row_idx += 1;
+            }
+        }
+    }
+    rows
+}
+
+/// A synthetic "Crow did X" marker merged into the stream — cause and effect,
+/// visually distinct from real journal lines so it never reads as one.
+fn render_action_marker_row(entry: &JournalEntry, idx: usize) -> impl IntoElement {
+    div()
+        .id(ElementId::NamedInteger("journal-action-marker".into(), idx as u64))
+        .flex()
+        .items_center()
+        .gap(px(10.0))
+        .px(px(16.0))
+        .py(px(4.0))
+        .bg(hex_rgba(0x8ab4ff, 0.05))
+        .border_b_1()
+        .border_color(BORDER_PANEL)
+        .font_family(FONT_MONO)
+        .text_size(px(10.0))
+        .child(div().flex_1().h(px(1.0)).bg(hex_rgba(0x8ab4ff, 0.25)))
+        .child(
+            div()
+                .text_color(hex_rgb(0x8ab4ff))
+                .font_weight(FontWeight::BOLD)
+                .child(format!("● {} · {}", entry.timestamp_formatted, entry.message)),
+        )
+        .child(div().flex_1().h(px(1.0)).bg(hex_rgba(0x8ab4ff, 0.25)))
+}
+
 fn render_journal_row(
     entry: &JournalEntry,
     idx: usize,
     app: Entity<CrowApp>,
+    app_data: &CrowApp,
 ) -> impl IntoElement {
+    if entry.unit == "crow-action" {
+        return render_action_marker_row(entry, idx).into_any_element();
+    }
+
     let entry_id = entry.id.clone();
     let entry_msg = entry.message.clone();
     let is_expanded = entry.is_expanded;
@@ -606,8 +1033,82 @@ fn render_journal_row(
                     div()
                         .w(px(60.0))
                         .flex_none()
-                        .text_color(TEXT_FAINT)
-                        .child(entry.pid.map(|p| p.to_string()).unwrap_or_else(|| "—".to_string())),
+                        .child(if let Some(pid) = entry.pid {
+                            let app_pid = app.clone();
+                            let app_hover = app.clone();
+                            let show_tip = app_data.hover_pid_tooltip == Some(pid);
+                            let proc_match = app_data.processes.iter().find(|p| p.pid == pid);
+
+                            div()
+                                .id(ElementId::NamedInteger("journal-pid".into(), idx as u64))
+                                .relative()
+                                .text_color(TEXT_FAINT)
+                                .hover(|s| s.text_color(hex_rgb(0x8ab4ff)).underline())
+                                .cursor_pointer()
+                                .on_hover(move |hovered, _window, cx| {
+                                    let val = if *hovered { Some(pid) } else { None };
+                                    app_hover.update(cx, |this, cx| {
+                                        this.set_hover_pid_tooltip(val, cx);
+                                    });
+                                })
+                                .on_click(move |_ev, _window, cx| {
+                                    cx.stop_propagation();
+                                    app_pid.update(cx, |this, cx| {
+                                        this.set_journal_pid_filter(Some(pid), cx);
+                                    });
+                                })
+                                .child(pid.to_string())
+                                .children(if show_tip {
+                                    Some(
+                                        div()
+                                            .absolute()
+                                            .bottom(px(22.0))
+                                            .left_0()
+                                            .w(px(230.0))
+                                            .p(px(9.0))
+                                            .bg(BG_OVERLAY_PANEL)
+                                            .border_1()
+                                            .border_color(BORDER_STRONG)
+                                            .shadow_lg()
+                                            .flex()
+                                            .flex_col()
+                                            .gap(px(4.0))
+                                            .font_family(FONT_MONO)
+                                            .text_size(px(10.0))
+                                            .child(
+                                                div()
+                                                    .text_color(TEXT_PRIMARY)
+                                                    .font_weight(FontWeight::SEMIBOLD)
+                                                    .child(format!("PID {}", pid)),
+                                            )
+                                            .child(if let Some(p) = proc_match {
+                                                div()
+                                                    .flex()
+                                                    .flex_col()
+                                                    .gap(px(2.0))
+                                                    .child(div().text_color(TEXT_SECONDARY).child(p.command.clone()))
+                                                    .child(
+                                                        div()
+                                                            .text_color(TEXT_DIM)
+                                                            .child(format!("{} · cpu {:.1}% · mem {:.1}%", p.user, p.cpu, p.mem)),
+                                                    )
+                                            } else {
+                                                div().text_color(TEXT_DIMMER).child("No live process table match")
+                                            })
+                                            .child(
+                                                div()
+                                                    .text_color(TEXT_FAINT)
+                                                    .text_size(px(9.0))
+                                                    .child("click to filter logs to this PID"),
+                                            ),
+                                    )
+                                } else {
+                                    None
+                                })
+                                .into_any_element()
+                        } else {
+                            div().text_color(TEXT_FAINT).child("—").into_any_element()
+                        }),
                 )
                 // 5. Message body
                 .child(
@@ -638,6 +1139,7 @@ fn render_journal_row(
         } else {
             None
         })
+        .into_any_element()
 }
 
 fn render_inspector_drawer(

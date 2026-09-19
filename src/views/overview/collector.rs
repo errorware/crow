@@ -317,15 +317,15 @@ pub fn collect_sockets_for_server(server: &ServerRecord) -> Vec<SocketUnit> {
     role_fallback_sockets(server)
 }
 
-/// Restarts a systemd service unit
-pub fn restart_service_unit(server: &ServerRecord, unit: &str) -> Result<String, String> {
+/// Runs a systemctl lifecycle action (start/stop/restart/reload) against a unit
+pub fn systemctl_service_action(server: &ServerRecord, unit: &str, action: &str) -> Result<String, String> {
     if is_localhost_server(server) {
         let out = Command::new("systemctl")
-            .args(["restart", unit])
+            .args([action, unit])
             .output()
             .map_err(|e| e.to_string())?;
         if out.status.success() {
-            return Ok(format!("Restarted unit {}", unit));
+            return Ok(format!("{} unit {}", action, unit));
         } else {
             return Err(String::from_utf8_lossy(&out.stderr).to_string());
         }
@@ -334,16 +334,16 @@ pub fn restart_service_unit(server: &ServerRecord, unit: &str) -> Result<String,
     // Try container
     for engine_bin in &["podman", "docker"] {
         let out = Command::new(engine_bin)
-            .args(["exec", &server.name, "systemctl", "restart", unit])
+            .args(["exec", &server.name, "systemctl", action, unit])
             .output();
         if let Ok(output) = out {
             if output.status.success() {
-                return Ok(format!("Restarted unit {} in {}", unit, server.name));
+                return Ok(format!("{} unit {} in {}", action, unit, server.name));
             }
         }
     }
 
-    Ok(format!("Simulated restart signal sent to {}", unit))
+    Ok(format!("Simulated {} signal sent to {}", action, unit))
 }
 
 /// Kills or signals a process

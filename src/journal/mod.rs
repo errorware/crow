@@ -91,6 +91,99 @@ impl JournalPriority {
     }
 }
 
+/// How far back a query should reach, translated into a `journalctl --since` string.
+/// `Live` means "no --since, just tail the most recent N lines" — the only mode
+/// compatible with continuing to auto-poll every few seconds.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum JournalTimeRange {
+    Live,
+    Last15m,
+    Last1h,
+    Last6h,
+    Last24h,
+    Last7d,
+    AllTime,
+}
+
+impl JournalTimeRange {
+    pub fn label(&self) -> &'static str {
+        match self {
+            JournalTimeRange::Live => "LIVE",
+            JournalTimeRange::Last15m => "15M",
+            JournalTimeRange::Last1h => "1H",
+            JournalTimeRange::Last6h => "6H",
+            JournalTimeRange::Last24h => "24H",
+            JournalTimeRange::Last7d => "7D",
+            JournalTimeRange::AllTime => "ALL TIME",
+        }
+    }
+
+    /// A `journalctl --since`-compatible relative time string, or None for no bound.
+    pub fn since_str(&self) -> Option<&'static str> {
+        match self {
+            JournalTimeRange::Live => None,
+            JournalTimeRange::Last15m => Some("15 minutes ago"),
+            JournalTimeRange::Last1h => Some("1 hour ago"),
+            JournalTimeRange::Last6h => Some("6 hours ago"),
+            JournalTimeRange::Last24h => Some("24 hours ago"),
+            JournalTimeRange::Last7d => Some("7 days ago"),
+            JournalTimeRange::AllTime => None,
+        }
+    }
+}
+
+/// Which boot's journal to read — current or the one before it. A handful of ops
+/// questions ("did this survive the last reboot") only make sense across this boundary.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum JournalBootScope {
+    Current,
+    Previous,
+}
+
+impl JournalBootScope {
+    pub fn label(&self) -> &'static str {
+        match self {
+            JournalBootScope::Current => "THIS BOOT",
+            JournalBootScope::Previous => "PREVIOUS BOOT",
+        }
+    }
+
+    pub fn offset(&self) -> i32 {
+        match self {
+            JournalBootScope::Current => 0,
+            JournalBootScope::Previous => -1,
+        }
+    }
+}
+
+/// Everything needed to run one journal lookup, local or simulated. Built fresh
+/// from current filter/UI state each time a query runs — there is exactly one
+/// query-building path, used by both the live-tail poll and an explicit search.
+#[derive(Clone, Debug)]
+pub struct JournalQuery {
+    pub limit: usize,
+    pub unit: Option<String>,
+    pub priority: Option<JournalPriority>,
+    pub pid: Option<u32>,
+    pub grep: Option<String>,
+    pub time_range: JournalTimeRange,
+    pub boot: JournalBootScope,
+}
+
+impl Default for JournalQuery {
+    fn default() -> Self {
+        Self {
+            limit: 200,
+            unit: None,
+            priority: None,
+            pid: None,
+            grep: None,
+            time_range: JournalTimeRange::Live,
+            boot: JournalBootScope::Current,
+        }
+    }
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct JournalEntry {
     pub id: String,
