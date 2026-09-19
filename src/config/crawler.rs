@@ -185,6 +185,8 @@ pub fn crawl_machine_configs() -> Vec<DiscoveredConfigFile> {
         ("fail2ban/jail.local", "/etc/fail2ban", None, 2150, "OK", "security"),
         ("sysctl.d/99-tuning", "/etc", None, 640, "OK", "kernel"),
         ("crontab", "/etc", Some(SchemaKind::Cron), 1180, "OK", "vixie-cron"),
+        ("passwd", "/etc", None, 2140, "OK", "accounts"),
+        ("group", "/etc", None, 980, "OK", "accounts"),
         ("resolv.conf", "/etc", None, 340, "LOCKED", "dns"),
         ("docker/daemon.json", "/etc", None, 580, "OK", "containers"),
     ];
@@ -253,6 +255,8 @@ fn is_config_file(name: &str, path: &Path) -> bool {
         || n.ends_with(".ini")
         || n.ends_with(".cfg")
         || n == "hosts"
+        || n == "passwd"
+        || n == "group"
         || n == "crontab"
         || n == "fstab"
         || n == "resolv.conf"
@@ -352,6 +356,18 @@ Subsystem sftp /usr/lib/openssh/sftp-server
 10.0.4.12   db-primary-01.internal db-primary-01
 10.0.4.13   db-replica-01.internal db-replica-01
 10.0.4.20   api-gateway.internal api-01
+"#.to_string()
+    } else if lower == "passwd" {
+        r#"root:x:0:0:root:/root:/bin/bash
+daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin
+bin:x:2:2:bin:/bin:/usr/sbin/nologin
+sys:x:3:3:sys:/dev:/usr/sbin/nologin
+systemd-resolve:x:102:104:systemd Resolver:/run/systemd:/usr/sbin/nologin
+nginx:x:103:105:nginx web server:/var/www:/usr/sbin/nologin
+nelson:x:1000:1000:Nelson Errorware,,,,:/home/nelson:/bin/bash
+deploy:x:1001:1001:CI/CD Pipeline Service Account:/home/deploy:/bin/bash
+postgres:x:1002:1002:PostgreSQL Database Administrator:/var/lib/postgresql:/bin/bash
+temp-contractor:!:1003:1003:Contractor (Expired Project):/home/temp-contractor:/bin/bash
 "#.to_string()
     } else if lower.contains("user.rules") || lower.contains("ufw") {
         r#"*filter

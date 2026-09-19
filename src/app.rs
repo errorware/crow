@@ -17,6 +17,9 @@ use crate::views::config::pending_diff_rail::pending_diff_rail;
 use crate::views::config::rules_editor::{default_hba_rules, rules_editor, HbaRuleDef};
 use crate::views::config::cron_editor::{cron_editor, default_cron_jobs, generate_crontab_content, CronJobDef};
 use crate::views::config::raw_config_editor;
+use crate::views::users::{
+    default_system_users, user_management_view, NewUserState, SystemUserRecord, UserFilterTab, UserSshKeySummary,
+};
 use crate::config::{crawl_machine_configs, sample_config_content, ConfigFileState, DiscoveredConfigFile, CrowConfigManager};
 use crate::views::fleet::{fleet_overview_view, fleet_setup_view};
 use crate::views::lock::{
@@ -218,6 +221,15 @@ pub struct CrowApp {
     pub editing_clanker: Option<ClankerEditModalState>,
     pub clanker_demo_log: String,
     pub clanker_demo_output: Option<String>,
+    // User Accounts & Authentication Subsystem
+    pub users: Vec<SystemUserRecord>,
+    pub selected_user_for_ssh: Option<String>,
+    pub selected_user_for_passwd: Option<String>,
+    pub show_new_user_modal: bool,
+    pub new_user_state: NewUserState,
+    pub user_search_query: String,
+    pub user_filter_tab: UserFilterTab,
+    pub user_toast_message: Option<String>,
 }
 
 impl CrowApp {
@@ -541,6 +553,14 @@ host    all             all             10.0.4.0/24             scram-sha-256
             editing_clanker: None,
             clanker_demo_log: "kernel: [  129.412033] Out of memory: Kill process 28419 (mysqld) score 812 or sacrifice child".to_string(),
             clanker_demo_output: None,
+            users: default_system_users(),
+            selected_user_for_ssh: None,
+            selected_user_for_passwd: None,
+            show_new_user_modal: false,
+            new_user_state: NewUserState::default(),
+            user_search_query: String::new(),
+            user_filter_tab: UserFilterTab::All,
+            user_toast_message: None,
         }
     }
 
@@ -1098,6 +1118,167 @@ host    all             all             10.0.4.0/24             scram-sha-256
             is_expanded: true,
         });
         self.sync_cron_to_config_state();
+        cx.notify();
+    }
+
+    pub fn set_user_filter(&mut self, tab: UserFilterTab, cx: &mut Context<Self>) {
+        self.user_filter_tab = tab;
+        cx.notify();
+    }
+
+    pub fn set_user_search(&mut self, query: &str, cx: &mut Context<Self>) {
+        self.user_search_query = query.to_string();
+        cx.notify();
+    }
+
+    pub fn open_ssh_attach_modal(&mut self, username: &str, cx: &mut Context<Self>) {
+        self.selected_user_for_ssh = Some(username.to_string());
+        cx.notify();
+    }
+
+    pub fn close_ssh_attach_modal(&mut self, cx: &mut Context<Self>) {
+        self.selected_user_for_ssh = None;
+        cx.notify();
+    }
+
+    pub fn open_passwd_inspector(&mut self, username: &str, cx: &mut Context<Self>) {
+        self.selected_user_for_passwd = Some(username.to_string());
+        cx.notify();
+    }
+
+    pub fn close_passwd_inspector(&mut self, cx: &mut Context<Self>) {
+        self.selected_user_for_passwd = None;
+        cx.notify();
+    }
+
+    pub fn open_new_user_modal(&mut self, cx: &mut Context<Self>) {
+        self.show_new_user_modal = true;
+        self.new_user_state = NewUserState::default();
+        cx.notify();
+    }
+
+    pub fn close_new_user_modal(&mut self, cx: &mut Context<Self>) {
+        self.show_new_user_modal = false;
+        cx.notify();
+    }
+
+    pub fn toggle_user_group(&mut self, username: &str, group: &str, cx: &mut Context<Self>) {
+        if let Some(user) = self.users.iter_mut().find(|u| u.username == username) {
+            let added: bool;
+            if user.groups.iter().any(|g| g == group) {
+                user.groups.retain(|g| g != group);
+                added = false;
+            } else {
+                user.groups.push(group.to_string());
+                added = true;
+            }
+            let action_desc = if added {
+                format!("Executed: usermod -aG {} {}", group, username)
+            } else {
+                format!("Executed: gpasswd -d {} {}", username, group)
+            };
+            self.user_toast_message = Some(action_desc);
+            cx.notify();
+        }
+    }
+
+    pub fn toggle_user_lock(&mut self, username: &str, cx: &mut Context<Self>) {
+        if let Some(user) = self.users.iter_mut().find(|u| u.username == username) {
+            user.is_locked = !user.is_locked;
+            let action_desc = if user.is_locked {
+                format!("Executed: passwd -l {} (Account Locked)", username)
+            } else {
+                format!("Executed: passwd -u {} (Account Unlocked)", username)
+            };
+            self.user_toast_message = Some(action_desc);
+            cx.notify();
+        }
+    }
+
+    pub fn cycle_user_shell(&mut self, username: &str, cx: &mut Context<Self>) {
+        if let Some(user) = self.users.iter_mut().find(|u| u.username == username) {
+            let next_shell = match user.shell.as_str() {
+                "/bin/bash" => "/bin/zsh",
+                "/bin/zsh" => "/usr/bin/fish",
+                "/usr/bin/fish" => "/usr/sbin/nologin",
+                _ => "/bin/bash",
+            };
+            user.shell = next_shell.to_string();
+            self.user_toast_message = Some(format!("Executed: chsh -s {} {}", next_shell, username));
+            cx.notify();
+        }
+    }
+
+    pub fn attach_key_summary_to_user(&mut self, username: &str, key: UserSshKeySummary, cx: &mut Context<Self>) {
+        if let Some(user) = self.users.iter_mut().find(|u| u.username == username) {
+            if !user.authorized_keys.iter().any(|k| k.id == key.id || k.fingerprint == key.fingerprint) {
+                let key_name = key.name.clone();
+                user.authorized_keys.push(key);
+                self.user_toast_message = Some(format!("Authorized SSH Key '{}' for user {}", key_name, username));
+            }
+            cx.notify();
+        }
+    }
+
+    pub fn revoke_ssh_key_from_user(&mut self, username: &str, key_id: &str, cx: &mut Context<Self>) {
+        if let Some(user) = self.users.iter_mut().find(|u| u.username == username) {
+            user.authorized_keys.retain(|k| k.id != key_id);
+            self.user_toast_message = Some(format!("Revoked SSH Key from user {}", username));
+            cx.notify();
+        }
+    }
+
+    pub fn submit_create_user(&mut self, cx: &mut Context<Self>) {
+        let username = self.new_user_state.username.trim().to_lowercase();
+        if username.is_empty() {
+            return;
+        }
+        if self.users.iter().any(|u| u.username == username) {
+            self.user_toast_message = Some(format!("Error: user '{}' already exists", username));
+            cx.notify();
+            return;
+        }
+        let next_uid = self.users.iter().map(|u| u.uid).max().unwrap_or(1000).max(1000) + 1;
+        let mut groups = vec![username.clone()];
+        for g in &self.new_user_state.selected_groups {
+            if !groups.contains(g) {
+                groups.push(g.clone());
+            }
+        }
+        let home_dir = if self.new_user_state.create_home {
+            format!("/home/{}", username)
+        } else {
+            "/nonexistent".to_string()
+        };
+
+        let new_user = SystemUserRecord {
+            username: username.clone(),
+            uid: next_uid,
+            gid: next_uid,
+            gecos: self.new_user_state.gecos.clone(),
+            home_dir,
+            shell: self.new_user_state.shell.clone(),
+            primary_group: username.clone(),
+            groups,
+            is_system_user: false,
+            is_locked: false,
+            authorized_keys: vec![],
+            last_login: None,
+        };
+        self.users.push(new_user);
+        self.show_new_user_modal = false;
+        self.user_toast_message = Some(format!("Provisioned user '{}' (UID {})", username, next_uid));
+        cx.notify();
+    }
+
+    pub fn delete_user(&mut self, username: &str, cx: &mut Context<Self>) {
+        if username == "root" {
+            self.user_toast_message = Some("Cannot delete root superuser account".to_string());
+            cx.notify();
+            return;
+        }
+        self.users.retain(|u| u.username != username);
+        self.user_toast_message = Some(format!("Deleted user account '{}'", username));
         cx.notify();
     }
 
@@ -3202,6 +3383,12 @@ impl Render for CrowApp {
                                                                         .flex()
                                                                         .child(cron_editor(&self.cron_jobs, self, app_view.clone()))
                                                                         .child(pending_diff_rail(self, app_view.clone()))
+                                                                )
+                                                            } else if self.active_view == "users" {
+                                                                Some(
+                                                                    div()
+                                                                        .size_full()
+                                                                        .child(user_management_view(app_view.clone(), self))
                                                                 )
                                                             } else {
                                                                 Some(

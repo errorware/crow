@@ -75,7 +75,11 @@ pub fn highlight_config_line(line: &str, filename: &str) -> Vec<SyntaxToken> {
     else if fn_lower == "hosts" {
         tokenize_hosts_line(content_part, &mut tokens);
     }
-    // 5. Standard Key-Value or Key: Value or Directive Value
+    // 5. /etc/passwd and /etc/group colon-separated format
+    else if fn_lower == "passwd" || fn_lower == "group" {
+        tokenize_passwd_line(content_part, &mut tokens);
+    }
+    // 6. Standard Key-Value or Key: Value or Directive Value
     else if let Some(eq_idx) = content_part.find('=') {
         tokenize_key_value_line(content_part, eq_idx, '=', &mut tokens);
     } else if let Some(colon_idx) = content_part.find(':').filter(|&i| i < content_part.len() - 1 && !content_part.starts_with("::")) {
@@ -252,6 +256,32 @@ fn tokenize_hosts_line(content: &str, tokens: &mut Vec<SyntaxToken>) {
     }
 }
 
+fn tokenize_passwd_line(content: &str, tokens: &mut Vec<SyntaxToken>) {
+    let parts: Vec<&str> = content.split(':').collect();
+    for (i, p) in parts.iter().enumerate() {
+        if i > 0 {
+            tokens.push(SyntaxToken::new(":", SYNTAX_OPERATOR, true));
+        }
+        let color = match i {
+            0 => SYNTAX_KEY,       // Username (cyan)
+            1 => {
+                if *p == "!" || *p == "*" {
+                    CRIT
+                } else {
+                    WARN
+                }
+            }                      // Password placeholder (amber/red)
+            2 => SYNTAX_NUMBER,    // UID
+            3 => SYNTAX_NUMBER,    // GID
+            4 => SYNTAX_STRING,    // GECOS
+            5 => SYNTAX_IP,        // Home directory
+            6 => OK,               // Shell
+            _ => TEXT_PRIMARY,
+        };
+        tokens.push(SyntaxToken::new(*p, color, i == 0 || i == 2));
+    }
+}
+
 fn classify_word(w: &str) -> SyntaxToken {
     let clean = w.trim_end_matches(';').trim_end_matches(',');
 
@@ -372,5 +402,14 @@ mod tests {
     fn test_highlight_hosts() {
         let tokens = highlight_config_line("127.0.0.1  localhost  web-01", "hosts");
         assert!(tokens.iter().any(|t| t.text == "127.0.0.1" && t.color == SYNTAX_IP));
+    }
+
+    #[test]
+    fn test_highlight_passwd() {
+        let tokens = highlight_config_line("nelson:x:1000:1000:Nelson,,,:/home/nelson:/bin/bash", "passwd");
+        assert_eq!(tokens[0].text, "nelson");
+        assert_eq!(tokens[0].color, SYNTAX_KEY);
+        assert_eq!(tokens[1].text, ":");
+        assert_eq!(tokens[4].text, "1000");
     }
 }
