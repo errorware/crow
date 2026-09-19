@@ -29,6 +29,7 @@ pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str) -> impl IntoElem
         .id("palette-scrim")
         .absolute()
         .inset_0()
+        .occlude()
         .bg(hex_rgba(0x050507, 0.62))
         .flex()
         .items_start()
@@ -42,6 +43,7 @@ pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str) -> impl IntoElem
         .child(
             div()
                 .id("palette-panel")
+                .occlude()
                 .w(px(620.0))
                 .max_h(px(480.0))
                 .flex()

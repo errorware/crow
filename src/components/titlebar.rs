@@ -365,7 +365,31 @@ pub fn titlebar(
     bar
 }
 
-pub fn burger_menu_overlay(app: Entity<CrowApp>, current_screen: Screen, active_server_name: Option<String>) -> impl IntoElement {
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum MenuAction {
+    NavigateScreen(Screen),
+    NavigateServerView(&'static str),
+    ToggleLab,
+    TogglePalette,
+    LockVault,
+    Quit,
+}
+
+struct MenuItem {
+    icon: Option<TablerIcon>,
+    label: String,
+    shortcut: &'static str,
+    action: Option<MenuAction>,
+    is_danger: bool,
+    is_header: bool,
+}
+
+pub fn burger_menu_overlay(
+    app: Entity<CrowApp>,
+    current_screen: Screen,
+    active_view: &str,
+    active_server_name: Option<String>,
+) -> impl IntoElement {
     let app_backdrop = app.clone();
 
     let server_overview_label = if let Some(ref name) = active_server_name {
@@ -374,30 +398,135 @@ pub fn burger_menu_overlay(app: Entity<CrowApp>, current_screen: Screen, active_
         "Server Overview".to_string()
     };
 
-    // Menu entries: (icon, label, key_shortcut, screen_target, view_target, is_danger, is_header)
-    let items: Vec<(&'static str, String, &'static str, Option<Screen>, Option<&'static str>, bool, bool)> = vec![
-        // Section 1: FLEET
-        ("", "FLEET".to_string(), "", None, None, false, true),
-        ("⬢", "Fleet Overview".to_string(), "⌘1", Some(Screen::Fleet), None, false, false),
-        ("⬡", "Fleet Setup — topology & policy".to_string(), "⌘⇧F", Some(Screen::FleetSetup), None, false, false),
-        ("+", "Add Server…".to_string(), "⌘N", Some(Screen::Onboard), None, false, false),
-        ("⇄", "Import from Terraform / Ansible".to_string(), "", None, None, false, false),
-        // Section 2: THIS SERVER
-        ("", "THIS SERVER".to_string(), "", None, None, false, true),
-        ("◈", server_overview_label, "⌘2", Some(Screen::Server), Some("overview"), false, false),
-        ("◧", "Config files".to_string(), "⌘3", Some(Screen::Server), Some("config"), false, false),
-        ("▶", "Open terminal".to_string(), "⌘T", None, None, false, false),
-        ("⇩", "Download diagnostics bundle".to_string(), "", None, None, false, false),
-        // Section 3: APPLICATION
-        ("", "APPLICATION".to_string(), "", None, None, false, true),
-        ("⚙", "Settings".to_string(), "⌘,", Some(Screen::Settings), None, false, false),
-        ("⌨", "Keyboard shortcuts".to_string(), "⌘/", None, None, false, false),
-        ("↻", "Check for updates — v1.4.2".to_string(), "", None, None, false, false),
-        // Section 4: SESSION
-        ("", "SESSION".to_string(), "", None, None, false, true),
-        ("⏻", "Lock & disconnect all hosts".to_string(), "⇧⌘L", None, None, true, false),
-        ("✕", "Quit Crow".to_string(), "⌘Q", None, None, true, false),
-    ];
+    let mut items: Vec<MenuItem> = Vec::new();
+
+    // Section 1: FLEET
+    items.push(MenuItem {
+        icon: None,
+        label: "FLEET".to_string(),
+        shortcut: "",
+        action: None,
+        is_danger: false,
+        is_header: true,
+    });
+    items.push(MenuItem {
+        icon: Some(TablerIcon::LayoutDashboard),
+        label: "Fleet Overview".to_string(),
+        shortcut: "⌘1",
+        action: Some(MenuAction::NavigateScreen(Screen::Fleet)),
+        is_danger: false,
+        is_header: false,
+    });
+    items.push(MenuItem {
+        icon: Some(TablerIcon::Network),
+        label: "Fleet Setup — Topology & Policy".to_string(),
+        shortcut: "⌘⇧F",
+        action: Some(MenuAction::NavigateScreen(Screen::FleetSetup)),
+        is_danger: false,
+        is_header: false,
+    });
+    items.push(MenuItem {
+        icon: Some(TablerIcon::Plus),
+        label: "Enroll New Server…".to_string(),
+        shortcut: "⌘N",
+        action: Some(MenuAction::NavigateScreen(Screen::Onboard)),
+        is_danger: false,
+        is_header: false,
+    });
+
+    // Section 2: THIS SERVER
+    items.push(MenuItem {
+        icon: None,
+        label: "THIS SERVER".to_string(),
+        shortcut: "",
+        action: None,
+        is_danger: false,
+        is_header: true,
+    });
+    items.push(MenuItem {
+        icon: Some(TablerIcon::Server),
+        label: server_overview_label,
+        shortcut: "⌘2",
+        action: Some(MenuAction::NavigateServerView("overview")),
+        is_danger: false,
+        is_header: false,
+    });
+    items.push(MenuItem {
+        icon: Some(TablerIcon::AdjustmentsHorizontal),
+        label: "Managed Configs".to_string(),
+        shortcut: "⌘3",
+        action: Some(MenuAction::NavigateServerView("config")),
+        is_danger: false,
+        is_header: false,
+    });
+    items.push(MenuItem {
+        icon: Some(TablerIcon::FileText),
+        label: "Systemd Journal Logs".to_string(),
+        shortcut: "⌘4",
+        action: Some(MenuAction::NavigateServerView("logs")),
+        is_danger: false,
+        is_header: false,
+    });
+    items.push(MenuItem {
+        icon: Some(TablerIcon::Box),
+        label: "Local Test Lab & VMs".to_string(),
+        shortcut: "",
+        action: Some(MenuAction::ToggleLab),
+        is_danger: false,
+        is_header: false,
+    });
+
+    // Section 3: APPLICATION
+    items.push(MenuItem {
+        icon: None,
+        label: "APPLICATION".to_string(),
+        shortcut: "",
+        action: None,
+        is_danger: false,
+        is_header: true,
+    });
+    items.push(MenuItem {
+        icon: Some(TablerIcon::Search),
+        label: "Command Palette…".to_string(),
+        shortcut: "⌘K",
+        action: Some(MenuAction::TogglePalette),
+        is_danger: false,
+        is_header: false,
+    });
+    items.push(MenuItem {
+        icon: Some(TablerIcon::Settings),
+        label: "Settings".to_string(),
+        shortcut: "⌘,",
+        action: Some(MenuAction::NavigateScreen(Screen::Settings)),
+        is_danger: false,
+        is_header: false,
+    });
+
+    // Section 4: SESSION
+    items.push(MenuItem {
+        icon: None,
+        label: "SESSION".to_string(),
+        shortcut: "",
+        action: None,
+        is_danger: false,
+        is_header: true,
+    });
+    items.push(MenuItem {
+        icon: Some(TablerIcon::Lock),
+        label: "Lock Vault & Disconnect".to_string(),
+        shortcut: "⇧⌘L",
+        action: Some(MenuAction::LockVault),
+        is_danger: true,
+        is_header: false,
+    });
+    items.push(MenuItem {
+        icon: Some(TablerIcon::Power),
+        label: "Quit Crow".to_string(),
+        shortcut: "⌘Q",
+        action: Some(MenuAction::Quit),
+        is_danger: true,
+        is_header: false,
+    });
 
     div()
         .id("burger-menu-backdrop")
@@ -406,6 +535,7 @@ pub fn burger_menu_overlay(app: Entity<CrowApp>, current_screen: Screen, active_
         .left_0()
         .right_0()
         .bottom_0()
+        .occlude()
         .bg(rgba(0x05050759)) // rgba(5,5,7,0.35)
         .on_click(move |_ev, _window, cx| {
             app_backdrop.update(cx, |this, cx| {
@@ -415,7 +545,9 @@ pub fn burger_menu_overlay(app: Entity<CrowApp>, current_screen: Screen, active_
         .child(
             div()
                 .id("burger-menu-dropdown")
-                .w(px(288.0))
+                .occlude()
+                .on_click(|_ev, _window, _cx| {}) // capture click so backdrop doesn't close on menu body
+                .w(px(296.0))
                 .bg(BG_OVERLAY_PANEL)
                 .border_1()
                 .border_color(BORDER_STRONG)
@@ -423,8 +555,8 @@ pub fn burger_menu_overlay(app: Entity<CrowApp>, current_screen: Screen, active_
                 .shadow_lg()
                 .flex()
                 .flex_col()
-                .children(items.into_iter().enumerate().map(|(idx, (icon, label, key, target_screen, target_view, is_danger, is_header))| {
-                    if is_header {
+                .children(items.into_iter().enumerate().map(|(idx, item)| {
+                    if item.is_header {
                         return div()
                             .id(ElementId::NamedInteger("menu-header".into(), idx as u64))
                             .h(px(24.0))
@@ -439,13 +571,17 @@ pub fn burger_menu_overlay(app: Entity<CrowApp>, current_screen: Screen, active_
                             .text_size(px(9.5))
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(TEXT_DIMMER)
-                            .child(label);
+                            .child(item.label);
                     }
 
-                    let is_active = target_screen == Some(current_screen);
+                    let is_active = match &item.action {
+                        Some(MenuAction::NavigateScreen(scr)) => current_screen == *scr,
+                        Some(MenuAction::NavigateServerView(view)) => current_screen == Screen::Server && active_view == *view,
+                        _ => false,
+                    };
                     let app_item = app.clone();
+                    let action = item.action.clone();
 
-                    let label_click = label.clone();
                     div()
                         .id(ElementId::NamedInteger("menu-item".into(), idx as u64))
                         .relative()
@@ -464,57 +600,77 @@ pub fn burger_menu_overlay(app: Entity<CrowApp>, current_screen: Screen, active_
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_KEY))
                         .on_click(move |_ev, _window, cx| {
-                            if label_click == "Quit Crow" {
-                                cx.quit();
-                                return;
-                            }
-                            if label_click == "Lock & disconnect all hosts" {
-                                app_item.update(cx, |this, cx| {
-                                    this.lock(cx);
-                                });
-                                return;
-                            }
-                            app_item.update(cx, |this, cx| {
-                                this.close_menu(cx);
-                                if let Some(view) = target_view {
-                                    this.set_view(view, cx);
+                            match action {
+                                Some(MenuAction::Quit) => {
+                                    cx.quit();
                                 }
-                                if let Some(scr) = target_screen {
-                                    this.set_screen(scr, cx);
+                                Some(MenuAction::LockVault) => {
+                                    app_item.update(cx, |this, cx| {
+                                        this.lock(cx);
+                                    });
                                 }
-                            });
+                                Some(MenuAction::ToggleLab) => {
+                                    app_item.update(cx, |this, cx| {
+                                        this.close_menu(cx);
+                                        this.toggle_local_lab_modal(cx);
+                                    });
+                                }
+                                Some(MenuAction::TogglePalette) => {
+                                    app_item.update(cx, |this, cx| {
+                                        this.close_menu(cx);
+                                        this.toggle_palette(cx);
+                                    });
+                                }
+                                Some(MenuAction::NavigateScreen(scr)) => {
+                                    app_item.update(cx, |this, cx| {
+                                        this.close_menu(cx);
+                                        this.set_screen(scr, cx);
+                                    });
+                                }
+                                Some(MenuAction::NavigateServerView(view)) => {
+                                    app_item.update(cx, |this, cx| {
+                                        this.close_menu(cx);
+                                        this.set_view(view, cx);
+                                        this.set_screen(Screen::Server, cx);
+                                    });
+                                }
+                                None => {}
+                            }
                         })
                         .child(
                             div()
                                 .w(px(14.0))
-                                .font_family(FONT_MONO)
-                                .text_size(px(11.0))
-                                .text_align(TextAlign::Center)
-                                .text_color(if is_danger {
-                                    CRIT
-                                } else if is_active {
-                                    TEXT_PRIMARY
-                                } else {
-                                    TEXT_DIMMER
-                                })
-                                .child(icon),
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .children(item.icon.map(|icon| {
+                                    tabler_icon(icon)
+                                        .size(px(13.5))
+                                        .text_color(if item.is_danger {
+                                            CRIT
+                                        } else if is_active {
+                                            TEXT_PRIMARY
+                                        } else {
+                                            TEXT_DIMMER
+                                        })
+                                })),
                         )
                         .child(
                             div()
                                 .flex_1()
                                 .font_family(FONT_MONO)
-                                .text_size(px(12.0))
+                                .text_size(px(11.5))
                                 .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                                .text_color(if is_danger {
+                                .text_color(if item.is_danger {
                                     CRIT_INK_DIM
                                 } else if is_active {
                                     TEXT_MAX
                                 } else {
                                     TEXT_PRIMARY
                                 })
-                                .child(label),
+                                .child(item.label),
                         )
-                        .children(if !key.is_empty() {
+                        .children(if !item.shortcut.is_empty() {
                             Some(
                                 div()
                                     .px(px(5.0))
@@ -525,7 +681,7 @@ pub fn burger_menu_overlay(app: Entity<CrowApp>, current_screen: Screen, active_
                                     .font_family(FONT_MONO)
                                     .text_size(px(10.0))
                                     .text_color(TEXT_MUTED)
-                                    .child(key),
+                                    .child(item.shortcut),
                             )
                         } else {
                             None

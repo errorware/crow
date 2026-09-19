@@ -2322,6 +2322,9 @@ impl Render for CrowApp {
                 } else if key == "3" && is_mod {
                     this.set_screen(Screen::Server, cx);
                     this.set_view("config", cx);
+                } else if key == "4" && is_mod {
+                    this.set_screen(Screen::Server, cx);
+                    this.set_view("logs", cx);
                 } else if key == "," && is_mod {
                     this.set_screen(Screen::Settings, cx);
                 } else if key == "s" && is_mod && this.screen == Screen::Settings {
@@ -2629,7 +2632,7 @@ impl Render for CrowApp {
                             let active_name = self.servers.iter()
                                 .find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id)
                                 .map(|s| s.name.clone());
-                            Some(burger_menu_overlay(app_view.clone(), self.screen, active_name))
+                            Some(burger_menu_overlay(app_view.clone(), self.screen, &self.active_view, active_name))
                         } else {
                             None
                         })
