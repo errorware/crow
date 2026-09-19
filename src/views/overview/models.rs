@@ -2,6 +2,15 @@ use gpui_kit::Rgba;
 use serde::{Deserialize, Serialize};
 use crate::theme::*;
 
+/// Real, computed connection counts for a service about to be restarted/stopped —
+/// the Apply Pipeline's "blast radius" made literal, in place of a generic warning.
+#[derive(Clone, Debug, Default)]
+pub struct BlastRadiusInfo {
+    pub for_unit: String,
+    pub established: usize,
+    pub listening: usize,
+}
+
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ServiceUnit {
     pub name: String,

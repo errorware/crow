@@ -8,8 +8,8 @@ pub use crypto::{
     generate_salt, generate_totp_secret, totp_auth_url, verify_totp_code, MasterKey,
 };
 pub use db::{
-    ClankerProviderConfig, ServerRecord, SshKeyGroup, SshKeyRecord, SshScanPath, VaultDb,
-    VaultEntryMeta, VaultError, VaultMeta,
+    ChangeRecord, ClankerProviderConfig, ServerRecord, SshKeyGroup, SshKeyRecord, SshScanPath,
+    VaultDb, VaultEntryMeta, VaultError, VaultMeta,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]

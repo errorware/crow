@@ -2,6 +2,7 @@ use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
+use crate::vault::ChangeRecord;
 use super::models::ServiceUnit;
 
 /// Maps a systemd unit name to the crow-config managed file that governs it,
@@ -96,7 +97,7 @@ pub fn service_inspector_rail(app_data: &CrowApp, app: Entity<CrowApp>) -> impl 
                     .into_any_element(),
             ),
             Some(svc) => Some(
-                render_focused_panel(svc, app_data.service_panel_pending_action.as_deref(), app)
+                render_focused_panel(svc, app_data, app)
                     .into_any_element(),
             ),
         })
@@ -125,7 +126,7 @@ fn info_cell(label: &str, value: String, value_color: Rgba) -> impl IntoElement 
         )
 }
 
-fn render_focused_panel(svc: &ServiceUnit, pending_action: Option<&str>, app: Entity<CrowApp>) -> impl IntoElement {
+fn render_focused_panel(svc: &ServiceUnit, app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
     let is_active = svc.status == "ACTIVE";
     let pill_bg = match svc.status.as_str() {
         "ACTIVE" => OK_BG,
@@ -133,6 +134,10 @@ fn render_focused_panel(svc: &ServiceUnit, pending_action: Option<&str>, app: En
         _ => CRIT_BG,
     };
     let config_file = config_file_for_service(&svc.name);
+    let pending_action = app_data.service_panel_pending_action.clone();
+    let failed_banner = app_data.last_change_outcome.as_ref()
+        .filter(|(unit, succeeded)| unit == &svc.name && !succeeded);
+    let recent = app_data.recent_change_records(&svc.name, 5);
 
     div()
         .id("service-inspector-scroll")
@@ -194,11 +199,56 @@ fn render_focused_panel(svc: &ServiceUnit, pending_action: Option<&str>, app: En
                 .child(info_cell("RSS", svc.rss.clone(), TEXT_SECONDARY))
                 .child(info_cell("UPTIME", svc.uptime.clone(), TEXT_SECONDARY)),
         )
+        // Failed-outcome banner — the "tell the truth if it didn't work" step
+        .children(failed_banner.map(|(unit, _)| {
+            let app_retry = app.clone();
+            div()
+                .flex()
+                .items_center()
+                .justify_between()
+                .gap(px(8.0))
+                .p(px(10.0))
+                .bg(CRIT_ROW_BG)
+                .border_1()
+                .border_color(CRIT)
+                .child(
+                    div()
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.5))
+                        .text_color(CRIT_INK)
+                        .child(format!("{} did not reach the expected state after the last action.", unit)),
+                )
+                .child(
+                    div()
+                        .id("btn-svc-retry")
+                        .px(px(8.0))
+                        .py(px(3.0))
+                        .bg(CRIT)
+                        .cursor_pointer()
+                        .hover(|s| s.bg(hex_rgb(0xef4444)))
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.0))
+                        .font_weight(FontWeight::BOLD)
+                        .text_color(hex_rgb(0x0a0a0c))
+                        .on_click(move |_ev, _window, cx| {
+                            app_retry.update(cx, |this, cx| {
+                                this.run_service_panel_action_now("restart", cx);
+                            });
+                        })
+                        .child("RETRY"),
+                )
+        }))
         // Lifecycle actions
         .child(section_divider("LIFECYCLE"))
         .child(render_actions_row(is_active, app.clone()))
         // Confirm bar for disruptive actions
-        .children(pending_action.map(|action| render_pending_confirm(&svc.name, action, app.clone())))
+        .children(pending_action.map(|action| render_pending_confirm(&svc.name, &action, app_data, app.clone())))
+        // Recent Apply Pipeline history for this unit
+        .children(if !recent.is_empty() {
+            Some(render_recent_actions(&recent))
+        } else {
+            None
+        })
         // Cross-nav: jump to this unit's log stream
         .child({
             let app_logs = app.clone();
@@ -287,6 +337,72 @@ fn render_focused_panel(svc: &ServiceUnit, pending_action: Option<&str>, app: En
                         ),
                 )
         }))
+}
+
+/// The durable Apply Pipeline audit trail for one unit — what changed, when,
+/// and whether it actually worked, sourced from the `change_records` table.
+fn render_recent_actions(records: &[ChangeRecord]) -> impl IntoElement {
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(8.0))
+        .child(section_divider("RECENT ACTIONS"))
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .border_1()
+                .border_color(BORDER_PANEL)
+                .children(records.iter().enumerate().map(|(idx, rec)| {
+                    let (dot_color, outcome_label) = match rec.outcome.as_str() {
+                        "success" => (OK, "OK"),
+                        "failed" => (CRIT, "FAILED"),
+                        _ => (WARN, "PENDING"),
+                    };
+                    let when = rec.started_at.split('T').nth(1).and_then(|t| t.get(0..8)).unwrap_or(&rec.started_at).to_string();
+
+                    div()
+                        .id(ElementId::NamedInteger("svc-recent-action".into(), idx as u64))
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .px(px(9.0))
+                        .py(px(6.0))
+                        .border_b_1()
+                        .border_color(BORDER_PANEL)
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.0))
+                        .child(div().size(px(6.0)).rounded_full().bg(dot_color).flex_none())
+                        .child(
+                            div()
+                                .w(px(52.0))
+                                .flex_none()
+                                .text_color(TEXT_FAINT)
+                                .child(when),
+                        )
+                        .child(
+                            div()
+                                .flex_1()
+                                .text_color(TEXT_SECONDARY)
+                                .child(rec.action_kind.replace("service_", "").to_uppercase()),
+                        )
+                        .children(rec.blast_radius.clone().map(|b| {
+                            div()
+                                .text_color(TEXT_DIMMER)
+                                .text_size(px(9.0))
+                                .child(b)
+                        }))
+                        .child(
+                            div()
+                                .w(px(52.0))
+                                .flex_none()
+                                .text_align(TextAlign::Right)
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(dot_color)
+                                .child(outcome_label),
+                        )
+                })),
+        )
 }
 
 fn section_divider(label: &str) -> impl IntoElement {
@@ -404,7 +520,21 @@ fn render_actions_row(is_active: bool, app: Entity<CrowApp>) -> impl IntoElement
         })
 }
 
-fn render_pending_confirm(unit_name: &str, action: &str, app: Entity<CrowApp>) -> impl IntoElement {
+/// Real blast-radius phrasing for a restart/stop confirm — falls back to a
+/// "checking…" state while the async socket lookup is still in flight.
+fn blast_radius_text(app_data: &CrowApp, unit: &str) -> String {
+    match app_data.blast_radius.as_ref().filter(|b| b.for_unit == unit) {
+        Some(b) if b.established == 0 && b.listening == 0 => "No active connections will be dropped.".to_string(),
+        Some(b) => format!(
+            "{} established connection{} and {} listening socket{} will be dropped.",
+            b.established, if b.established == 1 { "" } else { "s" },
+            b.listening, if b.listening == 1 { "" } else { "s" },
+        ),
+        None => "Checking active connections…".to_string(),
+    }
+}
+
+fn render_pending_confirm(unit_name: &str, action: &str, app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
     let app_confirm = app.clone();
     let app_cancel = app.clone();
     let verb = action.to_uppercase();
@@ -423,8 +553,8 @@ fn render_pending_confirm(unit_name: &str, action: &str, app: Entity<CrowApp>) -
                 .text_size(px(11.0))
                 .text_color(CRIT_INK)
                 .child(format!(
-                    "{} {}? Active connections may be dropped.",
-                    verb, unit_name
+                    "{} {}? {}",
+                    verb, unit_name, blast_radius_text(app_data, unit_name)
                 )),
         )
         .child(

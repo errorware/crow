@@ -145,6 +145,23 @@ pub struct ClankerProviderConfig {
     pub daily_history: Vec<f32>,
 }
 
+/// A durable record of one run through the Apply Pipeline — the audit trail
+/// `CROW.md` describes: what changed, on which server, whether it worked.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+pub struct ChangeRecord {
+    pub id: String,
+    pub server_id: String,
+    pub server_name: String,
+    pub action_kind: String,
+    pub target: String,
+    pub before_state: String,
+    pub after_state: Option<String>,
+    pub blast_radius: Option<String>,
+    pub outcome: String,
+    pub started_at: String,
+    pub completed_at: Option<String>,
+}
+
 pub struct VaultDb {
     conn: Connection,
     path: PathBuf,
@@ -292,6 +309,20 @@ impl VaultDb {
                 calls_30d INTEGER NOT NULL DEFAULT 0,
                 last_used_at TEXT,
                 daily_history TEXT NOT NULL DEFAULT '[]'
+            );
+
+            CREATE TABLE IF NOT EXISTS change_records (
+                id TEXT PRIMARY KEY,
+                server_id TEXT NOT NULL,
+                server_name TEXT NOT NULL,
+                action_kind TEXT NOT NULL,
+                target TEXT NOT NULL,
+                before_state TEXT NOT NULL,
+                after_state TEXT,
+                blast_radius TEXT,
+                outcome TEXT NOT NULL DEFAULT 'pending',
+                started_at TEXT NOT NULL,
+                completed_at TEXT
             );",
         )?;
 
@@ -1145,6 +1176,75 @@ impl VaultDb {
             params!["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]", provider_id],
         )?;
         Ok(())
+    }
+
+    // ==========================================
+    // Apply Pipeline Change Records
+    // ==========================================
+
+    pub fn insert_change_record(&self, rec: &ChangeRecord) -> Result<(), VaultError> {
+        self.conn.execute(
+            "INSERT INTO change_records
+                (id, server_id, server_name, action_kind, target, before_state, after_state, blast_radius, outcome, started_at, completed_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+            params![
+                rec.id,
+                rec.server_id,
+                rec.server_name,
+                rec.action_kind,
+                rec.target,
+                rec.before_state,
+                rec.after_state,
+                rec.blast_radius,
+                rec.outcome,
+                rec.started_at,
+                rec.completed_at,
+            ],
+        )?;
+        Ok(())
+    }
+
+    pub fn update_change_record_outcome(
+        &self,
+        id: &str,
+        outcome: &str,
+        after_state: Option<&str>,
+        completed_at: &str,
+    ) -> Result<(), VaultError> {
+        self.conn.execute(
+            "UPDATE change_records SET outcome = ?1, after_state = ?2, completed_at = ?3 WHERE id = ?4",
+            params![outcome, after_state, completed_at, id],
+        )?;
+        Ok(())
+    }
+
+    pub fn list_change_records(&self, server_id: &str, limit: usize) -> Result<Vec<ChangeRecord>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, server_id, server_name, action_kind, target, before_state, after_state, blast_radius, outcome, started_at, completed_at
+             FROM change_records WHERE server_id = ?1 ORDER BY started_at DESC LIMIT ?2"
+        )?;
+
+        let rows = stmt.query_map(params![server_id, limit as i64], |r| {
+            Ok(ChangeRecord {
+                id: r.get(0)?,
+                server_id: r.get(1)?,
+                server_name: r.get(2)?,
+                action_kind: r.get(3)?,
+                target: r.get(4)?,
+                before_state: r.get(5)?,
+                after_state: r.get(6)?,
+                blast_radius: r.get(7)?,
+                outcome: r.get(8)?,
+                started_at: r.get(9)?,
+                completed_at: r.get(10)?,
+            })
+        })?;
+
+        let mut out = Vec::new();
+        for item in rows {
+            out.push(item?);
+        }
+        Ok(out)
     }
 
     pub fn path(&self) -> &Path {

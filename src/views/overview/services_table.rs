@@ -204,9 +204,9 @@ pub fn services_table(app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElem
                     "sockets" => render_sockets_rows(sockets, app.clone()),
                     _ => {
                         if app_data.group_services {
-                            render_services_rows_grouped(services, &app_data.collapsed_service_groups, app.clone())
+                            render_services_rows_grouped(services, &app_data.collapsed_service_groups, app_data, app.clone())
                         } else {
-                            render_services_rows(services, app.clone())
+                            render_services_rows(services, app_data, app.clone())
                         }
                     }
                 }),
@@ -497,15 +497,15 @@ fn empty_state(message: &'static str) -> AnyElement {
         .into_any_element()
 }
 
-fn render_services_rows(services: &[ServiceUnit], app: Entity<CrowApp>) -> Vec<AnyElement> {
+fn render_services_rows(services: &[ServiceUnit], app_data: &CrowApp, app: Entity<CrowApp>) -> Vec<AnyElement> {
     if services.is_empty() {
         return vec![empty_state("No systemd service units detected on active host")];
     }
 
-    services.iter().enumerate().map(|(idx, svc)| render_service_row(svc, idx, app.clone())).collect::<Vec<_>>()
+    services.iter().enumerate().map(|(idx, svc)| render_service_row(svc, idx, app_data, app.clone())).collect::<Vec<_>>()
 }
 
-fn render_services_rows_grouped(services: &[ServiceUnit], collapsed: &HashSet<String>, app: Entity<CrowApp>) -> Vec<AnyElement> {
+fn render_services_rows_grouped(services: &[ServiceUnit], collapsed: &HashSet<String>, app_data: &CrowApp, app: Entity<CrowApp>) -> Vec<AnyElement> {
     if services.is_empty() {
         return vec![empty_state("No systemd service units detected on active host")];
     }
@@ -548,7 +548,7 @@ fn render_services_rows_grouped(services: &[ServiceUnit], collapsed: &HashSet<St
 
         if !is_collapsed {
             for svc in members {
-                rows.push(render_service_row(svc, row_idx, app.clone()));
+                rows.push(render_service_row(svc, row_idx, app_data, app.clone()));
                 row_idx += 1;
             }
         }
@@ -556,7 +556,21 @@ fn render_services_rows_grouped(services: &[ServiceUnit], collapsed: &HashSet<St
     rows
 }
 
-fn render_service_row(svc: &ServiceUnit, idx: usize, app: Entity<CrowApp>) -> AnyElement {
+/// Real blast-radius phrasing for a restart/stop confirm — falls back to a
+/// "checking…" state while the async socket lookup is still in flight.
+fn blast_radius_text(app_data: &CrowApp, unit: &str) -> String {
+    match app_data.blast_radius.as_ref().filter(|b| b.for_unit == unit) {
+        Some(b) if b.established == 0 && b.listening == 0 => "No active connections will be dropped.".to_string(),
+        Some(b) => format!(
+            "{} established connection{} and {} listening socket{} will be dropped.",
+            b.established, if b.established == 1 { "" } else { "s" },
+            b.listening, if b.listening == 1 { "" } else { "s" },
+        ),
+        None => "Checking active connections…".to_string(),
+    }
+}
+
+fn render_service_row(svc: &ServiceUnit, idx: usize, app_data: &CrowApp, app: Entity<CrowApp>) -> AnyElement {
     let is_focus = svc.is_focused;
     let is_failed = svc.status == "FAILED";
     let cpu_num: f32 = svc.cpu.parse().unwrap_or(0.0);
@@ -724,7 +738,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, app: Entity<CrowApp>) -> An
                             .font_family(FONT_MONO)
                             .text_size(px(11.5))
                             .text_color(CRIT_INK)
-                            .child(format!("Restart {}? Any active connections will be dropped.", svc.name)),
+                            .child(format!("Restart {}? {}", svc.name, blast_radius_text(app_data, &svc.name))),
                     )
                     .child(div().flex_1())
                     .child(

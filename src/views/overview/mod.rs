@@ -4,4 +4,4 @@ pub mod services_table;
 pub mod models;
 pub mod collector;
 
-pub use models::{ServiceUnit, ProcessUnit, SocketUnit};
+pub use models::{BlastRadiusInfo, ServiceUnit, ProcessUnit, SocketUnit};
