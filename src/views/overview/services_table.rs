@@ -112,6 +112,42 @@ pub fn services_table(app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElem
                 } else {
                     None
                 })
+                // Socket Log Drawer Toggle (sockets subtab only)
+                .children(if active_tab == "sockets" {
+                    let app_drawer = app.clone();
+                    let is_open = app_data.socket_drawer_open;
+                    Some(
+                        div()
+                            .id("btn-toggle-socket-drawer")
+                            .h_full()
+                            .flex()
+                            .items_center()
+                            .gap(px(6.0))
+                            .px(px(12.0))
+                            .border_l_1()
+                            .border_color(BORDER_PANEL)
+                            .cursor_pointer()
+                            .bg(if is_open { hex_rgba(0x8ab4ff, 0.12) } else { hex_rgba(0, 0.0) })
+                            .hover(|s| s.bg(BG_ROW_HOVER))
+                            .font_family(FONT_MONO)
+                            .text_size(px(10.5))
+                            .font_weight(if is_open { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+                            .text_color(if is_open { hex_rgb(0x8ab4ff) } else { TEXT_SECONDARY })
+                            .on_click(move |_ev, _window, cx| {
+                                app_drawer.update(cx, |this, cx| {
+                                    this.toggle_socket_drawer(cx);
+                                });
+                            })
+                            .child(
+                                tabler_icon(if is_open { TablerIcon::ChevronDown } else { TablerIcon::Terminal2 })
+                                    .size(px(12.0))
+                                    .text_color(if is_open { hex_rgb(0x8ab4ff) } else { TEXT_DIMMER }),
+                            )
+                            .child(if is_open { "LOG DRAWER (ACTIVE)" } else { "LOG DRAWER" }),
+                    )
+                } else {
+                    None
+                })
                 // Sort indicator
                 .child(
                     div()

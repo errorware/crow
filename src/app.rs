@@ -32,7 +32,7 @@ use crate::lab::{
     stop_local_node, EngineStatus, LocalLabEngine, LocalTestNode,
 };
 use crate::views::logs::logs_explorer_view;
-use crate::views::overview::log_tail::log_tail;
+use crate::views::overview::log_tail::{log_tail, socket_log_drawer};
 use crate::views::overview::service_inspector::service_inspector_rail;
 use crate::views::overview::{
     collector::{
@@ -133,6 +133,8 @@ pub struct CrowApp {
     pub active_tab_id: String,
     pub active_view: String,
     pub active_services_tab: String,
+    pub socket_drawer_open: bool,
+    pub socket_drawer_filter_this_socket: bool,
     pub tabs: Vec<ServerTab>,
     pub services: Vec<ServiceUnit>,
     pub processes: Vec<ProcessUnit>,
@@ -402,6 +404,8 @@ host    all             all             10.0.4.0/24             scram-sha-256
             active_tab_id: servers.first().map(|s| s.id.clone()).unwrap_or_default(),
             active_view: "overview".to_string(),
             active_services_tab: "services".to_string(),
+            socket_drawer_open: false,
+            socket_drawer_filter_this_socket: false,
             tabs,
             services: initial_services,
             processes: initial_processes,
@@ -1392,10 +1396,40 @@ host    all             all             10.0.4.0/24             scram-sha-256
     }
 
     pub fn focus_socket(&mut self, sock_id: &str, cx: &mut Context<Self>) {
+        let mut already_focused = false;
         for (idx, sock) in self.sockets.iter_mut().enumerate() {
             let id = format!("{}:{}:{}", sock.protocol, sock.local_port, idx);
-            sock.is_focused = id == sock_id;
+            if id == sock_id {
+                if sock.is_focused && self.socket_drawer_open {
+                    already_focused = true;
+                    sock.is_focused = false;
+                } else {
+                    sock.is_focused = true;
+                }
+            } else {
+                sock.is_focused = false;
+            }
         }
+        if already_focused {
+            self.socket_drawer_open = false;
+        } else {
+            self.socket_drawer_open = true;
+        }
+        cx.notify();
+    }
+
+    pub fn toggle_socket_drawer(&mut self, cx: &mut Context<Self>) {
+        self.socket_drawer_open = !self.socket_drawer_open;
+        cx.notify();
+    }
+
+    pub fn close_socket_drawer(&mut self, cx: &mut Context<Self>) {
+        self.socket_drawer_open = false;
+        cx.notify();
+    }
+
+    pub fn toggle_socket_drawer_filter(&mut self, cx: &mut Context<Self>) {
+        self.socket_drawer_filter_this_socket = !self.socket_drawer_filter_this_socket;
         cx.notify();
     }
 
@@ -2797,15 +2831,33 @@ impl Render for CrowApp {
                                                             .flex()
                                                             .children(if is_overview {
                                                                 Some(
-                                                                    div()
-                                                                        .size_full()
-                                                                        .flex()
-                                                                        .child(services_table(self, app_view.clone()))
-                                                                        .child(if self.active_services_tab == "services" {
-                                                                            service_inspector_rail(self, app_view.clone()).into_any_element()
-                                                                        } else {
-                                                                            log_tail(&self.journal_entries, app_view.clone()).into_any_element()
-                                                                        })
+                                                                    if self.active_services_tab == "sockets" {
+                                                                        div()
+                                                                            .size_full()
+                                                                            .flex()
+                                                                            .flex_col()
+                                                                            .child(
+                                                                                div()
+                                                                                    .flex_1()
+                                                                                    .min_h(px(0.0))
+                                                                                    .child(services_table(self, app_view.clone()))
+                                                                            )
+                                                                            .children(if self.socket_drawer_open {
+                                                                                Some(socket_log_drawer(self, app_view.clone()).into_any_element())
+                                                                            } else {
+                                                                                None
+                                                                            })
+                                                                    } else {
+                                                                        div()
+                                                                            .size_full()
+                                                                            .flex()
+                                                                            .child(services_table(self, app_view.clone()))
+                                                                            .child(if self.active_services_tab == "services" {
+                                                                                service_inspector_rail(self, app_view.clone()).into_any_element()
+                                                                            } else {
+                                                                                log_tail(&self.journal_entries, app_view.clone()).into_any_element()
+                                                                            })
+                                                                    }
                                                                 )
                                                             } else if is_config {
                                                                 let editor_view = if self.selected_managed_file == "journald.conf" {
