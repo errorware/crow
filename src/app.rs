@@ -1,7 +1,9 @@
 use std::collections::{HashMap, HashSet};
 use gpui_kit::*;
 use crate::theme::*;
-use crate::components::danger_zone::danger_zone;
+use crate::components::danger_zone::{
+    danger_action_keyword, danger_zone, flush_firewall, kill_all_lab_containers, send_power_action,
+};
 use crate::components::identity_bar::identity_bar;
 use crate::components::palette::palette_overlay;
 use crate::components::sidebar::sidebar;
@@ -185,6 +187,11 @@ pub struct CrowApp {
     pub files_pending_delete: Option<String>,
     pub files_new_folder_open: bool,
     pub files_new_folder_state: Option<Entity<InputState>>,
+    // Danger Zone — typed-confirmation destructive host actions
+    pub danger_zone_pending_action: Option<String>,
+    pub danger_zone_confirm_state: Option<Entity<InputState>>,
+    pub danger_zone_error: Option<String>,
+    pub danger_zone_last_result: Option<String>,
     pub onboard_state: OnboardState,
     // UI Components Lab Sandbox
     pub lab_state: LabState,
@@ -539,6 +546,10 @@ host    all             all             10.0.4.0/24             scram-sha-256
             files_pending_delete: None,
             files_new_folder_open: false,
             files_new_folder_state: None,
+            danger_zone_pending_action: None,
+            danger_zone_confirm_state: None,
+            danger_zone_error: None,
+            danger_zone_last_result: None,
             onboard_state,
             lab_state,
             cursor_blink: true,
@@ -2637,6 +2648,71 @@ impl CrowApp {
         cx.notify();
     }
 
+    // ==========================================
+    // Danger Zone — typed-confirmation destructive host actions
+    // ==========================================
+
+    pub fn arm_danger_zone_action(&mut self, action: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.danger_zone_pending_action = Some(action.to_string());
+        self.danger_zone_error = None;
+        self.danger_zone_confirm_state = Some(cx.new(|cx| {
+            InputState::new(window, cx).placeholder(danger_action_keyword(action))
+        }));
+        cx.notify();
+    }
+
+    pub fn cancel_danger_zone_action(&mut self, cx: &mut Context<Self>) {
+        self.danger_zone_pending_action = None;
+        self.danger_zone_confirm_state = None;
+        self.danger_zone_error = None;
+        cx.notify();
+    }
+
+    pub fn execute_danger_zone_action(&mut self, cx: &mut Context<Self>) {
+        let Some(action) = self.danger_zone_pending_action.clone() else {
+            return;
+        };
+        let keyword = danger_action_keyword(&action);
+        let typed = self.danger_zone_confirm_state.as_ref()
+            .map(|s| s.read(cx).value().trim().to_string())
+            .unwrap_or_default();
+        if typed != keyword {
+            self.danger_zone_error = Some(format!("Type {} exactly to confirm.", keyword));
+            cx.notify();
+            return;
+        }
+
+        let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() else {
+            self.danger_zone_error = Some("No active server".to_string());
+            cx.notify();
+            return;
+        };
+
+        self.danger_zone_pending_action = None;
+        self.danger_zone_confirm_state = None;
+        self.danger_zone_error = None;
+
+        let result = match action.as_str() {
+            "poweroff" => send_power_action(&srv, "power-off"),
+            "reboot" => send_power_action(&srv, "reboot"),
+            "flush_firewall" => flush_firewall(&srv),
+            "kill_containers" => {
+                let (ok, failed) = kill_all_lab_containers(&self.lab_nodes);
+                Ok(format!("Stopped {} lab container(s), {} failed", ok, failed))
+            }
+            _ => Err("Unknown action".to_string()),
+        };
+
+        match result {
+            Ok(msg) => {
+                self.push_journal_action_marker(format!("crow: {}", msg));
+                self.danger_zone_last_result = Some(msg);
+            }
+            Err(e) => self.danger_zone_error = Some(e),
+        }
+        cx.notify();
+    }
+
     pub fn focus_socket(&mut self, sock_id: &str, cx: &mut Context<Self>) {
         let mut already_focused = false;
         for (idx, sock) in self.sockets.iter_mut().enumerate() {
@@ -3856,9 +3932,9 @@ impl Render for CrowApp {
                     }
                 }
 
-                // Files new-folder prompt is a native gpui-component Input
-                // widget — it owns its own focus and keyboard handling, no
-                // manual routing needed here.
+                // Danger Zone confirm and Files new-folder prompt are native
+                // gpui-component Input widgets now — they own their own focus
+                // and keyboard handling, no manual routing needed here.
 
                 // Config Screen: config file search box keyboard interaction
                 if this.screen == Screen::Server && (this.active_view == "config" || this.active_view == "configure") && this.config_search_focused {
@@ -4245,7 +4321,7 @@ impl Render for CrowApp {
                                                     ),
                                             )
                                             // Persistent Danger Zone Strip
-                                            .child(danger_zone()),
+                                            .child(danger_zone(self, app_view.clone())),
                                         )
                                     }
                                 },
