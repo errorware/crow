@@ -17,6 +17,11 @@ use crate::views::config::pending_diff_rail::pending_diff_rail;
 use crate::views::config::rules_editor::{default_hba_rules, rules_editor, HbaRuleDef};
 use crate::views::config::cron_editor::{cron_editor, default_cron_jobs, generate_crontab_content, CronJobDef};
 use crate::views::config::raw_config_editor;
+use crate::views::files::{
+    collector::{create_directory, delete_entry, list_directory_for_server},
+    file_browser_view,
+    models::FileEntry,
+};
 use crate::views::users::{
     default_system_users, user_management_view, NewUserState, SystemUserRecord, UserFilterTab, UserSshKeySummary,
 };
@@ -172,6 +177,14 @@ pub struct CrowApp {
     /// This machine's own /etc/os-release family, detected once at startup —
     /// drives which config paths the crawler trusts (see crawl_machine_configs).
     pub local_distro_family: DistroFamily,
+    // Files screen — a literal directory browser on top of the server layer.
+    pub files_current_path: String,
+    pub files_entries: Vec<FileEntry>,
+    pub files_is_simulated: bool,
+    pub files_error: Option<String>,
+    pub files_pending_delete: Option<String>,
+    pub files_new_folder_open: bool,
+    pub files_new_folder_state: Option<Entity<InputState>>,
     pub onboard_state: OnboardState,
     // UI Components Lab Sandbox
     pub lab_state: LabState,
@@ -519,6 +532,13 @@ host    all             all             10.0.4.0/24             scram-sha-256
             key_toast: None,
             servers,
             local_distro_family,
+            files_current_path: "/".to_string(),
+            files_entries: Vec::new(),
+            files_is_simulated: false,
+            files_error: None,
+            files_pending_delete: None,
+            files_new_folder_open: false,
+            files_new_folder_state: None,
             onboard_state,
             lab_state,
             cursor_blink: true,
@@ -2092,6 +2112,10 @@ impl CrowApp {
         } else if view == "firewall" {
             self.active_view = "firewall".to_string();
             self.selected_managed_file = "user.rules".to_string();
+        } else if view == "files" {
+            self.active_view = "files".to_string();
+            self.load_file_listing(cx);
+            return;
         } else {
             self.active_view = view.to_string();
         }
@@ -2192,6 +2216,10 @@ impl CrowApp {
                         }
                     }
                 }).detach();
+            } else if self.active_view == "files" {
+                self.files_current_path = "/".to_string();
+                self.files_pending_delete = None;
+                self.load_file_listing(cx);
             }
         } else {
             self.active_tab_id = tab_id.to_string();
@@ -2508,6 +2536,105 @@ impl CrowApp {
             .filter(|r| r.target == target)
             .take(limit)
             .collect()
+    }
+
+    // ==========================================
+    // Files — a literal directory browser on top of the server layer
+    // ==========================================
+
+    pub fn load_file_listing(&mut self, cx: &mut Context<Self>) {
+        if let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
+            let (entries, is_sim) = list_directory_for_server(&srv, &self.files_current_path);
+            self.files_entries = entries;
+            self.files_is_simulated = is_sim;
+        } else {
+            self.files_entries.clear();
+        }
+        cx.notify();
+    }
+
+    pub fn navigate_files_to(&mut self, path: &str, cx: &mut Context<Self>) {
+        self.files_current_path = path.to_string();
+        self.files_pending_delete = None;
+        self.files_error = None;
+        self.load_file_listing(cx);
+    }
+
+    pub fn files_go_into(&mut self, name: &str, cx: &mut Context<Self>) {
+        let base = self.files_current_path.clone();
+        let new_path = if base == "/" { format!("/{}", name) } else { format!("{}/{}", base, name) };
+        self.navigate_files_to(&new_path, cx);
+    }
+
+    pub fn files_go_up(&mut self, cx: &mut Context<Self>) {
+        if self.files_current_path == "/" {
+            return;
+        }
+        let parent = std::path::Path::new(&self.files_current_path)
+            .parent()
+            .map(|p| {
+                let s = p.to_string_lossy().to_string();
+                if s.is_empty() { "/".to_string() } else { s }
+            })
+            .unwrap_or_else(|| "/".to_string());
+        self.navigate_files_to(&parent, cx);
+    }
+
+    pub fn toggle_new_folder_prompt(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.files_new_folder_open = !self.files_new_folder_open;
+        if self.files_new_folder_open {
+            self.files_new_folder_state = Some(cx.new(|cx| {
+                InputState::new(window, cx).placeholder("new-folder-name")
+            }));
+        } else {
+            self.files_new_folder_state = None;
+        }
+        cx.notify();
+    }
+
+    pub fn create_new_folder(&mut self, cx: &mut Context<Self>) {
+        if let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
+            let name = self.files_new_folder_state.as_ref()
+                .map(|s| s.read(cx).value().trim().to_string())
+                .unwrap_or_default();
+            if !name.is_empty() {
+                match create_directory(&srv, &self.files_current_path, &name) {
+                    Ok(()) => {
+                        self.files_new_folder_open = false;
+                        self.files_new_folder_state = None;
+                        self.load_file_listing(cx);
+                        return;
+                    }
+                    Err(e) => self.files_error = Some(e),
+                }
+            }
+        }
+        cx.notify();
+    }
+
+    pub fn toggle_file_delete_confirm(&mut self, name: &str, cx: &mut Context<Self>) {
+        self.files_pending_delete = if self.files_pending_delete.as_deref() == Some(name) {
+            None
+        } else {
+            Some(name.to_string())
+        };
+        cx.notify();
+    }
+
+    pub fn execute_file_delete(&mut self, cx: &mut Context<Self>) {
+        if let Some(name) = self.files_pending_delete.take() {
+            if let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
+                let is_dir = self.files_entries.iter().find(|e| e.name == name).map(|e| e.is_dir).unwrap_or(false);
+                match delete_entry(&srv, &self.files_current_path, &name, is_dir) {
+                    Ok(()) => {
+                        self.load_file_listing(cx);
+                        return;
+                    }
+                    Err(e) => self.files_error = Some(e),
+                }
+            }
+        }
+        cx.notify();
     }
 
     pub fn focus_socket(&mut self, sock_id: &str, cx: &mut Context<Self>) {
@@ -3729,6 +3856,10 @@ impl Render for CrowApp {
                     }
                 }
 
+                // Files new-folder prompt is a native gpui-component Input
+                // widget — it owns its own focus and keyboard handling, no
+                // manual routing needed here.
+
                 // Config Screen: config file search box keyboard interaction
                 if this.screen == Screen::Server && (this.active_view == "config" || this.active_view == "configure") && this.config_search_focused {
                     this.cursor_blink = true;
@@ -4045,6 +4176,12 @@ impl Render for CrowApp {
                                                                     div()
                                                                         .size_full()
                                                                         .child(user_management_view(app_view.clone(), self))
+                                                                )
+                                                            } else if self.active_view == "files" {
+                                                                Some(
+                                                                    div()
+                                                                        .size_full()
+                                                                        .child(file_browser_view(app_view.clone(), self))
                                                                 )
                                                             } else if self.active_view == "firewall" {
                                                                 Some(

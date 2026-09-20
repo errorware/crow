@@ -1,4 +1,5 @@
 pub mod config;
+pub mod files;
 pub mod firewall;
 pub mod fleet;
 pub mod lock;
