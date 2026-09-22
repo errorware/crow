@@ -65,6 +65,21 @@ Crow is built around the **Obsidian Edge** design language:
 
 ## Getting Started
 
+### Download
+
+Prebuilt binaries for **Linux (x86_64)** and **macOS (Apple Silicon)** are attached to each [GitHub release](https://github.com/errorware/crow/releases), alongside SLSA provenance (`.intoto.jsonl`) you can check with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier).
+
+```bash
+tar -xzf crow-linux-x86_64.tar.gz   # or crow-macos-arm64.tar.gz
+./crow
+```
+
+The macOS build is not yet signed or notarized, so Gatekeeper blocks it on first launch. Clear the quarantine flag once:
+
+```bash
+xattr -d com.apple.quarantine ./crow
+```
+
 ### Prerequisites
 
 #### Linux (Fedora / Bazzite / Debian / Ubuntu / Arch)
