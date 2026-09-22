@@ -1,0 +1,47 @@
+name: Rust
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Crow depends on crow-config-core/crow-config-schemas via a sibling path
+      # (../crow-config-core/...), so both repos are checked out side by side.
+      - uses: actions/checkout@v7
+        with:
+          path: crow
+
+      - uses: actions/checkout@v7
+        with:
+          repository: errorware/crow-config
+          path: crow-config-core
+
+      - name: Install system dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            pkg-config libfontconfig1-dev libfreetype6-dev \
+            libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: crow
+
+      - name: Build
+        working-directory: crow
+        run: cargo build --locked --verbose
+
+      - name: Run tests
+        working-directory: crow
+        run: cargo test --locked --verbose
