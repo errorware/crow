@@ -6,6 +6,10 @@
 </p>
 
 <p align="center">
+  <a href="https://github.com/errorware/crow/actions/workflows/rust.yml"><img src="https://github.com/errorware/crow/actions/workflows/rust.yml/badge.svg" alt="Rust"></a>
+</p>
+
+<p align="center">
   <a href="#overview">Overview</a> •
   <a href="#key-features">Features</a> •
   <a href="#design-system">Design System</a> •
