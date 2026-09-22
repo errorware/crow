@@ -495,7 +495,9 @@ mod tests {
 
     #[test]
     fn test_crawl_machine_configs_sorting() {
-        let configs = crawl_machine_configs();
+        // Debian family is deterministic regardless of the host running the
+        // test: its baseline seeds guarantee mapped entries exist.
+        let configs = crawl_machine_configs(DistroFamily::Debian);
         assert!(!configs.is_empty());
 
         // First configs must be schema mapped
@@ -506,5 +508,11 @@ mod tests {
         let first_unmapped = configs.iter().position(|c| !c.is_schema_mapped);
         assert!(first_unmapped.is_some());
         assert!(first_unmapped.unwrap() > 3);
+    }
+
+    #[test]
+    fn test_unknown_distro_fabricates_nothing() {
+        let configs = crawl_machine_configs(DistroFamily::Unknown);
+        assert!(configs.iter().all(|c| !c.is_synthetic));
     }
 }
