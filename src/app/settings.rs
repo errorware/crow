@@ -5,7 +5,7 @@ use crate::app::SettingsSection;
 
 impl CrowApp {
     pub fn set_settings_section(&mut self, section: SettingsSection, cx: &mut Context<Self>) {
-        self.settings_section = section;
+        self.settings.section = section;
         cx.notify();
     }
 
@@ -41,32 +41,32 @@ impl CrowApp {
     }
 
     pub fn toggle_settings_dropdown(&mut self, row_id: &str, initial_val: &str, cx: &mut Context<Self>) {
-        if self.settings_dropdown_open.as_deref() == Some(row_id) {
-            self.settings_dropdown_open = None;
-            self.settings_custom_input.clear();
+        if self.settings.dropdown_open.as_deref() == Some(row_id) {
+            self.settings.dropdown_open = None;
+            self.settings.custom_input.clear();
         } else {
-            self.settings_dropdown_open = Some(row_id.to_string());
-            self.settings_custom_input = initial_val.to_string();
-            self.caret.place(self.settings_custom_input.chars().count());
+            self.settings.dropdown_open = Some(row_id.to_string());
+            self.settings.custom_input = initial_val.to_string();
+            self.caret.place(self.settings.custom_input.chars().count());
             self.caret.blink = true;
         }
         cx.notify();
     }
 
     pub fn close_settings_dropdown(&mut self, cx: &mut Context<Self>) {
-        self.settings_dropdown_open = None;
-        self.settings_custom_input.clear();
+        self.settings.dropdown_open = None;
+        self.settings.custom_input.clear();
         cx.notify();
     }
 
     #[allow(dead_code)]
     pub fn set_settings_custom_input(&mut self, val: String, cx: &mut Context<Self>) {
-        self.settings_custom_input = val;
+        self.settings.custom_input = val;
         cx.notify();
     }
 
     pub fn apply_settings_custom_input(&mut self, row_id: &str, cx: &mut Context<Self>) {
-        let trimmed = self.settings_custom_input.trim();
+        let trimmed = self.settings.custom_input.trim();
         let field_is_int = self
             .config
             .get_field(row_id)
@@ -76,13 +76,13 @@ impl CrowApp {
         if field_is_int {
             if let Ok(n) = trimmed.parse::<i64>() {
                 self.update_config_field(row_id, serde_json::Value::Number(serde_json::Number::from(n)), cx);
-                self.settings_dropdown_open = None;
-                self.settings_custom_input.clear();
+                self.settings.dropdown_open = None;
+                self.settings.custom_input.clear();
             }
         } else {
             self.update_config_field(row_id, serde_json::Value::String(trimmed.to_string()), cx);
-            self.settings_dropdown_open = None;
-            self.settings_custom_input.clear();
+            self.settings.dropdown_open = None;
+            self.settings.custom_input.clear();
         }
         cx.notify();
     }

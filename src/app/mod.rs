@@ -63,6 +63,7 @@ use crate::views::fleet::lab_state::LocalLabState;
 use crate::views::fleet::FleetState;
 use crate::views::settings::clankers_state::ClankersState;
 use crate::views::settings::keys_state::KeysState;
+use crate::views::settings::state::SettingsState;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Screen {
@@ -133,51 +134,44 @@ pub struct LabState {
 
 pub struct CrowApp {
     focus_handle: FocusHandle,
+
+    // App shell
     pub vault: Vault,
     pub config: CrowConfigManager,
-    pub lock_state: LockState,
-    pub setup_state: SetupState,
     pub screen: Screen,
-    pub menu_open: bool,
-    pub settings_section: SettingsSection,
-    pub fleet: FleetState,
+    /// Sub-view of the Server screen ("overview", "logs", "config", ...).
     pub active_view: String,
-    pub overview: OverviewState,
-    pub configs: ConfigsState,
+    pub menu_open: bool,
     pub palette_open: bool,
     pub sidebar_collapsed: bool,
-    pub settings_dropdown_open: Option<String>,
-    pub settings_custom_input: String,
-    // SSH Key Management Hub
-    pub keys: KeysState,
-    // Server Enrollment Subsystem
-    /// This machine's own /etc/os-release family, detected once at startup —
-    /// drives which config paths the crawler trusts (see crawl_machine_configs).
-    // Files screen — a literal directory browser on top of the server layer.
-    pub files: FilesState,
-    // Danger Zone — typed-confirmation destructive host actions
-    pub danger: DangerZoneState,
-    pub onboard_state: OnboardState,
-    // UI Components Lab Sandbox
-    pub lab_state: LabState,
-    // Text input caret and selection state
-    pub caret: TextCaret,
-    pub _cursor_blink_task: Task<()>,
-    // Real Stats & Metrics Telemetry Store (Lagged Turbo Buffer & Foreknowledge)
-    pub _metrics_poll_task: Task<()>,
-    // Systemd Journal Log Explorer & Retention Boundaries
-    pub journal: JournalState,
-    // Local Lab & Test VMs Subsystem
-    pub local_lab: LocalLabState,
-    // About Crow Modal
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
-    // Clankers AI Providers & Usability
-    pub clankers: ClankersState,
-    // User Accounts & Authentication Subsystem
+    /// Caret shared by the hand-rolled text inputs (one is focused at a time).
+    pub caret: TextCaret,
+
+    // Shared server context
+    pub fleet: FleetState,
+
+    // Feature state, one per screen/surface
+    pub lock_state: LockState,
+    pub setup_state: SetupState,
+    pub onboard_state: OnboardState,
+    pub overview: OverviewState,
+    pub journal: JournalState,
+    pub configs: ConfigsState,
+    pub files: FilesState,
+    pub danger: DangerZoneState,
     pub users: UsersState,
-    // Firewall & Network Security Subsystem
     pub firewall: FirewallState,
+    pub keys: KeysState,
+    pub local_lab: LocalLabState,
+    pub clankers: ClankersState,
+    pub settings: SettingsState,
+    /// UI components sandbox (Settings → Components).
+    pub lab_state: LabState,
+
+    pub _cursor_blink_task: Task<()>,
+    pub _metrics_poll_task: Task<()>,
 }
 
 impl CrowApp {
@@ -420,15 +414,13 @@ host    all             all             10.0.4.0/24             scram-sha-256
             setup_state: SetupState::default(),
             screen: Screen::Fleet,
             menu_open: false,
-            settings_section: SettingsSection::General,
+            settings: SettingsState::default(),
             fleet: FleetState::new(servers, tabs, local_distro_family, metrics_store, buffered_stores),
             active_view: "overview".to_string(),
             overview: OverviewState::new(initial_services, initial_processes, initial_sockets),
             configs: ConfigsState::new(config_files, config_file_states, initial_selected_file, initial_cron_jobs, default_hba_rules()),
             palette_open: false,
             sidebar_collapsed: false,
-            settings_dropdown_open: None,
-            settings_custom_input: String::new(),
             keys: KeysState::new(enrolled_keys, key_groups, scan_paths, discovered_keys, scan_status_message),
             files: FilesState::default(),
             danger: DangerZoneState::default(),
@@ -525,7 +517,7 @@ impl CrowApp {
                 return true;
             }
         }
-        if self.screen == Screen::Settings && self.settings_dropdown_open.is_some() {
+        if self.screen == Screen::Settings && self.settings.dropdown_open.is_some() {
             return true;
         }
         false

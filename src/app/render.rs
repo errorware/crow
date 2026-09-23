@@ -379,7 +379,7 @@ impl Render for CrowApp {
                                             .child(settings_view(
                                                 app_view.clone(),
                                                 self,
-                                                self.settings_section,
+                                                self.settings.section,
                                             )),
                                     ),
                                     Screen::Onboard => Some(

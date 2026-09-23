@@ -19,7 +19,7 @@ impl CrowApp {
             cx.notify();
         } else {
             self.screen = Screen::Settings;
-            self.settings_section = SettingsSection::Security;
+            self.settings.section = SettingsSection::Security;
             self.menu_open = false;
             self.palette_open = false;
             cx.notify();

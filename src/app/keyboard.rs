@@ -317,7 +317,7 @@ impl CrowApp {
     fn keys_settings_dropdown(&mut self, k: &KeyPress, cx: &mut Context<Self>) -> bool {
         let KeyPress { ev, key, .. } = *k;
         if self.screen == Screen::Settings {
-            if let Some(open_row_id) = self.settings_dropdown_open.clone() {
+            if let Some(open_row_id) = self.settings.dropdown_open.clone() {
                 self.caret.blink = true;
                 if ev.keystroke.key == "escape" {
                     self.close_settings_dropdown(cx);
@@ -326,7 +326,7 @@ impl CrowApp {
                     self.apply_settings_custom_input(&open_row_id, cx);
                     return true;
                 } else if crate::components::handle_text_key_event(
-                    &mut self.settings_custom_input,
+                    &mut self.settings.custom_input,
                     &mut self.caret.cursor,
                     &mut self.caret.selection,
                     ev,
@@ -337,8 +337,8 @@ impl CrowApp {
                         .map(|f| matches!(&f.field_type, crow_config_core::schema::FieldType::Other(cow) if cow == "integer"))
                         .unwrap_or(false);
                     if field_is_int {
-                        self.settings_custom_input.retain(|c| c.is_ascii_digit());
-                        self.caret.cursor = self.caret.cursor.min(self.settings_custom_input.chars().count());
+                        self.settings.custom_input.retain(|c| c.is_ascii_digit());
+                        self.caret.cursor = self.caret.cursor.min(self.settings.custom_input.chars().count());
                     }
                     cx.notify();
                     return true;

@@ -1,5 +1,6 @@
 pub mod clankers_state;
 pub mod keys_state;
+pub mod state;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::{CrowApp, Screen, SettingsSection};
@@ -224,8 +225,8 @@ pub fn settings_view(
 ) -> impl IntoElement {
     let config = &app_data.config;
     let is_auth_enabled = app_data.vault.is_password_auth_enabled();
-    let open_dropdown = app_data.settings_dropdown_open.as_deref();
-    let custom_input = &app_data.settings_custom_input;
+    let open_dropdown = app_data.settings.dropdown_open.as_deref();
+    let custom_input = &app_data.settings.custom_input;
     let nav_items = [
         (TablerIcon::AdjustmentsHorizontal, "General", SettingsSection::General),
         (TablerIcon::Network, "Connection & SSH", SettingsSection::Connection),
