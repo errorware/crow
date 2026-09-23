@@ -7,13 +7,13 @@ use crate::components::terminal_text_input_styled;
 use crate::vault::ClankerProviderConfig;
 
 pub fn render_clankers_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElement {
-    let providers = &app_data.clanker_providers;
+    let providers = &app_data.clankers.providers;
     let total_calls_30d: u64 = providers.iter().map(|p| p.calls_30d).sum();
     let configured_count = providers.iter().filter(|p| !p.api_key.trim().is_empty()).count();
     let default_provider = providers.iter().find(|p| p.is_default).cloned();
 
-    let demo_log = &app_data.clanker_demo_log;
-    let demo_output = app_data.clanker_demo_output.as_deref();
+    let demo_log = &app_data.clankers.demo_log;
+    let demo_output = app_data.clankers.demo_output.as_deref();
 
     div()
         .flex_1()
@@ -607,8 +607,8 @@ fn render_eli5_sandbox(
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
                                     app_preset1.update(cx, |this, cx| {
-                                        this.clanker_demo_log = "kernel: [  129.412033] Out of memory: Kill process 28419 (mysqld) score 812 or sacrifice child".into();
-                                        this.clanker_demo_output = None;
+                                        this.clankers.demo_log = "kernel: [  129.412033] Out of memory: Kill process 28419 (mysqld) score 812 or sacrifice child".into();
+                                        this.clankers.demo_output = None;
                                         cx.notify();
                                     });
                                 })
@@ -629,8 +629,8 @@ fn render_eli5_sandbox(
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
                                     app_preset2.update(cx, |this, cx| {
-                                        this.clanker_demo_log = "nginx[1482]: segfault at 0 ip 00007f3b48201a08 sp 00007ffe3410 error 4 in libc.so.6".into();
-                                        this.clanker_demo_output = None;
+                                        this.clankers.demo_log = "nginx[1482]: segfault at 0 ip 00007f3b48201a08 sp 00007ffe3410 error 4 in libc.so.6".into();
+                                        this.clankers.demo_output = None;
                                         cx.notify();
                                     });
                                 })
@@ -651,8 +651,8 @@ fn render_eli5_sandbox(
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
                                     app_preset3.update(cx, |this, cx| {
-                                        this.clanker_demo_log = "systemd[1]: postgresql@16-main.service: Main process exited, code=exited, status=1/FAILURE".into();
-                                        this.clanker_demo_output = None;
+                                        this.clankers.demo_log = "systemd[1]: postgresql@16-main.service: Main process exited, code=exited, status=1/FAILURE".into();
+                                        this.clankers.demo_output = None;
                                         cx.notify();
                                     });
                                 })
@@ -737,7 +737,7 @@ fn render_eli5_sandbox(
 }
 
 pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option<impl IntoElement> {
-    let state = app_data.editing_clanker.as_ref()?;
+    let state = app_data.clankers.editing.as_ref()?;
     let p_name = state.display_name.clone();
     let err = state.error_message.clone();
 
@@ -844,7 +844,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                     .id("wrap-input-key")
                                     .on_click(move |_ev, _window, cx| {
                                         app_focus_key.update(cx, |this, cx| {
-                                            if let Some(ref mut st) = this.editing_clanker {
+                                            if let Some(ref mut st) = this.clankers.editing {
                                                 st.focus = ClankerModalFocus::ApiKey;
                                                 this.input_cursor = st.api_key_input.chars().count();
                                                 this.input_selection = None;
@@ -869,7 +869,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                                 let app = app.clone();
                                                 move |cursor, anchor, selection, _window, cx| {
                                                     app.update(cx, |this, cx| {
-                                                        if let Some(ref mut st) = this.editing_clanker {
+                                                        if let Some(ref mut st) = this.clankers.editing {
                                                             st.focus = ClankerModalFocus::ApiKey;
                                                         }
                                                         this.input_cursor = cursor;
@@ -902,7 +902,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                     .id("wrap-input-model")
                                     .on_click(move |_ev, _window, cx| {
                                         app_focus_model.update(cx, |this, cx| {
-                                            if let Some(ref mut st) = this.editing_clanker {
+                                            if let Some(ref mut st) = this.clankers.editing {
                                                 st.focus = ClankerModalFocus::Model;
                                                 this.input_cursor = st.model_input.chars().count();
                                                 this.input_selection = None;
@@ -927,7 +927,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                                 let app = app.clone();
                                                 move |cursor, anchor, selection, _window, cx| {
                                                     app.update(cx, |this, cx| {
-                                                        if let Some(ref mut st) = this.editing_clanker {
+                                                        if let Some(ref mut st) = this.clankers.editing {
                                                             st.focus = ClankerModalFocus::Model;
                                                         }
                                                         this.input_cursor = cursor;
@@ -960,7 +960,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                     .id("wrap-input-url")
                                     .on_click(move |_ev, _window, cx| {
                                         app_focus_url.update(cx, |this, cx| {
-                                            if let Some(ref mut st) = this.editing_clanker {
+                                            if let Some(ref mut st) = this.clankers.editing {
                                                 st.focus = ClankerModalFocus::BaseUrl;
                                                 this.input_cursor = st.base_url_input.chars().count();
                                                 this.input_selection = None;
@@ -985,7 +985,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                                 let app = app.clone();
                                                 move |cursor, anchor, selection, _window, cx| {
                                                     app.update(cx, |this, cx| {
-                                                        if let Some(ref mut st) = this.editing_clanker {
+                                                        if let Some(ref mut st) = this.clankers.editing {
                                                             st.focus = ClankerModalFocus::BaseUrl;
                                                         }
                                                         this.input_cursor = cursor;

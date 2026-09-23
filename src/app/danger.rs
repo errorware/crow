@@ -52,7 +52,7 @@ impl CrowApp {
             "reboot" => send_power_action(&srv, "reboot"),
             "flush_firewall" => flush_firewall(&srv),
             "kill_containers" => {
-                let (ok, failed) = kill_all_lab_containers(&self.lab_nodes);
+                let (ok, failed) = kill_all_lab_containers(&self.local_lab.nodes);
                 Ok(format!("Stopped {} lab container(s), {} failed", ok, failed))
             }
             _ => Err("Unknown action".to_string()),

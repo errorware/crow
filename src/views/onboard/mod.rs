@@ -391,7 +391,7 @@ fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                 .child("Provide the target server's IPv4, IPv6, or fully qualified domain name (FQDN)."),
         )
         // Local Lab Test Nodes Quick-Pick (if any exist)
-        .children(if !app_data.lab_nodes.is_empty() {
+        .children(if !app_data.local_lab.nodes.is_empty() {
             let app_pick = app.clone();
             Some(
                 div()
@@ -428,7 +428,7 @@ fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                             .flex()
                             .flex_col()
                             .gap(px(4.0))
-                            .children(app_data.lab_nodes.iter().enumerate().map(|(idx, node)| {
+                            .children(app_data.local_lab.nodes.iter().enumerate().map(|(idx, node)| {
                                 let app = app_pick.clone();
                                 let node_name = node.name.clone();
                                 let port_str = node.ssh_port.unwrap_or(2222).to_string();

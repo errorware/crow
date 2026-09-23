@@ -1,3 +1,4 @@
+pub mod lab_state;
 pub mod lab_modal;
 pub mod overview;
 pub mod setup;

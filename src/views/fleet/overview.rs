@@ -997,10 +997,10 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                         .child("fleet actions run serially with a per-host abort gate"),
                 ),
         )
-        .children(if app_data.show_local_lab_modal {
+        .children(if app_data.local_lab.show_modal {
             Some(crate::views::fleet::lab_modal::local_lab_modal(
-                &app_data.lab_engines,
-                &app_data.lab_nodes,
+                &app_data.local_lab.engines,
+                &app_data.local_lab.nodes,
                 app.clone(),
                 app_data,
             ))

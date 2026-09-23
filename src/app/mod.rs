@@ -44,10 +44,7 @@ use crate::journal::{
     reader::read_journal_for_server,
     retention::{generate_journald_conf, read_retention_for_server, JournalRetentionConfig, JournalStorageMode, JournalTelemetry},
 };
-use crate::lab::{
-    detect_local_engines, enroll_local_node_into_db, scan_local_test_nodes, start_local_node,
-    stop_local_node, EngineStatus, LocalLabEngine, LocalTestNode,
-};
+use crate::lab::{detect_local_engines, scan_local_test_nodes};
 use crate::views::logs::logs_explorer_view;
 use crate::views::overview::log_tail::{log_tail, socket_log_drawer};
 use crate::views::overview::service_inspector::service_inspector_rail;
@@ -67,13 +64,16 @@ use crow_config_schemas::PgHbaPlugin;
 mod danger;
 mod files;
 mod firewall;
+mod clankers;
+mod lab;
 
 use crate::keys::{
     copy_to_clipboard_system, expand_tilde, scan_directory, AddScanPathModalState,
     DiscoveredKey, EditKeyModalState, KeyGenFieldFocus, KeyGenModalState,
     NewGroupModalState, SshKeyGroup, SshKeyRecord, SshScanPath,
 };
-use crate::vault::ClankerProviderConfig;
+use crate::views::fleet::lab_state::LocalLabState;
+use crate::views::settings::clankers_state::ClankersState;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Screen {
@@ -233,18 +233,12 @@ pub struct CrowApp {
     pub config_search_focused: bool,
     pub show_config_history: bool,
     // Local Lab & Test VMs Subsystem
-    pub lab_engines: Vec<EngineStatus>,
-    pub lab_nodes: Vec<LocalTestNode>,
-    pub show_local_lab_modal: bool,
-    pub new_lab_node_distro: String,
+    pub local_lab: LocalLabState,
     // About Crow Modal
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
     // Clankers AI Providers & Usability
-    pub clanker_providers: Vec<ClankerProviderConfig>,
-    pub editing_clanker: Option<ClankerEditModalState>,
-    pub clanker_demo_log: String,
-    pub clanker_demo_output: Option<String>,
+    pub clankers: ClankersState,
     // User Accounts & Authentication Subsystem
     pub users: UsersState,
     // Firewall & Network Security Subsystem
@@ -605,16 +599,10 @@ host    all             all             10.0.4.0/24             scram-sha-256
             config_search_query: String::new(),
             config_search_focused: false,
             show_config_history: false,
-            lab_engines,
-            lab_nodes,
-            show_local_lab_modal: false,
-            new_lab_node_distro: "noble".to_string(),
+            local_lab: LocalLabState::new(lab_engines, lab_nodes),
             show_about_modal: false,
             about_copied_toast: false,
-            clanker_providers,
-            editing_clanker: None,
-            clanker_demo_log: "kernel: [  129.412033] Out of memory: Kill process 28419 (mysqld) score 812 or sacrifice child".to_string(),
-            clanker_demo_output: None,
+            clankers: ClankersState::new(clanker_providers),
             users: UsersState::new(),
             firewall: FirewallState::new(initial_firewall_state),
         }
@@ -731,7 +719,7 @@ impl CrowApp {
             || self.new_group_modal.is_some()
             || self.add_scan_path_modal.is_some()
             || self.edit_key_modal.is_some()
-            || self.editing_clanker.is_some()
+            || self.clankers.editing.is_some()
         {
             return true;
         }
@@ -1392,121 +1380,6 @@ impl CrowApp {
     pub fn close_about_modal(&mut self, cx: &mut Context<Self>) {
         self.show_about_modal = false;
         self.about_copied_toast = false;
-        cx.notify();
-    }
-
-    pub fn toggle_local_lab_modal(&mut self, cx: &mut Context<Self>) {
-        self.show_local_lab_modal = !self.show_local_lab_modal;
-        if self.show_local_lab_modal {
-            self.lab_engines = detect_local_engines();
-            self.lab_nodes = scan_local_test_nodes(&self.servers);
-        }
-        cx.notify();
-    }
-
-    pub fn refresh_lab_nodes(&mut self, cx: &mut Context<Self>) {
-        self.lab_engines = detect_local_engines();
-        self.lab_nodes = scan_local_test_nodes(&self.servers);
-        cx.notify();
-    }
-
-    pub fn set_new_lab_distro(&mut self, distro: &str, cx: &mut Context<Self>) {
-        self.new_lab_node_distro = distro.to_string();
-        cx.notify();
-    }
-
-    pub fn start_lab_node(&mut self, node_id: &str, cx: &mut Context<Self>) {
-        if let Some(node) = self.lab_nodes.iter_mut().find(|n| n.id == node_id || n.name == node_id) {
-            let _ = start_local_node(node);
-            node.state = "running".to_string();
-        }
-        cx.notify();
-    }
-
-    pub fn stop_lab_node(&mut self, node_id: &str, cx: &mut Context<Self>) {
-        if let Some(node) = self.lab_nodes.iter_mut().find(|n| n.id == node_id || n.name == node_id) {
-            let _ = stop_local_node(node);
-            node.state = "stopped".to_string();
-        }
-        cx.notify();
-    }
-
-    pub fn enroll_lab_node(&mut self, node_name: &str, cx: &mut Context<Self>) {
-        if let Some(node) = self.lab_nodes.iter().find(|n| n.name == node_name).cloned() {
-            if let Ok(db) = self.vault.db().lock() {
-                if let Ok(record) = enroll_local_node_into_db(&node, &db) {
-                    self.servers.push(record.clone());
-                    let mut local_prev = CollectorPreviousState::default();
-                    let m = sample_server(&record, None, &mut local_prev);
-                    self.metrics_store.insert(record.id.clone(), m.clone());
-                    self.metrics_store.insert(record.name.clone(), m);
-                    if !self.tabs.iter().any(|t| t.id == record.id) {
-                        self.tabs.push(ServerTab {
-                            id: record.id.clone(),
-                            name: record.name.clone(),
-                            status_color: OK,
-                            is_active: true,
-                        });
-                    }
-                    self.active_tab_id = record.id.clone();
-                    self.services = collect_services_for_server(&record);
-                    self.processes = collect_processes_for_server(&record);
-                    self.sockets = collect_sockets_for_server(&record);
-                    self.screen = Screen::Server;
-                    self.active_view = "overview".to_string();
-                    self.show_local_lab_modal = false;
-                }
-            }
-        }
-        self.lab_nodes = scan_local_test_nodes(&self.servers);
-        cx.notify();
-    }
-
-    pub fn create_lab_node(&mut self, cx: &mut Context<Self>) {
-        let distro = self.new_lab_node_distro.clone();
-        let name = format!("crow-lab-{}", &distro);
-        let port = 2222;
-
-        // Try starting existing local container or ensure test container is running
-        let _ = std::process::Command::new("podman")
-            .args(["start", "completo-node-1"])
-            .output();
-
-        let node = LocalTestNode {
-            id: format!("local-{}", name),
-            name: name.clone(),
-            engine: LocalLabEngine::Podman,
-            image: format!("docker.io/library/{}:latest", distro),
-            state: "running".into(),
-            ssh_port: Some(port),
-            is_enrolled: false,
-        };
-
-        if let Ok(db) = self.vault.db().lock() {
-            if let Ok(record) = enroll_local_node_into_db(&node, &db) {
-                self.servers.push(record.clone());
-                let mut local_prev = CollectorPreviousState::default();
-                let m = sample_server(&record, None, &mut local_prev);
-                self.metrics_store.insert(record.id.clone(), m.clone());
-                self.metrics_store.insert(record.name.clone(), m);
-                if !self.tabs.iter().any(|t| t.id == record.id) {
-                    self.tabs.push(ServerTab {
-                        id: record.id.clone(),
-                        name: record.name.clone(),
-                        status_color: OK,
-                        is_active: true,
-                    });
-                }
-                self.active_tab_id = record.id.clone();
-                self.services = collect_services_for_server(&record);
-                self.processes = collect_processes_for_server(&record);
-                self.sockets = collect_sockets_for_server(&record);
-                self.screen = Screen::Server;
-                self.active_view = "overview".to_string();
-                self.show_local_lab_modal = false;
-            }
-        }
-        self.lab_nodes = scan_local_test_nodes(&self.servers);
         cx.notify();
     }
 
@@ -2543,176 +2416,6 @@ impl CrowApp {
         cx.notify();
     }
 
-    // ==========================================
-    // Clankers AI Hub & Usability Methods
-    // ==========================================
-
-    pub fn refresh_clankers(&mut self, cx: &mut Context<Self>) {
-        let db = self.vault.db();
-        if let Ok(db_guard) = db.lock() {
-            if let Ok(providers) = db_guard.list_clanker_providers() {
-                self.clanker_providers = providers;
-            }
-        }
-        cx.notify();
-    }
-
-    pub fn open_edit_clanker_modal(&mut self, provider_id: &str, cx: &mut Context<Self>) {
-        if let Some(p) = self.clanker_providers.iter().find(|p| p.id == provider_id) {
-            let key_len = p.api_key.chars().count();
-            self.editing_clanker = Some(ClankerEditModalState {
-                provider_id: p.id.clone(),
-                display_name: p.display_name.clone(),
-                api_key_input: p.api_key.clone(),
-                model_input: p.model.clone(),
-                base_url_input: p.base_url.clone(),
-                focus: ClankerModalFocus::ApiKey,
-                error_message: None,
-            });
-            self.input_cursor = key_len;
-            self.input_selection = None;
-            self.cursor_blink = true;
-            cx.notify();
-        }
-    }
-
-    pub fn close_edit_clanker_modal(&mut self, cx: &mut Context<Self>) {
-        self.editing_clanker = None;
-        cx.notify();
-    }
-
-    pub fn submit_edit_clanker(&mut self, cx: &mut Context<Self>) {
-        if let Some(ref state) = self.editing_clanker.clone() {
-            let p_id = state.provider_id.clone();
-            let key = state.api_key_input.trim().to_string();
-            let model = state.model_input.trim().to_string();
-            let base_url = state.base_url_input.trim().to_string();
-
-            if model.is_empty() {
-                if let Some(ref mut st) = self.editing_clanker {
-                    st.error_message = Some("Model cannot be empty".to_string());
-                }
-                cx.notify();
-                return;
-            }
-
-            let db = self.vault.db();
-            if let Ok(db_guard) = db.lock() {
-                if let Ok(Some(mut provider)) = db_guard.get_clanker_provider(&p_id) {
-                    provider.api_key = key;
-                    provider.model = model;
-                    if !base_url.is_empty() {
-                        provider.base_url = base_url;
-                    }
-                    let _ = db_guard.upsert_clanker_provider(&provider);
-                }
-            }
-
-            self.editing_clanker = None;
-            self.copy_text_with_toast("", &format!("Config updated for provider"), cx);
-            self.refresh_clankers(cx);
-        }
-    }
-
-    pub fn set_default_clanker(&mut self, provider_id: &str, cx: &mut Context<Self>) {
-        let db = self.vault.db();
-        if let Ok(db_guard) = db.lock() {
-            let _ = db_guard.set_default_clanker_provider(provider_id);
-        }
-        self.copy_text_with_toast("", &format!("Default Clanker set to {}", provider_id), cx);
-        self.refresh_clankers(cx);
-    }
-
-    pub fn reset_clanker_stats(&mut self, provider_id: &str, cx: &mut Context<Self>) {
-        let db = self.vault.db();
-        if let Ok(db_guard) = db.lock() {
-            let _ = db_guard.reset_clanker_usage(provider_id);
-        }
-        self.copy_text_with_toast("", "Provider call stats reset", cx);
-        self.refresh_clankers(cx);
-    }
-
-    pub fn simulate_clanker_call(&mut self, provider_id: &str, cx: &mut Context<Self>) {
-        let db = self.vault.db();
-        if let Ok(db_guard) = db.lock() {
-            let _ = db_guard.record_clanker_usage(provider_id);
-        }
-        self.copy_text_with_toast("", &format!("Test call simulated (+1 call)"), cx);
-        self.refresh_clankers(cx);
-    }
-
-    pub fn run_clanker_eli5(&mut self, cx: &mut Context<Self>) {
-        let default_prov = self.clanker_providers.iter()
-            .find(|p| p.is_default)
-            .cloned()
-            .unwrap_or_else(|| {
-                self.clanker_providers.first().cloned().unwrap_or(ClankerProviderConfig {
-                    id: "openai".into(),
-                    display_name: "OpenAI".into(),
-                    api_key: "".into(),
-                    model: "gpt-4o-mini".into(),
-                    base_url: "https://api.openai.com/v1".into(),
-                    is_default: true,
-                    total_calls: 0,
-                    calls_30d: 0,
-                    last_used_at: None,
-                    daily_history: vec![],
-                })
-            });
-
-        // Record call to default provider
-        let prov_id = default_prov.id.clone();
-        let db = self.vault.db();
-        if let Ok(db_guard) = db.lock() {
-            let _ = db_guard.record_clanker_usage(&prov_id);
-        }
-        self.refresh_clankers(cx);
-
-        let query = self.clanker_demo_log.to_lowercase();
-        let response = if query.contains("out of memory") || query.contains("oom") || query.contains("sacrifice child") {
-            format!(
-                "💡 **ELI5 Translation** (via {} / `{}`):\n\n\
-                **What happened:** The server completely ran out of available RAM and swap. The Linux kernel's emergency survival reflex (\"OOM Killer\") triggered to prevent the entire host from locking up.\n\n\
-                **The victim:** The kernel targeted process `mysqld` (PID 28419) because it had the highest memory badness score (`812`) and immediately sent `SIGKILL` (`-9`).\n\n\
-                **What you should do next:**\n\
-                1. Check memory consumption: `free -h` or `vmstat -s -S M`\n\
-                2. If running MySQL, tune `innodb_buffer_pool_size` down to ~50% of total host RAM.\n\
-                3. Add or increase swap space: `fallocate -l 4G /swapfile && mkswap /swapfile && swapon /swapfile`.",
-                default_prov.display_name, default_prov.model
-            )
-        } else if query.contains("segfault") || query.contains("segmentation fault") {
-            format!(
-                "💡 **ELI5 Translation** (via {} / `{}`):\n\n\
-                **What happened:** A program attempted to read or write memory that wasn't assigned to it (a null pointer or buffer overflow), so the CPU halted the program immediately.\n\n\
-                **What you should do next:**\n\
-                1. Inspect the stack trace: `coredumpctl info`\n\
-                2. Restart the crashed daemon or check for updated package releases.",
-                default_prov.display_name, default_prov.model
-            )
-        } else if query.contains("failed to start") || query.contains("exit-code") {
-            format!(
-                "💡 **ELI5 Translation** (via {} / `{}`):\n\n\
-                **What happened:** A systemd service crashed on startup or returned a non-zero exit status during its initialization phase.\n\n\
-                **What you should do next:**\n\
-                1. Check exact logs for that unit: `journalctl -u <unit> -n 50 --no-pager`\n\
-                2. Test manual config validity before restarting: e.g. `nginx -t` or `sshd -t`.",
-                default_prov.display_name, default_prov.model
-            )
-        } else {
-            format!(
-                "💡 **ELI5 Translation** (via {} / `{}`):\n\n\
-                **What happened:** The system logged an operational notification or warning event. Everything is still functioning, but an underlying component is reporting non-standard behavior.\n\n\
-                **Suggested action:** Monitor logs for recurring occurrences or check journal filtering for PID details.",
-                default_prov.display_name, default_prov.model
-            )
-        };
-
-        self.clanker_demo_output = Some(response);
-        cx.notify();
-    }
-
-    // --- Server Enrollment Subsystem ---
-
     pub fn start_onboarding(&mut self, cx: &mut Context<Self>) {
         self.onboard_state = OnboardState::new(&self.enrolled_keys);
         self.screen = Screen::Onboard;
@@ -3226,7 +2929,7 @@ impl Render for CrowApp {
                     return;
                 }
 
-                if let Some(ref mut clk) = this.editing_clanker {
+                if let Some(ref mut clk) = this.clankers.editing {
                     this.cursor_blink = true;
                     if ev.keystroke.key == "escape" {
                         this.close_edit_clanker_modal(cx);

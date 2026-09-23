@@ -265,7 +265,7 @@ pub fn local_lab_modal(
                                             ("Alpine 3.20", "alpine"),
                                             ("Fedora 40", "fedora"),
                                         ].into_iter().enumerate().map(|(idx, (label, val))| {
-                                            let is_sel = app_data.new_lab_node_distro == val;
+                                            let is_sel = app_data.local_lab.new_node_distro == val;
                                             let app_d = app.clone();
                                             div()
                                                 .id(ElementId::NamedInteger("preset-distro".into(), idx as u64))
