@@ -36,7 +36,7 @@ impl CrowApp {
 
     pub fn reload_servers(&mut self) {
         if let Ok(db_guard) = self.vault.db().lock() {
-            self.servers = db_guard.list_servers().unwrap_or_default();
+            self.fleet.servers = db_guard.list_servers().unwrap_or_default();
         }
     }
 
@@ -275,15 +275,15 @@ impl CrowApp {
             "crit" => CRIT,
             _ => TEXT_FAINTER,
         };
-        if !self.tabs.iter().any(|t| t.id == id) {
-            self.tabs.push(ServerTab {
+        if !self.fleet.tabs.iter().any(|t| t.id == id) {
+            self.fleet.tabs.push(ServerTab {
                 id: id.clone(),
                 name: name.clone(),
                 status_color,
                 is_active: true,
             });
         }
-        self.active_tab_id = id.clone();
+        self.fleet.active_tab_id = id.clone();
         self.screen = Screen::Server;
         self.active_view = "overview".to_string();
         self.keys.toast = Some(format!("Server '{}' enrolled into fleet", name));

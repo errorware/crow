@@ -19,7 +19,7 @@ impl CrowApp {
     /// live-tail state — this is what "search" actually means; it reaches into real
     /// journal history instead of only re-filtering whatever happened to be cached.
     pub fn run_journal_query(&mut self, cx: &mut Context<Self>) {
-        if let Some(active_srv) = self.active_server() {
+        if let Some(active_srv) = self.fleet.active_server() {
             let query = self.journal.build_query();
             cx.spawn(async move |entity, cx| {
                 let entries = cx.background_executor().spawn(async move {

@@ -6,9 +6,9 @@ use crate::components::text_caret::TextCaret;
 use crate::components::titlebar::ServerTab;
 use crate::metrics::{
     collector::{sample_server, CollectorPreviousState},
-    MetricSample, ServerMetrics, ServerTimeSeriesBuffer, SurgeAlert,
+    MetricSample, ServerTimeSeriesBuffer,
 };
-use crate::vault::{ServerRecord, Vault, VaultStatus};
+use crate::vault::{Vault, VaultStatus};
 use crate::views::config::rules_editor::default_hba_rules;
 use crate::views::config::state::ConfigsState;
 use crate::views::config::cron_editor::{default_cron_jobs, generate_crontab_content};
@@ -60,6 +60,7 @@ mod lab;
 
 use crate::keys::{expand_tilde, scan_directory, DiscoveredKey};
 use crate::views::fleet::lab_state::LocalLabState;
+use crate::views::fleet::FleetState;
 use crate::views::settings::clankers_state::ClankersState;
 use crate::views::settings::keys_state::KeysState;
 
@@ -139,10 +140,9 @@ pub struct CrowApp {
     pub screen: Screen,
     pub menu_open: bool,
     pub settings_section: SettingsSection,
-    pub active_tab_id: String,
+    pub fleet: FleetState,
     pub active_view: String,
     pub overview: OverviewState,
-    pub tabs: Vec<ServerTab>,
     pub configs: ConfigsState,
     pub palette_open: bool,
     pub sidebar_collapsed: bool,
@@ -151,10 +151,8 @@ pub struct CrowApp {
     // SSH Key Management Hub
     pub keys: KeysState,
     // Server Enrollment Subsystem
-    pub servers: Vec<ServerRecord>,
     /// This machine's own /etc/os-release family, detected once at startup —
     /// drives which config paths the crawler trusts (see crawl_machine_configs).
-    pub local_distro_family: DistroFamily,
     // Files screen — a literal directory browser on top of the server layer.
     pub files: FilesState,
     // Danger Zone — typed-confirmation destructive host actions
@@ -166,10 +164,6 @@ pub struct CrowApp {
     pub caret: TextCaret,
     pub _cursor_blink_task: Task<()>,
     // Real Stats & Metrics Telemetry Store (Lagged Turbo Buffer & Foreknowledge)
-    pub metrics_store: HashMap<String, ServerMetrics>,
-    pub buffered_stores: HashMap<String, ServerTimeSeriesBuffer>,
-    pub metrics_lag_secs: u64,
-    pub active_surge_alert: Option<SurgeAlert>,
     pub _metrics_poll_task: Task<()>,
     // Systemd Journal Log Explorer & Retention Boundaries
     pub journal: JournalState,
@@ -427,18 +421,15 @@ host    all             all             10.0.4.0/24             scram-sha-256
             screen: Screen::Fleet,
             menu_open: false,
             settings_section: SettingsSection::General,
-            active_tab_id: servers.first().map(|s| s.id.clone()).unwrap_or_default(),
+            fleet: FleetState::new(servers, tabs, local_distro_family, metrics_store, buffered_stores),
             active_view: "overview".to_string(),
             overview: OverviewState::new(initial_services, initial_processes, initial_sockets),
-            tabs,
             configs: ConfigsState::new(config_files, config_file_states, initial_selected_file, initial_cron_jobs, default_hba_rules()),
             palette_open: false,
             sidebar_collapsed: false,
             settings_dropdown_open: None,
             settings_custom_input: String::new(),
             keys: KeysState::new(enrolled_keys, key_groups, scan_paths, discovered_keys, scan_status_message),
-            servers,
-            local_distro_family,
             files: FilesState::default(),
             danger: DangerZoneState::default(),
             onboard_state,
@@ -461,10 +452,6 @@ host    all             all             10.0.4.0/24             scram-sha-256
                     }
                 }
             }),
-            metrics_store,
-            buffered_stores,
-            metrics_lag_secs: 24,
-            active_surge_alert: None,
             _metrics_poll_task: cx.spawn(async move |entity, cx| {
                 let mut local_prev = CollectorPreviousState::default();
                 loop {
@@ -503,11 +490,6 @@ host    all             all             10.0.4.0/24             scram-sha-256
 }
 
 impl CrowApp {
-    /// The server behind the active tab (tabs are keyed by id, older ones by name).
-    pub fn active_server(&self) -> Option<ServerRecord> {
-        self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned()
-    }
-
     pub fn has_active_text_input(&self) -> bool {
         if self.palette_open {
             return true;

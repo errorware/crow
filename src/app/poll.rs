@@ -119,9 +119,9 @@ impl CrowApp {
             .map(|d| d.as_secs())
             .unwrap_or(0);
 
-        let active_srv = self.active_server();
+        let active_srv = self.fleet.active_server();
         let prev_active_metrics = active_srv.as_ref().and_then(|srv| {
-            self.buffered_stores.get(&srv.id).and_then(|b| b.head()).map(|h| h.metrics.clone()).or_else(|| self.metrics_store.get(&srv.id).cloned())
+            self.fleet.buffered_stores.get(&srv.id).and_then(|b| b.head()).map(|h| h.metrics.clone()).or_else(|| self.fleet.metrics_store.get(&srv.id).cloned())
         });
 
         let should_poll_overview = self.screen == Screen::Server && self.active_view == "overview";
@@ -141,12 +141,12 @@ impl CrowApp {
 
         let (fleet_servers, prev_fleet_metrics) = if self.screen == Screen::Fleet {
             let mut prev_map = HashMap::new();
-            for s in &self.servers {
-                if let Some(m) = self.buffered_stores.get(&s.id).and_then(|b| b.head()).map(|h| h.metrics.clone()).or_else(|| self.metrics_store.get(&s.id).cloned()) {
+            for s in &self.fleet.servers {
+                if let Some(m) = self.fleet.buffered_stores.get(&s.id).and_then(|b| b.head()).map(|h| h.metrics.clone()).or_else(|| self.fleet.metrics_store.get(&s.id).cloned()) {
                     prev_map.insert(s.id.clone(), m);
                 }
             }
-            (self.servers.clone(), prev_map)
+            (self.fleet.servers.clone(), prev_map)
         } else {
             (Vec::new(), HashMap::new())
         };
@@ -176,7 +176,7 @@ impl CrowApp {
                 let sockets_sample = res.sockets_sample.unwrap_or_else(|| self.overview.sockets.clone());
 
                 // Ingest sample into ring buffer at T_head
-                let buf = self.buffered_stores.entry(srv_id.clone()).or_insert_with(ServerTimeSeriesBuffer::default);
+                let buf = self.fleet.buffered_stores.entry(srv_id.clone()).or_insert_with(ServerTimeSeriesBuffer::default);
                 buf.push_sample(MetricSample {
                     timestamp_secs: res.now_secs,
                     metrics: updated_head.clone(),
@@ -186,13 +186,13 @@ impl CrowApp {
                 });
 
                 // Foreknowledge: scan lookahead window (T_playback, T_head] for upcoming surges
-                self.active_surge_alert = buf.detect_upcoming_surge(self.metrics_lag_secs);
+                self.fleet.active_surge_alert = buf.detect_upcoming_surge(self.fleet.metrics_lag_secs);
 
                 // Playback: query lagged sample from local time-series ring buffer (lag_secs behind)
-                if let Some(lagged) = buf.query_lagged(self.metrics_lag_secs) {
-                    self.metrics_store.insert(srv_id.clone(), lagged.metrics.clone());
-                    if let Some(active_srv) = self.servers.iter().find(|s| s.id == *srv_id) {
-                        self.metrics_store.insert(active_srv.name.clone(), lagged.metrics.clone());
+                if let Some(lagged) = buf.query_lagged(self.fleet.metrics_lag_secs) {
+                    self.fleet.metrics_store.insert(srv_id.clone(), lagged.metrics.clone());
+                    if let Some(active_srv) = self.fleet.servers.iter().find(|s| s.id == *srv_id) {
+                        self.fleet.metrics_store.insert(active_srv.name.clone(), lagged.metrics.clone());
                     }
 
                     // Preserve row focus across replacements
@@ -224,15 +224,15 @@ impl CrowApp {
                         }
                     }
                 } else {
-                    self.metrics_store.insert(srv_id.clone(), updated_head.clone());
-                    if let Some(active_srv) = self.servers.iter().find(|s| s.id == *srv_id) {
-                        self.metrics_store.insert(active_srv.name.clone(), updated_head);
+                    self.fleet.metrics_store.insert(srv_id.clone(), updated_head.clone());
+                    if let Some(active_srv) = self.fleet.servers.iter().find(|s| s.id == *srv_id) {
+                        self.fleet.metrics_store.insert(active_srv.name.clone(), updated_head);
                     }
                 }
 
                 let buf_clone = buf.clone();
-                if let Some(active_srv) = self.servers.iter().find(|s| s.id == *srv_id) {
-                    self.buffered_stores.insert(active_srv.name.clone(), buf_clone);
+                if let Some(active_srv) = self.fleet.servers.iter().find(|s| s.id == *srv_id) {
+                    self.fleet.buffered_stores.insert(active_srv.name.clone(), buf_clone);
                 }
             }
         }
@@ -246,7 +246,7 @@ impl CrowApp {
 
         if !res.fleet_samples.is_empty() {
             for (id, name, m) in res.fleet_samples {
-                let buf = self.buffered_stores.entry(id.clone()).or_insert_with(ServerTimeSeriesBuffer::default);
+                let buf = self.fleet.buffered_stores.entry(id.clone()).or_insert_with(ServerTimeSeriesBuffer::default);
                 buf.push_sample(MetricSample {
                     timestamp_secs: res.now_secs,
                     metrics: m.clone(),
@@ -254,15 +254,15 @@ impl CrowApp {
                     processes: Vec::new(),
                     sockets: Vec::new(),
                 });
-                if let Some(lagged) = buf.query_lagged(self.metrics_lag_secs) {
-                    self.metrics_store.insert(id.clone(), lagged.metrics.clone());
-                    self.metrics_store.insert(name.clone(), lagged.metrics.clone());
+                if let Some(lagged) = buf.query_lagged(self.fleet.metrics_lag_secs) {
+                    self.fleet.metrics_store.insert(id.clone(), lagged.metrics.clone());
+                    self.fleet.metrics_store.insert(name.clone(), lagged.metrics.clone());
                 } else {
-                    self.metrics_store.insert(id.clone(), m.clone());
-                    self.metrics_store.insert(name.clone(), m);
+                    self.fleet.metrics_store.insert(id.clone(), m.clone());
+                    self.fleet.metrics_store.insert(name.clone(), m);
                 }
                 let buf_clone = buf.clone();
-                self.buffered_stores.insert(name, buf_clone);
+                self.fleet.buffered_stores.insert(name, buf_clone);
             }
         }
     }

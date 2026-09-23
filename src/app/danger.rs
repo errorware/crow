@@ -39,7 +39,7 @@ impl CrowApp {
             return;
         }
 
-        let Some(srv) = self.active_server() else {
+        let Some(srv) = self.fleet.active_server() else {
             self.danger.error = Some("No active server".to_string());
             cx.notify();
             return;

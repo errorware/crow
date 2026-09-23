@@ -15,7 +15,7 @@ use crate::views::overview::BlastRadiusInfo;
 impl CrowApp {
     pub fn set_services_tab(&mut self, tab: &str, cx: &mut Context<Self>) {
         self.overview.active_tab = tab.to_string();
-        if let Some(srv) = self.active_server() {
+        if let Some(srv) = self.fleet.active_server() {
             let tab_owned = tab.to_string();
             cx.spawn(async move |entity, cx| {
                 match tab_owned.as_str() {
@@ -167,7 +167,7 @@ impl CrowApp {
     /// instead of the generic "any active connections" text it replaces.
     fn spawn_blast_radius_fetch(&mut self, unit_name: String, cx: &mut Context<Self>) {
         self.overview.blast_radius = None;
-        let Some(srv) = self.active_server() else {
+        let Some(srv) = self.fleet.active_server() else {
             return;
         };
         let Some(pid) = self.overview.services.iter().find(|s| s.name == unit_name).and_then(|s| s.pid.parse::<u32>().ok()) else {
@@ -195,7 +195,7 @@ impl CrowApp {
     /// expected state, then durably record the outcome. Covers start/stop/
     /// restart/reload — every service mutation in the app goes through this.
     fn spawn_service_change(&mut self, unit_name: String, action: String, cx: &mut Context<Self>) {
-        let Some(srv) = self.active_server() else {
+        let Some(srv) = self.fleet.active_server() else {
             return;
         };
         let before_state = self.overview.services.iter().find(|s| s.name == unit_name)
@@ -264,7 +264,7 @@ impl CrowApp {
     /// Same pipeline shape as `spawn_service_change`, for a process SIGTERM:
     /// backup, apply off-thread, verify the PID is actually gone, record it.
     fn spawn_process_kill(&mut self, pid: u32, cx: &mut Context<Self>) {
-        let Some(srv) = self.active_server() else {
+        let Some(srv) = self.fleet.active_server() else {
             return;
         };
         let before_state = self.overview.processes.iter().find(|p| p.pid == pid)
@@ -329,7 +329,7 @@ impl CrowApp {
     /// Recent Apply Pipeline change records for one unit on the active server —
     /// the audit trail surfaced in the Service Manager panel.
     pub fn recent_change_records(&self, target: &str, limit: usize) -> Vec<ChangeRecord> {
-        let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id) else {
+        let Some(srv) = self.fleet.servers.iter().find(|s| s.id == self.fleet.active_tab_id || s.name == self.fleet.active_tab_id) else {
             return Vec::new();
         };
         let db = self.vault.db();

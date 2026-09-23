@@ -80,12 +80,12 @@ impl Render for CrowApp {
                         .flex_col()
                         // 1. Frameless Titlebar
                         .child(titlebar(
-                            &self.tabs,
-                            &self.active_tab_id,
+                            &self.fleet.tabs,
+                            &self.fleet.active_tab_id,
                             self.screen,
                             self.menu_open,
-                            self.servers.len(),
-                            self.servers.iter().filter(|s| s.agent_installed).count(),
+                            self.fleet.servers.len(),
+                            self.fleet.servers.iter().filter(|s| s.agent_installed).count(),
                             app_view.clone(),
                         ))
                         // 2. Main Screen Area
@@ -98,9 +98,9 @@ impl Render for CrowApp {
                                 .w_full()
                                 .children(match screen {
                                     Screen::Server => {
-                                        let active_srv = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id);
-                                        let active_mtr = self.metrics_store.get(&self.active_tab_id).or_else(|| active_srv.and_then(|s| self.metrics_store.get(&s.id)));
-                                        if self.servers.is_empty() || active_srv.is_none() {
+                                        let active_srv = self.fleet.servers.iter().find(|s| s.id == self.fleet.active_tab_id || s.name == self.fleet.active_tab_id);
+                                        let active_mtr = self.fleet.metrics_store.get(&self.fleet.active_tab_id).or_else(|| active_srv.and_then(|s| self.fleet.metrics_store.get(&s.id)));
+                                        if self.fleet.servers.is_empty() || active_srv.is_none() {
                                             let app_fleet = app_view.clone();
                                             let app_add = app_view.clone();
                                             Some(
@@ -202,7 +202,7 @@ impl Render for CrowApp {
                                                     // Server Identity Bar
                                                     .child(identity_bar(active_srv, app_view.clone()))
                                                     // Server Stat Strip
-                                                    .child(stat_strip(active_mtr, self.metrics_lag_secs, self.active_surge_alert.as_ref()))
+                                                    .child(stat_strip(active_mtr, self.fleet.metrics_lag_secs, self.fleet.active_surge_alert.as_ref()))
                                                 // Main Server Body: Sidebar + Content
                                                 .child(
                                                     div()
@@ -401,8 +401,8 @@ impl Render for CrowApp {
                         )
                         // 3. Burger Menu Overlay
                         .children(if menu_open {
-                            let active_name = self.servers.iter()
-                                .find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id)
+                            let active_name = self.fleet.servers.iter()
+                                .find(|s| s.id == self.fleet.active_tab_id || s.name == self.fleet.active_tab_id)
                                 .map(|s| s.name.clone());
                             Some(burger_menu_overlay(app_view.clone(), self.screen, &self.active_view, active_name))
                         } else {
@@ -410,8 +410,8 @@ impl Render for CrowApp {
                         })
                         // 4. Command Palette Overlay (⌘K)
                         .children(if palette_open {
-                            let scope = self.servers.iter()
-                                .find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id)
+                            let scope = self.fleet.servers.iter()
+                                .find(|s| s.id == self.fleet.active_tab_id || s.name == self.fleet.active_tab_id)
                                 .map(|s| s.name.as_str())
                                 .unwrap_or("Fleet");
                             Some(palette_overlay(app_view.clone(), scope))

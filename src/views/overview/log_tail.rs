@@ -265,9 +265,9 @@ pub fn socket_log_drawer(
     let warn_count = filtered_entries.iter().filter(|e| e.priority.is_warn()).count();
 
     let hostname = app_data
-        .servers
+        .fleet.servers
         .iter()
-        .find(|s| s.id == app_data.active_tab_id || s.name == app_data.active_tab_id)
+        .find(|s| s.id == app_data.fleet.active_tab_id || s.name == app_data.fleet.active_tab_id)
         .map(|s| s.name.clone())
         .unwrap_or_else(|| "edge-01".to_string());
 

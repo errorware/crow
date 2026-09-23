@@ -10,7 +10,7 @@ use crate::views::files::collector::{create_directory, delete_entry, list_direct
 
 impl CrowApp {
     pub fn load_file_listing(&mut self, cx: &mut Context<Self>) {
-        if let Some(srv) = self.active_server() {
+        if let Some(srv) = self.fleet.active_server() {
             let (entries, is_sim) = list_directory_for_server(&srv, &self.files.current_path);
             self.files.entries = entries;
             self.files.is_simulated = is_sim;
@@ -47,7 +47,7 @@ impl CrowApp {
     }
 
     pub fn create_new_folder(&mut self, cx: &mut Context<Self>) {
-        if let Some(srv) = self.active_server() {
+        if let Some(srv) = self.fleet.active_server() {
             let name = self.files.new_folder_input.as_ref()
                 .map(|s| s.read(cx).value().trim().to_string())
                 .unwrap_or_default();
@@ -73,7 +73,7 @@ impl CrowApp {
 
     pub fn execute_file_delete(&mut self, cx: &mut Context<Self>) {
         if let Some(name) = self.files.pending_delete.take() {
-            if let Some(srv) = self.active_server() {
+            if let Some(srv) = self.fleet.active_server() {
                 let is_dir = self.files.is_dir(&name);
                 match delete_entry(&srv, &self.files.current_path, &name, is_dir) {
                     Ok(()) => {

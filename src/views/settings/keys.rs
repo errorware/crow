@@ -1808,7 +1808,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
         let name_text = edit.name_input.clone();
         let attached = edit.attached_servers.clone();
         let key_groups = &app_data.keys.groups;
-        let tabs = &app_data.tabs;
+        let tabs = &app_data.fleet.tabs;
         let err = edit.error_message.clone();
 
         overlays.push(

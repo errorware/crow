@@ -106,7 +106,7 @@ pub fn managed_files_rail(selected_file: &str, app_data: &CrowApp, app: Entity<C
         )
         // Unverified distro warning — the crawler only trusted a generic /etc
         // scan for this host; no placeholder configs were fabricated either.
-        .children(if !app_data.local_distro_family.is_supported() {
+        .children(if !app_data.fleet.local_distro_family.is_supported() {
             Some(
                 div()
                     .px(px(10.0))

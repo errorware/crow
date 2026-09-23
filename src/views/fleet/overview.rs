@@ -124,8 +124,8 @@ pub fn fleet_stat_strip(
 }
 
 pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElement {
-    let hosts: Vec<FleetHost> = if !app_data.servers.is_empty() {
-        app_data.servers.iter().map(|s| {
+    let hosts: Vec<FleetHost> = if !app_data.fleet.servers.is_empty() {
+        app_data.fleet.servers.iter().map(|s| {
             let (status_color, pill, is_crit) = match s.status.as_str() {
                 "online" => (OK, "OK".to_string(), false),
                 "warn" | "degraded" => (WARN, "DEGRADED".to_string(), false),
@@ -139,7 +139,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                 "DEV" => (OK_BG, OK),
                 _ => (BG_PANEL, TEXT_DIM),
             };
-            let (cpu_pct, cpu_label, mem_pct, mem_label, disk, uptime) = if let Some(m) = app_data.metrics_store.get(&s.id).or_else(|| app_data.metrics_store.get(&s.name)) {
+            let (cpu_pct, cpu_label, mem_pct, mem_label, disk, uptime) = if let Some(m) = app_data.fleet.metrics_store.get(&s.id).or_else(|| app_data.fleet.metrics_store.get(&s.name)) {
                 let cpu = (m.cpu_pct.round() as u8).clamp(0, 100);
                 let mem = (m.mem_pct.round() as u8).clamp(0, 100);
                 if s.status == "unreachable" || s.status == "offline" {
@@ -182,7 +182,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                 status_color,
                 is_critical_border: is_crit,
                 pill,
-                is_selected: s.id == app_data.active_tab_id,
+                is_selected: s.id == app_data.fleet.active_tab_id,
             }
         }).collect()
     } else {
@@ -192,19 +192,19 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
     let server_count = hosts.len();
     let agent_count = hosts.iter().filter(|h| h.agent != "—").count();
     let total_vcpu: usize = app_data
-        .metrics_store
+        .fleet.metrics_store
         .values()
         .map(|m| m.vcpu_count)
         .sum::<usize>();
-    let total_load: f32 = app_data.metrics_store.values().map(|m| m.load_1m).sum();
-    let m_count = app_data.metrics_store.len();
+    let total_load: f32 = app_data.fleet.metrics_store.values().map(|m| m.load_1m).sum();
+    let m_count = app_data.fleet.metrics_store.len();
     let avg_load = if m_count > 0 {
         Some(total_load / m_count as f32)
     } else {
         None
     };
 
-    let alerts: Vec<(&'static str, Rgba, Rgba, String, String, String)> = app_data.servers.iter()
+    let alerts: Vec<(&'static str, Rgba, Rgba, String, String, String)> = app_data.fleet.servers.iter()
         .filter(|s| s.status == "unreachable" || s.status == "offline" || s.status == "degraded" || s.status == "warn" || s.status == "crit")
         .map(|s| {
             let (lvl, fg, bg) = if s.status == "unreachable" || s.status == "offline" || s.status == "crit" {
@@ -221,7 +221,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
         })
         .collect();
 
-    let activities: Vec<(String, &'static str, Rgba, String, Rgba)> = app_data.servers.iter().take(10).map(|s| {
+    let activities: Vec<(String, &'static str, Rgba, String, Rgba)> = app_data.fleet.servers.iter().take(10).map(|s| {
         (
             s.last_seen_at.as_deref().and_then(|t| t.split('T').nth(1)).and_then(|t| t.get(0..8)).unwrap_or("00:00:00").to_string(),
             "crow",

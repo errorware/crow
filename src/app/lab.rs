@@ -17,14 +17,14 @@ impl CrowApp {
         self.local_lab.show_modal = !self.local_lab.show_modal;
         if self.local_lab.show_modal {
             self.local_lab.engines = detect_local_engines();
-            self.local_lab.nodes = scan_local_test_nodes(&self.servers);
+            self.local_lab.nodes = scan_local_test_nodes(&self.fleet.servers);
         }
         cx.notify();
     }
 
     pub fn refresh_lab_nodes(&mut self, cx: &mut Context<Self>) {
         self.local_lab.engines = detect_local_engines();
-        self.local_lab.nodes = scan_local_test_nodes(&self.servers);
+        self.local_lab.nodes = scan_local_test_nodes(&self.fleet.servers);
         cx.notify();
     }
 
@@ -53,7 +53,7 @@ impl CrowApp {
         if let Some(node) = self.local_lab.nodes.iter().find(|n| n.name == node_name).cloned() {
             self.enroll_and_open_lab_node(&node);
         }
-        self.local_lab.nodes = scan_local_test_nodes(&self.servers);
+        self.local_lab.nodes = scan_local_test_nodes(&self.fleet.servers);
         cx.notify();
     }
 
@@ -78,7 +78,7 @@ impl CrowApp {
         };
 
         self.enroll_and_open_lab_node(&node);
-        self.local_lab.nodes = scan_local_test_nodes(&self.servers);
+        self.local_lab.nodes = scan_local_test_nodes(&self.fleet.servers);
         cx.notify();
     }
 
@@ -98,20 +98,20 @@ impl CrowApp {
     /// Adds a freshly enrolled server, seeds its metrics and collectors, and
     /// makes it the active tab on the overview.
     pub fn open_enrolled_server(&mut self, record: ServerRecord) {
-        self.servers.push(record.clone());
+        self.fleet.servers.push(record.clone());
         let mut local_prev = CollectorPreviousState::default();
         let m = sample_server(&record, None, &mut local_prev);
-        self.metrics_store.insert(record.id.clone(), m.clone());
-        self.metrics_store.insert(record.name.clone(), m);
-        if !self.tabs.iter().any(|t| t.id == record.id) {
-            self.tabs.push(ServerTab {
+        self.fleet.metrics_store.insert(record.id.clone(), m.clone());
+        self.fleet.metrics_store.insert(record.name.clone(), m);
+        if !self.fleet.tabs.iter().any(|t| t.id == record.id) {
+            self.fleet.tabs.push(ServerTab {
                 id: record.id.clone(),
                 name: record.name.clone(),
                 status_color: OK,
                 is_active: true,
             });
         }
-        self.active_tab_id = record.id.clone();
+        self.fleet.active_tab_id = record.id.clone();
         self.overview.services = collect_services_for_server(&record);
         self.overview.processes = collect_processes_for_server(&record);
         self.overview.sockets = collect_sockets_for_server(&record);

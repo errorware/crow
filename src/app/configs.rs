@@ -28,7 +28,7 @@ impl CrowApp {
     }
 
     pub fn crawl_system_configs(&mut self, cx: &mut Context<Self>) {
-        let discovered = crawl_machine_configs(self.local_distro_family);
+        let discovered = crawl_machine_configs(self.fleet.local_distro_family);
         for f in &discovered {
             if !self.configs.states.contains_key(&f.name) {
                 let content = if f.full_path.exists() {

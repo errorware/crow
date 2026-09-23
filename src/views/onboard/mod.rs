@@ -597,7 +597,7 @@ fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
 fn render_step_credentials(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
     let state = &app_data.onboard_state;
     let enrolled_keys = &app_data.keys.enrolled;
-    let servers = &app_data.servers;
+    let servers = &app_data.fleet.servers;
     let app_user = app.clone();
     let app_auth_pub = app.clone();
     let app_auth_agent = app.clone();
