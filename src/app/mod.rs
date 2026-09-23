@@ -40,12 +40,12 @@ use crate::views::onboard::{
     append_to_known_hosts, onboard_view, probe_host, OnboardFieldFocus, OnboardState, OnboardStep,
 };
 use crate::journal::{
-    JournalBootScope, JournalEntry, JournalPriority, JournalQuery, JournalTimeRange,
+    JournalEntry, JournalQuery,
     reader::read_journal_for_server,
-    retention::{generate_journald_conf, read_retention_for_server, JournalRetentionConfig, JournalStorageMode, JournalTelemetry},
+    retention::{generate_journald_conf, read_retention_for_server, JournalRetentionConfig, JournalTelemetry},
 };
 use crate::lab::{detect_local_engines, scan_local_test_nodes};
-use crate::views::logs::logs_explorer_view;
+use crate::views::logs::{logs_explorer_view, JournalState};
 use crate::views::overview::log_tail::{log_tail, socket_log_drawer};
 use crate::views::overview::service_inspector::service_inspector_rail;
 use crate::views::overview::{
@@ -64,6 +64,7 @@ use crow_config_schemas::PgHbaPlugin;
 mod danger;
 mod files;
 mod firewall;
+mod journal;
 mod clankers;
 mod lab;
 
@@ -201,14 +202,7 @@ pub struct CrowApp {
     pub active_surge_alert: Option<SurgeAlert>,
     pub _metrics_poll_task: Task<()>,
     // Systemd Journal Log Explorer & Retention Boundaries
-    pub journal_entries: Vec<JournalEntry>,
-    pub journal_search: String,
-    pub journal_severity_filter: Option<JournalPriority>,
-    pub journal_unit_filter: Option<String>,
-    pub journal_live_tail: bool,
-    pub journal_retention: JournalRetentionConfig,
-    pub journal_telemetry: JournalTelemetry,
-    pub show_journal_retention_modal: bool,
+    pub journal: JournalState,
     pub service_panel_pending_action: Option<String>,
     pub blast_radius: Option<BlastRadiusInfo>,
     pub last_change_outcome: Option<(String, bool)>, // (unit name, succeeded) — most recent failure banner
@@ -216,15 +210,6 @@ pub struct CrowApp {
     pub group_services: bool,
     pub collapsed_process_groups: HashSet<String>,
     pub collapsed_service_groups: HashSet<String>,
-    pub journal_pid_filter: Option<u32>,
-    pub journal_pid_kill_confirm: bool,
-    pub journal_search_focused: bool,
-    pub journal_time_range: JournalTimeRange,
-    pub journal_boot: JournalBootScope,
-    pub journal_limit: usize,
-    pub journal_dedupe: bool,
-    pub collapsed_journal_dupe_groups: HashSet<String>,
-    pub journal_action_markers: Vec<JournalEntry>,
     pub selected_managed_file: String,
     pub config_files: Vec<DiscoveredConfigFile>,
     pub config_file_states: HashMap<String, ConfigFileState>,
@@ -568,14 +553,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
                     }
                 }
             }),
-            journal_entries: initial_journal,
-            journal_search: String::new(),
-            journal_severity_filter: None,
-            journal_unit_filter: None,
-            journal_live_tail: true,
-            journal_retention,
-            journal_telemetry,
-            show_journal_retention_modal: false,
+            journal: JournalState::new(initial_journal, journal_retention, journal_telemetry),
             service_panel_pending_action: None,
             blast_radius: None,
             last_change_outcome: None,
@@ -583,15 +561,6 @@ host    all             all             10.0.4.0/24             scram-sha-256
             group_services: false,
             collapsed_process_groups: HashSet::new(),
             collapsed_service_groups: HashSet::new(),
-            journal_pid_filter: None,
-            journal_pid_kill_confirm: false,
-            journal_search_focused: false,
-            journal_time_range: JournalTimeRange::Live,
-            journal_boot: JournalBootScope::Current,
-            journal_limit: 200,
-            journal_dedupe: false,
-            collapsed_journal_dupe_groups: HashSet::new(),
-            journal_action_markers: Vec::new(),
             selected_managed_file: initial_selected_file,
             config_files,
             config_file_states,
@@ -710,7 +679,7 @@ impl CrowApp {
         }
         if self.users.show_new_user_modal
             || self.firewall.show_new_rule_modal
-            || self.show_journal_retention_modal
+            || self.journal.show_retention_modal
             || self.show_about_modal
         {
             return true;
@@ -733,7 +702,7 @@ impl CrowApp {
             return self.onboard_state.focus != OnboardFieldFocus::None;
         }
         if self.screen == Screen::Server {
-            if self.active_view == "logs" && self.journal_search_focused {
+            if self.active_view == "logs" && self.journal.search_focused {
                 return true;
             }
             if (self.active_view == "config" || self.active_view == "configure")
@@ -760,13 +729,13 @@ impl CrowApp {
         });
 
         let should_poll_overview = self.screen == Screen::Server && self.active_view == "overview";
-        let should_poll_journal = self.journal_live_tail
+        let should_poll_journal = self.journal.live_tail
             && self.screen == Screen::Server
             && (self.active_view == "logs" || self.active_view == "overview");
         let should_poll_retention = self.screen == Screen::Server && self.active_view == "logs";
 
         let journal_query = if should_poll_journal {
-            let mut q = self.build_journal_query();
+            let mut q = self.journal.build_query();
             // In live-tail mode, fetch a lean window of 60 entries for rapid, non-laggy updates
             q.limit = 60;
             Some(q)
@@ -873,10 +842,10 @@ impl CrowApp {
         }
 
         if let Some(entries) = res.journal_entries {
-            self.journal_entries = entries;
+            self.journal.entries = entries;
         }
         if let Some(telemetry) = res.journal_telemetry {
-            self.journal_telemetry = telemetry;
+            self.journal.telemetry = telemetry;
         }
 
         if !res.fleet_samples.is_empty() {
@@ -910,191 +879,6 @@ impl CrowApp {
         self.apply_poll_result(res);
     }
 
-    pub fn toggle_journal_expanded(&mut self, id: &str, cx: &mut Context<Self>) {
-        let mut now_expanded = false;
-        for entry in &mut self.journal_entries {
-            if entry.id == id {
-                entry.is_expanded = !entry.is_expanded;
-                now_expanded = entry.is_expanded;
-            }
-        }
-        // Reading a log is incompatible with the tail silently replacing entries
-        // out from under the reader every poll tick — pause the stream the moment
-        // something is opened. Resuming is a deliberate action (the live-tail
-        // toggle), not automatic, so the reader keeps control of when it moves again.
-        if now_expanded {
-            self.journal_live_tail = false;
-        }
-        cx.notify();
-    }
-
-    /// The single source of truth for what a journal lookup should ask for — built
-    /// fresh from current filter/UI state every time, so the live-tail poll and an
-    /// explicit search never drift into two different notions of "the query."
-    pub fn build_journal_query(&self) -> JournalQuery {
-        JournalQuery {
-            limit: self.journal_limit,
-            unit: self.journal_unit_filter.clone(),
-            priority: self.journal_severity_filter,
-            pid: self.journal_pid_filter,
-            grep: if self.journal_search.trim().is_empty() {
-                None
-            } else {
-                Some(self.journal_search.clone())
-            },
-            time_range: self.journal_time_range,
-            boot: self.journal_boot,
-        }
-    }
-
-    /// Runs the current query against the active server right now, regardless of
-    /// live-tail state — this is what "search" actually means; it reaches into real
-    /// journal history instead of only re-filtering whatever happened to be cached.
-    pub fn run_journal_query(&mut self, cx: &mut Context<Self>) {
-        if let Some(active_srv) = self.active_server() {
-            let query = self.build_journal_query();
-            cx.spawn(async move |entity, cx| {
-                let entries = cx.background_executor().spawn(async move {
-                    read_journal_for_server(&active_srv, &query)
-                }).await;
-                let _ = entity.update(cx, |this, cx| {
-                    this.journal_entries = entries;
-                    cx.notify();
-                });
-            }).detach();
-        }
-    }
-
-    pub fn set_journal_pid_filter(&mut self, pid: Option<u32>, cx: &mut Context<Self>) {
-        self.journal_pid_filter = pid;
-        self.journal_pid_kill_confirm = false;
-        self.run_journal_query(cx);
-    }
-
-    pub fn toggle_journal_pid_kill_confirm(&mut self, cx: &mut Context<Self>) {
-        self.journal_pid_kill_confirm = !self.journal_pid_kill_confirm;
-        cx.notify();
-    }
-
-    pub fn execute_journal_pid_kill(&mut self, cx: &mut Context<Self>) {
-        if let Some(pid) = self.journal_pid_filter {
-            self.execute_process_kill(pid, cx);
-        }
-        self.journal_pid_kill_confirm = false;
-        cx.notify();
-    }
-
-    pub fn set_journal_severity(&mut self, prio: Option<JournalPriority>, cx: &mut Context<Self>) {
-        self.journal_severity_filter = prio;
-        self.run_journal_query(cx);
-    }
-
-    pub fn set_journal_unit(&mut self, unit: Option<String>, cx: &mut Context<Self>) {
-        self.journal_unit_filter = unit;
-        self.run_journal_query(cx);
-    }
-
-    /// Jumps the Logs screen to a specific unit's stream — the "VIEW LOGS" handoff
-    /// from the Service Manager panel.
-    pub fn jump_to_service_logs(&mut self, unit: &str, cx: &mut Context<Self>) {
-        self.journal_unit_filter = Some(unit.to_string());
-        self.journal_severity_filter = None;
-        self.journal_pid_filter = None;
-        self.journal_search.clear();
-        self.journal_time_range = JournalTimeRange::Live;
-        self.journal_boot = JournalBootScope::Current;
-        self.journal_live_tail = true;
-        self.set_view("logs", cx);
-        self.run_journal_query(cx);
-    }
-
-    pub fn set_journal_time_range(&mut self, range: JournalTimeRange, cx: &mut Context<Self>) {
-        self.journal_time_range = range;
-        self.journal_live_tail = range == JournalTimeRange::Live;
-        self.run_journal_query(cx);
-    }
-
-    pub fn set_journal_boot(&mut self, boot: JournalBootScope, cx: &mut Context<Self>) {
-        self.journal_boot = boot;
-        if boot != JournalBootScope::Current {
-            self.journal_live_tail = false;
-        }
-        self.run_journal_query(cx);
-    }
-
-    pub fn load_more_journal(&mut self, cx: &mut Context<Self>) {
-        self.journal_limit += 200;
-        self.run_journal_query(cx);
-    }
-
-    pub fn toggle_journal_dedupe(&mut self, cx: &mut Context<Self>) {
-        self.journal_dedupe = !self.journal_dedupe;
-        cx.notify();
-    }
-
-    pub fn toggle_journal_dupe_group_collapsed(&mut self, key: &str, cx: &mut Context<Self>) {
-        if self.collapsed_journal_dupe_groups.contains(key) {
-            self.collapsed_journal_dupe_groups.remove(key);
-        } else {
-            self.collapsed_journal_dupe_groups.insert(key.to_string());
-        }
-        cx.notify();
-    }
-
-/// Records a lightweight "Crow did X" marker so the log stream can show cause
-    /// and effect around an action taken through the app, without needing the full
-    /// crow-history/semantic-diff subsystem this is standing in for ahead of time.
-    pub fn push_journal_action_marker(&mut self, text: String) {
-        let now_usec = chrono::Local::now().timestamp_micros() as u64;
-        let (timestamp_formatted, time_relative) = JournalEntry::format_time(now_usec);
-        self.journal_action_markers.push(JournalEntry {
-            id: format!("crow-action_{}", now_usec),
-            cursor: None,
-            timestamp_usec: now_usec,
-            timestamp_formatted,
-            time_relative,
-            priority: JournalPriority::Notice,
-            unit: "crow-action".to_string(),
-            syslog_identifier: "crow".to_string(),
-            pid: None,
-            message: text,
-            fields: Vec::new(),
-            is_expanded: false,
-        });
-        if self.journal_action_markers.len() > 50 {
-            let excess = self.journal_action_markers.len() - 50;
-            self.journal_action_markers.drain(0..excess);
-        }
-    }
-
-    pub fn toggle_journal_live_tail(&mut self, cx: &mut Context<Self>) {
-        self.journal_live_tail = !self.journal_live_tail;
-        if self.journal_live_tail {
-            self.journal_time_range = JournalTimeRange::Live;
-            self.journal_boot = JournalBootScope::Current;
-            self.run_journal_query(cx);
-        } else {
-            cx.notify();
-        }
-    }
-
-    pub fn clear_journal(&mut self, cx: &mut Context<Self>) {
-        self.journal_entries.clear();
-        cx.notify();
-    }
-
-    pub fn toggle_journal_retention_modal(&mut self, cx: &mut Context<Self>) {
-        self.show_journal_retention_modal = !self.show_journal_retention_modal;
-        cx.notify();
-    }
-
-    pub fn set_journal_quota(&mut self, quota_mb: u64, cx: &mut Context<Self>) {
-        self.journal_retention.system_max_use_mb = quota_mb;
-        self.journal_telemetry.estimated_retained_days = quota_mb as f32 / self.journal_telemetry.daily_burn_rate_mb.max(1.0);
-        self.sync_journald_to_config_state();
-        cx.notify();
-    }
-
     pub fn default_author(&self) -> String {
         "Nelson <nelson@errorware.net>".to_string()
     }
@@ -1109,32 +893,6 @@ impl CrowApp {
         if let Some(state) = self.config_file_states.get_mut("pg_hba.conf") {
             state.update_content(content);
         }
-    }
-
-    pub fn sync_journald_to_config_state(&mut self) {
-        let content = generate_journald_conf(&self.journal_retention);
-        if let Some(state) = self.config_file_states.get_mut("journald.conf") {
-            state.update_content(content);
-        }
-    }
-
-    pub fn set_journal_retention_days(&mut self, days: u32, cx: &mut Context<Self>) {
-        self.journal_retention.max_retention_days = days;
-        self.sync_journald_to_config_state();
-        cx.notify();
-    }
-
-    pub fn set_journal_keep_free(&mut self, mb: u64, cx: &mut Context<Self>) {
-        self.journal_retention.system_keep_free_mb = mb;
-        self.sync_journald_to_config_state();
-        cx.notify();
-    }
-
-    pub fn set_journal_storage_mode(&mut self, mode: JournalStorageMode, cx: &mut Context<Self>) {
-        self.journal_retention.storage = mode;
-        self.journal_telemetry.is_volatile_warning = mode != JournalStorageMode::Persistent;
-        self.sync_journald_to_config_state();
-        cx.notify();
     }
 
     pub fn select_managed_file(&mut self, filename: &str, cx: &mut Context<Self>) {
@@ -1178,7 +936,7 @@ impl CrowApp {
                 }
             }
         } else if file == "journald.conf" {
-            self.journal_retention = JournalRetentionConfig::default();
+            self.journal.retention = JournalRetentionConfig::default();
         } else if file == "crontab" {
             self.cron_jobs = default_cron_jobs();
         } else if file == "user.rules" {
@@ -1209,7 +967,7 @@ impl CrowApp {
                     }
                 }
             } else if file == "journald.conf" {
-                self.show_journal_retention_modal = false;
+                self.journal.show_retention_modal = false;
             } else if file == "user.rules" {
                 self.firewall.toast = Some(format!("Audit commit created: {}", description));
             }
@@ -3085,10 +2843,10 @@ impl Render for CrowApp {
                 }
 
                 // Logs Screen: journal search box keyboard interaction
-                if this.screen == Screen::Server && this.active_view == "logs" && this.journal_search_focused {
+                if this.screen == Screen::Server && this.active_view == "logs" && this.journal.search_focused {
                     this.cursor_blink = true;
                     if ev.keystroke.key == "escape" {
-                        this.journal_search_focused = false;
+                        this.journal.search_focused = false;
                         cx.notify();
                         return;
                     } else if key == "enter" {
@@ -3096,7 +2854,7 @@ impl Render for CrowApp {
                         return;
                     } else {
                         let changed = crate::components::handle_text_key_event(
-                            &mut this.journal_search,
+                            &mut this.journal.search,
                             &mut this.input_cursor,
                             &mut this.input_selection,
                             ev,
@@ -3378,15 +3136,15 @@ impl Render for CrowApp {
                                                                             .child(if self.active_services_tab == "services" {
                                                                                 service_inspector_rail(self, app_view.clone()).into_any_element()
                                                                             } else {
-                                                                                log_tail(&self.journal_entries, app_view.clone()).into_any_element()
+                                                                                log_tail(&self.journal.entries, app_view.clone()).into_any_element()
                                                                             })
                                                                     }
                                                                 )
                                                             } else if is_config {
                                                                 let editor_view = if self.selected_managed_file == "journald.conf" {
                                                                     crate::views::config::journald_editor::journald_editor(
-                                                                        &self.journal_retention,
-                                                                        &self.journal_telemetry,
+                                                                        &self.journal.retention,
+                                                                        &self.journal.telemetry,
                                                                         self,
                                                                         app_view.clone(),
                                                                     ).into_any_element()

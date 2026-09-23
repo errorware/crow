@@ -7,6 +7,9 @@ use crate::keys::copy_to_clipboard_system;
 use crate::components::terminal_text_input_styled;
 
 pub mod retention_modal;
+pub mod state;
+
+pub use state::JournalState;
 
 pub fn logs_explorer_view(
     app: Entity<CrowApp>,
@@ -15,16 +18,16 @@ pub fn logs_explorer_view(
     let app_clone = app.clone();
 
     // Compute error and warn counts
-    let err_count = app_data.journal_entries.iter().filter(|e| e.priority.is_error()).count();
-    let warn_count = app_data.journal_entries.iter().filter(|e| e.priority.is_warn()).count();
-    let total_count = app_data.journal_entries.len();
+    let err_count = app_data.journal.entries.iter().filter(|e| e.priority.is_error()).count();
+    let warn_count = app_data.journal.entries.iter().filter(|e| e.priority.is_warn()).count();
+    let total_count = app_data.journal.entries.len();
 
     // Merge in Crow's own action markers (restarts, kills, reloads) so cause and
     // effect show up in the same stream, then filter/sort the combined timeline.
     let mut combined_entries: Vec<&JournalEntry> = app_data
-        .journal_entries
+        .journal.entries
         .iter()
-        .chain(app_data.journal_action_markers.iter())
+        .chain(app_data.journal.action_markers.iter())
         .collect();
     combined_entries.sort_by_key(|e| e.timestamp_usec);
 
@@ -33,7 +36,7 @@ pub fn logs_explorer_view(
         .into_iter()
         .filter(|e| {
             // Level filter
-            if let Some(prio) = app_data.journal_severity_filter {
+            if let Some(prio) = app_data.journal.severity_filter {
                 if prio == JournalPriority::Err {
                     if !e.priority.is_error() {
                         return false;
@@ -43,20 +46,20 @@ pub fn logs_explorer_view(
                 }
             }
             // PID filter (set by clicking a PID in the table)
-            if let Some(fpid) = app_data.journal_pid_filter {
+            if let Some(fpid) = app_data.journal.pid_filter {
                 if e.pid != Some(fpid) {
                     return false;
                 }
             }
             // Unit filter
-            if let Some(ref u) = app_data.journal_unit_filter {
+            if let Some(ref u) = app_data.journal.unit_filter {
                 if u != "ALL" && !e.unit.to_lowercase().contains(&u.to_lowercase()) && !e.syslog_identifier.to_lowercase().contains(&u.to_lowercase()) {
                     return false;
                 }
             }
             // Search query
-            if !app_data.journal_search.trim().is_empty() {
-                let q = app_data.journal_search.to_lowercase();
+            if !app_data.journal.search.trim().is_empty() {
+                let q = app_data.journal.search.to_lowercase();
                 let matches_msg = e.message.to_lowercase().contains(&q);
                 let matches_unit = e.unit.to_lowercase().contains(&q);
                 let matches_pid = e.pid.map(|p| p.to_string().contains(&q)).unwrap_or(false);
@@ -141,9 +144,9 @@ pub fn logs_explorer_view(
                     let app_clear = app_clone.clone();
                     let app_bound = app_clone.clone();
                     let export_snapshot = export_text.clone();
-                    let is_tail = app_data.journal_live_tail;
-                    let is_warn = app_data.journal_telemetry.is_volatile_warning
-                        || app_data.journal_retention.storage != JournalStorageMode::Persistent;
+                    let is_tail = app_data.journal.live_tail;
+                    let is_warn = app_data.journal.telemetry.is_volatile_warning
+                        || app_data.journal.retention.storage != JournalStorageMode::Persistent;
                     let bound_text = if is_warn {
                         "⚠ VOLATILE (30m RISK)"
                     } else {
@@ -289,7 +292,7 @@ pub fn logs_explorer_view(
                     ];
                     ranges.into_iter().enumerate().map(|(idx, r)| {
                         let app_r = app_clone.clone();
-                        let is_sel = app_data.journal_time_range == r;
+                        let is_sel = app_data.journal.time_range == r;
                         div()
                             .id(ElementId::NamedInteger("journal-range-chip".into(), idx as u64))
                             .px(px(7.0))
@@ -313,7 +316,7 @@ pub fn logs_explorer_view(
                     let boots = [JournalBootScope::Current, JournalBootScope::Previous];
                     boots.into_iter().enumerate().map(|(idx, b)| {
                         let app_b = app_clone.clone();
-                        let is_sel = app_data.journal_boot == b;
+                        let is_sel = app_data.journal.boot == b;
                         div()
                             .id(ElementId::NamedInteger("journal-boot-chip".into(), idx as u64))
                             .px(px(7.0))
@@ -334,7 +337,7 @@ pub fn logs_explorer_view(
                 .child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_PANEL).mx(px(6.0)))
                 .child({
                     let app_dedupe = app_clone.clone();
-                    let is_on = app_data.journal_dedupe;
+                    let is_on = app_data.journal.dedupe;
                     div()
                         .id("journal-dedupe-toggle")
                         .px(px(7.0))
@@ -366,7 +369,7 @@ pub fn logs_explorer_view(
                                 this.load_more_journal(cx);
                             });
                         })
-                        .child(format!("↑ load {} older", app_data.journal_limit))
+                        .child(format!("↑ load {} older", app_data.journal.limit))
                 }),
         )
         // 3. Filter Toolbar (Severity chips + Unit filters + Search)
@@ -390,7 +393,7 @@ pub fn logs_explorer_view(
                         // ALL
                         .child({
                             let app_filter = app_clone.clone();
-                            let is_sel = app_data.journal_severity_filter.is_none();
+                            let is_sel = app_data.journal.severity_filter.is_none();
                             div()
                                 .id("journal-severity-all")
                                 .px(px(8.0))
@@ -411,7 +414,7 @@ pub fn logs_explorer_view(
                         // ERR / CRIT
                         .child({
                             let app_filter = app_clone.clone();
-                            let is_sel = app_data.journal_severity_filter == Some(JournalPriority::Err);
+                            let is_sel = app_data.journal.severity_filter == Some(JournalPriority::Err);
                             div()
                                 .id("journal-severity-err")
                                 .flex()
@@ -447,7 +450,7 @@ pub fn logs_explorer_view(
                         // WARN
                         .child({
                             let app_filter = app_clone.clone();
-                            let is_sel = app_data.journal_severity_filter == Some(JournalPriority::Warning);
+                            let is_sel = app_data.journal.severity_filter == Some(JournalPriority::Warning);
                             div()
                                 .id("journal-severity-warn")
                                 .flex()
@@ -483,7 +486,7 @@ pub fn logs_explorer_view(
                         // INFO
                         .child({
                             let app_filter = app_clone.clone();
-                            let is_sel = app_data.journal_severity_filter == Some(JournalPriority::Info);
+                            let is_sel = app_data.journal.severity_filter == Some(JournalPriority::Info);
                             div()
                                 .id("journal-severity-info")
                                 .px(px(8.0))
@@ -512,7 +515,7 @@ pub fn logs_explorer_view(
                                 .gap(px(4.0))
                                 .children(units.into_iter().enumerate().map(|(idx, u)| {
                                     let app_u = app_clone.clone();
-                                    let current_u = app_data.journal_unit_filter.as_deref().unwrap_or("ALL");
+                                    let current_u = app_data.journal.unit_filter.as_deref().unwrap_or("ALL");
                                     let is_active = current_u == u;
                                     div()
                                         .id(ElementId::NamedInteger("journal-unit-pill".into(), idx as u64))
@@ -534,12 +537,12 @@ pub fn logs_explorer_view(
                                 }))
                         })
                         // Active PID filter chip + kill action
-                        .children(if let Some(fpid) = app_data.journal_pid_filter {
+                        .children(if let Some(fpid) = app_data.journal.pid_filter {
                             let app_clear_pid = app_clone.clone();
                             let app_kill_toggle = app_clone.clone();
                             let app_kill_confirm = app_clone.clone();
                             let app_kill_cancel = app_clone.clone();
-                            let confirming = app_data.journal_pid_kill_confirm;
+                            let confirming = app_data.journal.pid_kill_confirm;
 
                             Some(
                                 div()
@@ -669,19 +672,19 @@ pub fn logs_explorer_view(
                                     let app_search = app_clone.clone();
                                     terminal_text_input_styled(
                                         "input-journal-search",
-                                        &app_data.journal_search,
+                                        &app_data.journal.search,
                                         "Filter or grep logs… (⏎ to search)",
-                                        app_data.journal_search_focused,
+                                        app_data.journal.search_focused,
                                         false,
                                         24.0,
                                         10.5,
-                                        if app_data.journal_search_focused { app_data.input_cursor } else { 0 },
-                                        if app_data.journal_search_focused { app_data.input_selection } else { None },
-                                        if app_data.journal_search_focused { app_data.input_drag_anchor } else { None },
+                                        if app_data.journal.search_focused { app_data.input_cursor } else { 0 },
+                                        if app_data.journal.search_focused { app_data.input_selection } else { None },
+                                        if app_data.journal.search_focused { app_data.input_drag_anchor } else { None },
                                         app_data.cursor_blink,
                                         move |cursor, anchor, selection, _window, cx| {
                                             app_search.update(cx, |this, cx| {
-                                                this.journal_search_focused = true;
+                                                this.journal.search_focused = true;
                                                 this.input_cursor = cursor;
                                                 this.input_drag_anchor = anchor;
                                                 this.input_selection = selection;
@@ -692,7 +695,7 @@ pub fn logs_explorer_view(
                                     )
                                 }),
                         )
-                        .children(if !app_data.journal_search.is_empty() {
+                        .children(if !app_data.journal.search.is_empty() {
                             let app_search_clear = app_clone.clone();
                             Some(
                                 div()
@@ -704,7 +707,7 @@ pub fn logs_explorer_view(
                                     .cursor_pointer()
                                     .on_click(move |_ev, _window, cx| {
                                         app_search_clear.update(cx, |this, cx| {
-                                            this.journal_search.clear();
+                                            this.journal.search.clear();
                                             this.run_journal_query(cx);
                                         });
                                     })
@@ -768,8 +771,8 @@ pub fn logs_explorer_view(
                             )
                             .into_any_element()
                     ]
-                } else if app_data.journal_dedupe {
-                    render_journal_rows_deduped(&filtered_entries, &app_data.collapsed_journal_dupe_groups, app_clone.clone(), app_data)
+                } else if app_data.journal.dedupe {
+                    render_journal_rows_deduped(&filtered_entries, &app_data.journal.collapsed_dupe_groups, app_clone.clone(), app_data)
                 } else {
                     filtered_entries
                         .into_iter()
@@ -780,10 +783,10 @@ pub fn logs_explorer_view(
                         .collect()
                 }),
         )
-        .children(if app_data.show_journal_retention_modal {
+        .children(if app_data.journal.show_retention_modal {
             Some(retention_modal::retention_boundaries_modal(
-                &app_data.journal_retention,
-                &app_data.journal_telemetry,
+                &app_data.journal.retention,
+                &app_data.journal.telemetry,
                 app_clone.clone(),
             ))
         } else {
@@ -1037,7 +1040,7 @@ fn render_journal_row(
                         .items_center()
                         .child(if let Some(pid) = entry.pid {
                             let app_pid = app.clone();
-                            let is_filtered = app_data.journal_pid_filter == Some(pid);
+                            let is_filtered = app_data.journal.pid_filter == Some(pid);
 
                             div()
                                 .id(ElementId::NamedInteger("journal-pid".into(), idx as u64))
