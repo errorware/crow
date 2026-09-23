@@ -28,9 +28,8 @@ use crate::views::users::{
     default_system_users, user_management_view, NewUserState, SystemUserRecord, UserFilterTab, UserSshKeySummary,
 };
 use crate::views::firewall::{
-    default_active_ufw_state, default_ufw_rules, detect_firewall_status, firewall_view,
-    FirewallOperationalState, FirewallRule, FirewallStatusSummary, NewRuleState,
-    RuleAction, RuleDirection, RuleProtocol,
+    default_active_ufw_state, detect_firewall_status, firewall_view, FirewallOperationalState,
+    FirewallState,
 };
 use crate::config::{crawl_machine_configs, sample_config_content, ConfigFileState, DiscoveredConfigFile, CrowConfigManager};
 use crate::os_detect::{classify_distro_family, detect_local_os_release, DistroFamily};
@@ -66,6 +65,8 @@ use crate::views::settings::settings_view;
 use crow_config_core::edit::ConfigDocument;
 use crow_config_core::ConfigPlugin;
 use crow_config_schemas::PgHbaPlugin;
+mod firewall;
+
 use crate::keys::{
     copy_to_clipboard_system, expand_tilde, scan_directory, AddScanPathModalState,
     DiscoveredKey, EditKeyModalState, KeyGenFieldFocus, KeyGenModalState,
@@ -262,13 +263,7 @@ pub struct CrowApp {
     pub user_filter_tab: UserFilterTab,
     pub user_toast_message: Option<String>,
     // Firewall & Network Security Subsystem
-    pub firewall_state: FirewallOperationalState,
-    pub firewall_search_query: String,
-    pub firewall_action_filter: Option<RuleAction>,
-    pub show_new_firewall_rule_modal: bool,
-    pub new_firewall_rule_state: NewRuleState,
-    pub firewall_toast_message: Option<String>,
-    pub show_firewall_audit_rail: bool,
+    pub firewall: FirewallState,
 }
 
 impl CrowApp {
@@ -652,13 +647,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
             user_search_query: String::new(),
             user_filter_tab: UserFilterTab::All,
             user_toast_message: None,
-            firewall_state: initial_firewall_state,
-            firewall_search_query: String::new(),
-            firewall_action_filter: None,
-            show_new_firewall_rule_modal: false,
-            new_firewall_rule_state: NewRuleState::default(),
-            firewall_toast_message: None,
-            show_firewall_audit_rail: true,
+            firewall: FirewallState::new(initial_firewall_state),
         }
     }
 }
@@ -758,7 +747,7 @@ impl CrowApp {
             return true;
         }
         if self.show_new_user_modal
-            || self.show_new_firewall_rule_modal
+            || self.firewall.show_new_rule_modal
             || self.show_journal_retention_modal
             || self.show_about_modal
         {
@@ -1233,11 +1222,11 @@ impl CrowApp {
         } else if file == "user.rules" {
             if let Some(state) = self.config_file_states.get(file) {
                 let rules = crate::views::firewall::parse_user_rules_content(&state.baseline_content);
-                if let FirewallOperationalState::Active(ref mut summary) = self.firewall_state {
+                if let FirewallOperationalState::Active(ref mut summary) = self.firewall.status {
                     summary.rules = rules;
                 }
             }
-            self.firewall_toast_message = Some("Reverted firewall rules to baseline".to_string());
+            self.firewall.toast = Some("Reverted firewall rules to baseline".to_string());
         }
         if let Some(state) = self.config_file_states.get_mut(file) {
             state.revert();
@@ -1260,7 +1249,7 @@ impl CrowApp {
             } else if file == "journald.conf" {
                 self.show_journal_retention_modal = false;
             } else if file == "user.rules" {
-                self.firewall_toast_message = Some(format!("Audit commit created: {}", description));
+                self.firewall.toast = Some(format!("Audit commit created: {}", description));
             }
             cx.notify();
         }
@@ -1272,10 +1261,10 @@ impl CrowApp {
                 let _ = state.save_to_disk();
                 if file == "user.rules" {
                     let rules = crate::views::firewall::parse_user_rules_content(&state.current_content);
-                    if let FirewallOperationalState::Active(ref mut summary) = self.firewall_state {
+                    if let FirewallOperationalState::Active(ref mut summary) = self.firewall.status {
                         summary.rules = rules;
                     }
-                    self.firewall_toast_message = Some(format!("Rolled back firewall to revision v{}", version));
+                    self.firewall.toast = Some(format!("Rolled back firewall to revision v{}", version));
                 }
                 cx.notify();
             }
@@ -1577,170 +1566,6 @@ impl CrowApp {
         cx.notify();
     }
 
-    // ==========================================
-    // Firewall & Network Security Methods
-    // ==========================================
-
-    pub fn set_firewall_search(&mut self, query: &str, cx: &mut Context<Self>) {
-        self.firewall_search_query = query.to_string();
-        cx.notify();
-    }
-
-    pub fn set_firewall_action_filter(&mut self, filter: Option<RuleAction>, cx: &mut Context<Self>) {
-        self.firewall_action_filter = filter;
-        cx.notify();
-    }
-
-    pub fn open_new_firewall_rule_modal(&mut self, cx: &mut Context<Self>) {
-        self.show_new_firewall_rule_modal = true;
-        self.new_firewall_rule_state = NewRuleState::default();
-        cx.notify();
-    }
-
-    pub fn close_new_firewall_rule_modal(&mut self, cx: &mut Context<Self>) {
-        self.show_new_firewall_rule_modal = false;
-        cx.notify();
-    }
-
-    pub fn sync_firewall_to_config_state(&mut self) {
-        if let FirewallOperationalState::Active(ref summary) = self.firewall_state {
-            let content = crate::views::firewall::generate_user_rules_content(&summary.rules);
-            if let Some(st) = self.config_file_states.get_mut("user.rules") {
-                st.update_content(content);
-            }
-        }
-    }
-
-    pub fn toggle_firewall_audit_rail(&mut self, cx: &mut Context<Self>) {
-        self.show_firewall_audit_rail = !self.show_firewall_audit_rail;
-        cx.notify();
-    }
-
-    pub fn stage_firewall_rules(&mut self, message: &str, cx: &mut Context<Self>) {
-        self.sync_firewall_to_config_state();
-        self.stage_config_version("user.rules", message, cx);
-    }
-
-    pub fn toggle_firewall_active(&mut self, cx: &mut Context<Self>) {
-        match &mut self.firewall_state {
-            FirewallOperationalState::Active(summary) => {
-                summary.is_active = !summary.is_active;
-                let status_str = if summary.is_active { "ENABLED (ufw enable)" } else { "DISABLED (ufw disable)" };
-                self.firewall_toast_message = Some(format!("Executed: sudo {}", status_str));
-            }
-            FirewallOperationalState::Inactive { backend, .. } => {
-                let be = *backend;
-                self.firewall_state = FirewallOperationalState::Active(FirewallStatusSummary {
-                    backend: be,
-                    is_active: true,
-                    default_incoming: RuleAction::Deny,
-                    default_outgoing: RuleAction::Allow,
-                    default_forward: RuleAction::Deny,
-                    rules: default_ufw_rules(),
-                    raw_output: "Status: active".into(),
-                });
-                self.firewall_toast_message = Some("Executed: sudo ufw enable".into());
-            }
-            FirewallOperationalState::Unmanaged { .. } => {
-                self.firewall_state = default_active_ufw_state();
-                self.firewall_toast_message = Some("Initialized UFW packet filter".into());
-            }
-        }
-        self.sync_firewall_to_config_state();
-        cx.notify();
-    }
-
-    pub fn reload_firewall(&mut self, cx: &mut Context<Self>) {
-        self.firewall_toast_message = Some("Executed: sudo ufw reload (Firewall reloaded)".into());
-        cx.notify();
-    }
-
-    pub fn toggle_quick_port(&mut self, port: u16, proto: RuleProtocol, label: &str, cx: &mut Context<Self>) {
-        let port_str = port.to_string();
-        if let FirewallOperationalState::Active(ref mut summary) = self.firewall_state {
-            if let Some(pos) = summary.rules.iter().position(|r| r.action == RuleAction::Allow && r.port == port_str) {
-                summary.rules.remove(pos);
-                self.firewall_toast_message = Some(format!("Executed: ufw delete allow {}/tcp ({})", port, label));
-            } else {
-                let next_num = summary.rules.iter().map(|r| r.number).max().unwrap_or(0) + 1;
-                summary.rules.push(FirewallRule {
-                    id: format!("rule-{}", next_num),
-                    number: next_num,
-                    action: RuleAction::Allow,
-                    direction: RuleDirection::Inbound,
-                    port: port_str.clone(),
-                    protocol: proto,
-                    source: "Anywhere".to_string(),
-                    destination: "Anywhere".to_string(),
-                    comment: Some(format!("{} Service Ingress", label)),
-                    is_ipv6: false,
-                });
-                self.firewall_toast_message = Some(format!("Executed: ufw allow {}/tcp ({})", port, label));
-            }
-            self.sync_firewall_to_config_state();
-            cx.notify();
-        }
-    }
-
-    pub fn delete_firewall_rule(&mut self, rule_id: &str, cx: &mut Context<Self>) {
-        if let FirewallOperationalState::Active(ref mut summary) = self.firewall_state {
-            if let Some(pos) = summary.rules.iter().position(|r| r.id == rule_id) {
-                let removed = summary.rules.remove(pos);
-                self.firewall_toast_message = Some(format!("Executed: ufw delete [{}] ({})", removed.number, removed.display_port_proto()));
-                // Re-index remaining rules
-                for (i, r) in summary.rules.iter_mut().enumerate() {
-                    r.number = i + 1;
-                }
-            }
-            self.sync_firewall_to_config_state();
-            cx.notify();
-        }
-    }
-
-    pub fn submit_new_firewall_rule(&mut self, cx: &mut Context<Self>) {
-        let cmd = self.new_firewall_rule_state.generate_ufw_command();
-        let port = self.new_firewall_rule_state.port_input.trim().to_string();
-        let source = if self.new_firewall_rule_state.is_anywhere || self.new_firewall_rule_state.source_input.trim().is_empty() {
-            "Anywhere".to_string()
-        } else {
-            self.new_firewall_rule_state.source_input.trim().to_string()
-        };
-        let comment = if self.new_firewall_rule_state.comment_input.trim().is_empty() {
-            None
-        } else {
-            Some(self.new_firewall_rule_state.comment_input.trim().to_string())
-        };
-
-        if let FirewallOperationalState::Active(ref mut summary) = self.firewall_state {
-            let next_num = summary.rules.iter().map(|r| r.number).max().unwrap_or(0) + 1;
-            summary.rules.push(FirewallRule {
-                id: format!("rule-{}", next_num),
-                number: next_num,
-                action: self.new_firewall_rule_state.action,
-                direction: self.new_firewall_rule_state.direction,
-                port,
-                protocol: self.new_firewall_rule_state.protocol,
-                source,
-                destination: "Anywhere".to_string(),
-                comment,
-                is_ipv6: false,
-            });
-            self.show_new_firewall_rule_modal = false;
-            self.firewall_toast_message = Some(format!("Executed: {}", cmd));
-            self.sync_firewall_to_config_state();
-            cx.notify();
-        }
-    }
-
-    #[allow(dead_code)]
-    pub fn flush_firewall_rules(&mut self, cx: &mut Context<Self>) {
-        if let FirewallOperationalState::Active(ref mut summary) = self.firewall_state {
-            summary.rules.clear();
-            self.firewall_toast_message = Some("Executed: sudo ufw reset (Flushed all firewall rules)".into());
-            self.sync_firewall_to_config_state();
-            cx.notify();
-        }
-    }
 
     pub fn apply_journal_boundaries(&mut self, cx: &mut Context<Self>) {
         self.stage_config_version("journald.conf", "Applied journald retention boundaries", cx);
@@ -3958,7 +3783,7 @@ impl Render for CrowApp {
                     }
                 }
                 if ev.keystroke.key == "escape" {
-                    if this.show_new_firewall_rule_modal {
+                    if this.firewall.show_new_rule_modal {
                         this.close_new_firewall_rule_modal(cx);
                     } else if this.show_new_user_modal {
                         this.close_new_user_modal(cx);
@@ -4269,9 +4094,9 @@ impl Render for CrowApp {
                                                                                 .flex_1()
                                                                                 .min_w(px(0.0))
                                                                                 .h_full()
-                                                                                .child(firewall_view(app_view.clone(), self))
+                                                                                .child(firewall_view(app_view.clone(), &self.firewall, &self.config_file_states))
                                                                         )
-                                                                        .children(if self.show_firewall_audit_rail {
+                                                                        .children(if self.firewall.show_audit_rail {
                                                                             Some(pending_diff_rail(self, app_view.clone()))
                                                                         } else {
                                                                             None

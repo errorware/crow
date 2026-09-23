@@ -3,6 +3,7 @@ pub mod detector;
 pub mod non_operational;
 pub mod new_rule_modal;
 pub mod rules_format;
+pub mod state;
 
 #[allow(unused_imports)]
 pub use models::{
@@ -15,22 +16,26 @@ pub use non_operational::non_operational_view;
 pub use new_rule_modal::{new_rule_modal, NewRuleState};
 #[allow(unused_imports)]
 pub use rules_format::{generate_user_rules_content, parse_user_rules_content};
+pub use state::FirewallState;
 
 use gpui_kit::*;
 use crate::theme::*;
+use std::collections::HashMap;
 use crate::app::CrowApp;
+use crate::config::ConfigFileState;
 use crate::components::icons::{TablerIcon, tabler_icon};
 
 pub fn firewall_view(
     app: Entity<CrowApp>,
-    app_data: &CrowApp,
+    fw: &FirewallState,
+    config_file_states: &HashMap<String, ConfigFileState>,
 ) -> AnyElement {
-    let state = &app_data.firewall_state;
+    let state = &fw.status;
 
     // Check operational status
     match state {
         FirewallOperationalState::Active(summary) if summary.is_active => {
-            render_active_firewall(summary, app, app_data).into_any_element()
+            render_active_firewall(summary, app, fw, config_file_states).into_any_element()
         }
         FirewallOperationalState::Inactive { backend, reason, detected_binaries, .. } => {
             non_operational_view(*backend, reason, detected_binaries, app).into_any_element()
@@ -48,7 +53,8 @@ pub fn firewall_view(
 fn render_active_firewall(
     summary: &FirewallStatusSummary,
     app: Entity<CrowApp>,
-    app_data: &CrowApp,
+    fw: &FirewallState,
+    config_file_states: &HashMap<String, ConfigFileState>,
 ) -> impl IntoElement {
     let app_new_rule = app.clone();
     let app_toggle_active = app.clone();
@@ -57,7 +63,7 @@ fn render_active_firewall(
     let app_stage = app.clone();
     let app_toggle_audit = app.clone();
 
-    let file_state = app_data.config_file_states.get("user.rules");
+    let file_state = config_file_states.get("user.rules");
     let (is_modified, add_count, del_count, active_rev) = if let Some(st) = file_state {
         let (a, d) = st.diff_stats();
         (st.is_modified(), a, d, st.active_revision)
@@ -65,8 +71,8 @@ fn render_active_firewall(
         (false, 0, 0, 1)
     };
 
-    let query = app_data.firewall_search_query.to_lowercase();
-    let action_filter = app_data.firewall_action_filter;
+    let query = fw.search_query.to_lowercase();
+    let action_filter = fw.action_filter;
 
     let filtered_rules: Vec<&FirewallRule> = summary
         .rules
@@ -95,8 +101,8 @@ fn render_active_firewall(
     let deny_count = summary.rules.iter().filter(|r| r.action == RuleAction::Deny).count();
     let limit_count = summary.rules.iter().filter(|r| r.action == RuleAction::Limit).count();
 
-    let modal_element = if app_data.show_new_firewall_rule_modal {
-        Some(new_rule_modal(&app_data.new_firewall_rule_state, app.clone()).into_any_element())
+    let modal_element = if fw.show_new_rule_modal {
+        Some(new_rule_modal(&fw.new_rule, app.clone()).into_any_element())
     } else {
         None
     };
@@ -224,22 +230,22 @@ fn render_active_firewall(
                                 .id("btn-toggle-firewall-audit-rail")
                                 .px(px(10.0))
                                 .py(px(4.5))
-                                .bg(if app_data.show_firewall_audit_rail { hex_rgba(0x8ab4ff, 0.15) } else { BG_CONTROL })
+                                .bg(if fw.show_audit_rail { hex_rgba(0x8ab4ff, 0.15) } else { BG_CONTROL })
                                 .border_1()
-                                .border_color(if app_data.show_firewall_audit_rail { hex_rgba(0x8ab4ff, 0.4) } else { BORDER_DEFAULT })
+                                .border_color(if fw.show_audit_rail { hex_rgba(0x8ab4ff, 0.4) } else { BORDER_DEFAULT })
                                 .rounded_sm()
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(if app_data.show_firewall_audit_rail { hex_rgb(0x8ab4ff) } else { TEXT_SECONDARY })
+                                .text_color(if fw.show_audit_rail { hex_rgb(0x8ab4ff) } else { TEXT_SECONDARY })
                                 .on_click(move |_ev, _window, cx| {
                                     app_toggle_audit.update(cx, |this, cx| {
                                         this.toggle_firewall_audit_rail(cx);
                                     });
                                 })
-                                .child(if app_data.show_firewall_audit_rail { "AUDIT RAIL [ON]" } else { "AUDIT RAIL [OFF]" }),
+                                .child(if fw.show_audit_rail { "AUDIT RAIL [ON]" } else { "AUDIT RAIL [OFF]" }),
                         )
                         // Reload Firewall Button
                         .child(
@@ -560,14 +566,14 @@ fn render_active_firewall(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.5))
-                                .text_color(if app_data.firewall_search_query.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY })
-                                .child(if app_data.firewall_search_query.is_empty() {
+                                .text_color(if fw.search_query.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY })
+                                .child(if fw.search_query.is_empty() {
                                     "Filter rules by port, IP, comment...".to_string()
                                 } else {
-                                    app_data.firewall_search_query.clone()
+                                    fw.search_query.clone()
                                 }),
                         )
-                        .children(if !app_data.firewall_search_query.is_empty() {
+                        .children(if !fw.search_query.is_empty() {
                             let app_clr = app.clone();
                             Some(
                                 div()
@@ -642,7 +648,7 @@ fn render_active_firewall(
                 }),
         )
         // Toast Notification Overlay
-        .children(if let Some(msg) = &app_data.firewall_toast_message {
+        .children(if let Some(msg) = &fw.toast {
             Some(
                 div()
                     .absolute()

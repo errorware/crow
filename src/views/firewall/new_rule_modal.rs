@@ -195,7 +195,7 @@ pub fn new_rule_modal(
                                                 .text_color(if is_sel { *col } else { TEXT_SECONDARY })
                                                 .on_click(move |_ev, _window, cx| {
                                                     app_act.update(cx, |this, cx| {
-                                                        this.new_firewall_rule_state.action = a;
+                                                        this.firewall.new_rule.action = a;
                                                         cx.notify();
                                                     });
                                                 })
@@ -249,7 +249,7 @@ pub fn new_rule_modal(
                                                 .text_color(if is_sel { hex_rgb(0x38bdf8) } else { TEXT_SECONDARY })
                                                 .on_click(move |_ev, _window, cx| {
                                                     app_pr.update(cx, |this, cx| {
-                                                        this.new_firewall_rule_state.protocol = p;
+                                                        this.firewall.new_rule.protocol = p;
                                                         cx.notify();
                                                     });
                                                 })
@@ -321,7 +321,7 @@ pub fn new_rule_modal(
                                                 .on_click(move |_ev, _window, cx| {
                                                     let val = p_str.clone();
                                                     app_preset.update(cx, |this, cx| {
-                                                        this.new_firewall_rule_state.port_input = val;
+                                                        this.firewall.new_rule.port_input = val;
                                                         cx.notify();
                                                     });
                                                 })
@@ -381,8 +381,8 @@ pub fn new_rule_modal(
                                                 .on_click(move |_ev, _window, cx| {
                                                     let val = s_str.clone();
                                                     app_src.update(cx, |this, cx| {
-                                                        this.new_firewall_rule_state.source_input = val;
-                                                        this.new_firewall_rule_state.is_anywhere = is_any;
+                                                        this.firewall.new_rule.source_input = val;
+                                                        this.firewall.new_rule.is_anywhere = is_any;
                                                         cx.notify();
                                                     });
                                                 })
