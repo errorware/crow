@@ -6,6 +6,7 @@ use crate::journal::retention::JournalRetentionConfig;
 use crate::theme::{CRIT, OK};
 use crate::views::config::cron_editor::default_cron_jobs;
 use crate::views::firewall::FirewallOperationalState;
+use crate::theme::WARN;
 
 // ==========================================
 // Config files: discovery, staging, versions
@@ -120,4 +121,39 @@ impl CrowApp {
     pub fn apply_journal_boundaries(&mut self, cx: &mut Context<Self>) {
         self.stage_config_version("journald.conf", "Applied journald retention boundaries", cx);
     }
+
+    pub fn toggle_rule_expand(&mut self, num: &str, cx: &mut Context<Self>) {
+        for r in &mut self.configs.hba_rules {
+            if r.num == num {
+                r.is_expanded = !r.is_expanded;
+            }
+        }
+        cx.notify();
+    }
+
+    pub fn set_rule_method(&mut self, rule_num: &str, method: &'static str, cx: &mut Context<Self>) {
+        for r in &mut self.configs.hba_rules {
+            if r.num == rule_num {
+                r.method = method;
+                r.risk = if method == "scram-sha-256" || method == "cert" {
+                    "OK"
+                } else if method == "trust" {
+                    "CRITICAL"
+                } else {
+                    "REVIEW"
+                };
+                r.risk_color = if r.risk == "OK" {
+                    OK
+                } else if r.risk == "CRITICAL" {
+                    CRIT
+                } else {
+                    WARN
+                };
+            }
+        }
+        self.configs.sync_hba();
+        cx.notify();
+    }
+
+    // --- SSH Key Management Subsystem ---
 }

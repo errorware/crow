@@ -1,0 +1,98 @@
+use gpui_kit::*;
+
+use super::CrowApp;
+use crate::theme::OK;
+use crate::app::Screen;
+use crate::theme::CRIT;
+use crate::theme::WARN;
+use crate::theme::TEXT_FAINTER;
+use crate::components::titlebar::ServerTab;
+use crate::views::overview::collector::collect_sockets_for_server;
+use crate::views::overview::collector::collect_services_for_server;
+use crate::views::overview::collector::collect_processes_for_server;
+
+impl CrowApp {
+    pub fn switch_tab(&mut self, tab_id: &str, cx: &mut Context<Self>) {
+        if let Some(srv) = self.servers.iter().find(|s| s.id == tab_id || s.name == tab_id).cloned() {
+            if !self.tabs.iter().any(|t| t.id == srv.id || t.name == srv.name) {
+                let status_color = match srv.status.as_str() {
+                    "online" => OK,
+                    "warn" => WARN,
+                    "crit" => CRIT,
+                    _ => TEXT_FAINTER,
+                };
+                self.tabs.push(ServerTab {
+                    id: srv.id.clone(),
+                    name: srv.name.clone(),
+                    status_color,
+                    is_active: true,
+                });
+            }
+            self.active_tab_id = srv.id.clone();
+            for tab in &mut self.tabs {
+                tab.is_active = tab.id == self.active_tab_id;
+            }
+            self.screen = Screen::Server;
+            if self.active_view == "overview" {
+                let tab_owned = self.overview.active_tab.clone();
+                let srv_clone = srv.clone();
+                cx.spawn(async move |entity, cx| {
+                    match tab_owned.as_str() {
+                        "processes" => {
+                            let procs = cx.background_executor().spawn(async move {
+                                collect_processes_for_server(&srv_clone)
+                            }).await;
+                            let _ = entity.update(cx, |this, cx| {
+                                this.overview.processes = procs;
+                                cx.notify();
+                            });
+                        }
+                        "sockets" => {
+                            let socks = cx.background_executor().spawn(async move {
+                                collect_sockets_for_server(&srv_clone)
+                            }).await;
+                            let _ = entity.update(cx, |this, cx| {
+                                this.overview.sockets = socks;
+                                cx.notify();
+                            });
+                        }
+                        _ => {
+                            let svcs = cx.background_executor().spawn(async move {
+                                collect_services_for_server(&srv_clone)
+                            }).await;
+                            let _ = entity.update(cx, |this, cx| {
+                                this.overview.services = svcs;
+                                cx.notify();
+                            });
+                        }
+                    }
+                }).detach();
+            } else if self.active_view == "files" {
+                self.files.current_path = "/".to_string();
+                self.files.pending_delete = None;
+                self.load_file_listing(cx);
+            }
+        } else {
+            self.active_tab_id = tab_id.to_string();
+            self.screen = Screen::Server;
+        }
+        cx.notify();
+    }
+
+    pub fn close_tab(&mut self, tab_id: &str, cx: &mut Context<Self>) {
+        if let Some(pos) = self.tabs.iter().position(|t| t.id == tab_id || t.name == tab_id) {
+            let removed = self.tabs.remove(pos);
+            let was_active = self.active_tab_id == tab_id || self.active_tab_id == removed.id || self.active_tab_id == removed.name;
+            if was_active {
+                if let Some(next_tab) = self.tabs.get(pos).or_else(|| self.tabs.last()) {
+                    let next_id = next_tab.id.clone();
+                    self.switch_tab(&next_id, cx);
+                } else {
+                    self.active_tab_id.clear();
+                    self.screen = Screen::Fleet;
+                }
+            }
+            cx.notify();
+        }
+    }
+}
