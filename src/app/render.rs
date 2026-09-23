@@ -26,7 +26,7 @@ use crate::views::settings::settings_view;
 use crate::views::users::user_management_view;
 
 impl Render for CrowApp {
-    fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+    fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let is_overview = self.active_view == "overview";
         let is_config = self.active_view == "config";
         let palette_open = self.palette_open;
@@ -250,8 +250,9 @@ impl Render for CrowApp {
                                                                     rules_editor(&self.configs.hba_rules, &self.configs, app_view.clone()).into_any_element()
                                                                 } else if self.configs.selected_file == "crontab" || self.configs.selected_file.contains("cron") {
                                                                     cron_editor(&self.configs.cron_jobs, &self.configs, app_view.clone()).into_any_element()
-                                                                } else if let Some(st) = self.configs.states.get(&self.configs.selected_file) {
-                                                                    raw_config_editor(st, app_view.clone()).into_any_element()
+                                                                } else if let Some(editor) = self.config_text_editor(&self.configs.selected_file.clone(), window, cx) {
+                                                                    let st = &self.configs.states[&self.configs.selected_file];
+                                                                    raw_config_editor(st, &editor, app_view.clone()).into_any_element()
                                                                 } else {
                                                                     rules_editor(&self.configs.hba_rules, &self.configs, app_view.clone()).into_any_element()
                                                                 };

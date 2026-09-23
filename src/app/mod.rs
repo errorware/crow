@@ -136,6 +136,8 @@ pub struct CrowApp {
     pub overview: OverviewState,
     pub journal: JournalState,
     pub configs: ConfigsState,
+    /// Live editor for the selected plain-text config (see ConfigTextEditor).
+    pub config_text_editor: Option<configs::ConfigTextEditor>,
     pub files: FilesState,
     pub danger: DangerZoneState,
     pub users: UsersState,
@@ -229,6 +231,7 @@ impl CrowApp {
             active_view: "overview".to_string(),
             overview: OverviewState::new(initial_services, initial_processes, initial_sockets),
             configs,
+            config_text_editor: None,
             palette_open: false,
             sidebar_collapsed: false,
             keys,

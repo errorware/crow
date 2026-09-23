@@ -82,23 +82,6 @@ impl ConfigsState {
         }
     }
 
-    /// Toggles a marker edit on a file so its diff/stage flow can be exercised.
-    pub fn toggle_sample_edit(&mut self, file: &str) {
-        if let Some(state) = self.states.get_mut(file) {
-            if state.is_modified() {
-                state.revert();
-            } else {
-                let mut edited = state.current_content.clone();
-                if !edited.ends_with('\n') {
-                    edited.push('\n');
-                }
-                edited.push_str("# [Crow Managed Adjustment]\n");
-                edited.push_str("crow_managed_sync = true\n");
-                state.update_content(edited);
-            }
-        }
-    }
-
     pub fn sync_cron(&mut self) {
         let content = generate_crontab_content(&self.cron_jobs);
         if let Some(st) = self.states.get_mut("crontab") {

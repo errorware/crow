@@ -4,6 +4,8 @@ use crow_config_schemas::PgHbaPlugin;
 use gpui_kit::*;
 
 use super::CrowApp;
+use gpui_kit::component::input::{EditorState, InputEvent};
+use crate::views::config::text_editor::{highlighter_factory, CONFIG_LANGUAGE};
 use std::sync::Arc;
 
 use crate::config::{crawl_configs, load_config_file_state};
@@ -95,6 +97,15 @@ pub fn load_configs(
     configs
 }
 
+/// The live text editor for the selected plain-text config file. Lives on
+/// the app, not in `ConfigsState`: configs are loaded on a background thread
+/// and GPUI entities/subscriptions must stay on the UI thread.
+pub struct ConfigTextEditor {
+    pub file: String,
+    pub editor: Entity<EditorState>,
+    _changes: Subscription,
+}
+
 /// Author recorded on staged config revisions.
 pub fn default_author() -> String {
     "Nelson <nelson@errorware.net>".to_string()
@@ -103,6 +114,43 @@ pub fn default_author() -> String {
 impl CrowApp {
     pub fn default_author(&self) -> String {
         default_author()
+    }
+
+    /// The text editor for `file`, created on first use and kept in sync with
+    /// the file's edit state: typing flows into the state through the change
+    /// subscription, and changes made elsewhere (revert, rollback, reload) are
+    /// pushed back into the editor here.
+    pub fn config_text_editor(&mut self, file: &str, window: &mut Window, cx: &mut Context<Self>) -> Option<Entity<EditorState>> {
+        let content = self.configs.states.get(file)?.current_content.clone();
+        let reuse = self.config_text_editor.as_ref().filter(|t| t.file == file).map(|t| t.editor.clone());
+        let editor = match reuse {
+            Some(editor) => {
+                if editor.read(cx).value().as_ref() != content {
+                    editor.update(cx, |e, cx| e.set_value(content, window, cx));
+                }
+                editor
+            }
+            None => {
+                let editor = cx.new(|cx| {
+                    let mut state = EditorState::new(window, cx).language(CONFIG_LANGUAGE).default_value(content);
+                    state.set_highlighter_factory(highlighter_factory(file), cx);
+                    state
+                });
+                let file_name = file.to_string();
+                let changes = cx.subscribe(&editor, move |this, editor, ev: &InputEvent, cx| {
+                    if matches!(ev, InputEvent::Change) {
+                        let text = editor.read(cx).value().to_string();
+                        if let Some(st) = this.configs.states.get_mut(&file_name) {
+                            st.update_content(text);
+                        }
+                        cx.notify();
+                    }
+                });
+                self.config_text_editor = Some(ConfigTextEditor { file: file.to_string(), editor: editor.clone(), _changes: changes });
+                editor
+            }
+        };
+        Some(editor)
     }
 
     pub fn toggle_config_history(&mut self, cx: &mut Context<Self>) {

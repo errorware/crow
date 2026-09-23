@@ -1,21 +1,25 @@
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
-use crate::config::{highlight_config_line, ConfigFileState};
+use gpui_kit::component::input::{Editor, EditorState};
+use crate::config::ConfigFileState;
 
+/// Text editor for config files without a crow-config plugin. `editor` holds
+/// the live text; every change is mirrored into `state` by the app, so the
+/// diff rail, staging and write-back work off `state` as usual.
 pub fn raw_config_editor(
     state: &ConfigFileState,
+    editor: &Entity<EditorState>,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
     let app_revert = app.clone();
     let app_stage = app.clone();
-    let app_edit = app.clone();
     let app_hist = app.clone();
 
     let is_modified = state.is_modified();
     let (add_count, del_count) = state.diff_stats();
-    let lines: Vec<&str> = state.current_content.lines().collect();
-    let line_count = lines.len().max(1);
+    let line_count = state.current_content.lines().count().max(1);
+    let read_only = state.write_blocked.is_some();
 
     div()
         .id("raw-config-editor")
@@ -110,31 +114,6 @@ pub fn raw_config_editor(
                         })
                         .child(format!("HISTORY · {}", state.revisions.len()))
                 )
-                // Quick Line Tweak Action (convenience shortcut for editing in GUI)
-                .child({
-                    let fn_clone = state.filename.clone();
-                    div()
-                        .id("btn-raw-edit-tweak")
-                        .px(px(8.0))
-                        .py(px(3.0))
-                        .bg(BG_CONTROL)
-                        .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .rounded_sm()
-                        .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_SECONDARY)
-                        .on_click(move |_ev, _window, cx| {
-                            let f = fn_clone.clone();
-                            app_edit.update(cx, |this, cx| {
-                                this.configs.toggle_sample_edit(&f); cx.notify();
-                            });
-                        })
-                        .child(if is_modified { "SIMULATE EDIT ↺" } else { "+ TEST EDIT" })
-                })
                 // Revert button
                 .children(if is_modified {
                     let fn_clone = state.filename.clone();
@@ -194,67 +173,20 @@ pub fn raw_config_editor(
                     None
                 }),
         )
-        // 2. Editor Gutter + Code Body
+        // 2. Editor body: real editing, line numbers, search and scrollbars.
         .child(
             div()
-                .id("raw-editor-scroll")
                 .flex_1()
                 .min_h(px(0.0))
-                .overflow_y_scroll()
-                .flex()
                 .bg(BG_APP)
-                // Line Number Gutter
                 .child(
-                    div()
-                        .w(px(44.0))
-                        .flex_none()
-                        .py(px(8.0))
-                        .border_r_1()
-                        .border_color(BORDER_ROW)
-                        .bg(hex_rgba(0x000000, 0.15))
+                    Editor::new(editor)
+                        .h_full()
+                        .appearance(false)
+                        .bordered(false)
+                        .readonly(read_only)
                         .font_family(FONT_MONO)
-                        .text_size(px(11.0))
-                        .text_color(TEXT_FAINTER)
-                        .flex()
-                        .flex_col()
-                        .children((1..=line_count).map(|num| {
-                            div()
-                                .h(px(20.0))
-                                .pr(px(10.0))
-                                .text_right()
-                                .child(num.to_string())
-                        })),
-                )
-                // Code Lines View
-                .child(
-                    div()
-                        .flex_1()
-                        .min_w(px(0.0))
-                        .py(px(8.0))
-                        .px(px(12.0))
-                        .font_family(FONT_MONO)
-                        .text_size(px(11.5))
-                        .flex()
-                        .flex_col()
-                        .children(lines.iter().enumerate().map(|(idx, line)| {
-                            let tokens = highlight_config_line(line, &state.filename);
-
-                            div()
-                                .id(ElementId::NamedInteger("editor-line".into(), idx as u64))
-                                .h(px(20.0))
-                                .flex()
-                                .items_center()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .children(tokens.into_iter().map(|tok| {
-                                    let mut el = div()
-                                        .text_color(tok.color)
-                                        .child(tok.text);
-                                    if tok.is_bold {
-                                        el = el.font_weight(FontWeight::BOLD);
-                                    }
-                                    el
-                                }))
-                        })),
+                        .text_size(px(11.5)),
                 ),
         )
         // 3. Status Bar
@@ -288,6 +220,7 @@ pub fn raw_config_editor(
                         .items_center()
                         .gap(px(10.0))
                         .child(format!("Revisions: {}", state.revisions.len()))
+                        .children(read_only.then(|| div().text_color(WARN).child("READ-ONLY")))
                         .child(if is_modified {
                             div().text_color(WARN).child("● Unsaved staged changes")
                         } else {
