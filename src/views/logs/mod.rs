@@ -678,17 +678,17 @@ pub fn logs_explorer_view(
                                         false,
                                         24.0,
                                         10.5,
-                                        if app_data.journal.search_focused { app_data.input_cursor } else { 0 },
-                                        if app_data.journal.search_focused { app_data.input_selection } else { None },
-                                        if app_data.journal.search_focused { app_data.input_drag_anchor } else { None },
-                                        app_data.cursor_blink,
+                                        if app_data.journal.search_focused { app_data.caret.cursor } else { 0 },
+                                        if app_data.journal.search_focused { app_data.caret.selection } else { None },
+                                        if app_data.journal.search_focused { app_data.caret.drag_anchor } else { None },
+                                        app_data.caret.blink,
                                         move |cursor, anchor, selection, _window, cx| {
                                             app_search.update(cx, |this, cx| {
                                                 this.journal.search_focused = true;
-                                                this.input_cursor = cursor;
-                                                this.input_drag_anchor = anchor;
-                                                this.input_selection = selection;
-                                                this.cursor_blink = true;
+                                                this.caret.cursor = cursor;
+                                                this.caret.drag_anchor = anchor;
+                                                this.caret.selection = selection;
+                                                this.caret.blink = true;
                                                 cx.notify();
                                             });
                                         },

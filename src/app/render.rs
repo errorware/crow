@@ -47,8 +47,8 @@ impl Render for CrowApp {
                 this.handle_key_down(ev, window, cx);
             }))
             .on_mouse_up(MouseButton::Left, cx.listener(|this, _ev: &MouseUpEvent, _window, cx| {
-                if this.input_drag_anchor.is_some() {
-                    this.input_drag_anchor = None;
+                if this.caret.drag_anchor.is_some() {
+                    this.caret.drag_anchor = None;
                     cx.notify();
                 }
             }))

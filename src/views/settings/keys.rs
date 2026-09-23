@@ -1295,10 +1295,10 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                     false,
                                                     28.0,
                                                     11.0,
-                                                    if gen.active_focus == KeyGenFieldFocus::Name { app_data.input_cursor } else { 0 },
-                                                    if gen.active_focus == KeyGenFieldFocus::Name { app_data.input_selection } else { None },
-                                                    if gen.active_focus == KeyGenFieldFocus::Name { app_data.input_drag_anchor } else { None },
-                                                    app_data.cursor_blink,
+                                                    if gen.active_focus == KeyGenFieldFocus::Name { app_data.caret.cursor } else { 0 },
+                                                    if gen.active_focus == KeyGenFieldFocus::Name { app_data.caret.selection } else { None },
+                                                    if gen.active_focus == KeyGenFieldFocus::Name { app_data.caret.drag_anchor } else { None },
+                                                    app_data.caret.blink,
                                                     {
                                                         let app = app_focus_name;
                                                         move |cursor, anchor, selection, _window, cx| {
@@ -1306,10 +1306,10 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                                 if let Some(ref mut g) = this.keys.gen_modal {
                                                                     g.active_focus = KeyGenFieldFocus::Name;
                                                                 }
-                                                                this.input_cursor = cursor;
-                                                                this.input_drag_anchor = anchor;
-                                                                this.input_selection = selection;
-                                                                this.cursor_blink = true;
+                                                                this.caret.cursor = cursor;
+                                                                this.caret.drag_anchor = anchor;
+                                                                this.caret.selection = selection;
+                                                                this.caret.blink = true;
                                                                 cx.notify();
                                                             });
                                                         }
@@ -1392,10 +1392,10 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                     false,
                                                     28.0,
                                                     11.0,
-                                                    if gen.active_focus == KeyGenFieldFocus::Comment { app_data.input_cursor } else { 0 },
-                                                    if gen.active_focus == KeyGenFieldFocus::Comment { app_data.input_selection } else { None },
-                                                    if gen.active_focus == KeyGenFieldFocus::Comment { app_data.input_drag_anchor } else { None },
-                                                    app_data.cursor_blink,
+                                                    if gen.active_focus == KeyGenFieldFocus::Comment { app_data.caret.cursor } else { 0 },
+                                                    if gen.active_focus == KeyGenFieldFocus::Comment { app_data.caret.selection } else { None },
+                                                    if gen.active_focus == KeyGenFieldFocus::Comment { app_data.caret.drag_anchor } else { None },
+                                                    app_data.caret.blink,
                                                     {
                                                         let app = app_focus_comment;
                                                         move |cursor, anchor, selection, _window, cx| {
@@ -1403,10 +1403,10 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                                 if let Some(ref mut g) = this.keys.gen_modal {
                                                                     g.active_focus = KeyGenFieldFocus::Comment;
                                                                 }
-                                                                this.input_cursor = cursor;
-                                                                this.input_drag_anchor = anchor;
-                                                                this.input_selection = selection;
-                                                                this.cursor_blink = true;
+                                                                this.caret.cursor = cursor;
+                                                                this.caret.drag_anchor = anchor;
+                                                                this.caret.selection = selection;
+                                                                this.caret.blink = true;
                                                                 cx.notify();
                                                             });
                                                         }
@@ -1437,10 +1437,10 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                     false,
                                                     28.0,
                                                     11.0,
-                                                    if gen.active_focus == KeyGenFieldFocus::Directory { app_data.input_cursor } else { 0 },
-                                                    if gen.active_focus == KeyGenFieldFocus::Directory { app_data.input_selection } else { None },
-                                                    if gen.active_focus == KeyGenFieldFocus::Directory { app_data.input_drag_anchor } else { None },
-                                                    app_data.cursor_blink,
+                                                    if gen.active_focus == KeyGenFieldFocus::Directory { app_data.caret.cursor } else { 0 },
+                                                    if gen.active_focus == KeyGenFieldFocus::Directory { app_data.caret.selection } else { None },
+                                                    if gen.active_focus == KeyGenFieldFocus::Directory { app_data.caret.drag_anchor } else { None },
+                                                    app_data.caret.blink,
                                                     {
                                                         let app = app_focus_dir;
                                                         move |cursor, anchor, selection, _window, cx| {
@@ -1448,10 +1448,10 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                                 if let Some(ref mut g) = this.keys.gen_modal {
                                                                     g.active_focus = KeyGenFieldFocus::Directory;
                                                                 }
-                                                                this.input_cursor = cursor;
-                                                                this.input_drag_anchor = anchor;
-                                                                this.input_selection = selection;
-                                                                this.cursor_blink = true;
+                                                                this.caret.cursor = cursor;
+                                                                this.caret.drag_anchor = anchor;
+                                                                this.caret.selection = selection;
+                                                                this.caret.blink = true;
                                                                 cx.notify();
                                                             });
                                                         }
@@ -1612,18 +1612,18 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                 false,
                                 30.0,
                                 11.0,
-                                app_data.input_cursor,
-                                app_data.input_selection,
-                                app_data.input_drag_anchor,
-                                app_data.cursor_blink,
+                                app_data.caret.cursor,
+                                app_data.caret.selection,
+                                app_data.caret.drag_anchor,
+                                app_data.caret.blink,
                                 {
                                     let app = app.clone();
                                     move |cursor, anchor, selection, _window, cx| {
                                         app.update(cx, |this, cx| {
-                                            this.input_cursor = cursor;
-                                            this.input_drag_anchor = anchor;
-                                            this.input_selection = selection;
-                                            this.cursor_blink = true;
+                                            this.caret.cursor = cursor;
+                                            this.caret.drag_anchor = anchor;
+                                            this.caret.selection = selection;
+                                            this.caret.blink = true;
                                             cx.notify();
                                         });
                                     }
@@ -1741,18 +1741,18 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                 false,
                                 30.0,
                                 11.0,
-                                app_data.input_cursor,
-                                app_data.input_selection,
-                                app_data.input_drag_anchor,
-                                app_data.cursor_blink,
+                                app_data.caret.cursor,
+                                app_data.caret.selection,
+                                app_data.caret.drag_anchor,
+                                app_data.caret.blink,
                                 {
                                     let app = app.clone();
                                     move |cursor, anchor, selection, _window, cx| {
                                         app.update(cx, |this, cx| {
-                                            this.input_cursor = cursor;
-                                            this.input_drag_anchor = anchor;
-                                            this.input_selection = selection;
-                                            this.cursor_blink = true;
+                                            this.caret.cursor = cursor;
+                                            this.caret.drag_anchor = anchor;
+                                            this.caret.selection = selection;
+                                            this.caret.blink = true;
                                             cx.notify();
                                         });
                                     }
@@ -1880,18 +1880,18 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                         false,
                                         28.0,
                                         11.0,
-                                        app_data.input_cursor,
-                                        app_data.input_selection,
-                                        app_data.input_drag_anchor,
-                                        app_data.cursor_blink,
+                                        app_data.caret.cursor,
+                                        app_data.caret.selection,
+                                        app_data.caret.drag_anchor,
+                                        app_data.caret.blink,
                                         {
                                             let app = app.clone();
                                             move |cursor, anchor, selection, _window, cx| {
                                                 app.update(cx, |this, cx| {
-                                                    this.input_cursor = cursor;
-                                                    this.input_drag_anchor = anchor;
-                                                    this.input_selection = selection;
-                                                    this.cursor_blink = true;
+                                                    this.caret.cursor = cursor;
+                                                    this.caret.drag_anchor = anchor;
+                                                    this.caret.selection = selection;
+                                                    this.caret.blink = true;
                                                     cx.notify();
                                                 });
                                             }

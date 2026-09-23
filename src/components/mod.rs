@@ -3,6 +3,7 @@
 pub mod about;
 pub mod danger_zone;
 pub mod danger_zone_state;
+pub mod text_caret;
 pub mod icons;
 pub mod identity_bar;
 pub mod palette;

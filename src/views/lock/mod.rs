@@ -203,19 +203,19 @@ pub fn vault_lock_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoEle
                                         !show_pwd,
                                         38.0,
                                         13.0,
-                                        if is_pwd_focused { app_data.input_cursor } else { 0 },
-                                        if is_pwd_focused { app_data.input_selection } else { None },
-                                        if is_pwd_focused { app_data.input_drag_anchor } else { None },
-                                        app_data.cursor_blink,
+                                        if is_pwd_focused { app_data.caret.cursor } else { 0 },
+                                        if is_pwd_focused { app_data.caret.selection } else { None },
+                                        if is_pwd_focused { app_data.caret.drag_anchor } else { None },
+                                        app_data.caret.blink,
                                         {
                                             let app = app_pwd_focus;
                                             move |cursor, anchor, selection, _window, cx| {
                                                 app.update(cx, |this, cx| {
                                                     this.lock_state.active_focus = LockFieldFocus::Password;
-                                                    this.input_cursor = cursor;
-                                                    this.input_drag_anchor = anchor;
-                                                    this.input_selection = selection;
-                                                    this.cursor_blink = true;
+                                                    this.caret.cursor = cursor;
+                                                    this.caret.drag_anchor = anchor;
+                                                    this.caret.selection = selection;
+                                                    this.caret.blink = true;
                                                     cx.notify();
                                                 });
                                             }
@@ -259,19 +259,19 @@ pub fn vault_lock_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoEle
                                         false,
                                         38.0,
                                         13.0,
-                                        if is_totp_focused { app_data.input_cursor } else { 0 },
-                                        if is_totp_focused { app_data.input_selection } else { None },
-                                        if is_totp_focused { app_data.input_drag_anchor } else { None },
-                                        app_data.cursor_blink,
+                                        if is_totp_focused { app_data.caret.cursor } else { 0 },
+                                        if is_totp_focused { app_data.caret.selection } else { None },
+                                        if is_totp_focused { app_data.caret.drag_anchor } else { None },
+                                        app_data.caret.blink,
                                         {
                                             let app = app_totp_focus;
                                             move |cursor, anchor, selection, _window, cx| {
                                                 app.update(cx, |this, cx| {
                                                     this.lock_state.active_focus = LockFieldFocus::Totp;
-                                                    this.input_cursor = cursor;
-                                                    this.input_drag_anchor = anchor;
-                                                    this.input_selection = selection;
-                                                    this.cursor_blink = true;
+                                                    this.caret.cursor = cursor;
+                                                    this.caret.drag_anchor = anchor;
+                                                    this.caret.selection = selection;
+                                                    this.caret.blink = true;
                                                     cx.notify();
                                                 });
                                             }

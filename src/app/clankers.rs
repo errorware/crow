@@ -30,9 +30,8 @@ impl CrowApp {
                 focus: ClankerModalFocus::ApiKey,
                 error_message: None,
             });
-            self.input_cursor = key_len;
-            self.input_selection = None;
-            self.cursor_blink = true;
+            self.caret.place(key_len);
+            self.caret.blink = true;
             cx.notify();
         }
     }

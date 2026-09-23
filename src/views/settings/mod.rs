@@ -1002,18 +1002,18 @@ pub fn settings_view(
                                                                          false,
                                                                          26.0,
                                                                          11.0,
-                                                                         app_data.input_cursor,
-                                                                         app_data.input_selection,
-                                                                         app_data.input_drag_anchor,
-                                                                         app_data.cursor_blink,
+                                                                         app_data.caret.cursor,
+                                                                         app_data.caret.selection,
+                                                                         app_data.caret.drag_anchor,
+                                                                         app_data.caret.blink,
                                                                          {
                                                                              let app = app_custom;
                                                                              move |cursor, anchor, selection, _window, cx| {
                                                                                  app.update(cx, |this, cx| {
-                                                                                     this.input_cursor = cursor;
-                                                                                     this.input_drag_anchor = anchor;
-                                                                                     this.input_selection = selection;
-                                                                                     this.cursor_blink = true;
+                                                                                     this.caret.cursor = cursor;
+                                                                                     this.caret.drag_anchor = anchor;
+                                                                                     this.caret.selection = selection;
+                                                                                     this.caret.blink = true;
                                                                                      cx.notify();
                                                                                  });
                                                                              }

@@ -440,19 +440,19 @@ fn render_credentials_step(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                         !show_pwd,
                                         36.0,
                                         13.0,
-                                        if is_pwd_focused { app_data.input_cursor } else { 0 },
-                                        if is_pwd_focused { app_data.input_selection } else { None },
-                                        if is_pwd_focused { app_data.input_drag_anchor } else { None },
-                                        app_data.cursor_blink,
+                                        if is_pwd_focused { app_data.caret.cursor } else { 0 },
+                                        if is_pwd_focused { app_data.caret.selection } else { None },
+                                        if is_pwd_focused { app_data.caret.drag_anchor } else { None },
+                                        app_data.caret.blink,
                                         {
                                             let app = app_pwd_focus;
                                             move |cursor, anchor, selection, _window, cx| {
                                                 app.update(cx, |this, cx| {
                                                     this.setup_state.active_focus = SetupFieldFocus::Password;
-                                                    this.input_cursor = cursor;
-                                                    this.input_drag_anchor = anchor;
-                                                    this.input_selection = selection;
-                                                    this.cursor_blink = true;
+                                                    this.caret.cursor = cursor;
+                                                    this.caret.drag_anchor = anchor;
+                                                    this.caret.selection = selection;
+                                                    this.caret.blink = true;
                                                     cx.notify();
                                                 });
                                             }
@@ -483,19 +483,19 @@ fn render_credentials_step(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                         !show_pwd,
                                         36.0,
                                         13.0,
-                                        if is_confirm_focused { app_data.input_cursor } else { 0 },
-                                        if is_confirm_focused { app_data.input_selection } else { None },
-                                        if is_confirm_focused { app_data.input_drag_anchor } else { None },
-                                        app_data.cursor_blink,
+                                        if is_confirm_focused { app_data.caret.cursor } else { 0 },
+                                        if is_confirm_focused { app_data.caret.selection } else { None },
+                                        if is_confirm_focused { app_data.caret.drag_anchor } else { None },
+                                        app_data.caret.blink,
                                         {
                                             let app = app_confirm_focus;
                                             move |cursor, anchor, selection, _window, cx| {
                                                 app.update(cx, |this, cx| {
                                                     this.setup_state.active_focus = SetupFieldFocus::ConfirmPassword;
-                                                    this.input_cursor = cursor;
-                                                    this.input_drag_anchor = anchor;
-                                                    this.input_selection = selection;
-                                                    this.cursor_blink = true;
+                                                    this.caret.cursor = cursor;
+                                                    this.caret.drag_anchor = anchor;
+                                                    this.caret.selection = selection;
+                                                    this.caret.blink = true;
                                                     cx.notify();
                                                 });
                                             }
@@ -582,19 +582,19 @@ fn render_credentials_step(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                         false,
                                         36.0,
                                         13.0,
-                                        if is_totp_focused { app_data.input_cursor } else { 0 },
-                                        if is_totp_focused { app_data.input_selection } else { None },
-                                        if is_totp_focused { app_data.input_drag_anchor } else { None },
-                                        app_data.cursor_blink,
+                                        if is_totp_focused { app_data.caret.cursor } else { 0 },
+                                        if is_totp_focused { app_data.caret.selection } else { None },
+                                        if is_totp_focused { app_data.caret.drag_anchor } else { None },
+                                        app_data.caret.blink,
                                         {
                                             let app = app_totp_focus;
                                             move |cursor, anchor, selection, _window, cx| {
                                                 app.update(cx, |this, cx| {
                                                     this.setup_state.active_focus = SetupFieldFocus::TotpConfirm;
-                                                    this.input_cursor = cursor;
-                                                    this.input_drag_anchor = anchor;
-                                                    this.input_selection = selection;
-                                                    this.cursor_blink = true;
+                                                    this.caret.cursor = cursor;
+                                                    this.caret.drag_anchor = anchor;
+                                                    this.caret.selection = selection;
+                                                    this.caret.blink = true;
                                                     cx.notify();
                                                 });
                                             }

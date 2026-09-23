@@ -513,19 +513,19 @@ fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                         "e.g. 10.0.4.32 or prod-db.internal",
                         is_host_focused,
                         false,
-                        if is_host_focused { app_data.input_cursor } else { 0 },
-                        if is_host_focused { app_data.input_selection } else { None },
-                        if is_host_focused { app_data.input_drag_anchor } else { None },
-                        app_data.cursor_blink,
+                        if is_host_focused { app_data.caret.cursor } else { 0 },
+                        if is_host_focused { app_data.caret.selection } else { None },
+                        if is_host_focused { app_data.caret.drag_anchor } else { None },
+                        app_data.caret.blink,
                         {
                             let app = app_host;
                             move |cursor, anchor, selection, _window, cx| {
                                 app.update(cx, |this, cx| {
                                     this.onboard_state.focus = OnboardFieldFocus::Host;
-                                    this.input_cursor = cursor;
-                                    this.input_drag_anchor = anchor;
-                                    this.input_selection = selection;
-                                    this.cursor_blink = true;
+                                    this.caret.cursor = cursor;
+                                    this.caret.drag_anchor = anchor;
+                                    this.caret.selection = selection;
+                                    this.caret.blink = true;
                                     cx.notify();
                                 });
                             }
@@ -561,19 +561,19 @@ fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                         "22",
                         is_port_focused,
                         false,
-                        if is_port_focused { app_data.input_cursor } else { 0 },
-                        if is_port_focused { app_data.input_selection } else { None },
-                        if is_port_focused { app_data.input_drag_anchor } else { None },
-                        app_data.cursor_blink,
+                        if is_port_focused { app_data.caret.cursor } else { 0 },
+                        if is_port_focused { app_data.caret.selection } else { None },
+                        if is_port_focused { app_data.caret.drag_anchor } else { None },
+                        app_data.caret.blink,
                         {
                             let app = app_port;
                             move |cursor, anchor, selection, _window, cx| {
                                 app.update(cx, |this, cx| {
                                     this.onboard_state.focus = OnboardFieldFocus::Port;
-                                    this.input_cursor = cursor;
-                                    this.input_drag_anchor = anchor;
-                                    this.input_selection = selection;
-                                    this.cursor_blink = true;
+                                    this.caret.cursor = cursor;
+                                    this.caret.drag_anchor = anchor;
+                                    this.caret.selection = selection;
+                                    this.caret.blink = true;
                                     cx.notify();
                                 });
                             }
@@ -647,19 +647,19 @@ fn render_step_credentials(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                         "root (or ubuntu, deploy, admin…)",
                         is_user_focused,
                         false,
-                        if is_user_focused { app_data.input_cursor } else { 0 },
-                        if is_user_focused { app_data.input_selection } else { None },
-                        if is_user_focused { app_data.input_drag_anchor } else { None },
-                        app_data.cursor_blink,
+                        if is_user_focused { app_data.caret.cursor } else { 0 },
+                        if is_user_focused { app_data.caret.selection } else { None },
+                        if is_user_focused { app_data.caret.drag_anchor } else { None },
+                        app_data.caret.blink,
                         {
                             let app = app_user;
                             move |cursor, anchor, selection, _window, cx| {
                                 app.update(cx, |this, cx| {
                                     this.onboard_state.focus = OnboardFieldFocus::User;
-                                    this.input_cursor = cursor;
-                                    this.input_drag_anchor = anchor;
-                                    this.input_selection = selection;
-                                    this.cursor_blink = true;
+                                    this.caret.cursor = cursor;
+                                    this.caret.drag_anchor = anchor;
+                                    this.caret.selection = selection;
+                                    this.caret.blink = true;
                                     cx.notify();
                                 });
                             }
@@ -880,19 +880,19 @@ fn render_step_credentials(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                             "Enter remote password…",
                             is_pw_focused,
                             true,
-                            if is_pw_focused { app_data.input_cursor } else { 0 },
-                            if is_pw_focused { app_data.input_selection } else { None },
-                            if is_pw_focused { app_data.input_drag_anchor } else { None },
-                            app_data.cursor_blink,
+                            if is_pw_focused { app_data.caret.cursor } else { 0 },
+                            if is_pw_focused { app_data.caret.selection } else { None },
+                            if is_pw_focused { app_data.caret.drag_anchor } else { None },
+                            app_data.caret.blink,
                             {
                                 let app = app_pw;
                                 move |cursor, anchor, selection, _window, cx| {
                                     app.update(cx, |this, cx| {
                                         this.onboard_state.focus = OnboardFieldFocus::Password;
-                                        this.input_cursor = cursor;
-                                        this.input_drag_anchor = anchor;
-                                        this.input_selection = selection;
-                                        this.cursor_blink = true;
+                                        this.caret.cursor = cursor;
+                                        this.caret.drag_anchor = anchor;
+                                        this.caret.selection = selection;
+                                        this.caret.blink = true;
                                         cx.notify();
                                     });
                                 }
@@ -1214,19 +1214,19 @@ fn render_step_classify(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                         "e.g. worker-05, edge-eu, db-primary",
                         is_label_focused,
                         false,
-                        if is_label_focused { app_data.input_cursor } else { 0 },
-                        if is_label_focused { app_data.input_selection } else { None },
-                        if is_label_focused { app_data.input_drag_anchor } else { None },
-                        app_data.cursor_blink,
+                        if is_label_focused { app_data.caret.cursor } else { 0 },
+                        if is_label_focused { app_data.caret.selection } else { None },
+                        if is_label_focused { app_data.caret.drag_anchor } else { None },
+                        app_data.caret.blink,
                         {
                             let app = app_label;
                             move |cursor, anchor, selection, _window, cx| {
                                 app.update(cx, |this, cx| {
                                     this.onboard_state.focus = OnboardFieldFocus::Label;
-                                    this.input_cursor = cursor;
-                                    this.input_drag_anchor = anchor;
-                                    this.input_selection = selection;
-                                    this.cursor_blink = true;
+                                    this.caret.cursor = cursor;
+                                    this.caret.drag_anchor = anchor;
+                                    this.caret.selection = selection;
+                                    this.caret.blink = true;
                                     cx.notify();
                                 });
                             }
@@ -1436,19 +1436,19 @@ fn render_step_classify(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                         "e.g. queue, ruby, eu-west, staging",
                         is_tags_focused,
                         false,
-                        if is_tags_focused { app_data.input_cursor } else { 0 },
-                        if is_tags_focused { app_data.input_selection } else { None },
-                        if is_tags_focused { app_data.input_drag_anchor } else { None },
-                        app_data.cursor_blink,
+                        if is_tags_focused { app_data.caret.cursor } else { 0 },
+                        if is_tags_focused { app_data.caret.selection } else { None },
+                        if is_tags_focused { app_data.caret.drag_anchor } else { None },
+                        app_data.caret.blink,
                         {
                             let app = app_tags;
                             move |cursor, anchor, selection, _window, cx| {
                                 app.update(cx, |this, cx| {
                                     this.onboard_state.focus = OnboardFieldFocus::Tags;
-                                    this.input_cursor = cursor;
-                                    this.input_drag_anchor = anchor;
-                                    this.input_selection = selection;
-                                    this.cursor_blink = true;
+                                    this.caret.cursor = cursor;
+                                    this.caret.drag_anchor = anchor;
+                                    this.caret.selection = selection;
+                                    this.caret.blink = true;
                                     cx.notify();
                                 });
                             }

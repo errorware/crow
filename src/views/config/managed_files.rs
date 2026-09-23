@@ -152,17 +152,17 @@ pub fn managed_files_rail(selected_file: &str, app_data: &CrowApp, app: Entity<C
                                 false,
                                 24.0,
                                 11.0,
-                                if app_data.configs.search_focused { app_data.input_cursor } else { 0 },
-                                if app_data.configs.search_focused { app_data.input_selection } else { None },
-                                if app_data.configs.search_focused { app_data.input_drag_anchor } else { None },
-                                app_data.cursor_blink,
+                                if app_data.configs.search_focused { app_data.caret.cursor } else { 0 },
+                                if app_data.configs.search_focused { app_data.caret.selection } else { None },
+                                if app_data.configs.search_focused { app_data.caret.drag_anchor } else { None },
+                                app_data.caret.blink,
                                 move |cursor, anchor, selection, _window, cx| {
                                     app_search.update(cx, |this, cx| {
                                         this.configs.search_focused = true;
-                                        this.input_cursor = cursor;
-                                        this.input_drag_anchor = anchor;
-                                        this.input_selection = selection;
-                                        this.cursor_blink = true;
+                                        this.caret.cursor = cursor;
+                                        this.caret.drag_anchor = anchor;
+                                        this.caret.selection = selection;
+                                        this.caret.blink = true;
                                         cx.notify();
                                     });
                                 },

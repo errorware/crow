@@ -86,9 +86,8 @@ impl CrowApp {
 
     pub fn open_key_gen_modal(&mut self, cx: &mut Context<Self>) {
         self.keys.gen_modal = Some(KeyGenModalState::default());
-        self.input_cursor = 0;
-        self.input_selection = None;
-        self.cursor_blink = true;
+        self.caret.place(0);
+        self.caret.blink = true;
         cx.notify();
     }
 
@@ -146,9 +145,8 @@ impl CrowApp {
             color_input: "#4ade80".to_string(),
             error_message: None,
         });
-        self.input_cursor = 0;
-        self.input_selection = None;
-        self.cursor_blink = true;
+        self.caret.place(0);
+        self.caret.blink = true;
         cx.notify();
     }
 
@@ -190,9 +188,8 @@ impl CrowApp {
 
     pub fn open_add_scan_path_modal(&mut self, cx: &mut Context<Self>) {
         self.keys.add_scan_path_modal = Some(AddScanPathModalState::default());
-        self.input_cursor = 0;
-        self.input_selection = None;
-        self.cursor_blink = true;
+        self.caret.place(0);
+        self.caret.blink = true;
         cx.notify();
     }
 
@@ -243,9 +240,8 @@ impl CrowApp {
                 attached_servers: key.attached_servers.clone(),
                 error_message: None,
             });
-            self.input_cursor = name_len;
-            self.input_selection = None;
-            self.cursor_blink = true;
+            self.caret.place(name_len);
+            self.caret.blink = true;
             cx.notify();
         }
     }

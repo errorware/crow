@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::components::danger_zone_state::DangerZoneState;
+use crate::components::text_caret::TextCaret;
 use crate::components::titlebar::ServerTab;
 use crate::metrics::{
     collector::{sample_server, CollectorPreviousState},
@@ -162,10 +163,7 @@ pub struct CrowApp {
     // UI Components Lab Sandbox
     pub lab_state: LabState,
     // Text input caret and selection state
-    pub cursor_blink: bool,
-    pub input_cursor: usize,
-    pub input_selection: Option<(usize, usize)>,
-    pub input_drag_anchor: Option<usize>,
+    pub caret: TextCaret,
     pub _cursor_blink_task: Task<()>,
     // Real Stats & Metrics Telemetry Store (Lagged Turbo Buffer & Foreknowledge)
     pub metrics_store: HashMap<String, ServerMetrics>,
@@ -445,16 +443,13 @@ host    all             all             10.0.4.0/24             scram-sha-256
             danger: DangerZoneState::default(),
             onboard_state,
             lab_state,
-            cursor_blink: true,
-            input_cursor: 0,
-            input_selection: None,
-            input_drag_anchor: None,
+            caret: TextCaret { blink: true, ..TextCaret::default() },
             _cursor_blink_task: cx.spawn(async move |entity, cx| {
                 loop {
                     cx.background_executor().timer(std::time::Duration::from_millis(530)).await;
                     let should_notify = entity.update(cx, |this, cx| {
                         if this.has_active_text_input() {
-                            this.cursor_blink = !this.cursor_blink;
+                            this.caret.blink = !this.caret.blink;
                             cx.notify();
                             true
                         } else {

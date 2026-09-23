@@ -240,13 +240,13 @@ pub fn render_components_lab(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                                                 lab.custom_compare_cursor,
                                                 lab.custom_compare_selection,
                                                 lab.custom_compare_drag_anchor,
-                                                app_data.cursor_blink,
+                                                app_data.caret.blink,
                                                 move |cursor, anchor, selection, _window, cx| {
                                                     app_c.update(cx, |this, cx| {
                                                         this.lab_state.custom_compare_cursor = cursor;
                                                         this.lab_state.custom_compare_drag_anchor = anchor;
                                                         this.lab_state.custom_compare_selection = selection;
-                                                        this.cursor_blink = true;
+                                                        this.caret.blink = true;
                                                         cx.notify();
                                                     });
                                                 },

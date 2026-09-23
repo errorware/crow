@@ -47,9 +47,8 @@ impl CrowApp {
         } else {
             self.settings_dropdown_open = Some(row_id.to_string());
             self.settings_custom_input = initial_val.to_string();
-            self.input_cursor = self.settings_custom_input.chars().count();
-            self.input_selection = None;
-            self.cursor_blink = true;
+            self.caret.place(self.settings_custom_input.chars().count());
+            self.caret.blink = true;
         }
         cx.notify();
     }

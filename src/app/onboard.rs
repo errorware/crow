@@ -51,14 +51,14 @@ impl CrowApp {
             OnboardFieldFocus::Tags => self.onboard_state.tags.chars().count(),
             OnboardFieldFocus::None => 0,
         };
-        self.cursor_blink = true;
-        self.input_drag_anchor = None;
+        self.caret.blink = true;
+        self.caret.drag_anchor = None;
         if select_all && text_len > 0 {
-            self.input_selection = Some((0, text_len));
-            self.input_cursor = text_len;
+            self.caret.selection = Some((0, text_len));
+            self.caret.cursor = text_len;
         } else {
-            self.input_selection = None;
-            self.input_cursor = text_len;
+            self.caret.selection = None;
+            self.caret.cursor = text_len;
         }
         cx.notify();
     }

@@ -846,8 +846,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                         app_focus_key.update(cx, |this, cx| {
                                             if let Some(ref mut st) = this.clankers.editing {
                                                 st.focus = ClankerModalFocus::ApiKey;
-                                                this.input_cursor = st.api_key_input.chars().count();
-                                                this.input_selection = None;
+                                                this.caret.place(st.api_key_input.chars().count());
                                                 cx.notify();
                                             }
                                         });
@@ -861,10 +860,10 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                             false,
                                             32.0,
                                             11.0,
-                                            if is_key_focused { app_data.input_cursor } else { 0 },
-                                            if is_key_focused { app_data.input_selection } else { None },
-                                            if is_key_focused { app_data.input_drag_anchor } else { None },
-                                            app_data.cursor_blink,
+                                            if is_key_focused { app_data.caret.cursor } else { 0 },
+                                            if is_key_focused { app_data.caret.selection } else { None },
+                                            if is_key_focused { app_data.caret.drag_anchor } else { None },
+                                            app_data.caret.blink,
                                             {
                                                 let app = app.clone();
                                                 move |cursor, anchor, selection, _window, cx| {
@@ -872,10 +871,10 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                                         if let Some(ref mut st) = this.clankers.editing {
                                                             st.focus = ClankerModalFocus::ApiKey;
                                                         }
-                                                        this.input_cursor = cursor;
-                                                        this.input_drag_anchor = anchor;
-                                                        this.input_selection = selection;
-                                                        this.cursor_blink = true;
+                                                        this.caret.cursor = cursor;
+                                                        this.caret.drag_anchor = anchor;
+                                                        this.caret.selection = selection;
+                                                        this.caret.blink = true;
                                                         cx.notify();
                                                     });
                                                 }
@@ -904,8 +903,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                         app_focus_model.update(cx, |this, cx| {
                                             if let Some(ref mut st) = this.clankers.editing {
                                                 st.focus = ClankerModalFocus::Model;
-                                                this.input_cursor = st.model_input.chars().count();
-                                                this.input_selection = None;
+                                                this.caret.place(st.model_input.chars().count());
                                                 cx.notify();
                                             }
                                         });
@@ -919,10 +917,10 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                             false,
                                             32.0,
                                             11.0,
-                                            if is_model_focused { app_data.input_cursor } else { 0 },
-                                            if is_model_focused { app_data.input_selection } else { None },
-                                            if is_model_focused { app_data.input_drag_anchor } else { None },
-                                            app_data.cursor_blink,
+                                            if is_model_focused { app_data.caret.cursor } else { 0 },
+                                            if is_model_focused { app_data.caret.selection } else { None },
+                                            if is_model_focused { app_data.caret.drag_anchor } else { None },
+                                            app_data.caret.blink,
                                             {
                                                 let app = app.clone();
                                                 move |cursor, anchor, selection, _window, cx| {
@@ -930,10 +928,10 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                                         if let Some(ref mut st) = this.clankers.editing {
                                                             st.focus = ClankerModalFocus::Model;
                                                         }
-                                                        this.input_cursor = cursor;
-                                                        this.input_drag_anchor = anchor;
-                                                        this.input_selection = selection;
-                                                        this.cursor_blink = true;
+                                                        this.caret.cursor = cursor;
+                                                        this.caret.drag_anchor = anchor;
+                                                        this.caret.selection = selection;
+                                                        this.caret.blink = true;
                                                         cx.notify();
                                                     });
                                                 }
@@ -962,8 +960,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                         app_focus_url.update(cx, |this, cx| {
                                             if let Some(ref mut st) = this.clankers.editing {
                                                 st.focus = ClankerModalFocus::BaseUrl;
-                                                this.input_cursor = st.base_url_input.chars().count();
-                                                this.input_selection = None;
+                                                this.caret.place(st.base_url_input.chars().count());
                                                 cx.notify();
                                             }
                                         });
@@ -977,10 +974,10 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                             false,
                                             32.0,
                                             11.0,
-                                            if is_url_focused { app_data.input_cursor } else { 0 },
-                                            if is_url_focused { app_data.input_selection } else { None },
-                                            if is_url_focused { app_data.input_drag_anchor } else { None },
-                                            app_data.cursor_blink,
+                                            if is_url_focused { app_data.caret.cursor } else { 0 },
+                                            if is_url_focused { app_data.caret.selection } else { None },
+                                            if is_url_focused { app_data.caret.drag_anchor } else { None },
+                                            app_data.caret.blink,
                                             {
                                                 let app = app.clone();
                                                 move |cursor, anchor, selection, _window, cx| {
@@ -988,10 +985,10 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                                         if let Some(ref mut st) = this.clankers.editing {
                                                             st.focus = ClankerModalFocus::BaseUrl;
                                                         }
-                                                        this.input_cursor = cursor;
-                                                        this.input_drag_anchor = anchor;
-                                                        this.input_selection = selection;
-                                                        this.cursor_blink = true;
+                                                        this.caret.cursor = cursor;
+                                                        this.caret.drag_anchor = anchor;
+                                                        this.caret.selection = selection;
+                                                        this.caret.blink = true;
                                                         cx.notify();
                                                     });
                                                 }

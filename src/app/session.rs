@@ -13,8 +13,7 @@ impl CrowApp {
             self.lock_state.password_input.clear();
             self.lock_state.totp_input.clear();
             self.lock_state.error_message = None;
-            self.input_cursor = 0;
-            self.input_selection = None;
+            self.caret.place(0);
             self.menu_open = false;
             self.palette_open = false;
             cx.notify();
@@ -46,8 +45,7 @@ impl CrowApp {
                 self.lock_state.password_input.clear();
                 self.lock_state.totp_input.clear();
                 self.lock_state.error_message = None;
-                self.input_cursor = 0;
-                self.input_selection = None;
+                self.caret.place(0);
                 cx.notify();
             }
             Err(e) => {
@@ -87,8 +85,7 @@ impl CrowApp {
         match self.vault.initialize(&pwd, &self.setup_state.totp_secret) {
             Ok(_) => {
                 self.setup_state = SetupState::default();
-                self.input_cursor = 0;
-                self.input_selection = None;
+                self.caret.place(0);
                 self.screen = Screen::Fleet;
                 cx.notify();
             }
@@ -102,12 +99,10 @@ impl CrowApp {
     pub fn set_screen(&mut self, screen: Screen, cx: &mut Context<Self>) {
         if screen == Screen::Onboard && self.screen != Screen::Onboard {
             self.onboard_state = OnboardState::new(&self.keys.enrolled);
-            self.input_cursor = self.onboard_state.host.chars().count();
-            self.input_selection = None;
+            self.caret.place(self.onboard_state.host.chars().count());
         } else if screen == Screen::VaultSetup && self.screen != Screen::VaultSetup {
             self.setup_state = SetupState::default();
-            self.input_cursor = 0;
-            self.input_selection = None;
+            self.caret.place(0);
         }
         self.screen = screen;
         self.menu_open = false;
