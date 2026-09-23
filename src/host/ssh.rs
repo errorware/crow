@@ -165,6 +165,13 @@ impl SshHost {
         if let Some(jump) = jump {
             args.extend(["-J".into(), jump]);
         }
+        // The destination comes from the vault; a value starting with '-' would
+        // be read by ssh as an option (e.g. -oProxyCommand=...). Refuse it, and
+        // end option parsing before the destination regardless.
+        if server.host.starts_with('-') || server.host.trim().is_empty() {
+            unsupported = Some(format!("invalid host address {:?}", server.host));
+        }
+        args.push("--".into());
         args.push(server.host.clone());
         Self {
             server_id: server.id.clone(),
@@ -214,8 +221,8 @@ impl Host for SshHost {
         }
         let remote = argv.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" ");
         let mut full: Vec<&str> = vec![self.program.as_str()];
+        // args end with `-- <destination>`; everything after is the command.
         full.extend(self.args.iter().map(String::as_str));
-        full.push("--");
         full.push(&remote);
         match run_command(&full, stdin, timeout) {
             // ssh exits 255 for its own failures; anything else is the remote command's status.
@@ -264,8 +271,19 @@ mod tests {
         assert!(a.contains("-p 2222") && a.contains("-l ops"));
         assert!(a.contains("-i /keys/id -o IdentitiesOnly=yes"));
         assert!(a.contains("-J root@bastion:22"));
-        assert_eq!(h.args.last().unwrap(), "10.0.4.12");
+        assert_eq!(&h.args[h.args.len() - 2..], ["--", "10.0.4.12"]);
         assert!(h.unsupported.is_none());
+    }
+
+    #[test]
+    fn a_host_that_looks_like_an_option_is_refused() {
+        let mut srv = server("agent", None);
+        srv.id = "srv-evil".into();
+        srv.host = "-oProxyCommand=touch /tmp/crow-pwned".into();
+        let h = SshHost::new(&srv, None, None, "/run/crow".into());
+        assert!(h.unsupported.as_deref().unwrap().contains("invalid host"));
+        assert!(h.exec(&["true"], Duration::from_secs(1)).is_err());
+        assert!(!std::path::Path::new("/tmp/crow-pwned").exists());
     }
 
     #[test]
