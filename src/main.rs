@@ -5,6 +5,7 @@ mod app;
 mod components;
 mod theme;
 pub mod config;
+pub mod host;
 pub mod journal;
 pub mod keys;
 pub mod lab;

@@ -104,7 +104,7 @@ pub struct SshKeyRecord {
     pub updated_at: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct ServerRecord {
     pub id: String,
     pub name: String,
