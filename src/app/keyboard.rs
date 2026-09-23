@@ -27,6 +27,27 @@ struct KeyPress<'a> {
 }
 
 impl CrowApp {
+    /// Toggles the caret blink phase every 530ms while a text input is active.
+    pub(super) fn spawn_cursor_blink(cx: &mut Context<Self>) -> Task<()> {
+        cx.spawn(async move |entity, cx| {
+                loop {
+                    cx.background_executor().timer(std::time::Duration::from_millis(530)).await;
+                    let should_notify = entity.update(cx, |this, cx| {
+                        if this.has_active_text_input() {
+                            this.caret.blink = !this.caret.blink;
+                            cx.notify();
+                            true
+                        } else {
+                            false
+                        }
+                    });
+                    if should_notify.is_err() {
+                        break;
+                    }
+                }
+            })
+    }
+
     /// Routes a key press to whichever surface owns the keyboard right now, in
     /// priority order: vault lock screen, vault setup, key-hub modals, settings
     /// dropdown, onboarding, log search, config search, then global shortcuts.

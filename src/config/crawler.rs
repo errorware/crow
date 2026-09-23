@@ -516,3 +516,14 @@ mod tests {
         assert!(configs.iter().all(|c| !c.is_synthetic));
     }
 }
+
+/// Loads a discovered file's current content into a versioned edit state,
+/// falling back to sample content when the file is absent or unreadable.
+pub fn load_config_file_state(f: &DiscoveredConfigFile) -> super::ConfigFileState {
+    let content = if f.full_path.exists() {
+        std::fs::read_to_string(&f.full_path).unwrap_or_else(|_| sample_config_content(&f.name))
+    } else {
+        sample_config_content(&f.name)
+    };
+    super::ConfigFileState::new(f.full_path.clone(), f.name.clone(), content)
+}

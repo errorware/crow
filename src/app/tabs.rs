@@ -10,6 +10,26 @@ use crate::components::titlebar::ServerTab;
 use crate::views::overview::collector::collect_sockets_for_server;
 use crate::views::overview::collector::collect_services_for_server;
 use crate::views::overview::collector::collect_processes_for_server;
+use crate::vault::ServerRecord;
+
+/// Tabs for the first few enrolled servers, colored by last known status.
+pub fn initial_tabs(servers: &[ServerRecord]) -> Vec<ServerTab> {
+    servers
+        .iter()
+        .take(5)
+        .map(|s| ServerTab {
+            id: s.id.clone(),
+            name: s.name.clone(),
+            status_color: match s.status.as_str() {
+                "online" => OK,
+                "warn" => WARN,
+                "crit" => CRIT,
+                _ => TEXT_FAINTER,
+            },
+            is_active: false,
+        })
+        .collect()
+}
 
 impl CrowApp {
     pub fn switch_tab(&mut self, tab_id: &str, cx: &mut Context<Self>) {

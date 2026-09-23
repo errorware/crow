@@ -1,7 +1,10 @@
 use gpui_kit::*;
 
 use super::CrowApp;
-use crate::config::{crawl_machine_configs, sample_config_content, ConfigFileState};
+use crow_config_core::edit::ConfigDocument;
+use crow_config_core::ConfigPlugin;
+use crow_config_schemas::PgHbaPlugin;
+use crate::config::{crawl_machine_configs, load_config_file_state};
 use crate::journal::retention::JournalRetentionConfig;
 use crate::theme::{CRIT, OK};
 use crate::views::config::cron_editor::default_cron_jobs;
@@ -11,6 +14,30 @@ use crate::theme::WARN;
 // ==========================================
 // Config files: discovery, staging, versions
 // ==========================================
+
+/// Startup smoke check that crow-config-core and its pg_hba schema plugin
+/// parse a representative file; logs the parsed rule count.
+pub fn log_config_core_self_check() {
+    let plugin = PgHbaPlugin::new();
+    let sample_pg_hba = r#"
+# PostgreSQL Client Authentication Configuration File
+local   all             postgres                                peer
+host    all             all             127.0.0.1/32            scram-sha-256
+host    all             all             ::1/128                 scram-sha-256
+host    acme_prod       acme_app        10.0.4.19/32            scram-sha-256
+host    all             all             0.0.0.0/0               md5
+host    all             all             10.0.4.0/24             scram-sha-256
+"#;
+    if let Ok(doc) = ConfigDocument::parse(&plugin, sample_pg_hba) {
+        if let Ok(ir) = doc.to_ir() {
+            println!(
+                "Crow Core: parsed {} pg_hba rules from schema plugin: {}",
+                ir.rows.len(),
+                plugin.manifest().plugin.name
+            );
+        }
+    }
+}
 
 impl CrowApp {
     pub fn default_author(&self) -> String {
@@ -31,15 +58,7 @@ impl CrowApp {
         let discovered = crawl_machine_configs(self.fleet.local_distro_family);
         for f in &discovered {
             if !self.configs.states.contains_key(&f.name) {
-                let content = if f.full_path.exists() {
-                    std::fs::read_to_string(&f.full_path).unwrap_or_else(|_| sample_config_content(&f.name))
-                } else {
-                    sample_config_content(&f.name)
-                };
-                self.configs.states.insert(
-                    f.name.clone(),
-                    ConfigFileState::new(f.full_path.clone(), f.name.clone(), content),
-                );
+                self.configs.states.insert(f.name.clone(), load_config_file_state(f));
             }
         }
         self.configs.files = discovered;

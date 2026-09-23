@@ -1,6 +1,6 @@
 use gpui_kit::*;
 use gpui_kit::component::button::{Button, ButtonVariants};
-use gpui_kit::component::input::{Input, OtpInput, Textarea};
+use gpui_kit::component::input::{Input, InputState, OtpInput, OtpState, Textarea, TextareaState};
 use crate::app::CrowApp;
 use crate::components::icons::{tabler_icon, TablerIcon};
 use crate::components::terminal_text_input;
@@ -16,6 +16,61 @@ use crate::theme::*;
 /// - 6-Digit grouped `OtpInput`
 /// - Multi-line `Textarea`
 /// - Native `Button` styles and variants
+/// UI components sandbox (Settings → Components): live gpui-component
+/// widgets beside Crow's own text input for side-by-side comparison.
+pub struct LabState {
+    pub text_input: Entity<InputState>,
+    pub cleanable_input: Entity<InputState>,
+    pub password_input: Entity<InputState>,
+    pub prefix_input: Entity<InputState>,
+    pub textarea: Entity<TextareaState>,
+    pub otp_input: Entity<OtpState>,
+    pub custom_compare_text: String,
+    pub custom_compare_cursor: usize,
+    pub custom_compare_selection: Option<(usize, usize)>,
+    pub custom_compare_drag_anchor: Option<usize>,
+}
+
+impl LabState {
+    pub fn new(window: &mut Window, cx: &mut Context<CrowApp>) -> Self {
+        Self {
+        text_input: cx.new(|cx| {
+            InputState::new(window, cx)
+                .placeholder("Type something here to test gpui-component...")
+                .default_value("prod-db-cluster.internal")
+        }),
+        cleanable_input: cx.new(|cx| {
+            InputState::new(window, cx)
+                .placeholder("Type to reveal clear button...")
+                .default_value("search fleet by tag or region...")
+        }),
+        password_input: cx.new(|cx| {
+            InputState::new(window, cx)
+                .placeholder("Enter sensitive secret...")
+                .masked(true)
+                .default_value("crow_vault_master_key_9981")
+        }),
+        prefix_input: cx.new(|cx| {
+            InputState::new(window, cx)
+                .placeholder("10.0.0.1")
+                .default_value("bastion.eu-west-1.aws")
+        }),
+        textarea: cx.new(|cx| {
+            TextareaState::new(window, cx).default_value(
+                "# Fleet Deployment Manifest\nenv: production\nreplicas: 4\nregion: us-east-1\nauto_drain: true",
+            )
+        }),
+        otp_input: cx.new(|cx| {
+            OtpState::new(6, window, cx).default_value("849201")
+        }),
+        custom_compare_text: "prod-db-cluster.internal".to_string(),
+        custom_compare_cursor: 24,
+        custom_compare_selection: None,
+        custom_compare_drag_anchor: None,
+        }
+    }
+}
+
 pub fn render_components_lab(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
     let lab = &app_data.lab_state;
 

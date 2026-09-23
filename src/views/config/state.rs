@@ -38,6 +38,19 @@ impl ConfigsState {
         }
     }
 
+    /// Sets a file's baseline and current content to `text` (both unmodified).
+    /// With `create_at`, a missing file state is created at that path first.
+    pub fn seed_baseline(&mut self, file: &str, text: String, create_at: Option<&str>) {
+        if !self.states.contains_key(file) {
+            let Some(path) = create_at else { return };
+            self.states.insert(file.to_string(), ConfigFileState::new(path.into(), file.to_string(), text.clone()));
+        }
+        if let Some(st) = self.states.get_mut(file) {
+            st.baseline_content = text.clone();
+            st.current_content = text;
+        }
+    }
+
     pub fn sync_hba(&mut self) {
         let content = generate_hba_conf(&self.hba_rules);
         if let Some(state) = self.states.get_mut("pg_hba.conf") {

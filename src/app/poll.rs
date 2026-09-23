@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 
+use gpui_kit::{Context, Task};
+
 use super::{CrowApp, Screen};
 use crate::vault::ServerRecord;
 use crate::journal::JournalEntry;
@@ -112,7 +114,70 @@ pub fn run_background_poll(
     (result, local_prev)
 }
 
+/// Takes one metrics sample per server and seeds a time-series buffer with it,
+/// both keyed by server id and by name.
+pub fn seed_metrics(
+    servers: &[ServerRecord],
+) -> (HashMap<String, ServerMetrics>, HashMap<String, ServerTimeSeriesBuffer>) {
+    let mut metrics_store = HashMap::new();
+    let mut buffered_stores = HashMap::new();
+    let mut local_prev = CollectorPreviousState::default();
+    let now_secs = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map(|d| d.as_secs())
+        .unwrap_or(0);
+
+    for s in servers {
+        let m = sample_server(s, None, &mut local_prev);
+        metrics_store.insert(s.id.clone(), m.clone());
+        metrics_store.insert(s.name.clone(), m.clone());
+
+        let mut buf = ServerTimeSeriesBuffer::default();
+        buf.push_sample(MetricSample {
+            timestamp_secs: now_secs,
+            metrics: m,
+            services: Vec::new(),
+            processes: Vec::new(),
+            sockets: Vec::new(),
+        });
+        buffered_stores.insert(s.id.clone(), buf.clone());
+        buffered_stores.insert(s.name.clone(), buf);
+    }
+    (metrics_store, buffered_stores)
+}
+
 impl CrowApp {
+    /// Every 2s: snapshot what to poll on the main thread, collect it on the
+    /// background executor, then apply the result.
+    pub(super) fn spawn_metrics_poll(cx: &mut Context<Self>) -> Task<()> {
+        cx.spawn(async move |entity, cx| {
+                let mut local_prev = CollectorPreviousState::default();
+                loop {
+                    cx.background_executor().timer(std::time::Duration::from_millis(2000)).await;
+                    let req_res = entity.update(cx, |this, _cx| {
+                        this.prepare_poll_request()
+                    });
+                    let req = match req_res {
+                        Ok(r) => r,
+                        Err(_) => break,
+                    };
+        
+                    let (res, next_prev) = cx.background_executor().spawn(async move {
+                        run_background_poll(req, local_prev)
+                    }).await;
+        
+                    local_prev = next_prev;
+        
+                    if entity.update(cx, |this, cx| {
+                        this.apply_poll_result(res);
+                        cx.notify();
+                    }).is_err() {
+                        break;
+                    }
+                }
+            })
+    }
+
     pub fn prepare_poll_request(&self) -> BackgroundPollRequest {
         let now_secs = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)

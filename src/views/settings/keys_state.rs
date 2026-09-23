@@ -1,5 +1,6 @@
+use crate::vault::VaultDb;
 use crate::keys::{
-    AddScanPathModalState, DiscoveredKey, EditKeyModalState, KeyGenModalState, NewGroupModalState,
+    expand_tilde, scan_directory, AddScanPathModalState, DiscoveredKey, EditKeyModalState, KeyGenModalState, NewGroupModalState,
     SshKeyGroup, SshKeyRecord, SshScanPath,
 };
 
@@ -40,6 +41,39 @@ impl KeysState {
             edit_modal: None,
             toast: None,
         }
+    }
+
+    /// Loads keys, groups and scan paths from the vault and scans those paths.
+    pub fn load(db: &VaultDb) -> Self {
+        let mut st = Self::new(Vec::new(), Vec::new(), Vec::new(), Vec::new(), None);
+        st.reload(db);
+        st
+    }
+
+    /// Re-reads vault records and rescans the scan paths for keys on disk,
+    /// leaving modal/filter UI state alone.
+    pub fn reload(&mut self, db: &VaultDb) {
+        self.scan_paths = db.list_scan_paths().unwrap_or_default();
+        self.groups = db.list_key_groups().unwrap_or_default();
+        self.enrolled = db.list_ssh_keys().unwrap_or_default();
+        let mut discovered: Vec<DiscoveredKey> = Vec::new();
+        for p in &self.scan_paths {
+            for k in scan_directory(&expand_tilde(&p.path), &self.enrolled) {
+                if !discovered.iter().any(|d| d.fingerprint == k.fingerprint) {
+                    discovered.push(k);
+                }
+            }
+        }
+        let new_count = discovered.iter().filter(|d| !d.is_enrolled).count();
+        self.scan_status = Some(format!(
+            "Scanned {} path{} · {} key{} found ({} new)",
+            self.scan_paths.len(),
+            if self.scan_paths.len() == 1 { "" } else { "s" },
+            discovered.len(),
+            if discovered.len() == 1 { "" } else { "s" },
+            new_count
+        ));
+        self.discovered = discovered;
     }
 
     pub fn any_modal_open(&self) -> bool {

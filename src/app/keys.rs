@@ -2,7 +2,7 @@ use gpui_kit::*;
 
 use super::CrowApp;
 use crate::keys::{
-    copy_to_clipboard_system, expand_tilde, scan_directory, AddScanPathModalState, DiscoveredKey,
+    copy_to_clipboard_system, expand_tilde, AddScanPathModalState,
     EditKeyModalState, KeyGenModalState, NewGroupModalState,
 };
 use crate::vault::SshKeyRecord;
@@ -13,31 +13,8 @@ use crate::vault::SshKeyRecord;
 
 impl CrowApp {
     pub fn refresh_keys(&mut self, cx: &mut Context<Self>) {
-        let db = self.vault.db();
-        if let Ok(db_guard) = db.lock() {
-            self.keys.scan_paths = db_guard.list_scan_paths().unwrap_or_default();
-            self.keys.groups = db_guard.list_key_groups().unwrap_or_default();
-            self.keys.enrolled = db_guard.list_ssh_keys().unwrap_or_default();
-            let mut discovered = Vec::new();
-            for p in &self.keys.scan_paths {
-                let expanded = expand_tilde(&p.path);
-                let found = scan_directory(&expanded, &self.keys.enrolled);
-                for k in found {
-                    if !discovered.iter().any(|d: &DiscoveredKey| d.fingerprint == k.fingerprint) {
-                        discovered.push(k);
-                    }
-                }
-            }
-            let new_count = discovered.iter().filter(|d| !d.is_enrolled).count();
-            self.keys.scan_status = Some(format!(
-                "Scanned {} path{} · {} key{} found ({} new)",
-                self.keys.scan_paths.len(),
-                if self.keys.scan_paths.len() == 1 { "" } else { "s" },
-                discovered.len(),
-                if discovered.len() == 1 { "" } else { "s" },
-                new_count
-            ));
-            self.keys.discovered = discovered;
+        if let Ok(db) = self.vault.db().lock() {
+            self.keys.reload(&db);
         }
         cx.notify();
     }
