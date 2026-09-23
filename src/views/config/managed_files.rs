@@ -3,13 +3,16 @@ use crate::app::CrowApp;
 use crate::theme::*;
 use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::components::terminal_text_input_styled;
+use crate::components::text_caret::TextCaret;
+use crate::views::fleet::FleetState;
+use crate::views::config::state::ConfigsState;
 
-pub fn managed_files_rail(selected_file: &str, app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
-    let files = &app_data.configs.files;
+pub fn managed_files_rail(selected_file: &str, caret: &TextCaret, fleet: &FleetState, configs: &ConfigsState, app: Entity<CrowApp>) -> impl IntoElement {
+    let files = &configs.files;
     let app_clone = app.clone();
     let app_scan = app.clone();
     let sel_file = selected_file.to_string();
-    let search_q = app_data.configs.search_query.trim().to_lowercase();
+    let search_q = configs.search_query.trim().to_lowercase();
 
     // Filter files if search query is present
     let filtered_files: Vec<_> = files
@@ -106,7 +109,7 @@ pub fn managed_files_rail(selected_file: &str, app_data: &CrowApp, app: Entity<C
         )
         // Unverified distro warning — the crawler only trusted a generic /etc
         // scan for this host; no placeholder configs were fabricated either.
-        .children(if !app_data.fleet.local_distro_family.is_supported() {
+        .children(if !fleet.local_distro_family.is_supported() {
             Some(
                 div()
                     .px(px(10.0))
@@ -146,16 +149,16 @@ pub fn managed_files_rail(selected_file: &str, app_data: &CrowApp, app: Entity<C
                         .child(
                             terminal_text_input_styled(
                                 "input-config-search",
-                                &app_data.configs.search_query,
+                                &configs.search_query,
                                 "Filter configs...",
-                                app_data.configs.search_focused,
+                                configs.search_focused,
                                 false,
                                 24.0,
                                 11.0,
-                                if app_data.configs.search_focused { app_data.caret.cursor } else { 0 },
-                                if app_data.configs.search_focused { app_data.caret.selection } else { None },
-                                if app_data.configs.search_focused { app_data.caret.drag_anchor } else { None },
-                                app_data.caret.blink,
+                                if configs.search_focused { caret.cursor } else { 0 },
+                                if configs.search_focused { caret.selection } else { None },
+                                if configs.search_focused { caret.drag_anchor } else { None },
+                                caret.blink,
                                 move |cursor, anchor, selection, _window, cx| {
                                     app_search.update(cx, |this, cx| {
                                         this.configs.search_focused = true;
@@ -169,7 +172,7 @@ pub fn managed_files_rail(selected_file: &str, app_data: &CrowApp, app: Entity<C
                             )
                         )
                 })
-                .children(if !app_data.configs.search_query.is_empty() {
+                .children(if !configs.search_query.is_empty() {
                     let app_clear = app_clone.clone();
                     Some(
                         div()
@@ -234,7 +237,7 @@ pub fn managed_files_rail(selected_file: &str, app_data: &CrowApp, app: Entity<C
                 )
                 .children(mapped_files.into_iter().enumerate().map(|(idx, f)| {
                     let is_sel = f.name == sel_file;
-                    let is_edited = app_data.configs.states.get(&f.name).map(|s| s.is_modified()).unwrap_or(false);
+                    let is_edited = configs.states.get(&f.name).map(|s| s.is_modified()).unwrap_or(false);
                     let app_click = app_clone.clone();
                     let f_name = f.name.clone();
 
@@ -370,7 +373,7 @@ pub fn managed_files_rail(selected_file: &str, app_data: &CrowApp, app: Entity<C
                 )
                 .children(raw_files.into_iter().enumerate().map(|(idx, f)| {
                     let is_sel = f.name == sel_file;
-                    let is_edited = app_data.configs.states.get(&f.name).map(|s| s.is_modified()).unwrap_or(false);
+                    let is_edited = configs.states.get(&f.name).map(|s| s.is_modified()).unwrap_or(false);
                     let app_click = app_clone.clone();
                     let f_name = f.name.clone();
 

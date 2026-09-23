@@ -5,6 +5,7 @@ use crate::app::CrowApp;
 use crate::components::icons::{tabler_icon, TablerIcon};
 use crate::components::terminal_text_input;
 use crate::theme::*;
+use crate::components::text_caret::TextCaret;
 
 /// Render the UI Components Lab sandbox view within Settings.
 /// Provides an isolated testing ground for `gpui-component` widgets:
@@ -71,8 +72,8 @@ impl LabState {
     }
 }
 
-pub fn render_components_lab(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
-    let lab = &app_data.lab_state;
+pub fn render_components_lab(app: Entity<CrowApp>, caret: &TextCaret, lab_state: &LabState) -> Div {
+    let lab = &lab_state;
 
     div()
         .flex_1()
@@ -295,7 +296,7 @@ pub fn render_components_lab(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                                                 lab.custom_compare_cursor,
                                                 lab.custom_compare_selection,
                                                 lab.custom_compare_drag_anchor,
-                                                app_data.caret.blink,
+                                                caret.blink,
                                                 move |cursor, anchor, selection, _window, cx| {
                                                     app_c.update(cx, |this, cx| {
                                                         this.lab_state.custom_compare_cursor = cursor;

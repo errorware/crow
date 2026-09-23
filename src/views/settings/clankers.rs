@@ -5,15 +5,17 @@ use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::components::sparkline::dynamic_sparkline;
 use crate::components::terminal_text_input_styled;
 use crate::vault::ClankerProviderConfig;
+use crate::components::text_caret::TextCaret;
+use crate::views::settings::clankers_state::ClankersState;
 
-pub fn render_clankers_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElement {
-    let providers = &app_data.clankers.providers;
+pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState) -> impl IntoElement {
+    let providers = &clankers.providers;
     let total_calls_30d: u64 = providers.iter().map(|p| p.calls_30d).sum();
     let configured_count = providers.iter().filter(|p| !p.api_key.trim().is_empty()).count();
     let default_provider = providers.iter().find(|p| p.is_default).cloned();
 
-    let demo_log = &app_data.clankers.demo_log;
-    let demo_output = app_data.clankers.demo_output.as_deref();
+    let demo_log = &clankers.demo_log;
+    let demo_output = clankers.demo_output.as_deref();
 
     div()
         .flex_1()
@@ -188,7 +190,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl In
                         })),
                 )
                 // Interactive AI Usability Sandbox ("WTF is this log trying to say?")
-                .child(render_eli5_sandbox(app.clone(), app_data, demo_log, demo_output)),
+                .child(render_eli5_sandbox(app.clone(), demo_log, demo_output)),
         )
 }
 
@@ -530,7 +532,6 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig) -> i
 
 fn render_eli5_sandbox(
     app: Entity<CrowApp>,
-    _app_data: &CrowApp,
     demo_log: &str,
     demo_output: Option<&str>,
 ) -> impl IntoElement {
@@ -736,8 +737,8 @@ fn render_eli5_sandbox(
         })
 }
 
-pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option<impl IntoElement> {
-    let state = app_data.clankers.editing.as_ref()?;
+pub fn render_clanker_modals(app: Entity<CrowApp>, caret: &TextCaret, clankers: &ClankersState) -> Option<impl IntoElement> {
+    let state = clankers.editing.as_ref()?;
     let p_name = state.display_name.clone();
     let err = state.error_message.clone();
 
@@ -860,10 +861,10 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                             false,
                                             32.0,
                                             11.0,
-                                            if is_key_focused { app_data.caret.cursor } else { 0 },
-                                            if is_key_focused { app_data.caret.selection } else { None },
-                                            if is_key_focused { app_data.caret.drag_anchor } else { None },
-                                            app_data.caret.blink,
+                                            if is_key_focused { caret.cursor } else { 0 },
+                                            if is_key_focused { caret.selection } else { None },
+                                            if is_key_focused { caret.drag_anchor } else { None },
+                                            caret.blink,
                                             {
                                                 let app = app.clone();
                                                 move |cursor, anchor, selection, _window, cx| {
@@ -917,10 +918,10 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                             false,
                                             32.0,
                                             11.0,
-                                            if is_model_focused { app_data.caret.cursor } else { 0 },
-                                            if is_model_focused { app_data.caret.selection } else { None },
-                                            if is_model_focused { app_data.caret.drag_anchor } else { None },
-                                            app_data.caret.blink,
+                                            if is_model_focused { caret.cursor } else { 0 },
+                                            if is_model_focused { caret.selection } else { None },
+                                            if is_model_focused { caret.drag_anchor } else { None },
+                                            caret.blink,
                                             {
                                                 let app = app.clone();
                                                 move |cursor, anchor, selection, _window, cx| {
@@ -974,10 +975,10 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Option
                                             false,
                                             32.0,
                                             11.0,
-                                            if is_url_focused { app_data.caret.cursor } else { 0 },
-                                            if is_url_focused { app_data.caret.selection } else { None },
-                                            if is_url_focused { app_data.caret.drag_anchor } else { None },
-                                            app_data.caret.blink,
+                                            if is_url_focused { caret.cursor } else { 0 },
+                                            if is_url_focused { caret.selection } else { None },
+                                            if is_url_focused { caret.drag_anchor } else { None },
+                                            caret.blink,
                                             {
                                                 let app = app.clone();
                                                 move |cursor, anchor, selection, _window, cx| {

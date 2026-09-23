@@ -2,6 +2,7 @@ use gpui_kit::*;
 use crate::app::{CrowApp, Screen};
 use crate::components::terminal_text_input_styled;
 use crate::theme::*;
+use crate::components::text_caret::TextCaret;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SetupStep {
@@ -43,8 +44,8 @@ impl Default for SetupState {
     }
 }
 
-pub fn vault_setup_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElement {
-    let state = &app_data.setup_state;
+pub fn vault_setup_view(app: Entity<CrowApp>, caret: &TextCaret, setup_state: &SetupState) -> impl IntoElement {
+    let state = &setup_state;
     div()
         .size_full()
         .children(match state.step {
@@ -52,7 +53,7 @@ pub fn vault_setup_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoEl
             SetupStep::ConfigureCredentials => None,
         })
         .children(match state.step {
-            SetupStep::ConfigureCredentials => Some(render_credentials_step(app, app_data)),
+            SetupStep::ConfigureCredentials => Some(render_credentials_step(app, caret, setup_state)),
             SetupStep::WarningNotice => None,
         })
 }
@@ -287,8 +288,8 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
         )
 }
 
-fn render_credentials_step(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElement {
-    let state = &app_data.setup_state;
+fn render_credentials_step(app: Entity<CrowApp>, caret: &TextCaret, setup_state: &SetupState) -> impl IntoElement {
+    let state = &setup_state;
     let has_error = state.error_message.is_some();
     let error_text = state.error_message.clone().unwrap_or_default();
 
@@ -440,10 +441,10 @@ fn render_credentials_step(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                         !show_pwd,
                                         36.0,
                                         13.0,
-                                        if is_pwd_focused { app_data.caret.cursor } else { 0 },
-                                        if is_pwd_focused { app_data.caret.selection } else { None },
-                                        if is_pwd_focused { app_data.caret.drag_anchor } else { None },
-                                        app_data.caret.blink,
+                                        if is_pwd_focused { caret.cursor } else { 0 },
+                                        if is_pwd_focused { caret.selection } else { None },
+                                        if is_pwd_focused { caret.drag_anchor } else { None },
+                                        caret.blink,
                                         {
                                             let app = app_pwd_focus;
                                             move |cursor, anchor, selection, _window, cx| {
@@ -483,10 +484,10 @@ fn render_credentials_step(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                         !show_pwd,
                                         36.0,
                                         13.0,
-                                        if is_confirm_focused { app_data.caret.cursor } else { 0 },
-                                        if is_confirm_focused { app_data.caret.selection } else { None },
-                                        if is_confirm_focused { app_data.caret.drag_anchor } else { None },
-                                        app_data.caret.blink,
+                                        if is_confirm_focused { caret.cursor } else { 0 },
+                                        if is_confirm_focused { caret.selection } else { None },
+                                        if is_confirm_focused { caret.drag_anchor } else { None },
+                                        caret.blink,
                                         {
                                             let app = app_confirm_focus;
                                             move |cursor, anchor, selection, _window, cx| {
@@ -582,10 +583,10 @@ fn render_credentials_step(app: Entity<CrowApp>, app_data: &CrowApp) -> impl Int
                                         false,
                                         36.0,
                                         13.0,
-                                        if is_totp_focused { app_data.caret.cursor } else { 0 },
-                                        if is_totp_focused { app_data.caret.selection } else { None },
-                                        if is_totp_focused { app_data.caret.drag_anchor } else { None },
-                                        app_data.caret.blink,
+                                        if is_totp_focused { caret.cursor } else { 0 },
+                                        if is_totp_focused { caret.selection } else { None },
+                                        if is_totp_focused { caret.drag_anchor } else { None },
+                                        caret.blink,
                                         {
                                             let app = app_totp_focus;
                                             move |cursor, anchor, selection, _window, cx| {

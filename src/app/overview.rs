@@ -1,7 +1,8 @@
 use gpui_kit::*;
 
 use super::CrowApp;
-use crate::vault::ChangeRecord;
+use crate::vault::{ChangeRecord, Vault};
+use crate::views::fleet::FleetState;
 use crate::views::overview::collector::{
     collect_processes_for_server, collect_services_for_server, collect_sockets_for_server,
     systemctl_service_action, terminate_process,
@@ -11,6 +12,24 @@ use crate::views::overview::BlastRadiusInfo;
 // ==========================================
 // Server overview: services, processes, sockets, service manager
 // ==========================================
+
+/// Most recent durable change records for `target` on the active server.
+pub fn recent_change_records(vault: &Vault, fleet: &FleetState, target: &str, limit: usize) -> Vec<ChangeRecord> {
+    let Some(srv) = fleet.active_server() else {
+        return Vec::new();
+    };
+    let db = vault.db();
+    let Ok(db_guard) = db.lock() else {
+        return Vec::new();
+    };
+    db_guard
+        .list_change_records(&srv.id, 50)
+        .unwrap_or_default()
+        .into_iter()
+        .filter(|r| r.target == target)
+        .take(limit)
+        .collect()
+}
 
 impl CrowApp {
     pub fn set_services_tab(&mut self, tab: &str, cx: &mut Context<Self>) {
@@ -328,22 +347,6 @@ impl CrowApp {
 
     /// Recent Apply Pipeline change records for one unit on the active server —
     /// the audit trail surfaced in the Service Manager panel.
-    pub fn recent_change_records(&self, target: &str, limit: usize) -> Vec<ChangeRecord> {
-        let Some(srv) = self.fleet.servers.iter().find(|s| s.id == self.fleet.active_tab_id || s.name == self.fleet.active_tab_id) else {
-            return Vec::new();
-        };
-        let db = self.vault.db();
-        let Ok(db_guard) = db.lock() else {
-            return Vec::new();
-        };
-        db_guard
-            .list_change_records(&srv.id, 50)
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|r| r.target == target)
-            .take(limit)
-            .collect()
-    }
 
     pub fn focus_socket(&mut self, sock_id: &str, cx: &mut Context<Self>) {
         let mut already_focused = false;

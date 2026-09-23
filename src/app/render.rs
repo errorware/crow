@@ -66,7 +66,7 @@ impl Render for CrowApp {
             // If locked, show full lock screen
             .children(if vault_status == VaultStatus::Locked {
                 Some(
-                    div().size_full().child(vault_lock_view(app_view.clone(), self))
+                    div().size_full().child(vault_lock_view(app_view.clone(), &self.caret, &self.lock_state))
                 )
             } else {
                 None
@@ -230,10 +230,10 @@ impl Render for CrowApp {
                                                                                 div()
                                                                                     .flex_1()
                                                                                     .min_h(px(0.0))
-                                                                                    .child(services_table(self, app_view.clone()))
+                                                                                    .child(services_table(&self.overview, app_view.clone()))
                                                                             )
                                                                             .children(if self.overview.socket_drawer_open {
-                                                                                Some(socket_log_drawer(self, app_view.clone()).into_any_element())
+                                                                                Some(socket_log_drawer(&self.fleet, &self.overview, &self.journal, app_view.clone()).into_any_element())
                                                                             } else {
                                                                                 None
                                                                             })
@@ -241,9 +241,9 @@ impl Render for CrowApp {
                                                                         div()
                                                                             .size_full()
                                                                             .flex()
-                                                                            .child(services_table(self, app_view.clone()))
+                                                                            .child(services_table(&self.overview, app_view.clone()))
                                                                             .child(if self.overview.active_tab == "services" {
-                                                                                service_inspector_rail(self, app_view.clone()).into_any_element()
+                                                                                service_inspector_rail(&self.vault, &self.fleet, &self.overview, app_view.clone()).into_any_element()
                                                                             } else {
                                                                                 log_tail(&self.journal.entries, app_view.clone()).into_any_element()
                                                                             })
@@ -251,44 +251,39 @@ impl Render for CrowApp {
                                                                 )
                                                             } else if is_config {
                                                                 let editor_view = if self.configs.selected_file == "journald.conf" {
-                                                                    crate::views::config::journald_editor::journald_editor(
-                                                                        &self.journal.retention,
-                                                                        &self.journal.telemetry,
-                                                                        self,
-                                                                        app_view.clone(),
-                                                                    ).into_any_element()
+                                                                    crate::views::config::journald_editor::journald_editor(&self.journal.retention, &self.journal.telemetry, &self.configs, app_view.clone()).into_any_element()
                                                                 } else if self.configs.selected_file == "pg_hba.conf" {
-                                                                    rules_editor(&self.configs.hba_rules, self, app_view.clone()).into_any_element()
+                                                                    rules_editor(&self.configs.hba_rules, &self.configs, app_view.clone()).into_any_element()
                                                                 } else if self.configs.selected_file == "crontab" || self.configs.selected_file.contains("cron") {
-                                                                    cron_editor(&self.configs.cron_jobs, self, app_view.clone()).into_any_element()
+                                                                    cron_editor(&self.configs.cron_jobs, &self.configs, app_view.clone()).into_any_element()
                                                                 } else if let Some(st) = self.configs.states.get(&self.configs.selected_file) {
                                                                     raw_config_editor(st, app_view.clone()).into_any_element()
                                                                 } else {
-                                                                    rules_editor(&self.configs.hba_rules, self, app_view.clone()).into_any_element()
+                                                                    rules_editor(&self.configs.hba_rules, &self.configs, app_view.clone()).into_any_element()
                                                                 };
 
                                                                 Some(
                                                                     div()
                                                                         .size_full()
                                                                         .flex()
-                                                                        .child(managed_files_rail(&self.configs.selected_file, self, app_view.clone()))
+                                                                        .child(managed_files_rail(&self.configs.selected_file, &self.caret, &self.fleet, &self.configs, app_view.clone()))
                                                                         .child(editor_view)
-                                                                        .child(pending_diff_rail(self, app_view.clone()))
+                                                                        .child(pending_diff_rail(&self.configs, app_view.clone()))
                                                                 )
                                                             } else if self.active_view == "logs" {
                                                                 Some(
                                                                     div()
                                                                         .size_full()
                                                                         .flex()
-                                                                        .child(logs_explorer_view(app_view.clone(), self))
+                                                                        .child(logs_explorer_view(app_view.clone(), &self.caret, &self.journal))
                                                                 )
                                                             } else if self.active_view == "cron" {
                                                                 Some(
                                                                     div()
                                                                         .size_full()
                                                                         .flex()
-                                                                        .child(cron_editor(&self.configs.cron_jobs, self, app_view.clone()))
-                                                                        .child(pending_diff_rail(self, app_view.clone()))
+                                                                        .child(cron_editor(&self.configs.cron_jobs, &self.configs, app_view.clone()))
+                                                                        .child(pending_diff_rail(&self.configs, app_view.clone()))
                                                                 )
                                                             } else if self.active_view == "users" {
                                                                 Some(
@@ -315,7 +310,7 @@ impl Render for CrowApp {
                                                                                 .child(firewall_view(app_view.clone(), &self.firewall, &self.configs.states))
                                                                         )
                                                                         .children(if self.firewall.show_audit_rail {
-                                                                            Some(pending_diff_rail(self, app_view.clone()))
+                                                                            Some(pending_diff_rail(&self.configs, app_view.clone()))
                                                                         } else {
                                                                             None
                                                                         })
@@ -371,21 +366,17 @@ impl Render for CrowApp {
                                     Screen::Fleet => Some(
                                         div()
                                             .size_full()
-                                            .child(fleet_overview_view(app_view.clone(), self)),
+                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab)),
                                     ),
                                     Screen::Settings => Some(
                                         div()
                                             .size_full()
-                                            .child(settings_view(
-                                                app_view.clone(),
-                                                self,
-                                                self.settings.section,
-                                            )),
+                                            .child(settings_view(app_view.clone(), &self.vault, &self.config, &self.caret, &self.fleet, &self.keys, &self.clankers, &self.settings, &self.lab_state, self.settings.section)),
                                     ),
                                     Screen::Onboard => Some(
                                         div()
                                             .size_full()
-                                            .child(onboard_view(app_view.clone(), self)),
+                                            .child(onboard_view(app_view.clone(), &self.caret, &self.fleet, &self.onboard_state, &self.keys, &self.local_lab)),
                                     ),
                                     Screen::FleetSetup => Some(
                                         div()
@@ -395,7 +386,7 @@ impl Render for CrowApp {
                                     Screen::VaultSetup => Some(
                                         div()
                                             .size_full()
-                                            .child(vault_setup_view(app_view.clone(), self)),
+                                            .child(vault_setup_view(app_view.clone(), &self.caret, &self.setup_state)),
                                     ),
                                 }),
                         )

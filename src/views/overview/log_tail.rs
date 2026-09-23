@@ -3,6 +3,9 @@ use crate::theme::*;
 use crate::app::CrowApp;
 use crate::journal::JournalEntry;
 use crate::components::icons::{TablerIcon, tabler_icon};
+use crate::views::fleet::FleetState;
+use crate::views::overview::OverviewState;
+use crate::views::logs::JournalState;
 
 pub fn log_tail(
     entries: &[JournalEntry],
@@ -221,17 +224,17 @@ pub fn log_tail(
 }
 
 pub fn socket_log_drawer(
-    app_data: &CrowApp,
+    fleet: &FleetState, overview: &OverviewState, journal: &JournalState,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
     let app_expand = app.clone();
     let app_close = app.clone();
     let app_filter = app.clone();
 
-    let entries = &app_data.journal.entries;
-    let focused_socket = app_data.overview.sockets.iter().find(|s| s.is_focused).cloned();
+    let entries = &journal.entries;
+    let focused_socket = overview.sockets.iter().find(|s| s.is_focused).cloned();
     let focused_pid = focused_socket.as_ref().and_then(|s| s.pid);
-    let filter_active = app_data.overview.socket_drawer_filter_this_socket && focused_socket.is_some();
+    let filter_active = overview.socket_drawer_filter_this_socket && focused_socket.is_some();
 
     // Filter entries if filter_active is enabled and socket is focused
     let filtered_entries: Vec<&JournalEntry> = if let (true, Some(sock)) = (filter_active, &focused_socket) {
@@ -264,10 +267,9 @@ pub fn socket_log_drawer(
     let err_count = filtered_entries.iter().filter(|e| e.priority.is_error()).count();
     let warn_count = filtered_entries.iter().filter(|e| e.priority.is_warn()).count();
 
-    let hostname = app_data
-        .fleet.servers
+    let hostname = fleet.servers
         .iter()
-        .find(|s| s.id == app_data.fleet.active_tab_id || s.name == app_data.fleet.active_tab_id)
+        .find(|s| s.id == fleet.active_tab_id || s.name == fleet.active_tab_id)
         .map(|s| s.name.clone())
         .unwrap_or_else(|| "edge-01".to_string());
 
@@ -376,7 +378,7 @@ pub fn socket_log_drawer(
                 .child(div().flex_1())
                 // Filter chip (toggle filter to focused socket)
                 .children(if focused_socket.is_some() {
-                    let is_filtered = app_data.overview.socket_drawer_filter_this_socket;
+                    let is_filtered = overview.socket_drawer_filter_this_socket;
                     Some(
                         div()
                             .id("btn-drawer-filter-socket")

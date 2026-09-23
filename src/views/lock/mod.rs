@@ -4,6 +4,7 @@ use gpui_kit::*;
 use crate::app::CrowApp;
 use crate::components::terminal_text_input_styled;
 use crate::theme::*;
+use crate::components::text_caret::TextCaret;
 
 pub use setup::{vault_setup_view, SetupFieldFocus, SetupState, SetupStep};
 
@@ -34,8 +35,8 @@ impl Default for LockState {
     }
 }
 
-pub fn vault_lock_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElement {
-    let state = &app_data.lock_state;
+pub fn vault_lock_view(app: Entity<CrowApp>, caret: &TextCaret, lock_state: &LockState) -> impl IntoElement {
+    let state = &lock_state;
     let has_error = state.error_message.is_some();
     let error_text = state.error_message.clone().unwrap_or_default();
 
@@ -203,10 +204,10 @@ pub fn vault_lock_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoEle
                                         !show_pwd,
                                         38.0,
                                         13.0,
-                                        if is_pwd_focused { app_data.caret.cursor } else { 0 },
-                                        if is_pwd_focused { app_data.caret.selection } else { None },
-                                        if is_pwd_focused { app_data.caret.drag_anchor } else { None },
-                                        app_data.caret.blink,
+                                        if is_pwd_focused { caret.cursor } else { 0 },
+                                        if is_pwd_focused { caret.selection } else { None },
+                                        if is_pwd_focused { caret.drag_anchor } else { None },
+                                        caret.blink,
                                         {
                                             let app = app_pwd_focus;
                                             move |cursor, anchor, selection, _window, cx| {
@@ -259,10 +260,10 @@ pub fn vault_lock_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoEle
                                         false,
                                         38.0,
                                         13.0,
-                                        if is_totp_focused { app_data.caret.cursor } else { 0 },
-                                        if is_totp_focused { app_data.caret.selection } else { None },
-                                        if is_totp_focused { app_data.caret.drag_anchor } else { None },
-                                        app_data.caret.blink,
+                                        if is_totp_focused { caret.cursor } else { 0 },
+                                        if is_totp_focused { caret.selection } else { None },
+                                        if is_totp_focused { caret.drag_anchor } else { None },
+                                        caret.blink,
                                         {
                                             let app = app_totp_focus;
                                             move |cursor, anchor, selection, _window, cx| {

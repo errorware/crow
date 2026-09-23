@@ -11,6 +11,14 @@ use crow_config_core::schema::FieldType;
 
 pub mod keys;
 use self::keys::{render_key_modals, render_keys_center_column, render_keys_right_rail};
+use crate::vault::Vault;
+use crate::config::CrowConfigManager;
+use crate::components::text_caret::TextCaret;
+use crate::views::fleet::FleetState;
+use crate::views::settings::keys_state::KeysState;
+use crate::views::settings::clankers_state::ClankersState;
+use crate::views::settings::state::SettingsState;
+use crate::views::settings::lab::LabState;
 pub mod lab;
 pub mod clankers;
 
@@ -220,13 +228,12 @@ fn get_field_options(
 
 pub fn settings_view(
     app: Entity<CrowApp>,
-    app_data: &CrowApp,
+    vault: &Vault, config: &CrowConfigManager, caret: &TextCaret, fleet: &FleetState, keys: &KeysState, clankers: &ClankersState, settings: &SettingsState, lab_state: &LabState,
     section: SettingsSection,
 ) -> impl IntoElement {
-    let config = &app_data.config;
-    let is_auth_enabled = app_data.vault.is_password_auth_enabled();
-    let open_dropdown = app_data.settings.dropdown_open.as_deref();
-    let custom_input = &app_data.settings.custom_input;
+    let is_auth_enabled = vault.is_password_auth_enabled();
+    let open_dropdown = settings.dropdown_open.as_deref();
+    let custom_input = &settings.custom_input;
     let nav_items = [
         (TablerIcon::AdjustmentsHorizontal, "General", SettingsSection::General),
         (TablerIcon::Network, "Connection & SSH", SettingsSection::Connection),
@@ -444,11 +451,11 @@ pub fn settings_view(
                 )
                 // Center Settings Rows Column
                 .children(if section == SettingsSection::Keys {
-                    Some(render_keys_center_column(app.clone(), app_data).into_any_element())
+                    Some(render_keys_center_column(app.clone(), keys).into_any_element())
                 } else if section == SettingsSection::Components {
-                    Some(lab::render_components_lab(app.clone(), app_data).into_any_element())
+                    Some(lab::render_components_lab(app.clone(), caret, lab_state).into_any_element())
                 } else if section == SettingsSection::Clankers {
-                    Some(clankers::render_clankers_view(app.clone(), app_data).into_any_element())
+                    Some(clankers::render_clankers_view(app.clone(), clankers).into_any_element())
                 } else {
                     None
                 })
@@ -1003,10 +1010,10 @@ pub fn settings_view(
                                                                          false,
                                                                          26.0,
                                                                          11.0,
-                                                                         app_data.caret.cursor,
-                                                                         app_data.caret.selection,
-                                                                         app_data.caret.drag_anchor,
-                                                                         app_data.caret.blink,
+                                                                         caret.cursor,
+                                                                         caret.selection,
+                                                                         caret.drag_anchor,
+                                                                         caret.blink,
                                                                          {
                                                                              let app = app_custom;
                                                                              move |cursor, anchor, selection, _window, cx| {
@@ -1190,7 +1197,7 @@ pub fn settings_view(
                         .border_l_1()
                         .border_color(BORDER_PANEL)
                         .children(if section == SettingsSection::Keys {
-                            Some(render_keys_right_rail(app.clone(), app_data))
+                            Some(render_keys_right_rail(app.clone(), keys))
                         } else {
                             None
                         })
@@ -1372,6 +1379,6 @@ pub fn settings_view(
                     None
                 }),
         )
-        .children(render_key_modals(app.clone(), app_data))
-        .children(clankers::render_clanker_modals(app.clone(), app_data))
+        .children(render_key_modals(app.clone(), caret, fleet, keys))
+        .children(clankers::render_clanker_modals(app.clone(), caret, clankers))
 }

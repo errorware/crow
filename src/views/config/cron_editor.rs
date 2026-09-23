@@ -2,6 +2,7 @@ use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
+use crate::views::config::state::ConfigsState;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct CronJobDef {
@@ -205,10 +206,10 @@ pub fn generate_crontab_content(jobs: &[CronJobDef]) -> String {
 
 pub fn cron_editor(
     jobs: &[CronJobDef],
-    app_data: &CrowApp,
+    configs: &ConfigsState,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
-    let file_state = app_data.configs.states.get("crontab");
+    let file_state = configs.states.get("crontab");
     let is_modified = file_state.map(|s| s.is_modified()).unwrap_or(false);
     let rev_count = file_state.map(|s| s.revisions.len()).unwrap_or(1);
     let active_count = jobs.iter().filter(|j| j.enabled).count();
@@ -370,10 +371,10 @@ pub fn cron_editor(
                         .id("btn-cron-history")
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
-                        .text_color(if app_data.configs.show_history { OK } else { TEXT_TERTIARY })
+                        .text_color(if configs.show_history { OK } else { TEXT_TERTIARY })
                         .border_1()
-                        .border_color(if app_data.configs.show_history { OK } else { BORDER_DEFAULT })
-                        .bg(if app_data.configs.show_history { OK_BG } else { hex_rgba(0, 0.0) })
+                        .border_color(if configs.show_history { OK } else { BORDER_DEFAULT })
+                        .bg(if configs.show_history { OK_BG } else { hex_rgba(0, 0.0) })
                         .px(px(8.0))
                         .py(px(4.0))
                         .rounded_sm()

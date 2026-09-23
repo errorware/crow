@@ -2,6 +2,7 @@ use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
+use crate::views::config::state::ConfigsState;
 
 pub struct HbaRuleDef {
     pub num: &'static str,
@@ -63,8 +64,8 @@ pub fn generate_hba_conf(rules: &[HbaRuleDef]) -> String {
     out
 }
 
-pub fn rules_editor(rules: &[HbaRuleDef], app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
-    let file_state = app_data.configs.states.get("pg_hba.conf");
+pub fn rules_editor(rules: &[HbaRuleDef], configs: &ConfigsState, app: Entity<CrowApp>) -> impl IntoElement {
+    let file_state = configs.states.get("pg_hba.conf");
     let is_modified = file_state.map(|s| s.is_modified()).unwrap_or(false);
     let rev_count = file_state.map(|s| s.revisions.len()).unwrap_or(1);
     let app_apply = app.clone();
@@ -186,10 +187,10 @@ pub fn rules_editor(rules: &[HbaRuleDef], app_data: &CrowApp, app: Entity<CrowAp
                         .id("btn-hba-history")
                         .font_family(FONT_MONO)
                         .text_size(px(10.5))
-                        .text_color(if app_data.configs.show_history { OK } else { TEXT_TERTIARY })
+                        .text_color(if configs.show_history { OK } else { TEXT_TERTIARY })
                         .border_1()
-                        .border_color(if app_data.configs.show_history { OK } else { BORDER_DEFAULT })
-                        .bg(if app_data.configs.show_history { OK_BG } else { hex_rgba(0, 0.0) })
+                        .border_color(if configs.show_history { OK } else { BORDER_DEFAULT })
+                        .bg(if configs.show_history { OK_BG } else { hex_rgba(0, 0.0) })
                         .px(px(9.0))
                         .py(px(4.0))
                         .rounded_sm()

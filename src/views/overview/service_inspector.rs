@@ -4,6 +4,9 @@ use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::vault::ChangeRecord;
 use super::models::ServiceUnit;
+use crate::vault::Vault;
+use crate::views::fleet::FleetState;
+use crate::views::overview::OverviewState;
 
 /// Maps a systemd unit name to the crow-config managed file that governs it,
 /// if one is known. None means there's nothing to hand off to the Config screen yet.
@@ -30,8 +33,8 @@ fn config_file_for_service(unit: &str) -> Option<&'static str> {
     }
 }
 
-pub fn service_inspector_rail(app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
-    let focused = app_data.overview.services.iter().find(|s| s.is_focused);
+pub fn service_inspector_rail(vault: &Vault, fleet: &FleetState, overview: &OverviewState, app: Entity<CrowApp>) -> impl IntoElement {
+    let focused = overview.services.iter().find(|s| s.is_focused);
 
     div()
         .w(px(360.0))
@@ -97,7 +100,7 @@ pub fn service_inspector_rail(app_data: &CrowApp, app: Entity<CrowApp>) -> impl 
                     .into_any_element(),
             ),
             Some(svc) => Some(
-                render_focused_panel(svc, app_data, app)
+                render_focused_panel(svc, vault, fleet, overview, app)
                     .into_any_element(),
             ),
         })
@@ -126,7 +129,7 @@ fn info_cell(label: &str, value: String, value_color: Rgba) -> impl IntoElement 
         )
 }
 
-fn render_focused_panel(svc: &ServiceUnit, app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
+fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, overview: &OverviewState, app: Entity<CrowApp>) -> impl IntoElement {
     let is_active = svc.status == "ACTIVE";
     let pill_bg = match svc.status.as_str() {
         "ACTIVE" => OK_BG,
@@ -134,10 +137,10 @@ fn render_focused_panel(svc: &ServiceUnit, app_data: &CrowApp, app: Entity<CrowA
         _ => CRIT_BG,
     };
     let config_file = config_file_for_service(&svc.name);
-    let pending_action = app_data.overview.service_panel_pending_action.clone();
-    let failed_banner = app_data.overview.last_change_outcome.as_ref()
+    let pending_action = overview.service_panel_pending_action.clone();
+    let failed_banner = overview.last_change_outcome.as_ref()
         .filter(|(unit, succeeded)| unit == &svc.name && !succeeded);
-    let recent = app_data.recent_change_records(&svc.name, 5);
+    let recent = crate::app::overview::recent_change_records(vault, fleet, &svc.name, 5);
 
     div()
         .id("service-inspector-scroll")
@@ -242,7 +245,7 @@ fn render_focused_panel(svc: &ServiceUnit, app_data: &CrowApp, app: Entity<CrowA
         .child(section_divider("LIFECYCLE"))
         .child(render_actions_row(is_active, app.clone()))
         // Confirm bar for disruptive actions
-        .children(pending_action.map(|action| render_pending_confirm(&svc.name, &action, app_data, app.clone())))
+        .children(pending_action.map(|action| render_pending_confirm(&svc.name, &action, overview, app.clone())))
         // Recent Apply Pipeline history for this unit
         .children(if !recent.is_empty() {
             Some(render_recent_actions(&recent))
@@ -522,8 +525,8 @@ fn render_actions_row(is_active: bool, app: Entity<CrowApp>) -> impl IntoElement
 
 /// Real blast-radius phrasing for a restart/stop confirm — falls back to a
 /// "checking…" state while the async socket lookup is still in flight.
-fn blast_radius_text(app_data: &CrowApp, unit: &str) -> String {
-    match app_data.overview.blast_radius.as_ref().filter(|b| b.for_unit == unit) {
+fn blast_radius_text(overview: &OverviewState, unit: &str) -> String {
+    match overview.blast_radius.as_ref().filter(|b| b.for_unit == unit) {
         Some(b) if b.established == 0 && b.listening == 0 => "No active connections will be dropped.".to_string(),
         Some(b) => format!(
             "{} established connection{} and {} listening socket{} will be dropped.",
@@ -534,7 +537,7 @@ fn blast_radius_text(app_data: &CrowApp, unit: &str) -> String {
     }
 }
 
-fn render_pending_confirm(unit_name: &str, action: &str, app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
+fn render_pending_confirm(unit_name: &str, action: &str, overview: &OverviewState, app: Entity<CrowApp>) -> impl IntoElement {
     let app_confirm = app.clone();
     let app_cancel = app.clone();
     let verb = action.to_uppercase();
@@ -554,7 +557,7 @@ fn render_pending_confirm(unit_name: &str, action: &str, app_data: &CrowApp, app
                 .text_color(CRIT_INK)
                 .child(format!(
                     "{} {}? {}",
-                    verb, unit_name, blast_radius_text(app_data, unit_name)
+                    verb, unit_name, blast_radius_text(overview, unit_name)
                 )),
         )
         .child(

@@ -39,9 +39,14 @@ host    all             all             10.0.4.0/24             scram-sha-256
     }
 }
 
+/// Author recorded on staged config revisions.
+pub fn default_author() -> String {
+    "Nelson <nelson@errorware.net>".to_string()
+}
+
 impl CrowApp {
     pub fn default_author(&self) -> String {
-        "Nelson <nelson@errorware.net>".to_string()
+        default_author()
     }
 
     pub fn toggle_config_history(&mut self, cx: &mut Context<Self>) {

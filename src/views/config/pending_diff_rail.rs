@@ -3,13 +3,14 @@ use crate::theme::*;
 use crate::app::CrowApp;
 use crate::config::DiffKind;
 use crate::components::icons::{TablerIcon, tabler_icon};
+use crate::views::config::state::ConfigsState;
 
-pub fn pending_diff_rail(app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
-    let sel_file = &app_data.configs.selected_file;
-    let file_state = app_data.configs.states.get(sel_file);
+pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl IntoElement {
+    let sel_file = &configs.selected_file;
+    let file_state = configs.states.get(sel_file);
     let app_revert = app.clone();
     let app_apply = app.clone();
-    let default_author = app_data.default_author();
+    let default_author = crate::app::configs::default_author();
 
     let (add_count, del_count, diff_lines, is_modified, revisions, active_rev) = if let Some(st) = file_state {
         let (a, d) = st.diff_stats();

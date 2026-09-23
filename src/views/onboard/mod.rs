@@ -3,6 +3,10 @@ use crate::theme::*;
 use crate::app::{CrowApp, Screen};
 use crate::components::terminal_text_input;
 use crate::os_detect::classify_distro_family;
+use crate::components::text_caret::TextCaret;
+use crate::views::fleet::FleetState;
+use crate::views::settings::keys_state::KeysState;
+use crate::views::fleet::lab_state::LocalLabState;
 
 pub mod probe;
 #[allow(unused_imports)]
@@ -106,8 +110,8 @@ impl OnboardState {
     }
 }
 
-pub fn onboard_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElement {
-    let state = &app_data.onboard_state;
+pub fn onboard_view(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetState, onboard_state: &OnboardState, keys: &KeysState, local_lab: &LocalLabState) -> impl IntoElement {
+    let state = &onboard_state;
 
     let steps = [
         OnboardStep::Address,
@@ -266,7 +270,7 @@ pub fn onboard_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElemen
                                 .flex()
                                 .flex_col()
                                 .gap(px(12.0))
-                                .child(render_step_content(app.clone(), app_data)),
+                                .child(render_step_content(app.clone(), caret, fleet, onboard_state, keys, local_lab)),
                         )
                         // Error message if any
                         .children(if let Some(ref err) = state.error_message {
@@ -345,27 +349,27 @@ pub fn onboard_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElemen
                         ),
                 )
                 // Right Rail: Fingerprint, Probe Log, Detected Facts, Schema Packs
-                .child(render_right_rail(app.clone(), app_data)),
+                .child(render_right_rail(app.clone(), onboard_state)),
         )
 }
 
-fn render_step_content(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
-    let state = &app_data.onboard_state;
+fn render_step_content(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetState, onboard_state: &OnboardState, keys: &KeysState, local_lab: &LocalLabState) -> Div {
+    let state = &onboard_state;
 
     match state.step {
-        OnboardStep::Address => render_step_address(app, app_data),
-        OnboardStep::Credentials => render_step_credentials(app, app_data),
+        OnboardStep::Address => render_step_address(app, caret, onboard_state, local_lab),
+        OnboardStep::Credentials => render_step_credentials(app, caret, fleet, onboard_state, keys),
         OnboardStep::VerifyHost => render_step_verify(app, state),
-        OnboardStep::Classify => render_step_classify(app, app_data),
-        OnboardStep::Finish => render_step_finish(app, state, &app_data.keys.enrolled),
+        OnboardStep::Classify => render_step_classify(app, caret, onboard_state),
+        OnboardStep::Finish => render_step_finish(app, state, &keys.enrolled),
     }
 }
 
 // -----------------------------------------------------------------------------
 // Step 1: Address
 // -----------------------------------------------------------------------------
-fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
-    let state = &app_data.onboard_state;
+fn render_step_address(app: Entity<CrowApp>, caret: &TextCaret, onboard_state: &OnboardState, local_lab: &LocalLabState) -> Div {
+    let state = &onboard_state;
     let app_host = app.clone();
     let app_port = app.clone();
     let is_host_focused = state.focus == OnboardFieldFocus::Host;
@@ -391,7 +395,7 @@ fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                 .child("Provide the target server's IPv4, IPv6, or fully qualified domain name (FQDN)."),
         )
         // Local Lab Test Nodes Quick-Pick (if any exist)
-        .children(if !app_data.local_lab.nodes.is_empty() {
+        .children(if !local_lab.nodes.is_empty() {
             let app_pick = app.clone();
             Some(
                 div()
@@ -428,7 +432,7 @@ fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                             .flex()
                             .flex_col()
                             .gap(px(4.0))
-                            .children(app_data.local_lab.nodes.iter().enumerate().map(|(idx, node)| {
+                            .children(local_lab.nodes.iter().enumerate().map(|(idx, node)| {
                                 let app = app_pick.clone();
                                 let node_name = node.name.clone();
                                 let port_str = node.ssh_port.unwrap_or(2222).to_string();
@@ -513,10 +517,10 @@ fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                         "e.g. 10.0.4.32 or prod-db.internal",
                         is_host_focused,
                         false,
-                        if is_host_focused { app_data.caret.cursor } else { 0 },
-                        if is_host_focused { app_data.caret.selection } else { None },
-                        if is_host_focused { app_data.caret.drag_anchor } else { None },
-                        app_data.caret.blink,
+                        if is_host_focused { caret.cursor } else { 0 },
+                        if is_host_focused { caret.selection } else { None },
+                        if is_host_focused { caret.drag_anchor } else { None },
+                        caret.blink,
                         {
                             let app = app_host;
                             move |cursor, anchor, selection, _window, cx| {
@@ -561,10 +565,10 @@ fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                         "22",
                         is_port_focused,
                         false,
-                        if is_port_focused { app_data.caret.cursor } else { 0 },
-                        if is_port_focused { app_data.caret.selection } else { None },
-                        if is_port_focused { app_data.caret.drag_anchor } else { None },
-                        app_data.caret.blink,
+                        if is_port_focused { caret.cursor } else { 0 },
+                        if is_port_focused { caret.selection } else { None },
+                        if is_port_focused { caret.drag_anchor } else { None },
+                        caret.blink,
                         {
                             let app = app_port;
                             move |cursor, anchor, selection, _window, cx| {
@@ -594,10 +598,10 @@ fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
 // -----------------------------------------------------------------------------
 // Step 2: Credentials
 // -----------------------------------------------------------------------------
-fn render_step_credentials(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
-    let state = &app_data.onboard_state;
-    let enrolled_keys = &app_data.keys.enrolled;
-    let servers = &app_data.fleet.servers;
+fn render_step_credentials(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetState, onboard_state: &OnboardState, keys: &KeysState) -> Div {
+    let state = &onboard_state;
+    let enrolled_keys = &keys.enrolled;
+    let servers = &fleet.servers;
     let app_user = app.clone();
     let app_auth_pub = app.clone();
     let app_auth_agent = app.clone();
@@ -647,10 +651,10 @@ fn render_step_credentials(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                         "root (or ubuntu, deploy, admin…)",
                         is_user_focused,
                         false,
-                        if is_user_focused { app_data.caret.cursor } else { 0 },
-                        if is_user_focused { app_data.caret.selection } else { None },
-                        if is_user_focused { app_data.caret.drag_anchor } else { None },
-                        app_data.caret.blink,
+                        if is_user_focused { caret.cursor } else { 0 },
+                        if is_user_focused { caret.selection } else { None },
+                        if is_user_focused { caret.drag_anchor } else { None },
+                        caret.blink,
                         {
                             let app = app_user;
                             move |cursor, anchor, selection, _window, cx| {
@@ -880,10 +884,10 @@ fn render_step_credentials(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                             "Enter remote password…",
                             is_pw_focused,
                             true,
-                            if is_pw_focused { app_data.caret.cursor } else { 0 },
-                            if is_pw_focused { app_data.caret.selection } else { None },
-                            if is_pw_focused { app_data.caret.drag_anchor } else { None },
-                            app_data.caret.blink,
+                            if is_pw_focused { caret.cursor } else { 0 },
+                            if is_pw_focused { caret.selection } else { None },
+                            if is_pw_focused { caret.drag_anchor } else { None },
+                            caret.blink,
                             {
                                 let app = app_pw;
                                 move |cursor, anchor, selection, _window, cx| {
@@ -1163,8 +1167,8 @@ fn render_step_verify(app: Entity<CrowApp>, state: &OnboardState) -> Div {
 // -----------------------------------------------------------------------------
 // Step 4: Classify
 // -----------------------------------------------------------------------------
-fn render_step_classify(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
-    let state = &app_data.onboard_state;
+fn render_step_classify(app: Entity<CrowApp>, caret: &TextCaret, onboard_state: &OnboardState) -> Div {
+    let state = &onboard_state;
     let app_label = app.clone();
     let app_tags = app.clone();
     let is_label_focused = state.focus == OnboardFieldFocus::Label;
@@ -1214,10 +1218,10 @@ fn render_step_classify(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                         "e.g. worker-05, edge-eu, db-primary",
                         is_label_focused,
                         false,
-                        if is_label_focused { app_data.caret.cursor } else { 0 },
-                        if is_label_focused { app_data.caret.selection } else { None },
-                        if is_label_focused { app_data.caret.drag_anchor } else { None },
-                        app_data.caret.blink,
+                        if is_label_focused { caret.cursor } else { 0 },
+                        if is_label_focused { caret.selection } else { None },
+                        if is_label_focused { caret.drag_anchor } else { None },
+                        caret.blink,
                         {
                             let app = app_label;
                             move |cursor, anchor, selection, _window, cx| {
@@ -1436,10 +1440,10 @@ fn render_step_classify(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
                         "e.g. queue, ruby, eu-west, staging",
                         is_tags_focused,
                         false,
-                        if is_tags_focused { app_data.caret.cursor } else { 0 },
-                        if is_tags_focused { app_data.caret.selection } else { None },
-                        if is_tags_focused { app_data.caret.drag_anchor } else { None },
-                        app_data.caret.blink,
+                        if is_tags_focused { caret.cursor } else { 0 },
+                        if is_tags_focused { caret.selection } else { None },
+                        if is_tags_focused { caret.drag_anchor } else { None },
+                        caret.blink,
                         {
                             let app = app_tags;
                             move |cursor, anchor, selection, _window, cx| {
@@ -1634,8 +1638,8 @@ fn render_step_finish(
 // -----------------------------------------------------------------------------
 // Right Rail: Fingerprint, Probe Log, Detected Facts, Schema Packs
 // -----------------------------------------------------------------------------
-fn render_right_rail(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
-    let state = &app_data.onboard_state;
+fn render_right_rail(app: Entity<CrowApp>, onboard_state: &OnboardState) -> Div {
+    let state = &onboard_state;
     let app_accept = app.clone();
 
     let fp = state.probe_result.as_ref()
