@@ -3,6 +3,7 @@ use gpui_kit::*;
 use gpui_kit::component::input::Input;
 use crate::theme::*;
 use crate::app::CrowApp;
+use crate::components::danger_zone_state::DangerZoneState;
 use crate::lab::{stop_local_node, LocalTestNode};
 use crate::os_detect::{classify_distro_family, detect_local_os_release, DistroFamily};
 use crate::vault::ServerRecord;
@@ -110,7 +111,7 @@ fn action_btn(id: &'static str, label: &'static str, app: Entity<CrowApp>, actio
         .child(label)
 }
 
-pub fn danger_zone(app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn danger_zone(danger: &DangerZoneState, app: Entity<CrowApp>) -> impl IntoElement {
     div()
         .h(px(46.0))
         .flex_none()
@@ -139,12 +140,12 @@ pub fn danger_zone(app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement
                 ),
         )
         // 2. Actions, or the typed-confirmation prompt for an armed action
-        .children(if let Some(action) = app_data.danger_zone_pending_action.clone() {
-            Some(render_confirm_prompt(&action, app_data, app.clone()).into_any_element())
+        .children(if let Some(action) = danger.pending_action.clone() {
+            Some(render_confirm_prompt(&action, danger, app.clone()).into_any_element())
         } else {
             None
         })
-        .children(if app_data.danger_zone_pending_action.is_none() {
+        .children(if danger.pending_action.is_none() {
             Some(
                 div()
                     .flex_1()
@@ -182,14 +183,14 @@ pub fn danger_zone(app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement
                 .px(px(14.0))
                 .border_l_1()
                 .border_color(BORDER_DANGER)
-                .children(app_data.danger_zone_last_result.as_ref().map(|msg| {
+                .children(danger.last_result.as_ref().map(|msg| {
                     div()
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_DIM)
                         .child(msg.clone())
                 }))
-                .children(if app_data.danger_zone_last_result.is_none() {
+                .children(if danger.last_result.is_none() {
                     Some(
                         div()
                             .font_family("JetBrains Mono")
@@ -203,7 +204,7 @@ pub fn danger_zone(app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement
         )
 }
 
-fn render_confirm_prompt(action: &str, app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
+fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<CrowApp>) -> impl IntoElement {
     let keyword = danger_action_keyword(action);
     let app_execute = app.clone();
     let app_cancel = app.clone();
@@ -221,7 +222,7 @@ fn render_confirm_prompt(action: &str, app_data: &CrowApp, app: Entity<CrowApp>)
                 .text_color(CRIT_INK)
                 .child(format!("Type {} to confirm:", keyword)),
         )
-        .children(app_data.danger_zone_confirm_state.as_ref().map(|state| {
+        .children(danger.confirm_input.as_ref().map(|state| {
             div()
                 .w(px(160.0))
                 .child(
@@ -267,7 +268,7 @@ fn render_confirm_prompt(action: &str, app_data: &CrowApp, app: Entity<CrowApp>)
                 })
                 .child("cancel"),
         )
-        .children(app_data.danger_zone_error.as_ref().map(|err| {
+        .children(danger.error.as_ref().map(|err| {
             div()
                 .font_family(FONT_MONO)
                 .text_size(px(10.0))

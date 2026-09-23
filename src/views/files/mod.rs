@@ -1,5 +1,8 @@
 pub mod collector;
 pub mod models;
+pub mod state;
+
+pub use state::FilesState;
 
 use gpui_kit::*;
 use gpui_kit::component::input::Input;
@@ -8,9 +11,9 @@ use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
 use models::FileEntry;
 
-pub fn file_browser_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElement {
-    let path = app_data.files_current_path.clone();
-    let entries = &app_data.files_entries;
+pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState) -> impl IntoElement {
+    let path = files.current_path.clone();
+    let entries = &files.entries;
 
     div()
         .size_full()
@@ -42,7 +45,7 @@ pub fn file_browser_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoE
                         .text_color(TEXT_PRIMARY)
                         .child("FILES"),
                 )
-                .children(if app_data.files_is_simulated {
+                .children(if files.is_simulated {
                     Some(
                         div()
                             .bg(hex_rgba(0xfbbf24, 0.15))
@@ -136,7 +139,7 @@ pub fn file_browser_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoE
         // 2. Breadcrumb path bar
         .child(render_breadcrumb(&path, app.clone()))
         // 3. Error banner
-        .children(app_data.files_error.as_ref().map(|msg| {
+        .children(files.error.as_ref().map(|msg| {
             let app_dismiss = app.clone();
             div()
                 .flex()
@@ -160,7 +163,7 @@ pub fn file_browser_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoE
                         .hover(|s| s.text_color(TEXT_PRIMARY))
                         .on_click(move |_ev, _window, cx| {
                             app_dismiss.update(cx, |this, cx| {
-                                this.files_error = None;
+                                this.files.error = None;
                                 cx.notify();
                             });
                         })
@@ -168,8 +171,8 @@ pub fn file_browser_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoE
                 )
         }))
         // 4. New folder inline prompt
-        .children(if app_data.files_new_folder_open {
-            Some(render_new_folder_prompt(app_data, app.clone()))
+        .children(if files.new_folder_open {
+            Some(render_new_folder_prompt(files, app.clone()))
         } else {
             None
         })
@@ -217,7 +220,7 @@ pub fn file_browser_view(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoE
                             .into_any_element(),
                     ]
                 } else {
-                    entries.iter().enumerate().map(|(idx, e)| render_file_row(e, idx, app_data, app.clone())).collect()
+                    entries.iter().enumerate().map(|(idx, e)| render_file_row(e, idx, files, app.clone())).collect()
                 }),
         )
 }
@@ -273,7 +276,7 @@ fn render_breadcrumb(path: &str, app: Entity<CrowApp>) -> impl IntoElement {
         }))
 }
 
-fn render_new_folder_prompt(app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
+fn render_new_folder_prompt(files: &FilesState, app: Entity<CrowApp>) -> impl IntoElement {
     let app_confirm = app.clone();
     let app_cancel = app.clone();
 
@@ -291,7 +294,7 @@ fn render_new_folder_prompt(app_data: &CrowApp, app: Entity<CrowApp>) -> impl In
                 .size(px(12.0))
                 .text_color(hex_rgb(0x60a5fa)),
         )
-        .children(app_data.files_new_folder_state.as_ref().map(|state| {
+        .children(files.new_folder_input.as_ref().map(|state| {
             div()
                 .w(px(240.0))
                 .child(
@@ -343,13 +346,13 @@ fn render_new_folder_prompt(app_data: &CrowApp, app: Entity<CrowApp>) -> impl In
         )
 }
 
-fn render_file_row(entry: &FileEntry, idx: usize, app_data: &CrowApp, app: Entity<CrowApp>) -> AnyElement {
+fn render_file_row(entry: &FileEntry, idx: usize, files: &FilesState, app: Entity<CrowApp>) -> AnyElement {
     let app_nav = app.clone();
     let app_del_toggle = app.clone();
     let name_for_nav = entry.name.clone();
     let name_for_delete = entry.name.clone();
     let is_dir = entry.is_dir;
-    let is_pending_delete = app_data.files_pending_delete.as_deref() == Some(entry.name.as_str());
+    let is_pending_delete = files.pending_delete.as_deref() == Some(entry.name.as_str());
     let icon = if entry.is_dir {
         TablerIcon::Folder
     } else if entry.is_symlink {
@@ -463,7 +466,7 @@ fn render_file_row(entry: &FileEntry, idx: usize, app_data: &CrowApp, app: Entit
                             .hover(|s| s.bg(BG_ROW_HOVER))
                             .on_click(move |_ev, _window, cx| {
                                 app_cancel.update(cx, |this, cx| {
-                                    this.files_pending_delete = None;
+                                    this.files.pending_delete = None;
                                     cx.notify();
                                 });
                             })

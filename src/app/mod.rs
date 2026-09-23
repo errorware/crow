@@ -2,8 +2,9 @@ use std::collections::{HashMap, HashSet};
 use gpui_kit::*;
 use crate::theme::*;
 use crate::components::danger_zone::{
-    danger_action_keyword, danger_zone, flush_firewall, kill_all_lab_containers, send_power_action,
+    danger_zone,
 };
+use crate::components::danger_zone_state::DangerZoneState;
 use crate::components::identity_bar::identity_bar;
 use crate::components::palette::palette_overlay;
 use crate::components::sidebar::sidebar;
@@ -20,9 +21,7 @@ use crate::views::config::rules_editor::{default_hba_rules, rules_editor, HbaRul
 use crate::views::config::cron_editor::{cron_editor, default_cron_jobs, generate_crontab_content, CronJobDef};
 use crate::views::config::raw_config_editor;
 use crate::views::files::{
-    collector::{create_directory, delete_entry, list_directory_for_server},
-    file_browser_view,
-    models::FileEntry,
+    file_browser_view, FilesState,
 };
 use crate::views::users::{
     user_management_view, UsersState,
@@ -65,6 +64,8 @@ use crate::views::settings::settings_view;
 use crow_config_core::edit::ConfigDocument;
 use crow_config_core::ConfigPlugin;
 use crow_config_schemas::PgHbaPlugin;
+mod danger;
+mod files;
 mod firewall;
 
 use crate::keys::{
@@ -181,18 +182,9 @@ pub struct CrowApp {
     /// drives which config paths the crawler trusts (see crawl_machine_configs).
     pub local_distro_family: DistroFamily,
     // Files screen — a literal directory browser on top of the server layer.
-    pub files_current_path: String,
-    pub files_entries: Vec<FileEntry>,
-    pub files_is_simulated: bool,
-    pub files_error: Option<String>,
-    pub files_pending_delete: Option<String>,
-    pub files_new_folder_open: bool,
-    pub files_new_folder_state: Option<Entity<InputState>>,
+    pub files: FilesState,
     // Danger Zone — typed-confirmation destructive host actions
-    pub danger_zone_pending_action: Option<String>,
-    pub danger_zone_confirm_state: Option<Entity<InputState>>,
-    pub danger_zone_error: Option<String>,
-    pub danger_zone_last_result: Option<String>,
+    pub danger: DangerZoneState,
     pub onboard_state: OnboardState,
     // UI Components Lab Sandbox
     pub lab_state: LabState,
@@ -527,17 +519,8 @@ host    all             all             10.0.4.0/24             scram-sha-256
             key_toast: None,
             servers,
             local_distro_family,
-            files_current_path: "/".to_string(),
-            files_entries: Vec::new(),
-            files_is_simulated: false,
-            files_error: None,
-            files_pending_delete: None,
-            files_new_folder_open: false,
-            files_new_folder_state: None,
-            danger_zone_pending_action: None,
-            danger_zone_confirm_state: None,
-            danger_zone_error: None,
-            danger_zone_last_result: None,
+            files: FilesState::default(),
+            danger: DangerZoneState::default(),
             onboard_state,
             lab_state,
             cursor_blink: true,
@@ -728,6 +711,11 @@ pub fn run_background_poll(
 }
 
 impl CrowApp {
+    /// The server behind the active tab (tabs are keyed by id, older ones by name).
+    pub fn active_server(&self) -> Option<ServerRecord> {
+        self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned()
+    }
+
     pub fn has_active_text_input(&self) -> bool {
         if self.palette_open {
             return true;
@@ -778,7 +766,7 @@ impl CrowApp {
             .map(|d| d.as_secs())
             .unwrap_or(0);
 
-        let active_srv = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned();
+        let active_srv = self.active_server();
         let prev_active_metrics = active_srv.as_ref().and_then(|srv| {
             self.buffered_stores.get(&srv.id).and_then(|b| b.head()).map(|h| h.metrics.clone()).or_else(|| self.metrics_store.get(&srv.id).cloned())
         });
@@ -975,7 +963,7 @@ impl CrowApp {
     /// live-tail state — this is what "search" actually means; it reaches into real
     /// journal history instead of only re-filtering whatever happened to be cached.
     pub fn run_journal_query(&mut self, cx: &mut Context<Self>) {
-        if let Some(active_srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
+        if let Some(active_srv) = self.active_server() {
             let query = self.build_journal_query();
             cx.spawn(async move |entity, cx| {
                 let entries = cx.background_executor().spawn(async move {
@@ -1784,7 +1772,7 @@ impl CrowApp {
 
     pub fn set_services_tab(&mut self, tab: &str, cx: &mut Context<Self>) {
         self.active_services_tab = tab.to_string();
-        if let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
+        if let Some(srv) = self.active_server() {
             let tab_owned = tab.to_string();
             cx.spawn(async move |entity, cx| {
                 match tab_owned.as_str() {
@@ -1877,8 +1865,8 @@ impl CrowApp {
                     }
                 }).detach();
             } else if self.active_view == "files" {
-                self.files_current_path = "/".to_string();
-                self.files_pending_delete = None;
+                self.files.current_path = "/".to_string();
+                self.files.pending_delete = None;
                 self.load_file_listing(cx);
             }
         } else {
@@ -2020,7 +2008,7 @@ impl CrowApp {
     /// instead of the generic "any active connections" text it replaces.
     fn spawn_blast_radius_fetch(&mut self, unit_name: String, cx: &mut Context<Self>) {
         self.blast_radius = None;
-        let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() else {
+        let Some(srv) = self.active_server() else {
             return;
         };
         let Some(pid) = self.services.iter().find(|s| s.name == unit_name).and_then(|s| s.pid.parse::<u32>().ok()) else {
@@ -2048,7 +2036,7 @@ impl CrowApp {
     /// expected state, then durably record the outcome. Covers start/stop/
     /// restart/reload — every service mutation in the app goes through this.
     fn spawn_service_change(&mut self, unit_name: String, action: String, cx: &mut Context<Self>) {
-        let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() else {
+        let Some(srv) = self.active_server() else {
             return;
         };
         let before_state = self.services.iter().find(|s| s.name == unit_name)
@@ -2117,7 +2105,7 @@ impl CrowApp {
     /// Same pipeline shape as `spawn_service_change`, for a process SIGTERM:
     /// backup, apply off-thread, verify the PID is actually gone, record it.
     fn spawn_process_kill(&mut self, pid: u32, cx: &mut Context<Self>) {
-        let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() else {
+        let Some(srv) = self.active_server() else {
             return;
         };
         let before_state = self.processes.iter().find(|p| p.pid == pid)
@@ -2196,170 +2184,6 @@ impl CrowApp {
             .filter(|r| r.target == target)
             .take(limit)
             .collect()
-    }
-
-    // ==========================================
-    // Files — a literal directory browser on top of the server layer
-    // ==========================================
-
-    pub fn load_file_listing(&mut self, cx: &mut Context<Self>) {
-        if let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
-            let (entries, is_sim) = list_directory_for_server(&srv, &self.files_current_path);
-            self.files_entries = entries;
-            self.files_is_simulated = is_sim;
-        } else {
-            self.files_entries.clear();
-        }
-        cx.notify();
-    }
-
-    pub fn navigate_files_to(&mut self, path: &str, cx: &mut Context<Self>) {
-        self.files_current_path = path.to_string();
-        self.files_pending_delete = None;
-        self.files_error = None;
-        self.load_file_listing(cx);
-    }
-
-    pub fn files_go_into(&mut self, name: &str, cx: &mut Context<Self>) {
-        let base = self.files_current_path.clone();
-        let new_path = if base == "/" { format!("/{}", name) } else { format!("{}/{}", base, name) };
-        self.navigate_files_to(&new_path, cx);
-    }
-
-    pub fn files_go_up(&mut self, cx: &mut Context<Self>) {
-        if self.files_current_path == "/" {
-            return;
-        }
-        let parent = std::path::Path::new(&self.files_current_path)
-            .parent()
-            .map(|p| {
-                let s = p.to_string_lossy().to_string();
-                if s.is_empty() { "/".to_string() } else { s }
-            })
-            .unwrap_or_else(|| "/".to_string());
-        self.navigate_files_to(&parent, cx);
-    }
-
-    pub fn toggle_new_folder_prompt(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        self.files_new_folder_open = !self.files_new_folder_open;
-        if self.files_new_folder_open {
-            self.files_new_folder_state = Some(cx.new(|cx| {
-                InputState::new(window, cx).placeholder("new-folder-name")
-            }));
-        } else {
-            self.files_new_folder_state = None;
-        }
-        cx.notify();
-    }
-
-    pub fn create_new_folder(&mut self, cx: &mut Context<Self>) {
-        if let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
-            let name = self.files_new_folder_state.as_ref()
-                .map(|s| s.read(cx).value().trim().to_string())
-                .unwrap_or_default();
-            if !name.is_empty() {
-                match create_directory(&srv, &self.files_current_path, &name) {
-                    Ok(()) => {
-                        self.files_new_folder_open = false;
-                        self.files_new_folder_state = None;
-                        self.load_file_listing(cx);
-                        return;
-                    }
-                    Err(e) => self.files_error = Some(e),
-                }
-            }
-        }
-        cx.notify();
-    }
-
-    pub fn toggle_file_delete_confirm(&mut self, name: &str, cx: &mut Context<Self>) {
-        self.files_pending_delete = if self.files_pending_delete.as_deref() == Some(name) {
-            None
-        } else {
-            Some(name.to_string())
-        };
-        cx.notify();
-    }
-
-    pub fn execute_file_delete(&mut self, cx: &mut Context<Self>) {
-        if let Some(name) = self.files_pending_delete.take() {
-            if let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() {
-                let is_dir = self.files_entries.iter().find(|e| e.name == name).map(|e| e.is_dir).unwrap_or(false);
-                match delete_entry(&srv, &self.files_current_path, &name, is_dir) {
-                    Ok(()) => {
-                        self.load_file_listing(cx);
-                        return;
-                    }
-                    Err(e) => self.files_error = Some(e),
-                }
-            }
-        }
-        cx.notify();
-    }
-
-    // ==========================================
-    // Danger Zone — typed-confirmation destructive host actions
-    // ==========================================
-
-    pub fn arm_danger_zone_action(&mut self, action: &str, window: &mut Window, cx: &mut Context<Self>) {
-        self.danger_zone_pending_action = Some(action.to_string());
-        self.danger_zone_error = None;
-        self.danger_zone_confirm_state = Some(cx.new(|cx| {
-            InputState::new(window, cx).placeholder(danger_action_keyword(action))
-        }));
-        cx.notify();
-    }
-
-    pub fn cancel_danger_zone_action(&mut self, cx: &mut Context<Self>) {
-        self.danger_zone_pending_action = None;
-        self.danger_zone_confirm_state = None;
-        self.danger_zone_error = None;
-        cx.notify();
-    }
-
-    pub fn execute_danger_zone_action(&mut self, cx: &mut Context<Self>) {
-        let Some(action) = self.danger_zone_pending_action.clone() else {
-            return;
-        };
-        let keyword = danger_action_keyword(&action);
-        let typed = self.danger_zone_confirm_state.as_ref()
-            .map(|s| s.read(cx).value().trim().to_string())
-            .unwrap_or_default();
-        if typed != keyword {
-            self.danger_zone_error = Some(format!("Type {} exactly to confirm.", keyword));
-            cx.notify();
-            return;
-        }
-
-        let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned() else {
-            self.danger_zone_error = Some("No active server".to_string());
-            cx.notify();
-            return;
-        };
-
-        self.danger_zone_pending_action = None;
-        self.danger_zone_confirm_state = None;
-        self.danger_zone_error = None;
-
-        let result = match action.as_str() {
-            "poweroff" => send_power_action(&srv, "power-off"),
-            "reboot" => send_power_action(&srv, "reboot"),
-            "flush_firewall" => flush_firewall(&srv),
-            "kill_containers" => {
-                let (ok, failed) = kill_all_lab_containers(&self.lab_nodes);
-                Ok(format!("Stopped {} lab container(s), {} failed", ok, failed))
-            }
-            _ => Err("Unknown action".to_string()),
-        };
-
-        match result {
-            Ok(msg) => {
-                self.push_journal_action_marker(format!("crow: {}", msg));
-                self.danger_zone_last_result = Some(msg);
-            }
-            Err(e) => self.danger_zone_error = Some(e),
-        }
-        cx.notify();
     }
 
     pub fn focus_socket(&mut self, sock_id: &str, cx: &mut Context<Self>) {
@@ -3906,7 +3730,7 @@ impl Render for CrowApp {
                                                                 Some(
                                                                     div()
                                                                         .size_full()
-                                                                        .child(file_browser_view(app_view.clone(), self))
+                                                                        .child(file_browser_view(app_view.clone(), &self.files))
                                                                 )
                                                             } else if self.active_view == "firewall" {
                                                                 Some(
@@ -3970,7 +3794,7 @@ impl Render for CrowApp {
                                                     ),
                                             )
                                             // Persistent Danger Zone Strip
-                                            .child(danger_zone(self, app_view.clone())),
+                                            .child(danger_zone(&self.danger, app_view.clone())),
                                         )
                                     }
                                 },
