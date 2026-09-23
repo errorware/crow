@@ -226,20 +226,15 @@ pub fn transport_kind(server: &ServerRecord) -> TransportKind {
 }
 
 /// The transport for `server`: its lab container, this machine, or SSH.
-pub fn host_for(server: &ServerRecord) -> Option<Arc<dyn Host>> {
+pub fn host_for(server: &ServerRecord) -> Arc<dyn Host> {
     if server.tags.iter().any(|t| t == "test-node") {
         let engine = if server.tags.iter().any(|t| t == "docker") { "docker" } else { "podman" };
-        return Some(Arc::new(ContainerHost::new(engine, &server.name)));
+        return Arc::new(ContainerHost::new(engine, &server.name));
     }
     if is_this_machine(server) {
-        return Some(Arc::new(LocalHost));
+        return Arc::new(LocalHost);
     }
-    Some(Arc::new(SshHost::for_server(server)))
-}
-
-/// The error an action reports for a server with no transport.
-pub fn not_connected(server: &ServerRecord) -> HostError {
-    HostError::Unreachable(format!("{} is not connected — Crow has no transport to it yet", server.name))
+    Arc::new(SshHost::for_server(server))
 }
 
 #[cfg(test)]
@@ -252,12 +247,12 @@ mod tests {
 
     #[test]
     fn routing_picks_container_then_this_machine_then_ssh() {
-        assert_eq!(host_for(&record("127.0.0.1", 2222, &["local", "test-node", "podman"])).unwrap().label(), "podman:");
-        assert_eq!(host_for(&record("127.0.0.1", 2222, &["local", "test-node", "docker"])).unwrap().label(), "docker:");
-        assert_eq!(host_for(&record("localhost", 22, &[])).unwrap().label(), "local");
+        assert_eq!(host_for(&record("127.0.0.1", 2222, &["local", "test-node", "podman"])).label(), "podman:");
+        assert_eq!(host_for(&record("127.0.0.1", 2222, &["local", "test-node", "docker"])).label(), "docker:");
+        assert_eq!(host_for(&record("localhost", 22, &[])).label(), "local");
         // Loopback on another port is a forwarded SSH endpoint, not this machine.
-        assert_eq!(host_for(&record("127.0.0.1", 2222, &["local"])).unwrap().label(), "ssh:ops@127.0.0.1");
-        assert_eq!(host_for(&record("10.0.4.12", 22, &[])).unwrap().label(), "ssh:ops@10.0.4.12");
+        assert_eq!(host_for(&record("127.0.0.1", 2222, &["local"])).label(), "ssh:ops@127.0.0.1");
+        assert_eq!(host_for(&record("10.0.4.12", 22, &[])).label(), "ssh:ops@10.0.4.12");
     }
 
     #[test]

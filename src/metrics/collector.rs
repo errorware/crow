@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use crate::host::{host_for, Host, HostError, DEFAULT_TIMEOUT};
 use crate::vault::ServerRecord;
-use super::{format_uptime, LiveServiceStatus, ServerMetrics, MAX_HISTORY_POINTS};
+use super::{format_uptime, LiveServiceStatus, ServerMetrics};
 
 /// Holds previous tick state to compute rates (CPU delta, Net RX/TX delta) and cache slow checks.
 #[derive(Clone, Debug)]
@@ -279,117 +279,13 @@ fn extract_kb_val(line: &str) -> u64 {
         .unwrap_or(0)
 }
 
-pub struct SimulatedCollector;
-
-impl SimulatedCollector {
-    /// Generates realistic fluctuating metrics for a demo/seed host.
-    pub fn sample(
-        server: &ServerRecord,
-        existing: Option<&ServerMetrics>,
-    ) -> ServerMetrics {
-        use rand::RngExt;
-        let mut rng = rand::rng();
-
-        let (base_cpu, base_mem, base_disk_pct, base_load, vcpus, mem_gb, disk_gb) = match server.name.as_str() {
-            "edge-01" => (38.4, 73.0, 43.0, 2.14, 8, 16, 960),
-            "edge-02" => (31.2, 61.0, 39.0, 1.82, 8, 16, 960),
-            "db-primary" => (64.5, 82.0, 77.0, 4.28, 16, 64, 2048),
-            "db-replica-01" => (22.1, 58.0, 74.0, 1.45, 16, 64, 2048),
-            "redis-01" => (47.0, 44.0, 18.0, 1.95, 4, 32, 512),
-            "worker-04" => (0.0, 0.0, 0.0, 0.0, 8, 32, 512),
-            "worker-05" => (71.3, 66.0, 31.0, 5.12, 8, 32, 512),
-            "metrics-01" => (28.4, 52.0, 48.0, 1.80, 4, 16, 256),
-            "bastion" => (4.2, 12.0, 14.0, 0.22, 2, 4, 80),
-            "stage-web-01" => (14.2, 38.0, 26.0, 0.85, 4, 8, 160),
-            "stage-db-01" => (18.6, 42.0, 34.0, 1.10, 8, 16, 320),
-            "build-01" => (84.1, 78.0, 88.0, 7.42, 16, 64, 1024),
-            _ => (24.0, 40.0, 30.0, 1.20, 4, 8, 160),
-        };
-
-        let mut m = existing.cloned().unwrap_or_else(|| {
-            let mut init = ServerMetrics::default();
-            init.vcpu_count = vcpus;
-            init.mem_total_bytes = mem_gb * 1024 * 1024 * 1024;
-            init.disk_total_bytes = disk_gb * 1024 * 1024 * 1024;
-            init.uptime_seconds = match server.name.as_str() {
-                "edge-01" | "edge-02" => 64 * 86400 + 7 * 3600,
-                "db-primary" | "db-replica-01" => 121 * 86400 + 3 * 3600,
-                "redis-01" => 89 * 86400 + 11 * 3600,
-                "worker-05" => 12 * 86400 + 19 * 3600,
-                _ => 1 * 86400 + 4 * 3600,
-            };
-            init.uptime_formatted = format_uptime(init.uptime_seconds);
-
-            // Pre-seed history points around base
-            for _ in 0..MAX_HISTORY_POINTS {
-                init.push_cpu_sample(base_cpu as f32);
-                init.push_mem_sample(
-                    ((base_mem / 100.0) * init.mem_total_bytes as f64) as u64,
-                    init.mem_total_bytes,
-                );
-                init.push_load_sample(base_load as f32, (base_load * 0.9) as f32, (base_load * 0.8) as f32);
-                init.push_net_sample(1024 * 14, 1024 * 8);
-            }
-            init
-        });
-
-        if server.status == "unreachable" || server.status == "offline" {
-            m.cpu_pct = 0.0;
-            m.mem_pct = 0.0;
-            m.load_1m = 0.0;
-            m.load_5m = 0.0;
-            m.load_15m = 0.0;
-            m.uptime_formatted = "—".to_string();
-            return m;
-        }
-
-        // Jitter CPU
-        let cpu_jitter: f32 = rng.random_range(-3.5..3.5);
-        let current_cpu = (m.cpu_pct + cpu_jitter).clamp(base_cpu as f32 - 12.0, base_cpu as f32 + 15.0).clamp(0.5, 99.5);
-        m.push_cpu_sample(current_cpu);
-
-        // Jitter Memory
-        let mem_jitter: f64 = rng.random_range(-0.5..0.5);
-        let current_mem_pct = (m.mem_pct as f64 + mem_jitter).clamp(base_mem - 4.0, base_mem + 4.0).clamp(1.0, 99.0);
-        let used_bytes = ((current_mem_pct / 100.0) * m.mem_total_bytes as f64) as u64;
-        m.push_mem_sample(used_bytes, m.mem_total_bytes);
-
-        // Jitter Load
-        let load_jitter: f32 = rng.random_range(-0.15..0.15);
-        let cur_load = (m.load_1m + load_jitter).clamp((base_load as f32 * 0.7).max(0.1), base_load as f32 * 1.4);
-        m.push_load_sample(cur_load, (cur_load * 0.92).max(0.1), (cur_load * 0.85).max(0.1));
-
-        // Jitter Net
-        let rx_jitter: u64 = rng.random_range(8_000..45_000);
-        let tx_jitter: u64 = rng.random_range(4_000..25_000);
-        m.push_net_sample(rx_jitter, tx_jitter);
-
-        // Advance uptime
-        m.uptime_seconds += 2;
-        m.uptime_formatted = format_uptime(m.uptime_seconds);
-
-        // Disk
-        m.disk_pct = base_disk_pct as f32;
-        m.disk_used_bytes = ((base_disk_pct / 100.0) * m.disk_total_bytes as f64) as u64;
-        m.inodes_pct = 6.2;
-        m.iowait_pct = 0.4;
-
-        m.last_sample_ts = chrono::Local::now().format("%H:%M:%S").to_string();
-        m
-    }
-}
-
-/// Samples a server's metrics over its transport, or with the simulated
-/// collector when Crow has no transport to it. Rate state is kept per server.
+/// Samples a server's metrics over its transport. Rate state is kept per server.
 pub fn sample_server(
     server: &ServerRecord,
     existing: Option<&ServerMetrics>,
     states: &mut CollectorStates,
 ) -> ServerMetrics {
-    match host_for(server) {
-        Some(host) => HostCollector::sample(host.as_ref(), existing, states.entry(server.id.clone()).or_default()),
-        None => SimulatedCollector::sample(server, existing),
-    }
+    HostCollector::sample(host_for(server).as_ref(), existing, states.entry(server.id.clone()).or_default())
 }
 
 #[cfg(test)]
@@ -431,40 +327,4 @@ mod tests {
         assert_eq!(svcs.iter().map(|s| s.status.as_str()).collect::<Vec<_>>(), vec!["ACTIVE", "FAILED"]);
     }
 
-    #[test]
-    fn test_simulated_sampling() {
-        let server = ServerRecord {
-            id: "test-01".to_string(),
-            name: "edge-01".to_string(),
-            host: "1.2.3.4".to_string(),
-            port: 22,
-            login_user: "root".to_string(),
-            auth_method: "publickey".to_string(),
-            key_id: None,
-            jump_host_id: None,
-            env: "PROD".to_string(),
-            role: "web".to_string(),
-            group_name: "edge".to_string(),
-            tags: vec![],
-            host_key_fingerprint: None,
-            os_distro: "Ubuntu".to_string(),
-            os_kernel: "6.8".to_string(),
-            arch: "x86_64".to_string(),
-            memory_total: "16GB".to_string(),
-            disk_total: "960GB".to_string(),
-            agent_installed: true,
-            agent_version: Some("0.9.4".to_string()),
-            status: "online".to_string(),
-            created_at: "now".to_string(),
-            last_seen_at: None,
-        };
-
-        let m1 = SimulatedCollector::sample(&server, None);
-        assert!(m1.cpu_pct > 0.0);
-        assert_eq!(m1.vcpu_count, 8);
-        assert_eq!(m1.cpu_history.len(), MAX_HISTORY_POINTS);
-
-        let m2 = SimulatedCollector::sample(&server, Some(&m1));
-        assert_eq!(m2.cpu_history.len(), MAX_HISTORY_POINTS);
-    }
 }

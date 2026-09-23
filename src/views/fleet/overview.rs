@@ -2,6 +2,7 @@ use gpui_kit::*;
 use crate::theme::*;
 use crate::app::{CrowApp, Screen};
 use crate::components::icons::{TablerIcon, tabler_icon};
+use crate::vault::ServerRecord;
 use crate::views::fleet::FleetState;
 use crate::views::fleet::lab_state::LocalLabState;
 
@@ -30,41 +31,32 @@ pub struct FleetHost {
 }
 
 pub fn fleet_stat_strip(
-    server_count: usize,
+    servers: &[ServerRecord],
+    crit: usize,
+    warn: usize,
     agent_count: usize,
     avg_load: Option<f32>,
     total_vcpu: usize,
 ) -> impl IntoElement {
-    let s_count = server_count.to_string();
-    let a_cov = agent_count.to_string();
-    let a_tot = format!("/{}", server_count);
-    let load_val = if server_count == 0 {
-        "—".to_string()
-    } else {
-        avg_load.map(|l| format!("{:.2}", l)).unwrap_or_else(|| "0.00".to_string())
+    let server_count = servers.len();
+    let groups: std::collections::BTreeSet<&str> = servers.iter().map(|s| s.group_name.as_str()).filter(|g| !g.is_empty()).collect();
+    let group_note = match groups.len() {
+        0 if server_count == 0 => "none enrolled".to_string(),
+        0 => "ungrouped".to_string(),
+        1 => "1 group".to_string(),
+        n => format!("{n} groups"),
     };
-    let vcpu_note = if server_count == 0 {
-        "0 vCPU across fleet".to_string()
-    } else if total_vcpu > 0 {
-        format!("weighted avg · {} vCPU", total_vcpu)
-    } else {
-        "weighted avg · 1 vCPU".to_string()
-    };
-    let alert_count_str = if server_count == 0 { "0".to_string() } else { "0".to_string() };
-    let alert_note = if server_count == 0 { "all systems normal".to_string() } else { "0 crit · 0 warn".to_string() };
-    let drift_str = "0".to_string();
-    let drift_note = if server_count == 0 { "baseline unconfigured".to_string() } else { "in sync with policy".to_string() };
-    let host_key_age = if server_count == 0 { "—".to_string() } else { "0".to_string() };
-    let host_key_unit = if server_count == 0 { "".to_string() } else { "d".to_string() };
-    let host_key_note = if server_count == 0 { "no enrolled keys".to_string() } else { "within 90d policy".to_string() };
+    let load_val = avg_load.map(|l| format!("{:.2}", l)).unwrap_or_else(|| "—".to_string());
+    let vcpu_note = if total_vcpu > 0 { format!("avg 1m load · {} vCPU", total_vcpu) } else { "no metrics yet".to_string() };
+    let alert_color = if crit > 0 { CRIT } else if warn > 0 { WARN } else if server_count == 0 { TEXT_MUTED } else { OK };
 
     let stats = [
-        ("SERVERS", s_count, "".to_string(), if server_count == 0 { "no regions enrolled".to_string() } else { "1 region · 1 group".to_string() }, TEXT_PRIMARY),
-        ("OPEN ALERTS", alert_count_str, "".to_string(), alert_note, if server_count == 0 { TEXT_MUTED } else { OK }),
-        ("CONFIG DRIFT", drift_str, " hosts".to_string(), drift_note, if server_count == 0 { TEXT_MUTED } else { OK }),
+        ("SERVERS", server_count.to_string(), "".to_string(), group_note, TEXT_PRIMARY),
+        ("OPEN ALERTS", (crit + warn).to_string(), "".to_string(), format!("{crit} crit · {warn} warn"), alert_color),
+        ("CONFIG DRIFT", "—".to_string(), "".to_string(), "not tracked yet".to_string(), TEXT_MUTED),
         ("FLEET LOAD", load_val, "".to_string(), vcpu_note, TEXT_PRIMARY),
-        ("OLDEST HOST KEY", host_key_age, host_key_unit, host_key_note, if server_count == 0 { TEXT_MUTED } else { OK }),
-        ("AGENT COVERAGE", a_cov, a_tot, "telemetry coverage".to_string(), TEXT_PRIMARY),
+        ("OLDEST HOST KEY", "—".to_string(), "".to_string(), "not tracked yet".to_string(), TEXT_MUTED),
+        ("AGENT COVERAGE", agent_count.to_string(), format!("/{}", server_count), "hosts with an agent".to_string(), TEXT_PRIMARY),
     ];
 
     div()
@@ -177,10 +169,10 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                 mem_label,
                 disk,
                 uptime,
-                agent: if s.agent_installed { "0.9.4".into() } else { "—".into() },
+                agent: s.agent_version.clone().unwrap_or_else(|| "—".into()),
                 agent_color: if s.agent_installed { TEXT_FAINT } else { WARN },
-                alerts: "0".into(),
-                alert_color: TEXT_FAINT,
+                alerts: if matches!(s.status.as_str(), "unreachable" | "offline" | "crit" | "degraded" | "warn") { "1".into() } else { "0".into() },
+                alert_color: if is_crit { CRIT } else { TEXT_FAINT },
                 status_color,
                 is_critical_border: is_crit,
                 pill,
@@ -224,7 +216,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
 
     let activities: Vec<(String, &'static str, Rgba, String, Rgba)> = fleet.servers.iter().take(10).map(|s| {
         (
-            s.last_seen_at.as_deref().and_then(|t| t.split('T').nth(1)).and_then(|t| t.get(0..8)).unwrap_or("00:00:00").to_string(),
+            s.created_at.split('T').nth(1).and_then(|t| t.get(0..8)).unwrap_or("—").to_string(),
             "crow",
             TEXT_FAINT,
             format!("enrolled host {} ({}:{})", s.name, s.host, s.port),
@@ -239,7 +231,14 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
         .flex_col()
         .bg(BG_APP)
         // 1. Fleet Stat Strip
-        .child(fleet_stat_strip(server_count, agent_count, avg_load, total_vcpu))
+        .child(fleet_stat_strip(
+            &fleet.servers,
+            alerts.iter().filter(|a| a.0 == "CRIT").count(),
+            alerts.iter().filter(|a| a.0 == "WARN").count(),
+            agent_count,
+            avg_load,
+            total_vcpu,
+        ))
         // 2. Main content split: host table on left, alerts/activity rail on right
         .child(
             div()
@@ -949,7 +948,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                 .font_family(FONT_MONO)
                                 .text_size(px(11.0))
                                 .text_color(CRIT_INK_DIM)
-                                .child("ROLLING REBOOT · 12 HOSTS"),
+                                .child(format!("ROLLING REBOOT · {} HOSTS", server_count)),
                         )
                         .child(
                             div()

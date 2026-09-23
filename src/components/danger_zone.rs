@@ -4,7 +4,7 @@ use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::danger_zone_state::DangerZoneState;
 use crate::lab::{stop_local_node, LocalTestNode};
-use crate::host::{host_for, not_connected, DEFAULT_TIMEOUT};
+use crate::host::{host_for, DEFAULT_TIMEOUT};
 use crate::vault::ServerRecord;
 
 /// Power actions never actually execute. host_for() can now tell a lab
@@ -21,7 +21,7 @@ pub fn send_power_action(server: &ServerRecord, action: &str) -> Result<String, 
 }
 
 pub fn flush_firewall(server: &ServerRecord) -> Result<String, String> {
-    let host = host_for(server).ok_or_else(|| not_connected(server).to_string())?;
+    let host = host_for(server);
     if host.exec(&["which", "ufw"], DEFAULT_TIMEOUT).is_err() {
         return Err("This host isn't running ufw — nothing to flush.".to_string());
     }

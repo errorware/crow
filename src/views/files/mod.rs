@@ -45,23 +45,6 @@ pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState) -> impl IntoE
                         .text_color(TEXT_PRIMARY)
                         .child("FILES"),
                 )
-                .children(if files.is_simulated {
-                    Some(
-                        div()
-                            .bg(hex_rgba(0xfbbf24, 0.15))
-                            .border_1()
-                            .border_color(WARN)
-                            .text_color(WARN)
-                            .font_family(FONT_MONO)
-                            .text_size(px(9.0))
-                            .font_weight(FontWeight::BOLD)
-                            .px(px(5.0))
-                            .py(px(2.0))
-                            .child("SIMULATED — no live transport to this host yet"),
-                    )
-                } else {
-                    None
-                })
                 .child(div().flex_1())
                 .child({
                     let app_up = app.clone();

@@ -4,7 +4,7 @@ use std::time::{Duration, Instant};
 use chrono::Local;
 use gpui_kit::Rgba;
 use crate::theme::*;
-use crate::os_detect::detect_local_os_release;
+use crate::host::{Host, LocalHost, DEFAULT_TIMEOUT};
 
 #[derive(Clone, Debug)]
 pub struct ProbeLog {
@@ -20,8 +20,16 @@ pub struct ProbeResult {
     pub is_reachable: bool,
     pub latency_ms: Option<u64>,
     pub ssh_banner: Option<String>,
+    /// SHA256 fingerprint of the host key the server presented (ed25519
+    /// preferred), or empty when none could be fetched.
     pub host_key_fingerprint: String,
+    /// A key the server presented is already trusted in known_hosts.
     pub is_known_host: bool,
+    /// known_hosts has keys for this host, but none match what the server
+    /// presented now — possibly a reinstalled server, possibly an attack.
+    pub host_key_mismatch: bool,
+    /// The server's host keys, as known_hosts lines (from ssh-keyscan).
+    pub scanned_keys: Vec<String>,
     #[allow(dead_code)]
     pub error: Option<String>,
 }
@@ -40,382 +48,257 @@ pub struct DetectedFacts {
     pub schema_packs: Vec<(String, Rgba, Rgba)>,
 }
 
+/// Facts not read yet: shown as unknown, never guessed.
 impl Default for DetectedFacts {
     fn default() -> Self {
+        let unknown = || "—".to_string();
         Self {
-            distro: "Ubuntu 24.04.1 LTS".into(),
-            kernel: "6.8.0-45-generic".into(),
-            arch: "x86_64 · 4 vCPU".into(),
-            memory: "8.0 GB".into(),
-            disk: "160 GB nvme · 31% used".into(),
-            init: "systemd 255".into(),
-            open_ports: "22, 6379, 9100".into(),
-            firewall: "ufw active · 6 rules".into(),
-            time_sync: "chrony · offset 0.4ms".into(),
-            schema_packs: vec![
-                ("openssh 9.6".into(), OK, OK_BG),
-                ("postgres 16".into(), OK, OK_BG),
-                ("redis 7.2".into(), OK, OK_BG),
-                ("ufw 0.36".into(), OK, OK_BG),
-                ("systemd 255".into(), OK, OK_BG),
-                ("docker 27.1".into(), WARN, WARN_BG),
-            ],
+            distro: unknown(),
+            kernel: unknown(),
+            arch: unknown(),
+            memory: unknown(),
+            disk: unknown(),
+            init: unknown(),
+            open_ports: unknown(),
+            firewall: unknown(),
+            time_sync: unknown(),
+            schema_packs: Vec::new(),
         }
     }
 }
 
-/// Attempts a non-blocking TCP socket connection to `host:port`, measures latency,
-/// reads the SSH daemon identification banner, and checks `known_hosts`.
-pub fn probe_host(
-    host: &str,
-    port: u16,
-    auth_key_name: &str,
-    role: &str,
-) -> (ProbeResult, Vec<ProbeLog>, DetectedFacts) {
-    let now_ts = || Local::now().format("%H:%M:%S").to_string();
+fn log(logs: &mut Vec<ProbeLog>, glyph: &str, color: Rgba, message: String, note: String) {
+    logs.push(ProbeLog { timestamp: Local::now().format("%H:%M:%S").to_string(), glyph: glyph.into(), color, message, note });
+}
+
+/// Connects to `host:port`, reads the SSH banner, fetches the host keys with
+/// `ssh-keyscan`, and compares them with known_hosts. Every log line reports
+/// something that actually happened.
+pub fn probe_host(host: &str, port: u16) -> (ProbeResult, Vec<ProbeLog>) {
     let mut logs = Vec::new();
-
-    let addr_str = format!("{}:{}", host, port);
-    let start = Instant::now();
-
-    // 1. Resolve address and connect
-    let socket_addrs = match addr_str.to_socket_addrs() {
-        Ok(addrs) => addrs.collect::<Vec<_>>(),
-        Err(e) => {
-            logs.push(ProbeLog {
-                timestamp: now_ts(),
-                glyph: "✕".into(),
-                color: CRIT,
-                message: format!("resolve failed for {}: {}", host, e),
-                note: "dns err".into(),
-            });
-            return (
-                ProbeResult {
-                    is_reachable: false,
-                    latency_ms: None,
-                    ssh_banner: None,
-                    host_key_fingerprint: generate_fallback_fingerprint(host),
-                    is_known_host: false,
-                    error: Some(format!("Could not resolve host '{}': {}", host, e)),
-                },
-                logs,
-                facts_for_role(role, host),
-            );
-        }
+    let mut result = ProbeResult {
+        is_reachable: false,
+        latency_ms: None,
+        ssh_banner: None,
+        host_key_fingerprint: String::new(),
+        is_known_host: false,
+        host_key_mismatch: false,
+        scanned_keys: Vec::new(),
+        error: None,
     };
-
-    if socket_addrs.is_empty() {
-        logs.push(ProbeLog {
-            timestamp: now_ts(),
-            glyph: "✕".into(),
-            color: CRIT,
-            message: format!("no IP addresses resolved for {}", host),
-            note: "".into(),
-        });
-        return (
-            ProbeResult {
-                is_reachable: false,
-                latency_ms: None,
-                ssh_banner: None,
-                host_key_fingerprint: generate_fallback_fingerprint(host),
-                is_known_host: false,
-                error: Some(format!("No IP address found for host '{}'", host)),
-            },
-            logs,
-            facts_for_role(role, host),
-        );
+    if host.is_empty() || host.starts_with('-') {
+        result.error = Some(format!("{host:?} is not a valid host"));
+        log(&mut logs, "✕", CRIT, format!("{host:?} is not a valid host"), String::new());
+        return (result, logs);
     }
 
-    let target_addr = socket_addrs[0];
-    let connect_timeout = Duration::from_millis(2000);
-
-    let stream = match TcpStream::connect_timeout(&target_addr, connect_timeout) {
+    // 1. TCP connect
+    let start = Instant::now();
+    let addr = match format!("{host}:{port}").to_socket_addrs().ok().and_then(|mut a| a.next()) {
+        Some(a) => a,
+        None => {
+            result.error = Some(format!("could not resolve {host}"));
+            log(&mut logs, "✕", CRIT, format!("could not resolve {host}"), "dns".into());
+            return (result, logs);
+        }
+    };
+    let stream = match TcpStream::connect_timeout(&addr, Duration::from_millis(3000)) {
         Ok(s) => s,
         Err(e) => {
-            let elapsed_ms = start.elapsed().as_millis() as u64;
-            logs.push(ProbeLog {
-                timestamp: now_ts(),
-                glyph: "▲".into(),
-                color: WARN,
-                message: format!("tcp connect {}:{} timed out / refused ({})", host, port, e),
-                note: format!("{}ms", elapsed_ms),
-            });
-            logs.push(ProbeLog {
-                timestamp: now_ts(),
-                glyph: "ℹ".into(),
-                color: TEXT_DIM,
-                message: "operating in simulated readiness mode for offline development".into(),
-                note: "".into(),
-            });
-
-            let fp = generate_fallback_fingerprint(host);
-            let is_known = check_known_hosts(host, port).is_some();
-
-            logs.push(ProbeLog {
-                timestamp: now_ts(),
-                glyph: "✓".into(),
-                color: OK,
-                message: format!("publickey {} ready for deployment", auth_key_name),
-                note: "".into(),
-            });
-
-            if is_known {
-                logs.push(ProbeLog {
-                    timestamp: now_ts(),
-                    glyph: "✓".into(),
-                    color: OK,
-                    message: format!("host key verified in ~/.ssh/known_hosts ({})", fp),
-                    note: "".into(),
-                });
-            } else {
-                logs.push(ProbeLog {
-                    timestamp: now_ts(),
-                    glyph: "▲".into(),
-                    color: WARN,
-                    message: "host key not in known_hosts — waiting on your review".into(),
-                    note: "".into(),
-                });
-            }
-
-            return (
-                ProbeResult {
-                    is_reachable: false,
-                    latency_ms: Some(elapsed_ms),
-                    ssh_banner: Some("SSH-2.0-OpenSSH_9.6p1 (simulated)".into()),
-                    host_key_fingerprint: fp,
-                    is_known_host: is_known,
-                    error: Some(format!("TCP connection to {}:{} refused: {}", host, port, e)),
-                },
-                logs,
-                facts_for_role(role, host),
-            );
+            result.error = Some(format!("tcp {host}:{port}: {e}"));
+            log(&mut logs, "✕", CRIT, format!("tcp connect {host}:{port} failed: {e}"), format!("{}ms", start.elapsed().as_millis()));
+            return (result, logs);
         }
     };
+    let latency = start.elapsed().as_millis() as u64;
+    result.is_reachable = true;
+    result.latency_ms = Some(latency);
+    log(&mut logs, "✓", OK, format!("tcp connect {host}:{port}"), format!("{latency}ms"));
 
-    let latency_ms = start.elapsed().as_millis() as u64;
-    logs.push(ProbeLog {
-        timestamp: now_ts(),
-        glyph: "✓".into(),
-        color: OK,
-        message: format!("tcp connect {}:{}", host, port),
-        note: format!("{}ms", latency_ms),
-    });
-
-    // 2. Read SSH banner
-    let _ = stream.set_read_timeout(Some(Duration::from_millis(1500)));
-    let mut reader = BufReader::new(&stream);
-    let mut banner_line = String::new();
-    let banner = match reader.read_line(&mut banner_line) {
-        Ok(_) if banner_line.starts_with("SSH-") => {
-            let b = banner_line.trim().to_string();
-            logs.push(ProbeLog {
-                timestamp: now_ts(),
-                glyph: "✓".into(),
-                color: OK,
-                message: format!("ssh banner {}", b),
-                note: "".into(),
-            });
-            Some(b)
+    // 2. SSH banner
+    let _ = stream.set_read_timeout(Some(Duration::from_millis(2000)));
+    let mut banner = String::new();
+    match BufReader::new(&stream).read_line(&mut banner) {
+        Ok(_) if banner.starts_with("SSH-") => {
+            result.ssh_banner = Some(banner.trim().to_string());
+            log(&mut logs, "✓", OK, format!("ssh banner {}", banner.trim()), String::new());
         }
-        _ => {
-            logs.push(ProbeLog {
-                timestamp: now_ts(),
-                glyph: "✓".into(),
-                color: OK,
-                message: "ssh port open · handshake ready".into(),
-                note: "".into(),
-            });
-            None
+        _ => log(&mut logs, "▲", WARN, "no SSH banner — is this an SSH port?".into(), String::new()),
+    }
+    drop(stream);
+
+    // 3. Host keys, from the server itself
+    let port_s = port.to_string();
+    let scan = LocalHost.exec(&["ssh-keyscan", "-T", "5", "-p", &port_s, host], Duration::from_secs(12));
+    result.scanned_keys = scan
+        .map(|o| o.stdout.lines().filter(|l| !l.trim().is_empty() && !l.starts_with('#')).map(str::to_string).collect())
+        .unwrap_or_default();
+    let fingerprints: Vec<(String, String)> = result.scanned_keys.iter().filter_map(|l| key_fingerprint(l)).collect();
+    match fingerprints.iter().find(|(alg, _)| alg == "ssh-ed25519").or(fingerprints.first()) {
+        Some((alg, fp)) => {
+            result.host_key_fingerprint = format!("{fp} ({})", alg.trim_start_matches("ssh-").to_uppercase());
+            log(&mut logs, "✓", OK, format!("host key {}", result.host_key_fingerprint), "ssh-keyscan".into());
         }
-    };
+        None => log(&mut logs, "✕", CRIT, "could not fetch the server's host keys (ssh-keyscan)".into(), String::new()),
+    }
 
-    // 3. Key auth verification
-    logs.push(ProbeLog {
-        timestamp: now_ts(),
-        glyph: "✓".into(),
-        color: OK,
-        message: "kex curve25519-sha256 · cipher chacha20-poly1305".into(),
-        note: "".into(),
-    });
-    logs.push(ProbeLog {
-        timestamp: now_ts(),
-        glyph: "✓".into(),
-        color: OK,
-        message: format!("publickey {} ready for auth test", auth_key_name),
-        note: "".into(),
-    });
-
-    // 4. Known hosts verification
-    let fp = generate_fallback_fingerprint(host);
-    let is_known = check_known_hosts(host, port).is_some();
-    if is_known {
-        logs.push(ProbeLog {
-            timestamp: now_ts(),
-            glyph: "✓".into(),
-            color: OK,
-            message: format!("host key verified in known_hosts ({})", fp),
-            note: "".into(),
-        });
+    // 4. Compare with known_hosts (ssh-keygen -F handles hashed entries)
+    let known = known_host_keys(host, port);
+    let scanned_blobs: Vec<&str> = result.scanned_keys.iter().filter_map(|l| l.split_whitespace().nth(2)).collect();
+    result.is_known_host = known.iter().any(|k| scanned_blobs.contains(&k.as_str()));
+    result.host_key_mismatch = !known.is_empty() && !result.is_known_host && !scanned_blobs.is_empty();
+    if result.is_known_host {
+        log(&mut logs, "✓", OK, "host key matches ~/.ssh/known_hosts".into(), String::new());
+    } else if result.host_key_mismatch {
+        log(&mut logs, "✕", CRIT, "HOST KEY CHANGED: known_hosts has a different key for this host — possible man-in-the-middle; not trusting it".into(), String::new());
     } else {
-        logs.push(ProbeLog {
-            timestamp: now_ts(),
-            glyph: "▲".into(),
-            color: WARN,
-            message: "host key not in known_hosts — operator approval required".into(),
-            note: "".into(),
-        });
+        log(&mut logs, "▲", WARN, "host key not in known_hosts — verify the fingerprint, then accept".into(), String::new());
     }
-
-    logs.push(ProbeLog {
-        timestamp: now_ts(),
-        glyph: "✓".into(),
-        color: OK,
-        message: "sudo -n true — passwordless escalation verified".into(),
-        note: "".into(),
-    });
-
-    logs.push(ProbeLog {
-        timestamp: now_ts(),
-        glyph: "✓".into(),
-        color: OK,
-        message: "uname -a · os-release · lscpu · df -h read successfully".into(),
-        note: "read-only".into(),
-    });
-
-    (
-        ProbeResult {
-            is_reachable: true,
-            latency_ms: Some(latency_ms),
-            ssh_banner: banner,
-            host_key_fingerprint: fp,
-            is_known_host: is_known,
-            error: None,
-        },
-        logs,
-        facts_for_role(role, host),
-    )
+    (result, logs)
 }
 
-/// Generates a deterministic SHA256-style fingerprint from the hostname for consistent presentation.
-fn generate_fallback_fingerprint(host: &str) -> String {
-    use std::collections::hash_map::DefaultHasher;
-    use std::hash::{Hash, Hasher};
-
-    let mut hasher = DefaultHasher::new();
-    host.hash(&mut hasher);
-    let h = hasher.finish();
-    format!("SHA256:{:016x}{:016x} (ED25519)", h, h.rotate_left(16))
+/// (key type, SHA256 fingerprint) of a known_hosts / ssh-keyscan line.
+pub fn key_fingerprint(line: &str) -> Option<(String, String)> {
+    let mut parts = line.split_whitespace();
+    let _host = parts.next()?;
+    let (alg, blob) = (parts.next()?, parts.next()?);
+    let key = ssh_key::PublicKey::from_openssh(&format!("{alg} {blob}")).ok()?;
+    Some((alg.to_string(), key.fingerprint(ssh_key::HashAlg::Sha256).to_string()))
 }
 
-/// Inspects `~/.ssh/known_hosts` to see if `host` is present.
-pub fn check_known_hosts(host: &str, port: u16) -> Option<String> {
-    let known_hosts_path = dirs::home_dir()?.join(".ssh").join("known_hosts");
-    if !known_hosts_path.exists() {
-        return None;
-    }
-
-    let file = std::fs::File::open(known_hosts_path).ok()?;
-    let reader = BufReader::new(file);
-
-    let host_patterns = [
-        host.to_string(),
-        format!("[{}]:{}", host, port),
-    ];
-
-    for line in reader.lines().flatten() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || trimmed.starts_with('#') {
-            continue;
-        }
-
-        let parts: Vec<&str> = trimmed.split_whitespace().collect();
-        if parts.is_empty() {
-            continue;
-        }
-
-        let host_entry = parts[0];
-        for pattern in &host_patterns {
-            if host_entry == pattern || host_entry.split(',').any(|h| h == pattern) {
-                return Some(trimmed.to_string());
-            }
-        }
-    }
-
-    None
+/// Base64 key blobs known_hosts holds for `host:port` (hashed entries included).
+fn known_host_keys(host: &str, port: u16) -> Vec<String> {
+    let pattern = if port == 22 { host.to_string() } else { format!("[{host}]:{port}") };
+    LocalHost
+        .exec(&["ssh-keygen", "-F", &pattern], Duration::from_secs(5))
+        .map(|o| o.stdout.lines().filter(|l| !l.starts_with('#')).filter_map(|l| l.split_whitespace().nth(2).map(str::to_string)).collect())
+        .unwrap_or_default()
 }
 
-/// Appends a new host key entry to `~/.ssh/known_hosts`.
-pub fn append_to_known_hosts(host: &str, port: u16, key_type: &str, pubkey_b64: &str) -> std::io::Result<()> {
+/// Appends the scanned host keys to `~/.ssh/known_hosts`.
+pub fn trust_host_keys(lines: &[String]) -> std::io::Result<()> {
     use std::io::Write;
-
-    if let Some(home) = dirs::home_dir() {
-        let ssh_dir = home.join(".ssh");
-        let _ = std::fs::create_dir_all(&ssh_dir);
-        let known_hosts_path = ssh_dir.join("known_hosts");
-
-        let entry = if port == 22 {
-            format!("{} {} {}\n", host, key_type, pubkey_b64)
-        } else {
-            format!("[{}]:{} {} {}\n", host, port, key_type, pubkey_b64)
-        };
-
-        let mut file = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(known_hosts_path)?;
-        file.write_all(entry.as_bytes())?;
+    let dir = dirs::home_dir().ok_or_else(|| std::io::Error::other("no home directory"))?.join(".ssh");
+    std::fs::create_dir_all(&dir)?;
+    let mut file = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("known_hosts"))?;
+    for line in lines {
+        writeln!(file, "{line}")?;
     }
     Ok(())
 }
 
-fn facts_for_role(role: &str, host: &str) -> DetectedFacts {
-    let mut f = DetectedFacts::default();
-
-    // Real detection where we actually can: this machine's own /etc/os-release.
-    // Remote hosts have no transport yet, so they keep the role-based placeholder.
-    let is_localhost = host == "127.0.0.1" || host == "localhost" || host == "::1";
-    if is_localhost {
-        if let Some(real_distro) = detect_local_os_release() {
-            f.distro = real_distro;
+/// Reads read-only facts from a server over its transport in one round trip,
+/// including whether passwordless sudo works. Unreadable facts stay "—".
+pub fn gather_facts(host: &dyn Host) -> (DetectedFacts, Vec<ProbeLog>) {
+    let mut logs = Vec::new();
+    let script = r#"PATH="$PATH:/usr/sbin:/sbin"
+. /etc/os-release 2>/dev/null && echo "distro=$PRETTY_NAME"
+echo "kernel=$(uname -r)"
+echo "arch=$(uname -m) · $(nproc 2>/dev/null || getconf _NPROCESSORS_ONLN) vCPU"
+awk '/^MemTotal/{printf "memory=%.1f GB\n", $2/1048576}' /proc/meminfo
+df -h / 2>/dev/null | awk 'NR==2{print "disk="$2" · "$5" used"}'
+echo "init=$(cat /proc/1/comm 2>/dev/null)"
+echo "ports=$(ss -tlnH 2>/dev/null | awk '{n=split($4,a,":"); print a[n]}' | sort -un | tr '\n' ',' | sed 's/,$//')"
+t=$(timedatectl show -p NTPSynchronized --value 2>/dev/null); [ -n "$t" ] && echo "time=ntp synchronized: $t"
+for b in sshd systemctl ufw nginx postgres redis-server docker podman; do command -v "$b" >/dev/null 2>&1 && echo "tool=$b"; done
+if [ "$(id -u)" = 0 ]; then echo "sudo=root"; elif sudo -n true 2>/dev/null; then echo "sudo=passwordless"; else echo "sudo=needs password"; fi
+true"#;
+    let out = match host.exec(&["sh", "-c", script], DEFAULT_TIMEOUT) {
+        Ok(o) => o.stdout,
+        Err(e) => {
+            log(&mut logs, "✕", CRIT, format!("could not read facts over SSH: {e}"), String::new());
+            return (DetectedFacts::default(), logs);
+        }
+    };
+    let mut facts = DetectedFacts::default();
+    let mut tools = Vec::new();
+    for line in out.lines() {
+        let Some((k, v)) = line.split_once('=') else { continue };
+        let v = v.trim().to_string();
+        if v.is_empty() {
+            continue;
+        }
+        match k {
+            "distro" => facts.distro = v,
+            "kernel" => facts.kernel = v,
+            "arch" => facts.arch = v,
+            "memory" => facts.memory = v,
+            "disk" => facts.disk = v,
+            "init" => facts.init = v,
+            "ports" => facts.open_ports = v.replace(',', ", "),
+            "time" => facts.time_sync = v,
+            "tool" => tools.push(v),
+            "sudo" => {
+                let ok = v != "needs password";
+                log(&mut logs, if ok { "✓" } else { "▲" }, if ok { OK } else { WARN }, format!("privileges: {v}"), String::new());
+            }
+            _ => {}
         }
     }
+    facts.firewall = if tools.iter().any(|t| t == "ufw") { "ufw installed".into() } else { "—".into() };
+    facts.schema_packs = tools.iter().filter(|t| *t != "systemctl").map(|t| (t.clone(), OK, OK_BG)).collect();
+    log(&mut logs, "✓", OK, "read os-release, uname, meminfo, df, listening ports".into(), "read-only".into());
+    (facts, logs)
+}
 
-    match role.to_lowercase().as_str() {
-        r if r.contains("db") || r.contains("postgres") => {
-            f.open_ports = "22, 5432, 9100".into();
-            f.schema_packs = vec![
-                ("openssh 9.6".into(), OK, OK_BG),
-                ("postgres 16".into(), OK, OK_BG),
-                ("systemd 255".into(), OK, OK_BG),
-                ("ufw 0.36".into(), OK, OK_BG),
-            ];
+
+
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Our fingerprint matches what `ssh-keygen -lf` prints for the same key.
+    #[test]
+    fn fingerprint_matches_ssh_keygen() {
+        let dir = std::env::temp_dir().join(format!("crow-fp-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&dir);
+        let key = dir.join("k");
+        let gen = std::process::Command::new("ssh-keygen").args(["-q", "-t", "ed25519", "-N", "", "-f"]).arg(&key).status();
+        if !gen.is_ok_and(|s| s.success()) {
+            return; // no ssh-keygen here
         }
-        r if r.contains("redis") || r.contains("cache") => {
-            f.open_ports = "22, 6379, 9100".into();
-            f.schema_packs = vec![
-                ("openssh 9.6".into(), OK, OK_BG),
-                ("redis 7.2".into(), OK, OK_BG),
-                ("systemd 255".into(), OK, OK_BG),
-            ];
-        }
-        r if r.contains("web") || r.contains("nginx") => {
-            f.open_ports = "22, 80, 443, 9100".into();
-            f.schema_packs = vec![
-                ("openssh 9.6".into(), OK, OK_BG),
-                ("nginx 1.24".into(), OK, OK_BG),
-                ("systemd 255".into(), OK, OK_BG),
-                ("ufw 0.36".into(), OK, OK_BG),
-            ];
-        }
-        r if r.contains("bastion") || r.contains("jump") => {
-            f.open_ports = "22".into();
-            f.schema_packs = vec![
-                ("openssh 9.6".into(), OK, OK_BG),
-                ("systemd 255".into(), OK, OK_BG),
-                ("ufw 0.36".into(), OK, OK_BG),
-            ];
-        }
-        _ => {}
+        let public = std::fs::read_to_string(key.with_extension("pub")).unwrap();
+        let line = format!("[example]:2222 {}", public.split_whitespace().take(2).collect::<Vec<_>>().join(" "));
+        let listed = std::process::Command::new("ssh-keygen").arg("-lf").arg(key.with_extension("pub")).output().unwrap();
+        let expected = String::from_utf8_lossy(&listed.stdout).split_whitespace().nth(1).unwrap().to_string();
+        assert_eq!(key_fingerprint(&line), Some(("ssh-ed25519".into(), expected)));
+        let _ = std::fs::remove_dir_all(&dir);
     }
-    f
+
+    #[test]
+    fn refuses_option_like_hosts_and_reports_unknown_facts() {
+        let (result, logs) = probe_host("-oProxyCommand=x", 22);
+        assert!(!result.is_reachable && result.scanned_keys.is_empty());
+        assert!(logs[0].message.contains("not a valid host"));
+        let facts = DetectedFacts::default();
+        assert_eq!(facts.distro, "—");
+        assert!(facts.schema_packs.is_empty());
+    }
+
+    /// Facts come from the machine itself: this one's kernel is what uname says.
+    #[test]
+    fn gathers_real_facts_from_a_host() {
+        let (facts, _) = gather_facts(&LocalHost);
+        let uname = std::process::Command::new("uname").arg("-r").output().unwrap();
+        assert_eq!(facts.kernel, String::from_utf8_lossy(&uname.stdout).trim());
+        assert_ne!(facts.memory, "—");
+    }
+}
+
+#[cfg(test)]
+mod live {
+    /// `CROW_LIVE_PROBE=host:port cargo test live_probe -- --ignored --nocapture`
+    #[test]
+    #[ignore]
+    fn live_probe() {
+        let target = std::env::var("CROW_LIVE_PROBE").expect("CROW_LIVE_PROBE=host:port");
+        let (host, port) = target.rsplit_once(':').unwrap();
+        let (result, logs) = super::probe_host(host, port.parse().unwrap());
+        for l in &logs {
+            println!("{} {} {}", l.glyph, l.message, l.note);
+        }
+        println!("{result:?}");
+        assert!(result.is_reachable && !result.scanned_keys.is_empty());
+    }
 }

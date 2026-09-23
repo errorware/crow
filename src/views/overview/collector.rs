@@ -1,4 +1,4 @@
-use crate::host::{host_for, not_connected, DEFAULT_TIMEOUT};
+use crate::host::{host_for, DEFAULT_TIMEOUT};
 use crate::vault::ServerRecord;
 use super::models::{ProcessUnit, ServiceUnit, SocketUnit};
 
@@ -205,172 +205,39 @@ const LIST_SERVICES: &[&str] = &["systemctl", "list-units", "--type=service", "-
 const LIST_PROCESSES: &[&str] = &["ps", "-eo", "pid,user,%cpu,%mem,rss,stat,time,comm", "--sort=-%cpu"];
 const LIST_SOCKETS: &[&str] = &["ss", "-tulpn"];
 
-/// Runs a read-only listing on the server's host and parses it. A reachable
-/// host that fails the command yields an empty table, not demo data; only a
-/// server with no transport falls back to the role-shaped sample.
-fn collect<T>(
-    server: &ServerRecord,
-    argv: &[&str],
-    parse: fn(&str) -> Vec<T>,
-    fallback: fn(&ServerRecord) -> Vec<T>,
-) -> Vec<T> {
-    match host_for(server) {
-        Some(host) => host.exec(argv, DEFAULT_TIMEOUT).map(|out| parse(&out.stdout)).unwrap_or_default(),
-        None => fallback(server),
-    }
+/// Runs a read-only listing on the server and parses it. A failed command
+/// (or an unreachable server) yields an empty table, never stand-in rows.
+fn collect<T>(server: &ServerRecord, argv: &[&str], parse: fn(&str) -> Vec<T>) -> Vec<T> {
+    host_for(server).exec(argv, DEFAULT_TIMEOUT).map(|out| parse(&out.stdout)).unwrap_or_default()
 }
 
 /// Live collection of systemd services for the active server
 pub fn collect_services_for_server(server: &ServerRecord) -> Vec<ServiceUnit> {
-    collect(server, LIST_SERVICES, parse_systemctl_services, role_fallback_services)
+    collect(server, LIST_SERVICES, parse_systemctl_services)
 }
 
 /// Live collection of processes for the active server
 pub fn collect_processes_for_server(server: &ServerRecord) -> Vec<ProcessUnit> {
-    collect(server, LIST_PROCESSES, parse_ps_processes, role_fallback_processes)
+    collect(server, LIST_PROCESSES, parse_ps_processes)
 }
 
 /// Live collection of network sockets for the active server
 pub fn collect_sockets_for_server(server: &ServerRecord) -> Vec<SocketUnit> {
-    collect(server, LIST_SOCKETS, parse_ss_sockets, role_fallback_sockets)
+    collect(server, LIST_SOCKETS, parse_ss_sockets)
 }
 
 /// Runs a systemctl lifecycle action (start/stop/restart/reload) against a unit
 pub fn systemctl_service_action(server: &ServerRecord, unit: &str, action: &str) -> Result<String, String> {
-    let host = host_for(server).ok_or_else(|| not_connected(server).to_string())?;
+    let host = host_for(server);
     host.exec_privileged(&["systemctl", action, unit], &[], DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;
     Ok(format!("{} unit {} on {}", action, unit, host.label()))
 }
 
 /// Kills or signals a process
 pub fn terminate_process(server: &ServerRecord, pid: u32, signal: i32) -> Result<String, String> {
-    let host = host_for(server).ok_or_else(|| not_connected(server).to_string())?;
+    let host = host_for(server);
     host.exec_privileged(&["kill", &format!("-{}", signal), &pid.to_string()], &[], DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;
     Ok(format!("Sent signal {} to PID {} on {}", signal, pid, host.label()))
-}
-
-// ---------------------------------------------------------------------------
-// Realistic Role Fallbacks (for remote servers or when commands unavailable)
-// ---------------------------------------------------------------------------
-
-fn role_fallback_services(server: &ServerRecord) -> Vec<ServiceUnit> {
-    let r = server.role.to_lowercase();
-    let mut list = Vec::new();
-
-    if r.contains("db") || r.contains("postgres") {
-        list.push(ServiceUnit {
-            name: "postgresql@16-main.service".into(), status: "ACTIVE".into(), status_color_hex: 0x4ade80,
-            pid: "1189".into(), cpu: "14.2".into(), mem: "31.4".into(), rss: "4.8G".into(), uptime: "64d 07h".into(),
-            description: "PostgreSQL RDBMS Cluster".into(), is_focused: false, show_confirm: false,
-        });
-    }
-    if r.contains("redis") || r.contains("cache") {
-        list.push(ServiceUnit {
-            name: "redis-server.service".into(), status: "ACTIVE".into(), status_color_hex: 0x4ade80,
-            pid: "1902".into(), cpu: "8.1".into(), mem: "4.1".into(), rss: "672M".into(), uptime: "2h 14m".into(),
-            description: "Advanced key-value store".into(), is_focused: false, show_confirm: false,
-        });
-    }
-    if r.contains("web") || r.contains("nginx") {
-        list.push(ServiceUnit {
-            name: "nginx.service".into(), status: "ACTIVE".into(), status_color_hex: 0x4ade80,
-            pid: "1412".into(), cpu: "24.8".into(), mem: "6.2".into(), rss: "1.0G".into(), uptime: "18d 04h".into(),
-            description: "A high performance web server".into(), is_focused: false, show_confirm: false,
-        });
-    }
-
-    list.extend(vec![
-        ServiceUnit {
-            name: "sshd.service".into(), status: "ACTIVE".into(), status_color_hex: 0x4ade80,
-            pid: "764".into(), cpu: "0.2".into(), mem: "0.4".into(), rss: "64M".into(), uptime: "64d 07h".into(),
-            description: "OpenSSH server daemon".into(), is_focused: false, show_confirm: false,
-        },
-        ServiceUnit {
-            name: "systemd-journald.service".into(), status: "ACTIVE".into(), status_color_hex: 0x4ade80,
-            pid: "411".into(), cpu: "0.7".into(), mem: "1.1".into(), rss: "176M".into(), uptime: "64d 07h".into(),
-            description: "Journal Service".into(), is_focused: false, show_confirm: false,
-        },
-        ServiceUnit {
-            name: "chronyd.service".into(), status: "ACTIVE".into(), status_color_hex: 0x4ade80,
-            pid: "722".into(), cpu: "0.1".into(), mem: "0.1".into(), rss: "18M".into(), uptime: "64d 07h".into(),
-            description: "NTP client/server".into(), is_focused: false, show_confirm: false,
-        },
-        ServiceUnit {
-            name: "cron.service".into(), status: "ACTIVE".into(), status_color_hex: 0x4ade80,
-            pid: "812".into(), cpu: "0.0".into(), mem: "0.2".into(), rss: "32M".into(), uptime: "64d 07h".into(),
-            description: "Regular background program processing daemon".into(), is_focused: false, show_confirm: false,
-        },
-    ]);
-
-    list
-}
-
-fn role_fallback_processes(server: &ServerRecord) -> Vec<ProcessUnit> {
-    let r = server.role.to_lowercase();
-    let mut list = Vec::new();
-
-    if r.contains("db") || r.contains("postgres") {
-        list.push(ProcessUnit {
-            pid: 1189, user: "postgres".into(), cpu: 14.2, mem: 31.4, rss: "4.8G".into(),
-            stat: "Ss".into(), time: "18:42:09".into(), command: "postgres: checkpointer".into(),
-            is_focused: false, show_confirm: false,
-        });
-        list.push(ProcessUnit {
-            pid: 1192, user: "postgres".into(), cpu: 6.8, mem: 12.0, rss: "1.8G".into(),
-            stat: "Ss".into(), time: "09:12:33".into(), command: "postgres: writer".into(),
-            is_focused: false, show_confirm: false,
-        });
-    }
-
-    list.extend(vec![
-        ProcessUnit {
-            pid: 1, user: "root".into(), cpu: 0.1, mem: 0.2, rss: "38M".into(),
-            stat: "Ss".into(), time: "00:04:12".into(), command: "/sbin/init".into(),
-            is_focused: false, show_confirm: false,
-        },
-        ProcessUnit {
-            pid: 764, user: "root".into(), cpu: 0.2, mem: 0.4, rss: "64M".into(),
-            stat: "Ss".into(), time: "00:01:28".into(), command: "/usr/sbin/sshd -D".into(),
-            is_focused: false, show_confirm: false,
-        },
-        ProcessUnit {
-            pid: 411, user: "root".into(), cpu: 0.7, mem: 1.1, rss: "176M".into(),
-            stat: "Ssl".into(), time: "00:18:55".into(), command: "/usr/lib/systemd/systemd-journald".into(),
-            is_focused: false, show_confirm: false,
-        },
-    ]);
-
-    list
-}
-
-fn role_fallback_sockets(server: &ServerRecord) -> Vec<SocketUnit> {
-    let r = server.role.to_lowercase();
-    let mut list = Vec::new();
-
-    list.push(SocketUnit {
-        protocol: "TCP".into(), state: "LISTEN".into(), local_addr: "0.0.0.0".into(), local_port: "22".into(),
-        peer_addr: "0.0.0.0".into(), peer_port: "*".into(), process: "sshd".into(), pid: Some(764), is_focused: false,
-    });
-
-    if r.contains("db") || r.contains("postgres") {
-        list.push(SocketUnit {
-            protocol: "TCP".into(), state: "LISTEN".into(), local_addr: "0.0.0.0".into(), local_port: "5432".into(),
-            peer_addr: "0.0.0.0".into(), peer_port: "*".into(), process: "postgres".into(), pid: Some(1189), is_focused: false,
-        });
-    }
-
-    if r.contains("web") || r.contains("nginx") {
-        list.push(SocketUnit {
-            protocol: "TCP".into(), state: "LISTEN".into(), local_addr: "0.0.0.0".into(), local_port: "80".into(),
-            peer_addr: "0.0.0.0".into(), peer_port: "*".into(), process: "nginx".into(), pid: Some(1412), is_focused: false,
-        });
-        list.push(SocketUnit {
-            protocol: "TCP".into(), state: "LISTEN".into(), local_addr: "0.0.0.0".into(), local_port: "443".into(),
-            peer_addr: "0.0.0.0".into(), peer_port: "*".into(), process: "nginx".into(), pid: Some(1412), is_focused: false,
-        });
-    }
-
-    list
 }
 
 #[cfg(test)]

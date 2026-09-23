@@ -2,7 +2,7 @@ use gpui_kit::*;
 
 use super::{CrowApp, Screen};
 use crate::components::danger_zone::danger_zone;
-use crate::components::identity_bar::identity_bar;
+use crate::components::identity_bar::{connection_banner, identity_bar};
 use crate::components::palette::palette_overlay;
 use crate::components::sidebar::sidebar;
 use crate::components::stat_strip::stat_strip;
@@ -196,6 +196,7 @@ impl Render for CrowApp {
                                                     .flex_col()
                                                     // Server Identity Bar
                                                     .child(identity_bar(active_srv, app_view.clone()))
+                                                    .children(connection_banner(active_srv))
                                                     // Server Stat Strip
                                                     .child(stat_strip(active_mtr, self.fleet.metrics_lag_secs, self.fleet.active_surge_alert.as_ref()))
                                                 // Main Server Body: Sidebar + Content

@@ -5,10 +5,7 @@ use crate::vault::{Vault, VaultStatus};
 use crate::views::config::state::ConfigsState;
 use crate::views::files::FilesState;
 use crate::views::users::UsersState;
-use crate::views::firewall::{
-    default_active_ufw_state, detect_firewall_status,
-    FirewallState,
-};
+use crate::views::firewall::{detect_firewall_status, FirewallOperationalState, FirewallState};
 use crate::host::LocalHost;
 use crate::config::CrowConfigManager;
 use crate::views::lock::{
@@ -227,7 +224,10 @@ impl CrowApp {
         let initial_firewall_state = servers
             .first()
             .map(|s| detect_firewall_status(s))
-            .unwrap_or_else(default_active_ufw_state);
+            .unwrap_or_else(|| FirewallOperationalState::Unmanaged {
+                detected_binaries: Vec::new(),
+                reason: "No server is enrolled yet.".into(),
+            });
         let configs = load_configs(servers.first(), &initial_firewall_state);
         // The journald editor shows the real journald.conf when there is one.
         let journal_retention = configs

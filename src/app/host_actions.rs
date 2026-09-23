@@ -1,7 +1,7 @@
 use gpui_kit::Context;
 
 use super::CrowApp;
-use crate::host::{host_for, not_connected, DEFAULT_TIMEOUT};
+use crate::host::{host_for, DEFAULT_TIMEOUT};
 use crate::vault::{ChangeRecord, ServerRecord};
 
 // ==========================================
@@ -30,7 +30,7 @@ pub fn describe_commands(commands: &[HostCommand]) -> String {
 }
 
 fn run_all(server: &ServerRecord, commands: &[HostCommand]) -> Result<(), String> {
-    let host = host_for(server).ok_or_else(|| not_connected(server).to_string())?;
+    let host = host_for(server);
     for cmd in commands {
         let argv: Vec<&str> = cmd.argv.iter().map(String::as_str).collect();
         host.exec_privileged(&argv, &cmd.stdin, DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;

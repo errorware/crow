@@ -10,7 +10,7 @@ use crate::views::fleet::lab_state::LocalLabState;
 
 pub mod probe;
 #[allow(unused_imports)]
-pub use probe::{probe_host, append_to_known_hosts, check_known_hosts, DetectedFacts, ProbeLog, ProbeResult};
+pub use probe::{gather_facts, probe_host, trust_host_keys, DetectedFacts, ProbeLog, ProbeResult};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OnboardStep {
@@ -1124,7 +1124,11 @@ fn render_step_verify(app: Entity<CrowApp>, state: &OnboardState) -> Div {
                                 .child(if state.host_key_accepted {
                                     "HOST KEY FINGERPRINT VERIFIED & TRUSTED"
                                 } else {
+                                    if state.probe_result.as_ref().is_some_and(|p| p.host_key_mismatch) {
+                                    "HOST KEY CHANGED — NOT TRUSTED (POSSIBLE MITM)"
+                                } else {
                                     "UNKNOWN HOST KEY FINGERPRINT (WAITING ON YOU)"
+                                }
                                 }),
                         ),
                 )
@@ -1133,9 +1137,10 @@ fn render_step_verify(app: Entity<CrowApp>, state: &OnboardState) -> Div {
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_PRIMARY)
-                        .child(state.probe_result.as_ref().map(|p| p.host_key_fingerprint.clone()).unwrap_or_else(|| "SHA256:4a8b812f00... (ED25519)".to_string())),
+                        .child(state.probe_result.as_ref().map(|p| p.host_key_fingerprint.clone()).filter(|f| !f.is_empty())
+        .unwrap_or_else(|| if state.is_probing { "fetching host keys…".to_string() } else { "no host key fetched".to_string() })),
                 )
-                .children(if !state.host_key_accepted {
+                .children(if !state.host_key_accepted && state.probe_result.as_ref().is_some_and(|p| !p.host_key_mismatch && !p.scanned_keys.is_empty()) {
                     Some(
                         div()
                             .id("btn-accept-host-key")
@@ -1644,7 +1649,8 @@ fn render_right_rail(app: Entity<CrowApp>, onboard_state: &OnboardState) -> Div 
 
     let fp = state.probe_result.as_ref()
         .map(|p| p.host_key_fingerprint.clone())
-        .unwrap_or_else(|| "SHA256:4a8b812f00... (ED25519)".to_string());
+        .filter(|f| !f.is_empty())
+        .unwrap_or_else(|| if state.is_probing { "fetching host keys…".to_string() } else { "no host key fetched".to_string() });
 
     let facts: [(&'static str, String, Rgba); 10] = [
         ("DISTRO", state.facts.distro.clone(), TEXT_PRIMARY),
@@ -1709,7 +1715,7 @@ fn render_right_rail(app: Entity<CrowApp>, onboard_state: &OnboardState) -> Div 
                         .text_color(TEXT_PRIMARY)
                         .child(fp),
                 )
-                .children(if !state.host_key_accepted {
+                .children(if !state.host_key_accepted && state.probe_result.as_ref().is_some_and(|p| !p.host_key_mismatch && !p.scanned_keys.is_empty()) {
                     Some(
                         div()
                             .flex()

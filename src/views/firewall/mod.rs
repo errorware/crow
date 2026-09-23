@@ -7,9 +7,11 @@ pub mod state;
 pub mod commands;
 
 #[allow(unused_imports)]
+#[cfg(test)]
+pub use models::{default_active_ufw_state, default_ufw_rules};
 pub use models::{
-    common_quick_ports, default_active_ufw_state, default_ufw_rules, FirewallBackend,
-    FirewallOperationalState, FirewallRule, FirewallStatusSummary, QuickPortPreset, RuleAction,
+    common_quick_ports, FirewallBackend,
+    FirewallOperationalState, FirewallRule, FirewallStatusSummary, RuleAction,
     RuleDirection, RuleProtocol,
 };
 pub use detector::detect_firewall_status;
