@@ -1,14 +1,9 @@
 use gpui_kit::*;
 
-use super::CrowApp;
-use crate::app::Screen;
-use crate::vault::VaultStatus;
-use crate::views::lock::SetupStep;
-use crate::app::ClankerModalFocus;
+use super::{ClankerModalFocus, CrowApp, Screen};
 use crate::keys::KeyGenFieldFocus;
-use crate::views::lock::SetupState;
-use crate::views::lock::LockFieldFocus;
-use crate::views::lock::SetupFieldFocus;
+use crate::vault::VaultStatus;
+use crate::views::lock::{LockFieldFocus, SetupFieldFocus, SetupState, SetupStep};
 use crate::views::onboard::OnboardFieldFocus;
 
 // ==========================================

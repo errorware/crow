@@ -1,7 +1,6 @@
 use gpui_kit::*;
 
-use super::CrowApp;
-use crate::app::SettingsSection;
+use super::{CrowApp, SettingsSection};
 
 impl CrowApp {
     pub fn set_settings_section(&mut self, section: SettingsSection, cx: &mut Context<Self>) {

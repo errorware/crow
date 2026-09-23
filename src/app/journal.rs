@@ -1,9 +1,9 @@
 use gpui_kit::*;
 
 use super::CrowApp;
-use crate::journal::retention::generate_journald_conf;
-use crate::journal::reader::read_journal_for_server;
 use crate::journal::{JournalBootScope, JournalPriority, JournalStorageMode, JournalTimeRange};
+use crate::journal::reader::read_journal_for_server;
+use crate::journal::retention::generate_journald_conf;
 
 // ==========================================
 // Systemd Journal Log Explorer & Retention

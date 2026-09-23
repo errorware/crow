@@ -3,23 +3,17 @@ use std::collections::HashMap;
 use gpui_kit::{Context, Task};
 
 use super::{CrowApp, Screen};
-use crate::vault::ServerRecord;
-use crate::journal::JournalEntry;
-use crate::journal::JournalQuery;
-use crate::metrics::MetricSample;
-use crate::metrics::ServerMetrics;
-use crate::journal::JournalTelemetry;
-use crate::views::overview::SocketUnit;
-use crate::views::overview::ProcessUnit;
-use crate::views::overview::ServiceUnit;
-use crate::metrics::ServerTimeSeriesBuffer;
-use crate::metrics::collector::sample_server;
-use crate::journal::read_retention_for_server;
+use crate::journal::{read_retention_for_server, JournalEntry, JournalQuery, JournalTelemetry};
 use crate::journal::reader::read_journal_for_server;
-use crate::metrics::collector::CollectorPreviousState;
-use crate::views::overview::collector::collect_sockets_for_server;
-use crate::views::overview::collector::collect_services_for_server;
-use crate::views::overview::collector::collect_processes_for_server;
+use crate::metrics::{MetricSample, ServerMetrics, ServerTimeSeriesBuffer};
+use crate::metrics::collector::{sample_server, CollectorPreviousState};
+use crate::vault::ServerRecord;
+use crate::views::overview::{ProcessUnit, ServiceUnit, SocketUnit};
+use crate::views::overview::collector::{
+    collect_processes_for_server,
+    collect_services_for_server,
+    collect_sockets_for_server,
+};
 
 // ==========================================
 // Background polling: metrics, overview tables, journal, fleet

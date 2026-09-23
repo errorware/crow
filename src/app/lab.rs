@@ -2,11 +2,23 @@ use gpui_kit::*;
 
 use super::{CrowApp, Screen};
 use crate::components::titlebar::ServerTab;
-use crate::lab::{detect_local_engines, enroll_local_node_into_db, scan_local_test_nodes, start_local_node, stop_local_node, LocalLabEngine, LocalTestNode};
+use crate::lab::{
+    detect_local_engines,
+    enroll_local_node_into_db,
+    scan_local_test_nodes,
+    start_local_node,
+    stop_local_node,
+    LocalLabEngine,
+    LocalTestNode,
+};
 use crate::metrics::collector::{sample_server, CollectorPreviousState};
 use crate::theme::OK;
 use crate::vault::ServerRecord;
-use crate::views::overview::collector::{collect_processes_for_server, collect_services_for_server, collect_sockets_for_server};
+use crate::views::overview::collector::{
+    collect_processes_for_server,
+    collect_services_for_server,
+    collect_sockets_for_server,
+};
 
 // ==========================================
 // Local Lab & Test VMs

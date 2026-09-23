@@ -1,15 +1,14 @@
+use crow_config_core::ConfigPlugin;
+use crow_config_core::edit::ConfigDocument;
+use crow_config_schemas::PgHbaPlugin;
 use gpui_kit::*;
 
 use super::CrowApp;
-use crow_config_core::edit::ConfigDocument;
-use crow_config_core::ConfigPlugin;
-use crow_config_schemas::PgHbaPlugin;
 use crate::config::{crawl_machine_configs, load_config_file_state};
 use crate::journal::retention::JournalRetentionConfig;
-use crate::theme::{CRIT, OK};
+use crate::theme::{CRIT, OK, WARN};
 use crate::views::config::cron_editor::default_cron_jobs;
 use crate::views::firewall::FirewallOperationalState;
-use crate::theme::WARN;
 
 // ==========================================
 // Config files: discovery, staging, versions

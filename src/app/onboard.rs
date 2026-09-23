@@ -1,18 +1,16 @@
 use gpui_kit::*;
 
-use super::CrowApp;
-use crate::theme::OK;
-use crate::app::Screen;
-use crate::theme::CRIT;
-use crate::theme::WARN;
-use crate::theme::TEXT_FAINTER;
-use crate::vault::ServerRecord;
-use crate::views::onboard::probe_host;
-use crate::views::onboard::OnboardStep;
-use crate::views::onboard::OnboardState;
+use super::{CrowApp, Screen};
 use crate::components::titlebar::ServerTab;
-use crate::views::onboard::OnboardFieldFocus;
-use crate::views::onboard::append_to_known_hosts;
+use crate::theme::{CRIT, OK, TEXT_FAINTER, WARN};
+use crate::vault::ServerRecord;
+use crate::views::onboard::{
+    append_to_known_hosts,
+    probe_host,
+    OnboardFieldFocus,
+    OnboardState,
+    OnboardStep,
+};
 
 impl CrowApp {
     pub fn onboard_select_local_lab_node(&mut self, name: &str, port: &str, distro: &str, cx: &mut Context<Self>) {

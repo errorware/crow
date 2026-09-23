@@ -1,16 +1,14 @@
 use gpui_kit::*;
 
-use super::CrowApp;
-use crate::theme::OK;
-use crate::app::Screen;
-use crate::theme::CRIT;
-use crate::theme::WARN;
-use crate::theme::TEXT_FAINTER;
+use super::{CrowApp, Screen};
 use crate::components::titlebar::ServerTab;
-use crate::views::overview::collector::collect_sockets_for_server;
-use crate::views::overview::collector::collect_services_for_server;
-use crate::views::overview::collector::collect_processes_for_server;
+use crate::theme::{CRIT, OK, TEXT_FAINTER, WARN};
 use crate::vault::ServerRecord;
+use crate::views::overview::collector::{
+    collect_processes_for_server,
+    collect_services_for_server,
+    collect_sockets_for_server,
+};
 
 /// Tabs for the first few enrolled servers, colored by last known status.
 pub fn initial_tabs(servers: &[ServerRecord]) -> Vec<ServerTab> {

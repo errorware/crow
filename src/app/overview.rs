@@ -3,11 +3,14 @@ use gpui_kit::*;
 use super::CrowApp;
 use crate::vault::{ChangeRecord, Vault};
 use crate::views::fleet::FleetState;
-use crate::views::overview::collector::{
-    collect_processes_for_server, collect_services_for_server, collect_sockets_for_server,
-    systemctl_service_action, terminate_process,
-};
 use crate::views::overview::BlastRadiusInfo;
+use crate::views::overview::collector::{
+    collect_processes_for_server,
+    collect_services_for_server,
+    collect_sockets_for_server,
+    systemctl_service_action,
+    terminate_process,
+};
 
 // ==========================================
 // Server overview: services, processes, sockets, service manager

@@ -1,35 +1,29 @@
 use gpui_kit::*;
 
-use super::CrowApp;
-use crate::theme::*;
-use crate::app::Screen;
-use crate::vault::VaultStatus;
-use crate::views::config::cron_editor;
-use crate::views::onboard::onboard_view;
-use crate::views::lock::vault_lock_view;
-use crate::components::sidebar::sidebar;
-use crate::views::lock::vault_setup_view;
-use crate::views::fleet::fleet_setup_view;
-use crate::views::settings::settings_view;
-use crate::views::firewall::firewall_view;
-use crate::components::titlebar::titlebar;
-use crate::views::logs::logs_explorer_view;
-use crate::views::files::file_browser_view;
-use crate::views::config::raw_config_editor;
-use crate::views::fleet::fleet_overview_view;
-use crate::views::users::user_management_view;
-use crate::components::stat_strip::stat_strip;
-use crate::views::overview::log_tail::log_tail;
+use super::{CrowApp, Screen};
 use crate::components::danger_zone::danger_zone;
-use crate::components::palette::palette_overlay;
 use crate::components::identity_bar::identity_bar;
-use crate::components::titlebar::burger_menu_overlay;
-use crate::views::config::rules_editor::rules_editor;
-use crate::views::overview::log_tail::socket_log_drawer;
-use crate::views::overview::services_table::services_table;
+use crate::components::palette::palette_overlay;
+use crate::components::sidebar::sidebar;
+use crate::components::stat_strip::stat_strip;
+use crate::components::titlebar::{burger_menu_overlay, titlebar};
+use crate::theme::*;
+use crate::vault::VaultStatus;
+use crate::views::config::{cron_editor, raw_config_editor};
 use crate::views::config::managed_files::managed_files_rail;
 use crate::views::config::pending_diff_rail::pending_diff_rail;
+use crate::views::config::rules_editor::rules_editor;
+use crate::views::files::file_browser_view;
+use crate::views::firewall::firewall_view;
+use crate::views::fleet::{fleet_overview_view, fleet_setup_view};
+use crate::views::lock::{vault_lock_view, vault_setup_view};
+use crate::views::logs::logs_explorer_view;
+use crate::views::onboard::onboard_view;
+use crate::views::overview::log_tail::{log_tail, socket_log_drawer};
 use crate::views::overview::service_inspector::service_inspector_rail;
+use crate::views::overview::services_table::services_table;
+use crate::views::settings::settings_view;
+use crate::views::users::user_management_view;
 
 impl Render for CrowApp {
     fn render(&mut self, _window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {

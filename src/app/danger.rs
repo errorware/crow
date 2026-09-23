@@ -3,7 +3,10 @@ use gpui_kit::component::input::InputState;
 
 use super::CrowApp;
 use crate::components::danger_zone::{
-    danger_action_keyword, flush_firewall, kill_all_lab_containers, send_power_action,
+    danger_action_keyword,
+    flush_firewall,
+    kill_all_lab_containers,
+    send_power_action,
 };
 
 // ==========================================

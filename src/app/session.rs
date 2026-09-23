@@ -1,8 +1,6 @@
 use gpui_kit::*;
 
-use super::CrowApp;
-use crate::app::Screen;
-use crate::app::SettingsSection;
+use super::{CrowApp, Screen, SettingsSection};
 use crate::views::lock::SetupState;
 use crate::views::onboard::OnboardState;
 

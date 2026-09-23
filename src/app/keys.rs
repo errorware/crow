@@ -2,8 +2,12 @@ use gpui_kit::*;
 
 use super::CrowApp;
 use crate::keys::{
-    copy_to_clipboard_system, expand_tilde, AddScanPathModalState,
-    EditKeyModalState, KeyGenModalState, NewGroupModalState,
+    copy_to_clipboard_system,
+    expand_tilde,
+    AddScanPathModalState,
+    EditKeyModalState,
+    KeyGenModalState,
+    NewGroupModalState,
 };
 use crate::vault::SshKeyRecord;
 
