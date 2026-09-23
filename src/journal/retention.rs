@@ -1,5 +1,6 @@
 use serde::{Deserialize, Serialize};
-use std::process::Command;
+use crate::host::{host_for, Host, DEFAULT_TIMEOUT};
+use crate::vault::ServerRecord;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum JournalStorageMode {
@@ -133,35 +134,28 @@ impl JournalTelemetry {
     }
 }
 
-/// Dispatches journal retention telemetry reading for a given server
-pub fn read_retention_for_server(endpoint: &str) -> (JournalRetentionConfig, JournalTelemetry) {
-    if endpoint.contains("localhost") || endpoint.contains("127.0.0.1") || endpoint == "local" {
-        read_local_retention()
-    } else {
-        read_simulated_retention(endpoint)
+/// Journal retention settings and telemetry for a server, read over its
+/// transport; simulated only for servers Crow cannot reach yet.
+pub fn read_retention_for_server(server: &ServerRecord) -> (JournalRetentionConfig, JournalTelemetry) {
+    match host_for(server) {
+        Some(host) => read_retention(host.as_ref()),
+        None => read_simulated_retention(&server.host),
     }
 }
 
-/// Queries local Linux systemd journal disk usage and configuration
-pub fn read_local_retention() -> (JournalRetentionConfig, JournalTelemetry) {
+/// Queries a host's systemd journal disk usage and storage mode.
+pub fn read_retention(host: &dyn Host) -> (JournalRetentionConfig, JournalTelemetry) {
     let mut config = JournalRetentionConfig::default();
     let mut telemetry = JournalTelemetry::default();
 
     // 1. Run journalctl --disk-usage
-    if let Ok(output) = Command::new("journalctl")
-        .arg("--disk-usage")
-        .output()
-    {
-        if output.status.success() {
-            let txt = String::from_utf8_lossy(&output.stdout);
-            // Example: "Archived and active journals take up 241M in the file system."
-            telemetry.disk_usage_bytes = parse_disk_usage_output(&txt).unwrap_or(241 * 1024 * 1024);
-        }
+    if let Ok(out) = host.exec(&["journalctl", "--disk-usage"], DEFAULT_TIMEOUT) {
+        // Example: "Archived and active journals take up 241M in the file system."
+        telemetry.disk_usage_bytes = parse_disk_usage_output(&out.stdout).unwrap_or(241 * 1024 * 1024);
     }
 
     // 2. Check if persistent directory exists
-    let persistent_dir = std::path::Path::new("/var/log/journal");
-    if persistent_dir.exists() {
+    if host.exists("/var/log/journal") {
         config.storage = JournalStorageMode::Persistent;
         telemetry.is_volatile_warning = false;
     } else {
@@ -171,7 +165,6 @@ pub fn read_local_retention() -> (JournalRetentionConfig, JournalTelemetry) {
     }
 
     // 3. Calculate estimated retention days given daily burn
-    let _used_mb = telemetry.disk_usage_bytes as f32 / (1024.0 * 1024.0);
     telemetry.daily_burn_rate_mb = 64.0;
     telemetry.estimated_retained_days = config.system_max_use_mb as f32 / telemetry.daily_burn_rate_mb.max(1.0);
 

@@ -11,9 +11,17 @@ use crate::views::files::collector::{create_directory, delete_entry, list_direct
 impl CrowApp {
     pub fn load_file_listing(&mut self, cx: &mut Context<Self>) {
         if let Some(srv) = self.fleet.active_server() {
-            let (entries, is_sim) = list_directory_for_server(&srv, &self.files.current_path);
-            self.files.entries = entries;
-            self.files.is_simulated = is_sim;
+            match list_directory_for_server(&srv, &self.files.current_path) {
+                Ok((entries, is_sim)) => {
+                    self.files.entries = entries;
+                    self.files.is_simulated = is_sim;
+                }
+                Err(e) => {
+                    self.files.entries.clear();
+                    self.files.is_simulated = false;
+                    self.files.error = Some(e);
+                }
+            }
         } else {
             self.files.entries.clear();
         }

@@ -1,77 +1,74 @@
-use std::process::Command;
+use crate::host::{host_for, Host, HostError, DEFAULT_TIMEOUT};
 use crate::vault::ServerRecord;
 use super::models::{
     default_active_ufw_state, default_ufw_rules, FirewallBackend, FirewallOperationalState,
     FirewallRule, FirewallStatusSummary, RuleAction, RuleDirection, RuleProtocol,
 };
 
-/// Detects the firewall backend and operational status on a host.
+/// Detects the firewall backend and operational status on a server.
 /// Performs safe read-only queries with fallbacks to realistic data when running
 /// in unprivileged environments.
 pub fn detect_firewall_status(server: &ServerRecord) -> FirewallOperationalState {
-    // If the server is a simulated or local node without real sudo access, check binaries
-    let is_local = server.host == "127.0.0.1" || server.host == "localhost" || server.id.starts_with("local-");
-
-    if is_local {
-        detect_local_firewall()
-    } else {
-        // Remote server: based on probed facts and role
-        detect_remote_firewall(server)
+    match host_for(server) {
+        Some(host) => detect_firewall(host.as_ref()),
+        // No transport yet: infer from the server's probed facts.
+        None => detect_remote_firewall(server),
     }
 }
 
-/// Probes local Linux host for firewall binaries and operational service state.
-pub fn detect_local_firewall() -> FirewallOperationalState {
+/// Probes a host for firewall binaries and operational service state.
+pub fn detect_firewall(host: &dyn Host) -> FirewallOperationalState {
     let mut detected_binaries = Vec::new();
 
-    let ufw_path = which_cmd("ufw");
+    let ufw_path = which_cmd(host, "ufw");
     if let Some(ref p) = ufw_path {
         detected_binaries.push(format!("ufw ({})", p));
     }
 
-    let firewalld_path = which_cmd("firewall-cmd");
+    let firewalld_path = which_cmd(host, "firewall-cmd");
     if let Some(ref p) = firewalld_path {
         detected_binaries.push(format!("firewall-cmd ({})", p));
     }
 
-    let nft_path = which_cmd("nft");
+    let nft_path = which_cmd(host, "nft");
     if let Some(ref p) = nft_path {
         detected_binaries.push(format!("nftables ({})", p));
     }
 
-    let iptables_path = which_cmd("iptables");
+    let iptables_path = which_cmd(host, "iptables");
     if let Some(ref p) = iptables_path {
         detected_binaries.push(format!("iptables ({})", p));
     }
 
     // 1. Test if UFW is operational
     if ufw_path.is_some() {
-        if let Ok(output) = Command::new("ufw").arg("status").arg("numbered").output() {
-            let stdout = String::from_utf8_lossy(&output.stdout);
-            let stderr = String::from_utf8_lossy(&output.stderr);
-
-            if stdout.contains("Status: active") {
-                if let Some(summary) = parse_ufw_status(&stdout) {
-                    return FirewallOperationalState::Active(summary);
-                }
-            } else if stdout.contains("Status: inactive") {
-                return FirewallOperationalState::Inactive {
-                    backend: FirewallBackend::Ufw,
-                    reason: "UFW is installed but inactive. System netfilter packet filtering is disabled.".into(),
-                    detected_binaries,
-                    has_root: true,
-                };
-            } else if stderr.contains("Permission denied") || stderr.contains("must be root") {
-                // Seed operational state for dev/demo when unprivileged
-                return default_active_ufw_state();
+        // `ufw status` exits non-zero when unprivileged; its complaint is on stderr.
+        let (stdout, stderr) = match host.exec(&["ufw", "status", "numbered"], DEFAULT_TIMEOUT) {
+            Ok(out) => (out.stdout, out.stderr),
+            Err(HostError::Failed { stderr, .. }) => (String::new(), stderr),
+            Err(_) => (String::new(), String::new()),
+        };
+        if stdout.contains("Status: active") {
+            if let Some(summary) = parse_ufw_status(&stdout) {
+                return FirewallOperationalState::Active(summary);
             }
+        } else if stdout.contains("Status: inactive") {
+            return FirewallOperationalState::Inactive {
+                backend: FirewallBackend::Ufw,
+                reason: "UFW is installed but inactive. System netfilter packet filtering is disabled.".into(),
+                detected_binaries,
+                has_root: true,
+            };
+        } else if stderr.contains("Permission denied") || stderr.contains("must be root") || stderr.contains("need to be root") {
+            // Seed operational state for dev/demo when unprivileged
+            return default_active_ufw_state();
         }
     }
 
     // 2. Test if firewalld is active
     if firewalld_path.is_some() {
-        if let Ok(output) = Command::new("firewall-cmd").arg("--state").output() {
-            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        if let Ok(output) = host.exec(&["firewall-cmd", "--state"], DEFAULT_TIMEOUT) {
+            let stdout = output.stdout.trim().to_string();
             if stdout == "running" {
                 // Firewalld is active
                 return FirewallOperationalState::Active(FirewallStatusSummary {
@@ -136,23 +133,10 @@ fn detect_remote_firewall(server: &ServerRecord) -> FirewallOperationalState {
     }
 }
 
-fn which_cmd(bin: &str) -> Option<String> {
-    Command::new("which")
-        .arg(bin)
-        .output()
-        .ok()
-        .and_then(|out| {
-            if out.status.success() {
-                let s = String::from_utf8_lossy(&out.stdout).trim().to_string();
-                if !s.is_empty() {
-                    Some(s)
-                } else {
-                    None
-                }
-            } else {
-                None
-            }
-        })
+fn which_cmd(host: &dyn Host, bin: &str) -> Option<String> {
+    let out = host.exec(&["which", bin], DEFAULT_TIMEOUT).ok()?;
+    let path = out.stdout.trim().to_string();
+    (!path.is_empty()).then_some(path)
 }
 
 /// Parses the output of `ufw status numbered`

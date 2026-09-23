@@ -11,6 +11,7 @@ use crate::views::firewall::{
     default_active_ufw_state, detect_firewall_status, FirewallOperationalState,
     FirewallState,
 };
+use crate::host::LocalHost;
 use crate::config::{crawl_machine_configs, CrowConfigManager};
 use crate::os_detect::{classify_distro_family, detect_local_os_release, DistroFamily};
 use crate::views::lock::{
@@ -20,7 +21,7 @@ use crate::views::onboard::{OnboardFieldFocus, OnboardState};
 use crate::journal::{
     JournalQuery,
     reader::read_journal_for_server,
-    retention::{generate_journald_conf, read_retention_for_server},
+    retention::{generate_journald_conf, read_retention, read_retention_for_server},
 };
 use crate::lab::{detect_local_engines, scan_local_test_nodes};
 use crate::views::logs::JournalState;
@@ -184,9 +185,9 @@ impl CrowApp {
         };
 
         let (journal_retention, journal_telemetry) = if let Some(first_srv) = servers.first() {
-            read_retention_for_server(&first_srv.host)
+            read_retention_for_server(first_srv)
         } else {
-            read_retention_for_server("local")
+            read_retention(&LocalHost)
         };
 
         let (initial_services, initial_processes, initial_sockets) = if let Some(first_srv) = servers.first() {

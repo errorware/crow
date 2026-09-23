@@ -90,7 +90,7 @@ pub fn run_background_poll(
                 result.journal_entries = Some(read_journal_for_server(active_srv, query));
             }
             if req.should_poll_retention {
-                let (_cfg, telemetry) = read_retention_for_server(&active_srv.host);
+                let (_cfg, telemetry) = read_retention_for_server(active_srv);
                 result.journal_telemetry = Some(telemetry);
             }
         }

@@ -1,60 +1,50 @@
-use std::process::Command;
+use crate::host::{host_for, Host, HostError, DEFAULT_TIMEOUT};
 use crate::vault::ServerRecord;
 use super::{parse_journal_json, JournalEntry, JournalPriority, JournalQuery};
 
-pub struct LocalJournalReader;
-
-impl LocalJournalReader {
-    /// Runs a full journal lookup against the local host using `journalctl -o json`.
-    /// Returns `None` only on a hard failure (journalctl missing / failed to spawn) —
-    /// a query that legitimately matches nothing still returns `Some(vec![])`, so
-    /// callers must not treat "no matches" as a reason to fall back to demo data.
-    pub fn read_query(query: &JournalQuery) -> Option<Vec<JournalEntry>> {
-        let mut cmd = Command::new("journalctl");
-        cmd.args(["-o", "json", "-n", &query.limit.to_string(), "--no-pager"]);
-        cmd.args(["-b", &query.boot.offset().to_string()]);
-
-        if let Some(ref u) = query.unit {
-            if !u.is_empty() && u != "ALL" && u != "ALL UNITS" {
-                cmd.args(["-u", u]);
-            }
+/// `journalctl` arguments for a query — built fresh from the filters so every
+/// transport runs the same lookup.
+pub fn journalctl_argv(query: &JournalQuery) -> Vec<String> {
+    let mut argv: Vec<String> = ["journalctl", "-o", "json", "-n"].iter().map(|s| s.to_string()).collect();
+    argv.push(query.limit.to_string());
+    argv.push("--no-pager".into());
+    argv.push("-b".into());
+    argv.push(query.boot.offset().to_string());
+    if let Some(ref u) = query.unit {
+        if !u.is_empty() && u != "ALL" && u != "ALL UNITS" {
+            argv.extend(["-u".to_string(), u.clone()]);
         }
-
-        if let Some(p) = query.priority {
-            cmd.args(["-p", &(p as u8).to_string()]);
-        }
-
-        if let Some(pid) = query.pid {
-            cmd.arg(format!("_PID={}", pid));
-        }
-
-        if let Some(since) = query.time_range.since_str() {
-            cmd.args(["--since", since]);
-        }
-
-        if let Some(ref pattern) = query.grep {
-            if !pattern.trim().is_empty() {
-                cmd.args(["--grep", pattern]);
-            }
-        }
-
-        let output = cmd.output().ok()?;
-
-        let mut entries = Vec::new();
-        let stdout_str = String::from_utf8_lossy(&output.stdout);
-
-        for line in stdout_str.lines() {
-            let trimmed = line.trim();
-            if trimmed.is_empty() {
-                continue;
-            }
-            if let Some(entry) = parse_journal_json(trimmed) {
-                entries.push(entry);
-            }
-        }
-
-        Some(entries)
     }
+    if let Some(p) = query.priority {
+        argv.extend(["-p".to_string(), (p as u8).to_string()]);
+    }
+    if let Some(pid) = query.pid {
+        argv.push(format!("_PID={}", pid));
+    }
+    if let Some(since) = query.time_range.since_str() {
+        argv.extend(["--since".to_string(), since.to_string()]);
+    }
+    if let Some(ref pattern) = query.grep {
+        if !pattern.trim().is_empty() {
+            argv.extend(["--grep".to_string(), pattern.clone()]);
+        }
+    }
+    argv
+}
+
+/// Runs a journal lookup on `host`. Returns `None` only on a hard failure
+/// (journalctl missing / host unreachable) — a query that legitimately matches
+/// nothing still returns `Some(vec![])`. Note `journalctl --grep` exits 1 when
+/// nothing matches; that is an empty result, not a failure.
+pub fn read_journal(host: &dyn Host, query: &JournalQuery) -> Option<Vec<JournalEntry>> {
+    let argv = journalctl_argv(query);
+    let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
+    let stdout = match host.exec(&argv, DEFAULT_TIMEOUT) {
+        Ok(out) => out.stdout,
+        Err(HostError::Failed { status: 1, .. }) if query.grep.is_some() => String::new(),
+        Err(_) => return None,
+    };
+    Some(stdout.lines().map(str::trim).filter(|l| !l.is_empty()).filter_map(parse_journal_json).collect())
 }
 
 pub struct SimulatedJournalReader;
@@ -199,22 +189,13 @@ fn generic_server_events(_host: &str, _ip: &str) -> Vec<EventTemplate> {
     ]
 }
 
-/// Dispatches journal collection depending on whether the server is local or simulated.
-/// A local host that genuinely has zero matches for the query returns an empty list —
-/// it does NOT fall back to simulated data, which would misrepresent a real "no results"
-/// as fabricated demo activity.
+/// Reads the journal for a server over its transport. A reachable host with
+/// zero matches returns an empty list; a host that fails the lookup returns an
+/// empty list too — never simulated data. Only servers with no transport get
+/// the role-shaped simulated stream.
 pub fn read_journal_for_server(server: &ServerRecord, query: &JournalQuery) -> Vec<JournalEntry> {
-    let is_localhost = server.host == "127.0.0.1"
-        || server.host == "localhost"
-        || server.host == "::1"
-        || server.name.to_lowercase() == "localhost"
-        || server.tags.iter().any(|t| t == "localhost" || t == "local");
-
-    if is_localhost {
-        if let Some(entries) = LocalJournalReader::read_query(query) {
-            return entries;
-        }
+    match host_for(server) {
+        Some(host) => read_journal(host.as_ref(), query).unwrap_or_default(),
+        None => SimulatedJournalReader::generate(server, query),
     }
-
-    SimulatedJournalReader::generate(server, query)
 }

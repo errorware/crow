@@ -1,20 +1,11 @@
-use std::process::Command;
 use gpui_kit::*;
 use gpui_kit::component::input::Input;
 use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::danger_zone_state::DangerZoneState;
 use crate::lab::{stop_local_node, LocalTestNode};
-use crate::os_detect::{classify_distro_family, detect_local_os_release, DistroFamily};
+use crate::host::{host_for, not_connected, DEFAULT_TIMEOUT};
 use crate::vault::ServerRecord;
-
-fn is_local_record(server: &ServerRecord) -> bool {
-    server.host == "127.0.0.1"
-        || server.host == "localhost"
-        || server.host == "::1"
-        || server.name.to_lowercase() == "localhost"
-        || server.tags.iter().any(|t| t == "localhost" || t == "local")
-}
 
 /// Power actions never actually execute — there is no reliable way to tell
 /// a lab container apart from the literal machine Crow itself runs on (both
@@ -30,21 +21,12 @@ pub fn send_power_action(server: &ServerRecord, action: &str) -> Result<String, 
 }
 
 pub fn flush_firewall(server: &ServerRecord) -> Result<String, String> {
-    if !is_local_record(server) {
-        return Ok(format!("Simulated firewall flush sent to {}", server.name));
+    let host = host_for(server).ok_or_else(|| not_connected(server).to_string())?;
+    if host.exec(&["which", "ufw"], DEFAULT_TIMEOUT).is_err() {
+        return Err("This host isn't running ufw — nothing to flush.".to_string());
     }
-    let family = detect_local_os_release()
-        .map(|d| classify_distro_family(&d))
-        .unwrap_or(DistroFamily::Unknown);
-    if family != DistroFamily::Debian {
-        return Err("This host isn't running ufw (Debian/Ubuntu-family firewall) — nothing to flush.".to_string());
-    }
-    let out = Command::new("ufw").args(["--force", "reset"]).output().map_err(|e| e.to_string())?;
-    if out.status.success() {
-        Ok("ufw rules flushed".to_string())
-    } else {
-        Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
-    }
+    host.exec(&["ufw", "--force", "reset"], DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;
+    Ok(format!("ufw rules flushed on {}", host.label()))
 }
 
 /// Stops every Crow-enrolled lab node — bounded to what Crow itself manages,

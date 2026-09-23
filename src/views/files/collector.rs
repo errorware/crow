@@ -1,18 +1,9 @@
 use std::collections::HashMap;
-use std::fs;
-use std::os::unix::fs::MetadataExt;
 use std::path::Path;
 use chrono::TimeZone;
+use crate::host::{host_for, not_connected, Host, HostError};
 use crate::vault::ServerRecord;
 use super::models::FileEntry;
-
-pub fn is_localhost_server(server: &ServerRecord) -> bool {
-    server.host == "127.0.0.1"
-        || server.host == "localhost"
-        || server.host == "::1"
-        || server.name.to_lowercase() == "localhost"
-        || server.tags.iter().any(|t| t == "localhost" || t == "local")
-}
 
 fn mode_to_string(mode: u32, is_dir: bool, is_symlink: bool) -> String {
     let file_type = if is_symlink { 'l' } else if is_dir { 'd' } else { '-' };
@@ -29,80 +20,59 @@ fn mode_to_string(mode: u32, is_dir: bool, is_symlink: bool) -> String {
     s
 }
 
-/// Loads a `name:...:id:...`-shaped file (/etc/passwd or /etc/group) into an
-/// id -> name lookup. Best-effort: an unreadable or malformed file just
-/// yields numeric ids in the listing instead of names.
-fn load_id_map(path: &str) -> HashMap<u32, String> {
-    let mut map = HashMap::new();
-    if let Ok(content) = fs::read_to_string(path) {
-        for line in content.lines() {
+/// Parses a `name:...:id:...`-shaped file (/etc/passwd or /etc/group) into an
+/// id -> name lookup. Malformed lines are skipped.
+fn parse_id_map(content: &str) -> HashMap<u32, String> {
+    content
+        .lines()
+        .filter_map(|line| {
             let parts: Vec<&str> = line.split(':').collect();
-            if parts.len() >= 3 {
-                if let Ok(id) = parts[2].parse::<u32>() {
-                    map.insert(id, parts[0].to_string());
-                }
-            }
-        }
-    }
-    map
+            Some((parts.get(2)?.parse::<u32>().ok()?, parts.first()?.to_string()))
+        })
+        .collect()
 }
 
 /// Lists a directory. Returns the entries and whether the listing is
-/// simulated — this is Crow's own machine, there is no remote transport yet
-/// (see CROW.md's crow-ssh gap), so anything not localhost gets a clearly
-/// labeled simulated listing rather than a silent guess.
-pub fn list_directory_for_server(server: &ServerRecord, path: &str) -> (Vec<FileEntry>, bool) {
-    if is_localhost_server(server) {
-        if let Some(entries) = list_local_directory(path) {
-            return (entries, false);
-        }
+/// simulated — servers Crow has no transport to yet get a clearly labeled
+/// simulated listing rather than a silent guess.
+pub fn list_directory_for_server(server: &ServerRecord, path: &str) -> Result<(Vec<FileEntry>, bool), String> {
+    match host_for(server) {
+        Some(host) => list_directory(host.as_ref(), path).map(|entries| (entries, false)).map_err(|e| e.to_string()),
+        None => Ok((simulated_directory(path), true)),
     }
-    (simulated_directory(path), true)
 }
 
-fn list_local_directory(path: &str) -> Option<Vec<FileEntry>> {
-    let dir = fs::read_dir(path).ok()?;
-    let users = load_id_map("/etc/passwd");
-    let groups = load_id_map("/etc/group");
+/// Lists `path` on `host`, directories first, resolving owners through the
+/// host's own /etc/passwd and /etc/group (best-effort: numeric ids otherwise).
+pub fn list_directory(host: &dyn Host, path: &str) -> Result<Vec<FileEntry>, HostError> {
+    let entries = host.list_dir(path)?;
+    let users = host.read_file("/etc/passwd").map(|c| parse_id_map(&c)).unwrap_or_default();
+    let groups = host.read_file("/etc/group").map(|c| parse_id_map(&c)).unwrap_or_default();
 
-    let mut out = Vec::new();
-    for entry in dir.flatten() {
-        let file_name = entry.file_name().to_string_lossy().to_string();
-        let file_type = match entry.file_type() {
-            Ok(t) => t,
-            Err(_) => continue,
-        };
-        let meta = match entry.metadata() {
-            Ok(m) => m,
-            Err(_) => continue,
-        };
-        let is_symlink = file_type.is_symlink();
-        let is_dir = file_type.is_dir();
-        let modified = meta.modified().ok()
-            .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
-            .and_then(|d| chrono::Local.timestamp_opt(d.as_secs() as i64, 0).single())
-            .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
-            .unwrap_or_default();
-
-        out.push(FileEntry {
-            name: file_name,
-            is_dir,
-            is_symlink,
-            size_bytes: meta.size(),
-            mode_str: mode_to_string(meta.mode(), is_dir, is_symlink),
-            owner: users.get(&meta.uid()).cloned().unwrap_or_else(|| meta.uid().to_string()),
-            group: groups.get(&meta.gid()).cloned().unwrap_or_else(|| meta.gid().to_string()),
-            modified,
-        });
-    }
+    let mut out: Vec<FileEntry> = entries
+        .into_iter()
+        .map(|e| FileEntry {
+            mode_str: mode_to_string(e.mode, e.is_dir, e.is_symlink),
+            owner: users.get(&e.uid).cloned().unwrap_or_else(|| e.uid.to_string()),
+            group: groups.get(&e.gid).cloned().unwrap_or_else(|| e.gid.to_string()),
+            modified: chrono::Local
+                .timestamp_opt(e.mtime, 0)
+                .single()
+                .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+                .unwrap_or_default(),
+            name: e.name,
+            is_dir: e.is_dir,
+            is_symlink: e.is_symlink,
+            size_bytes: e.size_bytes,
+        })
+        .collect();
 
     out.sort_by(|a, b| match (a.is_dir, b.is_dir) {
         (true, false) => std::cmp::Ordering::Less,
         (false, true) => std::cmp::Ordering::Greater,
         _ => a.name.to_lowercase().cmp(&b.name.to_lowercase()),
     });
-
-    Some(out)
+    Ok(out)
 }
 
 fn seed(name: &str, is_dir: bool, size: u64, mode: &str, owner: &str) -> FileEntry {
@@ -155,26 +125,41 @@ fn simulated_directory(path: &str) -> Vec<FileEntry> {
 }
 
 pub fn create_directory(server: &ServerRecord, parent: &str, name: &str) -> Result<(), String> {
-    if !is_localhost_server(server) {
-        return Err("Not supported on a simulated/remote host yet".to_string());
-    }
     if name.trim().is_empty() || name.contains('/') {
         return Err("Invalid folder name".to_string());
     }
-    fs::create_dir(Path::new(parent).join(name)).map_err(|e| e.to_string())
+    let host = host_for(server).ok_or_else(|| not_connected(server).to_string())?;
+    host.create_dir(&join_path(parent, name)).map_err(|e| e.to_string())
 }
 
 /// Deletes a single file, or an EMPTY directory only — deliberately refuses a
 /// non-empty directory rather than recursing, mirroring how a real FTP
 /// server's RMD behaves. No recursive delete exists in this tool.
 pub fn delete_entry(server: &ServerRecord, parent: &str, name: &str, is_dir: bool) -> Result<(), String> {
-    if !is_localhost_server(server) {
-        return Err("Not supported on a simulated/remote host yet".to_string());
+    let host = host_for(server).ok_or_else(|| not_connected(server).to_string())?;
+    host.remove(&join_path(parent, name), is_dir).map_err(|e| e.to_string())
+}
+
+fn join_path(parent: &str, name: &str) -> String {
+    Path::new(parent).join(name).to_string_lossy().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn id_map_skips_malformed_lines() {
+        let map = parse_id_map("root:x:0:0:root:/root:/bin/bash\nbroken\nnhc:x:1000:1000::/home/nhc:/bin/zsh\n");
+        assert_eq!(map.get(&0).map(String::as_str), Some("root"));
+        assert_eq!(map.get(&1000).map(String::as_str), Some("nhc"));
+        assert_eq!(map.len(), 2);
     }
-    let full = Path::new(parent).join(name);
-    if is_dir {
-        fs::remove_dir(&full).map_err(|e| format!("{} (directory must be empty)", e))
-    } else {
-        fs::remove_file(&full).map_err(|e| e.to_string())
+
+    #[test]
+    fn mode_strings() {
+        assert_eq!(mode_to_string(0o755, true, false), "drwxr-xr-x");
+        assert_eq!(mode_to_string(0o640, false, false), "-rw-r-----");
+        assert_eq!(mode_to_string(0o777, false, true), "lrwxrwxrwx");
     }
 }
