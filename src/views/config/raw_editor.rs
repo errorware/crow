@@ -10,8 +10,10 @@ use crate::config::ConfigFileState;
 pub fn raw_config_editor(
     state: &ConfigFileState,
     editor: &Entity<EditorState>,
+    can_structure: bool,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
+    let app_structured = app.clone();
     let app_revert = app.clone();
     let app_stage = app.clone();
     let app_hist = app.clone();
@@ -114,6 +116,30 @@ pub fn raw_config_editor(
                         })
                         .child(format!("HISTORY · {}", state.revisions.len()))
                 )
+                // Back to the plugin's structured editor
+                .children(can_structure.then(|| {
+                    let f = state.filename.clone();
+                    div()
+                        .id("btn-raw-structured")
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.0))
+                        .text_color(hex_rgb(0x8ab4ff))
+                        .border_1()
+                        .border_color(BORDER_DEFAULT)
+                        .px(px(8.0))
+                        .py(px(3.0))
+                        .rounded_sm()
+                        .cursor_pointer()
+                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .on_click(move |_ev, _window, cx| {
+                            let f = f.clone();
+                            app_structured.update(cx, |this, cx| {
+                                this.configs.text_mode.remove(&f);
+                                cx.notify();
+                            });
+                        })
+                        .child("STRUCTURED VIEW")
+                }))
                 // Revert button
                 .children(if is_modified {
                     let fn_clone = state.filename.clone();

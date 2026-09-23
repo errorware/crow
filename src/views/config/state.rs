@@ -1,12 +1,11 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::cron_editor::{generate_crontab_content, CronJobDef};
-use super::rules_editor::{generate_hba_conf, HbaRuleDef};
 use crate::config::{ConfigFileState, DiscoveredConfigFile};
 use crate::os_detect::DistroFamily;
 
 /// Config screen state: discovered files, their versioned edit states, and the
-/// structured editors (cron jobs, pg_hba rules) that render into those states.
+/// cron job model the Cron screen renders into the crontab state.
 pub struct ConfigsState {
     pub files: Vec<DiscoveredConfigFile>,
     /// Keyed by file name (e.g. "pg_hba.conf", "crontab", "user.rules").
@@ -16,13 +15,19 @@ pub struct ConfigsState {
     pub search_focused: bool,
     pub show_history: bool,
     pub cron_jobs: Vec<CronJobDef>,
-    pub hba_rules: Vec<HbaRuleDef>,
     /// Server the files were read from; staged changes are written back there.
     pub server_id: Option<String>,
     /// That server's distro family, which decided the crawl's path set.
     pub family: DistroFamily,
     /// Last failed write, shown on the pending-diff rail until the next save.
     pub save_error: Option<String>,
+    /// Structured-editor UI: files switched to the plain-text view, the enum
+    /// field whose options are open (row id, field), whether the "add
+    /// directive" list is open, and the last rejected edit.
+    pub text_mode: HashSet<String>,
+    pub open_enum: Option<(String, String)>,
+    pub adding_row: bool,
+    pub edit_error: Option<String>,
 }
 
 impl ConfigsState {
@@ -31,7 +36,6 @@ impl ConfigsState {
         states: HashMap<String, ConfigFileState>,
         selected_file: String,
         cron_jobs: Vec<CronJobDef>,
-        hba_rules: Vec<HbaRuleDef>,
     ) -> Self {
         Self {
             files,
@@ -41,10 +45,13 @@ impl ConfigsState {
             search_focused: false,
             show_history: false,
             cron_jobs,
-            hba_rules,
             server_id: None,
             family: DistroFamily::Unknown,
             save_error: None,
+            text_mode: HashSet::new(),
+            open_enum: None,
+            adding_row: false,
+            edit_error: None,
         }
     }
 
@@ -72,13 +79,6 @@ impl ConfigsState {
         if let Some(st) = self.states.get_mut(file) {
             st.baseline_content = text.clone();
             st.current_content = text;
-        }
-    }
-
-    pub fn sync_hba(&mut self) {
-        let content = generate_hba_conf(&self.hba_rules);
-        if let Some(state) = self.states.get_mut("pg_hba.conf") {
-            state.update_content(content);
         }
     }
 
@@ -201,7 +201,7 @@ mod tests {
         let mut states = HashMap::new();
         let content = generate_crontab_content(&jobs);
         states.insert("crontab".to_string(), ConfigFileState::new(PathBuf::from("/etc/crontab"), "crontab".into(), content));
-        ConfigsState::new(Vec::new(), states, "crontab".into(), jobs, Vec::new())
+        ConfigsState::new(Vec::new(), states, "crontab".into(), jobs)
     }
 
     #[test]

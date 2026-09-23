@@ -1,5 +1,6 @@
 pub mod plugin;
 pub mod crawler;
+pub mod plugins;
 pub mod versioning;
 pub mod syntax;
 

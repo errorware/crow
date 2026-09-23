@@ -9,10 +9,9 @@ use crate::components::stat_strip::stat_strip;
 use crate::components::titlebar::{burger_menu_overlay, titlebar};
 use crate::theme::*;
 use crate::vault::VaultStatus;
-use crate::views::config::{cron_editor, raw_config_editor};
+use crate::views::config::cron_editor;
 use crate::views::config::managed_files::managed_files_rail;
 use crate::views::config::pending_diff_rail::pending_diff_rail;
-use crate::views::config::rules_editor::rules_editor;
 use crate::views::files::file_browser_view;
 use crate::views::firewall::firewall_view;
 use crate::views::fleet::{fleet_overview_view, fleet_setup_view};
@@ -244,18 +243,7 @@ impl Render for CrowApp {
                                                                     }
                                                                 )
                                                             } else if is_config {
-                                                                let editor_view = if self.configs.selected_file == "journald.conf" {
-                                                                    crate::views::config::journald_editor::journald_editor(&self.journal.retention, &self.journal.telemetry, &self.configs, app_view.clone()).into_any_element()
-                                                                } else if self.configs.selected_file == "pg_hba.conf" {
-                                                                    rules_editor(&self.configs.hba_rules, &self.configs, app_view.clone()).into_any_element()
-                                                                } else if self.configs.selected_file == "crontab" || self.configs.selected_file.contains("cron") {
-                                                                    cron_editor(&self.configs.cron_jobs, &self.configs, app_view.clone()).into_any_element()
-                                                                } else if let Some(editor) = self.config_text_editor(&self.configs.selected_file.clone(), window, cx) {
-                                                                    let st = &self.configs.states[&self.configs.selected_file];
-                                                                    raw_config_editor(st, &editor, app_view.clone()).into_any_element()
-                                                                } else {
-                                                                    rules_editor(&self.configs.hba_rules, &self.configs, app_view.clone()).into_any_element()
-                                                                };
+                                                                let editor_view = self.config_editor_view(window, cx);
 
                                                                 Some(
                                                                     div()

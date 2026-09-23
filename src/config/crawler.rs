@@ -1,6 +1,7 @@
 use std::path::{Path, PathBuf};
 use std::fs;
 use crate::host::Host;
+use super::plugins::editor_for;
 use crate::os_detect::DistroFamily;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -11,6 +12,8 @@ pub enum SchemaKind {
     Sshd,
     Hosts,
     Ufw,
+    /// /etc/passwd and /etc/group, owned by the Users screen.
+    Accounts,
     Crow,
 }
 
@@ -23,6 +26,7 @@ impl SchemaKind {
             Self::Sshd => "openssh 9.6",
             Self::Hosts => "linux-net",
             Self::Ufw => "ufw firewall",
+            Self::Accounts => "accounts",
             Self::Crow => "crow core",
         }
     }
@@ -35,6 +39,7 @@ impl SchemaKind {
             Self::Sshd => "DIRECTIVE UI",
             Self::Hosts => "KEY-VALUE UI",
             Self::Ufw => "FIREWALL UI",
+            Self::Accounts => "USERS UI",
             Self::Crow => "LOSSLESS TOML",
         }
     }
@@ -84,14 +89,19 @@ pub fn detect_schema_kind(name: &str, path: &Path) -> Option<SchemaKind> {
         Some(SchemaKind::PgHba)
     } else if lower_name == "journald.conf" || path_str.contains("journald.conf") {
         Some(SchemaKind::Journald)
-    } else if lower_name == "crontab" || lower_name.ends_with(".cron") || path_str.contains("cron.d") || path_str.contains("crontab") {
+    } else if lower_name == "crontab" {
+        // Only the system crontab: the Cron screen edits that one file.
         Some(SchemaKind::Cron)
     } else if lower_name == "sshd_config" || lower_name.starts_with("sshd_config.d") || path_str.contains("ssh/sshd_config") {
         Some(SchemaKind::Sshd)
     } else if lower_name == "hosts" && (path_str == "/etc" || path_str.ends_with("/etc/hosts") || path_str.ends_with("hosts")) {
         Some(SchemaKind::Hosts)
-    } else if lower_name.ends_with(".rules") && (path_str.contains("ufw") || lower_name == "user.rules") {
+    } else if lower_name == "user.rules" || lower_name == "user6.rules" {
+        // ufw's own rule store, managed by the Firewall screen. before/after
+        // *.rules are raw iptables-restore files: plain text.
         Some(SchemaKind::Ufw)
+    } else if (lower_name == "passwd" || lower_name == "group") && path_str.starts_with("/etc/") {
+        Some(SchemaKind::Accounts)
     } else if lower_name == "config.toml" && path_str.contains("crow") {
         Some(SchemaKind::Crow)
     } else {
@@ -157,7 +167,7 @@ pub fn crawl_configs(host: Option<&dyn Host>, family: DistroFamily) -> Vec<Disco
                 continue;
             }
             let schema = detect_schema_kind(&entry.name, &p);
-            let is_mapped = schema.is_some();
+            let is_mapped = editor_for(schema).is_crow_ui();
             discovered.push(DiscoveredConfigFile {
                 name: entry.name.clone(),
                 path_dir: dir_str.to_string(),
@@ -242,7 +252,7 @@ pub fn crawl_configs(host: Option<&dyn Host>, family: DistroFamily) -> Vec<Disco
         let pb = PathBuf::from(format!("{}/{}", path, name));
         let already_present = discovered.iter().any(|d| d.name == *name || d.full_path == pb);
         if !already_present {
-            let is_mapped = schema.is_some();
+            let is_mapped = editor_for(*schema).is_crow_ui();
             let final_pill = if is_mapped && *pill == "OK" {
                 "CROW UI".to_string()
             } else {

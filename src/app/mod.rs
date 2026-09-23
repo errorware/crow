@@ -138,6 +138,10 @@ pub struct CrowApp {
     pub configs: ConfigsState,
     /// Live editor for the selected plain-text config (see ConfigTextEditor).
     pub config_text_editor: Option<configs::ConfigTextEditor>,
+    /// Inline field edit in the structured config editor.
+    pub structured_field_edit: Option<configs::StructuredFieldEdit>,
+    /// A never-on-prod change awaiting typed confirmation.
+    pub risk_confirm: Option<configs::RiskConfirm>,
     pub files: FilesState,
     pub danger: DangerZoneState,
     pub users: UsersState,
@@ -232,6 +236,8 @@ impl CrowApp {
             overview: OverviewState::new(initial_services, initial_processes, initial_sockets),
             configs,
             config_text_editor: None,
+            structured_field_edit: None,
+            risk_confirm: None,
             palette_open: false,
             sidebar_collapsed: false,
             keys,
