@@ -37,6 +37,7 @@ impl CrowApp {
     pub fn refresh_lab_nodes(&mut self, cx: &mut Context<Self>) {
         self.local_lab.engines = detect_local_engines();
         self.local_lab.nodes = scan_local_test_nodes(&self.fleet.servers);
+        self.reload_configs_for_active_server(cx);
         cx.notify();
     }
 
@@ -66,6 +67,7 @@ impl CrowApp {
             self.enroll_and_open_lab_node(&node);
         }
         self.local_lab.nodes = scan_local_test_nodes(&self.fleet.servers);
+        self.reload_configs_for_active_server(cx);
         cx.notify();
     }
 
@@ -91,6 +93,7 @@ impl CrowApp {
 
         self.enroll_and_open_lab_node(&node);
         self.local_lab.nodes = scan_local_test_nodes(&self.fleet.servers);
+        self.reload_configs_for_active_server(cx);
         cx.notify();
     }
 

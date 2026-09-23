@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use super::cron_editor::{generate_crontab_content, CronJobDef};
 use super::rules_editor::{generate_hba_conf, HbaRuleDef};
 use crate::config::{ConfigFileState, DiscoveredConfigFile};
+use crate::os_detect::DistroFamily;
 
 /// Config screen state: discovered files, their versioned edit states, and the
 /// structured editors (cron jobs, pg_hba rules) that render into those states.
@@ -16,6 +17,12 @@ pub struct ConfigsState {
     pub show_history: bool,
     pub cron_jobs: Vec<CronJobDef>,
     pub hba_rules: Vec<HbaRuleDef>,
+    /// Server the files were read from; staged changes are written back there.
+    pub server_id: Option<String>,
+    /// That server's distro family, which decided the crawl's path set.
+    pub family: DistroFamily,
+    /// Last failed write, shown on the pending-diff rail until the next save.
+    pub save_error: Option<String>,
 }
 
 impl ConfigsState {
@@ -35,6 +42,21 @@ impl ConfigsState {
             show_history: false,
             cron_jobs,
             hba_rules,
+            server_id: None,
+            family: DistroFamily::Unknown,
+            save_error: None,
+        }
+    }
+
+    /// True when any file has edits that have not been staged.
+    pub fn has_unsaved_changes(&self) -> bool {
+        self.states.values().any(|st| st.is_modified())
+    }
+
+    /// Marks a file as not writable back to its host, with the reason shown on save.
+    pub fn block_writes(&mut self, file: &str, reason: String) {
+        if let Some(st) = self.states.get_mut(file) {
+            st.write_blocked.get_or_insert(reason);
         }
     }
 
@@ -43,7 +65,9 @@ impl ConfigsState {
     pub fn seed_baseline(&mut self, file: &str, text: String, create_at: Option<&str>) {
         if !self.states.contains_key(file) {
             let Some(path) = create_at else { return };
-            self.states.insert(file.to_string(), ConfigFileState::new(path.into(), file.to_string(), text.clone()));
+            let mut st = ConfigFileState::new(path.into(), file.to_string(), text.clone());
+            st.write_blocked = Some(format!("{file} was not found on this server"));
+            self.states.insert(file.to_string(), st);
         }
         if let Some(st) = self.states.get_mut(file) {
             st.baseline_content = text.clone();
@@ -204,6 +228,16 @@ mod tests {
         st.add_cron_job();
         assert!(st.states["crontab"].is_modified());
         assert!(st.states["crontab"].current_content.contains("/usr/local/bin/backup-sync.sh"));
+    }
+
+    #[test]
+    fn created_seed_files_are_write_blocked() {
+        let mut st = with_crontab();
+        st.seed_baseline("user.rules", "# rules\n".into(), Some("/etc/ufw/user.rules"));
+        assert!(st.states["user.rules"].write_blocked.is_some());
+        st.block_writes("crontab", "sample model".into());
+        st.block_writes("crontab", "second reason is ignored".into());
+        assert_eq!(st.states["crontab"].write_blocked.as_deref(), Some("sample model"));
     }
 
     #[test]

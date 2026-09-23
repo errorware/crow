@@ -4,7 +4,7 @@ pub mod versioning;
 pub mod syntax;
 
 pub use plugin::{default_config_toml, CrowConfigPlugin, CROW_CONFIG_MANIFEST};
-pub use crawler::{crawl_machine_configs, detect_schema_kind, load_config_file_state, sample_config_content, DiscoveredConfigFile, SchemaKind};
+pub use crawler::{crawl_configs, detect_schema_kind, load_config_file_state, sample_config_content, DiscoveredConfigFile, SchemaKind};
 pub use versioning::{compute_unified_diff, ConfigFileState, ConfigRevision};
 pub use syntax::{highlight_config_line, SyntaxToken};
 

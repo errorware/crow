@@ -94,6 +94,7 @@ impl CrowApp {
             self.fleet.active_tab_id = tab_id.to_string();
             self.screen = Screen::Server;
         }
+        self.reload_configs_for_active_server(cx);
         cx.notify();
     }
 

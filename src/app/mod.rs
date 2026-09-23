@@ -2,18 +2,15 @@ use gpui_kit::*;
 use crate::components::danger_zone_state::DangerZoneState;
 use crate::components::text_caret::TextCaret;
 use crate::vault::{Vault, VaultStatus};
-use crate::views::config::rules_editor::default_hba_rules;
 use crate::views::config::state::ConfigsState;
-use crate::views::config::cron_editor::{default_cron_jobs, generate_crontab_content};
 use crate::views::files::FilesState;
 use crate::views::users::UsersState;
 use crate::views::firewall::{
-    default_active_ufw_state, detect_firewall_status, FirewallOperationalState,
+    default_active_ufw_state, detect_firewall_status,
     FirewallState,
 };
 use crate::host::LocalHost;
-use crate::config::{crawl_machine_configs, CrowConfigManager};
-use crate::os_detect::{classify_distro_family, detect_local_os_release, DistroFamily};
+use crate::config::CrowConfigManager;
 use crate::views::lock::{
     LockState, SetupState,
 };
@@ -21,7 +18,7 @@ use crate::views::onboard::{OnboardFieldFocus, OnboardState};
 use crate::journal::{
     JournalQuery,
     reader::read_journal_for_server,
-    retention::{generate_journald_conf, read_retention, read_retention_for_server},
+    retention::{read_retention, read_retention_for_server},
 };
 use crate::lab::{detect_local_engines, scan_local_test_nodes};
 use crate::views::logs::JournalState;
@@ -55,7 +52,7 @@ use crate::views::settings::clankers_state::ClankersState;
 use crate::views::settings::keys_state::KeysState;
 use crate::views::settings::state::SettingsState;
 use crate::views::settings::lab::LabState;
-use configs::log_config_core_self_check;
+use configs::{load_configs, log_config_core_self_check};
 use poll::seed_metrics;
 use tabs::initial_tabs;
 
@@ -110,7 +107,6 @@ pub struct ClankerEditModalState {
     pub error_message: Option<String>,
 }
 
-use crate::config::load_config_file_state;
 
 
 pub struct CrowApp {
@@ -214,28 +210,11 @@ impl CrowApp {
         let lab_engines = detect_local_engines();
         let lab_nodes = scan_local_test_nodes(&servers);
 
-        let local_distro_family = detect_local_os_release()
-            .map(|d| classify_distro_family(&d))
-            .unwrap_or(DistroFamily::Unknown);
-        let config_files = crawl_machine_configs(local_distro_family);
-        let config_file_states = config_files.iter().map(|f| (f.name.clone(), load_config_file_state(f))).collect();
-        let initial_selected_file = config_files
-            .first()
-            .map(|f| f.name.clone())
-            .unwrap_or_else(|| "journald.conf".to_string());
-        let mut configs = ConfigsState::new(config_files, config_file_states, initial_selected_file, default_cron_jobs(), default_hba_rules());
-        configs.sync_hba();
-        configs.seed_baseline("journald.conf", generate_journald_conf(&journal_retention), None);
-        configs.seed_baseline("crontab", generate_crontab_content(&configs.cron_jobs), None);
-
         let initial_firewall_state = servers
             .first()
             .map(|s| detect_firewall_status(s))
             .unwrap_or_else(default_active_ufw_state);
-        if let FirewallOperationalState::Active(ref summary) = initial_firewall_state {
-            let fw_text = crate::views::firewall::generate_user_rules_content(&summary.rules);
-            configs.seed_baseline("user.rules", fw_text, Some("/etc/ufw/user.rules"));
-        }
+        let configs = load_configs(servers.first(), &journal_retention, &initial_firewall_state);
 
         Self {
             focus_handle: cx.focus_handle(),
@@ -246,7 +225,7 @@ impl CrowApp {
             screen: Screen::Fleet,
             menu_open: false,
             settings: SettingsState::default(),
-            fleet: FleetState::new(servers, tabs, local_distro_family, metrics_store, buffered_stores),
+            fleet: FleetState::new(servers, tabs, metrics_store, buffered_stores),
             active_view: "overview".to_string(),
             overview: OverviewState::new(initial_services, initial_processes, initial_sockets),
             configs,

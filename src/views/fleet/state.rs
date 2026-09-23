@@ -2,7 +2,6 @@ use std::collections::HashMap;
 
 use crate::components::titlebar::ServerTab;
 use crate::metrics::{ServerMetrics, ServerTimeSeriesBuffer, SurgeAlert};
-use crate::os_detect::DistroFamily;
 use crate::vault::ServerRecord;
 
 /// Enrolled servers, the open tabs over them, and their live metrics.
@@ -11,9 +10,6 @@ pub struct FleetState {
     pub tabs: Vec<ServerTab>,
     /// Id of the active tab's server (older tabs may carry the server name).
     pub active_tab_id: String,
-    /// This machine's own /etc/os-release family, detected once at startup —
-    /// drives which config paths the crawler trusts (see crawl_machine_configs).
-    pub local_distro_family: DistroFamily,
     /// Latest metrics per server, keyed by both id and name.
     pub metrics_store: HashMap<String, ServerMetrics>,
     /// Lagged time-series buffers per server, keyed by both id and name.
@@ -26,7 +22,6 @@ impl FleetState {
     pub fn new(
         servers: Vec<ServerRecord>,
         tabs: Vec<ServerTab>,
-        local_distro_family: DistroFamily,
         metrics_store: HashMap<String, ServerMetrics>,
         buffered_stores: HashMap<String, ServerTimeSeriesBuffer>,
     ) -> Self {
@@ -35,7 +30,6 @@ impl FleetState {
             servers,
             tabs,
             active_tab_id,
-            local_distro_family,
             metrics_store,
             buffered_stores,
             metrics_lag_secs: 24,

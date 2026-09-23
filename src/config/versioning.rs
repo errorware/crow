@@ -1,6 +1,7 @@
 use std::path::PathBuf;
 use serde::{Deserialize, Serialize};
 use chrono::Local;
+use crate::host::Host;
 use super::{ConfigDiffLine, DiffKind};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -20,6 +21,10 @@ pub struct ConfigFileState {
     pub current_content: String,
     pub revisions: Vec<ConfigRevision>,
     pub active_revision: usize,
+    /// Why this file must not be written back, if it must not: a synthetic
+    /// placeholder, a file that could not be read from its host, or a server
+    /// Crow has no transport to. Its content is illustrative only.
+    pub write_blocked: Option<String>,
 }
 
 impl ConfigFileState {
@@ -39,6 +44,7 @@ impl ConfigFileState {
             current_content: content,
             revisions: vec![initial_rev],
             active_revision: 1,
+            write_blocked: None,
         }
     }
 
@@ -97,18 +103,12 @@ impl ConfigFileState {
         self.revisions.last()
     }
 
-    pub fn save_to_disk(&self) -> Result<(), String> {
-        if let Some(parent) = self.path.parent() {
-            let _ = std::fs::create_dir_all(parent);
+    /// Writes the current content to this file's path on `host`, atomically.
+    pub fn save_to(&self, host: &dyn Host) -> Result<(), String> {
+        if let Some(reason) = &self.write_blocked {
+            return Err(reason.clone());
         }
-        let write_res = std::fs::write(&self.path, &self.current_content);
-        if write_res.is_err() {
-            let _ = std::fs::create_dir_all("/tmp/crow-config");
-            let fallback_path = format!("/tmp/crow-config/{}", self.filename);
-            std::fs::write(&fallback_path, &self.current_content)
-                .map_err(|e| format!("Failed to write to fallback {}: {}", fallback_path, e))?;
-        }
-        Ok(())
+        host.write_file_atomic(&self.path.to_string_lossy(), &self.current_content).map_err(|e| e.to_string())
     }
 }
 
@@ -185,6 +185,27 @@ pub fn compute_unified_diff(baseline: &str, current: &str) -> Vec<ConfigDiffLine
 
 #[cfg(test)]
 mod tests {
+    use crate::host::LocalHost;
+
+    #[test]
+    fn save_writes_through_host_unless_blocked() {
+        let dir = std::env::temp_dir().join(format!("crow-save-test-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("app.conf");
+        std::fs::write(&path, "a = 1\n").unwrap();
+
+        let mut st = ConfigFileState::new(path.clone(), "app.conf".into(), "a = 1\n".into());
+        st.update_content("a = 2\n".into());
+        st.save_to(&LocalHost).unwrap();
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "a = 2\n");
+
+        st.write_blocked = Some("sample model".into());
+        st.update_content("a = 3\n".into());
+        assert_eq!(st.save_to(&LocalHost).unwrap_err(), "sample model");
+        assert_eq!(std::fs::read_to_string(&path).unwrap(), "a = 2\n", "blocked save must not touch the file");
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
     use super::*;
 
     #[test]

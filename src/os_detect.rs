@@ -39,12 +39,18 @@ pub fn classify_distro_family(distro_display: &str) -> DistroFamily {
     }
 }
 
-/// Reads and parses /etc/os-release on THIS machine — real detection, not a
-/// guess. Remote hosts don't have a transport yet (crow-ssh isn't wired in),
-/// so this only tells the truth for localhost/lab nodes today; everything
-/// else still falls back to role-based placeholder text upstream.
+/// Reads and parses /etc/os-release on THIS machine.
 pub fn detect_local_os_release() -> Option<String> {
-    let content = fs::read_to_string("/etc/os-release").ok()?;
+    parse_os_release(&fs::read_to_string("/etc/os-release").ok()?)
+}
+
+/// Reads and parses /etc/os-release on `host`.
+pub fn detect_os_release(host: &dyn crate::host::Host) -> Option<String> {
+    parse_os_release(&host.read_file("/etc/os-release").ok()?)
+}
+
+/// The distro's display name from os-release content: PRETTY_NAME, else ID.
+pub fn parse_os_release(content: &str) -> Option<String> {
     let mut id = String::new();
     let mut pretty_name = String::new();
 

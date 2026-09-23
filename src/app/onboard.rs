@@ -282,6 +282,7 @@ impl CrowApp {
             });
         }
         self.fleet.active_tab_id = id.clone();
+        self.reload_configs_for_active_server(cx);
         self.screen = Screen::Server;
         self.active_view = "overview".to_string();
         self.keys.toast = Some(format!("Server '{}' enrolled into fleet", name));

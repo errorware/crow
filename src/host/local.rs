@@ -14,6 +14,10 @@ impl Host for LocalHost {
         "local".to_string()
     }
 
+    fn is_local(&self) -> bool {
+        true
+    }
+
     fn exec_stdin(&self, argv: &[&str], stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {
         run_command(argv, stdin, timeout)
     }

@@ -7,7 +7,7 @@ use crate::components::text_caret::TextCaret;
 use crate::views::fleet::FleetState;
 use crate::views::config::state::ConfigsState;
 
-pub fn managed_files_rail(selected_file: &str, caret: &TextCaret, fleet: &FleetState, configs: &ConfigsState, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn managed_files_rail(selected_file: &str, caret: &TextCaret, _fleet: &FleetState, configs: &ConfigsState, app: Entity<CrowApp>) -> impl IntoElement {
     let files = &configs.files;
     let app_clone = app.clone();
     let app_scan = app.clone();
@@ -109,7 +109,7 @@ pub fn managed_files_rail(selected_file: &str, caret: &TextCaret, fleet: &FleetS
         )
         // Unverified distro warning — the crawler only trusted a generic /etc
         // scan for this host; no placeholder configs were fabricated either.
-        .children(if !fleet.local_distro_family.is_supported() {
+        .children(if !configs.family.is_supported() {
             Some(
                 div()
                     .px(px(10.0))

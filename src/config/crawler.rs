@@ -1,5 +1,6 @@
 use std::path::{Path, PathBuf};
 use std::fs;
+use crate::host::Host;
 use crate::os_detect::DistroFamily;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -98,13 +99,14 @@ pub fn detect_schema_kind(name: &str, path: &Path) -> Option<SchemaKind> {
     }
 }
 
-/// Crawls the local system and well-known configuration paths.
+/// Crawls a host's well-known configuration paths (none when `host` is `None`,
+/// i.e. a server Crow cannot reach yet — only placeholders are listed then).
 /// Returns a list of configuration files, with all schema-mapped files bumped to the top.
 /// `family` narrows both which directories get scanned and which baseline
 /// placeholders (see below) are plausible for this host — on an unrecognized
 /// distro, Crow scans a generic path set and fabricates no placeholders at
 /// all, rather than presenting Debian-shaped guesses as if they were real.
-pub fn crawl_machine_configs(family: DistroFamily) -> Vec<DiscoveredConfigFile> {
+pub fn crawl_configs(host: Option<&dyn Host>, family: DistroFamily) -> Vec<DiscoveredConfigFile> {
     let mut discovered: Vec<DiscoveredConfigFile> = Vec::new();
     let mut seen_paths: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
 
@@ -144,47 +146,36 @@ pub fn crawl_machine_configs(family: DistroFamily) -> Vec<DiscoveredConfigFile> 
         ],
     };
 
-    for dir_str in &scan_dirs {
-        let dir_path = Path::new(dir_str);
-        if let Ok(entries) = fs::read_dir(dir_path) {
-            for entry in entries.flatten() {
-                let p = entry.path();
-                if p.is_file() {
-                    let file_name = p.file_name().and_then(|n| n.to_str()).unwrap_or("");
-                    if is_config_file(file_name, &p) {
-                        if seen_paths.insert(p.clone()) {
-                            let size = entry.metadata().map(|m| m.len()).unwrap_or(0);
-                            let readonly = entry.metadata().map(|m| m.permissions().readonly()).unwrap_or(false);
-                            let parent_str = p.parent().map(|d| d.to_string_lossy().to_string()).unwrap_or_else(|| "/etc".to_string());
-                            let schema = detect_schema_kind(file_name, &p);
-                            let is_mapped = schema.is_some();
-                            let pill = if is_mapped {
-                                "CROW UI".to_string()
-                            } else {
-                                "RAW TEXT".to_string()
-                            };
-
-                            discovered.push(DiscoveredConfigFile {
-                                name: file_name.to_string(),
-                                path_dir: parent_str,
-                                full_path: p,
-                                schema_kind: schema,
-                                is_schema_mapped: is_mapped,
-                                size_bytes: size,
-                                is_readonly: readonly,
-                                pill,
-                                schema_pack: schema.map(|s| s.label()),
-                                is_synthetic: false,
-                            });
-                        }
-                    }
-                }
+    for dir_str in host.map(|_| scan_dirs.as_slice()).unwrap_or(&[]) {
+        let Ok(entries) = host.expect("scan dirs only with a host").list_dir(dir_str) else { continue };
+        for entry in entries {
+            if entry.is_dir || !is_config_file(&entry.name, entry.size_bytes) {
+                continue;
             }
+            let p = Path::new(dir_str).join(&entry.name);
+            if !seen_paths.insert(p.clone()) {
+                continue;
+            }
+            let schema = detect_schema_kind(&entry.name, &p);
+            let is_mapped = schema.is_some();
+            discovered.push(DiscoveredConfigFile {
+                name: entry.name.clone(),
+                path_dir: dir_str.to_string(),
+                full_path: p,
+                schema_kind: schema,
+                is_schema_mapped: is_mapped,
+                size_bytes: entry.size_bytes,
+                is_readonly: entry.mode & 0o222 == 0,
+                pill: if is_mapped { "CROW UI".to_string() } else { "RAW TEXT".to_string() },
+                schema_pack: schema.map(|s| s.label()),
+                is_synthetic: false,
+            });
         }
     }
 
-    // Check user's crow config path (~/.config/crow/config.toml)
-    if let Some(home) = dirs::home_dir() {
+    // Check user's crow config path (~/.config/crow/config.toml) — Crow's own
+    // settings, so only when crawling the machine Crow runs on.
+    if let Some(home) = dirs::home_dir().filter(|_| host.is_some_and(|h| h.is_local())) {
         let crow_cfg = home.join(".config").join("crow").join("config.toml");
         if crow_cfg.exists() && seen_paths.insert(crow_cfg.clone()) {
             let size = fs::metadata(&crow_cfg).map(|m| m.len()).unwrap_or(1200);
@@ -301,9 +292,9 @@ pub fn crawl_machine_configs(family: DistroFamily) -> Vec<DiscoveredConfigFile> 
     discovered
 }
 
-fn is_config_file(name: &str, path: &Path) -> bool {
+fn is_config_file(name: &str, size_bytes: u64) -> bool {
     let n = name.to_lowercase();
-    if n.ends_with(".conf")
+    let config_like = n.ends_with(".conf")
         || n.ends_with(".toml")
         || n.ends_with(".yaml")
         || n.ends_with(".yml")
@@ -318,15 +309,9 @@ fn is_config_file(name: &str, path: &Path) -> bool {
         || n == "fstab"
         || n == "resolv.conf"
         || n == "sshd_config"
-        || n.starts_with("sshd_config.d")
-    {
-        // Avoid huge files or binaries
-        if let Ok(meta) = fs::metadata(path) {
-            return meta.len() < 2 * 1024 * 1024; // < 2MB
-        }
-        return true;
-    }
-    false
+        || n.starts_with("sshd_config.d");
+    // Avoid huge files or binaries
+    config_like && size_bytes < 2 * 1024 * 1024
 }
 
 pub fn sample_config_content(filename: &str) -> String {
@@ -482,6 +467,7 @@ fs.file-max = 2097152
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::host::LocalHost;
 
     #[test]
     fn test_schema_kind_detection() {
@@ -497,7 +483,7 @@ mod tests {
     fn test_crawl_machine_configs_sorting() {
         // Debian family is deterministic regardless of the host running the
         // test: its baseline seeds guarantee mapped entries exist.
-        let configs = crawl_machine_configs(DistroFamily::Debian);
+        let configs = crawl_configs(Some(&LocalHost), DistroFamily::Debian);
         assert!(!configs.is_empty());
 
         // First configs must be schema mapped
@@ -512,18 +498,28 @@ mod tests {
 
     #[test]
     fn test_unknown_distro_fabricates_nothing() {
-        let configs = crawl_machine_configs(DistroFamily::Unknown);
+        let configs = crawl_configs(Some(&LocalHost), DistroFamily::Unknown);
         assert!(configs.iter().all(|c| !c.is_synthetic));
     }
 }
 
-/// Loads a discovered file's current content into a versioned edit state,
-/// falling back to sample content when the file is absent or unreadable.
-pub fn load_config_file_state(f: &DiscoveredConfigFile) -> super::ConfigFileState {
-    let content = if f.full_path.exists() {
-        std::fs::read_to_string(&f.full_path).unwrap_or_else(|_| sample_config_content(&f.name))
-    } else {
-        sample_config_content(&f.name)
+/// Loads a discovered file's content from `host` into a versioned edit state.
+/// Placeholders, unreadable files and servers with no transport get sample
+/// content and are marked `write_blocked`, so illustrative text can never be
+/// written over a real file.
+pub fn load_config_file_state(host: Option<&dyn Host>, f: &DiscoveredConfigFile) -> super::ConfigFileState {
+    let (content, blocked) = match host {
+        _ if f.is_synthetic => (
+            sample_config_content(&f.name),
+            Some(format!("{} is a placeholder — it does not exist on this server", f.name)),
+        ),
+        None => (sample_config_content(&f.name), Some("This server is not connected — Crow has no transport to it yet".to_string())),
+        Some(h) => match h.read_file(&f.full_path.to_string_lossy()) {
+            Ok(content) => (content, None),
+            Err(e) => (sample_config_content(&f.name), Some(format!("Could not read {} from {}: {}", f.name, h.label(), e))),
+        },
     };
-    super::ConfigFileState::new(f.full_path.clone(), f.name.clone(), content)
+    let mut state = super::ConfigFileState::new(f.full_path.clone(), f.name.clone(), content);
+    state.write_blocked = blocked;
+    state
 }

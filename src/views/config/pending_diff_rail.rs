@@ -21,6 +21,13 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
         (0, 0, Vec::new(), false, Vec::new(), 1)
     };
 
+    // A failed save outranks the standing read-only reason.
+    let notice = match (&configs.save_error, file_state.and_then(|st| st.write_blocked.as_ref())) {
+        (Some(err), _) => Some((format!("SAVE FAILED · {err}"), CRIT, 0xef4444)),
+        (None, Some(reason)) => Some((format!("READ-ONLY · {reason}"), WARN, 0xf59e0b)),
+        (None, None) => None,
+    };
+
     let header_stats = if is_modified {
         format!("+{} −{}", add_count, del_count)
     } else {
@@ -361,6 +368,19 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                         })),
                 ),
         )
+        .children(notice.map(|(text, color, tint)| {
+            div()
+                .flex_none()
+                .px(px(12.0))
+                .py(px(7.0))
+                .bg(hex_rgba(tint, 0.08))
+                .border_t_1()
+                .border_color(hex_rgba(tint, 0.3))
+                .font_family(FONT_MONO)
+                .text_size(px(9.5))
+                .text_color(color)
+                .child(text)
+        }))
         // Action footer
         .child(
             div()

@@ -87,6 +87,11 @@ pub trait Host: Send + Sync {
     /// Short human label for messages, e.g. `local` or `podman:crow-lab-noble`.
     fn label(&self) -> String;
 
+    /// True only for the machine Crow itself runs on.
+    fn is_local(&self) -> bool {
+        false
+    }
+
     /// Runs `argv` and returns its output; a non-zero exit is `HostError::Failed`.
     fn exec(&self, argv: &[&str], timeout: Duration) -> Result<ExecOutput, HostError> {
         self.exec_stdin(argv, &[], timeout)
