@@ -8,11 +8,11 @@ use crate::keys::{
 };
 
 pub fn render_keys_center_column(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElement {
-    let enrolled_keys = &app_data.enrolled_keys;
-    let key_groups = &app_data.key_groups;
-    let discovered_keys = &app_data.discovered_keys;
-    let selected_group_filter = app_data.selected_key_group_filter.as_deref();
-    let scan_status_message = app_data.scan_status_message.as_deref().unwrap_or("Scan idle");
+    let enrolled_keys = &app_data.keys.enrolled;
+    let key_groups = &app_data.keys.groups;
+    let discovered_keys = &app_data.keys.discovered;
+    let selected_group_filter = app_data.keys.group_filter.as_deref();
+    let scan_status_message = app_data.keys.scan_status.as_deref().unwrap_or("Scan idle");
 
     let unenrolled_discovered: Vec<_> = discovered_keys.iter().filter(|d| !d.is_enrolled).collect();
 
@@ -855,9 +855,9 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, app_data: &CrowApp) -> im
 }
 
 pub fn render_keys_right_rail(app: Entity<CrowApp>, app_data: &CrowApp) -> impl IntoElement {
-    let scan_paths = &app_data.scan_paths;
-    let key_groups = &app_data.key_groups;
-    let enrolled_keys = &app_data.enrolled_keys;
+    let scan_paths = &app_data.keys.scan_paths;
+    let key_groups = &app_data.keys.groups;
+    let enrolled_keys = &app_data.keys.enrolled;
 
     let app_add_path = app.clone();
     let app_new_grp = app.clone();
@@ -1020,7 +1020,7 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, app_data: &CrowApp) -> impl 
                     let app_grp_filter = app.clone();
                     let gid = g.id.clone();
                     let count = enrolled_keys.iter().filter(|k| k.group_id == gid).count();
-                    let is_active = app_data.selected_key_group_filter.as_deref() == Some(&gid);
+                    let is_active = app_data.keys.group_filter.as_deref() == Some(&gid);
                     let is_custom = !matches!(g.id.as_str(), "default" | "fleet" | "bastions" | "production" | "legacy");
 
                     let grp_c = match g.id.as_str() {
@@ -1043,7 +1043,7 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, app_data: &CrowApp) -> impl 
                         .on_click(move |_ev, _window, cx| {
                             let gid_c = gid.clone();
                             app_grp_filter.update(cx, |this, cx| {
-                                if this.selected_key_group_filter.as_deref() == Some(&gid_c) {
+                                if this.keys.group_filter.as_deref() == Some(&gid_c) {
                                     this.set_key_group_filter(None, cx);
                                 } else {
                                     this.set_key_group_filter(Some(gid_c), cx);
@@ -1133,7 +1133,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
     let mut overlays = Vec::new();
 
     // 1. Key Generation Modal
-    if let Some(ref gen) = app_data.key_gen_modal {
+    if let Some(ref gen) = app_data.keys.gen_modal {
         let app_close = app.clone();
         let app_submit = app.clone();
         let app_copy = app.clone();
@@ -1303,7 +1303,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                         let app = app_focus_name;
                                                         move |cursor, anchor, selection, _window, cx| {
                                                             app.update(cx, |this, cx| {
-                                                                if let Some(ref mut g) = this.key_gen_modal {
+                                                                if let Some(ref mut g) = this.keys.gen_modal {
                                                                     g.active_focus = KeyGenFieldFocus::Name;
                                                                 }
                                                                 this.input_cursor = cursor;
@@ -1400,7 +1400,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                         let app = app_focus_comment;
                                                         move |cursor, anchor, selection, _window, cx| {
                                                             app.update(cx, |this, cx| {
-                                                                if let Some(ref mut g) = this.key_gen_modal {
+                                                                if let Some(ref mut g) = this.keys.gen_modal {
                                                                     g.active_focus = KeyGenFieldFocus::Comment;
                                                                 }
                                                                 this.input_cursor = cursor;
@@ -1445,7 +1445,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                         let app = app_focus_dir;
                                                         move |cursor, anchor, selection, _window, cx| {
                                                             app.update(cx, |this, cx| {
-                                                                if let Some(ref mut g) = this.key_gen_modal {
+                                                                if let Some(ref mut g) = this.keys.gen_modal {
                                                                     g.active_focus = KeyGenFieldFocus::Directory;
                                                                 }
                                                                 this.input_cursor = cursor;
@@ -1544,7 +1544,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                         }),
                 ),
         );
-    } else if let Some(ref sp) = app_data.add_scan_path_modal {
+    } else if let Some(ref sp) = app_data.keys.add_scan_path_modal {
         let app_close = app.clone();
         let app_submit = app.clone();
         let path_text = sp.path_input.clone();
@@ -1673,7 +1673,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                         ),
                 ),
         );
-    } else if let Some(ref grp) = app_data.new_group_modal {
+    } else if let Some(ref grp) = app_data.keys.new_group_modal {
         let app_close = app.clone();
         let app_submit = app.clone();
         let name_text = grp.name_input.clone();
@@ -1802,12 +1802,12 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                         ),
                 ),
         );
-    } else if let Some(ref edit) = app_data.edit_key_modal {
+    } else if let Some(ref edit) = app_data.keys.edit_modal {
         let app_close = app.clone();
         let app_submit = app.clone();
         let name_text = edit.name_input.clone();
         let attached = edit.attached_servers.clone();
-        let key_groups = &app_data.key_groups;
+        let key_groups = &app_data.keys.groups;
         let tabs = &app_data.tabs;
         let err = edit.error_message.clone();
 
@@ -1933,7 +1933,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
                                                 .on_click(move |_ev, _window, cx| {
                                                     let gid_c = gid.clone();
                                                     app_set_grp.update(cx, |this, cx| {
-                                                        if let Some(ref mut st) = this.edit_key_modal {
+                                                        if let Some(ref mut st) = this.keys.edit_modal {
                                                             st.group_id = gid_c;
                                                             cx.notify();
                                                         }
@@ -2047,7 +2047,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, app_data: &CrowApp) -> Vec<Div> {
     }
 
     // 5. Floating Toast Feedback
-    if let Some(ref toast_msg) = app_data.key_toast {
+    if let Some(ref toast_msg) = app_data.keys.toast {
         let app_dismiss = app.clone();
         overlays.push(
             div()

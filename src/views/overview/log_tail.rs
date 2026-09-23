@@ -229,9 +229,9 @@ pub fn socket_log_drawer(
     let app_filter = app.clone();
 
     let entries = &app_data.journal.entries;
-    let focused_socket = app_data.sockets.iter().find(|s| s.is_focused).cloned();
+    let focused_socket = app_data.overview.sockets.iter().find(|s| s.is_focused).cloned();
     let focused_pid = focused_socket.as_ref().and_then(|s| s.pid);
-    let filter_active = app_data.socket_drawer_filter_this_socket && focused_socket.is_some();
+    let filter_active = app_data.overview.socket_drawer_filter_this_socket && focused_socket.is_some();
 
     // Filter entries if filter_active is enabled and socket is focused
     let filtered_entries: Vec<&JournalEntry> = if let (true, Some(sock)) = (filter_active, &focused_socket) {
@@ -376,7 +376,7 @@ pub fn socket_log_drawer(
                 .child(div().flex_1())
                 // Filter chip (toggle filter to focused socket)
                 .children(if focused_socket.is_some() {
-                    let is_filtered = app_data.socket_drawer_filter_this_socket;
+                    let is_filtered = app_data.overview.socket_drawer_filter_this_socket;
                     Some(
                         div()
                             .id("btn-drawer-filter-socket")

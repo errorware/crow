@@ -3,5 +3,8 @@ pub mod service_inspector;
 pub mod services_table;
 pub mod models;
 pub mod collector;
+pub mod state;
+
+pub use state::OverviewState;
 
 pub use models::{BlastRadiusInfo, ServiceUnit, ProcessUnit, SocketUnit};

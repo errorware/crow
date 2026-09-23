@@ -357,7 +357,7 @@ fn render_step_content(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
         OnboardStep::Credentials => render_step_credentials(app, app_data),
         OnboardStep::VerifyHost => render_step_verify(app, state),
         OnboardStep::Classify => render_step_classify(app, app_data),
-        OnboardStep::Finish => render_step_finish(app, state, &app_data.enrolled_keys),
+        OnboardStep::Finish => render_step_finish(app, state, &app_data.keys.enrolled),
     }
 }
 
@@ -596,7 +596,7 @@ fn render_step_address(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
 // -----------------------------------------------------------------------------
 fn render_step_credentials(app: Entity<CrowApp>, app_data: &CrowApp) -> Div {
     let state = &app_data.onboard_state;
-    let enrolled_keys = &app_data.enrolled_keys;
+    let enrolled_keys = &app_data.keys.enrolled;
     let servers = &app_data.servers;
     let app_user = app.clone();
     let app_auth_pub = app.clone();

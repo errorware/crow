@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::components::danger_zone::{
@@ -14,7 +14,7 @@ use crate::metrics::{
     collector::{sample_server, CollectorPreviousState},
     MetricSample, ServerMetrics, ServerTimeSeriesBuffer, SurgeAlert,
 };
-use crate::vault::{ChangeRecord, ServerRecord, Vault, VaultStatus};
+use crate::vault::{ServerRecord, Vault, VaultStatus};
 use crate::views::config::managed_files::managed_files_rail;
 use crate::views::config::pending_diff_rail::pending_diff_rail;
 use crate::views::config::rules_editor::{default_hba_rules, rules_editor};
@@ -52,10 +52,9 @@ use crate::views::overview::service_inspector::service_inspector_rail;
 use crate::views::overview::{
     collector::{
         collect_processes_for_server, collect_services_for_server, collect_sockets_for_server,
-        systemctl_service_action, terminate_process,
     },
     services_table::services_table,
-    BlastRadiusInfo, ProcessUnit, ServiceUnit, SocketUnit,
+    OverviewState, ProcessUnit, ServiceUnit, SocketUnit,
 };
 use crate::views::settings::settings_view;
 
@@ -65,18 +64,17 @@ use crow_config_schemas::PgHbaPlugin;
 mod danger;
 mod files;
 mod firewall;
+mod overview;
+mod keys;
 mod configs;
 mod journal;
 mod clankers;
 mod lab;
 
-use crate::keys::{
-    copy_to_clipboard_system, expand_tilde, scan_directory, AddScanPathModalState,
-    DiscoveredKey, EditKeyModalState, KeyGenFieldFocus, KeyGenModalState,
-    NewGroupModalState, SshKeyGroup, SshKeyRecord, SshScanPath,
-};
+use crate::keys::{expand_tilde, scan_directory, DiscoveredKey, KeyGenFieldFocus};
 use crate::views::fleet::lab_state::LocalLabState;
 use crate::views::settings::clankers_state::ClankersState;
+use crate::views::settings::keys_state::KeysState;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Screen {
@@ -155,30 +153,15 @@ pub struct CrowApp {
     pub settings_section: SettingsSection,
     pub active_tab_id: String,
     pub active_view: String,
-    pub active_services_tab: String,
-    pub socket_drawer_open: bool,
-    pub socket_drawer_filter_this_socket: bool,
+    pub overview: OverviewState,
     pub tabs: Vec<ServerTab>,
-    pub services: Vec<ServiceUnit>,
-    pub processes: Vec<ProcessUnit>,
-    pub sockets: Vec<SocketUnit>,
     pub configs: ConfigsState,
     pub palette_open: bool,
     pub sidebar_collapsed: bool,
     pub settings_dropdown_open: Option<String>,
     pub settings_custom_input: String,
     // SSH Key Management Hub
-    pub enrolled_keys: Vec<SshKeyRecord>,
-    pub key_groups: Vec<SshKeyGroup>,
-    pub scan_paths: Vec<SshScanPath>,
-    pub discovered_keys: Vec<DiscoveredKey>,
-    pub selected_key_group_filter: Option<String>,
-    pub scan_status_message: Option<String>,
-    pub key_gen_modal: Option<KeyGenModalState>,
-    pub new_group_modal: Option<NewGroupModalState>,
-    pub add_scan_path_modal: Option<AddScanPathModalState>,
-    pub edit_key_modal: Option<EditKeyModalState>,
-    pub key_toast: Option<String>,
+    pub keys: KeysState,
     // Server Enrollment Subsystem
     pub servers: Vec<ServerRecord>,
     /// This machine's own /etc/os-release family, detected once at startup —
@@ -205,13 +188,6 @@ pub struct CrowApp {
     pub _metrics_poll_task: Task<()>,
     // Systemd Journal Log Explorer & Retention Boundaries
     pub journal: JournalState,
-    pub service_panel_pending_action: Option<String>,
-    pub blast_radius: Option<BlastRadiusInfo>,
-    pub last_change_outcome: Option<(String, bool)>, // (unit name, succeeded) — most recent failure banner
-    pub group_processes: bool,
-    pub group_services: bool,
-    pub collapsed_process_groups: HashSet<String>,
-    pub collapsed_service_groups: HashSet<String>,
     // Local Lab & Test VMs Subsystem
     pub local_lab: LocalLabState,
     // About Crow Modal
@@ -468,29 +444,14 @@ host    all             all             10.0.4.0/24             scram-sha-256
             settings_section: SettingsSection::General,
             active_tab_id: servers.first().map(|s| s.id.clone()).unwrap_or_default(),
             active_view: "overview".to_string(),
-            active_services_tab: "services".to_string(),
-            socket_drawer_open: false,
-            socket_drawer_filter_this_socket: false,
+            overview: OverviewState::new(initial_services, initial_processes, initial_sockets),
             tabs,
-            services: initial_services,
-            processes: initial_processes,
-            sockets: initial_sockets,
             configs: ConfigsState::new(config_files, config_file_states, initial_selected_file, initial_cron_jobs, default_hba_rules()),
             palette_open: false,
             sidebar_collapsed: false,
             settings_dropdown_open: None,
             settings_custom_input: String::new(),
-            enrolled_keys,
-            key_groups,
-            scan_paths,
-            discovered_keys,
-            selected_key_group_filter: None,
-            scan_status_message,
-            key_gen_modal: None,
-            new_group_modal: None,
-            add_scan_path_modal: None,
-            edit_key_modal: None,
-            key_toast: None,
+            keys: KeysState::new(enrolled_keys, key_groups, scan_paths, discovered_keys, scan_status_message),
             servers,
             local_distro_family,
             files: FilesState::default(),
@@ -549,13 +510,6 @@ host    all             all             10.0.4.0/24             scram-sha-256
                 }
             }),
             journal: JournalState::new(initial_journal, journal_retention, journal_telemetry),
-            service_panel_pending_action: None,
-            blast_radius: None,
-            last_change_outcome: None,
-            group_processes: false,
-            group_services: false,
-            collapsed_process_groups: HashSet::new(),
-            collapsed_service_groups: HashSet::new(),
             local_lab: LocalLabState::new(lab_engines, lab_nodes),
             show_about_modal: false,
             about_copied_toast: false,
@@ -672,10 +626,7 @@ impl CrowApp {
         {
             return true;
         }
-        if self.key_gen_modal.is_some()
-            || self.new_group_modal.is_some()
-            || self.add_scan_path_modal.is_some()
-            || self.edit_key_modal.is_some()
+        if self.keys.any_modal_open()
             || self.clankers.editing.is_some()
         {
             return true;
@@ -747,7 +698,7 @@ impl CrowApp {
             now_secs,
             screen: self.screen,
             active_view: self.active_view.clone(),
-            active_services_tab: self.active_services_tab.clone(),
+            active_services_tab: self.overview.active_tab.clone(),
             active_server: active_srv,
             prev_active_metrics,
             should_poll_overview_subtab: should_poll_overview,
@@ -763,9 +714,9 @@ impl CrowApp {
         if let Some(ref srv_id) = res.active_server_id {
             if let Some(updated_head) = res.active_metrics {
                 // Retrieve current services/processes/sockets or new sample
-                let services_sample = res.services_sample.unwrap_or_else(|| self.services.clone());
-                let processes_sample = res.processes_sample.unwrap_or_else(|| self.processes.clone());
-                let sockets_sample = res.sockets_sample.unwrap_or_else(|| self.sockets.clone());
+                let services_sample = res.services_sample.unwrap_or_else(|| self.overview.services.clone());
+                let processes_sample = res.processes_sample.unwrap_or_else(|| self.overview.processes.clone());
+                let sockets_sample = res.sockets_sample.unwrap_or_else(|| self.overview.sockets.clone());
 
                 // Ingest sample into ring buffer at T_head
                 let buf = self.buffered_stores.entry(srv_id.clone()).or_insert_with(ServerTimeSeriesBuffer::default);
@@ -789,28 +740,28 @@ impl CrowApp {
 
                     // Preserve row focus across replacements
                     if !lagged.services.is_empty() {
-                        let focused_name = self.services.iter().find(|s| s.is_focused).map(|s| s.name.clone());
-                        self.services = lagged.services.clone();
+                        let focused_name = self.overview.services.iter().find(|s| s.is_focused).map(|s| s.name.clone());
+                        self.overview.services = lagged.services.clone();
                         if let Some(name) = focused_name {
-                            for svc in &mut self.services {
+                            for svc in &mut self.overview.services {
                                 svc.is_focused = svc.name == name;
                             }
                         }
                     }
                     if !lagged.processes.is_empty() {
-                        let focused_pid = self.processes.iter().find(|p| p.is_focused).map(|p| p.pid);
-                        self.processes = lagged.processes.clone();
+                        let focused_pid = self.overview.processes.iter().find(|p| p.is_focused).map(|p| p.pid);
+                        self.overview.processes = lagged.processes.clone();
                         if let Some(pid) = focused_pid {
-                            for proc in &mut self.processes {
+                            for proc in &mut self.overview.processes {
                                 proc.is_focused = proc.pid == pid;
                             }
                         }
                     }
                     if !lagged.sockets.is_empty() {
-                        let focused_idx = self.sockets.iter().position(|s| s.is_focused);
-                        self.sockets = lagged.sockets.clone();
+                        let focused_idx = self.overview.sockets.iter().position(|s| s.is_focused);
+                        self.overview.sockets = lagged.sockets.clone();
                         if let Some(idx) = focused_idx {
-                            if let Some(sock) = self.sockets.get_mut(idx) {
+                            if let Some(sock) = self.overview.sockets.get_mut(idx) {
                                 sock.is_focused = true;
                             }
                         }
@@ -989,7 +940,7 @@ impl CrowApp {
 
     pub fn set_screen(&mut self, screen: Screen, cx: &mut Context<Self>) {
         if screen == Screen::Onboard && self.screen != Screen::Onboard {
-            self.onboard_state = OnboardState::new(&self.enrolled_keys);
+            self.onboard_state = OnboardState::new(&self.keys.enrolled);
             self.input_cursor = self.onboard_state.host.chars().count();
             self.input_selection = None;
         } else if screen == Screen::VaultSetup && self.screen != Screen::VaultSetup {
@@ -1139,45 +1090,6 @@ impl CrowApp {
         cx.notify();
     }
 
-    pub fn set_services_tab(&mut self, tab: &str, cx: &mut Context<Self>) {
-        self.active_services_tab = tab.to_string();
-        if let Some(srv) = self.active_server() {
-            let tab_owned = tab.to_string();
-            cx.spawn(async move |entity, cx| {
-                match tab_owned.as_str() {
-                    "processes" => {
-                        let procs = cx.background_executor().spawn(async move {
-                            collect_processes_for_server(&srv)
-                        }).await;
-                        let _ = entity.update(cx, |this, cx| {
-                            this.processes = procs;
-                            cx.notify();
-                        });
-                    }
-                    "sockets" => {
-                        let socks = cx.background_executor().spawn(async move {
-                            collect_sockets_for_server(&srv)
-                        }).await;
-                        let _ = entity.update(cx, |this, cx| {
-                            this.sockets = socks;
-                            cx.notify();
-                        });
-                    }
-                    _ => {
-                        let svcs = cx.background_executor().spawn(async move {
-                            collect_services_for_server(&srv)
-                        }).await;
-                        let _ = entity.update(cx, |this, cx| {
-                            this.services = svcs;
-                            cx.notify();
-                        });
-                    }
-                }
-            }).detach();
-        }
-        cx.notify();
-    }
-
     pub fn switch_tab(&mut self, tab_id: &str, cx: &mut Context<Self>) {
         if let Some(srv) = self.servers.iter().find(|s| s.id == tab_id || s.name == tab_id).cloned() {
             if !self.tabs.iter().any(|t| t.id == srv.id || t.name == srv.name) {
@@ -1200,7 +1112,7 @@ impl CrowApp {
             }
             self.screen = Screen::Server;
             if self.active_view == "overview" {
-                let tab_owned = self.active_services_tab.clone();
+                let tab_owned = self.overview.active_tab.clone();
                 let srv_clone = srv.clone();
                 cx.spawn(async move |entity, cx| {
                     match tab_owned.as_str() {
@@ -1209,7 +1121,7 @@ impl CrowApp {
                                 collect_processes_for_server(&srv_clone)
                             }).await;
                             let _ = entity.update(cx, |this, cx| {
-                                this.processes = procs;
+                                this.overview.processes = procs;
                                 cx.notify();
                             });
                         }
@@ -1218,7 +1130,7 @@ impl CrowApp {
                                 collect_sockets_for_server(&srv_clone)
                             }).await;
                             let _ = entity.update(cx, |this, cx| {
-                                this.sockets = socks;
+                                this.overview.sockets = socks;
                                 cx.notify();
                             });
                         }
@@ -1227,7 +1139,7 @@ impl CrowApp {
                                 collect_services_for_server(&srv_clone)
                             }).await;
                             let _ = entity.update(cx, |this, cx| {
-                                this.services = svcs;
+                                this.overview.services = svcs;
                                 cx.notify();
                             });
                         }
@@ -1260,337 +1172,6 @@ impl CrowApp {
             }
             cx.notify();
         }
-    }
-
-    pub fn toggle_group_services(&mut self, cx: &mut Context<Self>) {
-        self.group_services = !self.group_services;
-        cx.notify();
-    }
-
-    pub fn toggle_group_processes(&mut self, cx: &mut Context<Self>) {
-        self.group_processes = !self.group_processes;
-        cx.notify();
-    }
-
-    pub fn toggle_service_group_collapsed(&mut self, key: &str, cx: &mut Context<Self>) {
-        if self.collapsed_service_groups.contains(key) {
-            self.collapsed_service_groups.remove(key);
-        } else {
-            self.collapsed_service_groups.insert(key.to_string());
-        }
-        cx.notify();
-    }
-
-    pub fn toggle_process_group_collapsed(&mut self, key: &str, cx: &mut Context<Self>) {
-        if self.collapsed_process_groups.contains(key) {
-            self.collapsed_process_groups.remove(key);
-        } else {
-            self.collapsed_process_groups.insert(key.to_string());
-        }
-        cx.notify();
-    }
-
-    pub fn focus_service(&mut self, name: &str, cx: &mut Context<Self>) {
-        for svc in &mut self.services {
-            svc.is_focused = svc.name == name;
-        }
-        cx.notify();
-    }
-
-    pub fn toggle_service_confirm(&mut self, name: &str, cx: &mut Context<Self>) {
-        let mut now_open = false;
-        for svc in &mut self.services {
-            if svc.name == name {
-                svc.show_confirm = !svc.show_confirm;
-                now_open = svc.show_confirm;
-            } else {
-                svc.show_confirm = false;
-            }
-        }
-        if now_open {
-            self.spawn_blast_radius_fetch(name.to_string(), cx);
-        } else {
-            self.blast_radius = None;
-        }
-        cx.notify();
-    }
-
-    pub fn execute_service_restart(&mut self, name: &str, cx: &mut Context<Self>) {
-        self.spawn_service_change(name.to_string(), "restart".to_string(), cx);
-    }
-
-    pub fn focus_process(&mut self, pid: u32, cx: &mut Context<Self>) {
-        for proc in &mut self.processes {
-            proc.is_focused = proc.pid == pid;
-        }
-        cx.notify();
-    }
-
-    pub fn toggle_process_confirm(&mut self, pid: u32, cx: &mut Context<Self>) {
-        for proc in &mut self.processes {
-            if proc.pid == pid {
-                proc.show_confirm = !proc.show_confirm;
-            } else {
-                proc.show_confirm = false;
-            }
-        }
-        cx.notify();
-    }
-
-    pub fn execute_process_kill(&mut self, pid: u32, cx: &mut Context<Self>) {
-        self.spawn_process_kill(pid, cx);
-    }
-
-    /// Non-destructive service lifecycle actions (start / reload) — run immediately,
-    /// no confirm gate, mirroring how a sysadmin would treat them at a real shell.
-    /// Also the post-confirm entry point for restart/stop (see execute_service_panel_action).
-    pub fn run_service_panel_action_now(&mut self, action: &str, cx: &mut Context<Self>) {
-        if let Some(name) = self.services.iter().find(|s| s.is_focused).map(|s| s.name.clone()) {
-            self.spawn_service_change(name, action.to_string(), cx);
-        }
-    }
-
-    /// Arms a disruptive service action (restart / stop) pending inline confirm,
-    /// and kicks off a real blast-radius lookup for the confirm bar to show.
-    pub fn arm_service_panel_action(&mut self, action: &str, cx: &mut Context<Self>) {
-        self.service_panel_pending_action = Some(action.to_string());
-        if let Some(name) = self.services.iter().find(|s| s.is_focused).map(|s| s.name.clone()) {
-            self.spawn_blast_radius_fetch(name, cx);
-        }
-        cx.notify();
-    }
-
-    pub fn cancel_service_panel_action(&mut self, cx: &mut Context<Self>) {
-        self.service_panel_pending_action = None;
-        self.blast_radius = None;
-        cx.notify();
-    }
-
-    pub fn execute_service_panel_action(&mut self, cx: &mut Context<Self>) {
-        if let Some(action) = self.service_panel_pending_action.take() {
-            self.run_service_panel_action_now(&action, cx);
-        }
-    }
-
-    /// Computes a real "N connections about to drop" figure for the confirm bar,
-    /// off the main thread — the Apply Pipeline's blast-radius step made literal
-    /// instead of the generic "any active connections" text it replaces.
-    fn spawn_blast_radius_fetch(&mut self, unit_name: String, cx: &mut Context<Self>) {
-        self.blast_radius = None;
-        let Some(srv) = self.active_server() else {
-            return;
-        };
-        let Some(pid) = self.services.iter().find(|s| s.name == unit_name).and_then(|s| s.pid.parse::<u32>().ok()) else {
-            return;
-        };
-
-        cx.spawn(async move |entity, cx| {
-            let srv_bg = srv.clone();
-            let sockets = cx.background_executor().spawn(async move {
-                collect_sockets_for_server(&srv_bg)
-            }).await;
-
-            let established = sockets.iter().filter(|s| s.pid == Some(pid) && s.state.contains("ESTAB")).count();
-            let listening = sockets.iter().filter(|s| s.pid == Some(pid) && s.state == "LISTEN").count();
-
-            let _ = entity.update(cx, |this, cx| {
-                this.blast_radius = Some(BlastRadiusInfo { for_unit: unit_name, established, listening });
-                cx.notify();
-            });
-        }).detach();
-    }
-
-    /// The Apply Pipeline for service lifecycle actions: snapshot before-state,
-    /// run the action off the main thread, verify the unit actually reached the
-    /// expected state, then durably record the outcome. Covers start/stop/
-    /// restart/reload — every service mutation in the app goes through this.
-    fn spawn_service_change(&mut self, unit_name: String, action: String, cx: &mut Context<Self>) {
-        let Some(srv) = self.active_server() else {
-            return;
-        };
-        let before_state = self.services.iter().find(|s| s.name == unit_name)
-            .map(|s| s.status.clone())
-            .unwrap_or_else(|| "unknown".to_string());
-        let blast_radius_summary = self.blast_radius.as_ref()
-            .filter(|b| b.for_unit == unit_name)
-            .map(|b| format!("{} established, {} listening", b.established, b.listening));
-
-        let record_id = format!("chg_{}", chrono::Local::now().timestamp_micros());
-        let started_at = chrono::Utc::now().to_rfc3339();
-        let db = self.vault.db();
-        if let Ok(db_guard) = db.lock() {
-            let _ = db_guard.insert_change_record(&ChangeRecord {
-                id: record_id.clone(),
-                server_id: srv.id.clone(),
-                server_name: srv.name.clone(),
-                action_kind: format!("service_{}", action),
-                target: unit_name.clone(),
-                before_state,
-                after_state: None,
-                blast_radius: blast_radius_summary,
-                outcome: "pending".to_string(),
-                started_at,
-                completed_at: None,
-            });
-        }
-
-        self.blast_radius = None;
-        self.service_panel_pending_action = None;
-        for svc in &mut self.services {
-            svc.show_confirm = false;
-        }
-
-        cx.spawn(async move |entity, cx| {
-            let srv_bg = srv.clone();
-            let unit_bg = unit_name.clone();
-            let action_bg = action.clone();
-            let (mut refreshed, after_status, succeeded) = cx.background_executor().spawn(async move {
-                let _ = systemctl_service_action(&srv_bg, &unit_bg, &action_bg);
-                std::thread::sleep(std::time::Duration::from_millis(1200));
-                let refreshed = collect_services_for_server(&srv_bg);
-                let status = refreshed.iter().find(|s| s.name == unit_bg).map(|s| s.status.clone()).unwrap_or_else(|| "unknown".to_string());
-                let ok = if action_bg == "stop" { status != "ACTIVE" } else { status == "ACTIVE" };
-                (refreshed, status, ok)
-            }).await;
-
-            let completed_at = chrono::Utc::now().to_rfc3339();
-            let outcome_str = if succeeded { "success" } else { "failed" };
-            if let Ok(db_guard) = db.lock() {
-                let _ = db_guard.update_change_record_outcome(&record_id, outcome_str, Some(&after_status), &completed_at);
-            }
-
-            let _ = entity.update(cx, |this, cx| {
-                for svc in &mut refreshed {
-                    svc.is_focused = svc.name == unit_name;
-                }
-                this.services = refreshed;
-                this.push_journal_action_marker(format!("crow: {} {} ({})", action, unit_name, outcome_str));
-                this.last_change_outcome = Some((unit_name.clone(), succeeded));
-                cx.notify();
-            });
-        }).detach();
-    }
-
-    /// Same pipeline shape as `spawn_service_change`, for a process SIGTERM:
-    /// backup, apply off-thread, verify the PID is actually gone, record it.
-    fn spawn_process_kill(&mut self, pid: u32, cx: &mut Context<Self>) {
-        let Some(srv) = self.active_server() else {
-            return;
-        };
-        let before_state = self.processes.iter().find(|p| p.pid == pid)
-            .map(|p| format!("{} ({})", p.command, p.stat))
-            .unwrap_or_else(|| "unknown".to_string());
-
-        let record_id = format!("chg_{}", chrono::Local::now().timestamp_micros());
-        let started_at = chrono::Utc::now().to_rfc3339();
-        let db = self.vault.db();
-        if let Ok(db_guard) = db.lock() {
-            let _ = db_guard.insert_change_record(&ChangeRecord {
-                id: record_id.clone(),
-                server_id: srv.id.clone(),
-                server_name: srv.name.clone(),
-                action_kind: "process_kill".to_string(),
-                target: format!("pid {}", pid),
-                before_state,
-                after_state: None,
-                blast_radius: None,
-                outcome: "pending".to_string(),
-                started_at,
-                completed_at: None,
-            });
-        }
-
-        for proc in &mut self.processes {
-            proc.show_confirm = false;
-        }
-
-        cx.spawn(async move |entity, cx| {
-            let srv_bg = srv.clone();
-            let (refreshed, succeeded) = cx.background_executor().spawn(async move {
-                let _ = terminate_process(&srv_bg, pid, 15);
-                std::thread::sleep(std::time::Duration::from_millis(800));
-                let refreshed = collect_processes_for_server(&srv_bg);
-                let still_alive = refreshed.iter().any(|p| p.pid == pid);
-                (refreshed, !still_alive)
-            }).await;
-
-            let completed_at = chrono::Utc::now().to_rfc3339();
-            let outcome_str = if succeeded { "success" } else { "failed" };
-            let after_state = if succeeded { "terminated" } else { "still running" };
-            if let Ok(db_guard) = db.lock() {
-                let _ = db_guard.update_change_record_outcome(&record_id, outcome_str, Some(after_state), &completed_at);
-            }
-
-            let _ = entity.update(cx, |this, cx| {
-                this.processes = refreshed;
-                this.push_journal_action_marker(format!("crow: sent SIGTERM to PID {} ({})", pid, outcome_str));
-                cx.notify();
-            });
-        }).detach();
-    }
-
-    /// Jumps to the Config screen pre-selecting the file that governs this service —
-    /// the "swap to crow-config" handoff instead of a service-specific settings UI.
-    pub fn open_config_for_service(&mut self, file: &str, cx: &mut Context<Self>) {
-        self.configs.selected_file = file.to_string();
-        self.set_view("config", cx);
-    }
-
-    /// Recent Apply Pipeline change records for one unit on the active server —
-    /// the audit trail surfaced in the Service Manager panel.
-    pub fn recent_change_records(&self, target: &str, limit: usize) -> Vec<ChangeRecord> {
-        let Some(srv) = self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id) else {
-            return Vec::new();
-        };
-        let db = self.vault.db();
-        let Ok(db_guard) = db.lock() else {
-            return Vec::new();
-        };
-        db_guard
-            .list_change_records(&srv.id, 50)
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|r| r.target == target)
-            .take(limit)
-            .collect()
-    }
-
-    pub fn focus_socket(&mut self, sock_id: &str, cx: &mut Context<Self>) {
-        let mut already_focused = false;
-        for (idx, sock) in self.sockets.iter_mut().enumerate() {
-            let id = format!("{}:{}:{}", sock.protocol, sock.local_port, idx);
-            if id == sock_id {
-                if sock.is_focused && self.socket_drawer_open {
-                    already_focused = true;
-                    sock.is_focused = false;
-                } else {
-                    sock.is_focused = true;
-                }
-            } else {
-                sock.is_focused = false;
-            }
-        }
-        if already_focused {
-            self.socket_drawer_open = false;
-        } else {
-            self.socket_drawer_open = true;
-        }
-        cx.notify();
-    }
-
-    pub fn toggle_socket_drawer(&mut self, cx: &mut Context<Self>) {
-        self.socket_drawer_open = !self.socket_drawer_open;
-        cx.notify();
-    }
-
-    pub fn close_socket_drawer(&mut self, cx: &mut Context<Self>) {
-        self.socket_drawer_open = false;
-        cx.notify();
-    }
-
-    pub fn toggle_socket_drawer_filter(&mut self, cx: &mut Context<Self>) {
-        self.socket_drawer_filter_this_socket = !self.socket_drawer_filter_this_socket;
-        cx.notify();
     }
 
     pub fn toggle_rule_expand(&mut self, num: &str, cx: &mut Context<Self>) {
@@ -1628,292 +1209,8 @@ impl CrowApp {
 
     // --- SSH Key Management Subsystem ---
 
-    pub fn refresh_keys(&mut self, cx: &mut Context<Self>) {
-        let db = self.vault.db();
-        if let Ok(db_guard) = db.lock() {
-            self.scan_paths = db_guard.list_scan_paths().unwrap_or_default();
-            self.key_groups = db_guard.list_key_groups().unwrap_or_default();
-            self.enrolled_keys = db_guard.list_ssh_keys().unwrap_or_default();
-            let mut discovered = Vec::new();
-            for p in &self.scan_paths {
-                let expanded = expand_tilde(&p.path);
-                let found = scan_directory(&expanded, &self.enrolled_keys);
-                for k in found {
-                    if !discovered.iter().any(|d: &DiscoveredKey| d.fingerprint == k.fingerprint) {
-                        discovered.push(k);
-                    }
-                }
-            }
-            let new_count = discovered.iter().filter(|d| !d.is_enrolled).count();
-            self.scan_status_message = Some(format!(
-                "Scanned {} path{} · {} key{} found ({} new)",
-                self.scan_paths.len(),
-                if self.scan_paths.len() == 1 { "" } else { "s" },
-                discovered.len(),
-                if discovered.len() == 1 { "" } else { "s" },
-                new_count
-            ));
-            self.discovered_keys = discovered;
-        }
-        cx.notify();
-    }
-
-    pub fn set_key_group_filter(&mut self, group_id: Option<String>, cx: &mut Context<Self>) {
-        self.selected_key_group_filter = group_id;
-        cx.notify();
-    }
-
-    pub fn import_discovered_key(&mut self, fingerprint: &str, group_id: Option<&str>, cx: &mut Context<Self>) {
-        let key_opt = self.discovered_keys.iter().find(|k| k.fingerprint == fingerprint).cloned();
-        if let Some(disc) = key_opt {
-            let target_group = group_id.unwrap_or("fleet");
-            let id = format!("key-{}", &fingerprint.replace("SHA256:", "").chars().take(12).collect::<String>());
-            let record = SshKeyRecord {
-                id,
-                name: disc.suggested_name,
-                group_id: target_group.to_string(),
-                public_key: disc.public_key,
-                fingerprint: disc.fingerprint,
-                algorithm: disc.algorithm,
-                comment: disc.comment,
-                private_key_path: if disc.has_private_key { Some(disc.file_path) } else { None },
-                attached_servers: Vec::new(),
-                created_at: chrono::Utc::now().to_rfc3339(),
-                updated_at: chrono::Utc::now().to_rfc3339(),
-            };
-
-            let db = self.vault.db();
-            if let Ok(db_guard) = db.lock() {
-                let _ = db_guard.upsert_ssh_key(&record);
-            }
-            self.key_toast = Some(format!("Enrolled '{}' into group '{}'", record.name, target_group));
-            self.refresh_keys(cx);
-        }
-    }
-
-    pub fn delete_enrolled_key(&mut self, key_id: &str, cx: &mut Context<Self>) {
-        let db = self.vault.db();
-        if let Ok(db_guard) = db.lock() {
-            let _ = db_guard.delete_ssh_key(key_id);
-        }
-        self.key_toast = Some("Removed key from memory (file preserved)".to_string());
-        self.refresh_keys(cx);
-    }
-
-    pub fn open_key_gen_modal(&mut self, cx: &mut Context<Self>) {
-        self.key_gen_modal = Some(KeyGenModalState::default());
-        self.input_cursor = 0;
-        self.input_selection = None;
-        self.cursor_blink = true;
-        cx.notify();
-    }
-
-    pub fn close_key_gen_modal(&mut self, cx: &mut Context<Self>) {
-        self.key_gen_modal = None;
-        self.refresh_keys(cx);
-    }
-
-    pub fn submit_key_generation(&mut self, cx: &mut Context<Self>) {
-        if let Some(ref mut state) = self.key_gen_modal {
-            let name = state.name_input.trim();
-            if name.is_empty() {
-                state.error_message = Some("Key name cannot be empty".to_string());
-                cx.notify();
-                return;
-            }
-
-            let target_dir = expand_tilde(state.custom_dir_input.trim());
-            let comment = if state.comment_input.trim().is_empty() {
-                None
-            } else {
-                Some(state.comment_input.trim())
-            };
-
-            match crate::keys::generate_keypair(
-                name,
-                state.algo,
-                comment,
-                &state.group_id,
-                &target_dir,
-                None,
-            ) {
-                Ok((record, pub_key_openssh, priv_path, _pub_path)) => {
-                    let db = self.vault.db();
-                    if let Ok(db_guard) = db.lock() {
-                        let _ = db_guard.upsert_ssh_key(&record);
-                    }
-                    state.error_message = None;
-                    state.generated_public_key = Some(pub_key_openssh);
-                    state.generated_priv_path = Some(priv_path.display().to_string());
-                    state.generated_fingerprint = Some(record.fingerprint);
-                    cx.notify();
-                }
-                Err(err) => {
-                    state.error_message = Some(err);
-                    cx.notify();
-                }
-            }
-        }
-    }
-
-    pub fn open_new_group_modal(&mut self, cx: &mut Context<Self>) {
-        self.new_group_modal = Some(NewGroupModalState {
-            name_input: String::new(),
-            color_input: "#4ade80".to_string(),
-            error_message: None,
-        });
-        self.input_cursor = 0;
-        self.input_selection = None;
-        self.cursor_blink = true;
-        cx.notify();
-    }
-
-    pub fn close_new_group_modal(&mut self, cx: &mut Context<Self>) {
-        self.new_group_modal = None;
-        cx.notify();
-    }
-
-    pub fn submit_new_group(&mut self, cx: &mut Context<Self>) {
-        if let Some(ref mut state) = self.new_group_modal {
-            let name = state.name_input.trim();
-            if name.is_empty() {
-                state.error_message = Some("Group name cannot be empty".to_string());
-                cx.notify();
-                return;
-            }
-            let slug = name.to_lowercase().replace(' ', "-").replace('_', "-");
-            let color = if state.color_input.is_empty() { "#60a5fa" } else { &state.color_input };
-
-            let db = self.vault.db();
-            if let Ok(db_guard) = db.lock() {
-                let _ = db_guard.add_key_group(&slug, name, color);
-            }
-            self.new_group_modal = None;
-            self.refresh_keys(cx);
-        }
-    }
-
-    pub fn delete_key_group(&mut self, group_id: &str, cx: &mut Context<Self>) {
-        let db = self.vault.db();
-        if let Ok(db_guard) = db.lock() {
-            let _ = db_guard.delete_key_group(group_id);
-        }
-        if self.selected_key_group_filter.as_deref() == Some(group_id) {
-            self.selected_key_group_filter = None;
-        }
-        self.refresh_keys(cx);
-    }
-
-    pub fn open_add_scan_path_modal(&mut self, cx: &mut Context<Self>) {
-        self.add_scan_path_modal = Some(AddScanPathModalState::default());
-        self.input_cursor = 0;
-        self.input_selection = None;
-        self.cursor_blink = true;
-        cx.notify();
-    }
-
-    pub fn close_add_scan_path_modal(&mut self, cx: &mut Context<Self>) {
-        self.add_scan_path_modal = None;
-        cx.notify();
-    }
-
-    pub fn submit_add_scan_path(&mut self, cx: &mut Context<Self>) {
-        if let Some(ref mut state) = self.add_scan_path_modal {
-            let path = state.path_input.trim();
-            if path.is_empty() {
-                state.error_message = Some("Path cannot be empty".to_string());
-                cx.notify();
-                return;
-            }
-            let expanded = expand_tilde(path);
-            if !expanded.exists() || !expanded.is_dir() {
-                state.error_message = Some(format!("Directory does not exist: {}", expanded.display()));
-                cx.notify();
-                return;
-            }
-
-            let db = self.vault.db();
-            if let Ok(db_guard) = db.lock() {
-                let _ = db_guard.add_scan_path(path);
-            }
-            self.add_scan_path_modal = None;
-            self.refresh_keys(cx);
-        }
-    }
-
-    pub fn remove_scan_path(&mut self, id: i64, cx: &mut Context<Self>) {
-        let db = self.vault.db();
-        if let Ok(db_guard) = db.lock() {
-            let _ = db_guard.remove_scan_path(id);
-        }
-        self.refresh_keys(cx);
-    }
-
-    pub fn open_edit_key_modal(&mut self, key_id: &str, cx: &mut Context<Self>) {
-        if let Some(key) = self.enrolled_keys.iter().find(|k| k.id == key_id) {
-            let name_len = key.name.chars().count();
-            self.edit_key_modal = Some(EditKeyModalState {
-                key_id: key.id.clone(),
-                name_input: key.name.clone(),
-                group_id: key.group_id.clone(),
-                attached_servers: key.attached_servers.clone(),
-                error_message: None,
-            });
-            self.input_cursor = name_len;
-            self.input_selection = None;
-            self.cursor_blink = true;
-            cx.notify();
-        }
-    }
-
-    pub fn close_edit_key_modal(&mut self, cx: &mut Context<Self>) {
-        self.edit_key_modal = None;
-        cx.notify();
-    }
-
-    pub fn submit_edit_key(&mut self, cx: &mut Context<Self>) {
-        if let Some(ref mut state) = self.edit_key_modal {
-            let name = state.name_input.trim();
-            if name.is_empty() {
-                state.error_message = Some("Key name cannot be empty".to_string());
-                cx.notify();
-                return;
-            }
-
-            let db = self.vault.db();
-            if let Ok(db_guard) = db.lock() {
-                let _ = db_guard.update_ssh_key_name_and_group(&state.key_id, name, &state.group_id);
-                let _ = db_guard.update_ssh_key_attached_servers(&state.key_id, &state.attached_servers);
-            }
-            self.edit_key_modal = None;
-            self.refresh_keys(cx);
-        }
-    }
-
-    pub fn toggle_edit_key_server(&mut self, server_id: &str, cx: &mut Context<Self>) {
-        if let Some(ref mut state) = self.edit_key_modal {
-            if let Some(idx) = state.attached_servers.iter().position(|s| s == server_id) {
-                state.attached_servers.remove(idx);
-            } else {
-                state.attached_servers.push(server_id.to_string());
-            }
-            cx.notify();
-        }
-    }
-
-    pub fn copy_text_with_toast(&mut self, text: &str, toast: &str, cx: &mut Context<Self>) {
-        copy_to_clipboard_system(text);
-        self.key_toast = Some(toast.to_string());
-        cx.notify();
-    }
-
-    pub fn clear_key_toast(&mut self, cx: &mut Context<Self>) {
-        self.key_toast = None;
-        cx.notify();
-    }
-
     pub fn start_onboarding(&mut self, cx: &mut Context<Self>) {
-        self.onboard_state = OnboardState::new(&self.enrolled_keys);
+        self.onboard_state = OnboardState::new(&self.keys.enrolled);
         self.screen = Screen::Onboard;
         self.menu_open = false;
         self.palette_open = false;
@@ -2061,7 +1358,7 @@ impl CrowApp {
         let host = self.onboard_state.host.trim().to_string();
         let port = self.onboard_state.port.trim().parse::<u16>().unwrap_or(22);
         let key_name = if let Some(ref kid) = self.onboard_state.selected_key_id {
-            self.enrolled_keys.iter().find(|k| &k.id == kid).map(|k| k.name.as_str()).unwrap_or("ssh-key")
+            self.keys.enrolled.iter().find(|k| &k.id == kid).map(|k| k.name.as_str()).unwrap_or("ssh-key")
         } else {
             "ssh-agent"
         };
@@ -2172,7 +1469,7 @@ impl CrowApp {
         self.active_tab_id = id.clone();
         self.screen = Screen::Server;
         self.active_view = "overview".to_string();
-        self.key_toast = Some(format!("Server '{}' enrolled into fleet", name));
+        self.keys.toast = Some(format!("Server '{}' enrolled into fleet", name));
 
         cx.notify();
     }
@@ -2329,7 +1626,7 @@ impl Render for CrowApp {
                 }
 
                 // SSH Key Management Modal Keyboard Routing
-                if let Some(ref mut gen) = this.key_gen_modal {
+                if let Some(ref mut gen) = this.keys.gen_modal {
                     this.cursor_blink = true;
                     if ev.keystroke.key == "escape" {
                         this.close_key_gen_modal(cx);
@@ -2371,7 +1668,7 @@ impl Render for CrowApp {
                     return;
                 }
 
-                if let Some(ref mut grp) = this.new_group_modal {
+                if let Some(ref mut grp) = this.keys.new_group_modal {
                     this.cursor_blink = true;
                     if ev.keystroke.key == "escape" {
                         this.close_new_group_modal(cx);
@@ -2389,7 +1686,7 @@ impl Render for CrowApp {
                     return;
                 }
 
-                if let Some(ref mut sp) = this.add_scan_path_modal {
+                if let Some(ref mut sp) = this.keys.add_scan_path_modal {
                     this.cursor_blink = true;
                     if ev.keystroke.key == "escape" {
                         this.close_add_scan_path_modal(cx);
@@ -2407,7 +1704,7 @@ impl Render for CrowApp {
                     return;
                 }
 
-                if let Some(ref mut edit) = this.edit_key_modal {
+                if let Some(ref mut edit) = this.keys.edit_modal {
                     this.cursor_blink = true;
                     if ev.keystroke.key == "escape" {
                         this.close_edit_key_modal(cx);
@@ -2850,7 +2147,7 @@ impl Render for CrowApp {
                                                             .flex()
                                                             .children(if is_overview {
                                                                 Some(
-                                                                    if self.active_services_tab == "sockets" {
+                                                                    if self.overview.active_tab == "sockets" {
                                                                         div()
                                                                             .size_full()
                                                                             .flex()
@@ -2861,7 +2158,7 @@ impl Render for CrowApp {
                                                                                     .min_h(px(0.0))
                                                                                     .child(services_table(self, app_view.clone()))
                                                                             )
-                                                                            .children(if self.socket_drawer_open {
+                                                                            .children(if self.overview.socket_drawer_open {
                                                                                 Some(socket_log_drawer(self, app_view.clone()).into_any_element())
                                                                             } else {
                                                                                 None
@@ -2871,7 +2168,7 @@ impl Render for CrowApp {
                                                                             .size_full()
                                                                             .flex()
                                                                             .child(services_table(self, app_view.clone()))
-                                                                            .child(if self.active_services_tab == "services" {
+                                                                            .child(if self.overview.active_tab == "services" {
                                                                                 service_inspector_rail(self, app_view.clone()).into_any_element()
                                                                             } else {
                                                                                 log_tail(&self.journal.entries, app_view.clone()).into_any_element()
@@ -2923,7 +2220,7 @@ impl Render for CrowApp {
                                                                 Some(
                                                                     div()
                                                                         .size_full()
-                                                                        .child(user_management_view(app_view.clone(), &self.users, &self.enrolled_keys))
+                                                                        .child(user_management_view(app_view.clone(), &self.users, &self.keys.enrolled))
                                                                 )
                                                             } else if self.active_view == "files" {
                                                                 Some(

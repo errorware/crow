@@ -112,9 +112,9 @@ impl CrowApp {
             });
         }
         self.active_tab_id = record.id.clone();
-        self.services = collect_services_for_server(&record);
-        self.processes = collect_processes_for_server(&record);
-        self.sockets = collect_sockets_for_server(&record);
+        self.overview.services = collect_services_for_server(&record);
+        self.overview.processes = collect_processes_for_server(&record);
+        self.overview.sockets = collect_sockets_for_server(&record);
         self.screen = Screen::Server;
         self.active_view = "overview".to_string();
     }

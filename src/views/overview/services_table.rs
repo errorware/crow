@@ -6,10 +6,10 @@ use crate::components::icons::{TablerIcon, tabler_icon};
 use super::models::{ProcessUnit, ServiceUnit, SocketUnit};
 
 pub fn services_table(app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
-    let services = &app_data.services;
-    let processes = &app_data.processes;
-    let sockets = &app_data.sockets;
-    let active_tab = app_data.active_services_tab.as_str();
+    let services = &app_data.overview.services;
+    let processes = &app_data.overview.processes;
+    let sockets = &app_data.overview.sockets;
+    let active_tab = app_data.overview.active_tab.as_str();
 
     div()
         .flex_1()
@@ -115,7 +115,7 @@ pub fn services_table(app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElem
                 // Socket Log Drawer Toggle (sockets subtab only)
                 .children(if active_tab == "sockets" {
                     let app_drawer = app.clone();
-                    let is_open = app_data.socket_drawer_open;
+                    let is_open = app_data.overview.socket_drawer_open;
                     Some(
                         div()
                             .id("btn-toggle-socket-drawer")
@@ -195,16 +195,16 @@ pub fn services_table(app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElem
                 .flex_col()
                 .children(match active_tab {
                     "processes" => {
-                        if app_data.group_processes {
-                            render_processes_rows_grouped(processes, &app_data.collapsed_process_groups, app.clone())
+                        if app_data.overview.group_processes {
+                            render_processes_rows_grouped(processes, &app_data.overview.collapsed_process_groups, app.clone())
                         } else {
                             render_processes_rows(processes, app.clone())
                         }
                     }
                     "sockets" => render_sockets_rows(sockets, app.clone()),
                     _ => {
-                        if app_data.group_services {
-                            render_services_rows_grouped(services, &app_data.collapsed_service_groups, app_data, app.clone())
+                        if app_data.overview.group_services {
+                            render_services_rows_grouped(services, &app_data.overview.collapsed_service_groups, app_data, app.clone())
                         } else {
                             render_services_rows(services, app_data, app.clone())
                         }
@@ -218,7 +218,7 @@ pub fn services_table(app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElem
 // ---------------------------------------------------------------------------
 
 fn render_group_toggle(active_tab: &str, app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
-    let is_on = if active_tab == "services" { app_data.group_services } else { app_data.group_processes };
+    let is_on = if active_tab == "services" { app_data.overview.group_services } else { app_data.overview.group_processes };
     let tab_owned = active_tab.to_string();
     let label = if active_tab == "services" { "GROUP BY STATUS" } else { "GROUP BY NAME" };
 
@@ -559,7 +559,7 @@ fn render_services_rows_grouped(services: &[ServiceUnit], collapsed: &HashSet<St
 /// Real blast-radius phrasing for a restart/stop confirm — falls back to a
 /// "checking…" state while the async socket lookup is still in flight.
 fn blast_radius_text(app_data: &CrowApp, unit: &str) -> String {
-    match app_data.blast_radius.as_ref().filter(|b| b.for_unit == unit) {
+    match app_data.overview.blast_radius.as_ref().filter(|b| b.for_unit == unit) {
         Some(b) if b.established == 0 && b.listening == 0 => "No active connections will be dropped.".to_string(),
         Some(b) => format!(
             "{} established connection{} and {} listening socket{} will be dropped.",

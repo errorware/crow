@@ -31,7 +31,7 @@ fn config_file_for_service(unit: &str) -> Option<&'static str> {
 }
 
 pub fn service_inspector_rail(app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
-    let focused = app_data.services.iter().find(|s| s.is_focused);
+    let focused = app_data.overview.services.iter().find(|s| s.is_focused);
 
     div()
         .w(px(360.0))
@@ -134,8 +134,8 @@ fn render_focused_panel(svc: &ServiceUnit, app_data: &CrowApp, app: Entity<CrowA
         _ => CRIT_BG,
     };
     let config_file = config_file_for_service(&svc.name);
-    let pending_action = app_data.service_panel_pending_action.clone();
-    let failed_banner = app_data.last_change_outcome.as_ref()
+    let pending_action = app_data.overview.service_panel_pending_action.clone();
+    let failed_banner = app_data.overview.last_change_outcome.as_ref()
         .filter(|(unit, succeeded)| unit == &svc.name && !succeeded);
     let recent = app_data.recent_change_records(&svc.name, 5);
 
@@ -523,7 +523,7 @@ fn render_actions_row(is_active: bool, app: Entity<CrowApp>) -> impl IntoElement
 /// Real blast-radius phrasing for a restart/stop confirm — falls back to a
 /// "checking…" state while the async socket lookup is still in flight.
 fn blast_radius_text(app_data: &CrowApp, unit: &str) -> String {
-    match app_data.blast_radius.as_ref().filter(|b| b.for_unit == unit) {
+    match app_data.overview.blast_radius.as_ref().filter(|b| b.for_unit == unit) {
         Some(b) if b.established == 0 && b.listening == 0 => "No active connections will be dropped.".to_string(),
         Some(b) => format!(
             "{} established connection{} and {} listening socket{} will be dropped.",
