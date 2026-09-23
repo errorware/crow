@@ -208,7 +208,7 @@ pub fn cron_editor(
     app_data: &CrowApp,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
-    let file_state = app_data.config_file_states.get("crontab");
+    let file_state = app_data.configs.states.get("crontab");
     let is_modified = file_state.map(|s| s.is_modified()).unwrap_or(false);
     let rev_count = file_state.map(|s| s.revisions.len()).unwrap_or(1);
     let active_count = jobs.iter().filter(|j| j.enabled).count();
@@ -307,7 +307,7 @@ pub fn cron_editor(
                         .text_color(TEXT_SECONDARY)
                         .on_click(move |_ev, _window, cx| {
                             app_add.update(cx, |this, cx| {
-                                this.add_cron_job(cx);
+                                this.configs.add_cron_job(); cx.notify();
                             });
                         })
                         .child("+ NEW CRON JOB"),
@@ -370,10 +370,10 @@ pub fn cron_editor(
                         .id("btn-cron-history")
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
-                        .text_color(if app_data.show_config_history { OK } else { TEXT_TERTIARY })
+                        .text_color(if app_data.configs.show_history { OK } else { TEXT_TERTIARY })
                         .border_1()
-                        .border_color(if app_data.show_config_history { OK } else { BORDER_DEFAULT })
-                        .bg(if app_data.show_config_history { OK_BG } else { hex_rgba(0, 0.0) })
+                        .border_color(if app_data.configs.show_history { OK } else { BORDER_DEFAULT })
+                        .bg(if app_data.configs.show_history { OK_BG } else { hex_rgba(0, 0.0) })
                         .px(px(8.0))
                         .py(px(4.0))
                         .rounded_sm()
@@ -492,7 +492,7 @@ fn render_cron_job_card(
                         .on_click(move |_ev, _window, cx| {
                             let id = jid_toggle.clone();
                             app_toggle.update(cx, |this, cx| {
-                                this.toggle_cron_job_enabled(&id, cx);
+                                this.configs.toggle_cron_job_enabled(&id); cx.notify();
                             });
                         })
                         .child(
@@ -577,7 +577,7 @@ fn render_cron_job_card(
                                     .on_click(move |_ev, _window, cx| {
                                         let id = jid_up.clone();
                                         app_up.update(cx, |this, cx| {
-                                            this.move_cron_job_up(&id, cx);
+                                            this.configs.move_cron_job_up(&id); cx.notify();
                                         });
                                     })
                                     .child(
@@ -604,7 +604,7 @@ fn render_cron_job_card(
                                     .on_click(move |_ev, _window, cx| {
                                         let id = jid_down.clone();
                                         app_down.update(cx, |this, cx| {
-                                            this.move_cron_job_down(&id, cx);
+                                            this.configs.move_cron_job_down(&id); cx.notify();
                                         });
                                     })
                                     .child(
@@ -630,7 +630,7 @@ fn render_cron_job_card(
                                 .on_click(move |_ev, _window, cx| {
                                     let id = jid_del.clone();
                                     app_del.update(cx, |this, cx| {
-                                        this.delete_cron_job(&id, cx);
+                                        this.configs.delete_cron_job(&id); cx.notify();
                                     });
                                 })
                                 .child(tabler_icon(TablerIcon::Trash).size(px(12.0)).text_color(TEXT_MUTED)),
@@ -649,7 +649,7 @@ fn render_cron_job_card(
                                 .on_click(move |_ev, _window, cx| {
                                     let id = jid_expand.clone();
                                     app_expand.update(cx, |this, cx| {
-                                        this.toggle_cron_job_expanded(&id, cx);
+                                        this.configs.toggle_cron_job_expanded(&id); cx.notify();
                                     });
                                 })
                                 .child(
@@ -800,7 +800,7 @@ fn render_cron_builder(
                                     let id = j_id.clone();
                                     let (m, h, dom, mon, dow) = (m_str.clone(), h_str.clone(), dom_str.clone(), mon_str.clone(), dow_str.clone());
                                     app_p.update(cx, |this, cx| {
-                                        this.apply_cron_preset(&id, &m, &h, &dom, &mon, &dow, cx);
+                                        this.configs.apply_cron_preset(&id, &m, &h, &dom, &mon, &dow); cx.notify();
                                     });
                                 })
                                 .child(name)
@@ -959,7 +959,7 @@ fn render_field_stepper(
                             let id = jid_star.clone();
                             let f = fk_star.clone();
                             app_star.update(cx, |this, cx| {
-                                this.update_cron_field(&id, &f, "*", cx);
+                                this.configs.update_cron_field(&id, &f, "*"); cx.notify();
                             });
                         })
                         .child("* (any)"),
@@ -982,7 +982,7 @@ fn render_field_stepper(
                             let id = jid_zero.clone();
                             let f = fk_zero.clone();
                             app_zero.update(cx, |this, cx| {
-                                this.update_cron_field(&id, &f, "0", cx);
+                                this.configs.update_cron_field(&id, &f, "0"); cx.notify();
                             });
                         })
                         .child("0"),

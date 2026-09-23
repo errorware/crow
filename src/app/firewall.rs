@@ -33,7 +33,7 @@ impl CrowApp {
     pub fn sync_firewall_to_config_state(&mut self) {
         if let FirewallOperationalState::Active(ref summary) = self.firewall.status {
             let content = crate::views::firewall::generate_user_rules_content(&summary.rules);
-            if let Some(st) = self.config_file_states.get_mut("user.rules") {
+            if let Some(st) = self.configs.states.get_mut("user.rules") {
                 st.update_content(content);
             }
         }

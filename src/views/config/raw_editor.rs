@@ -130,7 +130,7 @@ pub fn raw_config_editor(
                         .on_click(move |_ev, _window, cx| {
                             let f = fn_clone.clone();
                             app_edit.update(cx, |this, cx| {
-                                this.toggle_sample_edit_on_config(&f, cx);
+                                this.configs.toggle_sample_edit(&f); cx.notify();
                             });
                         })
                         .child(if is_modified { "SIMULATE EDIT ↺" } else { "+ TEST EDIT" })

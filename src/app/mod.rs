@@ -17,8 +17,9 @@ use crate::metrics::{
 use crate::vault::{ChangeRecord, ServerRecord, Vault, VaultStatus};
 use crate::views::config::managed_files::managed_files_rail;
 use crate::views::config::pending_diff_rail::pending_diff_rail;
-use crate::views::config::rules_editor::{default_hba_rules, rules_editor, HbaRuleDef};
-use crate::views::config::cron_editor::{cron_editor, default_cron_jobs, generate_crontab_content, CronJobDef};
+use crate::views::config::rules_editor::{default_hba_rules, rules_editor};
+use crate::views::config::state::ConfigsState;
+use crate::views::config::cron_editor::{cron_editor, default_cron_jobs, generate_crontab_content};
 use crate::views::config::raw_config_editor;
 use crate::views::files::{
     file_browser_view, FilesState,
@@ -30,7 +31,7 @@ use crate::views::firewall::{
     default_active_ufw_state, detect_firewall_status, firewall_view, FirewallOperationalState,
     FirewallState,
 };
-use crate::config::{crawl_machine_configs, sample_config_content, ConfigFileState, DiscoveredConfigFile, CrowConfigManager};
+use crate::config::{crawl_machine_configs, sample_config_content, ConfigFileState, CrowConfigManager};
 use crate::os_detect::{classify_distro_family, detect_local_os_release, DistroFamily};
 use crate::views::fleet::{fleet_overview_view, fleet_setup_view};
 use crate::views::lock::{
@@ -42,7 +43,7 @@ use crate::views::onboard::{
 use crate::journal::{
     JournalEntry, JournalQuery,
     reader::read_journal_for_server,
-    retention::{generate_journald_conf, read_retention_for_server, JournalRetentionConfig, JournalTelemetry},
+    retention::{generate_journald_conf, read_retention_for_server, JournalTelemetry},
 };
 use crate::lab::{detect_local_engines, scan_local_test_nodes};
 use crate::views::logs::{logs_explorer_view, JournalState};
@@ -64,6 +65,7 @@ use crow_config_schemas::PgHbaPlugin;
 mod danger;
 mod files;
 mod firewall;
+mod configs;
 mod journal;
 mod clankers;
 mod lab;
@@ -160,7 +162,7 @@ pub struct CrowApp {
     pub services: Vec<ServiceUnit>,
     pub processes: Vec<ProcessUnit>,
     pub sockets: Vec<SocketUnit>,
-    pub hba_rules: Vec<HbaRuleDef>,
+    pub configs: ConfigsState,
     pub palette_open: bool,
     pub sidebar_collapsed: bool,
     pub settings_dropdown_open: Option<String>,
@@ -210,13 +212,6 @@ pub struct CrowApp {
     pub group_services: bool,
     pub collapsed_process_groups: HashSet<String>,
     pub collapsed_service_groups: HashSet<String>,
-    pub selected_managed_file: String,
-    pub config_files: Vec<DiscoveredConfigFile>,
-    pub config_file_states: HashMap<String, ConfigFileState>,
-    pub cron_jobs: Vec<CronJobDef>,
-    pub config_search_query: String,
-    pub config_search_focused: bool,
-    pub show_config_history: bool,
     // Local Lab & Test VMs Subsystem
     pub local_lab: LocalLabState,
     // About Crow Modal
@@ -480,7 +475,7 @@ host    all             all             10.0.4.0/24             scram-sha-256
             services: initial_services,
             processes: initial_processes,
             sockets: initial_sockets,
-            hba_rules: default_hba_rules(),
+            configs: ConfigsState::new(config_files, config_file_states, initial_selected_file, initial_cron_jobs, default_hba_rules()),
             palette_open: false,
             sidebar_collapsed: false,
             settings_dropdown_open: None,
@@ -561,13 +556,6 @@ host    all             all             10.0.4.0/24             scram-sha-256
             group_services: false,
             collapsed_process_groups: HashSet::new(),
             collapsed_service_groups: HashSet::new(),
-            selected_managed_file: initial_selected_file,
-            config_files,
-            config_file_states,
-            cron_jobs: initial_cron_jobs,
-            config_search_query: String::new(),
-            config_search_focused: false,
-            show_config_history: false,
             local_lab: LocalLabState::new(lab_engines, lab_nodes),
             show_about_modal: false,
             about_copied_toast: false,
@@ -706,7 +694,7 @@ impl CrowApp {
                 return true;
             }
             if (self.active_view == "config" || self.active_view == "configure")
-                && self.config_search_focused
+                && self.configs.search_focused
             {
                 return true;
             }
@@ -877,256 +865,6 @@ impl CrowApp {
         let (res, next_prev) = run_background_poll(req, local_prev.clone());
         *local_prev = next_prev;
         self.apply_poll_result(res);
-    }
-
-    pub fn default_author(&self) -> String {
-        "Nelson <nelson@errorware.net>".to_string()
-    }
-
-    pub fn toggle_config_history(&mut self, cx: &mut Context<Self>) {
-        self.show_config_history = !self.show_config_history;
-        cx.notify();
-    }
-
-    pub fn sync_hba_to_config_state(&mut self) {
-        let content = crate::views::config::rules_editor::generate_hba_conf(&self.hba_rules);
-        if let Some(state) = self.config_file_states.get_mut("pg_hba.conf") {
-            state.update_content(content);
-        }
-    }
-
-    pub fn select_managed_file(&mut self, filename: &str, cx: &mut Context<Self>) {
-        self.selected_managed_file = filename.to_string();
-        cx.notify();
-    }
-
-    pub fn crawl_system_configs(&mut self, cx: &mut Context<Self>) {
-        let discovered = crawl_machine_configs(self.local_distro_family);
-        for f in &discovered {
-            if !self.config_file_states.contains_key(&f.name) {
-                let content = if f.full_path.exists() {
-                    std::fs::read_to_string(&f.full_path).unwrap_or_else(|_| sample_config_content(&f.name))
-                } else {
-                    sample_config_content(&f.name)
-                };
-                self.config_file_states.insert(
-                    f.name.clone(),
-                    ConfigFileState::new(f.full_path.clone(), f.name.clone(), content),
-                );
-            }
-        }
-        self.config_files = discovered;
-        cx.notify();
-    }
-
-    #[allow(dead_code)]
-    pub fn set_config_search_query(&mut self, query: String, cx: &mut Context<Self>) {
-        self.config_search_query = query;
-        cx.notify();
-    }
-
-    pub fn revert_managed_config(&mut self, file: &str, cx: &mut Context<Self>) {
-        if file == "pg_hba.conf" {
-            for r in &mut self.hba_rules {
-                if r.num == "09" || r.num == "10" {
-                    r.method = "trust";
-                    r.risk = "CRITICAL";
-                    r.risk_color = CRIT;
-                    r.is_expanded = false;
-                }
-            }
-        } else if file == "journald.conf" {
-            self.journal.retention = JournalRetentionConfig::default();
-        } else if file == "crontab" {
-            self.cron_jobs = default_cron_jobs();
-        } else if file == "user.rules" {
-            if let Some(state) = self.config_file_states.get(file) {
-                let rules = crate::views::firewall::parse_user_rules_content(&state.baseline_content);
-                if let FirewallOperationalState::Active(ref mut summary) = self.firewall.status {
-                    summary.rules = rules;
-                }
-            }
-            self.firewall.toast = Some("Reverted firewall rules to baseline".to_string());
-        }
-        if let Some(state) = self.config_file_states.get_mut(file) {
-            state.revert();
-            cx.notify();
-        }
-    }
-
-    pub fn stage_config_version(&mut self, file: &str, description: &str, cx: &mut Context<Self>) {
-        let author = self.default_author();
-        if let Some(state) = self.config_file_states.get_mut(file) {
-            state.stage_revision(author, description.to_string());
-            let _ = state.save_to_disk();
-            if file == "pg_hba.conf" {
-                for r in &mut self.hba_rules {
-                    if r.risk == "EDITED" {
-                        r.risk = "OK";
-                        r.risk_color = OK;
-                    }
-                }
-            } else if file == "journald.conf" {
-                self.journal.show_retention_modal = false;
-            } else if file == "user.rules" {
-                self.firewall.toast = Some(format!("Audit commit created: {}", description));
-            }
-            cx.notify();
-        }
-    }
-
-    pub fn rollback_config_revision(&mut self, file: &str, version: usize, cx: &mut Context<Self>) {
-        if let Some(state) = self.config_file_states.get_mut(file) {
-            if state.rollback_to_revision(version) {
-                let _ = state.save_to_disk();
-                if file == "user.rules" {
-                    let rules = crate::views::firewall::parse_user_rules_content(&state.current_content);
-                    if let FirewallOperationalState::Active(ref mut summary) = self.firewall.status {
-                        summary.rules = rules;
-                    }
-                    self.firewall.toast = Some(format!("Rolled back firewall to revision v{}", version));
-                }
-                cx.notify();
-            }
-        }
-    }
-
-    pub fn toggle_sample_edit_on_config(&mut self, file: &str, cx: &mut Context<Self>) {
-        if let Some(state) = self.config_file_states.get_mut(file) {
-            if state.is_modified() {
-                state.revert();
-            } else {
-                let mut edited = state.current_content.clone();
-                if !edited.ends_with('\n') {
-                    edited.push('\n');
-                }
-                edited.push_str("# [Crow Managed Adjustment]\n");
-                edited.push_str("crow_managed_sync = true\n");
-                state.update_content(edited);
-            }
-            cx.notify();
-        }
-    }
-
-    pub fn sync_cron_to_config_state(&mut self) {
-        let content = generate_crontab_content(&self.cron_jobs);
-        if let Some(st) = self.config_file_states.get_mut("crontab") {
-            st.update_content(content);
-        }
-    }
-
-    pub fn toggle_cron_job_enabled(&mut self, job_id: &str, cx: &mut Context<Self>) {
-        if let Some(job) = self.cron_jobs.iter_mut().find(|j| j.id == job_id) {
-            job.enabled = !job.enabled;
-            self.sync_cron_to_config_state();
-            cx.notify();
-        }
-    }
-
-    pub fn toggle_cron_job_expanded(&mut self, job_id: &str, cx: &mut Context<Self>) {
-        if let Some(job) = self.cron_jobs.iter_mut().find(|j| j.id == job_id) {
-            job.is_expanded = !job.is_expanded;
-            cx.notify();
-        }
-    }
-
-    pub fn apply_cron_preset(
-        &mut self,
-        job_id: &str,
-        minute: &str,
-        hour: &str,
-        day_of_month: &str,
-        month: &str,
-        day_of_week: &str,
-        cx: &mut Context<Self>,
-    ) {
-        if let Some(job) = self.cron_jobs.iter_mut().find(|j| j.id == job_id) {
-            job.minute = minute.to_string();
-            job.hour = hour.to_string();
-            job.day_of_month = day_of_month.to_string();
-            job.month = month.to_string();
-            job.day_of_week = day_of_week.to_string();
-            self.sync_cron_to_config_state();
-            cx.notify();
-        }
-    }
-
-    pub fn update_cron_field(
-        &mut self,
-        job_id: &str,
-        field: &str,
-        value: &str,
-        cx: &mut Context<Self>,
-    ) {
-        if let Some(job) = self.cron_jobs.iter_mut().find(|j| j.id == job_id) {
-            match field {
-                "minute" => job.minute = value.to_string(),
-                "hour" => job.hour = value.to_string(),
-                "day_of_month" | "dom" => job.day_of_month = value.to_string(),
-                "month" | "mon" => job.month = value.to_string(),
-                "day_of_week" | "dow" => job.day_of_week = value.to_string(),
-                "user" => job.user = value.to_string(),
-                "command" => job.command = value.to_string(),
-                _ => {}
-            }
-            self.sync_cron_to_config_state();
-            cx.notify();
-        }
-    }
-
-    pub fn move_cron_job_up(&mut self, job_id: &str, cx: &mut Context<Self>) {
-        if let Some(idx) = self.cron_jobs.iter().position(|j| j.id == job_id) {
-            if idx > 0 {
-                self.cron_jobs.swap(idx, idx - 1);
-                self.sync_cron_to_config_state();
-                cx.notify();
-            }
-        }
-    }
-
-    pub fn move_cron_job_down(&mut self, job_id: &str, cx: &mut Context<Self>) {
-        if let Some(idx) = self.cron_jobs.iter().position(|j| j.id == job_id) {
-            if idx + 1 < self.cron_jobs.len() {
-                self.cron_jobs.swap(idx, idx + 1);
-                self.sync_cron_to_config_state();
-                cx.notify();
-            }
-        }
-    }
-
-    pub fn delete_cron_job(&mut self, job_id: &str, cx: &mut Context<Self>) {
-        self.cron_jobs.retain(|j| j.id != job_id);
-        self.sync_cron_to_config_state();
-        cx.notify();
-    }
-
-    pub fn add_cron_job(&mut self, cx: &mut Context<Self>) {
-        let new_id = format!(
-            "cron_{:x}",
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .map(|d| d.as_millis())
-                .unwrap_or(0)
-        );
-        self.cron_jobs.push(CronJobDef {
-            id: new_id,
-            minute: "0".to_string(),
-            hour: "2".to_string(),
-            day_of_month: "*".to_string(),
-            month: "*".to_string(),
-            day_of_week: "*".to_string(),
-            user: "root".to_string(),
-            command: "/usr/local/bin/backup-sync.sh".to_string(),
-            comment: Some("Nightly backup routine".to_string()),
-            enabled: true,
-            is_expanded: true,
-        });
-        self.sync_cron_to_config_state();
-        cx.notify();
-    }
-
-    pub fn apply_journal_boundaries(&mut self, cx: &mut Context<Self>) {
-        self.stage_config_version("journald.conf", "Applied journald retention boundaries", cx);
     }
 
     pub fn open_about_modal(&mut self, cx: &mut Context<Self>) {
@@ -1387,10 +1125,10 @@ impl CrowApp {
             self.set_services_tab("sockets", cx);
         } else if view == "cron" {
             self.active_view = "cron".to_string();
-            self.selected_managed_file = "crontab".to_string();
+            self.configs.selected_file = "crontab".to_string();
         } else if view == "firewall" {
             self.active_view = "firewall".to_string();
-            self.selected_managed_file = "user.rules".to_string();
+            self.configs.selected_file = "user.rules".to_string();
         } else if view == "files" {
             self.active_view = "files".to_string();
             self.load_file_listing(cx);
@@ -1794,7 +1532,7 @@ impl CrowApp {
     /// Jumps to the Config screen pre-selecting the file that governs this service —
     /// the "swap to crow-config" handoff instead of a service-specific settings UI.
     pub fn open_config_for_service(&mut self, file: &str, cx: &mut Context<Self>) {
-        self.selected_managed_file = file.to_string();
+        self.configs.selected_file = file.to_string();
         self.set_view("config", cx);
     }
 
@@ -1856,7 +1594,7 @@ impl CrowApp {
     }
 
     pub fn toggle_rule_expand(&mut self, num: &str, cx: &mut Context<Self>) {
-        for r in &mut self.hba_rules {
+        for r in &mut self.configs.hba_rules {
             if r.num == num {
                 r.is_expanded = !r.is_expanded;
             }
@@ -1865,7 +1603,7 @@ impl CrowApp {
     }
 
     pub fn set_rule_method(&mut self, rule_num: &str, method: &'static str, cx: &mut Context<Self>) {
-        for r in &mut self.hba_rules {
+        for r in &mut self.configs.hba_rules {
             if r.num == rule_num {
                 r.method = method;
                 r.risk = if method == "scram-sha-256" || method == "cert" {
@@ -1884,7 +1622,7 @@ impl CrowApp {
                 };
             }
         }
-        self.sync_hba_to_config_state();
+        self.configs.sync_hba();
         cx.notify();
     }
 
@@ -2871,16 +2609,16 @@ impl Render for CrowApp {
                 // and keyboard handling, no manual routing needed here.
 
                 // Config Screen: config file search box keyboard interaction
-                if this.screen == Screen::Server && (this.active_view == "config" || this.active_view == "configure") && this.config_search_focused {
+                if this.screen == Screen::Server && (this.active_view == "config" || this.active_view == "configure") && this.configs.search_focused {
                     this.cursor_blink = true;
                     if ev.keystroke.key == "escape" {
-                        this.config_search_focused = false;
-                        this.config_search_query.clear();
+                        this.configs.search_focused = false;
+                        this.configs.search_query.clear();
                         cx.notify();
                         return;
                     } else {
                         let changed = crate::components::handle_text_key_event(
-                            &mut this.config_search_query,
+                            &mut this.configs.search_query,
                             &mut this.input_cursor,
                             &mut this.input_selection,
                             ev,
@@ -3141,28 +2879,28 @@ impl Render for CrowApp {
                                                                     }
                                                                 )
                                                             } else if is_config {
-                                                                let editor_view = if self.selected_managed_file == "journald.conf" {
+                                                                let editor_view = if self.configs.selected_file == "journald.conf" {
                                                                     crate::views::config::journald_editor::journald_editor(
                                                                         &self.journal.retention,
                                                                         &self.journal.telemetry,
                                                                         self,
                                                                         app_view.clone(),
                                                                     ).into_any_element()
-                                                                } else if self.selected_managed_file == "pg_hba.conf" {
-                                                                    rules_editor(&self.hba_rules, self, app_view.clone()).into_any_element()
-                                                                } else if self.selected_managed_file == "crontab" || self.selected_managed_file.contains("cron") {
-                                                                    cron_editor(&self.cron_jobs, self, app_view.clone()).into_any_element()
-                                                                } else if let Some(st) = self.config_file_states.get(&self.selected_managed_file) {
+                                                                } else if self.configs.selected_file == "pg_hba.conf" {
+                                                                    rules_editor(&self.configs.hba_rules, self, app_view.clone()).into_any_element()
+                                                                } else if self.configs.selected_file == "crontab" || self.configs.selected_file.contains("cron") {
+                                                                    cron_editor(&self.configs.cron_jobs, self, app_view.clone()).into_any_element()
+                                                                } else if let Some(st) = self.configs.states.get(&self.configs.selected_file) {
                                                                     raw_config_editor(st, app_view.clone()).into_any_element()
                                                                 } else {
-                                                                    rules_editor(&self.hba_rules, self, app_view.clone()).into_any_element()
+                                                                    rules_editor(&self.configs.hba_rules, self, app_view.clone()).into_any_element()
                                                                 };
 
                                                                 Some(
                                                                     div()
                                                                         .size_full()
                                                                         .flex()
-                                                                        .child(managed_files_rail(&self.selected_managed_file, self, app_view.clone()))
+                                                                        .child(managed_files_rail(&self.configs.selected_file, self, app_view.clone()))
                                                                         .child(editor_view)
                                                                         .child(pending_diff_rail(self, app_view.clone()))
                                                                 )
@@ -3178,7 +2916,7 @@ impl Render for CrowApp {
                                                                     div()
                                                                         .size_full()
                                                                         .flex()
-                                                                        .child(cron_editor(&self.cron_jobs, self, app_view.clone()))
+                                                                        .child(cron_editor(&self.configs.cron_jobs, self, app_view.clone()))
                                                                         .child(pending_diff_rail(self, app_view.clone()))
                                                                 )
                                                             } else if self.active_view == "users" {
@@ -3203,7 +2941,7 @@ impl Render for CrowApp {
                                                                                 .flex_1()
                                                                                 .min_w(px(0.0))
                                                                                 .h_full()
-                                                                                .child(firewall_view(app_view.clone(), &self.firewall, &self.config_file_states))
+                                                                                .child(firewall_view(app_view.clone(), &self.firewall, &self.configs.states))
                                                                         )
                                                                         .children(if self.firewall.show_audit_rail {
                                                                             Some(pending_diff_rail(self, app_view.clone()))

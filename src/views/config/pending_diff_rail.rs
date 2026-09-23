@@ -5,8 +5,8 @@ use crate::config::DiffKind;
 use crate::components::icons::{TablerIcon, tabler_icon};
 
 pub fn pending_diff_rail(app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
-    let sel_file = &app_data.selected_managed_file;
-    let file_state = app_data.config_file_states.get(sel_file);
+    let sel_file = &app_data.configs.selected_file;
+    let file_state = app_data.configs.states.get(sel_file);
     let app_revert = app.clone();
     let app_apply = app.clone();
     let default_author = app_data.default_author();

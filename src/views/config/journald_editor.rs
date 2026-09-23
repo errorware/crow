@@ -19,7 +19,7 @@ pub fn journald_editor(
     let app_revert = app.clone();
     let app_history = app.clone();
 
-    let file_state = app_data.config_file_states.get("journald.conf");
+    let file_state = app_data.configs.states.get("journald.conf");
     let is_modified = file_state.map(|s| s.is_modified()).unwrap_or(false);
     let rev_count = file_state.map(|s| s.revisions.len()).unwrap_or(1);
 
@@ -164,10 +164,10 @@ pub fn journald_editor(
                                 .id("btn-journald-history")
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
-                                .text_color(if app_data.show_config_history { OK } else { TEXT_TERTIARY })
+                                .text_color(if app_data.configs.show_history { OK } else { TEXT_TERTIARY })
                                 .border_1()
-                                .border_color(if app_data.show_config_history { OK } else { BORDER_DEFAULT })
-                                .bg(if app_data.show_config_history { OK_BG } else { hex_rgba(0, 0.0) })
+                                .border_color(if app_data.configs.show_history { OK } else { BORDER_DEFAULT })
+                                .bg(if app_data.configs.show_history { OK_BG } else { hex_rgba(0, 0.0) })
                                 .px(px(8.0))
                                 .py(px(5.0))
                                 .rounded_sm()

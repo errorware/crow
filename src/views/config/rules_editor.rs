@@ -64,7 +64,7 @@ pub fn generate_hba_conf(rules: &[HbaRuleDef]) -> String {
 }
 
 pub fn rules_editor(rules: &[HbaRuleDef], app_data: &CrowApp, app: Entity<CrowApp>) -> impl IntoElement {
-    let file_state = app_data.config_file_states.get("pg_hba.conf");
+    let file_state = app_data.configs.states.get("pg_hba.conf");
     let is_modified = file_state.map(|s| s.is_modified()).unwrap_or(false);
     let rev_count = file_state.map(|s| s.revisions.len()).unwrap_or(1);
     let app_apply = app.clone();
@@ -186,10 +186,10 @@ pub fn rules_editor(rules: &[HbaRuleDef], app_data: &CrowApp, app: Entity<CrowAp
                         .id("btn-hba-history")
                         .font_family(FONT_MONO)
                         .text_size(px(10.5))
-                        .text_color(if app_data.show_config_history { OK } else { TEXT_TERTIARY })
+                        .text_color(if app_data.configs.show_history { OK } else { TEXT_TERTIARY })
                         .border_1()
-                        .border_color(if app_data.show_config_history { OK } else { BORDER_DEFAULT })
-                        .bg(if app_data.show_config_history { OK_BG } else { hex_rgba(0, 0.0) })
+                        .border_color(if app_data.configs.show_history { OK } else { BORDER_DEFAULT })
+                        .bg(if app_data.configs.show_history { OK_BG } else { hex_rgba(0, 0.0) })
                         .px(px(9.0))
                         .py(px(4.0))
                         .rounded_sm()

@@ -133,7 +133,7 @@ impl CrowApp {
 
     pub fn sync_journald_to_config_state(&mut self) {
         let content = generate_journald_conf(&self.journal.retention);
-        if let Some(state) = self.config_file_states.get_mut("journald.conf") {
+        if let Some(state) = self.configs.states.get_mut("journald.conf") {
             state.update_content(content);
         }
     }
