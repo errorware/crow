@@ -11,7 +11,7 @@ use crate::lab::{
     LocalLabEngine,
     LocalTestNode,
 };
-use crate::metrics::collector::{sample_server, CollectorPreviousState};
+use crate::metrics::collector::{sample_server, CollectorStates};
 use crate::theme::OK;
 use crate::vault::ServerRecord;
 use crate::views::overview::collector::{
@@ -111,7 +111,7 @@ impl CrowApp {
     /// makes it the active tab on the overview.
     pub fn open_enrolled_server(&mut self, record: ServerRecord) {
         self.fleet.servers.push(record.clone());
-        let mut local_prev = CollectorPreviousState::default();
+        let mut local_prev = CollectorStates::default();
         let m = sample_server(&record, None, &mut local_prev);
         self.fleet.metrics_store.insert(record.id.clone(), m.clone());
         self.fleet.metrics_store.insert(record.name.clone(), m);

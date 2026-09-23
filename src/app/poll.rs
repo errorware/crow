@@ -6,7 +6,7 @@ use super::{CrowApp, Screen};
 use crate::journal::{read_retention_for_server, JournalEntry, JournalQuery, JournalTelemetry};
 use crate::journal::reader::read_journal_for_server;
 use crate::metrics::{MetricSample, ServerMetrics, ServerTimeSeriesBuffer};
-use crate::metrics::collector::{sample_server, CollectorPreviousState};
+use crate::metrics::collector::{sample_server, CollectorStates};
 use crate::vault::ServerRecord;
 use crate::views::overview::{ProcessUnit, ServiceUnit, SocketUnit};
 use crate::views::overview::collector::{
@@ -50,8 +50,8 @@ pub struct BackgroundPollResult {
 
 pub fn run_background_poll(
     req: BackgroundPollRequest,
-    mut local_prev: CollectorPreviousState,
-) -> (BackgroundPollResult, CollectorPreviousState) {
+    mut local_prev: CollectorStates,
+) -> (BackgroundPollResult, CollectorStates) {
     let mut result = BackgroundPollResult {
         now_secs: req.now_secs,
         active_server_id: req.active_server.as_ref().map(|s| s.id.clone()),
@@ -99,8 +99,12 @@ pub fn run_background_poll(
     // 4. Fleet servers (when on Screen::Fleet) executed off-thread
     if !req.fleet_servers.is_empty() {
         for s in &req.fleet_servers {
-            let prev = req.prev_fleet_metrics.get(&s.id);
-            let updated = sample_server(s, prev, &mut local_prev);
+            // The active server was just sampled above; sampling it again in the
+            // same tick would compute its rates over a near-zero interval.
+            let updated = match (&result.active_server_id, &result.active_metrics) {
+                (Some(active_id), Some(active)) if *active_id == s.id => active.clone(),
+                _ => sample_server(s, req.prev_fleet_metrics.get(&s.id), &mut local_prev),
+            };
             result.fleet_samples.push((s.id.clone(), s.name.clone(), updated));
         }
     }
@@ -115,7 +119,7 @@ pub fn seed_metrics(
 ) -> (HashMap<String, ServerMetrics>, HashMap<String, ServerTimeSeriesBuffer>) {
     let mut metrics_store = HashMap::new();
     let mut buffered_stores = HashMap::new();
-    let mut local_prev = CollectorPreviousState::default();
+    let mut local_prev = CollectorStates::default();
     let now_secs = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -145,7 +149,7 @@ impl CrowApp {
     /// background executor, then apply the result.
     pub(super) fn spawn_metrics_poll(cx: &mut Context<Self>) -> Task<()> {
         cx.spawn(async move |entity, cx| {
-                let mut local_prev = CollectorPreviousState::default();
+                let mut local_prev = CollectorStates::default();
                 loop {
                     cx.background_executor().timer(std::time::Duration::from_millis(2000)).await;
                     let req_res = entity.update(cx, |this, _cx| {
@@ -327,7 +331,7 @@ impl CrowApp {
     }
 
     #[allow(dead_code)]
-    pub fn poll_metrics(&mut self, local_prev: &mut CollectorPreviousState) {
+    pub fn poll_metrics(&mut self, local_prev: &mut CollectorStates) {
         let req = self.prepare_poll_request();
         let (res, next_prev) = run_background_poll(req, local_prev.clone());
         *local_prev = next_prev;

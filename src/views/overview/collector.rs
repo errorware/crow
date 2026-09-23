@@ -1,4 +1,4 @@
-use std::process::Command;
+use crate::host::{host_for, not_connected, DEFAULT_TIMEOUT};
 use crate::vault::ServerRecord;
 use super::models::{ProcessUnit, ServiceUnit, SocketUnit};
 
@@ -201,177 +201,52 @@ fn parse_users_field(field: &str) -> (String, Option<u32>) {
     (name, pid)
 }
 
-fn is_localhost_server(server: &ServerRecord) -> bool {
-    server.host == "127.0.0.1"
-        || server.host == "localhost"
-        || server.host == "::1"
-        || server.name.to_lowercase() == "localhost"
-        || server.tags.iter().any(|t| t == "localhost" || t == "local")
+const LIST_SERVICES: &[&str] = &["systemctl", "list-units", "--type=service", "--all", "--no-legend", "--no-pager"];
+const LIST_PROCESSES: &[&str] = &["ps", "-eo", "pid,user,%cpu,%mem,rss,stat,time,comm", "--sort=-%cpu"];
+const LIST_SOCKETS: &[&str] = &["ss", "-tulpn"];
+
+/// Runs a read-only listing on the server's host and parses it. A reachable
+/// host that fails the command yields an empty table, not demo data; only a
+/// server with no transport falls back to the role-shaped sample.
+fn collect<T>(
+    server: &ServerRecord,
+    argv: &[&str],
+    parse: fn(&str) -> Vec<T>,
+    fallback: fn(&ServerRecord) -> Vec<T>,
+) -> Vec<T> {
+    match host_for(server) {
+        Some(host) => host.exec(argv, DEFAULT_TIMEOUT).map(|out| parse(&out.stdout)).unwrap_or_default(),
+        None => fallback(server),
+    }
 }
 
 /// Live collection of systemd services for the active server
 pub fn collect_services_for_server(server: &ServerRecord) -> Vec<ServiceUnit> {
-    if is_localhost_server(server) {
-        let out = Command::new("systemctl")
-            .args(["list-units", "--type=service", "--all", "--no-legend", "--no-pager"])
-            .output();
-
-        if let Ok(output) = out {
-            let s = String::from_utf8_lossy(&output.stdout);
-            let units = parse_systemctl_services(&s);
-            if !units.is_empty() {
-                return units;
-            }
-        }
-    }
-
-    // Check if matching container is running (podman / docker)
-    for engine_bin in &["podman", "docker"] {
-        let out = Command::new(engine_bin)
-            .args(["exec", &server.name, "systemctl", "list-units", "--type=service", "--all", "--no-legend", "--no-pager"])
-            .output();
-        if let Ok(output) = out {
-            if output.status.success() {
-                let s = String::from_utf8_lossy(&output.stdout);
-                let units = parse_systemctl_services(&s);
-                if !units.is_empty() {
-                    return units;
-                }
-            }
-        }
-    }
-
-    // Role-tailored realistic fallback
-    role_fallback_services(server)
+    collect(server, LIST_SERVICES, parse_systemctl_services, role_fallback_services)
 }
 
 /// Live collection of processes for the active server
 pub fn collect_processes_for_server(server: &ServerRecord) -> Vec<ProcessUnit> {
-    if is_localhost_server(server) {
-        let out = Command::new("ps")
-            .args(["-eo", "pid,user,%cpu,%mem,rss,stat,time,comm", "--sort=-%cpu"])
-            .output();
-
-        if let Ok(output) = out {
-            let s = String::from_utf8_lossy(&output.stdout);
-            let procs = parse_ps_processes(&s);
-            if !procs.is_empty() {
-                return procs;
-            }
-        }
-    }
-
-    // Container fallback via podman/docker exec
-    for engine_bin in &["podman", "docker"] {
-        let out = Command::new(engine_bin)
-            .args(["exec", &server.name, "ps", "-eo", "pid,user,%cpu,%mem,rss,stat,time,comm", "--sort=-%cpu"])
-            .output();
-        if let Ok(output) = out {
-            if output.status.success() {
-                let s = String::from_utf8_lossy(&output.stdout);
-                let procs = parse_ps_processes(&s);
-                if !procs.is_empty() {
-                    return procs;
-                }
-            }
-        }
-    }
-
-    // Role-tailored realistic fallback
-    role_fallback_processes(server)
+    collect(server, LIST_PROCESSES, parse_ps_processes, role_fallback_processes)
 }
 
 /// Live collection of network sockets for the active server
 pub fn collect_sockets_for_server(server: &ServerRecord) -> Vec<SocketUnit> {
-    if is_localhost_server(server) {
-        let out = Command::new("ss")
-            .args(["-tulpn"])
-            .output();
-
-        if let Ok(output) = out {
-            let s = String::from_utf8_lossy(&output.stdout);
-            let sockets = parse_ss_sockets(&s);
-            if !sockets.is_empty() {
-                return sockets;
-            }
-        }
-    }
-
-    // Container fallback via podman/docker exec
-    for engine_bin in &["podman", "docker"] {
-        let out = Command::new(engine_bin)
-            .args(["exec", &server.name, "ss", "-tulnp"])
-            .output();
-        if let Ok(output) = out {
-            if output.status.success() {
-                let s = String::from_utf8_lossy(&output.stdout);
-                let sockets = parse_ss_sockets(&s);
-                if !sockets.is_empty() {
-                    return sockets;
-                }
-            }
-        }
-    }
-
-    // Role-tailored realistic fallback
-    role_fallback_sockets(server)
+    collect(server, LIST_SOCKETS, parse_ss_sockets, role_fallback_sockets)
 }
 
 /// Runs a systemctl lifecycle action (start/stop/restart/reload) against a unit
 pub fn systemctl_service_action(server: &ServerRecord, unit: &str, action: &str) -> Result<String, String> {
-    if is_localhost_server(server) {
-        let out = Command::new("systemctl")
-            .args([action, unit])
-            .output()
-            .map_err(|e| e.to_string())?;
-        if out.status.success() {
-            return Ok(format!("{} unit {}", action, unit));
-        } else {
-            return Err(String::from_utf8_lossy(&out.stderr).to_string());
-        }
-    }
-
-    // Try container
-    for engine_bin in &["podman", "docker"] {
-        let out = Command::new(engine_bin)
-            .args(["exec", &server.name, "systemctl", action, unit])
-            .output();
-        if let Ok(output) = out {
-            if output.status.success() {
-                return Ok(format!("{} unit {} in {}", action, unit, server.name));
-            }
-        }
-    }
-
-    Ok(format!("Simulated {} signal sent to {}", action, unit))
+    let host = host_for(server).ok_or_else(|| not_connected(server).to_string())?;
+    host.exec(&["systemctl", action, unit], DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;
+    Ok(format!("{} unit {} on {}", action, unit, host.label()))
 }
 
 /// Kills or signals a process
 pub fn terminate_process(server: &ServerRecord, pid: u32, signal: i32) -> Result<String, String> {
-    if is_localhost_server(server) {
-        let out = Command::new("kill")
-            .args([&format!("-{}", signal), &pid.to_string()])
-            .output()
-            .map_err(|e| e.to_string())?;
-        if out.status.success() {
-            return Ok(format!("Sent signal {} to PID {}", signal, pid));
-        } else {
-            return Err(String::from_utf8_lossy(&out.stderr).to_string());
-        }
-    }
-
-    for engine_bin in &["podman", "docker"] {
-        let out = Command::new(engine_bin)
-            .args(["exec", &server.name, "kill", &format!("-{}", signal), &pid.to_string()])
-            .output();
-        if let Ok(output) = out {
-            if output.status.success() {
-                return Ok(format!("Terminated PID {} in {}", pid, server.name));
-            }
-        }
-    }
-
-    Ok(format!("Simulated termination of PID {}", pid))
+    let host = host_for(server).ok_or_else(|| not_connected(server).to_string())?;
+    host.exec(&["kill", &format!("-{}", signal), &pid.to_string()], DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;
+    Ok(format!("Sent signal {} to PID {} on {}", signal, pid, host.label()))
 }
 
 // ---------------------------------------------------------------------------
