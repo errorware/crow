@@ -184,6 +184,8 @@ impl FirewallOperationalState {
 }
 
 /// Generates baseline seeded UFW rules for an active production Linux node
+/// A representative ufw ruleset, for tests.
+#[cfg(test)]
 pub fn default_ufw_rules() -> Vec<FirewallRule> {
     vec![
         FirewallRule {
@@ -262,6 +264,8 @@ pub fn default_ufw_rules() -> Vec<FirewallRule> {
 }
 
 /// Baseline active firewall state for servers
+/// An active ufw with `default_ufw_rules`, for tests.
+#[cfg(test)]
 pub fn default_active_ufw_state() -> FirewallOperationalState {
     let rules = default_ufw_rules();
     FirewallOperationalState::Active(FirewallStatusSummary {

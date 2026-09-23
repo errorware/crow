@@ -150,28 +150,6 @@ pub fn scan_local_test_nodes(enrolled_servers: &[ServerRecord]) -> Vec<LocalTest
         }
     }
 
-    // If no nodes were found or podman not running, fallback to fallback/simulation
-    if nodes.is_empty() {
-        nodes.push(LocalTestNode {
-            id: "completo-node-1".into(),
-            name: "completo-node-1".into(),
-            engine: LocalLabEngine::Podman,
-            image: "localhost/completo-test-node:latest".into(),
-            state: "running".into(),
-            ssh_port: Some(2222),
-            is_enrolled: enrolled_servers.iter().any(|s| s.name == "completo-node-1" || (s.host == "127.0.0.1" && s.port == 2222)),
-        });
-        nodes.push(LocalTestNode {
-            id: "rails".into(),
-            name: "rails".into(),
-            engine: LocalLabEngine::Distrobox,
-            image: "docker.io/library/ubuntu:22.04".into(),
-            state: "stopped".into(),
-            ssh_port: None,
-            is_enrolled: enrolled_servers.iter().any(|s| s.name == "rails"),
-        });
-    }
-
     nodes
 }
 

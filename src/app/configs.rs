@@ -20,7 +20,7 @@ use crate::views::config::text_editor::{highlighter_factory, CONFIG_LANGUAGE};
 use std::sync::Arc;
 
 use crate::config::{crawl_configs, load_config_file_state};
-use crate::host::{host_for, not_connected, Host, LocalHost};
+use crate::host::{host_for, Host, LocalHost};
 use crate::os_detect::{classify_distro_family, detect_os_release, DistroFamily};
 use crate::vault::ServerRecord;
 use crate::views::config::state::ConfigsState;
@@ -63,20 +63,15 @@ const READ_ONLY_FILES: &[(&str, &str)] = &[(
 )];
 
 /// Discovers and loads config files from `server` (this machine when there are
-/// no servers), seeds the structured editors' files from their models, and
-/// blocks writes wherever the content isn't the host's real file.
+/// no servers) and blocks writes wherever the content isn't the host's real file.
 pub fn load_configs(server: Option<&ServerRecord>, firewall: &FirewallOperationalState) -> ConfigsState {
-    let host: Option<Arc<dyn Host>> = match server {
+    let host: Arc<dyn Host> = match server {
         Some(srv) => host_for(srv),
-        None => Some(Arc::new(LocalHost)),
+        None => Arc::new(LocalHost),
     };
-    let family = match (&host, server) {
-        (Some(h), _) => detect_os_release(h.as_ref()).map(|d| classify_distro_family(&d)).unwrap_or(DistroFamily::Unknown),
-        (None, Some(srv)) => classify_distro_family(&srv.os_distro),
-        (None, None) => DistroFamily::Unknown,
-    };
-    let files = crawl_configs(host.as_deref(), family);
-    let states = files.iter().map(|f| (f.name.clone(), load_config_file_state(host.as_deref(), f))).collect();
+    let family = detect_os_release(host.as_ref()).map(|d| classify_distro_family(&d)).unwrap_or(DistroFamily::Unknown);
+    let files = crawl_configs(host.as_ref(), family);
+    let states = files.iter().map(|f| (f.name.clone(), load_config_file_state(host.as_ref(), f))).collect();
     let selected = files.first().map(|f| f.name.clone()).unwrap_or_else(|| "journald.conf".to_string());
 
     let mut configs = ConfigsState::new(files, states, selected);
@@ -432,7 +427,7 @@ impl CrowApp {
     fn write_config_file(&self, file: &str) -> Result<(), String> {
         let state = self.configs.states.get(file).ok_or_else(|| format!("{file} is not loaded"))?;
         let host: Arc<dyn Host> = match self.configs_server() {
-            Some(srv) => host_for(&srv).ok_or_else(|| not_connected(&srv).to_string())?,
+            Some(srv) => host_for(&srv),
             None => Arc::new(LocalHost),
         };
         if state.write_blocked.is_none() {

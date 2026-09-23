@@ -12,13 +12,11 @@ impl CrowApp {
     pub fn load_file_listing(&mut self, cx: &mut Context<Self>) {
         if let Some(srv) = self.fleet.active_server() {
             match list_directory_for_server(&srv, &self.files.current_path) {
-                Ok((entries, is_sim)) => {
+                Ok(entries) => {
                     self.files.entries = entries;
-                    self.files.is_simulated = is_sim;
                 }
                 Err(e) => {
                     self.files.entries.clear();
-                    self.files.is_simulated = false;
                     self.files.error = Some(e);
                 }
             }

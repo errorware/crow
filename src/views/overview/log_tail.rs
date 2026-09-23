@@ -202,12 +202,7 @@ pub fn log_tail(
                 .child(
                     div()
                         .text_color(OK)
-                        .child("root@edge-01"),
-                )
-                .child(
-                    div()
-                        .text_color(TEXT_FAINTER)
-                        .child(":~#"),
+                        .child("▸"),
                 )
                 .child(
                     div()
@@ -271,7 +266,7 @@ pub fn socket_log_drawer(
         .iter()
         .find(|s| s.id == fleet.active_tab_id || s.name == fleet.active_tab_id)
         .map(|s| s.name.clone())
-        .unwrap_or_else(|| "edge-01".to_string());
+        .unwrap_or_else(|| "this server".to_string());
 
     div()
         .id("socket-log-drawer")

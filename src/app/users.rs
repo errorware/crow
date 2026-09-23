@@ -12,7 +12,7 @@ use crate::views::users::{SystemUserRecord, UserSshKeySummary};
 // ==========================================
 
 fn load(srv: &ServerRecord) -> Result<Vec<SystemUserRecord>, String> {
-    let host = host_for(srv).ok_or("no transport to this server")?;
+    let host = host_for(srv);
     read_users(host.as_ref())
 }
 

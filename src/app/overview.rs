@@ -78,8 +78,8 @@ impl CrowApp {
         cx.notify();
     }
 
-    /// Live sidebar badges, from data Crow actually has. Views whose data is
-    /// still a sample model (users, cron) or that have no page yet get none.
+    /// Live sidebar badges, from data Crow actually has. Views without a
+    /// meaningful count get none.
     pub fn nav_badges(&self) -> NavBadges {
         let mut badges = NavBadges::new();
         let services = summarize_services(&self.overview.services);

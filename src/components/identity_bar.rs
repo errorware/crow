@@ -297,3 +297,36 @@ pub fn identity_bar(server: Option<&ServerRecord>, app: Entity<CrowApp>) -> impl
                 ),
         )
 }
+
+/// A strip under the identity bar while an SSH server can't be reached, so
+/// empty pages read as "Crow couldn't read this", not "the server has nothing".
+pub fn connection_banner(server: Option<&ServerRecord>) -> Option<Div> {
+    let s = server?;
+    if transport_kind(s) != TransportKind::Ssh {
+        return None;
+    }
+    let state = connection_state(&s.id)?;
+    if state == ConnectionState::Connected {
+        return None;
+    }
+    let detail = state.detail().unwrap_or_default().to_string();
+    Some(
+        div()
+            .w_full()
+            .px(px(16.0))
+            .py(px(6.0))
+            .bg(hex_rgb(0x1f0d0d))
+            .border_b_1()
+            .border_color(CRIT)
+            .flex()
+            .items_center()
+            .gap(px(8.0))
+            .font_family(FONT_MONO)
+            .text_size(px(11.0))
+            .child(div().text_color(CRIT).font_weight(FontWeight::BOLD).child(format!("✕ {}", state.label())))
+            .child(div().text_color(TEXT_PRIMARY).child(format!(
+                "Crow can't read {} right now — pages below show nothing until the connection works. {}",
+                s.name, detail
+            ))),
+    )
+}

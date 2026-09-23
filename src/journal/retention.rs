@@ -134,13 +134,9 @@ impl JournalTelemetry {
     }
 }
 
-/// Journal retention settings and telemetry for a server, read over its
-/// transport; simulated only for servers Crow cannot reach yet.
+/// Journal retention settings and telemetry for a server, read over its transport.
 pub fn read_retention_for_server(server: &ServerRecord) -> (JournalRetentionConfig, JournalTelemetry) {
-    match host_for(server) {
-        Some(host) => read_retention(host.as_ref()),
-        None => read_simulated_retention(&server.host),
-    }
+    read_retention(host_for(server).as_ref())
 }
 
 /// Queries a host's systemd journal disk usage and storage mode.
@@ -167,49 +163,6 @@ pub fn read_retention(host: &dyn Host) -> (JournalRetentionConfig, JournalTeleme
     // 3. Calculate estimated retention days given daily burn
     telemetry.daily_burn_rate_mb = 64.0;
     telemetry.estimated_retained_days = config.system_max_use_mb as f32 / telemetry.daily_burn_rate_mb.max(1.0);
-
-    (config, telemetry)
-}
-
-/// Simulated retention telemetry for demo/remote servers
-pub fn read_simulated_retention(endpoint: &str) -> (JournalRetentionConfig, JournalTelemetry) {
-    let mut config = JournalRetentionConfig::default();
-    let mut telemetry = JournalTelemetry::default();
-
-    if endpoint.contains("db") || endpoint.contains("postgres") {
-        config.system_max_use_mb = 8192; // 8 GB for high-traffic DB
-        config.max_retention_days = 90;
-        config.storage = JournalStorageMode::Persistent;
-        telemetry.disk_usage_bytes = 1_840_000_000; // ~1.8 GB
-        telemetry.oldest_timestamp = "18 days ago".to_string();
-        telemetry.retention_horizon_hours = 432.0;
-        telemetry.daily_burn_rate_mb = 102.0;
-        telemetry.estimated_retained_days = 80.3;
-        telemetry.is_volatile_warning = false;
-        telemetry.active_files_count = 14;
-    } else if endpoint.contains("staging") || endpoint.contains("dev") {
-        config.system_max_use_mb = 1024;
-        config.max_retention_days = 7;
-        config.storage = JournalStorageMode::Volatile; // Volatile danger demo!
-        telemetry.disk_usage_bytes = 180_000_000;
-        telemetry.oldest_timestamp = "6 hours ago".to_string();
-        telemetry.retention_horizon_hours = 6.0;
-        telemetry.daily_burn_rate_mb = 720.0;
-        telemetry.estimated_retained_days = 1.4;
-        telemetry.is_volatile_warning = true; // Danger!
-        telemetry.active_files_count = 3;
-    } else {
-        config.system_max_use_mb = 4096;
-        config.max_retention_days = 30;
-        config.storage = JournalStorageMode::Persistent;
-        telemetry.disk_usage_bytes = 420_000_000;
-        telemetry.oldest_timestamp = "5 days ago".to_string();
-        telemetry.retention_horizon_hours = 120.0;
-        telemetry.daily_burn_rate_mb = 84.0;
-        telemetry.estimated_retained_days = 48.7;
-        telemetry.is_volatile_warning = false;
-        telemetry.active_files_count = 7;
-    }
 
     (config, telemetry)
 }

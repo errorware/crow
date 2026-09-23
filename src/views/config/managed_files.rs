@@ -309,23 +309,6 @@ pub fn managed_files_rail(selected_file: &str, caret: &TextCaret, _fleet: &Fleet
                                         .flex_none()
                                         .child(pill_text),
                                 )
-                                .children(if f.is_synthetic {
-                                    Some(
-                                        div()
-                                            .bg(hex_rgba(0xfbbf24, 0.15))
-                                            .text_color(WARN)
-                                            .font_family(FONT_MONO)
-                                            .text_size(px(8.5))
-                                            .font_weight(FontWeight::BOLD)
-                                            .px(px(4.0))
-                                            .py(px(1.5))
-                                            .rounded_sm()
-                                            .flex_none()
-                                            .child("SIM"),
-                                    )
-                                } else {
-                                    None
-                                }),
                         )
                         .child(
                             div()
@@ -451,23 +434,6 @@ pub fn managed_files_rail(selected_file: &str, caret: &TextCaret, _fleet: &Fleet
                                         .flex_none()
                                         .child(pill_text),
                                 )
-                                .children(if f.is_synthetic {
-                                    Some(
-                                        div()
-                                            .bg(hex_rgba(0xfbbf24, 0.15))
-                                            .text_color(WARN)
-                                            .font_family(FONT_MONO)
-                                            .text_size(px(8.5))
-                                            .font_weight(FontWeight::BOLD)
-                                            .px(px(4.0))
-                                            .py(px(1.0))
-                                            .rounded_sm()
-                                            .flex_none()
-                                            .child("SIM"),
-                                    )
-                                } else {
-                                    None
-                                }),
                         )
                         .child(
                             div()

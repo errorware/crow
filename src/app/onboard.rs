@@ -4,9 +4,12 @@ use super::{CrowApp, Screen};
 use crate::components::titlebar::ServerTab;
 use crate::theme::{CRIT, OK, TEXT_FAINTER, WARN};
 use crate::vault::ServerRecord;
+use crate::host::host_for;
 use crate::views::onboard::{
-    append_to_known_hosts,
+    gather_facts,
     probe_host,
+    trust_host_keys,
+    DetectedFacts,
     OnboardFieldFocus,
     OnboardState,
     OnboardStep,
@@ -170,40 +173,95 @@ impl CrowApp {
         }
     }
 
-    pub fn onboard_run_probe(&mut self, cx: &mut Context<Self>) {
-        let host = self.onboard_state.host.trim().to_string();
-        let port = self.onboard_state.port.trim().parse::<u16>().unwrap_or(22);
-        let key_name = if let Some(ref kid) = self.onboard_state.selected_key_id {
-            self.keys.enrolled.iter().find(|k| &k.id == kid).map(|k| k.name.as_str()).unwrap_or("ssh-key")
-        } else {
-            "ssh-agent"
-        };
-        let role = self.onboard_state.role.clone();
-
-        let (result, logs, facts) = probe_host(&host, port, key_name, &role);
-
-        self.onboard_state.host_key_accepted = result.is_known_host;
-        self.onboard_state.probe_result = Some(result);
-        self.onboard_state.probe_logs = logs;
-        self.onboard_state.facts = facts;
-        self.onboard_state.is_probing = false;
-        cx.notify();
+    /// The server being enrolled, as a record its transport can be built from.
+    fn onboard_candidate(&self) -> ServerRecord {
+        let o = &self.onboard_state;
+        ServerRecord {
+            id: "onboarding".into(),
+            name: o.host.trim().to_string(),
+            host: o.host.trim().to_string(),
+            port: o.port.trim().parse::<u16>().unwrap_or(22),
+            login_user: o.user.trim().to_string(),
+            auth_method: o.auth_method.clone(),
+            key_id: o.selected_key_id.clone(),
+            jump_host_id: o.jump_host_id.clone(),
+            ..ServerRecord::default()
+        }
     }
 
+    /// Probes the address off the UI thread: TCP, banner, real host keys.
+    /// When the key is already trusted, reads the server's facts too.
+    pub fn onboard_run_probe(&mut self, cx: &mut Context<Self>) {
+        let candidate = self.onboard_candidate();
+        self.onboard_state.is_probing = true;
+        self.onboard_state.probe_result = None;
+        self.onboard_state.probe_logs.clear();
+        self.onboard_state.facts = DetectedFacts::default();
+        cx.notify();
+        cx.spawn(async move |entity, cx| {
+            let (result, mut logs, facts) = cx
+                .background_executor()
+                .spawn(async move {
+                    let (result, mut logs) = probe_host(&candidate.host, candidate.port);
+                    let facts = if result.is_known_host {
+                        let (facts, fact_logs) = gather_facts(host_for(&candidate).as_ref());
+                        logs.extend(fact_logs);
+                        facts
+                    } else {
+                        DetectedFacts::default()
+                    };
+                    (result, logs, facts)
+                })
+                .await;
+            let _ = entity.update(cx, |this, cx| {
+                this.onboard_state.host_key_accepted = result.is_known_host;
+                this.onboard_state.probe_result = Some(result);
+                this.onboard_state.probe_logs.append(&mut logs);
+                this.onboard_state.facts = facts;
+                this.onboard_state.is_probing = false;
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Trusts exactly the host keys the server presented during the probe,
+    /// then reads its facts over SSH. Refused when known_hosts already holds
+    /// a different key for this host.
     pub fn onboard_accept_host_key(&mut self, cx: &mut Context<Self>) {
-        let host = self.onboard_state.host.trim();
-        let port = self.onboard_state.port.trim().parse::<u16>().unwrap_or(22);
-        let _ = append_to_known_hosts(
-            host,
-            port,
-            "ssh-ed25519",
-            "AAAAC3NzaC1lZDI1NTE5AAAAIC0pReYk4+8qV2wz7nN8d89gC19P2Q3L5v9a7BcD1E8F",
-        );
+        let Some(result) = self.onboard_state.probe_result.as_ref() else { return };
+        if result.host_key_mismatch {
+            self.onboard_state.error_message = Some("The host key changed. Remove the old entry from ~/.ssh/known_hosts yourself if the change is expected.".into());
+            cx.notify();
+            return;
+        }
+        if result.scanned_keys.is_empty() {
+            self.onboard_state.error_message = Some("No host key was fetched from the server; probe it again.".into());
+            cx.notify();
+            return;
+        }
+        if let Err(e) = trust_host_keys(&result.scanned_keys) {
+            self.onboard_state.error_message = Some(format!("Couldn't write ~/.ssh/known_hosts: {e}"));
+            cx.notify();
+            return;
+        }
         self.onboard_state.host_key_accepted = true;
-        if let Some(ref mut res) = self.onboard_state.probe_result {
+        if let Some(res) = self.onboard_state.probe_result.as_mut() {
             res.is_known_host = true;
         }
+        let candidate = self.onboard_candidate();
+        self.onboard_state.is_probing = true;
         cx.notify();
+        cx.spawn(async move |entity, cx| {
+            let (facts, mut logs) = cx.background_executor().spawn(async move { gather_facts(host_for(&candidate).as_ref()) }).await;
+            let _ = entity.update(cx, |this, cx| {
+                this.onboard_state.probe_logs.append(&mut logs);
+                this.onboard_state.facts = facts;
+                this.onboard_state.is_probing = false;
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     pub fn submit_server_enrollment(&mut self, cx: &mut Context<Self>) {
@@ -247,7 +305,7 @@ impl CrowApp {
             memory_total: self.onboard_state.facts.memory.clone(),
             disk_total: self.onboard_state.facts.disk.clone(),
             agent_installed: self.onboard_state.install_agent,
-            agent_version: if self.onboard_state.install_agent { Some("0.9.4".into()) } else { None },
+            agent_version: None,
             status: status.clone(),
             created_at: now.clone(),
             last_seen_at: Some(now),

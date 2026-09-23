@@ -137,7 +137,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, app: Enti
                                     .font_family("JetBrains Mono")
                                     .text_size(px(10.0))
                                     .text_color(TEXT_FAINT)
-                                    .child("agent v0.9.4-beta"),
+                                    .child(concat!("crow v", env!("CARGO_PKG_VERSION"))),
                             )
                             .child(
                                 div()
@@ -156,7 +156,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, app: Enti
                                             .font_family("JetBrains Mono")
                                             .text_size(px(10.0))
                                             .text_color(TEXT_DIM)
-                                            .child("telemetry 1s"),
+                                            .child("agentless · ssh"),
                                     ),
                             )
                     )

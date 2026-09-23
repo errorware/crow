@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::path::Path;
 use chrono::TimeZone;
-use crate::host::{host_for, not_connected, Host, HostError};
+use crate::host::{host_for, Host, HostError};
 use crate::vault::ServerRecord;
 use super::models::FileEntry;
 
@@ -32,14 +32,9 @@ fn parse_id_map(content: &str) -> HashMap<u32, String> {
         .collect()
 }
 
-/// Lists a directory. Returns the entries and whether the listing is
-/// simulated — servers Crow has no transport to yet get a clearly labeled
-/// simulated listing rather than a silent guess.
-pub fn list_directory_for_server(server: &ServerRecord, path: &str) -> Result<(Vec<FileEntry>, bool), String> {
-    match host_for(server) {
-        Some(host) => list_directory(host.as_ref(), path).map(|entries| (entries, false)).map_err(|e| e.to_string()),
-        None => Ok((simulated_directory(path), true)),
-    }
+/// Lists a directory on the server.
+pub fn list_directory_for_server(server: &ServerRecord, path: &str) -> Result<Vec<FileEntry>, String> {
+    list_directory(host_for(server).as_ref(), path).map_err(|e| e.to_string())
 }
 
 /// Lists `path` on `host`, directories first, resolving owners through the
@@ -75,60 +70,11 @@ pub fn list_directory(host: &dyn Host, path: &str) -> Result<Vec<FileEntry>, Hos
     Ok(out)
 }
 
-fn seed(name: &str, is_dir: bool, size: u64, mode: &str, owner: &str) -> FileEntry {
-    FileEntry {
-        name: name.to_string(),
-        is_dir,
-        is_symlink: false,
-        size_bytes: size,
-        mode_str: mode.to_string(),
-        owner: owner.to_string(),
-        group: owner.to_string(),
-        modified: "2026-09-01 00:00".to_string(),
-    }
-}
-
-/// A plausible-but-fake root-filesystem shape for hosts Crow can't actually
-/// reach yet — never presented as anything other than simulated by the UI.
-fn simulated_directory(path: &str) -> Vec<FileEntry> {
-    match path {
-        "/" => vec![
-            seed("bin", true, 0, "drwxr-xr-x", "root"),
-            seed("boot", true, 0, "drwxr-xr-x", "root"),
-            seed("etc", true, 0, "drwxr-xr-x", "root"),
-            seed("home", true, 0, "drwxr-xr-x", "root"),
-            seed("lib", true, 0, "drwxr-xr-x", "root"),
-            seed("root", true, 0, "drwx------", "root"),
-            seed("srv", true, 0, "drwxr-xr-x", "root"),
-            seed("tmp", true, 0, "drwxrwxrwt", "root"),
-            seed("usr", true, 0, "drwxr-xr-x", "root"),
-            seed("var", true, 0, "drwxr-xr-x", "root"),
-        ],
-        "/var" => vec![
-            seed("log", true, 0, "drwxr-xr-x", "root"),
-            seed("lib", true, 0, "drwxr-xr-x", "root"),
-            seed("www", true, 0, "drwxr-xr-x", "www-data"),
-        ],
-        "/etc" => vec![
-            seed("ssh", true, 0, "drwxr-xr-x", "root"),
-            seed("systemd", true, 0, "drwxr-xr-x", "root"),
-            seed("hosts", false, 340, "-rw-r--r--", "root"),
-            seed("hostname", false, 12, "-rw-r--r--", "root"),
-        ],
-        "/home" => vec![
-            seed("operator", true, 0, "drwxr-xr-x", "operator"),
-        ],
-        _ => vec![
-            seed(".keep", false, 0, "-rw-r--r--", "root"),
-        ],
-    }
-}
-
 pub fn create_directory(server: &ServerRecord, parent: &str, name: &str) -> Result<(), String> {
     if name.trim().is_empty() || name.contains('/') {
         return Err("Invalid folder name".to_string());
     }
-    let host = host_for(server).ok_or_else(|| not_connected(server).to_string())?;
+    let host = host_for(server);
     host.create_dir(&join_path(parent, name)).map_err(|e| e.to_string())
 }
 
@@ -136,7 +82,7 @@ pub fn create_directory(server: &ServerRecord, parent: &str, name: &str) -> Resu
 /// non-empty directory rather than recursing, mirroring how a real FTP
 /// server's RMD behaves. No recursive delete exists in this tool.
 pub fn delete_entry(server: &ServerRecord, parent: &str, name: &str, is_dir: bool) -> Result<(), String> {
-    let host = host_for(server).ok_or_else(|| not_connected(server).to_string())?;
+    let host = host_for(server);
     host.remove(&join_path(parent, name), is_dir).map_err(|e| e.to_string())
 }
 

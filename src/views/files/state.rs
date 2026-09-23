@@ -7,7 +7,6 @@ use super::models::FileEntry;
 pub struct FilesState {
     pub current_path: String,
     pub entries: Vec<FileEntry>,
-    pub is_simulated: bool,
     pub error: Option<String>,
     pub pending_delete: Option<String>,
     pub new_folder_open: bool,
@@ -19,7 +18,6 @@ impl Default for FilesState {
         Self {
             current_path: "/".to_string(),
             entries: Vec::new(),
-            is_simulated: false,
             error: None,
             pending_delete: None,
             new_folder_open: false,

@@ -1,17 +1,13 @@
 use crate::host::{host_for, Host, DEFAULT_TIMEOUT};
 use crate::vault::ServerRecord;
 use super::models::{
-    default_active_ufw_state, default_ufw_rules, FirewallBackend, FirewallOperationalState,
+    FirewallBackend, FirewallOperationalState,
     FirewallRule, FirewallStatusSummary, RuleAction, RuleDirection, RuleProtocol,
 };
 
 /// Detects the firewall backend and operational status on a server.
 pub fn detect_firewall_status(server: &ServerRecord) -> FirewallOperationalState {
-    match host_for(server) {
-        Some(host) => detect_firewall(host.as_ref()),
-        // No transport yet: infer from the server's probed facts.
-        None => detect_remote_firewall(server),
-    }
+    detect_firewall(host_for(server).as_ref())
 }
 
 /// Firewall tools present on a host, found in one round trip. sbin is added
@@ -42,7 +38,17 @@ pub fn detect_firewall(host: &dyn Host) -> FirewallOperationalState {
     if has("ufw") {
         return match host.exec_privileged(&["ufw", "status", "numbered"], &[], DEFAULT_TIMEOUT) {
             Ok(out) if out.stdout.contains("Status: active") => match parse_ufw_status(&out.stdout) {
-                Some(summary) => FirewallOperationalState::Active(summary),
+                Some(mut summary) => {
+                    // `status numbered` has the rules; `status verbose` has the default policies.
+                    if let Ok(verbose) = host.exec_privileged(&["ufw", "status", "verbose"], &[], DEFAULT_TIMEOUT) {
+                        if let Some((incoming, outgoing, routed)) = parse_ufw_defaults(&verbose.stdout) {
+                            summary.default_incoming = incoming;
+                            summary.default_outgoing = outgoing;
+                            summary.default_forward = routed;
+                        }
+                    }
+                    FirewallOperationalState::Active(summary)
+                }
                 None => FirewallOperationalState::Unmanaged {
                     detected_binaries,
                     reason: "ufw is active but its status output could not be parsed.".into(),
@@ -73,25 +79,6 @@ pub fn detect_firewall(host: &dyn Host) -> FirewallOperationalState {
     FirewallOperationalState::Unmanaged { detected_binaries, reason: reason.into() }
 }
 
-/// Fallback detection for remote servers based on facts
-fn detect_remote_firewall(server: &ServerRecord) -> FirewallOperationalState {
-    if server.os_distro.to_lowercase().contains("ubuntu") || server.os_distro.to_lowercase().contains("debian") {
-        default_active_ufw_state()
-    } else if server.os_distro.to_lowercase().contains("fedora") || server.os_distro.to_lowercase().contains("rhel") || server.os_distro.to_lowercase().contains("rocky") {
-        FirewallOperationalState::Active(FirewallStatusSummary {
-            backend: FirewallBackend::Firewalld,
-            is_active: true,
-            default_incoming: RuleAction::Deny,
-            default_outgoing: RuleAction::Allow,
-            default_forward: RuleAction::Deny,
-            rules: default_ufw_rules(),
-            raw_output: "firewalld public zone active".into(),
-        })
-    } else {
-        default_active_ufw_state()
-    }
-}
-
 /// Parses the output of `ufw status numbered`
 pub fn parse_ufw_status(stdout: &str) -> Option<FirewallStatusSummary> {
     let is_active = stdout.contains("Status: active");
@@ -116,10 +103,6 @@ pub fn parse_ufw_status(stdout: &str) -> Option<FirewallStatusSummary> {
         }
     }
 
-    if rules.is_empty() {
-        rules = default_ufw_rules();
-    }
-
     Some(FirewallStatusSummary {
         backend: FirewallBackend::Ufw,
         is_active: true,
@@ -129,6 +112,21 @@ pub fn parse_ufw_status(stdout: &str) -> Option<FirewallStatusSummary> {
         rules,
         raw_output: stdout.to_string(),
     })
+}
+
+/// Reads `Default: deny (incoming), allow (outgoing), disabled (routed)` from
+/// `ufw status verbose`. "disabled" routing is treated as deny.
+pub fn parse_ufw_defaults(verbose: &str) -> Option<(RuleAction, RuleAction, RuleAction)> {
+    let line = verbose.lines().find_map(|l| l.trim().strip_prefix("Default:"))?;
+    let policy = |dir: &str| -> Option<RuleAction> {
+        let part = line.split(',').find(|p| p.contains(&format!("({dir})")))?;
+        Some(match part.trim().split_whitespace().next()? {
+            "allow" => RuleAction::Allow,
+            "reject" => RuleAction::Reject,
+            _ => RuleAction::Deny,
+        })
+    };
+    Some((policy("incoming")?, policy("outgoing")?, policy("routed").unwrap_or(RuleAction::Deny)))
 }
 
 /// Parses a single UFW line formatted like:
@@ -212,6 +210,14 @@ pub fn parse_ufw_rule_line(line: &str) -> Option<FirewallRule> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn empty_active_ufw_has_no_rules_and_real_defaults() {
+        let summary = parse_ufw_status("Status: active\n").unwrap();
+        assert!(summary.rules.is_empty(), "no stand-in rules");
+        let verbose = "Status: active\nLogging: on (low)\nDefault: reject (incoming), allow (outgoing), disabled (routed)\n";
+        assert_eq!(parse_ufw_defaults(verbose), Some((RuleAction::Reject, RuleAction::Allow, RuleAction::Deny)));
+    }
 
     #[test]
     fn test_parse_ufw_rule_line() {
