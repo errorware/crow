@@ -48,7 +48,7 @@ pub fn new_user_modal(
         .justify_center()
         .on_click(move |_ev, _window, cx| {
             app_backdrop.update(cx, |this, cx| {
-                this.close_new_user_modal(cx);
+                this.users.show_new_user_modal = false; cx.notify();
             });
         })
         .child(
@@ -97,7 +97,7 @@ pub fn new_user_modal(
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
                                     app_close.update(cx, |this, cx| {
-                                        this.close_new_user_modal(cx);
+                                        this.users.show_new_user_modal = false; cx.notify();
                                     });
                                 })
                                 .child(tabler_icon(TablerIcon::X).size(px(14.0)).text_color(TEXT_MUTED)),
@@ -236,13 +236,13 @@ pub fn new_user_modal(
                                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                                 .on_click(move |_ev, _window, cx| {
                                                     app_sudo.update(cx, |this, cx| {
-                                                        this.new_user_state.grant_sudo = !current_sudo;
-                                                        if this.new_user_state.grant_sudo {
-                                                            if !this.new_user_state.selected_groups.contains(&"sudo".to_string()) {
-                                                                this.new_user_state.selected_groups.push("sudo".to_string());
+                                                        this.users.new_user.grant_sudo = !current_sudo;
+                                                        if this.users.new_user.grant_sudo {
+                                                            if !this.users.new_user.selected_groups.contains(&"sudo".to_string()) {
+                                                                this.users.new_user.selected_groups.push("sudo".to_string());
                                                             }
                                                         } else {
-                                                            this.new_user_state.selected_groups.retain(|g| g != "sudo");
+                                                            this.users.new_user.selected_groups.retain(|g| g != "sudo");
                                                         }
                                                         cx.notify();
                                                     });
@@ -301,10 +301,10 @@ pub fn new_user_modal(
                                                 .on_click(move |_ev, _window, cx| {
                                                     let g = g_name.clone();
                                                     app_grp.update(cx, |this, cx| {
-                                                        if this.new_user_state.selected_groups.contains(&g) {
-                                                            this.new_user_state.selected_groups.retain(|x| x != &g);
+                                                        if this.users.new_user.selected_groups.contains(&g) {
+                                                            this.users.new_user.selected_groups.retain(|x| x != &g);
                                                         } else {
-                                                            this.new_user_state.selected_groups.push(g);
+                                                            this.users.new_user.selected_groups.push(g);
                                                         }
                                                         cx.notify();
                                                     });
@@ -326,7 +326,7 @@ pub fn new_user_modal(
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
                                     app_home.update(cx, |this, cx| {
-                                        this.new_user_state.create_home = !current_home;
+                                        this.users.new_user.create_home = !current_home;
                                         cx.notify();
                                     });
                                 })
@@ -389,7 +389,7 @@ pub fn new_user_modal(
                                         .text_color(rgb(0x0a0a0c))
                                         .on_click(move |_ev, _window, cx| {
                                             app_submit.update(cx, |this, cx| {
-                                                this.submit_create_user(cx);
+                                                this.users.submit_create_user(); cx.notify();
                                             });
                                         })
                                         .child("PROVISION ACCOUNT"),

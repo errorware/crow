@@ -56,7 +56,7 @@ pub fn passwd_inspector(
                                 .text_color(TEXT_SECONDARY)
                                 .on_click(move |_ev, _window, cx| {
                                     app_back.update(cx, |this, cx| {
-                                        this.close_passwd_inspector(cx);
+                                        this.users.selected_for_passwd = None; cx.notify();
                                     });
                                 })
                                 .child("← RETURN TO USERS"),
@@ -229,7 +229,7 @@ pub fn passwd_inspector(
                                         .on_click(move |_ev, _window, cx| {
                                             let target = un.clone();
                                             app_sw.update(cx, |this, cx| {
-                                                this.open_passwd_inspector(&target, cx);
+                                                this.users.selected_for_passwd = Some(target.to_string()); cx.notify();
                                             });
                                         })
                                         .child(format!("{}:{}", u.username, u.uid))

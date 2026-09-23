@@ -1,12 +1,13 @@
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
+use crate::vault::SshKeyRecord;
 use crate::components::icons::{TablerIcon, tabler_icon};
 use super::models::SystemUserRecord;
 
 pub fn ssh_attach_modal(
     user: &SystemUserRecord,
-    app_data: &CrowApp,
+    enrolled_keys: &[SshKeyRecord],
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
     let app_close = app.clone();
@@ -28,7 +29,7 @@ pub fn ssh_attach_modal(
         .justify_center()
         .on_click(move |_ev, _window, cx| {
             app_backdrop.update(cx, |this, cx| {
-                this.close_ssh_attach_modal(cx);
+                this.users.selected_for_ssh = None; cx.notify();
             });
         })
         .child(
@@ -92,7 +93,7 @@ pub fn ssh_attach_modal(
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
                                     app_close.update(cx, |this, cx| {
-                                        this.close_ssh_attach_modal(cx);
+                                        this.users.selected_for_ssh = None; cx.notify();
                                     });
                                 })
                                 .child(tabler_icon(TablerIcon::X).size(px(14.0)).text_color(TEXT_MUTED)),
@@ -236,7 +237,7 @@ pub fn ssh_attach_modal(
                                                             let u = u_target.clone();
                                                             let k = kid.clone();
                                                             app_rv.update(cx, |this, cx| {
-                                                                this.revoke_ssh_key_from_user(&u, &k, cx);
+                                                                this.users.revoke_key(&u, &k); cx.notify();
                                                             });
                                                         })
                                                         .child("REVOKE"),
@@ -269,10 +270,10 @@ pub fn ssh_attach_modal(
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(9.0))
                                                 .text_color(TEXT_FAINT)
-                                                .child(format!("{} ENROLLED VAULT KEYS", app_data.enrolled_keys.len())),
+                                                .child(format!("{} ENROLLED VAULT KEYS", enrolled_keys.len())),
                                         ),
                                 )
-                                .child(if app_data.enrolled_keys.is_empty() {
+                                .child(if enrolled_keys.is_empty() {
                                     div()
                                         .p(px(12.0))
                                         .bg(hex_rgba(0xffffff, 0.02))
@@ -288,7 +289,7 @@ pub fn ssh_attach_modal(
                                         .flex()
                                         .flex_col()
                                         .gap(px(6.0))
-                                        .children(app_data.enrolled_keys.iter().map(|k| {
+                                        .children(enrolled_keys.iter().map(|k| {
                                             let is_attached = user.authorized_keys.iter().any(|ak| ak.id == k.id || ak.fingerprint == k.fingerprint);
                                             let app_at = app.clone();
                                             let u_target = user.username.clone();
@@ -405,7 +406,7 @@ pub fn ssh_attach_modal(
                                                                 added_at: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(),
                                                             };
                                                             app_at.update(cx, |this, cx| {
-                                                                this.attach_key_summary_to_user(&u, key_summary, cx);
+                                                                this.users.attach_key(&u, key_summary); cx.notify();
                                                             });
                                                         })
                                                         .child("+ ATTACH KEY")

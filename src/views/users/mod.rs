@@ -2,32 +2,36 @@ pub mod models;
 pub mod passwd_inspector;
 pub mod ssh_attach_modal;
 pub mod new_user_modal;
+pub mod state;
 
 #[allow(unused_imports)]
 pub use models::{default_system_users, SystemUserRecord, UserAccountStatus, UserFilterTab, UserSshKeySummary};
 pub use passwd_inspector::passwd_inspector;
 pub use ssh_attach_modal::ssh_attach_modal;
 pub use new_user_modal::{new_user_modal, NewUserState};
+pub use state::UsersState;
 
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
+use crate::vault::SshKeyRecord;
 use crate::components::icons::{TablerIcon, tabler_icon};
 
 pub fn user_management_view(
     app: Entity<CrowApp>,
-    app_data: &CrowApp,
+    users: &UsersState,
+    enrolled_keys: &[SshKeyRecord],
 ) -> AnyElement {
     // If user clicked to inspect /etc/passwd for a specific user
-    if let Some(target_uname) = &app_data.selected_user_for_passwd {
-        if let Some(target_user) = app_data.users.iter().find(|u| u.username == *target_uname) {
-            return passwd_inspector(target_user, &app_data.users, app.clone()).into_any_element();
+    if let Some(target_uname) = &users.selected_for_passwd {
+        if let Some(target_user) = users.users.iter().find(|u| u.username == *target_uname) {
+            return passwd_inspector(target_user, &users.users, app.clone()).into_any_element();
         }
     }
 
-    let all_users = &app_data.users;
-    let query = app_data.user_search_query.to_lowercase();
-    let filter_tab = app_data.user_filter_tab;
+    let all_users = &users.users;
+    let query = users.search_query.to_lowercase();
+    let filter_tab = users.filter_tab;
 
     let filtered_users: Vec<&SystemUserRecord> = all_users
         .iter()
@@ -60,16 +64,16 @@ pub fn user_management_view(
     let app_new = app.clone();
     let app_passwd_all = app.clone();
 
-    let ssh_modal_element = if let Some(target_uname) = &app_data.selected_user_for_ssh {
-        app_data.users.iter().find(|u| u.username == *target_uname).map(|u| {
-            ssh_attach_modal(u, app_data, app.clone()).into_any_element()
+    let ssh_modal_element = if let Some(target_uname) = &users.selected_for_ssh {
+        users.users.iter().find(|u| u.username == *target_uname).map(|u| {
+            ssh_attach_modal(u, enrolled_keys, app.clone()).into_any_element()
         })
     } else {
         None
     };
 
-    let new_user_modal_element = if app_data.show_new_user_modal {
-        Some(new_user_modal(&app_data.new_user_state, app.clone()).into_any_element())
+    let new_user_modal_element = if users.show_new_user_modal {
+        Some(new_user_modal(&users.new_user, app.clone()).into_any_element())
     } else {
         None
     };
@@ -143,7 +147,7 @@ pub fn user_management_view(
                                 .text_color(TEXT_SECONDARY)
                                 .on_click(move |_ev, _window, cx| {
                                     app_passwd_all.update(cx, |this, cx| {
-                                        this.open_passwd_inspector("nelson", cx);
+                                        this.users.selected_for_passwd = Some("nelson".to_string()); cx.notify();
                                     });
                                 })
                                 .child("INSPECT /etc/passwd"),
@@ -164,7 +168,7 @@ pub fn user_management_view(
                                 .text_color(rgb(0x0a0a0c))
                                 .on_click(move |_ev, _window, cx| {
                                     app_new.update(cx, |this, cx| {
-                                        this.open_new_user_modal(cx);
+                                        this.users.open_new_user_modal(); cx.notify();
                                     });
                                 })
                                 .child("+ NEW USER"),
@@ -214,7 +218,7 @@ pub fn user_management_view(
                                 .text_color(if is_sel { TEXT_MAX } else { TEXT_MUTED })
                                 .on_click(move |_ev, _window, cx| {
                                     app_tab.update(cx, |this, cx| {
-                                        this.set_user_filter(t, cx);
+                                        this.users.filter_tab = t; cx.notify();
                                     });
                                 })
                                 .child(format!("{} ({})", label, count))
@@ -237,14 +241,14 @@ pub fn user_management_view(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.5))
-                                .text_color(if app_data.user_search_query.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY })
-                                .child(if app_data.user_search_query.is_empty() {
+                                .text_color(if users.search_query.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY })
+                                .child(if users.search_query.is_empty() {
                                     "Filter users by name, shell, group...".to_string()
                                 } else {
-                                    app_data.user_search_query.clone()
+                                    users.search_query.clone()
                                 }),
                         )
-                        .children(if !app_data.user_search_query.is_empty() {
+                        .children(if !users.search_query.is_empty() {
                             let app_clear = app.clone();
                             Some(
                                 div()
@@ -253,7 +257,7 @@ pub fn user_management_view(
                                     .cursor_pointer()
                                     .on_click(move |_ev, _window, cx| {
                                         app_clear.update(cx, |this, cx| {
-                                            this.set_user_search("", cx);
+                                            this.users.search_query = "".to_string(); cx.notify();
                                         });
                                     })
                                     .child(tabler_icon(TablerIcon::X).size(px(10.0)).text_color(TEXT_MUTED))
@@ -301,7 +305,7 @@ pub fn user_management_view(
                 }),
         )
         // 4. Action Toast / Feedback Strip (if any)
-        .children(if let Some(msg) = &app_data.user_toast_message {
+        .children(if let Some(msg) = &users.toast {
             let app_dismiss = app.clone();
             Some(
                 div()
@@ -334,7 +338,7 @@ pub fn user_management_view(
                             .hover(|s| s.bg(BG_ROW_HOVER))
                             .on_click(move |_ev, _window, cx| {
                                 app_dismiss.update(cx, |this, cx| {
-                                    this.user_toast_message = None;
+                                    this.users.toast = None;
                                     cx.notify();
                                 });
                             })
@@ -538,7 +542,7 @@ fn render_user_card(
                                 .on_click(move |_ev, _window, cx| {
                                     let u = u_insp_target.clone();
                                     app_inspect.update(cx, |this, cx| {
-                                        this.open_passwd_inspector(&u, cx);
+                                        this.users.selected_for_passwd = Some(u.to_string()); cx.notify();
                                     });
                                 })
                                 .child("INSPECT PASSWD"),
@@ -562,7 +566,7 @@ fn render_user_card(
                                 .on_click(move |_ev, _window, cx| {
                                     let u = u_lock_target.clone();
                                     app_lock.update(cx, |this, cx| {
-                                        this.toggle_user_lock(&u, cx);
+                                        this.users.toggle_lock(&u); cx.notify();
                                     });
                                 })
                                 .child(if is_locked { "UNLOCK" } else { "LOCK" }),
@@ -579,7 +583,7 @@ fn render_user_card(
                                     .on_click(move |_ev, _window, cx| {
                                         let u = u_del_target.clone();
                                         app_del.update(cx, |this, cx| {
-                                            this.delete_user(&u, cx);
+                                            this.users.delete_user(&u); cx.notify();
                                         });
                                     })
                                     .child(tabler_icon(TablerIcon::Trash).size(px(13.0)).text_color(TEXT_MUTED))
@@ -674,7 +678,7 @@ fn render_user_card(
                                     let u = u_name.clone();
                                     let g = g_name.clone();
                                     app_grp.update(cx, |this, cx| {
-                                        this.toggle_user_group(&u, &g, cx);
+                                        this.users.toggle_group(&u, &g); cx.notify();
                                     });
                                 })
                                 .child(if is_in { format!("✓ {}", grp) } else { format!("+ {}", grp) })
@@ -719,7 +723,7 @@ fn render_user_card(
                                 .on_click(move |_ev, _window, cx| {
                                     let u = u_shell_target.clone();
                                     app_shell.update(cx, |this, cx| {
-                                        this.cycle_user_shell(&u, cx);
+                                        this.users.cycle_shell(&u); cx.notify();
                                     });
                                 })
                                 .child(format!("{} ▾", user.shell)),
@@ -772,7 +776,7 @@ fn render_user_card(
                                 .on_click(move |_ev, _window, cx| {
                                     let u = u_ssh_target.clone();
                                     app_ssh.update(cx, |this, cx| {
-                                        this.open_ssh_attach_modal(&u, cx);
+                                        this.users.selected_for_ssh = Some(u.to_string()); cx.notify();
                                     });
                                 })
                                 .child(tabler_icon(TablerIcon::Key).size(px(11.0)))
