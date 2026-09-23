@@ -109,6 +109,11 @@ pub struct ClankerEditModalState {
 
 
 
+/// The server pages that each show one overview table.
+pub fn is_table_page(view: &str) -> bool {
+    matches!(view, "services" | "processes" | "sockets")
+}
+
 pub struct CrowApp {
     focus_handle: FocusHandle,
 
@@ -345,15 +350,14 @@ impl CrowApp {
     }
 
     pub fn set_view(&mut self, view: &str, cx: &mut Context<Self>) {
-        if view == "services" {
-            self.active_view = "overview".to_string();
-            self.set_services_tab("services", cx);
-        } else if view == "processes" {
-            self.active_view = "overview".to_string();
-            self.set_services_tab("processes", cx);
-        } else if view == "sockets" {
-            self.active_view = "overview".to_string();
-            self.set_services_tab("sockets", cx);
+        if is_table_page(view) {
+            // Services / Processes / Sockets are pages of their own; the
+            // overview state remembers which table is on screen.
+            self.active_view = view.to_string();
+            self.set_services_tab(view, cx);
+        } else if view == "overview" {
+            self.active_view = view.to_string();
+            self.refresh_overview_tables(cx);
         } else if view == "cron" {
             self.active_view = "cron".to_string();
             self.configs.selected_file = "crontab".to_string();

@@ -18,6 +18,7 @@ use crate::views::fleet::{fleet_overview_view, fleet_setup_view};
 use crate::views::lock::{vault_lock_view, vault_setup_view};
 use crate::views::logs::logs_explorer_view;
 use crate::views::onboard::onboard_view;
+use crate::views::overview::dashboard::overview_dashboard;
 use crate::views::overview::log_tail::{log_tail, socket_log_drawer};
 use crate::views::overview::service_inspector::service_inspector_rail;
 use crate::views::overview::services_table::services_table;
@@ -27,6 +28,7 @@ use crate::views::users::user_management_view;
 impl Render for CrowApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         let is_overview = self.active_view == "overview";
+        let is_table_page = super::is_table_page(&self.active_view);
         let is_config = self.active_view == "config";
         let palette_open = self.palette_open;
         let menu_open = self.menu_open;
@@ -204,7 +206,7 @@ impl Render for CrowApp {
                                                         .flex()
                                                         .w_full()
                                                         // Sidebar
-                                                        .child(sidebar(&self.active_view, self.sidebar_collapsed, app_view.clone()))
+                                                        .child(sidebar(&self.active_view, self.sidebar_collapsed, &self.nav_badges(), app_view.clone()))
                                                         // Content Area (Overview or Config or other server view)
                                                         .child(
                                                             div()
@@ -213,6 +215,8 @@ impl Render for CrowApp {
                                                                 .h_full()
                                                             .flex()
                                                             .children(if is_overview {
+                                                                Some(div().size_full().flex().child(overview_dashboard(&self.overview, app_view.clone())))
+                                                            } else if is_table_page {
                                                                 Some(
                                                                     if self.overview.active_tab == "sockets" {
                                                                         div()

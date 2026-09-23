@@ -19,7 +19,7 @@ pub fn services_table(overview: &OverviewState, app: Entity<CrowApp>) -> impl In
         .flex()
         .flex_col()
         .bg(BG_APP)
-        // 1. Panel Header & Subtabs
+        // 1. Panel Header
         .child(
             div()
                 .h(px(34.0))
@@ -29,11 +29,9 @@ pub fn services_table(overview: &OverviewState, app: Entity<CrowApp>) -> impl In
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                // Subtab: SERVICES
-                .child({
-                    let app_clone = app.clone();
+                // Page title (each table is its own page in the sidebar)
+                .child(
                     div()
-                        .id("subtab-services")
                         .px(px(14.0))
                         .h_full()
                         .flex()
@@ -42,68 +40,10 @@ pub fn services_table(overview: &OverviewState, app: Entity<CrowApp>) -> impl In
                         .border_color(BORDER_PANEL)
                         .font_family(FONT_MONO)
                         .text_size(px(11.0))
-                        .cursor_pointer()
-                        .font_weight(if active_tab == "services" { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                        .text_color(if active_tab == "services" { TEXT_PRIMARY } else { TEXT_DIMMER })
-                        .bg(if active_tab == "services" { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
-                        .hover(|s| s.bg(BG_ROW_HOVER))
-                        .on_click(move |_ev, _window, cx| {
-                            app_clone.update(cx, |this, cx| {
-                                this.set_services_tab("services", cx);
-                            });
-                        })
-                        .child("SERVICES")
-                })
-                // Subtab: PROCESSES
-                .child({
-                    let app_clone = app.clone();
-                    div()
-                        .id("subtab-processes")
-                        .px(px(14.0))
-                        .h_full()
-                        .flex()
-                        .items_center()
-                        .border_r_1()
-                        .border_color(BORDER_PANEL)
-                        .font_family(FONT_MONO)
-                        .text_size(px(11.0))
-                        .cursor_pointer()
-                        .font_weight(if active_tab == "processes" { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                        .text_color(if active_tab == "processes" { TEXT_PRIMARY } else { TEXT_DIMMER })
-                        .bg(if active_tab == "processes" { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
-                        .hover(|s| s.bg(BG_ROW_HOVER))
-                        .on_click(move |_ev, _window, cx| {
-                            app_clone.update(cx, |this, cx| {
-                                this.set_services_tab("processes", cx);
-                            });
-                        })
-                        .child("PROCESSES")
-                })
-                // Subtab: SOCKETS
-                .child({
-                    let app_clone = app.clone();
-                    div()
-                        .id("subtab-sockets")
-                        .px(px(14.0))
-                        .h_full()
-                        .flex()
-                        .items_center()
-                        .border_r_1()
-                        .border_color(BORDER_PANEL)
-                        .font_family(FONT_MONO)
-                        .text_size(px(11.0))
-                        .cursor_pointer()
-                        .font_weight(if active_tab == "sockets" { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                        .text_color(if active_tab == "sockets" { TEXT_PRIMARY } else { TEXT_DIMMER })
-                        .bg(if active_tab == "sockets" { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
-                        .hover(|s| s.bg(BG_ROW_HOVER))
-                        .on_click(move |_ev, _window, cx| {
-                            app_clone.update(cx, |this, cx| {
-                                this.set_services_tab("sockets", cx);
-                            });
-                        })
-                        .child("SOCKETS")
-                })
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(TEXT_PRIMARY)
+                        .child(active_tab.to_uppercase()),
+                )
                 .child(div().flex_1())
                 // Dynamic counts cluster based on active tab
                 .child(render_counts_cluster(active_tab, services, processes, sockets))
@@ -289,7 +229,7 @@ fn render_counts_cluster(
         }
         "sockets" => {
             let total = sockets.len();
-            let listen = sockets.iter().filter(|s| s.state == "LISTEN").count();
+            let listen = sockets.iter().filter(|s| super::summary::is_listening(s)).count();
             let estab = sockets.iter().filter(|s| s.state.contains("ESTAB")).count();
 
             div()

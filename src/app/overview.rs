@@ -1,6 +1,10 @@
 use gpui_kit::*;
 
 use super::CrowApp;
+use crate::components::sidebar::NavBadges;
+use crate::theme::{CRIT, OK, TEXT_FAINT, WARN};
+use crate::views::firewall::FirewallOperationalState;
+use crate::views::overview::summary::{summarize_services, summarize_sockets};
 use crate::vault::{ChangeRecord, Vault};
 use crate::views::fleet::FleetState;
 use crate::views::overview::BlastRadiusInfo;
@@ -72,6 +76,74 @@ impl CrowApp {
             }).detach();
         }
         cx.notify();
+    }
+
+    /// Live sidebar badges, from data Crow actually has. Views whose data is
+    /// still a sample model (users, cron) or that have no page yet get none.
+    pub fn nav_badges(&self) -> NavBadges {
+        let mut badges = NavBadges::new();
+        let services = summarize_services(&self.overview.services);
+        if services.failed > 0 {
+            badges.push(("services", format!("{} FAILED", services.failed), CRIT));
+        } else if services.total > 0 {
+            badges.push(("services", services.total.to_string(), TEXT_FAINT));
+        }
+        if !self.overview.processes.is_empty() {
+            badges.push(("processes", self.overview.processes.len().to_string(), TEXT_FAINT));
+        }
+        let sockets = summarize_sockets(&self.overview.sockets);
+        if sockets.listening > 0 {
+            badges.push(("sockets", sockets.listening.to_string(), if sockets.all_interfaces > 0 { WARN } else { TEXT_FAINT }));
+        }
+        let unsaved = self.configs.states.values().filter(|st| st.is_modified()).count();
+        if unsaved > 0 {
+            badges.push(("config", unsaved.to_string(), WARN));
+        }
+        let errors = self.journal.entries.iter().filter(|e| e.priority.is_error()).count();
+        if errors > 0 {
+            badges.push(("logs", errors.to_string(), CRIT));
+        }
+        match &self.firewall.status {
+            FirewallOperationalState::Active(summary) if summary.is_active => badges.push(("firewall", "ON".into(), OK)),
+            FirewallOperationalState::Active(_) | FirewallOperationalState::Inactive { .. } => badges.push(("firewall", "OFF".into(), WARN)),
+            FirewallOperationalState::Unmanaged { .. } => {}
+        }
+        badges
+    }
+
+    /// Collects all three tables for the dashboard in the background.
+    pub fn refresh_overview_tables(&mut self, cx: &mut Context<Self>) {
+        let Some(srv) = self.fleet.active_server() else { return };
+        cx.spawn(async move |entity, cx| {
+            let (services, processes, sockets) = cx
+                .background_executor()
+                .spawn(async move {
+                    (collect_services_for_server(&srv), collect_processes_for_server(&srv), collect_sockets_for_server(&srv))
+                })
+                .await;
+            let _ = entity.update(cx, |this, cx| {
+                this.overview.services = services;
+                this.overview.processes = processes;
+                this.overview.sockets = sockets;
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    pub fn open_service_from_dashboard(&mut self, unit: &str, cx: &mut Context<Self>) {
+        self.set_view("services", cx);
+        self.focus_service(unit, cx);
+    }
+
+    pub fn open_process_from_dashboard(&mut self, pid: u32, cx: &mut Context<Self>) {
+        self.set_view("processes", cx);
+        self.focus_process(pid, cx);
+    }
+
+    pub fn open_socket_from_dashboard(&mut self, socket_id: &str, cx: &mut Context<Self>) {
+        self.set_view("sockets", cx);
+        self.focus_socket(socket_id, cx);
     }
 
     pub fn toggle_group_services(&mut self, cx: &mut Context<Self>) {

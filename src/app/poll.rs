@@ -19,16 +19,23 @@ use crate::views::overview::collector::{
 // Background polling: metrics, overview tables, journal, fleet
 // ==========================================
 
+/// Which overview tables a poll tick should collect.
+#[derive(Clone, Copy, Debug, Default)]
+pub struct OverviewTables {
+    pub services: bool,
+    pub processes: bool,
+    pub sockets: bool,
+}
+
 #[derive(Clone)]
 #[allow(dead_code)]
 pub struct BackgroundPollRequest {
     pub now_secs: u64,
     pub screen: Screen,
     pub active_view: String,
-    pub active_services_tab: String,
+    pub tables: OverviewTables,
     pub active_server: Option<ServerRecord>,
     pub prev_active_metrics: Option<ServerMetrics>,
-    pub should_poll_overview_subtab: bool,
     pub should_poll_journal: bool,
     pub journal_query: Option<JournalQuery>,
     pub should_poll_retention: bool,
@@ -70,18 +77,14 @@ pub fn run_background_poll(
         result.active_metrics = Some(updated_head);
 
         // 2. Overview subtabs (ps, ss, systemctl) executed on worker threadpool
-        if req.should_poll_overview_subtab {
-            match req.active_services_tab.as_str() {
-                "processes" => {
-                    result.processes_sample = Some(collect_processes_for_server(active_srv));
-                }
-                "sockets" => {
-                    result.sockets_sample = Some(collect_sockets_for_server(active_srv));
-                }
-                _ => {
-                    result.services_sample = Some(collect_services_for_server(active_srv));
-                }
-            }
+        if req.tables.services {
+            result.services_sample = Some(collect_services_for_server(active_srv));
+        }
+        if req.tables.processes {
+            result.processes_sample = Some(collect_processes_for_server(active_srv));
+        }
+        if req.tables.sockets {
+            result.sockets_sample = Some(collect_sockets_for_server(active_srv));
         }
 
         // 3. Journal query (only executed when actively viewing Logs or Overview)
@@ -187,10 +190,17 @@ impl CrowApp {
             self.fleet.buffered_stores.get(&srv.id).and_then(|b| b.head()).map(|h| h.metrics.clone()).or_else(|| self.fleet.metrics_store.get(&srv.id).cloned())
         });
 
-        let should_poll_overview = self.screen == Screen::Server && self.active_view == "overview";
+        // The dashboard summarizes all three tables; each table page polls its own.
+        let on_server = self.screen == Screen::Server;
+        let tables = OverviewTables {
+            services: on_server && (self.active_view == "overview" || self.active_view == "services"),
+            processes: on_server && (self.active_view == "overview" || self.active_view == "processes"),
+            sockets: on_server && (self.active_view == "overview" || self.active_view == "sockets"),
+        };
+        // The processes and sockets pages show the log tail / socket log drawer.
         let should_poll_journal = self.journal.live_tail
-            && self.screen == Screen::Server
-            && (self.active_view == "logs" || self.active_view == "overview");
+            && on_server
+            && matches!(self.active_view.as_str(), "logs" | "processes" | "sockets");
         let should_poll_retention = self.screen == Screen::Server && self.active_view == "logs";
 
         let journal_query = if should_poll_journal {
@@ -218,10 +228,9 @@ impl CrowApp {
             now_secs,
             screen: self.screen,
             active_view: self.active_view.clone(),
-            active_services_tab: self.overview.active_tab.clone(),
+            tables,
             active_server: active_srv,
             prev_active_metrics,
-            should_poll_overview_subtab: should_poll_overview,
             should_poll_journal,
             journal_query,
             should_poll_retention,

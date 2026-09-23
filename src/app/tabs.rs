@@ -4,11 +4,6 @@ use super::{CrowApp, Screen};
 use crate::components::titlebar::ServerTab;
 use crate::theme::{CRIT, OK, TEXT_FAINTER, WARN};
 use crate::vault::ServerRecord;
-use crate::views::overview::collector::{
-    collect_processes_for_server,
-    collect_services_for_server,
-    collect_sockets_for_server,
-};
 
 /// Tabs for the first few enrolled servers, colored by last known status.
 pub fn initial_tabs(servers: &[ServerRecord]) -> Vec<ServerTab> {
@@ -52,39 +47,10 @@ impl CrowApp {
             }
             self.screen = Screen::Server;
             if self.active_view == "overview" {
-                let tab_owned = self.overview.active_tab.clone();
-                let srv_clone = srv.clone();
-                cx.spawn(async move |entity, cx| {
-                    match tab_owned.as_str() {
-                        "processes" => {
-                            let procs = cx.background_executor().spawn(async move {
-                                collect_processes_for_server(&srv_clone)
-                            }).await;
-                            let _ = entity.update(cx, |this, cx| {
-                                this.overview.processes = procs;
-                                cx.notify();
-                            });
-                        }
-                        "sockets" => {
-                            let socks = cx.background_executor().spawn(async move {
-                                collect_sockets_for_server(&srv_clone)
-                            }).await;
-                            let _ = entity.update(cx, |this, cx| {
-                                this.overview.sockets = socks;
-                                cx.notify();
-                            });
-                        }
-                        _ => {
-                            let svcs = cx.background_executor().spawn(async move {
-                                collect_services_for_server(&srv_clone)
-                            }).await;
-                            let _ = entity.update(cx, |this, cx| {
-                                this.overview.services = svcs;
-                                cx.notify();
-                            });
-                        }
-                    }
-                }).detach();
+                self.refresh_overview_tables(cx);
+            } else if super::is_table_page(&self.active_view) {
+                let page = self.active_view.clone();
+                self.set_services_tab(&page, cx);
             } else if self.active_view == "files" {
                 self.files.current_path = "/".to_string();
                 self.files.pending_delete = None;

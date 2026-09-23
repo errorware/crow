@@ -7,28 +7,32 @@ use crate::components::icons::{TablerIcon, tabler_icon};
 pub struct NavItemDef {
     pub icon: TablerIcon,
     pub label: &'static str,
-    pub badge: &'static str,
     pub view_id: Option<&'static str>,
-    pub badge_color: Option<Rgba>,
+    /// Fixed text shown instead of a live badge (e.g. a shortcut hint).
+    pub hint: &'static str,
 }
 
 pub fn nav_items() -> &'static [NavItemDef] {
     &[
-        NavItemDef { icon: TablerIcon::LayoutDashboard, label: "Overview", badge: "", view_id: Some("overview"), badge_color: None },
-        NavItemDef { icon: TablerIcon::Cpu, label: "Processes", badge: "214", view_id: Some("processes"), badge_color: None },
-        NavItemDef { icon: TablerIcon::Server, label: "Services", badge: "42", view_id: Some("services"), badge_color: None },
-        NavItemDef { icon: TablerIcon::Box, label: "Containers", badge: "11", view_id: Some("containers"), badge_color: None },
-        NavItemDef { icon: TablerIcon::AdjustmentsHorizontal, label: "Config", badge: "2", view_id: Some("config"), badge_color: Some(WARN) },
-        NavItemDef { icon: TablerIcon::FileText, label: "Logs", badge: "4", view_id: Some("logs"), badge_color: Some(CRIT) },
-        NavItemDef { icon: TablerIcon::Folder, label: "Files", badge: "", view_id: Some("files"), badge_color: None },
-        NavItemDef { icon: TablerIcon::Clock, label: "Cron", badge: "4", view_id: Some("cron"), badge_color: None },
-        NavItemDef { icon: TablerIcon::Users, label: "Users", badge: "7", view_id: Some("users"), badge_color: None },
-        NavItemDef { icon: TablerIcon::ShieldCheck, label: "Firewall", badge: "ON", view_id: Some("firewall"), badge_color: Some(OK) },
-        NavItemDef { icon: TablerIcon::Terminal2, label: "Terminal", badge: "⌘T", view_id: Some("terminal"), badge_color: None },
+        NavItemDef { icon: TablerIcon::LayoutDashboard, label: "Overview", view_id: Some("overview"), hint: "" },
+        NavItemDef { icon: TablerIcon::Server, label: "Services", view_id: Some("services"), hint: "" },
+        NavItemDef { icon: TablerIcon::Cpu, label: "Processes", view_id: Some("processes"), hint: "" },
+        NavItemDef { icon: TablerIcon::Network, label: "Sockets", view_id: Some("sockets"), hint: "" },
+        NavItemDef { icon: TablerIcon::Box, label: "Containers", view_id: Some("containers"), hint: "" },
+        NavItemDef { icon: TablerIcon::AdjustmentsHorizontal, label: "Config", view_id: Some("config"), hint: "" },
+        NavItemDef { icon: TablerIcon::FileText, label: "Logs", view_id: Some("logs"), hint: "" },
+        NavItemDef { icon: TablerIcon::Folder, label: "Files", view_id: Some("files"), hint: "" },
+        NavItemDef { icon: TablerIcon::Clock, label: "Cron", view_id: Some("cron"), hint: "" },
+        NavItemDef { icon: TablerIcon::Users, label: "Users", view_id: Some("users"), hint: "" },
+        NavItemDef { icon: TablerIcon::ShieldCheck, label: "Firewall", view_id: Some("firewall"), hint: "" },
+        NavItemDef { icon: TablerIcon::Terminal2, label: "Terminal", view_id: Some("terminal"), hint: "⌘T" },
     ]
 }
 
-pub fn sidebar(active_view: &str, collapsed: bool, app: Entity<CrowApp>) -> impl IntoElement {
+/// Live badge per view id: (text, color). Views without an entry show none.
+pub type NavBadges = Vec<(&'static str, String, Rgba)>;
+
+pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, app: Entity<CrowApp>) -> impl IntoElement {
     let sidebar_w = if collapsed { px(44.0) } else { px(184.0) };
 
     div()
@@ -43,6 +47,11 @@ pub fn sidebar(active_view: &str, collapsed: bool, app: Entity<CrowApp>) -> impl
         // Nav items
         .children(nav_items().iter().enumerate().map(|(idx, item)| {
             let is_active = item.view_id == Some(active_view);
+            let (badge_text, badge_color) = badges
+                .iter()
+                .find(|(view, _, _)| Some(*view) == item.view_id)
+                .map(|(_, text, color)| (text.clone(), *color))
+                .unwrap_or_else(|| (item.hint.to_string(), TEXT_FAINT));
             let view_id_opt = item.view_id;
             let app_clone = app.clone();
 
@@ -91,8 +100,8 @@ pub fn sidebar(active_view: &str, collapsed: bool, app: Entity<CrowApp>) -> impl
                         div()
                             .font_family("JetBrains Mono")
                             .text_size(px(10.0))
-                            .text_color(item.badge_color.unwrap_or(TEXT_FAINT))
-                            .child(item.badge),
+                            .text_color(badge_color)
+                            .child(badge_text),
                     );
             }
 
