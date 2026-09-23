@@ -241,6 +241,168 @@ pub fn parse_disk_usage_output(output: &str) -> Option<u64> {
 }
 
 /// Generates systemd journald configuration syntax
+/// Settings the journald editor manages, with how each is written.
+const MANAGED_KEYS: [&str; 4] = ["Storage", "SystemMaxUse", "SystemKeepFree", "MaxRetentionSec"];
+
+/// Size (`4G`, `500M`, `1024K`, bytes) in MiB; percentages (systemd's
+/// default form) aren't a fixed size and read as 0 = "systemd default".
+fn parse_size_mb(v: &str) -> u64 {
+    let v = v.trim();
+    let (num, mult) = match v.chars().last() {
+        Some('K') | Some('k') => (&v[..v.len() - 1], 1.0 / 1024.0),
+        Some('M') | Some('m') => (&v[..v.len() - 1], 1.0),
+        Some('G') | Some('g') => (&v[..v.len() - 1], 1024.0),
+        Some('T') | Some('t') => (&v[..v.len() - 1], 1024.0 * 1024.0),
+        _ if v.ends_with('%') => return 0,
+        _ => (v, 1.0 / (1024.0 * 1024.0)),
+    };
+    num.trim().parse::<f64>().map(|n| (n * mult).round() as u64).unwrap_or(0)
+}
+
+/// A systemd time span (`30day`, `2week`, `1month`, `3600`) in whole days.
+fn parse_span_days(v: &str) -> u32 {
+    let v = v.trim();
+    let split = v.find(|c: char| c.is_ascii_alphabetic()).unwrap_or(v.len());
+    let (num, unit) = (&v[..split], v[split..].trim());
+    let Ok(n) = num.trim().parse::<f64>() else { return 0 };
+    let secs = n * match unit {
+        "" | "s" | "sec" | "second" | "seconds" => 1.0,
+        "m" | "min" | "minute" | "minutes" => 60.0,
+        "h" | "hr" | "hour" | "hours" => 3600.0,
+        "d" | "day" | "days" => 86400.0,
+        "w" | "week" | "weeks" => 7.0 * 86400.0,
+        "M" | "month" | "months" => 30.44 * 86400.0,
+        "y" | "year" | "years" => 365.25 * 86400.0,
+        _ => return 0,
+    };
+    (secs / 86400.0).round() as u32
+}
+
+/// Reads journald.conf's `[Journal]` section. Keys that aren't set take
+/// systemd's defaults (sizes default to a share of the disk, shown as 0).
+pub fn parse_journald_conf(text: &str) -> JournalRetentionConfig {
+    let mut cfg = JournalRetentionConfig {
+        storage: JournalStorageMode::Auto,
+        system_max_use_mb: 0,
+        system_keep_free_mb: 0,
+        max_retention_days: 0,
+        rate_limit_burst: 10000,
+        rate_limit_interval_sec: 30,
+        sync_interval_sec: 300,
+    };
+    let mut in_journal = false;
+    for line in text.lines() {
+        let t = line.trim();
+        if t.starts_with('[') {
+            in_journal = t == "[Journal]";
+            continue;
+        }
+        if !in_journal || t.starts_with('#') || t.starts_with(';') {
+            continue;
+        }
+        let Some((key, value)) = t.split_once('=') else { continue };
+        let value = value.trim();
+        match key.trim() {
+            "Storage" => {
+                cfg.storage = match value {
+                    "persistent" => JournalStorageMode::Persistent,
+                    "volatile" | "none" => JournalStorageMode::Volatile,
+                    _ => JournalStorageMode::Auto,
+                }
+            }
+            "SystemMaxUse" => cfg.system_max_use_mb = parse_size_mb(value),
+            "SystemKeepFree" => cfg.system_keep_free_mb = parse_size_mb(value),
+            "MaxRetentionSec" => cfg.max_retention_days = parse_span_days(value),
+            "RateLimitBurst" => cfg.rate_limit_burst = value.parse().unwrap_or(cfg.rate_limit_burst),
+            "RateLimitIntervalSec" => cfg.rate_limit_interval_sec = value.trim_end_matches(|c: char| c.is_ascii_alphabetic()).parse().unwrap_or(cfg.rate_limit_interval_sec),
+            "SyncIntervalSec" => cfg.sync_interval_sec = value.trim_end_matches(|c: char| c.is_ascii_alphabetic()).parse().unwrap_or(cfg.sync_interval_sec),
+            _ => {}
+        }
+    }
+    cfg
+}
+
+fn managed_value(key: &str, cfg: &JournalRetentionConfig) -> String {
+    match key {
+        "Storage" => cfg.storage.as_str().to_string(),
+        "SystemMaxUse" => format!("{}M", cfg.system_max_use_mb),
+        "SystemKeepFree" => format!("{}M", cfg.system_keep_free_mb),
+        "MaxRetentionSec" if cfg.max_retention_days == 0 => "0".to_string(),
+        "MaxRetentionSec" => format!("{}day", cfg.max_retention_days),
+        _ => String::new(),
+    }
+}
+
+/// Writes `cfg` into `source` losslessly: only settings that differ from what
+/// `source` says are touched. Each is set in place (an active `Key=` line
+/// replaced, or a commented `#Key=` line uncommented) or appended to the
+/// `[Journal]` section; every other line stays byte-for-byte.
+pub fn apply_journald_settings(source: &str, cfg: &JournalRetentionConfig) -> String {
+    let current = parse_journald_conf(source);
+    let changed: Vec<&str> = MANAGED_KEYS
+        .iter()
+        .copied()
+        .filter(|k| managed_value(k, cfg) != managed_value(k, &current))
+        .collect();
+    if changed.is_empty() {
+        return source.to_string();
+    }
+    let mut lines: Vec<String> = source.split_inclusive('\n').map(str::to_string).collect();
+    let key_of = |line: &str| -> Option<(String, bool)> {
+        let t = line.trim();
+        let (commented, body) = match t.strip_prefix('#') {
+            Some(b) => (true, b.trim_start()),
+            None => (false, t),
+        };
+        let (k, _) = body.split_once('=')?;
+        let k = k.trim();
+        (!k.is_empty() && k.chars().all(|c| c.is_ascii_alphanumeric())).then(|| (k.to_string(), commented))
+    };
+    for key in changed {
+        let new_line = format!("{key}={}\n", managed_value(key, cfg));
+        // The first [Journal] section: its header line and where it ends.
+        let (mut section, mut section_end) = (None::<usize>, None::<usize>);
+        let (mut active, mut commented) = (None, None);
+        let mut in_journal = false;
+        for (i, line) in lines.iter().enumerate() {
+            let t = line.trim();
+            if t.starts_with('[') {
+                if in_journal && section_end.is_none() {
+                    section_end = Some(i);
+                }
+                in_journal = t == "[Journal]" && section.is_none();
+                if in_journal {
+                    section = Some(i);
+                }
+                continue;
+            }
+            if in_journal {
+                match key_of(line) {
+                    Some((k, false)) if k == key => active = Some(i),
+                    Some((k, true)) if k == key && commented.is_none() => commented = Some(i),
+                    _ => {}
+                }
+            }
+        }
+        if let Some(i) = active.or(commented) {
+            lines[i] = new_line;
+        } else if section.is_some() {
+            let at = section_end.unwrap_or(lines.len());
+            if at > 0 && !lines[at - 1].ends_with('\n') {
+                lines[at - 1].push('\n');
+            }
+            lines.insert(at, new_line);
+        } else {
+            if lines.last().is_some_and(|l| !l.ends_with('\n')) {
+                lines.last_mut().unwrap().push('\n');
+            }
+            lines.push("[Journal]\n".into());
+            lines.push(new_line);
+        }
+    }
+    lines.concat()
+}
+
 pub fn generate_journald_conf(config: &JournalRetentionConfig) -> String {
     let mut out = String::new();
     out.push_str("# ==============================================================================\n");
@@ -267,6 +429,55 @@ pub fn generate_journald_conf(config: &JournalRetentionConfig) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const UBUNTU: &str = "#  This file is part of systemd.\n#\n[Journal]\n#Storage=auto\n#Compress=yes\n#SystemMaxUse=\n#SystemKeepFree=\nMaxRetentionSec=2week\n#ForwardToSyslog=no\n";
+
+    #[test]
+    fn journald_conf_is_read_with_systemd_defaults() {
+        let cfg = parse_journald_conf(UBUNTU);
+        assert_eq!(cfg.storage, JournalStorageMode::Auto);
+        assert_eq!(cfg.max_retention_days, 14);
+        assert_eq!(cfg.system_max_use_mb, 0);
+        assert_eq!(parse_size_mb("4G"), 4096);
+        assert_eq!(parse_size_mb("10%"), 0);
+        assert_eq!(parse_span_days("1month"), 30);
+    }
+
+    #[test]
+    fn journald_edits_touch_only_their_keys() {
+        assert_eq!(apply_journald_settings(UBUNTU, &parse_journald_conf(UBUNTU)), UBUNTU);
+        let mut cfg = parse_journald_conf(UBUNTU);
+        cfg.system_max_use_mb = 2048; // commented key: uncommented in place
+        cfg.max_retention_days = 30; // active key: replaced
+        cfg.storage = JournalStorageMode::Persistent;
+        let out = apply_journald_settings(UBUNTU, &cfg);
+        assert_eq!(out, "#  This file is part of systemd.\n#\n[Journal]\nStorage=persistent\n#Compress=yes\nSystemMaxUse=2048M\n#SystemKeepFree=\nMaxRetentionSec=30day\n#ForwardToSyslog=no\n");
+        assert_eq!(parse_journald_conf(&out).system_max_use_mb, 2048);
+    }
+
+    #[test]
+    fn journald_keys_are_added_to_the_section_or_a_new_one() {
+        let mut cfg = parse_journald_conf("");
+        cfg.system_keep_free_mb = 512;
+        assert_eq!(apply_journald_settings("", &cfg), "[Journal]\nSystemKeepFree=512M\n");
+        let src = "[Journal]\nCompress=yes\n[Other]\nX=1\n";
+        let out = apply_journald_settings(src, &cfg);
+        assert_eq!(out, "[Journal]\nCompress=yes\nSystemKeepFree=512M\n[Other]\nX=1\n");
+    }
+
+    /// This machine's real journald.conf survives parse + apply unchanged,
+    /// and one setting change touches one line.
+    #[test]
+    fn real_journald_conf_round_trips() {
+        let Ok(text) = std::fs::read_to_string("/etc/systemd/journald.conf") else { return };
+        let mut cfg = parse_journald_conf(&text);
+        assert_eq!(apply_journald_settings(&text, &cfg), text);
+        cfg.system_max_use_mb = 1234;
+        let out = apply_journald_settings(&text, &cfg);
+        assert_eq!(parse_journald_conf(&out).system_max_use_mb, 1234);
+        let diff = |a: &str, b: &str| a.lines().count().abs_diff(b.lines().count()) + a.lines().zip(b.lines()).filter(|(x, y)| x != y).count();
+        assert_eq!(diff(&text, &out), 1);
+    }
 
     #[test]
     fn test_parse_disk_usage() {

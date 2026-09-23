@@ -228,7 +228,13 @@ impl CrowApp {
             .first()
             .map(|s| detect_firewall_status(s))
             .unwrap_or_else(default_active_ufw_state);
-        let configs = load_configs(servers.first(), &journal_retention, &initial_firewall_state);
+        let configs = load_configs(servers.first(), &initial_firewall_state);
+        // The journald editor shows the real journald.conf when there is one.
+        let journal_retention = configs
+            .states
+            .get("journald.conf")
+            .map(|st| crate::journal::retention::parse_journald_conf(&st.current_content))
+            .unwrap_or(journal_retention);
 
         Self {
             focus_handle: cx.focus_handle(),

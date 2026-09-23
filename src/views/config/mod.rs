@@ -8,6 +8,6 @@ pub mod text_editor;
 pub mod raw_editor;
 
 #[allow(unused_imports)]
-pub use cron_editor::{cron_editor, default_cron_jobs, CronJobDef};
+pub use cron_editor::{cron_editor, CronJobDef};
 pub use raw_editor::raw_config_editor;
 

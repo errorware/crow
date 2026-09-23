@@ -3,7 +3,7 @@ use gpui_kit::*;
 use super::CrowApp;
 use crate::journal::{JournalBootScope, JournalPriority, JournalStorageMode, JournalTimeRange};
 use crate::journal::reader::read_journal_for_server;
-use crate::journal::retention::generate_journald_conf;
+use crate::journal::retention::apply_journald_settings;
 
 // ==========================================
 // Systemd Journal Log Explorer & Retention
@@ -132,8 +132,9 @@ impl CrowApp {
     }
 
     pub fn sync_journald_to_config_state(&mut self) {
-        let content = generate_journald_conf(&self.journal.retention);
+        // Only the settings that differ from the saved file are written, in place.
         if let Some(state) = self.configs.states.get_mut("journald.conf") {
+            let content = apply_journald_settings(&state.baseline_content, &self.journal.retention);
             state.update_content(content);
         }
     }

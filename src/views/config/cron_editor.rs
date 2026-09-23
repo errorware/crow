@@ -66,71 +66,6 @@ impl CronJobDef {
     }
 }
 
-pub fn default_cron_jobs() -> Vec<CronJobDef> {
-    vec![
-        CronJobDef::new(
-            "cron-01",
-            true,
-            "17",
-            "*",
-            "*",
-            "*",
-            "*",
-            "root",
-            "cd / && run-parts --report /etc/cron.hourly",
-            Some("Hourly system maintenance scripts".to_string()),
-        ),
-        CronJobDef::new(
-            "cron-02",
-            true,
-            "25",
-            "6",
-            "*",
-            "*",
-            "*",
-            "root",
-            "test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.daily )",
-            Some("Daily log rotation and system tasks".to_string()),
-        ),
-        CronJobDef::new(
-            "cron-03",
-            true,
-            "47",
-            "6",
-            "*",
-            "*",
-            "7",
-            "root",
-            "test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.weekly )",
-            Some("Weekly cleanup and security audits".to_string()),
-        ),
-        CronJobDef::new(
-            "cron-04",
-            true,
-            "52",
-            "6",
-            "1",
-            "*",
-            "*",
-            "root",
-            "test -x /usr/sbin/anacron || ( cd / && run-parts --report /etc/cron.monthly )",
-            Some("Monthly disk usage and accounting reports".to_string()),
-        ),
-        CronJobDef::new(
-            "cron-05",
-            true,
-            "0",
-            "3",
-            "*",
-            "*",
-            "*",
-            "root",
-            "/usr/local/bin/crow-backup.sh --full >/var/log/crow-backup.log 2>&1",
-            Some("Crow Fleet automated full node snapshot".to_string()),
-        ),
-    ]
-}
-
 pub fn human_readable_schedule(m: &str, h: &str, dom: &str, mon: &str, dow: &str) -> String {
     if m == "*" && h == "*" && dom == "*" && mon == "*" && dow == "*" {
         return "Every minute (* * * * *)".to_string();
@@ -168,40 +103,6 @@ pub fn human_readable_schedule(m: &str, h: &str, dom: &str, mon: &str, dow: &str
     }
 
     format!("Schedule: {} {} {} {} {}", m, h, dom, mon, dow)
-}
-
-pub fn generate_crontab_content(jobs: &[CronJobDef]) -> String {
-    let mut out = String::new();
-    out.push_str("# /etc/crontab: system-wide crontab\n");
-    out.push_str("# Unlike any other crontab you don't have to run the `crontab'\n");
-    out.push_str("# command to install the new version when you edit this file\n");
-    out.push_str("# and files in /etc/cron.d. These files also have username fields,\n");
-    out.push_str("# that none of the other crontabs do.\n");
-    out.push_str("#\n");
-    out.push_str("# Managed by Crow Config Subsystem\n");
-    out.push_str("SHELL=/bin/sh\n");
-    out.push_str("PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin\n");
-    out.push_str("\n");
-    out.push_str("# m h dom mon dow user\tcommand\n");
-
-    for job in jobs {
-        if let Some(ref c) = job.comment {
-            out.push_str(&format!("# {}\n", c));
-        }
-        let prefix = if job.enabled { "" } else { "# DISABLED: " };
-        out.push_str(&format!(
-            "{}{:<3}{:<3}{:<4}{:<4}{:<4}{:<8}{}\n",
-            prefix,
-            job.minute,
-            job.hour,
-            job.day_of_month,
-            job.month,
-            job.day_of_week,
-            job.user,
-            job.command
-        ));
-    }
-    out
 }
 
 pub fn cron_editor(
@@ -993,7 +894,7 @@ fn render_field_stepper(
 
 #[cfg(test)]
 mod tests {
-    use super::{default_cron_jobs, generate_crontab_content, human_readable_schedule};
+    use super::human_readable_schedule;
     use core::prelude::v1::test;
 
     #[test]
@@ -1020,11 +921,4 @@ mod tests {
         );
     }
 
-    #[test]
-    fn test_crontab_generation() {
-        let jobs = default_cron_jobs();
-        let text = generate_crontab_content(&jobs);
-        assert!(text.contains("run-parts --report /etc/cron.hourly"));
-        assert!(text.contains("crow-backup.sh"));
-    }
 }

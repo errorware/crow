@@ -1,6 +1,7 @@
 use std::collections::{HashMap, HashSet};
 
-use super::cron_editor::{generate_crontab_content, CronJobDef};
+use super::cron_editor::CronJobDef;
+use crate::config::crontab::{parse_crontab, render_crontab};
 use crate::config::{ConfigFileState, DiscoveredConfigFile};
 use crate::os_detect::DistroFamily;
 
@@ -15,6 +16,8 @@ pub struct ConfigsState {
     pub search_focused: bool,
     pub show_history: bool,
     pub cron_jobs: Vec<CronJobDef>,
+    /// The crontab text `cron_jobs` were parsed from; edits render back into it.
+    pub cron_source: String,
     /// Server the files were read from; staged changes are written back there.
     pub server_id: Option<String>,
     /// That server's distro family, which decided the crawl's path set.
@@ -35,7 +38,6 @@ impl ConfigsState {
         files: Vec<DiscoveredConfigFile>,
         states: HashMap<String, ConfigFileState>,
         selected_file: String,
-        cron_jobs: Vec<CronJobDef>,
     ) -> Self {
         Self {
             files,
@@ -44,7 +46,8 @@ impl ConfigsState {
             search_query: String::new(),
             search_focused: false,
             show_history: false,
-            cron_jobs,
+            cron_jobs: Vec::new(),
+            cron_source: String::new(),
             server_id: None,
             family: DistroFamily::Unknown,
             save_error: None,
@@ -82,8 +85,14 @@ impl ConfigsState {
         }
     }
 
+    /// Re-reads the Cron screen's jobs from crontab text.
+    pub fn reload_cron_from(&mut self, text: &str) {
+        self.cron_jobs = parse_crontab(text);
+        self.cron_source = text.to_string();
+    }
+
     pub fn sync_cron(&mut self) {
-        let content = generate_crontab_content(&self.cron_jobs);
+        let content = render_crontab(&self.cron_source, &self.cron_jobs);
         if let Some(st) = self.states.get_mut("crontab") {
             st.update_content(content);
         }
@@ -181,9 +190,11 @@ impl ConfigsState {
             month: "*".to_string(),
             day_of_week: "*".to_string(),
             user: "root".to_string(),
-            command: "/usr/local/bin/backup-sync.sh".to_string(),
-            comment: Some("Nightly backup routine".to_string()),
-            enabled: true,
+            // Starts disabled with a placeholder: staging it can't schedule
+            // anything until a real command is filled in and it's enabled.
+            command: "/path/to/command".to_string(),
+            comment: Some("New job".to_string()),
+            enabled: false,
             is_expanded: true,
         });
         self.sync_cron();
@@ -193,15 +204,16 @@ impl ConfigsState {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::cron_editor::default_cron_jobs;
     use std::path::PathBuf;
 
+    const CRONTAB: &str = "SHELL=/bin/sh\n# m h dom mon dow user\tcommand\n17 * * * *\troot\tcd / && run-parts /etc/cron.hourly\n25 6 * * *\troot\trun-parts /etc/cron.daily\n";
+
     fn with_crontab() -> ConfigsState {
-        let jobs = default_cron_jobs();
         let mut states = HashMap::new();
-        let content = generate_crontab_content(&jobs);
-        states.insert("crontab".to_string(), ConfigFileState::new(PathBuf::from("/etc/crontab"), "crontab".into(), content));
-        ConfigsState::new(Vec::new(), states, "crontab".into(), jobs)
+        states.insert("crontab".to_string(), ConfigFileState::new(PathBuf::from("/etc/crontab"), "crontab".into(), CRONTAB.into()));
+        let mut st = ConfigsState::new(Vec::new(), states, "crontab".into());
+        st.reload_cron_from(CRONTAB);
+        st
     }
 
     #[test]
@@ -210,7 +222,8 @@ mod tests {
         assert!(!st.states["crontab"].is_modified());
         st.add_cron_job();
         assert!(st.states["crontab"].is_modified());
-        assert!(st.states["crontab"].current_content.contains("/usr/local/bin/backup-sync.sh"));
+        assert!(st.states["crontab"].current_content.ends_with("# New job\n#0 2 * * *\troot\t/path/to/command\n"));
+        assert!(st.states["crontab"].current_content.starts_with(CRONTAB), "existing lines untouched");
     }
 
     #[test]
