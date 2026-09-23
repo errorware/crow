@@ -108,7 +108,7 @@ impl ConfigFileState {
         if let Some(reason) = &self.write_blocked {
             return Err(reason.clone());
         }
-        host.write_file_atomic(&self.path.to_string_lossy(), &self.current_content).map_err(|e| e.to_string())
+        host.write_file_privileged(&self.path.to_string_lossy(), &self.current_content).map_err(|e| e.to_string())
     }
 }
 

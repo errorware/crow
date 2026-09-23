@@ -36,6 +36,7 @@ impl CrowApp {
         if let Ok(db_guard) = self.vault.db().lock() {
             self.fleet.servers = db_guard.list_servers().unwrap_or_default();
         }
+        self.sync_ssh_directory();
     }
 
     pub fn onboard_set_focus_select(&mut self, focus: OnboardFieldFocus, select_all: bool, cx: &mut Context<Self>) {

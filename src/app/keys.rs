@@ -20,6 +20,7 @@ impl CrowApp {
         if let Ok(db) = self.vault.db().lock() {
             self.keys.reload(&db);
         }
+        self.sync_ssh_directory();
         cx.notify();
     }
 

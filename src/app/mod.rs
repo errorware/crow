@@ -177,6 +177,7 @@ impl CrowApp {
             Err(_) => (Vec::new(), KeysState::new(Vec::new(), Vec::new(), Vec::new(), Vec::new(), None), Vec::new()),
         };
 
+        crate::host::update_directory(&servers, &keys.enrolled);
         log_config_core_self_check();
 
         let tabs = initial_tabs(&servers);

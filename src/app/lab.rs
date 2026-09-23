@@ -114,6 +114,7 @@ impl CrowApp {
     /// makes it the active tab on the overview.
     pub fn open_enrolled_server(&mut self, record: ServerRecord) {
         self.fleet.servers.push(record.clone());
+        self.sync_ssh_directory();
         let mut local_prev = CollectorStates::default();
         let m = sample_server(&record, None, &mut local_prev);
         self.fleet.metrics_store.insert(record.id.clone(), m.clone());

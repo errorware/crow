@@ -155,10 +155,19 @@ pub fn validate_on_host(host: &dyn Host, format: StructuredFormat, content: &str
             .map_err(|e| format!("could not stage content for validation: {e}"))?;
         let mut skipped = Vec::new();
         for template in &validators {
-            let command = template.replace("{file}", &shell_quote(&tmp));
-            match host.exec(&["sh", "-c", &command], DEFAULT_TIMEOUT) {
+            // Check the tool exists before asking for root: a missing tool is
+            // "skipped", not a sudo failure. sbin dirs hold e.g. sshd.
+            let tool = template.split_whitespace().next().unwrap_or_default();
+            let probe = format!("PATH=\"$PATH:/usr/sbin:/sbin\" command -v {}", shell_quote(tool));
+            if host.exec(&["sh", "-c", &probe], DEFAULT_TIMEOUT).is_err() {
+                skipped.push(template.replace("{file}", "<file>"));
+                continue;
+            }
+            let command = format!("PATH=\"$PATH:/usr/sbin:/sbin\"; {}", template.replace("{file}", &shell_quote(&tmp)));
+            // Validators often need root (e.g. `sshd -t` reads the host keys).
+            match host.exec_privileged(&["sh", "-c", &command], &[], DEFAULT_TIMEOUT) {
                 Ok(_) => {}
-                Err(HostError::Failed { status: 127, .. }) => skipped.push(command),
+                Err(HostError::Failed { status: 127, .. }) => skipped.push(template.replace("{file}", "<file>")),
                 Err(e) => return Err(format!("`{}` rejected the file: {e}", template.replace("{file}", "<file>"))),
             }
         }

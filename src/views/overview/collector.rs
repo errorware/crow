@@ -238,14 +238,14 @@ pub fn collect_sockets_for_server(server: &ServerRecord) -> Vec<SocketUnit> {
 /// Runs a systemctl lifecycle action (start/stop/restart/reload) against a unit
 pub fn systemctl_service_action(server: &ServerRecord, unit: &str, action: &str) -> Result<String, String> {
     let host = host_for(server).ok_or_else(|| not_connected(server).to_string())?;
-    host.exec(&["systemctl", action, unit], DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;
+    host.exec_privileged(&["systemctl", action, unit], &[], DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;
     Ok(format!("{} unit {} on {}", action, unit, host.label()))
 }
 
 /// Kills or signals a process
 pub fn terminate_process(server: &ServerRecord, pid: u32, signal: i32) -> Result<String, String> {
     let host = host_for(server).ok_or_else(|| not_connected(server).to_string())?;
-    host.exec(&["kill", &format!("-{}", signal), &pid.to_string()], DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;
+    host.exec_privileged(&["kill", &format!("-{}", signal), &pid.to_string()], &[], DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;
     Ok(format!("Sent signal {} to PID {} on {}", signal, pid, host.label()))
 }
 

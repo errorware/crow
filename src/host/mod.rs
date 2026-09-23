@@ -3,12 +3,13 @@
 //! [`host_for`] for the server's transport and never branch on "is this
 //! localhost" themselves.
 //!
-//! Today there are two transports — this machine ([`LocalHost`]) and Crow-managed
-//! lab containers ([`ContainerHost`]). Remote servers have none yet (`host_for`
-//! returns `None`); the SSH transport slots in there.
+//! Transports: this machine ([`LocalHost`]), Crow-managed lab containers
+//! ([`ContainerHost`]) and everything else over the system OpenSSH client
+//! ([`SshHost`]).
 
 mod container;
 mod local;
+pub mod ssh;
 
 use std::sync::Arc;
 use std::time::Duration;
@@ -17,6 +18,7 @@ use crate::vault::ServerRecord;
 
 pub use container::ContainerHost;
 pub use local::LocalHost;
+pub use ssh::{connection_state, update_directory, ConnectionState, SshHost};
 
 /// Default budget for a single command; long enough for `journalctl` on a busy
 /// box, short enough that a wedged host can't stall a poll tick forever.
@@ -77,6 +79,19 @@ pub struct DirEntry {
     pub mtime: i64,
 }
 
+/// Writes stdin to "$1" atomically: temp file beside it, keep the original
+/// mode (and owner, when root), then rename over it. Uses `stat -c`, which
+/// GNU coreutils and BusyBox both support (BusyBox has no `chmod --reference`).
+const ATOMIC_WRITE_SCRIPT: &str = r#"set -e; t=$(mktemp "$1.crow.XXXXXX"); cat > "$t"; if [ -e "$1" ]; then chmod "$(stat -c %a "$1")" "$t"; chown "$(stat -c %u:%g "$1")" "$t" 2>/dev/null || true; fi; mv -f "$t" "$1""#;
+
+/// Lists "$1" one entry per line as `type|mode|uid|gid|size|mtime|path`, with
+/// `stat -c` (GNU and BusyBox alike; `find -printf` is GNU-only). The globs
+/// cover dotfiles; unmatched globs stay literal and are skipped.
+const LIST_DIR_SCRIPT: &str = r#"cd -- "$1" || exit 1; for f in * .[!.]* ..?*; do if [ -e "$f" ] || [ -L "$f" ]; then stat -c '%F|%a|%u|%g|%s|%Y|%n' -- "$f"; fi; done"#;
+
+/// Runs "$@" as root: as-is when already root, else via non-interactive sudo.
+const PRIVILEGED_WRAPPER: &str = r#"if [ "$(id -u)" = 0 ]; then exec "$@"; else exec sudo -n -- "$@"; fi"#;
+
 /// A machine Crow can run commands on and read/write files of.
 ///
 /// Every call is blocking, can fail, and is bounded by a timeout — call it from
@@ -100,6 +115,20 @@ pub trait Host: Send + Sync {
     /// Runs `argv` with `stdin` piped to it.
     fn exec_stdin(&self, argv: &[&str], stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError>;
 
+    /// Runs `argv` as root: directly when already root, otherwise through
+    /// `sudo -n` (never prompts — a sudo that needs a password fails clearly).
+    fn exec_privileged(&self, argv: &[&str], stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {
+        let mut full: Vec<&str> = vec!["sh", "-c", PRIVILEGED_WRAPPER, "crow-priv"];
+        full.extend_from_slice(argv);
+        self.exec_stdin(&full, stdin, timeout).map_err(|e| match e {
+            HostError::Failed { status, stderr } if stderr.contains("sudo:") && stderr.contains("password") => HostError::Failed {
+                status,
+                stderr: "sudo needs a password on this host; Crow runs sudo non-interactively (allow NOPASSWD for this user, or connect as root)".into(),
+            },
+            other => other,
+        })
+    }
+
     fn read_file(&self, path: &str) -> Result<String, HostError> {
         Ok(self.exec(&["cat", "--", path], DEFAULT_TIMEOUT)?.stdout)
     }
@@ -109,20 +138,27 @@ pub trait Host: Send + Sync {
     }
 
     fn list_dir(&self, path: &str) -> Result<Vec<DirEntry>, HostError> {
-        // GNU find: one line per entry — type, octal mode, uid, gid, size, mtime, name.
-        let out = self.exec(
-            &["find", path, "-mindepth", "1", "-maxdepth", "1", "-printf", "%y %m %U %G %s %T@ %f\\n"],
-            DEFAULT_TIMEOUT,
-        )?;
-        Ok(parse_find_listing(&out.stdout))
+        let out = self.exec(&["sh", "-c", LIST_DIR_SCRIPT, "crow-ls", path], DEFAULT_TIMEOUT)?;
+        Ok(parse_stat_listing(&out.stdout))
     }
 
     /// Replaces `path` with `content` atomically (temp file in the same
     /// directory, then rename), keeping the original file's mode when it exists.
     fn write_file_atomic(&self, path: &str, content: &str) -> Result<(), HostError> {
-        let script = r#"set -e; t=$(mktemp "$1.crow.XXXXXX"); cat > "$t"; if [ -e "$1" ]; then chmod --reference="$1" "$t"; fi; mv -f "$t" "$1""#;
-        self.exec_stdin(&["sh", "-c", script, "crow-write", path], content.as_bytes(), DEFAULT_TIMEOUT)?;
+        self.exec_stdin(&["sh", "-c", ATOMIC_WRITE_SCRIPT, "crow-write", path], content.as_bytes(), DEFAULT_TIMEOUT)?;
         Ok(())
+    }
+
+    /// Like `write_file_atomic`, falling back to root (see `exec_privileged`)
+    /// when the file isn't writable as the connected user — e.g. under /etc.
+    fn write_file_privileged(&self, path: &str, content: &str) -> Result<(), HostError> {
+        match self.write_file_atomic(path, content) {
+            Ok(()) => Ok(()),
+            Err(HostError::Failed { .. }) | Err(HostError::Io(_)) => self
+                .exec_privileged(&["sh", "-c", ATOMIC_WRITE_SCRIPT, "crow-write", path], content.as_bytes(), DEFAULT_TIMEOUT)
+                .map(|_| ()),
+            Err(e) => Err(e),
+        }
     }
 
     fn create_dir(&self, path: &str) -> Result<(), HostError> {
@@ -136,36 +172,60 @@ pub trait Host: Send + Sync {
     }
 }
 
-/// Parses `find -printf '%y %m %U %G %s %T@ %f\n'` output.
-pub fn parse_find_listing(stdout: &str) -> Vec<DirEntry> {
+/// Parses `stat -c '%F|%a|%u|%g|%s|%Y|%n'` lines (see `LIST_DIR_SCRIPT`).
+pub fn parse_stat_listing(stdout: &str) -> Vec<DirEntry> {
     stdout
         .lines()
         .filter_map(|line| {
-            let mut parts = line.splitn(7, ' ');
+            let mut parts = line.splitn(7, '|');
             let kind = parts.next()?;
             let mode = u32::from_str_radix(parts.next()?, 8).ok()?;
             let uid = parts.next()?.parse().ok()?;
             let gid = parts.next()?.parse().ok()?;
             let size_bytes = parts.next()?.parse().ok()?;
-            let mtime = parts.next()?.split('.').next()?.parse().ok()?;
+            let mtime = parts.next()?.parse().ok()?;
             let name = parts.next()?.to_string();
-            Some(DirEntry { name, is_dir: kind == "d", is_symlink: kind == "l", size_bytes, mode, uid, gid, mtime })
+            Some(DirEntry {
+                name,
+                is_dir: kind == "directory",
+                is_symlink: kind == "symbolic link",
+                size_bytes,
+                mode,
+                uid,
+                gid,
+                mtime,
+            })
         })
         .collect()
 }
 
-/// True for the machine Crow itself runs on. Lab containers also sit on
-/// 127.0.0.1, so they are recognized first by their `test-node` tag.
+/// True for the machine Crow itself runs on: a loopback address on the
+/// standard SSH port (or none). Loopback on another port is an SSH endpoint
+/// forwarded somewhere else — e.g. a container at 127.0.0.1:2222.
 pub fn is_this_machine(server: &ServerRecord) -> bool {
-    server.host == "127.0.0.1"
-        || server.host == "localhost"
-        || server.host == "::1"
-        || server.name.to_lowercase() == "localhost"
-        || server.tags.iter().any(|t| t == "localhost" || t == "local")
+    let loopback = matches!(server.host.as_str(), "127.0.0.1" | "localhost" | "::1");
+    loopback && matches!(server.port, 0 | 22)
 }
 
-/// The transport for `server`, or `None` when Crow cannot reach it yet
-/// (remote servers until the SSH transport lands).
+/// Which transport `host_for` picks for a server.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TransportKind {
+    Local,
+    Container,
+    Ssh,
+}
+
+pub fn transport_kind(server: &ServerRecord) -> TransportKind {
+    if server.tags.iter().any(|t| t == "test-node") {
+        TransportKind::Container
+    } else if is_this_machine(server) {
+        TransportKind::Local
+    } else {
+        TransportKind::Ssh
+    }
+}
+
+/// The transport for `server`: its lab container, this machine, or SSH.
 pub fn host_for(server: &ServerRecord) -> Option<Arc<dyn Host>> {
     if server.tags.iter().any(|t| t == "test-node") {
         let engine = if server.tags.iter().any(|t| t == "docker") { "docker" } else { "podman" };
@@ -174,7 +234,7 @@ pub fn host_for(server: &ServerRecord) -> Option<Arc<dyn Host>> {
     if is_this_machine(server) {
         return Some(Arc::new(LocalHost));
     }
-    None
+    Some(Arc::new(SshHost::for_server(server)))
 }
 
 /// The error an action reports for a server with no transport.
@@ -186,30 +246,44 @@ pub fn not_connected(server: &ServerRecord) -> HostError {
 mod tests {
     use super::*;
 
-    fn record(host: &str, tags: &[&str]) -> ServerRecord {
-        ServerRecord { host: host.into(), tags: tags.iter().map(|t| t.to_string()).collect(), ..ServerRecord::default() }
+    fn record(host: &str, port: u16, tags: &[&str]) -> ServerRecord {
+        ServerRecord { host: host.into(), port, login_user: "ops".into(), tags: tags.iter().map(|t| t.to_string()).collect(), ..ServerRecord::default() }
     }
 
     #[test]
-    fn routing_prefers_lab_containers_over_localhost() {
-        assert_eq!(host_for(&record("127.0.0.1", &["local", "test-node", "podman"])).unwrap().label(), "podman:");
-        assert_eq!(host_for(&record("127.0.0.1", &["local", "test-node", "docker"])).unwrap().label(), "docker:");
-        assert_eq!(host_for(&record("localhost", &[])).unwrap().label(), "local");
-        assert!(host_for(&record("10.0.4.12", &[])).is_none());
+    fn routing_picks_container_then_this_machine_then_ssh() {
+        assert_eq!(host_for(&record("127.0.0.1", 2222, &["local", "test-node", "podman"])).unwrap().label(), "podman:");
+        assert_eq!(host_for(&record("127.0.0.1", 2222, &["local", "test-node", "docker"])).unwrap().label(), "docker:");
+        assert_eq!(host_for(&record("localhost", 22, &[])).unwrap().label(), "local");
+        // Loopback on another port is a forwarded SSH endpoint, not this machine.
+        assert_eq!(host_for(&record("127.0.0.1", 2222, &["local"])).unwrap().label(), "ssh:ops@127.0.0.1");
+        assert_eq!(host_for(&record("10.0.4.12", 22, &[])).unwrap().label(), "ssh:ops@10.0.4.12");
     }
 
     #[test]
-    fn parses_find_listing() {
-        let out = "d 755 0 0 4096 1726000000.1234567890 ssh\nf 644 0 0 340 1726000100.0 hosts\nl 777 0 0 7 1726000200.5 mtab\n";
-        let entries = parse_find_listing(out);
-        assert_eq!(entries.len(), 3);
+    fn privileged_exec_runs_directly_as_root_or_via_sudo() {
+        // As a normal user this goes through `sudo -n`, which either works
+        // (NOPASSWD) or fails with a clear message — never a prompt.
+        match LocalHost.exec_privileged(&["id", "-u"], &[], DEFAULT_TIMEOUT) {
+            Ok(out) => assert_eq!(out.stdout.trim(), "0"),
+            Err(HostError::Failed { stderr, .. }) => assert!(!stderr.is_empty()),
+            Err(e) => panic!("unexpected: {e:?}"),
+        }
+    }
+
+    #[test]
+    fn parses_stat_listing() {
+        let out = "directory|755|0|0|4096|1726000000|ssh
+regular file|644|0|0|340|1726000100|hosts
+symbolic link|777|0|0|7|1726000200|mtab
+regular empty file|600|1000|1000|0|1726000300|my notes|draft.txt
+";
+        let entries = parse_stat_listing(out);
+        assert_eq!(entries.len(), 4);
         assert_eq!(entries[0], DirEntry { name: "ssh".into(), is_dir: true, is_symlink: false, size_bytes: 4096, mode: 0o755, uid: 0, gid: 0, mtime: 1726000000 });
         assert!(entries[2].is_symlink);
+        // Names may contain the separator and spaces: the name is the last field.
+        assert_eq!(entries[3].name, "my notes|draft.txt");
     }
 
-    #[test]
-    fn find_listing_keeps_spaces_in_names() {
-        let entries = parse_find_listing("f 644 1000 1000 12 1726000000.0 my notes.txt\n");
-        assert_eq!(entries[0].name, "my notes.txt");
-    }
 }

@@ -25,7 +25,7 @@ pub fn flush_firewall(server: &ServerRecord) -> Result<String, String> {
     if host.exec(&["which", "ufw"], DEFAULT_TIMEOUT).is_err() {
         return Err("This host isn't running ufw — nothing to flush.".to_string());
     }
-    host.exec(&["ufw", "--force", "reset"], DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;
+    host.exec_privileged(&["ufw", "--force", "reset"], &[], DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;
     Ok(format!("ufw rules flushed on {}", host.label()))
 }
 

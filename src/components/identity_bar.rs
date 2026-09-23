@@ -1,6 +1,7 @@
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
+use crate::host::{connection_state, transport_kind, ConnectionState, TransportKind};
 use crate::vault::ServerRecord;
 use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::os_detect::{classify_distro_family, DistroFamily};
@@ -13,11 +14,19 @@ pub fn identity_bar(server: Option<&ServerRecord>, app: Entity<CrowApp>) -> impl
         .map(|s| format!("{}@{}:{}", s.login_user, s.host, s.port))
         .unwrap_or_else(|| "operator@127.0.0.1:22".to_string());
 
-    let (status_color, status_text) = match server.map(|s| s.status.as_str()) {
-        Some("online") => (OK, "CONNECTED"),
-        Some("degraded") | Some("warn") => (WARN, "DEGRADED"),
-        Some("unreachable") | Some("offline") => (CRIT, "OFFLINE"),
-        _ => (OK, "CONNECTED"),
+    // Live transport state: this machine needs no connection; SSH servers
+    // report what their last command saw.
+    let (status_color, status_text, status_detail): (Rgba, &str, Option<String>) = match server {
+        None => (OK, "LOCAL", None),
+        Some(s) => match transport_kind(s) {
+            TransportKind::Local => (OK, "LOCAL", None),
+            TransportKind::Container => (OK, "LAB CONTAINER", None),
+            TransportKind::Ssh => match connection_state(&s.id) {
+                None => (TEXT_FAINT, "CONNECTING…", None),
+                Some(ConnectionState::Connected) => (OK, "CONNECTED", None),
+                Some(state) => (CRIT, state.label(), state.detail().map(str::to_string)),
+            },
+        },
     };
 
     let distro_str = server
@@ -110,7 +119,16 @@ pub fn identity_bar(server: Option<&ServerRecord>, app: Entity<CrowApp>) -> impl
                         .font_weight(FontWeight::BOLD)
                         .text_color(status_color)
                         .child(status_text),
-                ),
+                )
+                .children(status_detail.map(|d| {
+                    div()
+                        .max_w(px(320.0))
+                        .overflow_hidden()
+                        .font_family("JetBrains Mono")
+                        .text_size(px(9.5))
+                        .text_color(TEXT_FAINT)
+                        .child(d)
+                })),
         )
         // 3. Badge cluster
         .child(

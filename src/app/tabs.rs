@@ -25,6 +25,12 @@ pub fn initial_tabs(servers: &[ServerRecord]) -> Vec<ServerTab> {
 }
 
 impl CrowApp {
+    /// Hands the SSH transport the current servers (for jump hosts) and key
+    /// file paths. Call after either list changes.
+    pub fn sync_ssh_directory(&self) {
+        crate::host::update_directory(&self.fleet.servers, &self.keys.enrolled);
+    }
+
     pub fn switch_tab(&mut self, tab_id: &str, cx: &mut Context<Self>) {
         if let Some(srv) = self.fleet.servers.iter().find(|s| s.id == tab_id || s.name == tab_id).cloned() {
             if !self.fleet.tabs.iter().any(|t| t.id == srv.id || t.name == srv.name) {
