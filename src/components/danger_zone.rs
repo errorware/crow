@@ -7,12 +7,12 @@ use crate::lab::{stop_local_node, LocalTestNode};
 use crate::host::{host_for, not_connected, DEFAULT_TIMEOUT};
 use crate::vault::ServerRecord;
 
-/// Power actions never actually execute — there is no reliable way to tell
-/// a lab container apart from the literal machine Crow itself runs on (both
-/// share host 127.0.0.1 in every collector in this app), and real remote
-/// execution has no transport yet (crow-ssh isn't built). Rather than risk
-/// shutting down the wrong thing, this stays a named, honest simulation on
-/// every host — a safety boundary, not a shortcut we forgot to finish.
+/// Power actions never actually execute. host_for() can now tell a lab
+/// container from the machine Crow runs on, but powering off or rebooting
+/// "localhost" would take Crow down with it, and remote hosts have no
+/// transport yet. Until power actions get their own design, this stays a
+/// named, honest simulation on every host — a safety boundary, not a
+/// shortcut we forgot to finish.
 pub fn send_power_action(server: &ServerRecord, action: &str) -> Result<String, String> {
     Ok(format!(
         "Simulated {} signal sent to {} — Crow does not execute real power actions yet",
