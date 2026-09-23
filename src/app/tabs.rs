@@ -57,6 +57,8 @@ impl CrowApp {
             } else if super::is_table_page(&self.active_view) {
                 let page = self.active_view.clone();
                 self.set_services_tab(&page, cx);
+            } else if self.active_view == "users" {
+                self.refresh_users(cx);
             } else if self.active_view == "files" {
                 self.files.current_path = "/".to_string();
                 self.files.pending_delete = None;

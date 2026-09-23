@@ -3,9 +3,10 @@ pub mod passwd_inspector;
 pub mod ssh_attach_modal;
 pub mod new_user_modal;
 pub mod state;
+pub mod host_data;
 
 #[allow(unused_imports)]
-pub use models::{default_system_users, SystemUserRecord, UserAccountStatus, UserFilterTab, UserSshKeySummary};
+pub use models::{SystemUserRecord, UserAccountStatus, UserFilterTab, UserSshKeySummary};
 pub use passwd_inspector::passwd_inspector;
 pub use ssh_attach_modal::ssh_attach_modal;
 pub use new_user_modal::{new_user_modal, NewUserState};
@@ -147,7 +148,8 @@ pub fn user_management_view(
                                 .text_color(TEXT_SECONDARY)
                                 .on_click(move |_ev, _window, cx| {
                                     app_passwd_all.update(cx, |this, cx| {
-                                        this.users.selected_for_passwd = Some("nelson".to_string()); cx.notify();
+                                        let first = this.users.users.iter().find(|u| !u.is_system_user && u.uid != 0).or(this.users.users.first()).map(|u| u.username.clone());
+                                        this.users.selected_for_passwd = first; cx.notify();
                                     });
                                 })
                                 .child("INSPECT /etc/passwd"),
@@ -305,7 +307,7 @@ pub fn user_management_view(
                 }),
         )
         // 4. Action Toast / Feedback Strip (if any)
-        .children(if let Some(msg) = &users.toast {
+        .children(if let Some(msg) = users.pending.as_ref().map(|p| format!("Running: {p} …")).or_else(|| users.load_error.as_ref().map(|e| format!("Couldn't read accounts: {e}"))).as_ref().or(users.toast.as_ref()) {
             let app_dismiss = app.clone();
             Some(
                 div()
@@ -566,7 +568,7 @@ fn render_user_card(
                                 .on_click(move |_ev, _window, cx| {
                                     let u = u_lock_target.clone();
                                     app_lock.update(cx, |this, cx| {
-                                        this.users.toggle_lock(&u); cx.notify();
+                                        this.user_toggle_lock(&u, cx);
                                     });
                                 })
                                 .child(if is_locked { "UNLOCK" } else { "LOCK" }),
@@ -583,7 +585,7 @@ fn render_user_card(
                                     .on_click(move |_ev, _window, cx| {
                                         let u = u_del_target.clone();
                                         app_del.update(cx, |this, cx| {
-                                            this.users.delete_user(&u); cx.notify();
+                                            this.user_delete(&u, cx);
                                         });
                                     })
                                     .child(tabler_icon(TablerIcon::Trash).size(px(13.0)).text_color(TEXT_MUTED))
@@ -678,7 +680,7 @@ fn render_user_card(
                                     let u = u_name.clone();
                                     let g = g_name.clone();
                                     app_grp.update(cx, |this, cx| {
-                                        this.users.toggle_group(&u, &g); cx.notify();
+                                        this.user_toggle_group(&u, &g, cx);
                                     });
                                 })
                                 .child(if is_in { format!("✓ {}", grp) } else { format!("+ {}", grp) })
@@ -723,7 +725,7 @@ fn render_user_card(
                                 .on_click(move |_ev, _window, cx| {
                                     let u = u_shell_target.clone();
                                     app_shell.update(cx, |this, cx| {
-                                        this.users.cycle_shell(&u); cx.notify();
+                                        this.user_cycle_shell(&u, cx);
                                     });
                                 })
                                 .child(format!("{} ▾", user.shell)),

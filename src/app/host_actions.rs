@@ -18,10 +18,6 @@ impl HostCommand {
     pub fn new(argv: Vec<String>) -> Self {
         Self { argv, stdin: Vec::new() }
     }
-
-    pub fn with_stdin(argv: Vec<String>, stdin: impl Into<Vec<u8>>) -> Self {
-        Self { argv, stdin: stdin.into() }
-    }
 }
 
 /// How a command reads in toasts, change records and the journal.

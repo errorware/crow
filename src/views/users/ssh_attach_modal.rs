@@ -237,7 +237,7 @@ pub fn ssh_attach_modal(
                                                             let u = u_target.clone();
                                                             let k = kid.clone();
                                                             app_rv.update(cx, |this, cx| {
-                                                                this.users.revoke_key(&u, &k); cx.notify();
+                                                                this.user_revoke_key(&u, &k, cx);
                                                             });
                                                         })
                                                         .child("REVOKE"),
@@ -406,7 +406,7 @@ pub fn ssh_attach_modal(
                                                                 added_at: chrono::Utc::now().format("%Y-%m-%d %H:%M").to_string(),
                                                             };
                                                             app_at.update(cx, |this, cx| {
-                                                                this.users.attach_key(&u, key_summary); cx.notify();
+                                                                this.user_attach_key(&u, key_summary, cx);
                                                             });
                                                         })
                                                         .child("+ ATTACH KEY")

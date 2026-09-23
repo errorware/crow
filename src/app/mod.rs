@@ -32,6 +32,7 @@ use crate::views::overview::{
 mod danger;
 mod files;
 mod firewall;
+mod users;
 mod host_actions;
 mod render;
 mod keyboard;
@@ -366,6 +367,9 @@ impl CrowApp {
         } else if view == "firewall" {
             self.active_view = "firewall".to_string();
             self.configs.selected_file = "user.rules".to_string();
+        } else if view == "users" {
+            self.active_view = view.to_string();
+            self.refresh_users(cx);
         } else if view == "files" {
             self.active_view = "files".to_string();
             self.load_file_listing(cx);

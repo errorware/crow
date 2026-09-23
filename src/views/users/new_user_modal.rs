@@ -389,7 +389,7 @@ pub fn new_user_modal(
                                         .text_color(rgb(0x0a0a0c))
                                         .on_click(move |_ev, _window, cx| {
                                             app_submit.update(cx, |this, cx| {
-                                                this.users.submit_create_user(); cx.notify();
+                                                this.user_create(cx);
                                             });
                                         })
                                         .child("PROVISION ACCOUNT"),
