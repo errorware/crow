@@ -32,6 +32,7 @@ use crate::views::overview::{
 mod danger;
 mod files;
 mod firewall;
+mod host_actions;
 mod render;
 mod keyboard;
 mod poll;

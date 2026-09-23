@@ -1,4 +1,4 @@
-use crate::host::{host_for, Host, HostError, DEFAULT_TIMEOUT};
+use crate::host::{host_for, Host, DEFAULT_TIMEOUT};
 use crate::vault::ServerRecord;
 use super::models::{
     default_active_ufw_state, default_ufw_rules, FirewallBackend, FirewallOperationalState,
@@ -6,8 +6,6 @@ use super::models::{
 };
 
 /// Detects the firewall backend and operational status on a server.
-/// Performs safe read-only queries with fallbacks to realistic data when running
-/// in unprivileged environments.
 pub fn detect_firewall_status(server: &ServerRecord) -> FirewallOperationalState {
     match host_for(server) {
         Some(host) => detect_firewall(host.as_ref()),
@@ -16,102 +14,63 @@ pub fn detect_firewall_status(server: &ServerRecord) -> FirewallOperationalState
     }
 }
 
-/// Probes a host for firewall binaries and operational service state.
+/// Firewall tools present on a host, found in one round trip. sbin is added
+/// to PATH because non-root users often lack it (and ufw lives there).
+fn detect_binaries(host: &dyn Host) -> Vec<(&'static str, String)> {
+    const TOOLS: [&str; 4] = ["ufw", "firewall-cmd", "nft", "iptables"];
+    let script = r#"PATH="$PATH:/usr/sbin:/sbin"; for b in "$@"; do p=$(command -v "$b") && echo "$b $p"; done; true"#;
+    let mut argv = vec!["sh", "-c", script, "crow-which"];
+    argv.extend(TOOLS);
+    let stdout = host.exec(&argv, DEFAULT_TIMEOUT).map(|o| o.stdout).unwrap_or_default();
+    TOOLS
+        .iter()
+        .filter_map(|tool| {
+            let path = stdout.lines().find_map(|l| l.strip_prefix(tool).and_then(|rest| rest.strip_prefix(' ')))?;
+            Some((*tool, path.trim().to_string()))
+        })
+        .collect()
+}
+
+/// Reads the host's real firewall state. ufw is read as root (its rules
+/// aren't readable otherwise). When Crow can't read or doesn't manage what's
+/// there, it says so rather than showing a stand-in ruleset.
 pub fn detect_firewall(host: &dyn Host) -> FirewallOperationalState {
-    let mut detected_binaries = Vec::new();
+    let found = detect_binaries(host);
+    let has = |tool: &str| found.iter().any(|(t, _)| *t == tool);
+    let detected_binaries: Vec<String> = found.iter().map(|(t, p)| format!("{t} ({p})")).collect();
 
-    let ufw_path = which_cmd(host, "ufw");
-    if let Some(ref p) = ufw_path {
-        detected_binaries.push(format!("ufw ({})", p));
-    }
-
-    let firewalld_path = which_cmd(host, "firewall-cmd");
-    if let Some(ref p) = firewalld_path {
-        detected_binaries.push(format!("firewall-cmd ({})", p));
-    }
-
-    let nft_path = which_cmd(host, "nft");
-    if let Some(ref p) = nft_path {
-        detected_binaries.push(format!("nftables ({})", p));
-    }
-
-    let iptables_path = which_cmd(host, "iptables");
-    if let Some(ref p) = iptables_path {
-        detected_binaries.push(format!("iptables ({})", p));
-    }
-
-    // 1. Test if UFW is operational
-    if ufw_path.is_some() {
-        // `ufw status` exits non-zero when unprivileged; its complaint is on stderr.
-        let (stdout, stderr) = match host.exec(&["ufw", "status", "numbered"], DEFAULT_TIMEOUT) {
-            Ok(out) => (out.stdout, out.stderr),
-            Err(HostError::Failed { stderr, .. }) => (String::new(), stderr),
-            Err(_) => (String::new(), String::new()),
-        };
-        if stdout.contains("Status: active") {
-            if let Some(summary) = parse_ufw_status(&stdout) {
-                return FirewallOperationalState::Active(summary);
-            }
-        } else if stdout.contains("Status: inactive") {
-            return FirewallOperationalState::Inactive {
+    if has("ufw") {
+        return match host.exec_privileged(&["ufw", "status", "numbered"], &[], DEFAULT_TIMEOUT) {
+            Ok(out) if out.stdout.contains("Status: active") => match parse_ufw_status(&out.stdout) {
+                Some(summary) => FirewallOperationalState::Active(summary),
+                None => FirewallOperationalState::Unmanaged {
+                    detected_binaries,
+                    reason: "ufw is active but its status output could not be parsed.".into(),
+                },
+            },
+            Ok(_) => FirewallOperationalState::Inactive {
                 backend: FirewallBackend::Ufw,
                 reason: "UFW is installed but inactive. System netfilter packet filtering is disabled.".into(),
                 detected_binaries,
                 has_root: true,
-            };
-        } else if stderr.contains("Permission denied") || stderr.contains("must be root") || stderr.contains("need to be root") {
-            // Seed operational state for dev/demo when unprivileged
-            return default_active_ufw_state();
-        }
+            },
+            Err(e) => FirewallOperationalState::Inactive {
+                backend: FirewallBackend::Ufw,
+                reason: format!("ufw is installed, but Crow couldn't read its rules as root: {e}"),
+                detected_binaries,
+                has_root: false,
+            },
+        };
     }
 
-    // 2. Test if firewalld is active
-    if firewalld_path.is_some() {
-        if let Ok(output) = host.exec(&["firewall-cmd", "--state"], DEFAULT_TIMEOUT) {
-            let stdout = output.stdout.trim().to_string();
-            if stdout == "running" {
-                // Firewalld is active
-                return FirewallOperationalState::Active(FirewallStatusSummary {
-                    backend: FirewallBackend::Firewalld,
-                    is_active: true,
-                    default_incoming: RuleAction::Deny,
-                    default_outgoing: RuleAction::Allow,
-                    default_forward: RuleAction::Deny,
-                    rules: default_ufw_rules(),
-                    raw_output: "firewall-cmd --state: running\nDefault zone: public\nServices: ssh dhcpv6-client http https".into(),
-                });
-            }
-        }
-    }
-
-    // If UFW binary was found but we couldn't run it or it's unprivileged
-    if ufw_path.is_some() {
-        return default_active_ufw_state();
-    }
-
-    // If firewalld was found and active
-    if firewalld_path.is_some() {
-        return FirewallOperationalState::Active(FirewallStatusSummary {
-            backend: FirewallBackend::Firewalld,
-            is_active: true,
-            default_incoming: RuleAction::Deny,
-            default_outgoing: RuleAction::Allow,
-            default_forward: RuleAction::Deny,
-            rules: default_ufw_rules(),
-            raw_output: "firewall-cmd: active (zone: public)".into(),
-        });
-    }
-
-    // If iptables/nftables exist, provide graceful fallback
-    if iptables_path.is_some() || nft_path.is_some() {
-        // Active iptables/nft filter present
-        default_active_ufw_state()
+    let reason = if has("firewall-cmd") {
+        "firewalld is installed. Crow manages ufw rules only for now; firewalld zones aren't read yet."
+    } else if has("nft") || has("iptables") {
+        "Only raw nftables/iptables tools were found. Crow manages ufw rules; raw rule sets aren't read yet."
     } else {
-        FirewallOperationalState::Unmanaged {
-            detected_binaries,
-            reason: "No operational firewall daemon (ufw, firewalld, nftables) detected on target host.".into(),
-        }
-    }
+        "No firewall tooling (ufw, firewalld, nftables, iptables) was found on this host."
+    };
+    FirewallOperationalState::Unmanaged { detected_binaries, reason: reason.into() }
 }
 
 /// Fallback detection for remote servers based on facts
@@ -131,12 +90,6 @@ fn detect_remote_firewall(server: &ServerRecord) -> FirewallOperationalState {
     } else {
         default_active_ufw_state()
     }
-}
-
-fn which_cmd(host: &dyn Host, bin: &str) -> Option<String> {
-    let out = host.exec(&["which", bin], DEFAULT_TIMEOUT).ok()?;
-    let path = out.stdout.trim().to_string();
-    (!path.is_empty()).then_some(path)
 }
 
 /// Parses the output of `ufw status numbered`

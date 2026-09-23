@@ -4,6 +4,7 @@ pub mod non_operational;
 pub mod new_rule_modal;
 pub mod rules_format;
 pub mod state;
+pub mod commands;
 
 #[allow(unused_imports)]
 pub use models::{
@@ -648,7 +649,7 @@ fn render_active_firewall(
                 }),
         )
         // Toast Notification Overlay
-        .children(if let Some(msg) = &fw.toast {
+        .children(if let Some(msg) = fw.pending.as_ref().map(|p| format!("Running: {p} …")).as_ref().or(fw.toast.as_ref()) {
             Some(
                 div()
                     .absolute()
