@@ -18,3 +18,4 @@ pub use icons::{TablerIcon, tabler_icon};
 pub use text_input::{handle_text_key_event, terminal_text_input, terminal_text_input_styled};
 pub mod window_frame;
 pub mod table_controls;
+pub mod resize;

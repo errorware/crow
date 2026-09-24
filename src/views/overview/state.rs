@@ -30,6 +30,8 @@ pub struct OverviewState {
     pub process_page: usize,
     /// Overview's Updates & Security card.
     pub security: SecurityState,
+    /// Height of the log panel under the Processes table (drag to resize).
+    pub process_log_height: f32,
 }
 
 /// Pending updates and CVEs for one server, refreshed at most every few
@@ -67,6 +69,7 @@ impl OverviewState {
             process_filter: ProcessFilter::Apps,
             process_page: 0,
             security: SecurityState::default(),
+            process_log_height: 240.0,
         }
     }
 }

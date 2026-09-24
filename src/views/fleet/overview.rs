@@ -6,19 +6,7 @@ use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::host::{connection_state, transport_kind, ConnectionState, TransportKind};
 use crate::vault::ServerRecord;
 use crate::views::fleet::FleetState;
-
-/// Drag payload for the Fleet page's list/panel divider.
-#[derive(Clone)]
-pub struct BottomPanelResize;
-
-/// What's drawn under the pointer while dragging the divider: nothing.
-pub struct ResizeGhost;
-
-impl Render for ResizeGhost {
-    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
-        div()
-    }
-}
+use crate::components::resize::{bottom_panel_height, resize_handle, BottomPanelResize};
 use crate::views::fleet::lab_state::LocalLabState;
 
 pub struct FleetHost {
@@ -265,11 +253,9 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                 .on_drag_move::<BottomPanelResize>({
                     let app = app.clone();
                     move |ev, _window, cx| {
-                        // Height = distance from the pointer to the bottom of this area.
-                        let height = f32::from(ev.bounds.bottom() - ev.event.position.y);
-                        let max = f32::from(ev.bounds.size.height) - 160.0;
+                        let height = bottom_panel_height(ev, 120.0, 160.0);
                         app.update(cx, |this, cx| {
-                            this.fleet.bottom_panel_height = height.clamp(120.0, max.max(120.0));
+                            this.fleet.bottom_panel_height = height;
                             cx.notify();
                         });
                     }
@@ -737,16 +723,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                         ),
                 )
                 // Drag handle between the list and the panel
-                .child(
-                    div()
-                        .id("fleet-panel-resize")
-                        .h(px(5.0))
-                        .flex_none()
-                        .bg(BORDER_PANEL)
-                        .cursor(CursorStyle::ResizeUpDown)
-                        .hover(|s| s.bg(BORDER_STRONG))
-                        .on_drag(BottomPanelResize, |_, _, _, cx| cx.new(|_| ResizeGhost)),
-                )
+                .child(resize_handle("fleet-panel-resize"))
                 // Bottom panel: Fleet Alerts (left) & Activity Log (right)
                 .child(
                     div()
