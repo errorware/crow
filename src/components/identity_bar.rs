@@ -316,6 +316,7 @@ pub fn connection_banner(server: Option<&ServerRecord>, app: Entity<CrowApp>) ->
             .px(px(16.0))
             .py(px(6.0))
             .bg(hex_rgb(0x1f0d0d))
+            .border_t_1()
             .border_b_1()
             .border_color(CRIT)
             .flex()
