@@ -1042,9 +1042,13 @@ fn render_sockets_rows(sockets: &[SocketUnit], app: Entity<CrowApp>) -> Vec<AnyE
                     .child(
                         div()
                             .w(px(64.0))
+                            .flex_none()
                             .pl(px(12.0))
+                            .flex()
+                            .items_center()
                             .child(
                                 div()
+                                    .flex_none()
                                     .bg(hex_rgb(0x14161b))
                                     .text_color(sock.proto_color())
                                     .text_size(px(9.0))
