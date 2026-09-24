@@ -27,6 +27,9 @@ use crate::views::users::user_management_view;
 
 impl Render for CrowApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.screen == Screen::Onboard {
+            self.ensure_onboard_inputs(window, cx);
+        }
         let is_overview = self.active_view == "overview";
         let is_table_page = super::is_table_page(&self.active_view);
         let is_config = self.active_view == "config";
@@ -365,7 +368,7 @@ impl Render for CrowApp {
                                     Screen::Onboard => Some(
                                         div()
                                             .size_full()
-                                            .child(onboard_view(app_view.clone(), &self.caret, &self.fleet, &self.onboard_state, &self.keys, &self.local_lab)),
+                                            .child(onboard_view(app_view.clone(), self.onboard_inputs.as_ref(), &self.fleet, &self.onboard_state, &self.keys, &self.local_lab)),
                                     ),
                                     Screen::FleetSetup => Some(
                                         div()

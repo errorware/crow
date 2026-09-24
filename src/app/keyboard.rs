@@ -364,80 +364,26 @@ impl CrowApp {
         false
     }
 
-    /// Onboarding wizard fields. Returns true when the key was consumed.
+    /// Onboarding wizard keys. The text fields are real inputs that handle
+    /// their own typing, paste and selection (and Enter); this only handles
+    /// Escape, Tab between fields, and Enter when no field has focus.
     fn keys_onboard(&mut self, k: &KeyPress, cx: &mut Context<Self>) -> bool {
         let KeyPress { ev, key, is_shift, .. } = *k;
-        if self.screen == Screen::Onboard {
-            self.caret.blink = true;
-            if ev.keystroke.key == "escape" {
-                self.set_screen(Screen::Fleet, cx);
-                return true;
-            } else if key == "enter" {
-                self.onboard_next_step(cx);
-                return true;
-            } else if key == "tab" {
-                let shift = is_shift;
-                self.onboard_cycle_focus(shift, cx);
-                return true;
-            }
-
-            let handled = match self.onboard_state.focus {
-                OnboardFieldFocus::Host => crate::components::handle_text_key_event(
-                    &mut self.onboard_state.host,
-                    &mut self.caret.cursor,
-                    &mut self.caret.selection,
-                    ev,
-                ),
-                OnboardFieldFocus::Port => {
-                    let res = crate::components::handle_text_key_event(
-                        &mut self.onboard_state.port,
-                        &mut self.caret.cursor,
-                        &mut self.caret.selection,
-                        ev,
-                    );
-                    if res {
-                        self.onboard_state.port.retain(|c| c.is_ascii_digit());
-                        if self.onboard_state.port.len() > 5 {
-                            self.onboard_state.port.truncate(5);
-                            self.caret.cursor = self.caret.cursor.min(self.onboard_state.port.len());
-                        }
-                    }
-                    res
-                }
-                OnboardFieldFocus::User => crate::components::handle_text_key_event(
-                    &mut self.onboard_state.user,
-                    &mut self.caret.cursor,
-                    &mut self.caret.selection,
-                    ev,
-                ),
-                OnboardFieldFocus::Password => crate::components::handle_text_key_event(
-                    &mut self.onboard_state.password,
-                    &mut self.caret.cursor,
-                    &mut self.caret.selection,
-                    ev,
-                ),
-                OnboardFieldFocus::Label => crate::components::handle_text_key_event(
-                    &mut self.onboard_state.label,
-                    &mut self.caret.cursor,
-                    &mut self.caret.selection,
-                    ev,
-                ),
-                OnboardFieldFocus::Tags => crate::components::handle_text_key_event(
-                    &mut self.onboard_state.tags,
-                    &mut self.caret.cursor,
-                    &mut self.caret.selection,
-                    ev,
-                ),
-                OnboardFieldFocus::None => false,
-            };
-
-            if handled {
-                self.onboard_state.error_message = None;
-                cx.notify();
-                return true;
-            }
+        if self.screen != Screen::Onboard {
+            return false;
         }
-        false
+        if ev.keystroke.key == "escape" {
+            self.set_screen(Screen::Fleet, cx);
+            true
+        } else if key == "tab" {
+            self.onboard_cycle_focus(is_shift, cx);
+            true
+        } else if key == "enter" && self.onboard_state.focus == OnboardFieldFocus::None {
+            self.onboard_next_step(cx);
+            true
+        } else {
+            false
+        }
     }
 
     /// Logs screen journal search box. Returns true when the key was consumed.

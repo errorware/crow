@@ -1,4 +1,5 @@
 use gpui_kit::*;
+use gpui_kit::component::input::{InputEvent, InputState};
 
 use super::{CrowApp, Screen};
 use crate::components::titlebar::ServerTab;
@@ -15,7 +16,102 @@ use crate::views::onboard::{
     OnboardStep,
 };
 
+/// The Add Server wizard's text fields: real gpui-component inputs (paste,
+/// selection, undo), mirrored into `OnboardState` on every change.
+pub struct OnboardInputs {
+    pub host: Entity<InputState>,
+    pub port: Entity<InputState>,
+    pub user: Entity<InputState>,
+    pub password: Entity<InputState>,
+    pub label: Entity<InputState>,
+    pub tags: Entity<InputState>,
+    _events: Vec<Subscription>,
+}
+
+impl OnboardInputs {
+    pub fn get(&self, field: OnboardFieldFocus) -> Option<&Entity<InputState>> {
+        match field {
+            OnboardFieldFocus::Host => Some(&self.host),
+            OnboardFieldFocus::Port => Some(&self.port),
+            OnboardFieldFocus::User => Some(&self.user),
+            OnboardFieldFocus::Password => Some(&self.password),
+            OnboardFieldFocus::Label => Some(&self.label),
+            OnboardFieldFocus::Tags => Some(&self.tags),
+            OnboardFieldFocus::None => None,
+        }
+    }
+}
+
+fn onboard_field_mut(state: &mut OnboardState, field: OnboardFieldFocus) -> Option<&mut String> {
+    match field {
+        OnboardFieldFocus::Host => Some(&mut state.host),
+        OnboardFieldFocus::Port => Some(&mut state.port),
+        OnboardFieldFocus::User => Some(&mut state.user),
+        OnboardFieldFocus::Password => Some(&mut state.password),
+        OnboardFieldFocus::Label => Some(&mut state.label),
+        OnboardFieldFocus::Tags => Some(&mut state.tags),
+        OnboardFieldFocus::None => None,
+    }
+}
+
 impl CrowApp {
+    /// Creates the wizard's inputs from the current `OnboardState` the first
+    /// time they're rendered, and applies a pending focus change.
+    pub fn ensure_onboard_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.onboard_inputs.is_none() {
+            let st = &self.onboard_state;
+            let fields = [
+                (OnboardFieldFocus::Host, st.host.clone(), "e.g. 10.0.4.32 or prod-db.internal", false),
+                (OnboardFieldFocus::Port, st.port.clone(), "22", false),
+                (OnboardFieldFocus::User, st.user.clone(), "root", false),
+                (OnboardFieldFocus::Password, st.password.clone(), "password", true),
+                (OnboardFieldFocus::Label, st.label.clone(), "e.g. prod-db-01", false),
+                (OnboardFieldFocus::Tags, st.tags.clone(), "e.g. postgres, primary", false),
+            ];
+            let mut events = Vec::new();
+            let mut made = Vec::new();
+            for (field, value, placeholder, masked) in fields {
+                let input = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder).masked(masked).default_value(value));
+                events.push(cx.subscribe_in(&input, window, move |this, input, ev: &InputEvent, window, cx| match ev {
+                    InputEvent::Change => {
+                        let mut value = input.read(cx).value().to_string();
+                        if field == OnboardFieldFocus::Port {
+                            let digits: String = value.chars().filter(char::is_ascii_digit).take(5).collect();
+                            if digits != value {
+                                input.update(cx, |i, cx| i.set_value(digits.clone(), window, cx));
+                            }
+                            value = digits;
+                        }
+                        if let Some(slot) = onboard_field_mut(&mut this.onboard_state, field) {
+                            *slot = value;
+                        }
+                        this.onboard_state.error_message = None;
+                        cx.notify();
+                    }
+                    InputEvent::Focus => {
+                        this.onboard_state.focus = field;
+                        cx.notify();
+                    }
+                    InputEvent::Blur => {
+                        if this.onboard_state.focus == field {
+                            this.onboard_state.focus = OnboardFieldFocus::None;
+                            cx.notify();
+                        }
+                    }
+                    InputEvent::PressEnter { .. } => this.onboard_next_step(cx),
+                }));
+                made.push(input);
+            }
+            let [host, port, user, password, label, tags]: [Entity<InputState>; 6] = made.try_into().ok().expect("six inputs");
+            self.onboard_inputs = Some(OnboardInputs { host, port, user, password, label, tags, _events: events });
+        }
+        if std::mem::take(&mut self.onboard_focus_pending) {
+            if let Some(input) = self.onboard_inputs.as_ref().and_then(|i| i.get(self.onboard_state.focus)) {
+                input.update(cx, |i, cx| i.focus(window, cx));
+            }
+        }
+    }
+
     pub fn onboard_select_local_lab_node(&mut self, name: &str, port: &str, distro: &str, cx: &mut Context<Self>) {
         self.onboard_state.host = "127.0.0.1".to_string();
         self.onboard_state.port = port.to_string();
@@ -24,11 +120,13 @@ impl CrowApp {
         self.onboard_state.env = "LAB".to_string();
         self.onboard_state.role = format!("test-node · {}", distro);
         self.onboard_state.facts.distro = distro.to_string();
+        self.onboard_inputs = None;
         cx.notify();
     }
 
     pub fn start_onboarding(&mut self, cx: &mut Context<Self>) {
         self.onboard_state = OnboardState::new(&self.keys.enrolled);
+        self.onboard_inputs = None;
         self.screen = Screen::Onboard;
         self.menu_open = false;
         self.palette_open = false;
@@ -42,26 +140,11 @@ impl CrowApp {
         self.sync_ssh_directory();
     }
 
-    pub fn onboard_set_focus_select(&mut self, focus: OnboardFieldFocus, select_all: bool, cx: &mut Context<Self>) {
+    /// Moves the wizard's focus to `focus`; the input is focused on the next
+    /// render (focusing needs the window).
+    pub fn onboard_set_focus_select(&mut self, focus: OnboardFieldFocus, _select_all: bool, cx: &mut Context<Self>) {
         self.onboard_state.focus = focus;
-        let text_len = match focus {
-            OnboardFieldFocus::Host => self.onboard_state.host.chars().count(),
-            OnboardFieldFocus::Port => self.onboard_state.port.chars().count(),
-            OnboardFieldFocus::User => self.onboard_state.user.chars().count(),
-            OnboardFieldFocus::Password => self.onboard_state.password.chars().count(),
-            OnboardFieldFocus::Label => self.onboard_state.label.chars().count(),
-            OnboardFieldFocus::Tags => self.onboard_state.tags.chars().count(),
-            OnboardFieldFocus::None => 0,
-        };
-        self.caret.blink = true;
-        self.caret.drag_anchor = None;
-        if select_all && text_len > 0 {
-            self.caret.selection = Some((0, text_len));
-            self.caret.cursor = text_len;
-        } else {
-            self.caret.selection = None;
-            self.caret.cursor = text_len;
-        }
+        self.onboard_focus_pending = true;
         cx.notify();
     }
 

@@ -2,9 +2,9 @@ use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::{CrowApp, Screen};
-use crate::components::terminal_text_input;
 use crate::os_detect::classify_distro_family;
-use crate::components::text_caret::TextCaret;
+use crate::app::onboard::OnboardInputs;
+use gpui_kit::component::input::Input;
 use crate::views::fleet::FleetState;
 use crate::views::settings::keys_state::KeysState;
 use crate::views::fleet::lab_state::LocalLabState;
@@ -111,7 +111,7 @@ impl OnboardState {
     }
 }
 
-pub fn onboard_view(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetState, onboard_state: &OnboardState, keys: &KeysState, local_lab: &LocalLabState) -> impl IntoElement {
+pub fn onboard_view(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &FleetState, onboard_state: &OnboardState, keys: &KeysState, local_lab: &LocalLabState) -> impl IntoElement {
     let state = &onboard_state;
 
     let steps = [
@@ -202,8 +202,12 @@ pub fn onboard_view(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetState,
                     let app_step = app.clone();
                     let target_step = *step;
 
+                    // One border colour per element in GPUI, so the divider is the
+                    // only border; the active step gets the app's 2px green
+                    // accent bar (as on the titlebar tabs) drawn over its bottom edge.
                     let mut tab = div()
                         .id(ElementId::NamedInteger("onboard-step-tab".into(), idx as u64))
+                        .relative()
                         .flex()
                         .items_center()
                         .gap(px(8.0))
@@ -211,8 +215,7 @@ pub fn onboard_view(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetState,
                         .border_r_1()
                         .border_color(BORDER_PANEL)
                         .bg(if is_active { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
-                        .border_b_2()
-                        .border_color(if is_active { TEXT_PRIMARY } else { hex_rgba(0, 0.0) });
+                        .children(is_active.then(|| div().absolute().bottom_0().left_0().right_0().h(px(2.0)).bg(OK)));
                     if is_clickable {
                         tab = tab.cursor_pointer().hover(|h| h.bg(BG_ROW_HOVER));
                     }
@@ -271,7 +274,7 @@ pub fn onboard_view(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetState,
                                 .flex()
                                 .flex_col()
                                 .gap(px(12.0))
-                                .child(render_step_content(app.clone(), caret, fleet, onboard_state, keys, local_lab)),
+                                .child(render_step_content(app.clone(), inputs, fleet, onboard_state, keys, local_lab)),
                         )
                         // Error message if any
                         .children(if let Some(ref err) = state.error_message {
@@ -354,14 +357,14 @@ pub fn onboard_view(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetState,
         )
 }
 
-fn render_step_content(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetState, onboard_state: &OnboardState, keys: &KeysState, local_lab: &LocalLabState) -> Div {
+fn render_step_content(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &FleetState, onboard_state: &OnboardState, keys: &KeysState, local_lab: &LocalLabState) -> Div {
     let state = &onboard_state;
 
     match state.step {
-        OnboardStep::Address => render_step_address(app, caret, onboard_state, local_lab),
-        OnboardStep::Credentials => render_step_credentials(app, caret, fleet, onboard_state, keys),
+        OnboardStep::Address => render_step_address(app, inputs, onboard_state, local_lab),
+        OnboardStep::Credentials => render_step_credentials(app, inputs, fleet, onboard_state, keys),
         OnboardStep::VerifyHost => render_step_verify(app, state),
-        OnboardStep::Classify => render_step_classify(app, caret, onboard_state),
+        OnboardStep::Classify => render_step_classify(app, inputs, onboard_state),
         OnboardStep::Finish => render_step_finish(app, state, &keys.enrolled),
     }
 }
@@ -369,10 +372,8 @@ fn render_step_content(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetSta
 // -----------------------------------------------------------------------------
 // Step 1: Address
 // -----------------------------------------------------------------------------
-fn render_step_address(app: Entity<CrowApp>, caret: &TextCaret, onboard_state: &OnboardState, local_lab: &LocalLabState) -> Div {
+fn render_step_address(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, onboard_state: &OnboardState, local_lab: &LocalLabState) -> Div {
     let state = &onboard_state;
-    let app_host = app.clone();
-    let app_port = app.clone();
     let is_host_focused = state.focus == OnboardFieldFocus::Host;
     let is_port_focused = state.focus == OnboardFieldFocus::Port;
 
@@ -512,30 +513,7 @@ fn render_step_address(app: Entity<CrowApp>, caret: &TextCaret, onboard_state: &
                         .child("HOSTNAME OR IP ADDRESS:"),
                 )
                 .child(
-                    terminal_text_input(
-                        "input-onboard-host",
-                        &state.host,
-                        "e.g. 10.0.4.32 or prod-db.internal",
-                        is_host_focused,
-                        false,
-                        if is_host_focused { caret.cursor } else { 0 },
-                        if is_host_focused { caret.selection } else { None },
-                        if is_host_focused { caret.drag_anchor } else { None },
-                        caret.blink,
-                        {
-                            let app = app_host;
-                            move |cursor, anchor, selection, _window, cx| {
-                                app.update(cx, |this, cx| {
-                                    this.onboard_state.focus = OnboardFieldFocus::Host;
-                                    this.caret.cursor = cursor;
-                                    this.caret.drag_anchor = anchor;
-                                    this.caret.selection = selection;
-                                    this.caret.blink = true;
-                                    cx.notify();
-                                });
-                            }
-                        },
-                    ),
+                    onboard_field(inputs, OnboardFieldFocus::Host),
                 )
                 .child(
                     div()
@@ -560,30 +538,7 @@ fn render_step_address(app: Entity<CrowApp>, caret: &TextCaret, onboard_state: &
                         .child("SSH PORT:"),
                 )
                 .child(
-                    terminal_text_input(
-                        "input-onboard-port",
-                        &state.port,
-                        "22",
-                        is_port_focused,
-                        false,
-                        if is_port_focused { caret.cursor } else { 0 },
-                        if is_port_focused { caret.selection } else { None },
-                        if is_port_focused { caret.drag_anchor } else { None },
-                        caret.blink,
-                        {
-                            let app = app_port;
-                            move |cursor, anchor, selection, _window, cx| {
-                                app.update(cx, |this, cx| {
-                                    this.onboard_state.focus = OnboardFieldFocus::Port;
-                                    this.caret.cursor = cursor;
-                                    this.caret.drag_anchor = anchor;
-                                    this.caret.selection = selection;
-                                    this.caret.blink = true;
-                                    cx.notify();
-                                });
-                            }
-                        },
-                    )
+                    onboard_field(inputs, OnboardFieldFocus::Port)
                     .w(px(120.0)),
                 )
                 .child(
@@ -599,15 +554,13 @@ fn render_step_address(app: Entity<CrowApp>, caret: &TextCaret, onboard_state: &
 // -----------------------------------------------------------------------------
 // Step 2: Credentials
 // -----------------------------------------------------------------------------
-fn render_step_credentials(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetState, onboard_state: &OnboardState, keys: &KeysState) -> Div {
+fn render_step_credentials(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &FleetState, onboard_state: &OnboardState, keys: &KeysState) -> Div {
     let state = &onboard_state;
     let enrolled_keys = &keys.enrolled;
     let servers = &fleet.servers;
-    let app_user = app.clone();
     let app_auth_pub = app.clone();
     let app_auth_agent = app.clone();
     let app_auth_pass = app.clone();
-    let app_pw = app.clone();
     let app_jump_none = app.clone();
     let is_user_focused = state.focus == OnboardFieldFocus::User;
     let is_pw_focused = state.focus == OnboardFieldFocus::Password;
@@ -646,30 +599,7 @@ fn render_step_credentials(app: Entity<CrowApp>, caret: &TextCaret, fleet: &Flee
                         .child("LOGIN USER:"),
                 )
                 .child(
-                    terminal_text_input(
-                        "input-onboard-user",
-                        &state.user,
-                        "root (or ubuntu, deploy, admin…)",
-                        is_user_focused,
-                        false,
-                        if is_user_focused { caret.cursor } else { 0 },
-                        if is_user_focused { caret.selection } else { None },
-                        if is_user_focused { caret.drag_anchor } else { None },
-                        caret.blink,
-                        {
-                            let app = app_user;
-                            move |cursor, anchor, selection, _window, cx| {
-                                app.update(cx, |this, cx| {
-                                    this.onboard_state.focus = OnboardFieldFocus::User;
-                                    this.caret.cursor = cursor;
-                                    this.caret.drag_anchor = anchor;
-                                    this.caret.selection = selection;
-                                    this.caret.blink = true;
-                                    cx.notify();
-                                });
-                            }
-                        },
-                    ),
+                    onboard_field(inputs, OnboardFieldFocus::User),
                 )
                 .child(
                     div()
@@ -879,30 +809,7 @@ fn render_step_credentials(app: Entity<CrowApp>, caret: &TextCaret, fleet: &Flee
                             .child("PASSWORD:"),
                     )
                     .child(
-                        terminal_text_input(
-                            "input-onboard-pw",
-                            &state.password,
-                            "Enter remote password…",
-                            is_pw_focused,
-                            true,
-                            if is_pw_focused { caret.cursor } else { 0 },
-                            if is_pw_focused { caret.selection } else { None },
-                            if is_pw_focused { caret.drag_anchor } else { None },
-                            caret.blink,
-                            {
-                                let app = app_pw;
-                                move |cursor, anchor, selection, _window, cx| {
-                                    app.update(cx, |this, cx| {
-                                        this.onboard_state.focus = OnboardFieldFocus::Password;
-                                        this.caret.cursor = cursor;
-                                        this.caret.drag_anchor = anchor;
-                                        this.caret.selection = selection;
-                                        this.caret.blink = true;
-                                        cx.notify();
-                                    });
-                                }
-                            },
-                        ),
+                        onboard_field(inputs, OnboardFieldFocus::Password),
                     ),
             )
         } else {
@@ -1173,10 +1080,8 @@ fn render_step_verify(app: Entity<CrowApp>, state: &OnboardState) -> Div {
 // -----------------------------------------------------------------------------
 // Step 4: Classify
 // -----------------------------------------------------------------------------
-fn render_step_classify(app: Entity<CrowApp>, caret: &TextCaret, onboard_state: &OnboardState) -> Div {
+fn render_step_classify(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, onboard_state: &OnboardState) -> Div {
     let state = &onboard_state;
-    let app_label = app.clone();
-    let app_tags = app.clone();
     let is_label_focused = state.focus == OnboardFieldFocus::Label;
     let is_tags_focused = state.focus == OnboardFieldFocus::Tags;
 
@@ -1218,30 +1123,7 @@ fn render_step_classify(app: Entity<CrowApp>, caret: &TextCaret, onboard_state: 
                         .child("SERVER LABEL (UNIQUE IDENTIFIER):"),
                 )
                 .child(
-                    terminal_text_input(
-                        "input-onboard-label",
-                        &state.label,
-                        "e.g. worker-05, edge-eu, db-primary",
-                        is_label_focused,
-                        false,
-                        if is_label_focused { caret.cursor } else { 0 },
-                        if is_label_focused { caret.selection } else { None },
-                        if is_label_focused { caret.drag_anchor } else { None },
-                        caret.blink,
-                        {
-                            let app = app_label;
-                            move |cursor, anchor, selection, _window, cx| {
-                                app.update(cx, |this, cx| {
-                                    this.onboard_state.focus = OnboardFieldFocus::Label;
-                                    this.caret.cursor = cursor;
-                                    this.caret.drag_anchor = anchor;
-                                    this.caret.selection = selection;
-                                    this.caret.blink = true;
-                                    cx.notify();
-                                });
-                            }
-                        },
-                    ),
+                    onboard_field(inputs, OnboardFieldFocus::Label),
                 )
                 .child(
                     div()
@@ -1440,30 +1322,7 @@ fn render_step_classify(app: Entity<CrowApp>, caret: &TextCaret, onboard_state: 
                         .child("TAGS (COMMA SEPARATED):"),
                 )
                 .child(
-                    terminal_text_input(
-                        "input-onboard-tags",
-                        &state.tags,
-                        "e.g. queue, ruby, eu-west, staging",
-                        is_tags_focused,
-                        false,
-                        if is_tags_focused { caret.cursor } else { 0 },
-                        if is_tags_focused { caret.selection } else { None },
-                        if is_tags_focused { caret.drag_anchor } else { None },
-                        caret.blink,
-                        {
-                            let app = app_tags;
-                            move |cursor, anchor, selection, _window, cx| {
-                                app.update(cx, |this, cx| {
-                                    this.onboard_state.focus = OnboardFieldFocus::Tags;
-                                    this.caret.cursor = cursor;
-                                    this.caret.drag_anchor = anchor;
-                                    this.caret.selection = selection;
-                                    this.caret.blink = true;
-                                    cx.notify();
-                                });
-                            }
-                        },
-                    ),
+                    onboard_field(inputs, OnboardFieldFocus::Tags),
                 ),
         )
 }
@@ -1920,4 +1779,16 @@ fn render_right_rail(app: Entity<CrowApp>, onboard_state: &OnboardState) -> Div 
                         .child(name.clone())
                 })),
         )
+}
+
+/// A wizard text field: gpui-component's input, styled like the app's other
+/// inputs (sharp corners, mono font).
+fn onboard_field(inputs: Option<&OnboardInputs>, field: OnboardFieldFocus) -> Div {
+    div().w_full().children(inputs.and_then(|i| i.get(field)).map(|state| {
+        Input::new(state)
+            .font_family(FONT_MONO)
+            .text_size(px(12.0))
+            .bg(BG_APP)
+            .rounded(px(2.0))
+    }))
 }
