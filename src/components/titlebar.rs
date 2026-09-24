@@ -50,6 +50,7 @@ pub fn titlebar(
     menu_open: bool,
     server_count: usize,
     agent_count: usize,
+    session: String,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
     let mut bar = div()
@@ -269,7 +270,7 @@ pub fn titlebar(
             if agent_count == 1 { "" } else { "s" }
         )
     } else {
-        "SSH ED25519 · active".to_string()
+        session
     };
     let server_time_text = chrono::Utc::now().format("%H:%M:%S").to_string();
     let local_time_text = chrono::Local::now().format("%H:%M:%S").to_string();

@@ -11,10 +11,11 @@ pub struct CollectorPreviousState {
     pub last_tick: Instant,
     pub prev_cpu_total: u64,
     pub prev_cpu_idle: u64,
+    pub prev_cpu_iowait: u64,
     pub prev_net_rx: u64,
     pub prev_net_tx: u64,
     pub last_slow_sample: Instant,
-    pub cached_disk: Option<(u64, u64, f32)>,
+    pub cached_disk: Option<(u64, u64, Option<f32>)>,
     pub cached_services: Vec<LiveServiceStatus>,
 }
 
@@ -24,6 +25,7 @@ impl Default for CollectorPreviousState {
             last_tick: Instant::now(),
             prev_cpu_total: 0,
             prev_cpu_idle: 0,
+            prev_cpu_iowait: 0,
             prev_net_rx: 0,
             prev_net_tx: 0,
             last_slow_sample: Instant::now().checked_sub(std::time::Duration::from_secs(60)).unwrap_or_else(Instant::now),
@@ -66,12 +68,16 @@ impl HostCollector {
             let section = |i: usize| sections.get(i).copied().unwrap_or("");
 
             // 1. CPU utilization via /proc/stat
-            let (cpu_pct, vcpu_count, total_time, idle_time) =
-                parse_proc_stat(section(0), prev_state.prev_cpu_total, prev_state.prev_cpu_idle);
-            prev_state.prev_cpu_total = total_time;
-            prev_state.prev_cpu_idle = idle_time;
-            m.vcpu_count = vcpu_count;
-            m.push_cpu_sample(cpu_pct);
+            let stat = parse_proc_stat(section(0), prev_state.prev_cpu_total, prev_state.prev_cpu_idle, prev_state.prev_cpu_iowait);
+            prev_state.prev_cpu_total = stat.total;
+            prev_state.prev_cpu_idle = stat.idle;
+            prev_state.prev_cpu_iowait = stat.iowait;
+            m.vcpu_count = stat.vcpus;
+            // The first sample has nothing to compare against: no reading yet.
+            if let Some(pct) = stat.cpu_pct {
+                m.push_cpu_sample(pct);
+            }
+            m.iowait_pct = stat.iowait_pct;
 
             // 2. Memory utilization via /proc/meminfo
             let (used_b, total_b) = parse_proc_meminfo(section(1));
@@ -113,7 +119,7 @@ impl HostCollector {
             };
             let sections: Vec<&str> = stdout.split(SECTION).collect();
             if let Some((used_b, total_b)) = sections.first().and_then(|s| parse_df_usage(s)) {
-                let inodes_pct = sections.get(1).and_then(|s| parse_df_inodes_pct(s)).unwrap_or(6.2);
+                let inodes_pct = sections.get(1).and_then(|s| parse_df_inodes_pct(s));
                 prev_state.cached_disk = Some((used_b, total_b, inodes_pct));
             }
             let svcs = sections.get(2).map(|s| parse_live_services(s)).unwrap_or_default();
@@ -129,7 +135,6 @@ impl HostCollector {
             m.disk_pct = ((used_b as f64 / total_b.max(1) as f64) * 100.0).clamp(0.0, 100.0) as f32;
             m.disk_mount = "/".to_string();
             m.inodes_pct = inodes_pct;
-            m.iowait_pct = 0.4;
         }
 
         if !prev_state.cached_services.is_empty() {
@@ -141,38 +146,49 @@ impl HostCollector {
     }
 }
 
-/// Parses /proc/stat into (cpu %, vcpu count, total jiffies, idle jiffies), with
-/// the percentage computed against the previous sample's totals.
-pub fn parse_proc_stat(text: &str, prev_total: u64, prev_idle: u64) -> (f32, usize, u64, u64) {
-    let mut vcpu_count = 0;
-    let mut total_time = 0u64;
-    let mut idle_time = 0u64;
+/// One /proc/stat reading. Percentages are over the time since the previous
+/// reading, so the first reading has none.
+#[derive(Debug, PartialEq)]
+pub struct ProcStat {
+    pub cpu_pct: Option<f32>,
+    pub iowait_pct: Option<f32>,
+    pub vcpus: usize,
+    pub total: u64,
+    pub idle: u64,
+    pub iowait: u64,
+}
+
+/// Parses /proc/stat against the previous reading's jiffy totals.
+pub fn parse_proc_stat(text: &str, prev_total: u64, prev_idle: u64, prev_iowait: u64) -> ProcStat {
+    let mut vcpus = 0;
+    let (mut total, mut idle, mut iowait) = (0u64, 0u64, 0u64);
 
     for line in text.lines() {
         if line.starts_with("cpu ") {
             let parts: Vec<&str> = line.split_whitespace().collect();
             if parts.len() >= 5 {
                 let field = |i: usize| parts.get(i).and_then(|s| s.parse::<u64>().ok()).unwrap_or(0);
-                let (user, nice, system, idle) = (field(1), field(2), field(3), field(4));
-                let (iowait, irq, softirq, steal) = (field(5), field(6), field(7), field(8));
-                idle_time = idle + iowait;
-                total_time = user + nice + system + idle + iowait + irq + softirq + steal;
+                let (user, nice, system, idle_j) = (field(1), field(2), field(3), field(4));
+                let (iowait_j, irq, softirq, steal) = (field(5), field(6), field(7), field(8));
+                idle = idle_j + iowait_j;
+                iowait = iowait_j;
+                total = user + nice + system + idle_j + iowait_j + irq + softirq + steal;
             }
         } else if line.starts_with("cpu") && line[3..].chars().next().map_or(false, |c| c.is_ascii_digit()) {
-            vcpu_count += 1;
+            vcpus += 1;
         }
     }
 
-    let cpu_pct = if prev_total > 0 && total_time > prev_total {
-        let total_delta = (total_time - prev_total) as f64;
-        let idle_delta = (idle_time.saturating_sub(prev_idle)) as f64;
-        let usage = (1.0 - (idle_delta / total_delta)) * 100.0;
-        usage.clamp(0.0, 100.0) as f32
+    let (cpu_pct, iowait_pct) = if prev_total > 0 && total > prev_total {
+        let delta = (total - prev_total) as f64;
+        let busy = (1.0 - idle.saturating_sub(prev_idle) as f64 / delta) * 100.0;
+        let io = iowait.saturating_sub(prev_iowait) as f64 / delta * 100.0;
+        (Some(busy.clamp(0.0, 100.0) as f32), Some(io.clamp(0.0, 100.0) as f32))
     } else {
-        12.0
+        (None, None)
     };
 
-    (cpu_pct, vcpu_count.max(1), total_time, idle_time)
+    ProcStat { cpu_pct, iowait_pct, vcpus: vcpus.max(1), total, idle, iowait }
 }
 
 /// Parses /proc/meminfo into (used bytes, total bytes).
@@ -246,7 +262,7 @@ pub fn parse_live_services(text: &str) -> Vec<LiveServiceStatus> {
         .filter(|l| !l.trim().is_empty())
         .take(20)
         .filter_map(|line| {
-            let parts: Vec<&str> = line.split_whitespace().collect();
+            let parts: Vec<&str> = crate::views::overview::collector::strip_unit_marker(line).split_whitespace().collect();
             if parts.len() < 4 {
                 return None;
             }
@@ -301,12 +317,14 @@ mod tests {
     #[test]
     fn parses_proc_fixtures() {
         let stat = "cpu  100 0 50 800 50 0 0 0 0 0\ncpu0 50 0 25 400 25 0 0 0 0 0\ncpu1 50 0 25 400 25 0 0 0 0 0\nintr 1\n";
-        let (pct, vcpus, total, idle) = parse_proc_stat(stat, 0, 0);
-        assert_eq!((vcpus, total, idle), (2, 1000, 850));
-        assert_eq!(pct, 12.0, "first sample has no previous totals");
-        let busier = "cpu  300 0 150 1000 50 0 0 0 0 0\n";
-        let (pct, ..) = parse_proc_stat(busier, total, idle);
-        assert!((pct - 60.0).abs() < 0.01, "300 of 500 new jiffies were busy, got {pct}");
+        let first = parse_proc_stat(stat, 0, 0, 0);
+        assert_eq!((first.vcpus, first.total, first.idle, first.iowait), (2, 1000, 850, 50));
+        assert_eq!((first.cpu_pct, first.iowait_pct), (None, None), "first sample has nothing to compare against");
+        let busier = "cpu  300 0 150 1000 100 0 0 0 0 0\n";
+        let next = parse_proc_stat(busier, first.total, first.idle, first.iowait);
+        let (pct, io) = (next.cpu_pct.unwrap(), next.iowait_pct.unwrap());
+        assert!((pct - 300.0 / 550.0 * 100.0).abs() < 0.01, "300 of 550 new jiffies were busy, got {pct}");
+        assert!((io - 50.0 / 550.0 * 100.0).abs() < 0.01, "50 of 550 new jiffies were iowait, got {io}");
 
         let mem = "MemTotal:       16000000 kB\nMemFree:  1 kB\nMemAvailable:    4000000 kB\n";
         assert_eq!(parse_proc_meminfo(mem), (12000000 * 1024, 16000000 * 1024));

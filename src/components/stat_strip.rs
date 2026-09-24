@@ -35,7 +35,8 @@ pub fn stat_strip(
 
     // Disk formatting
     let (disk_used_str, disk_total_str) = m.disk_formatted();
-    let disk_sub = format!("inodes {:.1}% · iowait {:.1}%", m.inodes_pct, m.iowait_pct);
+    let pct_or_dash = |v: Option<f32>| v.map(|v| format!("{v:.1}%")).unwrap_or_else(|| "—".into());
+    let disk_sub = format!("inodes {} · iowait {}", pct_or_dash(m.inodes_pct), pct_or_dash(m.iowait_pct));
 
     // Load formatting
     let load_str = format!("{:.2}", m.load_1m);
@@ -58,7 +59,7 @@ pub fn stat_strip(
     } else {
         format!("{:.1}", net_total_mbps)
     };
-    let net_sub = format!("↓ {:.0} · ↑ {:.0} · retrans 0.01%", rx_mbps, tx_mbps);
+    let net_sub = format!("↓ {:.1} · ↑ {:.1} Mb/s", rx_mbps, tx_mbps);
 
     div()
         .flex_none()
@@ -102,7 +103,7 @@ pub fn stat_strip(
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.5))
                                 .text_color(TEXT_MUTED)
-                                .child(format!("· -{}s lag · local memory cache · 0ms compute overhead", lag_secs)),
+                                .child(format!("· -{}s lag · local memory cache", lag_secs)),
                         ),
                 )
                 // Right: Surge Foreknowledge / Preview

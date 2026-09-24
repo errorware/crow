@@ -13,12 +13,20 @@ pub fn format_rss_kb(rss_kb: u64) -> String {
     }
 }
 
+/// A `systemctl list-units` line without its leading status marker.
+pub fn strip_unit_marker(line: &str) -> &str {
+    let t = line.trim();
+    t.strip_prefix('●').or_else(|| t.strip_prefix("* ")).map(str::trim_start).unwrap_or(t)
+}
+
 /// Parses the output of `systemctl list-units --type=service --all --no-legend --no-pager`
 pub fn parse_systemctl_services(stdout: &str) -> Vec<ServiceUnit> {
     let mut units = Vec::new();
 
     for line in stdout.lines() {
-        let trimmed = line.trim();
+        // systemctl marks failed and not-found units with a leading "●" ("*"
+        // without a UTF-8 locale); it isn't part of the unit name.
+        let trimmed = strip_unit_marker(line);
         if trimmed.is_empty() {
             continue;
         }
@@ -243,6 +251,21 @@ pub fn terminate_process(server: &ServerRecord, pid: u32, signal: i32) -> Result
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn failed_and_not_found_units_keep_their_names() {
+        let sample = "\
+● apport.service        not-found inactive dead   apport.service
+● clamav.service        loaded    failed   failed Clam AntiVirus Daemon
+* legacy.service        loaded    failed   failed Legacy (no UTF-8 locale)
+  cron.service          loaded    active   running Regular background program processing daemon";
+        let units = parse_systemctl_services(sample);
+        let names: Vec<&str> = units.iter().map(|u| u.name.as_str()).collect();
+        assert_eq!(names, ["apport.service", "clamav.service", "legacy.service", "cron.service"]);
+        let live = crate::metrics::collector::parse_live_services(sample);
+        assert_eq!(live[1].name, "clamav.service");
+        assert_eq!(live[1].status, "FAILED");
+    }
 
     #[test]
     fn test_parse_systemctl_services() {
