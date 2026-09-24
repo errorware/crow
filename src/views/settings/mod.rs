@@ -231,6 +231,7 @@ pub fn settings_view(
     app: Entity<CrowApp>,
     vault: &Vault, config: &CrowConfigManager, caret: &TextCaret, fleet: &FleetState, keys: &KeysState, clankers: &ClankersState, settings: &SettingsState, lab_state: &LabState,
     section: SettingsSection,
+    fleet_background: (&crate::app::appearance::FleetBackground, Option<std::path::PathBuf>),
 ) -> impl IntoElement {
     let is_auth_enabled = vault.is_password_auth_enabled();
     let open_dropdown = settings.dropdown_open.as_deref();
@@ -242,6 +243,7 @@ pub fn settings_view(
         (TablerIcon::ShieldCheck, "Vault & Security", SettingsSection::Security),
         (TablerIcon::Box, "UI Components Lab", SettingsSection::Components),
         (TablerIcon::Cpu, "Clankers (AI)", SettingsSection::Clankers),
+        (TablerIcon::Photo, "Personalisation", SettingsSection::Personalisation),
     ];
 
     let (title, sub) = match section {
@@ -251,14 +253,24 @@ pub fn settings_view(
         SettingsSection::Security => ("VAULT & SECURITY", "[vault] · local encrypted sqlite & master key"),
         SettingsSection::Components => ("UI COMPONENTS LAB", "[lab] · gpui-component testbed & sandbox"),
         SettingsSection::Clankers => ("CLANKERS (AI USABILITY)", "[clankers] · api keys & log eli5 helpers"),
+        SettingsSection::Personalisation => ("PERSONALISATION", "[appearance] · make Crow yours · saved as you change it"),
     };
 
-    let keychain = [
-        ("id_ed25519_fleet (default)", "enrolled 11 hosts", OK),
-        ("id_ed25519_bastion", "jump host only", OK),
-        ("id_rsa_legacy", "4096-bit · retire", WARN),
-        ("yubikey-5c (sk-ed25519)", "not present", TEXT_FAINT),
-    ];
+    // The vault's enrolled keys (a private key file missing on disk is dimmed).
+    let keychain: Vec<(String, String, Rgba)> = keys
+        .enrolled
+        .iter()
+        .take(6)
+        .map(|k| {
+            let present = k.private_key_path.as_deref().is_some_and(|p| crate::keys::expand_tilde(p).exists());
+            let used = match k.attached_servers.len() {
+                0 => "no servers".to_string(),
+                1 => "1 server".to_string(),
+                n => format!("{n} servers"),
+            };
+            (k.name.clone(), format!("{} · {}", k.algorithm, used), if present { OK } else { TEXT_FAINT })
+        })
+        .collect();
 
     let total_changed = config.total_changed_count();
     let path_str = config.path.display().to_string();
@@ -279,6 +291,8 @@ pub fn settings_view(
         .rows
         .iter()
         .filter(|r| r.row_id.starts_with(&sec_prefix))
+        // The picture is chosen with the picker below, not typed as a path.
+        .filter(|r| r.row_id != crate::app::appearance::FLEET_BACKGROUND)
         .collect();
 
     let has_section_changes = config.changed_count_for_section(section.id_prefix()) > 0;
@@ -510,6 +524,7 @@ pub fn settings_view(
                                 .id("settings-rows-list")
                                 .flex_1()
                                 .overflow_y_scrollbar()
+                                .children((section == SettingsSection::Personalisation).then(|| personalisation_block(&fleet_background, app.clone())))
                                 .children(if section == SettingsSection::Security {
                                     if !is_auth_enabled {
                                         Some(
@@ -1346,6 +1361,7 @@ pub fn settings_view(
                                         .text_color(TEXT_DIMMER)
                                         .child("KEYCHAIN"),
                                 )
+                                .children(keychain.is_empty().then(|| div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_FAINT).child("No keys enrolled yet.")))
                                 .children(keychain.iter().map(|(name, note, dot)| {
                                     div()
                                         .flex()
@@ -1364,12 +1380,12 @@ pub fn settings_view(
                                             div()
                                                 .flex_1()
                                                 .text_color(TEXT_SECONDARY)
-                                                .child(*name),
+                                                .child(name.clone()),
                                         )
                                         .child(
                                             div()
                                                 .text_color(TEXT_DIMMER)
-                                                .child(*note),
+                                                .child(note.clone()),
                                         )
                                 })),
                         ),
@@ -1384,4 +1400,72 @@ pub fn settings_view(
         )
         .children(render_key_modals(app.clone(), caret, fleet, keys))
         .children(clankers::render_clanker_modals(app.clone(), caret, clankers))
+}
+
+/// Fleet page background: preview, choose, remove. Opacity and blur are the
+/// ordinary setting rows below it.
+fn personalisation_block(bg: &(&crate::app::appearance::FleetBackground, Option<std::path::PathBuf>), app: Entity<CrowApp>) -> impl IntoElement {
+    let (state, source) = bg;
+    let (app_choose, app_remove) = (app.clone(), app);
+    let button = |id: &'static str, color: Rgba| {
+        div()
+            .id(id)
+            .px(px(10.0))
+            .py(px(5.0))
+            .border_1()
+            .border_color(color)
+            .text_color(color)
+            .font_family(FONT_MONO)
+            .text_size(px(10.5))
+            .font_weight(FontWeight::BOLD)
+            .cursor_pointer()
+            .hover(|s| s.bg(BG_ROW_HOVER))
+    };
+    div()
+        .m(px(14.0))
+        .p(px(14.0))
+        .bg(BG_PANEL)
+        .border_1()
+        .border_color(BORDER_PANEL)
+        .flex()
+        .gap(px(16.0))
+        .child(
+            // Preview, as drawn (blurred) when ready.
+            div()
+                .w(px(240.0))
+                .h(px(135.0))
+                .flex_none()
+                .bg(BG_APP)
+                .border_1()
+                .border_color(BORDER_DEFAULT)
+                .overflow_hidden()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(match (state.rendered.clone(), source) {
+                    (Some(p), Some(_)) => img(p).size_full().object_fit(ObjectFit::Cover).into_any_element(),
+                    (_, Some(_)) => div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_FAINT).child("preparing…").into_any_element(),
+                    _ => inherited_icon(TablerIcon::Photo, px(28.0)).text_color(TEXT_FAINTER).into_any_element(),
+                }),
+        )
+        .child(
+            div()
+                .flex_1()
+                .min_w(px(0.0))
+                .flex()
+                .flex_col()
+                .gap(px(6.0))
+                .font_family(FONT_MONO)
+                .child(div().text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child("FLEET PAGE BACKGROUND"))
+                .child(div().text_size(px(10.0)).text_color(TEXT_DIM).child("A picture behind the server list, faded and softened so the table stays readable. PNG, JPEG or WebP; Crow keeps its own copy."))
+                .children(state.error.clone().map(|e| div().text_size(px(10.0)).text_color(CRIT).child(e)))
+                .child(
+                    div()
+                        .flex()
+                        .gap(px(8.0))
+                        .pt(px(6.0))
+                        .child(button("btn-choose-background", OK).on_click(move |_ev, _window, cx| app_choose.update(cx, |this, cx| this.choose_fleet_background(cx))).child(if source.is_some() { "CHANGE PICTURE…" } else { "CHOOSE PICTURE…" }))
+                        .children(source.is_some().then(|| button("btn-remove-background", TEXT_SECONDARY).on_click(move |_ev, _window, cx| app_remove.update(cx, |this, cx| this.remove_fleet_background(cx))).child("REMOVE"))),
+                ),
+        )
 }

@@ -2,6 +2,7 @@
 use gpui_kit::*;
 
 pub mod ai;
+pub mod appearance;
 mod app;
 mod components;
 mod theme;

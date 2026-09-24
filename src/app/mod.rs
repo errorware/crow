@@ -40,6 +40,7 @@ mod session;
 pub mod onboard;
 pub mod overview;
 mod keys;
+pub mod appearance;
 pub mod configs;
 mod journal;
 mod clankers;
@@ -73,6 +74,7 @@ pub enum SettingsSection {
     Security,
     Components,
     Clankers,
+    Personalisation,
 }
 
 impl SettingsSection {
@@ -84,6 +86,7 @@ impl SettingsSection {
             SettingsSection::Security => "security",
             SettingsSection::Components => "components",
             SettingsSection::Clankers => "clankers",
+            SettingsSection::Personalisation => "appearance",
         }
     }
 }
@@ -151,6 +154,8 @@ pub struct CrowApp {
     pub new_user_inputs: Option<crate::views::users::NewUserInputs>,
     /// Inspector SET PASSWORD inputs (while the form is open).
     pub password_inputs: Option<crate::views::users::PasswordInputs>,
+    /// The Fleet page's background picture, as drawn.
+    pub fleet_background: appearance::FleetBackground,
     /// Focus the current table page's search box on the next render (`/`).
     pub table_search_focus_pending: bool,
     pub overview: OverviewState,
@@ -282,6 +287,7 @@ impl CrowApp {
             logs_search: None,
             new_user_inputs: None,
             password_inputs: None,
+            fleet_background: Default::default(),
             table_search_focus_pending: false,
             lab_state: LabState::new(window, cx),
             caret: TextCaret { blink: true, ..TextCaret::default() },

@@ -19,6 +19,8 @@ zeroize = { version = "1.9.0", features = ["derive"] }
 totp-rs = { version = "6.0.0", features = ["gen_secret", "otpauth"] }
 rand = "0.10.2"
 dirs = "7.0.0"
+# Personalisation: shrink and blur the Fleet background picture (already in the tree via gpui).
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp"] }
 toml = "0.8"
 toml_edit = "0.22"
 ssh-key = { version = "0.6.7", features = ["ed25519", "rsa", "rand_core", "std", "getrandom", "crypto"] }

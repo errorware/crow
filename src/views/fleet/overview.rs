@@ -118,7 +118,9 @@ pub fn fleet_stat_strip(
         }))
 }
 
-pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: &LocalLabState) -> impl IntoElement {
+/// `background`: the Personalisation picture (already blurred) and its
+/// opacity, drawn behind the server list.
+pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: &LocalLabState, background: Option<(std::path::PathBuf, f32)>) -> impl IntoElement {
     let hosts: Vec<FleetHost> = if !fleet.servers.is_empty() {
         fleet.servers.iter().map(|s| {
             let (status_color, pill, is_crit) = match s.status.as_str() {
@@ -265,8 +267,13 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                     div()
                         .flex_1()
                         .min_h(px(0.0))
+                        .relative()
                         .flex()
                         .flex_col()
+                        // Personalisation picture, under everything in the list.
+                        .children(background.map(|(path, opacity)| {
+                            img(path).absolute().inset_0().size_full().object_fit(ObjectFit::Cover).opacity(opacity)
+                        }))
                         // Sub bar with filters
                         .child(
                             div()

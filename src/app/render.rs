@@ -31,6 +31,9 @@ impl Render for CrowApp {
         if self.screen == Screen::Onboard {
             self.ensure_onboard_inputs(window, cx);
         }
+        if self.screen == Screen::Fleet || (self.screen == Screen::Settings && self.settings.section == super::SettingsSection::Personalisation) {
+            self.ensure_fleet_background(cx);
+        }
         if self.users.show_new_user_modal {
             self.ensure_new_user_inputs(window, cx);
         }
@@ -385,12 +388,12 @@ impl Render for CrowApp {
                                     Screen::Fleet => Some(
                                         div()
                                             .size_full()
-                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab)),
+                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab, self.fleet_background.rendered.clone().filter(|_| self.fleet_background_source().is_some()).map(|p| (p, self.fleet_background_opacity())))),
                                     ),
                                     Screen::Settings => Some(
                                         div()
                                             .size_full()
-                                            .child(settings_view(app_view.clone(), &self.vault, &self.config, &self.caret, &self.fleet, &self.keys, &self.clankers, &self.settings, &self.lab_state, self.settings.section)),
+                                            .child(settings_view(app_view.clone(), &self.vault, &self.config, &self.caret, &self.fleet, &self.keys, &self.clankers, &self.settings, &self.lab_state, self.settings.section, (&self.fleet_background, self.fleet_background_source()))),
                                     ),
                                     Screen::Onboard => Some(
                                         div()

@@ -49,8 +49,17 @@ agent_integration = true
 [security]
 auto_lock_minutes = 15
 zeroize_on_drop = true
+
+[appearance]
+fleet_background = ""
+fleet_background_opacity = "10"
+fleet_background_blur = "8"
 "#
 }
+
+/// The [appearance] section with defaults, appended to config files written
+/// before Personalisation existed.
+pub const APPEARANCE_DEFAULTS: &str = "\n[appearance]\nfleet_background = \"\"\nfleet_background_opacity = \"10\"\nfleet_background_blur = \"8\"\n";
 
 /// Lossless parser and schema plugin for Crow's config.toml
 #[derive(Debug, Clone)]
