@@ -90,6 +90,7 @@ pub fn structured_editor(
     let scopes = if format == StructuredFormat::Sshd { sshd_match_scopes(ir) } else { Vec::new() };
     let scope_of = |row_id: &str| scopes.iter().find(|(id, _)| id == row_id).and_then(|(_, s)| s.clone());
     let row_ids: Vec<String> = ir.rows.iter().map(|r| r.row_id.clone()).collect();
+    let columns = table_columns(ir);
 
     let header = {
         let (app_text, app_hist, app_revert, app_stage) = (app.clone(), app.clone(), app.clone(), app.clone());
@@ -183,8 +184,28 @@ pub fn structured_editor(
             scope,
             open_enum: configs.open_enum.as_ref(),
             active_edit: active_edit.as_ref().filter(|e| e.row_id == row.row_id),
+            columns: columns.as_deref(),
+            canonical_first: format == StructuredFormat::Hosts,
             app: app.clone(),
         })
+    });
+    let column_header = columns.as_ref().filter(|_| !ir.rows.is_empty()).map(|cols| {
+        div()
+            .flex_none()
+            .flex()
+            .items_center()
+            .gap(px(14.0))
+            .px(px(14.0))
+            .py(px(6.0))
+            .bg(BG_PANEL)
+            .border_b_1()
+            .border_color(BORDER_PANEL)
+            .font_family(FONT_MONO)
+            .text_size(px(9.0))
+            .font_weight(FontWeight::BOLD)
+            .text_color(TEXT_FAINT)
+            .child(div().w(px(34.0)).flex_none().child("LINE"))
+            .children(cols.iter().map(|c| column_cell(c.width).child(c.name.to_uppercase())))
     });
 
     let add_section = (!read_only).then(|| render_add_section(&file, format, ir, configs.adding_row, app.clone()));
@@ -200,6 +221,7 @@ pub fn structured_editor(
         .child(header)
         .child(notices)
         .children(confirm_panel)
+        .children(column_header)
         .child(
             div()
                 .id("structured-rows")
@@ -239,6 +261,63 @@ fn notice(text: String, color: Rgba, tint: u32) -> Div {
         .child(text)
 }
 
+/// How wide a column is on screen.
+#[derive(Clone, Copy, PartialEq)]
+enum ColWidth {
+    Fixed(f32),
+    /// Takes the remaining space (lists, trailing comments).
+    Grow,
+}
+
+/// One column of a multi-field table (hosts, pg_hba).
+pub(crate) struct Column {
+    pub name: String,
+    width: ColWidth,
+}
+
+fn width_for(name: &str, field_type: &FieldType) -> ColWidth {
+    match field_type {
+        _ if name == "comment" => ColWidth::Grow,
+        FieldType::IpAddress => ColWidth::Fixed(150.0),
+        FieldType::Cidr => ColWidth::Fixed(170.0),
+        FieldType::Enum => ColWidth::Fixed(130.0),
+        FieldType::Port | FieldType::Bool => ColWidth::Fixed(70.0),
+        FieldType::Path => ColWidth::Fixed(220.0),
+        FieldType::StringList => ColWidth::Fixed(320.0),
+        _ if name == "address" => ColWidth::Fixed(170.0),
+        _ => ColWidth::Fixed(130.0),
+    }
+}
+
+/// Column layout for documents whose rows have several fields; `None` for
+/// key/value documents (sshd), which read better as labelled lines. Columns
+/// follow the order fields first appear in, so every plugin gets a table
+/// without per-plugin layout code.
+pub(crate) fn table_columns(ir: &ConfigDocumentIr) -> Option<Vec<Column>> {
+    if !ir.rows.iter().any(|r| r.fields.len() > 1) {
+        return None;
+    }
+    let mut cols: Vec<Column> = Vec::new();
+    for field in ir.rows.iter().flat_map(|r| &r.fields) {
+        if !cols.iter().any(|c| c.name == field.name) {
+            cols.push(Column { name: field.name.clone(), width: width_for(&field.name, &field.field_type) });
+        }
+    }
+    // The comment always trails.
+    if let Some(i) = cols.iter().position(|c| c.name == "comment") {
+        let c = cols.remove(i);
+        cols.push(c);
+    }
+    Some(cols)
+}
+
+fn column_cell(width: ColWidth) -> Div {
+    match width {
+        ColWidth::Fixed(w) => div().w(px(w)).flex_none().min_w(px(0.0)),
+        ColWidth::Grow => div().flex_1().min_w(px(0.0)),
+    }
+}
+
 struct RowCtx<'a> {
     file: &'a str,
     row: &'a RowIr,
@@ -250,11 +329,13 @@ struct RowCtx<'a> {
     scope: Option<String>,
     open_enum: Option<&'a (String, String)>,
     active_edit: Option<&'a ActiveFieldEdit<'a>>,
+    columns: Option<&'a [Column]>,
+    canonical_first: bool,
     app: Entity<CrowApp>,
 }
 
 fn render_row(ctx: RowCtx) -> impl IntoElement {
-    let RowCtx { file, row, index, prev_id, next_id, is_table, locked, scope, open_enum, active_edit, app } = ctx;
+    let RowCtx { file, row, index, prev_id, next_id, is_table, locked, scope, open_enum, active_edit, columns, canonical_first, app } = ctx;
     let row_id = row.row_id.clone();
     // Help text under key/value rows (e.g. what an sshd directive does). Table
     // rows share one schema, so repeating it on every row would only be noise.
@@ -262,18 +343,34 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
     let docs = (!is_table).then(|| row.fields.iter().find_map(|f| f.docs_source.clone())).flatten();
     let opened = open_enum.filter(|(r, _)| *r == row_id).map(|(_, f)| f.clone());
 
-    let fields = row.fields.iter().map(|field| {
+    let field_el = |field: &FieldIr, layout: FieldLayout| {
         render_field(FieldCtx {
             file,
             row_id: &row_id,
             field,
             locked,
-            show_label: is_table || row.fields.len() > 1,
+            layout,
+            role: if field.name == "comment" && columns.is_some() {
+                FieldRole::Comment
+            } else if canonical_first && field.field_type == FieldType::StringList {
+                FieldRole::CanonicalFirst
+            } else {
+                FieldRole::Plain
+            },
             is_open: opened.as_deref() == Some(field.name.as_str()),
             editing: active_edit.filter(|e| e.field == field.name).map(|e| e.input),
             app: app.clone(),
         })
-    });
+    };
+    let fields_el: Div = match columns {
+        // One cell per column, in column order; a field the row lacks is an empty cell.
+        Some(cols) => div().flex_1().min_w(px(0.0)).flex().items_start().gap(px(14.0)).children(cols.iter().map(|c| {
+            column_cell(c.width).children(row.fields.iter().find(|f| f.name == c.name).map(|f| field_el(f, FieldLayout::Column)))
+        })),
+        None => div().flex_1().min_w(px(0.0)).flex().flex_wrap().items_start().gap(px(14.0)).children(row.fields.iter().map(|f| {
+            field_el(f, if is_table || row.fields.len() > 1 { FieldLayout::Labeled } else { FieldLayout::KeyValue })
+        })),
+    };
 
     let actions = (!locked).then(|| {
         let mut bar = div().flex().items_center().gap(px(4.0)).flex_none();
@@ -306,7 +403,8 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
         .flex_col()
         .gap(px(3.0))
         .px(px(14.0))
-        .py(px(6.0))
+        .py(px(7.0))
+        .when(index % 2 == 1, |d| d.bg(hex_rgba(0xffffff, 0.018)))
         .border_b_1()
         .border_color(BORDER_ROW)
         .hover(|s| s.bg(BG_ROW_HOVER))
@@ -324,7 +422,7 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
                         .text_color(TEXT_FAINTER)
                         .child(format!("L{}", row.source_span.start_line)),
                 )
-                .child(div().flex_1().min_w(px(0.0)).flex().flex_wrap().items_start().gap(px(14.0)).children(fields))
+                .child(fields_el)
                 .children(actions),
         )
         .children(scope.map(|s| {
@@ -350,19 +448,42 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
         }))
 }
 
+/// How a field is laid out in its row.
+#[derive(Clone, Copy, PartialEq)]
+enum FieldLayout {
+    /// `Name  value` — single-field key/value rows (sshd).
+    KeyValue,
+    /// Small label above the value.
+    Labeled,
+    /// In a table column; the header names it.
+    Column,
+}
+
+/// How a field's value is shown.
+#[derive(Clone, Copy, PartialEq)]
+enum FieldRole {
+    Plain,
+    /// Trailing comment: dimmed, `#`-prefixed.
+    Comment,
+    /// A list whose first entry is canonical and the rest aliases (hosts).
+    CanonicalFirst,
+}
+
 struct FieldCtx<'a> {
     file: &'a str,
     row_id: &'a str,
     field: &'a FieldIr,
     locked: bool,
-    show_label: bool,
+    layout: FieldLayout,
+    role: FieldRole,
     is_open: bool,
     editing: Option<&'a Entity<InputState>>,
     app: Entity<CrowApp>,
 }
 
 fn render_field(ctx: FieldCtx) -> impl IntoElement {
-    let FieldCtx { file, row_id, field, locked, show_label, is_open, editing, app } = ctx;
+    let FieldCtx { file, row_id, field, locked, layout, role, is_open, editing, app } = ctx;
+    let show_label = layout == FieldLayout::Labeled;
     let text = value_text(&field.value);
     let current_risk = field.options.iter().flatten().find(|o| o.value == text).and_then(|o| o.risk.clone());
     let color = if field.valid == Some(false) { CRIT } else { risk_color(current_risk.as_ref()) };
@@ -396,7 +517,20 @@ fn render_field(ctx: FieldCtx) -> impl IntoElement {
                     });
                 })
             })
-            .child(if text.is_empty() { "—".to_string() } else { text.clone() })
+            .map(|d| match role {
+                _ if text.is_empty() => d.child(if role == FieldRole::Comment { String::new() } else { "—".to_string() }),
+                FieldRole::Comment => d.text_color(TEXT_FAINT).child(format!("# {text}")),
+                FieldRole::CanonicalFirst => {
+                    let mut names = text.split_whitespace();
+                    let canonical = names.next().unwrap_or_default().to_string();
+                    let aliases = names.collect::<Vec<_>>().join(" ");
+                    d.flex()
+                        .gap(px(8.0))
+                        .child(div().font_weight(FontWeight::BOLD).child(canonical))
+                        .children((!aliases.is_empty()).then(|| div().text_color(TEXT_TERTIARY).child(aliases)))
+                }
+                FieldRole::Plain => d.child(text.clone()),
+            })
             .into_any_element()
     };
 
@@ -440,7 +574,7 @@ fn render_field(ctx: FieldCtx) -> impl IntoElement {
                 .flex()
                 .items_center()
                 .gap(px(6.0))
-                .children((!show_label).then(|| {
+                .children((layout == FieldLayout::KeyValue).then(|| {
                     div().min_w(px(170.0)).font_family(FONT_MONO).text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(field.name.clone())
                 }))
                 .child(value_el)

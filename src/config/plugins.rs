@@ -246,6 +246,21 @@ mod tests {
     }
 
     #[test]
+    fn multi_field_documents_get_one_column_set_with_the_comment_last() {
+        use crate::views::config::structured_editor::table_columns;
+        let names = |cols: Option<Vec<_>>| cols.map(|c: Vec<crate::views::config::structured_editor::Column>| c.into_iter().map(|c| c.name).collect::<Vec<_>>());
+        let hosts = to_ir(StructuredFormat::Hosts, "127.0.0.1 localhost # loop\n::1 localhost ip6-localhost\n").unwrap();
+        assert_eq!(names(table_columns(&hosts)), Some(vec!["address".into(), "hostnames".into(), "comment".into()]));
+        let pg = to_ir(StructuredFormat::PgHba, "local all postgres peer\nhost all all 10.0.0.0/8 scram-sha-256\n").unwrap();
+        let cols = names(table_columns(&pg)).unwrap();
+        assert_eq!(&cols[..2], ["type", "database"]);
+        assert!(cols.contains(&"address".to_string()), "a column even though the local row has no address");
+        // Key/value documents stay as labelled lines.
+        let sshd = to_ir(StructuredFormat::Sshd, "PermitRootLogin no\nPort 22\n").unwrap();
+        assert!(table_columns(&sshd).is_none());
+    }
+
+    #[test]
     fn structured_edit_changes_only_the_edited_value() {
         let text = "# local names\n127.0.0.1  localhost\n10.0.4.12  db-01  # primary\n";
         let ir = to_ir(StructuredFormat::Hosts, text).unwrap();
