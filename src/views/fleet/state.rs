@@ -16,6 +16,8 @@ pub struct FleetState {
     pub buffered_stores: HashMap<String, ServerTimeSeriesBuffer>,
     pub metrics_lag_secs: u64,
     pub active_surge_alert: Option<SurgeAlert>,
+    /// Height of the Fleet page's alerts/activity panel (drag to resize).
+    pub bottom_panel_height: f32,
 }
 
 impl FleetState {
@@ -34,6 +36,7 @@ impl FleetState {
             buffered_stores,
             metrics_lag_secs: 24,
             active_surge_alert: None,
+            bottom_panel_height: 260.0,
         }
     }
 

@@ -6,6 +6,19 @@ use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::host::{connection_state, transport_kind, ConnectionState, TransportKind};
 use crate::vault::ServerRecord;
 use crate::views::fleet::FleetState;
+
+/// Drag payload for the Fleet page's list/panel divider.
+#[derive(Clone)]
+pub struct BottomPanelResize;
+
+/// What's drawn under the pointer while dragging the divider: nothing.
+pub struct ResizeGhost;
+
+impl Render for ResizeGhost {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+    }
+}
 use crate::views::fleet::lab_state::LocalLabState;
 
 pub struct FleetHost {
@@ -242,17 +255,30 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
             avg_load,
             total_vcpu,
         ))
-        // 2. Main content split: host table on left, alerts/activity rail on right
+        // 2. Server list on top, alerts & activity panel below (drag the divider)
         .child(
             div()
                 .flex_1()
                 .min_h(px(0.0))
                 .flex()
+                .flex_col()
+                .on_drag_move::<BottomPanelResize>({
+                    let app = app.clone();
+                    move |ev, _window, cx| {
+                        // Height = distance from the pointer to the bottom of this area.
+                        let height = f32::from(ev.bounds.bottom() - ev.event.position.y);
+                        let max = f32::from(ev.bounds.size.height) - 160.0;
+                        app.update(cx, |this, cx| {
+                            this.fleet.bottom_panel_height = height.clamp(120.0, max.max(120.0));
+                            cx.notify();
+                        });
+                    }
+                })
                 // Left Table Panel
                 .child(
                     div()
                         .flex_1()
-                        .min_w(px(0.0))
+                        .min_h(px(0.0))
                         .flex()
                         .flex_col()
                         // Sub bar with filters
@@ -710,16 +736,35 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                 }),
                         ),
                 )
-                // Right Rail: Fleet Alerts (top) & Activity Log (bottom)
+                // Drag handle between the list and the panel
                 .child(
                     div()
-                        .w(px(380.0))
+                        .id("fleet-panel-resize")
+                        .h(px(5.0))
+                        .flex_none()
+                        .bg(BORDER_PANEL)
+                        .cursor(CursorStyle::ResizeUpDown)
+                        .hover(|s| s.bg(BORDER_STRONG))
+                        .on_drag(BottomPanelResize, |_, _, _, cx| cx.new(|_| ResizeGhost)),
+                )
+                // Bottom panel: Fleet Alerts (left) & Activity Log (right)
+                .child(
+                    div()
+                        .h(px(fleet.bottom_panel_height))
                         .flex_none()
                         .flex()
-                        .flex_col()
+                        .min_h(px(0.0))
                         .bg(BG_RAIL)
-                        .border_l_1()
+                        .overflow_hidden()
                         .border_color(BORDER_PANEL)
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w(px(0.0))
+                                .flex()
+                                .flex_col()
+                                .border_r_1()
+                                .border_color(BORDER_PANEL)
                         // Alerts Header
                         .child(
                             div()
@@ -759,11 +804,14 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                         // Alerts List
                         .child(
                             div()
-                                .flex_none()
+                                .id("fleet-alerts-list")
+                                .flex_1()
+                                .min_h(px(0.0))
+                                .overflow_y_scrollbar()
                                 .flex()
                                 .flex_col()
-                                .border_b_1()
-                                .border_color(BORDER_PANEL)
+
+
                                 .children(if alerts.is_empty() {
                                     Some(
                                         div()
@@ -837,6 +885,13 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                     }).collect::<Vec<_>>()
                                 }),
                         )
+                        )
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w(px(0.0))
+                                .flex()
+                                .flex_col()
                         // Activity Header
                         .child(
                             div()
@@ -914,6 +969,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                     }).collect::<Vec<_>>()
                                 }),
                         ),
+                        )
                 ),
         )
         // 3. Persistent Fleet-Wide Destructive Strip with Abort Gate
