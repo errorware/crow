@@ -331,15 +331,17 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .text_color(TEXT_DIMMER)
                                 .child(div().w(px(22.0)).flex_none().child(""))
-                                .child(div().flex_grow(3.0).min_w(px(140.0)).child("HOST"))
-                                .child(div().flex_grow(2.0).min_w(px(100.0)).child("ADDRESS"))
-                                .child(div().flex_grow(2.0).min_w(px(90.0)).child("ROLE"))
-                                .child(div().w(px(60.0)).flex_none().child("ENV"))
-                                .child(div().w(px(95.0)).child("CPU"))
-                                .child(div().w(px(95.0)).child("MEM"))
-                                .child(div().w(px(55.0)).text_align(TextAlign::Right).child("DISK"))
-                                .child(div().w(px(80.0)).text_align(TextAlign::Right).child("UPTIME"))
-                                .child(div().w(px(65.0)).text_align(TextAlign::Right).child("ALERTS")),
+                                // Same widths as the row cells below; fixed columns are
+                                // flex_none so header and rows can't shrink differently.
+                                .child(div().flex_grow(3.0).flex_basis(px(0.0)).min_w(px(140.0)).child("HOST"))
+                                .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(110.0)).child("ADDRESS"))
+                                .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(90.0)).pr(px(14.0)).text_align(TextAlign::Right).child("ROLE"))
+                                .child(div().w(px(64.0)).flex_none().child("ENV"))
+                                .child(div().w(px(95.0)).flex_none().child("CPU"))
+                                .child(div().w(px(95.0)).flex_none().child("MEM"))
+                                .child(div().w(px(55.0)).flex_none().text_align(TextAlign::Right).child("DISK"))
+                                .child(div().w(px(80.0)).flex_none().text_align(TextAlign::Right).child("UPTIME"))
+                                .child(div().w(px(65.0)).flex_none().text_align(TextAlign::Right).child("ALERTS")),
                         )
                         // Table Body
                         .child(
@@ -509,6 +511,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                             .child(
                                                 div()
                                                     .flex_grow(3.0)
+                                                    .flex_basis(px(0.0))
                                                     .min_w(px(140.0))
                                                     .flex()
                                                     .items_center()
@@ -531,15 +534,20 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                                         div()
                                                             .px(px(4.0))
                                                             .py(px(1.5))
-                                                            .bg(if host.pill == "UNREACHABLE" {
+                                                            .rounded_sm()
+                                                            .bg(if matches!(host.pill.as_str(), "UNREACHABLE" | "OFFLINE" | "CRITICAL") {
                                                                 CRIT_BG
+                                                            } else if host.pill == "UNKNOWN" {
+                                                                BG_CHIP
                                                             } else if host.pill == "DEGRADED" {
                                                                 WARN_BG
                                                             } else {
                                                                 OK_BG
                                                             })
-                                                            .text_color(if host.pill == "UNREACHABLE" {
+                                                            .text_color(if matches!(host.pill.as_str(), "UNREACHABLE" | "OFFLINE" | "CRITICAL") {
                                                                 CRIT
+                                                            } else if host.pill == "UNKNOWN" {
+                                                                TEXT_DIM
                                                             } else if host.pill == "DEGRADED" {
                                                                 WARN
                                                             } else {
@@ -554,7 +562,9 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                             .child(
                                                 div()
                                                     .flex_grow(2.0)
-                                                    .min_w(px(100.0))
+                                                    .flex_basis(px(0.0))
+                                                    .min_w(px(110.0))
+                                                    .overflow_hidden()
                                                     .text_color(TEXT_DIM)
                                                     .child(host.ip),
                                             )
@@ -562,7 +572,11 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                             .child(
                                                 div()
                                                     .flex_grow(2.0)
+                                                    .flex_basis(px(0.0))
                                                     .min_w(px(90.0))
+                                                    .pr(px(14.0))
+                                                    .overflow_hidden()
+                                                    .text_align(TextAlign::Right)
                                                     .text_size(px(11.0))
                                                     .text_color(TEXT_TERTIARY)
                                                     .child(host.role),
@@ -570,11 +584,16 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                             // Env
                                             .child(
                                                 div()
-                                                    .w(px(60.0))
+                                                    .w(px(64.0))
                                                     .flex_none()
+                                                    .flex()
+                                                    .items_center()
                                                     .child(
+                                                        // Hugs its text, like the other badges.
                                                         div()
-                                                            .px(px(4.0))
+                                                            .flex_none()
+                                                            .rounded_sm()
+                                                            .px(px(5.0))
                                                             .py(px(1.5))
                                                             .bg(host.env_bg)
                                                             .text_color(host.env_fg)
@@ -587,6 +606,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                             .child(
                                                 div()
                                                     .w(px(95.0))
+                                                    .flex_none()
                                                     .flex()
                                                     .items_center()
                                                     .gap(px(6.0))
@@ -620,6 +640,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                             .child(
                                                 div()
                                                     .w(px(95.0))
+                                                    .flex_none()
                                                     .flex()
                                                     .items_center()
                                                     .gap(px(6.0))
@@ -653,6 +674,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                             .child(
                                                 div()
                                                     .w(px(55.0))
+                                                    .flex_none()
                                                     .text_align(TextAlign::Right)
                                                     .text_color(if host.disk.starts_with("7") || host.disk.starts_with("8") {
                                                         WARN
@@ -665,6 +687,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                             .child(
                                                 div()
                                                     .w(px(80.0))
+                                                    .flex_none()
                                                     .text_align(TextAlign::Right)
                                                     .text_color(TEXT_DIM)
                                                     .child(host.uptime),
@@ -673,6 +696,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                             .child(
                                                 div()
                                                     .w(px(65.0))
+                                                    .flex_none()
                                                     .text_align(TextAlign::Right)
                                                     .font_weight(if host.alerts == "0" {
                                                         FontWeight::NORMAL
