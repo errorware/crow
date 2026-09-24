@@ -52,6 +52,95 @@ impl CrowApp {
         cx.notify();
     }
 
+    /// Runs one of the quick searches (JOURNAL_PRESETS) over the last 24h.
+    pub fn apply_journal_preset(&mut self, idx: usize, cx: &mut Context<Self>) {
+        let Some((_, unit, grep)) = crate::views::logs::JOURNAL_PRESETS.get(idx) else { return };
+        self.journal.unit_filter = unit.map(str::to_string);
+        self.journal.search = grep.to_string();
+        self.journal.severity_filter = None;
+        self.journal.pid_filter = None;
+        self.journal.time_range = JournalTimeRange::Last24h;
+        self.journal.live_tail = false;
+        self.logs_search = None; // rebuilt showing the preset's pattern
+        self.run_journal_query(cx);
+    }
+
+    pub fn toggle_journal_actions(&mut self, cx: &mut Context<Self>) {
+        self.journal.show_actions = !self.journal.show_actions;
+        cx.notify();
+    }
+
+    pub fn toggle_ai_panel(&mut self, cx: &mut Context<Self>) {
+        self.journal.ai.open = !self.journal.ai.open;
+        cx.notify();
+    }
+
+    /// The provider to ask: the default one if it has a key, else the first
+    /// that does.
+    fn ai_provider(&self) -> Option<crate::vault::ClankerProviderConfig> {
+        let keyed = |p: &&crate::vault::ClankerProviderConfig| !p.api_key.trim().is_empty();
+        self.clankers.providers.iter().filter(keyed).find(|p| p.is_default).or_else(|| self.clankers.providers.iter().find(keyed)).cloned()
+    }
+
+    pub fn ai_provider_name(&self) -> Option<String> {
+        self.ai_provider().map(|p| format!("{} · {}", p.display_name, p.model))
+    }
+
+    /// Sends the lines on screen (most recent first to be kept, capped) to
+    /// the AI provider and shows its plain-English reading in the panel.
+    pub fn explain_logs_with_ai(&mut self, cx: &mut Context<Self>) {
+        let Some(provider) = self.ai_provider() else {
+            self.journal.ai.answer = Some(Err("No AI provider has an API key. Add one in Settings → Clankers.".into()));
+            cx.notify();
+            return;
+        };
+        // Newest lines are the most relevant; keep as many as fit.
+        let mut lines: Vec<String> = Vec::new();
+        let mut size = 0;
+        for e in self.journal.entries.iter().rev() {
+            let line = format!("{} [{}] {}{}: {}", e.timestamp_formatted, e.priority.label(), e.unit, e.pid.map(|p| format!("[{p}]")).unwrap_or_default(), e.message);
+            size += line.len() + 1;
+            if size > crate::ai::MAX_LOG_CHARS {
+                break;
+            }
+            lines.push(line);
+        }
+        lines.reverse();
+        if lines.is_empty() {
+            self.journal.ai.answer = Some(Err("There are no log lines on screen to explain.".into()));
+            cx.notify();
+            return;
+        }
+        let j = &self.journal;
+        let context = format!(
+            "These are the most recent {} lines matching: unit {}, priority {}, search {}, range {}.",
+            lines.len(),
+            j.unit_filter.as_deref().unwrap_or("any"),
+            j.severity_filter.map(|p| format!("{} and worse", p.label())).unwrap_or_else(|| "any".into()),
+            if j.search.is_empty() { "none".to_string() } else { format!("`{}`", j.search) },
+            j.time_range.label(),
+        );
+        self.journal.ai = crate::views::logs::AiPanelState { open: true, loading: true, provider: format!("{} · {}", provider.display_name, provider.model), lines_sent: lines.len(), answer: None };
+        cx.notify();
+        let text = lines.join("\n");
+        let db = self.vault.db();
+        cx.spawn(async move |entity, cx| {
+            let provider_id = provider.id.clone();
+            let answer = cx.background_executor().spawn(async move { crate::ai::explain_logs(&provider, &context, &text) }).await;
+            if answer.is_ok() {
+                if let Ok(db) = db.lock() {
+                    let _ = db.record_clanker_call(&provider_id);
+                }
+            }
+            let _ = entity.update(cx, |this, cx| {
+                this.journal.ai.loading = false;
+                this.journal.ai.answer = Some(answer);
+                this.refresh_clankers(cx);
+            });
+        })
+        .detach();
+    }
+
     pub fn set_journal_pid_filter(&mut self, pid: Option<u32>, cx: &mut Context<Self>) {
         self.journal.pid_filter = pid;
         self.journal.pid_kill_confirm = false;

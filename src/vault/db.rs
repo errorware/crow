@@ -375,13 +375,14 @@ impl VaultDb {
             |r| r.get(0),
         )?;
         if clanker_count == 0 {
+            // No usage until something is actually sent.
+            let zero = "[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]";
             let default_clankers = [
-                ("openai", "OpenAI", "gpt-4o-mini", "https://api.openai.com/v1", true, 26, 26, "[0,1,0,0,2,0,1,3,0,1,2,0,0,4,1,0,2,1,0,3,1,0,0,1,2,0,1,0,0,1]"),
-                ("anthropic", "Anthropic", "claude-3-5-sonnet-20241022", "https://api.anthropic.com/v1", false, 14, 14, "[0,0,1,0,0,1,0,2,0,0,1,1,0,0,2,0,1,0,0,1,0,2,0,0,1,0,0,1,0,0]"),
-                ("mistral", "Mistral AI", "mistral-small-latest", "https://api.mistral.ai/v1", false, 8, 8, "[0,0,0,1,0,0,0,1,0,0,0,2,0,0,1,0,0,0,1,0,0,0,1,0,0,1,0,0,0,0]"),
-                ("deepseek", "DeepSeek", "deepseek-chat", "https://api.deepseek.com/v1", false, 42, 42, "[1,2,0,1,3,2,1,0,4,1,2,0,3,1,2,0,1,4,2,1,0,3,2,1,0,2,1,0,1,2]"),
-                ("xiaomi", "Xiaomi", "mimax-v1", "https://api.xiaomi.com/v1", false, 0, 0, "[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]"),
-                ("qwen", "Qwen (Alibaba)", "qwen-2.5-coder-32b", "https://dashscope.aliyuncs.com/compatible-mode/v1", false, 19, 19, "[0,1,0,2,1,0,0,1,2,0,1,0,0,2,1,0,1,2,0,0,1,1,0,0,2,0,1,0,0,0]"),
+                ("openai", "OpenAI", "gpt-4o-mini", "https://api.openai.com/v1", true, 0, 0, zero),
+                ("anthropic", "Anthropic", "claude-haiku-4-5-20251001", "https://api.anthropic.com/v1", false, 0, 0, zero),
+                ("mistral", "Mistral AI", "mistral-small-latest", "https://api.mistral.ai/v1", false, 0, 0, zero),
+                ("deepseek", "DeepSeek", "deepseek-chat", "https://api.deepseek.com/v1", false, 0, 0, zero),
+                ("qwen", "Qwen (Alibaba)", "qwen-2.5-coder-32b", "https://dashscope.aliyuncs.com/compatible-mode/v1", false, 0, 0, zero),
             ];
 
             for (id, display_name, model, base_url, is_def, total_calls, calls_30d, daily_hist) in default_clankers {
@@ -404,6 +405,33 @@ impl VaultDb {
             }
         }
 
+        // Older vaults were seeded with invented usage numbers and a
+        // placeholder provider. Usage with no last-used time was never real.
+        let _ = self.conn.execute(
+            "UPDATE clanker_providers SET total_calls = 0, calls_30d = 0, daily_history = '[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]' WHERE last_used_at IS NULL",
+            [],
+        );
+        let _ = self.conn.execute("DELETE FROM clanker_providers WHERE id = 'xiaomi' AND api_key = ''", []);
+        let _ = self.conn.execute(
+            "UPDATE clanker_providers SET model = 'claude-haiku-4-5-20251001' WHERE id = 'anthropic' AND model = 'claude-3-5-sonnet-20241022' AND last_used_at IS NULL",
+            [],
+        );
+
+        Ok(())
+    }
+
+    /// Counts one real request to a provider (today's bucket is the last).
+    pub fn record_clanker_call(&self, id: &str) -> Result<(), VaultError> {
+        let hist: String = self.conn.query_row("SELECT daily_history FROM clanker_providers WHERE id = ?1", params![id], |r| r.get(0))?;
+        let mut days: Vec<f32> = serde_json::from_str(&hist).unwrap_or_default();
+        match days.last_mut() {
+            Some(today) => *today += 1.0,
+            None => days.push(1.0),
+        }
+        self.conn.execute(
+            "UPDATE clanker_providers SET total_calls = total_calls + 1, calls_30d = calls_30d + 1, last_used_at = ?2, daily_history = ?3 WHERE id = ?1",
+            params![id, chrono::Utc::now().to_rfc3339(), serde_json::to_string(&days).unwrap_or_default()],
+        )?;
         Ok(())
     }
 
@@ -1461,14 +1489,16 @@ mod tests {
         let db = VaultDb::open_in_memory().unwrap();
         let providers = db.list_clanker_providers().unwrap();
 
-        // 6 providers seeded
-        assert_eq!(providers.len(), 6);
-        assert!(providers.iter().any(|p| p.id == "openai"));
-        assert!(providers.iter().any(|p| p.id == "anthropic"));
-        assert!(providers.iter().any(|p| p.id == "mistral"));
-        assert!(providers.iter().any(|p| p.id == "deepseek"));
-        assert!(providers.iter().any(|p| p.id == "xiaomi"));
-        assert!(providers.iter().any(|p| p.id == "qwen"));
+        // 5 real providers seeded, with no invented usage
+        assert_eq!(providers.len(), 5);
+        for id in ["openai", "anthropic", "mistral", "deepseek", "qwen"] {
+            assert!(providers.iter().any(|p| p.id == id), "{id}");
+        }
+        assert!(providers.iter().all(|p| p.total_calls == 0 && p.last_used_at.is_none()), "no usage until something is sent");
+        db.record_clanker_call("anthropic").unwrap();
+        let a = db.list_clanker_providers().unwrap().into_iter().find(|p| p.id == "anthropic").unwrap();
+        assert_eq!((a.total_calls, a.calls_30d), (1, 1));
+        assert!(a.last_used_at.is_some());
 
         let openai = db.get_clanker_provider("openai").unwrap().unwrap();
         assert!(openai.is_default);

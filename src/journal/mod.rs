@@ -381,3 +381,76 @@ impl JournalEntry {
         }
     }
 }
+
+/// The literal pieces of a journal search to highlight in results: the
+/// alternatives of `a|b`, split at `.*`, with simple escapes removed.
+/// Pieces that are still regex syntax (classes, groups, quantifiers) are
+/// skipped rather than guessed at.
+pub fn search_terms(query: &str) -> Vec<String> {
+    let mut terms = Vec::new();
+    for alt in query.split('|') {
+        for piece in alt.split(".*") {
+            let mut lit = String::new();
+            let mut chars = piece.chars();
+            let mut regexy = false;
+            while let Some(c) = chars.next() {
+                match c {
+                    '\\' => lit.extend(chars.next()),
+                    '[' | ']' | '(' | ')' | '{' | '}' | '^' | '$' | '+' | '?' | '*' => regexy = true,
+                    c => lit.push(c),
+                }
+            }
+            let lit = lit.trim().to_string();
+            if !regexy && lit.chars().count() >= 2 && !terms.contains(&lit) {
+                terms.push(lit);
+            }
+        }
+    }
+    terms
+}
+
+/// Byte ranges in `text` where any of `terms` occurs, ignoring ASCII case,
+/// merged and in order.
+pub fn match_ranges(text: &str, terms: &[String]) -> Vec<std::ops::Range<usize>> {
+    let hay = text.to_ascii_lowercase();
+    let mut ranges: Vec<std::ops::Range<usize>> = Vec::new();
+    for term in terms {
+        let needle = term.to_ascii_lowercase();
+        let mut from = 0;
+        while let Some(i) = hay[from..].find(&needle) {
+            let start = from + i;
+            ranges.push(start..start + needle.len());
+            from = start + needle.len().max(1);
+        }
+    }
+    ranges.sort_by_key(|r| r.start);
+    let mut merged: Vec<std::ops::Range<usize>> = Vec::new();
+    for r in ranges {
+        match merged.last_mut() {
+            Some(last) if r.start <= last.end => last.end = last.end.max(r.end),
+            _ => merged.push(r),
+        }
+    }
+    merged.retain(|r| text.is_char_boundary(r.start) && text.is_char_boundary(r.end));
+    merged
+}
+
+#[cfg(test)]
+mod search_highlight_tests {
+    use super::*;
+
+    #[test]
+    fn regex_searches_become_literal_highlight_terms() {
+        assert_eq!(search_terms("fail.*timeout"), ["fail", "timeout"]);
+        assert_eq!(search_terms("out of memory|oom-kill"), ["out of memory", "oom-kill"]);
+        assert_eq!(search_terms("\\[UFW BLOCK\\]"), ["[UFW BLOCK]"]);
+        assert!(search_terms("err(or)?").is_empty(), "groups and quantifiers aren't guessed at");
+    }
+
+    #[test]
+    fn ranges_ignore_case_and_merge() {
+        let t = vec!["fail".to_string(), "failed".to_string()];
+        assert_eq!(match_ranges("Unit FAILED; failed again", &t), [5..11, 13..19]);
+        assert!(match_ranges("naïve Fail", &["fail".into()]) == [7..11]);
+    }
+}

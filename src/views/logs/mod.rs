@@ -11,12 +11,13 @@ use crate::components::icons::{tabler_icon, TablerIcon};
 pub mod retention_modal;
 pub mod state;
 
-pub use state::JournalState;
+pub use state::{AiPanelState, JournalState, JOURNAL_PRESETS};
 
 pub fn logs_explorer_view(
     app: Entity<CrowApp>,
     search: Option<&Entity<InputState>>,
     journal: &JournalState,
+    ai_provider: Option<String>,
 ) -> impl IntoElement {
     let app_clone = app.clone();
 
@@ -38,8 +39,15 @@ pub fn logs_explorer_view(
     // they're shown as returned. Only Crow's own action markers, which never
     // went through journalctl, are filtered here, with the same meanings.
     let marker_visible = |e: &JournalEntry| -> bool {
-        if journal.unit_filter.as_deref().is_some_and(|u| u != "ALL") || journal.pid_filter.is_some() {
+        if !journal.show_actions || journal.pid_filter.is_some() {
             return false;
+        }
+        // With a unit selected, keep the actions that touched that unit.
+        if let Some(u) = journal.unit_filter.as_deref().filter(|u| *u != "ALL") {
+            let base = u.trim_end_matches(".service");
+            if !e.message.contains(base) {
+                return false;
+            }
         }
         if journal.severity_filter.is_some_and(|p| (e.priority as u8) > (p as u8)) {
             return false;
@@ -128,10 +136,13 @@ pub fn logs_explorer_view(
                     let is_tail = journal.live_tail;
                     let is_warn = journal.telemetry.is_volatile_warning
                         || journal.retention.storage != JournalStorageMode::Persistent;
+                    let r = &journal.retention;
                     let bound_text = if is_warn {
-                        "⚠ VOLATILE (30m RISK)"
+                        "⚠ VOLATILE — LOST ON REBOOT".to_string()
                     } else {
-                        "30d · 4GB PERSISTENT"
+                        let days = if r.max_retention_days == 0 { "no age limit".to_string() } else { format!("{}d", r.max_retention_days) };
+                        let size = if r.system_max_use_mb == 0 { "no size cap".to_string() } else if r.system_max_use_mb >= 1024 { format!("{:.1}GB", r.system_max_use_mb as f32 / 1024.0) } else { format!("{}MB", r.system_max_use_mb) };
+                        format!("{days} · {size} PERSISTENT")
                     };
                     let (bound_color, bound_bg) = if is_warn {
                         (CRIT, CRIT_BG)
@@ -139,10 +150,30 @@ pub fn logs_explorer_view(
                         (OK, OK_BG)
                     };
 
+                    let app_ai = app_clone.clone();
+                    let ai_open = journal.ai.open;
                     div()
                         .flex()
                         .items_center()
                         .gap(px(8.0))
+                        // AI explanation panel toggle
+                        .child(
+                            div()
+                                .id("journal-ai-btn")
+                                .px(px(9.0))
+                                .py(px(3.5))
+                                .border_1()
+                                .border_color(if ai_open { hex_rgb(0xa78bfa) } else { BORDER_DEFAULT })
+                                .bg(if ai_open { hex_rgba(0xa78bfa, 0.12) } else { hex_rgba(0, 0.0) })
+                                .text_color(if ai_open { hex_rgb(0xa78bfa) } else { TEXT_SECONDARY })
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .font_weight(FontWeight::BOLD)
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .on_click(move |_ev, _window, cx| app_ai.update(cx, |this, cx| this.toggle_ai_panel(cx)))
+                                .child("✦ EXPLAIN"),
+                        )
                         // Boundaries & Retention button
                         .child(
                             div()
@@ -335,6 +366,25 @@ pub fn logs_explorer_view(
                         })
                         .child("DEDUPE REPEATS")
                 })
+                // Quick searches for what people most often look for.
+                .child(div().w(px(1.0)).h(px(12.0)).bg(BORDER_PANEL).mx(px(6.0)))
+                .child(div().text_color(TEXT_DIMMER).child("QUICK"))
+                .children(JOURNAL_PRESETS.iter().enumerate().map(|(i, (label, unit, grep))| {
+                    let app_p = app_clone.clone();
+                    let on = journal.search == *grep && journal.unit_filter.as_deref() == *unit;
+                    div()
+                        .id(ElementId::NamedInteger("journal-preset".into(), i as u64))
+                        .px(px(7.0))
+                        .py(px(2.0))
+                        .bg(if on { BG_CHIP } else { hex_rgba(0, 0.0) })
+                        .border_1()
+                        .border_color(if on { TEXT_SECONDARY } else { BORDER_DEFAULT })
+                        .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+                        .hover(|s| s.text_color(TEXT_PRIMARY))
+                        .cursor_pointer()
+                        .on_click(move |_ev, _window, cx| app_p.update(cx, |this, cx| this.apply_journal_preset(i, cx)))
+                        .child(*label)
+                }))
                 .child(div().flex_1())
                 .child({
                     let app_more = app_clone.clone();
@@ -520,6 +570,25 @@ pub fn logs_explorer_view(
                                             app_u.update(cx, |this, cx| this.set_journal_unit(target, cx));
                                         })
                                 }))
+                        })
+                        // Crow's own actions in the stream (restarts, reloads, ...)
+                        .child({
+                            let app_act = app_clone.clone();
+                            let on = journal.show_actions;
+                            div()
+                                .id("journal-actions-toggle")
+                                .ml(px(4.0))
+                                .px(px(6.0))
+                                .py(px(2.0))
+                                .border_1()
+                                .border_color(if on { hex_rgb(0x8ab4ff) } else { BORDER_DEFAULT })
+                                .text_color(if on { hex_rgb(0x8ab4ff) } else { TEXT_DIMMER })
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.5))
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .on_click(move |_ev, _window, cx| app_act.update(cx, |this, cx| this.toggle_journal_actions(cx)))
+                                .child(if on { "✓ CROW ACTIONS" } else { "CROW ACTIONS" })
                         })
                         // Active PID filter chip + kill action
                         .children(if let Some(fpid) = journal.pid_filter {
@@ -707,12 +776,18 @@ pub fn logs_explorer_view(
                 .child(div().w(px(60.0)).child("PID"))
                 .child(div().flex_1().child("MESSAGE")),
         )
-        // 5. Log Entries Scrollable Body
+        // 5. Log Entries Scrollable Body, with the AI panel beside it
         .child(
+            div()
+                .flex_1()
+                .min_h(px(0.0))
+                .flex()
+                .child(
             div()
                 .id("journal-log-stream")
                 .flex_1()
-                .min_h(px(0.0))
+                .min_w(px(0.0))
+                .h_full()
                 .overflow_y_scrollbar()
                 .children(if filtered_entries.is_empty() {
                     vec![
@@ -750,6 +825,8 @@ pub fn logs_explorer_view(
                         })
                         .collect()
                 }),
+                )
+                .children(journal.ai.open.then(|| ai_panel(&journal.ai, ai_provider.clone(), filtered_count, app_clone.clone()))),
         )
         .children(if journal.show_retention_modal {
             Some(retention_modal::retention_boundaries_modal(
@@ -1044,7 +1121,7 @@ fn render_journal_row(
                         } else {
                             TEXT_SECONDARY
                         })
-                        .child(render_highlighted_message(&entry.message)),
+                        .child(render_highlighted_message(&entry.message, &crate::journal::search_terms(&journal.search))),
                 )
                 // 6. Expand glyph
                 .child(
@@ -1181,10 +1258,92 @@ fn clean_unit_display(unit: &str) -> String {
     unit.trim_end_matches(".service").to_string()
 }
 
-fn render_highlighted_message(msg: &str) -> impl IntoElement {
-    // Keep raw message rendering fast and clean in JetBrains Mono
+/// The message with the search's literal terms highlighted in place.
+fn render_highlighted_message(msg: &str, terms: &[String]) -> impl IntoElement {
+    let ranges = crate::journal::match_ranges(msg, terms);
+    let style = HighlightStyle { background_color: Some(hex_rgba(0xfacc15, 0.28).into()), color: Some(TEXT_MAX.into()), ..Default::default() };
     div()
         .font_family(FONT_MONO)
         .text_size(px(10.5))
-        .child(msg.to_string())
+        .child(StyledText::new(msg.to_string()).with_highlights(ranges.into_iter().map(|r| (r, style))))
+}
+
+/// Plain-English reading of the lines on screen from the configured AI
+/// provider. Nothing is sent until EXPLAIN is clicked.
+fn ai_panel(ai: &AiPanelState, provider: Option<String>, lines_on_screen: usize, app: Entity<CrowApp>) -> impl IntoElement {
+    let accent = hex_rgb(0xa78bfa);
+    let app_go = app.clone();
+    let body: AnyElement = match (&ai.answer, ai.loading) {
+        (_, true) => div().p(px(14.0)).text_color(TEXT_DIM).child(format!("Asking {} about {} lines…", ai.provider, ai.lines_sent)).into_any_element(),
+        (Some(Ok(text)), _) => div()
+            .p(px(14.0))
+            .flex()
+            .flex_col()
+            .gap(px(6.0))
+            .children(text.lines().map(|l| {
+                let heading = l.starts_with('#') || (l.len() > 2 && l.as_bytes()[0].is_ascii_digit() && l.as_bytes()[1] == b'.');
+                div().text_color(if heading { TEXT_MAX } else { TEXT_SECONDARY }).font_weight(if heading { FontWeight::BOLD } else { FontWeight::NORMAL }).child(l.trim_start_matches('#').trim_start().to_string())
+            }))
+            .child(div().pt(px(6.0)).text_size(px(9.0)).text_color(TEXT_FAINTER).child(format!("{} · {} lines sent", ai.provider, ai.lines_sent)))
+            .into_any_element(),
+        (Some(Err(e)), _) => div().p(px(14.0)).text_color(CRIT).child(e.clone()).into_any_element(),
+        (None, false) => div().p(px(14.0)).text_color(TEXT_FAINT).child("Get a plain-English reading of the lines on screen: what's happening, what looks wrong, likely causes and what to check next.").into_any_element(),
+    };
+    div()
+        .id("journal-ai-panel")
+        .w(px(400.0))
+        .flex_none()
+        .h_full()
+        .bg(BG_RAIL)
+        .border_l_1()
+        .border_color(BORDER_PANEL)
+        .flex()
+        .flex_col()
+        .font_family(FONT_MONO)
+        .text_size(px(10.5))
+        .child(
+            div()
+                .h(px(34.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap(px(8.0))
+                .px(px(12.0))
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .child(div().text_color(accent).font_weight(FontWeight::BOLD).child("✦ EXPLAIN LOGS"))
+                .child(div().flex_1())
+                .child(match &provider {
+                    Some(_) if !ai.loading => div()
+                        .id("journal-ai-go")
+                        .px(px(9.0))
+                        .py(px(3.0))
+                        .border_1()
+                        .border_color(accent)
+                        .text_color(accent)
+                        .font_weight(FontWeight::BOLD)
+                        .cursor_pointer()
+                        .hover(|s| s.bg(hex_rgba(0xa78bfa, 0.12)))
+                        .on_click(move |_ev, _window, cx| app_go.update(cx, |this, cx| this.explain_logs_with_ai(cx)))
+                        .child(format!("EXPLAIN {lines_on_screen} LINES"))
+                        .into_any_element(),
+                    Some(_) => div().text_color(TEXT_FAINT).child("working…").into_any_element(),
+                    None => div().text_color(TEXT_FAINT).child("no provider").into_any_element(),
+                }),
+        )
+        .child(div().id("journal-ai-body").flex_1().min_h(px(0.0)).overflow_y_scrollbar().child(body))
+        .child(
+            div()
+                .flex_none()
+                .px(px(12.0))
+                .py(px(8.0))
+                .border_t_1()
+                .border_color(BORDER_PANEL)
+                .text_size(px(9.0))
+                .text_color(TEXT_FAINTER)
+                .child(match provider {
+                    Some(p) => format!("Sends the log lines on screen (not host names) to {p}. Nothing is sent until you click."),
+                    None => "Add an API key for a provider in Settings → Clankers to enable this.".to_string(),
+                }),
+        )
 }

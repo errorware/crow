@@ -30,7 +30,32 @@ pub struct JournalState {
     pub known_units: Vec<(String, usize)>,
     /// Bumped on every search keystroke; a query runs once typing pauses.
     pub search_generation: u64,
+    /// Show Crow's own action markers ("crow: systemctl restart ...").
+    pub show_actions: bool,
+    /// The AI "explain these lines" side panel.
+    pub ai: AiPanelState,
 }
+
+#[derive(Default)]
+pub struct AiPanelState {
+    pub open: bool,
+    pub loading: bool,
+    /// Provider used for the last answer, and how many lines it was sent.
+    pub provider: String,
+    pub lines_sent: usize,
+    pub answer: Option<Result<String, String>>,
+}
+
+/// One-click searches for what people most often go looking for:
+/// (label, unit filter, journal --grep pattern). Lowercase patterns match
+/// any case.
+pub const JOURNAL_PRESETS: [(&str, Option<&str>, &str); 5] = [
+    ("OOM KILLS", Some(crate::journal::reader::KERNEL_UNIT), "out of memory|oom-kill|killed process"),
+    ("SEGFAULTS", Some(crate::journal::reader::KERNEL_UNIT), "segfault|general protection|traps:"),
+    ("FIREWALL BLOCKS", Some(crate::journal::reader::KERNEL_UNIT), "ufw block|ufw audit|drop"),
+    ("DISK ERRORS", Some(crate::journal::reader::KERNEL_UNIT), "i/o error|blk_update_request|ext4-fs error|xfs.*error|medium error"),
+    ("SSH LOGIN FAILURES", None, "failed password|invalid user|authentication failure|maximum authentication attempts"),
+];
 
 impl JournalState {
     pub fn new(entries: Vec<JournalEntry>, retention: JournalRetentionConfig, telemetry: JournalTelemetry) -> Self {
@@ -53,6 +78,8 @@ impl JournalState {
             show_retention_modal: false,
             known_units: Vec::new(),
             search_generation: 0,
+            show_actions: true,
+            ai: AiPanelState::default(),
         }
     }
 

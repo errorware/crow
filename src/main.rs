@@ -1,6 +1,7 @@
 #![recursion_limit = "256"]
 use gpui_kit::*;
 
+pub mod ai;
 mod app;
 mod components;
 mod theme;
