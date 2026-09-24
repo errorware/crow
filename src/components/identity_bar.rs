@@ -310,17 +310,18 @@ pub fn connection_banner(server: Option<&ServerRecord>, app: Entity<CrowApp>) ->
         return None;
     }
     let detail = state.detail().unwrap_or_default().to_string();
-    // A warning strip, not an alarm: the Danger Zone buttons' border tone for
-    // the hairlines and their muted red for the text (like the surge strip).
+    // A warning strip, not an alarm: the Danger Zone bar's palette (background
+    // and hairlines) with its buttons' muted red text, like the surge strip.
     Some(
         div()
             .w_full()
+            .h(px(crate::components::stat_strip::STATUS_STRIP_HEIGHT))
+            .flex_none()
             .px(px(16.0))
-            .py(px(5.0))
-            .bg(hex_rgb(0x1e1215))
+            .bg(CRIT_STRIP_BG)
             .border_t_1()
             .border_b_1()
-            .border_color(BORDER_DANGER_BTN)
+            .border_color(BORDER_DANGER)
             .flex()
             .items_center()
             .gap(px(8.0))
@@ -328,7 +329,7 @@ pub fn connection_banner(server: Option<&ServerRecord>, app: Entity<CrowApp>) ->
             .text_size(px(10.5))
             .text_color(CRIT_INK_DIM)
             .child(div().flex_none().font_weight(FontWeight::BOLD).child(format!("✕ {}", state.label())))
-            .child(div().min_w(px(0.0)).child(format!("Crow can't read {} right now — pages below stay empty until the connection works. {}", s.name, detail)))
+            .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().child(format!("Crow can't read {} right now — pages below stay empty until the connection works. {}", s.name, detail)))
             // Password servers: an inline link to log in once with the password
             // and install Crow's key.
             .children((s.auth_method == "password").then(|| {
