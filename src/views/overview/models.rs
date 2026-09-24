@@ -47,6 +47,9 @@ pub struct ProcessUnit {
     pub stat: String, // "R", "S", "D", "Z", "I", etc.
     pub time: String,
     pub command: String,
+    /// A kernel thread (kthreadd, PID 2, or one of its children).
+    #[serde(default)]
+    pub is_kernel: bool,
     pub is_focused: bool,
     pub show_confirm: bool,
 }

@@ -37,7 +37,7 @@ mod poll;
 mod tabs;
 mod settings;
 mod session;
-mod onboard;
+pub mod onboard;
 pub mod overview;
 mod keys;
 pub mod configs;
@@ -137,6 +137,16 @@ pub struct CrowApp {
     pub lock_state: LockState,
     pub setup_state: SetupState,
     pub onboard_state: OnboardState,
+    /// The Add Server wizard's text fields (created on first render: inputs
+    /// need the window).
+    pub onboard_inputs: Option<onboard::OnboardInputs>,
+    /// Focus `onboard_state.focus`'s field on the next render.
+    pub onboard_focus_pending: bool,
+    /// The Services and Processes pages' search boxes (created on first render).
+    pub services_search: Option<overview::TableSearch>,
+    pub processes_search: Option<overview::TableSearch>,
+    /// Focus the current table page's search box on the next render (`/`).
+    pub table_search_focus_pending: bool,
     pub overview: OverviewState,
     pub journal: JournalState,
     pub configs: ConfigsState,
@@ -258,6 +268,11 @@ impl CrowApp {
             files: FilesState::default(),
             danger: DangerZoneState::default(),
             onboard_state,
+            onboard_inputs: None,
+            onboard_focus_pending: false,
+            services_search: None,
+            processes_search: None,
+            table_search_focus_pending: false,
             lab_state: LabState::new(window, cx),
             caret: TextCaret { blink: true, ..TextCaret::default() },
             _cursor_blink_task: Self::spawn_cursor_blink(cx),

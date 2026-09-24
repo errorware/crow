@@ -87,9 +87,15 @@ impl Host for LocalHost {
 /// Spawns `argv` locally, feeds it `stdin`, and waits up to `timeout`,
 /// killing the child if it runs over. Non-zero exit maps to `HostError::Failed`.
 pub(super) fn run_command(argv: &[&str], stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {
+    run_command_env(argv, stdin, timeout, &[])
+}
+
+/// `run_command` with extra environment variables for the child.
+pub(super) fn run_command_env(argv: &[&str], stdin: &[u8], timeout: Duration, env: &[(&str, &str)]) -> Result<ExecOutput, HostError> {
     let (program, args) = argv.split_first().ok_or_else(|| HostError::Io("empty command".into()))?;
     let mut child = Command::new(program)
         .args(args)
+        .envs(env.iter().copied())
         .stdin(if stdin.is_empty() { Stdio::null() } else { Stdio::piped() })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

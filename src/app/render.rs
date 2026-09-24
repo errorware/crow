@@ -3,6 +3,7 @@ use gpui_kit::*;
 use super::{CrowApp, Screen};
 use crate::components::danger_zone::danger_zone;
 use crate::components::identity_bar::{connection_banner, identity_bar};
+use crate::components::window_frame::window_frame;
 use crate::components::palette::palette_overlay;
 use crate::components::sidebar::sidebar;
 use crate::components::stat_strip::stat_strip;
@@ -27,6 +28,14 @@ use crate::views::users::user_management_view;
 
 impl Render for CrowApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        if self.screen == Screen::Onboard {
+            self.ensure_onboard_inputs(window, cx);
+        }
+        if self.screen == Screen::Server {
+            if let Some(page) = super::overview::TablePage::for_view(&self.active_view) {
+                self.ensure_table_search(page, window, cx);
+            }
+        }
         let is_overview = self.active_view == "overview";
         let is_table_page = super::is_table_page(&self.active_view);
         let is_config = self.active_view == "config";
@@ -36,7 +45,7 @@ impl Render for CrowApp {
         let app_view = cx.entity();
         let vault_status = self.vault.status();
 
-        div()
+        let app_root = div()
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(|this, ev: &KeyDownEvent, window, cx| {
                 this.handle_key_down(ev, window, cx);
@@ -80,7 +89,6 @@ impl Render for CrowApp {
                             self.screen,
                             self.menu_open,
                             self.fleet.servers.len(),
-                            self.fleet.servers.iter().filter(|s| s.agent_installed).count(),
                             self.session_label(),
                             app_view.clone(),
                         ))
@@ -197,7 +205,7 @@ impl Render for CrowApp {
                                                     .flex_col()
                                                     // Server Identity Bar
                                                     .child(identity_bar(active_srv, app_view.clone()))
-                                                    .children(connection_banner(active_srv))
+                                                    .children(connection_banner(active_srv, app_view.clone()))
                                                     // Server Stat Strip
                                                     .child(stat_strip(active_mtr, self.fleet.metrics_lag_secs, self.fleet.active_surge_alert.as_ref()))
                                                 // Main Server Body: Sidebar + Content
@@ -229,7 +237,10 @@ impl Render for CrowApp {
                                                                                 div()
                                                                                     .flex_1()
                                                                                     .min_h(px(0.0))
-                                                                                    .child(services_table(&self.overview, app_view.clone()))
+                                                                                    .child(services_table(&self.overview, match self.active_view.as_str() {
+                                                                        "processes" => self.processes_search.as_ref().map(|s| &s.input),
+                                                                        _ => self.services_search.as_ref().map(|s| &s.input),
+                                                                    }, app_view.clone()))
                                                                             )
                                                                             .children(if self.overview.socket_drawer_open {
                                                                                 Some(socket_log_drawer(&self.fleet, &self.overview, &self.journal, app_view.clone()).into_any_element())
@@ -240,7 +251,10 @@ impl Render for CrowApp {
                                                                         div()
                                                                             .size_full()
                                                                             .flex()
-                                                                            .child(services_table(&self.overview, app_view.clone()))
+                                                                            .child(services_table(&self.overview, match self.active_view.as_str() {
+                                                                        "processes" => self.processes_search.as_ref().map(|s| &s.input),
+                                                                        _ => self.services_search.as_ref().map(|s| &s.input),
+                                                                    }, app_view.clone()))
                                                                             .child(if self.overview.active_tab == "services" {
                                                                                 service_inspector_rail(&self.vault, &self.fleet, &self.overview, app_view.clone()).into_any_element()
                                                                             } else {
@@ -341,7 +355,7 @@ impl Render for CrowApp {
                                                                                 .text_size(px(11.5))
                                                                                 .text_color(TEXT_FAINT)
                                                                                 .child(div().size(px(6.0)).rounded_full().bg(OK))
-                                                                                .child(format!("{} · agent discovery stream pending", self.active_view)),
+                                                                                .child(format!("{} · not built yet", self.active_view)),
                                                                         ),
                                                                 )
                                                             })
@@ -365,7 +379,7 @@ impl Render for CrowApp {
                                     Screen::Onboard => Some(
                                         div()
                                             .size_full()
-                                            .child(onboard_view(app_view.clone(), &self.caret, &self.fleet, &self.onboard_state, &self.keys, &self.local_lab)),
+                                            .child(onboard_view(app_view.clone(), self.onboard_inputs.as_ref(), &self.fleet, &self.onboard_state, &self.keys, &self.local_lab)),
                                     ),
                                     Screen::FleetSetup => Some(
                                         div()
@@ -407,7 +421,8 @@ impl Render for CrowApp {
                 )
             } else {
                 None
-            })
+            });
+        window_frame(window, app_root)
     }
 }
 

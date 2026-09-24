@@ -6,8 +6,12 @@ use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
 use super::models::{ProcessUnit, ServiceUnit, SocketUnit};
 use crate::views::overview::OverviewState;
+use crate::app::overview::TablePage;
+use crate::views::overview::state::{filter_processes, filter_services, page_of, ProcessFilter, ServiceFilter, TABLE_PAGE_SIZE};
+use gpui_kit::component::input::{Input, InputState};
+use gpui_kit::prelude::FluentBuilder as _;
 
-pub fn services_table(overview: &OverviewState, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn services_table(overview: &OverviewState, search: Option<&Entity<InputState>>, app: Entity<CrowApp>) -> impl IntoElement {
     let services = &overview.services;
     let processes = &overview.processes;
     let sockets = &overview.sockets;
@@ -45,6 +49,12 @@ pub fn services_table(overview: &OverviewState, app: Entity<CrowApp>) -> impl In
                         .text_color(TEXT_PRIMARY)
                         .child(active_tab.to_uppercase()),
                 )
+                // Services and Processes: live search and filter chips.
+                .children(match active_tab {
+                    "services" => Some(render_table_controls(search, service_chips(overview, app.clone()))),
+                    "processes" => Some(render_table_controls(search, process_chips(overview, app.clone()))),
+                    _ => None,
+                })
                 .child(div().flex_1())
                 // Dynamic counts cluster based on active tab
                 .child(render_counts_cluster(active_tab, services, processes, sockets))
@@ -107,6 +117,7 @@ pub fn services_table(overview: &OverviewState, app: Entity<CrowApp>) -> impl In
                                 .text_color(TEXT_TERTIARY)
                                 .child(match active_tab {
                                     "sockets" => "sort port ↑",
+                                    "services" => "sort status · name",
                                     _ => "sort cpu ↓",
                                 }),
                         )
@@ -137,22 +148,174 @@ pub fn services_table(overview: &OverviewState, app: Entity<CrowApp>) -> impl In
                 .flex_col()
                 .children(match active_tab {
                     "processes" => {
-                        if overview.group_processes {
-                            render_processes_rows_grouped(processes, &overview.collapsed_process_groups, app.clone())
+                        let filtered = filter_processes(processes, overview.process_filter, &overview.process_query);
+                        let shown: Vec<ProcessUnit> = page_of(&filtered, overview.process_page).0.iter().map(|p| (*p).clone()).collect();
+                        if shown.is_empty() && !processes.is_empty() {
+                            vec![empty_state("No processes match — try ALL, or clear the search")]
+                        } else if overview.group_processes {
+                            render_processes_rows_grouped(&shown, &overview.collapsed_process_groups, app.clone())
                         } else {
-                            render_processes_rows(processes, app.clone())
+                            render_processes_rows(&shown, app.clone())
                         }
                     }
                     "sockets" => render_sockets_rows(sockets, app.clone()),
                     _ => {
-                        if overview.group_services {
-                            render_services_rows_grouped(services, &overview.collapsed_service_groups, overview, app.clone())
+                        let shown = page_services(overview);
+                        if shown.is_empty() && !services.is_empty() {
+                            vec![empty_state("No services match — try ALL, or clear the search")]
+                        } else if overview.group_services {
+                            render_services_rows_grouped(&shown, &overview.collapsed_service_groups, overview, app.clone())
                         } else {
-                            render_services_rows(services, overview, app.clone())
+                            render_services_rows(&shown, overview, app.clone())
                         }
                     }
                 }),
         )
+        .children(match active_tab {
+            "services" => render_pager(TablePage::Services, filter_services(services, overview.service_filter, &overview.service_query).len(), overview.service_page, app.clone()),
+            "processes" => render_pager(TablePage::Processes, filter_processes(processes, overview.process_filter, &overview.process_query).len(), overview.process_page, app.clone()),
+            _ => None,
+        })
+}
+
+/// The services on the current page, after the filter and search.
+fn page_services(overview: &OverviewState) -> Vec<ServiceUnit> {
+    let filtered = filter_services(&overview.services, overview.service_filter, &overview.service_query);
+    page_of(&filtered, overview.service_page).0.iter().map(|s| (*s).clone()).collect()
+}
+
+/// One filter chip: label, count, selected, count shown in red, and what a
+/// click does.
+struct Chip {
+    id: String,
+    label: &'static str,
+    count: usize,
+    is_on: bool,
+    alarming: bool,
+    on_click: Box<dyn Fn(&mut App)>,
+}
+
+fn service_chips(overview: &OverviewState, app: Entity<CrowApp>) -> Vec<Chip> {
+    ServiceFilter::ALL
+        .into_iter()
+        .map(|filter| {
+            let count = overview.services.iter().filter(|s| filter.matches(&s.status)).count();
+            let app = app.clone();
+            Chip {
+                id: format!("svc-filter-{}", filter.label()),
+                label: filter.label(),
+                count,
+                is_on: overview.service_filter == filter,
+                alarming: filter == ServiceFilter::Failed && count > 0,
+                on_click: Box::new(move |cx| app.update(cx, |this, cx| this.set_service_filter(filter, cx))),
+            }
+        })
+        .collect()
+}
+
+fn process_chips(overview: &OverviewState, app: Entity<CrowApp>) -> Vec<Chip> {
+    ProcessFilter::ALL
+        .into_iter()
+        .map(|filter| {
+            let count = overview.processes.iter().filter(|p| filter.matches(p)).count();
+            let app = app.clone();
+            Chip {
+                id: format!("proc-filter-{}", filter.label()),
+                label: filter.label(),
+                count,
+                is_on: overview.process_filter == filter,
+                alarming: false,
+                on_click: Box::new(move |cx| app.update(cx, |this, cx| this.set_process_filter(filter, cx))),
+            }
+        })
+        .collect()
+}
+
+/// Search box and filter chips (with counts) in a table page's header.
+fn render_table_controls(search: Option<&Entity<InputState>>, chips: Vec<Chip>) -> impl IntoElement {
+    div()
+        .h_full()
+        .flex()
+        .items_center()
+        .gap(px(6.0))
+        .px(px(10.0))
+        .border_r_1()
+        .border_color(BORDER_PANEL)
+        .children(search.map(|input| {
+            div().w(px(240.0)).child(
+                Input::new(input)
+                    .font_family(FONT_MONO)
+                    .text_size(px(11.0))
+                    .bg(BG_APP)
+                    .rounded(px(2.0))
+                    .prefix(tabler_icon(TablerIcon::Search).size(px(11.0)).text_color(TEXT_DIMMER)),
+            )
+        }))
+        .children(chips.into_iter().map(|chip| {
+            let on_click = chip.on_click;
+            div()
+                .id(SharedString::from(chip.id))
+                .flex()
+                .items_center()
+                .gap(px(5.0))
+                .px(px(8.0))
+                .py(px(3.0))
+                .border_1()
+                .border_color(if chip.is_on { TEXT_SECONDARY } else { BORDER_DEFAULT })
+                .bg(if chip.is_on { BG_CHIP } else { hex_rgba(0, 0.0) })
+                .cursor_pointer()
+                .hover(|s| s.bg(BG_ROW_HOVER))
+                .font_family(FONT_MONO)
+                .text_size(px(9.5))
+                .font_weight(FontWeight::BOLD)
+                .text_color(if chip.is_on { TEXT_PRIMARY } else { TEXT_DIMMER })
+                .on_click(move |_ev, _window, cx| on_click(cx))
+                .child(chip.label)
+                .child(div().font_weight(FontWeight::NORMAL).text_color(if chip.alarming { CRIT } else { TEXT_FAINT }).child(chip.count.to_string()))
+        }))
+}
+
+/// "1–50 of 87 · ‹ PREV · 1 / 2 · NEXT ›" under a table, when there's more
+/// than one page.
+fn render_pager(table: TablePage, total: usize, page: usize, app: Entity<CrowApp>) -> Option<Div> {
+    let pages = total.div_ceil(TABLE_PAGE_SIZE).max(1);
+    if pages <= 1 {
+        return None;
+    }
+    let page = page.min(pages - 1);
+    let first = page * TABLE_PAGE_SIZE + 1;
+    let last = (first + TABLE_PAGE_SIZE - 1).min(total);
+    let button = |id: &'static str, label: &'static str, target: Option<usize>| {
+        let app = app.clone();
+        div()
+            .id(id)
+            .px(px(8.0))
+            .py(px(2.0))
+            .border_1()
+            .border_color(BORDER_DEFAULT)
+            .text_color(if target.is_some() { TEXT_SECONDARY } else { TEXT_FAINTER })
+            .when_some(target, |d, p| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_table_page(table, p, cx))))
+            .child(label)
+    };
+    Some(
+        div()
+            .h(px(30.0))
+            .flex_none()
+            .flex()
+            .items_center()
+            .gap(px(8.0))
+            .px(px(14.0))
+            .bg(BG_PANEL)
+            .border_t_1()
+            .border_color(BORDER_PANEL)
+            .font_family(FONT_MONO)
+            .text_size(px(10.5))
+            .child(div().text_color(TEXT_DIMMER).child(format!("{first}–{last} of {total}")))
+            .child(div().flex_1())
+            .child(button("table-page-prev", "‹ PREV", page.checked_sub(1)))
+            .child(div().text_color(TEXT_FAINT).child(format!("{} / {}", page + 1, pages)))
+            .child(button("table-page-next", "NEXT ›", (page + 1 < pages).then_some(page + 1))),
+    )
 }
 
 // ---------------------------------------------------------------------------

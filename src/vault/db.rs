@@ -124,7 +124,9 @@ pub struct ServerRecord {
     pub arch: String,
     pub memory_total: String,
     pub disk_total: String,
+    /// Unused: Crow is agentless. Kept so existing vaults keep loading.
     pub agent_installed: bool,
+    /// Unused, see `agent_installed`.
     pub agent_version: Option<String>,
     pub status: String,
     pub created_at: String,
