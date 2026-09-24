@@ -2,7 +2,7 @@ use gpui_kit::*;
 use gpui_kit::component::input::{InputEvent, InputState};
 
 use super::CrowApp;
-use crate::views::overview::state::ServiceFilter;
+use crate::views::overview::state::{ProcessFilter, ServiceFilter};
 use crate::components::sidebar::NavBadges;
 use crate::theme::{CRIT, OK, TEXT_FAINT, WARN};
 use crate::views::firewall::FirewallOperationalState;
@@ -18,30 +18,62 @@ use crate::views::overview::collector::{
     terminate_process,
 };
 
-/// The Services page's live search box.
-pub struct ServicesSearch {
+/// A table page's live search box (Services, Processes).
+pub struct TableSearch {
     pub input: Entity<InputState>,
     _events: Subscription,
 }
 
+/// The table pages with search, filters and paging.
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub enum TablePage {
+    Services,
+    Processes,
+}
+
+impl TablePage {
+    pub fn for_view(view: &str) -> Option<Self> {
+        match view {
+            "services" => Some(TablePage::Services),
+            "processes" => Some(TablePage::Processes),
+            _ => None,
+        }
+    }
+}
+
 impl CrowApp {
-    /// Creates the Services search box on first render (inputs need the
+    fn table_search_slot(&mut self, page: TablePage) -> &mut Option<TableSearch> {
+        match page {
+            TablePage::Services => &mut self.services_search,
+            TablePage::Processes => &mut self.processes_search,
+        }
+    }
+
+    /// Creates the page's search box on first render (inputs need the
     /// window) and applies a pending focus request (the `/` key).
-    pub fn ensure_services_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.services_search.is_none() {
-            let input = cx.new(|cx| InputState::new(window, cx).placeholder("search services…  ( / )").default_value(self.overview.service_query.clone()));
-            let events = cx.subscribe(&input, |this, input, ev: &InputEvent, cx| {
+    pub fn ensure_table_search(&mut self, page: TablePage, window: &mut Window, cx: &mut Context<Self>) {
+        if self.table_search_slot(page).is_none() {
+            let (placeholder, query) = match page {
+                TablePage::Services => ("search services…  ( / )", self.overview.service_query.clone()),
+                TablePage::Processes => ("search command, user, pid…  ( / )", self.overview.process_query.clone()),
+            };
+            let input = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder).default_value(query));
+            let events = cx.subscribe(&input, move |this, input, ev: &InputEvent, cx| {
                 if matches!(ev, InputEvent::Change) {
-                    this.overview.service_query = input.read(cx).value().to_string();
-                    this.overview.service_page = 0;
+                    let value = input.read(cx).value().to_string();
+                    match page {
+                        TablePage::Services => (this.overview.service_query, this.overview.service_page) = (value, 0),
+                        TablePage::Processes => (this.overview.process_query, this.overview.process_page) = (value, 0),
+                    }
                     cx.notify();
                 }
             });
-            self.services_search = Some(ServicesSearch { input, _events: events });
+            *self.table_search_slot(page) = Some(TableSearch { input, _events: events });
         }
-        if std::mem::take(&mut self.services_search_focus_pending) {
-            if let Some(s) = &self.services_search {
-                s.input.update(cx, |i, cx| i.focus(window, cx));
+        if std::mem::take(&mut self.table_search_focus_pending) {
+            if let Some(s) = self.table_search_slot(page).as_ref() {
+                let input = s.input.clone();
+                input.update(cx, |i, cx| i.focus(window, cx));
             }
         }
     }
@@ -52,8 +84,17 @@ impl CrowApp {
         cx.notify();
     }
 
-    pub fn set_service_page(&mut self, page: usize, cx: &mut Context<Self>) {
-        self.overview.service_page = page;
+    pub fn set_process_filter(&mut self, filter: ProcessFilter, cx: &mut Context<Self>) {
+        self.overview.process_filter = filter;
+        self.overview.process_page = 0;
+        cx.notify();
+    }
+
+    pub fn set_table_page(&mut self, table: TablePage, page: usize, cx: &mut Context<Self>) {
+        match table {
+            TablePage::Services => self.overview.service_page = page,
+            TablePage::Processes => self.overview.process_page = page,
+        }
         cx.notify();
     }
 }

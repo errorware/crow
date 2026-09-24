@@ -485,8 +485,8 @@ impl CrowApp {
             self.open_config_file();
         } else if key == "n" && is_mod {
             self.start_onboarding(cx);
-        } else if key == "/" && !is_mod && self.screen == Screen::Server && self.active_view == "services" {
-            self.services_search_focus_pending = true;
+        } else if key == "/" && !is_mod && self.screen == Screen::Server && super::overview::TablePage::for_view(&self.active_view).is_some() {
+            self.table_search_focus_pending = true;
             cx.notify();
         } else if key == "f" && is_mod && is_shift {
             self.set_screen(Screen::FleetSetup, cx);

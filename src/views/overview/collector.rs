@@ -80,7 +80,8 @@ pub fn parse_systemctl_services(stdout: &str) -> Vec<ServiceUnit> {
     units
 }
 
-/// Parses output of `ps -eo pid,user,%cpu,%mem,rss,stat,time,comm --sort=-%cpu`
+/// Parses output of `ps -eo pid,ppid,user,%cpu,%mem,rss,stat,time,comm --sort=-%cpu`.
+/// Kernel threads are kthreadd (PID 2) and its children.
 pub fn parse_ps_processes(stdout: &str) -> Vec<ProcessUnit> {
     let mut procs = Vec::new();
 
@@ -91,7 +92,7 @@ pub fn parse_ps_processes(stdout: &str) -> Vec<ProcessUnit> {
         }
 
         let parts: Vec<&str> = trimmed.split_whitespace().collect();
-        if parts.len() < 8 {
+        if parts.len() < 9 {
             continue;
         }
 
@@ -99,14 +100,15 @@ pub fn parse_ps_processes(stdout: &str) -> Vec<ProcessUnit> {
             Ok(p) => p,
             Err(_) => continue,
         };
+        let ppid: u32 = parts[1].parse().unwrap_or(0);
 
-        let user = parts[1].to_string();
-        let cpu: f32 = parts[2].parse().unwrap_or(0.0);
-        let mem: f32 = parts[3].parse().unwrap_or(0.0);
-        let rss_kb: u64 = parts[4].parse().unwrap_or(0);
-        let stat = parts[5].to_string();
-        let time = parts[6].to_string();
-        let command = parts[7..].join(" ");
+        let user = parts[2].to_string();
+        let cpu: f32 = parts[3].parse().unwrap_or(0.0);
+        let mem: f32 = parts[4].parse().unwrap_or(0.0);
+        let rss_kb: u64 = parts[5].parse().unwrap_or(0);
+        let stat = parts[6].to_string();
+        let time = parts[7].to_string();
+        let command = parts[8..].join(" ");
 
         procs.push(ProcessUnit {
             pid,
@@ -117,6 +119,7 @@ pub fn parse_ps_processes(stdout: &str) -> Vec<ProcessUnit> {
             stat,
             time,
             command,
+            is_kernel: pid == 2 || ppid == 2,
             is_focused: false,
             show_confirm: false,
         });
@@ -211,7 +214,7 @@ fn parse_users_field(field: &str) -> (String, Option<u32>) {
 }
 
 const LIST_SERVICES: &[&str] = &["systemctl", "list-units", "--type=service", "--all", "--no-legend", "--no-pager"];
-const LIST_PROCESSES: &[&str] = &["ps", "-eo", "pid,user,%cpu,%mem,rss,stat,time,comm", "--sort=-%cpu"];
+const LIST_PROCESSES: &[&str] = &["ps", "-eo", "pid,ppid,user,%cpu,%mem,rss,stat,time,comm", "--sort=-%cpu"];
 const LIST_SOCKETS: &[&str] = &["ss", "-tulpn"];
 
 /// Runs a read-only listing on the server and parses it. A failed command
@@ -288,12 +291,14 @@ mod tests {
     #[test]
     fn test_parse_ps_processes() {
         let sample = "\
-    PID USER     %CPU %MEM   RSS STAT     TIME COMMAND
-1714869 harakiri 28.0  0.7 221360 Ssl+ 00:00:56 crow
-   8309 harakiri  3.1  1.8 517520 Sl   07:59:59 brave";
+    PID    PPID USER     %CPU %MEM   RSS STAT     TIME COMMAND
+1714869 3012 harakiri 28.0  0.7 221360 Ssl+ 00:00:56 crow
+   8309 3012 harakiri  3.1  1.8 517520 Sl   07:59:59 brave
+    134    2 root      0.0  0.0     0 I<   00:00:00 kworker/R-kblockd";
 
         let procs = parse_ps_processes(sample);
-        assert_eq!(procs.len(), 2);
+        assert_eq!(procs.len(), 3);
+        assert!(!procs[0].is_kernel && procs[2].is_kernel);
         assert_eq!(procs[0].pid, 1714869);
         assert_eq!(procs[0].user, "harakiri");
         assert_eq!(procs[0].cpu, 28.0);

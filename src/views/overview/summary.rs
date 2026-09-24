@@ -195,6 +195,7 @@ mod tests {
             stat: stat.into(),
             time: String::new(),
             command: format!("cmd{pid}"),
+            is_kernel: false,
             is_focused: false,
             show_confirm: false,
         }
