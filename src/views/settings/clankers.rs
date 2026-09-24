@@ -1,3 +1,4 @@
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::{CrowApp, ClankerModalFocus};
@@ -120,7 +121,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState) -> i
             div()
                 .id("clankers-content-scroll")
                 .flex_1()
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .p(px(14.0))
                 .flex()
                 .flex_col()

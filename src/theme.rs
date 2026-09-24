@@ -106,6 +106,8 @@ pub fn init_obsidian_theme(cx: &mut App) {
     theme.radius_lg = px(4.0);
     theme.font_family = FONT_MONO.into();
     theme.mono_font_family = FONT_MONO.into();
+    // Long lists show their scrollbar at all times, not only while scrolling.
+    theme.scrollbar_mode = gpui_kit::component::scroll::ScrollbarMode::Always;
 
     // Obsidian Edge dark palette
     theme.background = BG_APP.into();

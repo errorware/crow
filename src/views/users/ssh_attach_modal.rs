@@ -1,3 +1,4 @@
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
@@ -130,7 +131,7 @@ pub fn ssh_attach_modal(
                     div()
                         .id("ssh-attach-scroll")
                         .flex_1()
-                        .overflow_y_scroll()
+                        .overflow_y_scrollbar()
                         .p(px(16.0))
                         .flex()
                         .flex_col()

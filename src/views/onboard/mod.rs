@@ -1,3 +1,4 @@
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::{CrowApp, Screen};
@@ -265,7 +266,7 @@ pub fn onboard_view(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetState,
                             div()
                                 .id("onboard-form-list")
                                 .flex_1()
-                                .overflow_y_scroll()
+                                .overflow_y_scrollbar()
                                 .p(px(16.0))
                                 .flex()
                                 .flex_col()
@@ -1766,7 +1767,7 @@ fn render_right_rail(app: Entity<CrowApp>, onboard_state: &OnboardState) -> Div 
             div()
                 .id("probe-log-list")
                 .h(px(150.0))
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .p(px(8.0))
                 .border_b_1()
                 .border_color(BORDER_PANEL)
@@ -1868,7 +1869,7 @@ fn render_right_rail(app: Entity<CrowApp>, onboard_state: &OnboardState) -> Div 
             div()
                 .id("facts-grid")
                 .flex_1()
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .p(px(10.0))
                 .flex()
                 .flex_col()

@@ -12,6 +12,7 @@ pub use ssh_attach_modal::ssh_attach_modal;
 pub use new_user_modal::{new_user_modal, NewUserState};
 pub use state::UsersState;
 
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
@@ -274,7 +275,7 @@ pub fn user_management_view(
             div()
                 .id("user-cards-scroll")
                 .flex_1()
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .p(px(16.0))
                 .flex()
                 .flex_col()

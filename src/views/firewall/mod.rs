@@ -21,6 +21,7 @@ pub use new_rule_modal::{new_rule_modal, NewRuleState};
 pub use rules_format::{generate_user_rules_content, parse_user_rules_content};
 pub use state::FirewallState;
 
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use std::collections::HashMap;
@@ -600,7 +601,7 @@ fn render_active_firewall(
             div()
                 .id("firewall-rules-table")
                 .flex_1()
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .p(px(16.0))
                 .flex()
                 .flex_col()

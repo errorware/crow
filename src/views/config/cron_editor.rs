@@ -1,3 +1,4 @@
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
@@ -333,7 +334,7 @@ pub fn cron_editor(
                 .id("cron-jobs-list")
                 .flex_1()
                 .min_h(px(0.0))
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .p(px(16.0))
                 .flex()
                 .flex_col()

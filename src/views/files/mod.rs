@@ -4,6 +4,7 @@ pub mod state;
 
 pub use state::FilesState;
 
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use gpui_kit::component::input::Input;
 use crate::theme::*;
@@ -188,7 +189,7 @@ pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState) -> impl IntoE
                 .id("files-list-scroll")
                 .flex_1()
                 .min_h(px(0.0))
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .children(if entries.is_empty() {
                     vec![
                         div()

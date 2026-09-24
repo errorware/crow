@@ -1,3 +1,4 @@
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::app::CrowApp;
 use crate::journal::retention::{JournalRetentionConfig, JournalStorageMode, JournalTelemetry};
@@ -110,7 +111,7 @@ pub fn retention_boundaries_modal(
                         .id("retention-modal-scroll")
                         .flex_1()
                         .min_h(px(0.0))
-                        .overflow_y_scroll()
+                        .overflow_y_scrollbar()
                         .p(px(20.0))
                         .flex()
                         .flex_col()

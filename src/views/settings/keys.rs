@@ -1,3 +1,4 @@
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
@@ -250,7 +251,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
             div()
                 .id("keys-scrollable-body")
                 .flex_1()
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .p(px(14.0))
                 .flex()
                 .flex_col()

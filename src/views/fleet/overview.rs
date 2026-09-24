@@ -1,3 +1,4 @@
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::{CrowApp, Screen};
@@ -344,7 +345,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                             div()
                                 .id("fleet-host-list")
                                 .flex_1()
-                                .overflow_y_scroll()
+                                .overflow_y_scrollbar()
                                 .children(if hosts.is_empty() {
                                     let app_lab = app.clone();
                                     let app_add = app.clone();
@@ -853,7 +854,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                             div()
                                 .id("fleet-activity-log")
                                 .flex_1()
-                                .overflow_y_scroll()
+                                .overflow_y_scrollbar()
                                 .py(px(5.0))
                                 .children(if activities.is_empty() {
                                     Some(
