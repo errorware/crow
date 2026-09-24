@@ -11,6 +11,7 @@ pub mod keys;
 pub mod lab;
 pub mod metrics;
 pub mod os_detect;
+pub mod security;
 pub mod vault;
 mod views;
 

@@ -382,6 +382,7 @@ impl CrowApp {
         } else if view == "overview" {
             self.active_view = view.to_string();
             self.refresh_overview_tables(cx);
+            self.refresh_security(false, cx);
         } else if view == "cron" {
             self.active_view = "cron".to_string();
             self.configs.selected_file = "crontab".to_string();

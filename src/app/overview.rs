@@ -99,6 +99,69 @@ impl CrowApp {
     }
 }
 
+/// How long a server's updates/CVE check stays fresh.
+const SECURITY_TTL: std::time::Duration = std::time::Duration::from_secs(6 * 3600);
+
+impl CrowApp {
+    /// Reads the active server's pending updates and looks up the CVEs they
+    /// fix (OSV.dev). Skipped when this server was checked recently, unless
+    /// `force`.
+    pub fn refresh_security(&mut self, force: bool, cx: &mut Context<Self>) {
+        let Some(srv) = self.fleet.active_server() else { return };
+        let sec = &mut self.overview.security;
+        let same_server = sec.server_id.as_deref() == Some(srv.id.as_str());
+        if sec.loading && same_server {
+            return;
+        }
+        if !force && same_server && sec.checked_at.is_some_and(|t| t.elapsed() < SECURITY_TTL) {
+            return;
+        }
+        if !same_server {
+            *sec = Default::default();
+        }
+        sec.server_id = Some(srv.id.clone());
+        sec.loading = true;
+        cx.notify();
+        cx.spawn(async move |entity, cx| {
+            let server_id = srv.id.clone();
+            let (updates, cves) = cx
+                .background_executor()
+                .spawn(async move {
+                    use crate::views::overview::updates::{parse_updates, UPDATES_PROBE};
+                    let host = crate::host::host_for(&srv);
+                    // As root the probe sees every process (for "running"
+                    // packages); without sudo it still reads the rest.
+                    let argv = ["sh", "-c", UPDATES_PROBE];
+                    let out = host
+                        .exec_privileged(&argv, &[], crate::host::DEFAULT_TIMEOUT)
+                        .or_else(|_| host.exec(&argv, crate::host::DEFAULT_TIMEOUT));
+                    match out {
+                        Ok(o) => {
+                            let report = parse_updates(&o.stdout);
+                            let cves = crate::security::osv::lookup(&report);
+                            (Ok(report), Some(cves))
+                        }
+                        Err(e) => (Err(format!("couldn't read updates: {e}")), None),
+                    }
+                })
+                .await;
+            let _ = entity.update(cx, |this, cx| {
+                let sec = &mut this.overview.security;
+                if sec.server_id.as_deref() != Some(server_id.as_str()) {
+                    return; // switched servers meanwhile
+                }
+                sec.loading = false;
+                sec.checked_at = Some(std::time::Instant::now());
+                sec.checked_label = chrono::Local::now().format("%H:%M").to_string();
+                sec.updates = Some(updates);
+                sec.cves = cves;
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+}
+
 // ==========================================
 // Server overview: services, processes, sockets, service manager
 // ==========================================
