@@ -292,7 +292,7 @@ impl Render for CrowApp {
                                                                 Some(
                                                                     div()
                                                                         .size_full()
-                                                                        .child(user_management_view(app_view.clone(), &self.users, &self.keys.enrolled))
+                                                                        .child(user_management_view(app_view.clone(), &self.users, &self.keys.enrolled, self.users_search.as_ref().map(|s| &s.input)))
                                                                 )
                                                             } else if self.active_view == "files" {
                                                                 Some(

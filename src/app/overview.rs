@@ -29,6 +29,7 @@ pub struct TableSearch {
 pub enum TablePage {
     Services,
     Processes,
+    Users,
 }
 
 impl TablePage {
@@ -36,6 +37,7 @@ impl TablePage {
         match view {
             "services" => Some(TablePage::Services),
             "processes" => Some(TablePage::Processes),
+            "users" => Some(TablePage::Users),
             _ => None,
         }
     }
@@ -46,6 +48,7 @@ impl CrowApp {
         match page {
             TablePage::Services => &mut self.services_search,
             TablePage::Processes => &mut self.processes_search,
+            TablePage::Users => &mut self.users_search,
         }
     }
 
@@ -56,6 +59,7 @@ impl CrowApp {
             let (placeholder, query) = match page {
                 TablePage::Services => ("search services…  ( / )", self.overview.service_query.clone()),
                 TablePage::Processes => ("search command, user, pid…  ( / )", self.overview.process_query.clone()),
+                TablePage::Users => ("search name, group, shell…  ( / )", self.users.search_query.clone()),
             };
             let input = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder).default_value(query));
             let events = cx.subscribe(&input, move |this, input, ev: &InputEvent, cx| {
@@ -64,6 +68,7 @@ impl CrowApp {
                     match page {
                         TablePage::Services => (this.overview.service_query, this.overview.service_page) = (value, 0),
                         TablePage::Processes => (this.overview.process_query, this.overview.process_page) = (value, 0),
+                        TablePage::Users => this.users.search_query = value,
                     }
                     cx.notify();
                 }
@@ -94,6 +99,7 @@ impl CrowApp {
         match table {
             TablePage::Services => self.overview.service_page = page,
             TablePage::Processes => self.overview.process_page = page,
+            TablePage::Users => {}
         }
         cx.notify();
     }

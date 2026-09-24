@@ -183,16 +183,6 @@ pub fn set_shell(user: &str, shell: &str) -> Result<Argv, String> {
     Ok(argv(&["usermod", "-s", shell, user]))
 }
 
-/// The next shell in the Users screen's cycle.
-pub fn next_shell(current: &str) -> &'static str {
-    match current {
-        "/bin/bash" => "/bin/zsh",
-        "/bin/zsh" => "/usr/bin/fish",
-        "/usr/bin/fish" => "/usr/sbin/nologin",
-        _ => "/bin/bash",
-    }
-}
-
 /// `useradd` for the New User form. `sudo_group` is the admin group present
 /// on this host (`sudo` on Debian-likes, `wheel` on Red Hat-likes).
 pub fn create_user(form: &NewUserState, sudo_group: Option<&str>) -> Result<Argv, String> {

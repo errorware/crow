@@ -85,16 +85,37 @@ impl CrowApp {
         self.run_user_action(user, cmd.map(|c| vec![HostCommand::new(c)]), false, cx);
     }
 
-    pub fn user_cycle_shell(&mut self, user: &str, cx: &mut Context<Self>) {
-        let current = self.users.find(user).map(|u| u.shell.clone()).unwrap_or_default();
-        let cmd = host_data::set_shell(user, host_data::next_shell(&current));
-        self.run_user_action(user, cmd.map(|c| vec![HostCommand::new(c)]), false, cx);
-    }
-
     pub fn user_create(&mut self, cx: &mut Context<Self>) {
         let name = self.users.new_user.username.trim().to_lowercase();
         let cmd = host_data::create_user(&self.users.new_user, self.users.sudo_group());
         self.run_user_action(&name, cmd.map(|c| vec![HostCommand::new(c)]), true, cx);
+    }
+
+    pub fn select_user(&mut self, user: &str, cx: &mut Context<Self>) {
+        self.users.selected = Some(user.to_string());
+        self.users.confirm_delete = None;
+        cx.notify();
+    }
+
+    pub fn set_users_filter(&mut self, tab: crate::views::users::UserFilterTab, cx: &mut Context<Self>) {
+        self.users.filter_tab = tab;
+        cx.notify();
+    }
+
+    pub fn user_set_shell(&mut self, user: &str, shell: &str, cx: &mut Context<Self>) {
+        let cmd = host_data::set_shell(user, shell);
+        self.run_user_action(user, cmd.map(|c| vec![HostCommand::new(c)]), false, cx);
+    }
+
+    /// First click arms DELETE for this account; the second deletes it.
+    pub fn user_delete_clicked(&mut self, user: &str, cx: &mut Context<Self>) {
+        if self.users.confirm_delete.as_deref() == Some(user) {
+            self.users.confirm_delete = None;
+            self.user_delete(user, cx);
+        } else {
+            self.users.confirm_delete = Some(user.to_string());
+            cx.notify();
+        }
     }
 
     pub fn user_delete(&mut self, user: &str, cx: &mut Context<Self>) {

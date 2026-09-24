@@ -9,6 +9,10 @@ pub struct UsersState {
     pub new_user: NewUserState,
     pub search_query: String,
     pub filter_tab: UserFilterTab,
+    /// The account shown in the right-hand inspector.
+    pub selected: Option<String>,
+    /// Account awaiting a second click on DELETE.
+    pub confirm_delete: Option<String>,
     pub toast: Option<String>,
     /// The command currently running on the server, if any.
     pub pending: Option<String>,
@@ -25,11 +29,48 @@ impl UsersState {
             show_new_user_modal: false,
             new_user: NewUserState::default(),
             search_query: String::new(),
-            filter_tab: UserFilterTab::All,
+            filter_tab: UserFilterTab::Human,
+            selected: None,
+            confirm_delete: None,
             toast: None,
             pending: None,
             load_error: None,
         }
+    }
+
+    /// The accounts the table shows: filter tab, then search (name, full
+    /// name, shell or group), in the order they were read.
+    pub fn visible(&self) -> Vec<&SystemUserRecord> {
+        let q = self.search_query.trim().to_lowercase();
+        self.users
+            .iter()
+            .filter(|u| self.filter_tab.matches(u))
+            .filter(|u| {
+                q.is_empty()
+                    || u.username.to_lowercase().contains(&q)
+                    || u.gecos.to_lowercase().contains(&q)
+                    || u.shell.to_lowercase().contains(&q)
+                    || u.groups.iter().any(|g| g.to_lowercase().contains(&q))
+            })
+            .collect()
+    }
+
+    /// The inspected account: the selection if it's still listed, else the
+    /// first visible one.
+    pub fn inspected(&self) -> Option<&SystemUserRecord> {
+        let visible = self.visible();
+        self.selected.as_ref().and_then(|s| visible.iter().find(|u| &u.username == s).copied()).or_else(|| visible.first().copied())
+    }
+
+    /// Shells to offer: the common ones plus any an account already uses.
+    pub fn shell_choices(&self) -> Vec<String> {
+        let mut shells: Vec<String> = ["/bin/bash", "/bin/sh", "/usr/sbin/nologin"].iter().map(|s| s.to_string()).collect();
+        for u in &self.users {
+            if !u.shell.is_empty() && !shells.contains(&u.shell) {
+                shells.push(u.shell.clone());
+            }
+        }
+        shells
     }
 
     pub fn find(&self, username: &str) -> Option<&SystemUserRecord> {
