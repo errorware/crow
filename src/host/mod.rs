@@ -11,6 +11,7 @@ mod container;
 mod local;
 pub mod ssh;
 
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -89,6 +90,70 @@ const ATOMIC_WRITE_SCRIPT: &str = r#"set -e; t=$(mktemp "$1.crow.XXXXXX"); cat >
 /// cover dotfiles; unmatched globs stay literal and are skipped.
 const LIST_DIR_SCRIPT: &str = r#"cd -- "$1" || exit 1; for f in * .[!.]* ..?*; do if [ -e "$f" ] || [ -L "$f" ]; then stat -c '%F|%a|%u|%g|%s|%Y|%n' -- "$f"; fi; done"#;
 
+/// `list_dir` for many directories in one round trip: `$1` is a per-call
+/// marker, the rest are directories. Each readable directory is announced by
+/// a `<marker> DIR <path>` line followed by its `stat` lines.
+const LIST_DIRS_SCRIPT: &str = r#"m=$1; shift; for d in "$@"; do (cd -- "$d" 2>/dev/null || exit 0; printf '%s DIR %s\n' "$m" "$d"; for f in * .[!.]* ..?*; do if [ -e "$f" ] || [ -L "$f" ]; then stat -c '%F|%a|%u|%g|%s|%Y|%n' -- "$f"; fi; done); done; true"#;
+
+/// `read_file` for many files in one round trip: `$1` is a per-call marker,
+/// the rest are paths. Each file is framed as `<marker> BEGIN <path>\n`,
+/// its bytes, then `\n<marker> OK|ERR\n`.
+const READ_FILES_SCRIPT: &str = r#"m=$1; shift; for f in "$@"; do printf '%s BEGIN %s\n' "$m" "$f"; if [ -f "$f" ] && cat -- "$f" 2>/dev/null; then printf '\n%s OK\n' "$m"; else printf '\n%s ERR\n' "$m"; fi; done"#;
+
+/// A marker no file content or name will contain by accident.
+fn batch_marker() -> String {
+    format!("@@crow-{:032x}@@", rand::random::<u128>())
+}
+
+/// Parses `LIST_DIRS_SCRIPT` output.
+pub fn parse_dir_batch(stdout: &str, marker: &str) -> HashMap<String, Vec<DirEntry>> {
+    let header = format!("{marker} DIR ");
+    let mut out: HashMap<String, Vec<DirEntry>> = HashMap::new();
+    let mut current: Option<String> = None;
+    let mut lines = String::new();
+    let flush = |dir: Option<String>, lines: &mut String, out: &mut HashMap<String, Vec<DirEntry>>| {
+        if let Some(d) = dir {
+            out.insert(d, parse_stat_listing(lines));
+        }
+        lines.clear();
+    };
+    for line in stdout.lines() {
+        if let Some(dir) = line.strip_prefix(&header) {
+            flush(current.take(), &mut lines, &mut out);
+            current = Some(dir.to_string());
+        } else if current.is_some() {
+            lines.push_str(line);
+            lines.push('\n');
+        }
+    }
+    flush(current, &mut lines, &mut out);
+    out
+}
+
+/// Parses `READ_FILES_SCRIPT` output: path → content, or an error.
+pub fn parse_file_batch(stdout: &str, marker: &str) -> HashMap<String, Result<String, String>> {
+    let begin = format!("{marker} BEGIN ");
+    let end = format!("\n{marker} ");
+    let mut out = HashMap::new();
+    let mut rest = stdout;
+    while let Some(start) = rest.find(&begin) {
+        let after = &rest[start + begin.len()..];
+        let Some(nl) = after.find('\n') else { break };
+        let path = after[..nl].to_string();
+        let body = &after[nl + 1..];
+        let Some(stop) = body.find(&end) else { break };
+        let status_line = body[stop + end.len()..].lines().next().unwrap_or("");
+        let result = if status_line == "OK" {
+            Ok(body[..stop].to_string())
+        } else {
+            Err("not a readable file".to_string())
+        };
+        out.insert(path, result);
+        rest = &body[stop + end.len()..];
+    }
+    out
+}
+
 /// Runs "$@" as root: as-is when already root, else via non-interactive sudo.
 const PRIVILEGED_WRAPPER: &str = r#"if [ "$(id -u)" = 0 ]; then exec "$@"; else exec sudo -n -- "$@"; fi"#;
 
@@ -140,6 +205,37 @@ pub trait Host: Send + Sync {
     fn list_dir(&self, path: &str) -> Result<Vec<DirEntry>, HostError> {
         let out = self.exec(&["sh", "-c", LIST_DIR_SCRIPT, "crow-ls", path], DEFAULT_TIMEOUT)?;
         Ok(parse_stat_listing(&out.stdout))
+    }
+
+    /// Lists many directories in one round trip. Directories that don't exist
+    /// or can't be read are left out.
+    fn list_dirs(&self, paths: &[&str]) -> HashMap<String, Vec<DirEntry>> {
+        let marker = batch_marker();
+        let mut argv = vec!["sh", "-c", LIST_DIRS_SCRIPT, "crow-ls", marker.as_str()];
+        argv.extend(paths);
+        match self.exec(&argv, DEFAULT_TIMEOUT) {
+            Ok(out) => parse_dir_batch(&out.stdout, &marker),
+            Err(_) => HashMap::new(),
+        }
+    }
+
+    /// Reads many files in one round trip. Every path gets an entry: its
+    /// content, or why it couldn't be read.
+    fn read_files(&self, paths: &[&str]) -> HashMap<String, Result<String, String>> {
+        if paths.is_empty() {
+            return HashMap::new();
+        }
+        let marker = batch_marker();
+        let mut argv = vec!["sh", "-c", READ_FILES_SCRIPT, "crow-cat", marker.as_str()];
+        argv.extend(paths);
+        let mut out = match self.exec(&argv, DEFAULT_TIMEOUT) {
+            Ok(out) => parse_file_batch(&out.stdout, &marker),
+            Err(e) => return paths.iter().map(|p| (p.to_string(), Err(e.to_string()))).collect(),
+        };
+        for p in paths {
+            out.entry(p.to_string()).or_insert_with(|| Err("no output for this file".into()));
+        }
+        out
     }
 
     /// Replaces `path` with `content` atomically (temp file in the same
@@ -240,6 +336,60 @@ pub fn host_for(server: &ServerRecord) -> Arc<dyn Host> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Runs commands on this machine but uses the trait's default (remote)
+    /// file methods, counting round trips.
+    struct ShellHost(std::sync::atomic::AtomicUsize);
+    impl Host for ShellHost {
+        fn label(&self) -> String {
+            "shell".into()
+        }
+        fn exec_stdin(&self, argv: &[&str], stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {
+            self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+            LocalHost.exec_stdin(argv, stdin, timeout)
+        }
+    }
+
+    #[test]
+    fn batched_reads_and_listings_take_one_round_trip_each() {
+        let dir = std::env::temp_dir().join(format!("crow-batch-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join("sub")).unwrap();
+        let path = |n: &str| dir.join(n).to_string_lossy().into_owned();
+        // Content that looks like framing, no trailing newline, empty, unicode.
+        let tricky = "line\n@@crow-fake@@ OK\n\nSTATUS ERR\nno newline at end";
+        std::fs::write(path("a.conf"), tricky).unwrap();
+        std::fs::write(path("empty.conf"), "").unwrap();
+        std::fs::write(path("u.conf"), "naïve · ✓\n\n").unwrap();
+        std::fs::write(path("sub/x"), "x").unwrap();
+
+        let host = ShellHost(Default::default());
+        let files = [path("a.conf"), path("empty.conf"), path("u.conf"), path("missing.conf"), path("sub")];
+        let refs: Vec<&str> = files.iter().map(String::as_str).collect();
+        let got = host.read_files(&refs);
+        assert_eq!(host.0.load(std::sync::atomic::Ordering::SeqCst), 1);
+        assert_eq!(got[&files[0]].as_deref(), Ok(tricky));
+        assert_eq!(got[&files[1]].as_deref(), Ok(""));
+        assert_eq!(got[&files[2]].as_deref(), Ok("naïve · ✓\n\n"));
+        assert!(got[&files[3]].is_err(), "missing file");
+        assert!(got[&files[4]].is_err(), "a directory is not a file");
+        // Same answers as the direct local implementation.
+        let local = LocalHost.read_files(&refs[..3]);
+        for f in &refs[..3] {
+            assert_eq!(local[*f], got[*f]);
+        }
+
+        let dirs = [path(""), path("sub"), path("nope")];
+        let refs: Vec<&str> = dirs.iter().map(String::as_str).collect();
+        let listed = host.list_dirs(&refs);
+        assert_eq!(host.0.load(std::sync::atomic::Ordering::SeqCst), 2);
+        assert!(!listed.contains_key(&dirs[2]));
+        let mut names: Vec<_> = listed[&dirs[0]].iter().map(|e| e.name.clone()).collect();
+        names.sort();
+        assert_eq!(names, ["a.conf", "empty.conf", "sub", "u.conf"]);
+        assert_eq!(listed[&dirs[1]].len(), 1);
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     fn record(host: &str, port: u16, tags: &[&str]) -> ServerRecord {
         ServerRecord { host: host.into(), port, login_user: "ops".into(), tags: tags.iter().map(|t| t.to_string()).collect(), ..ServerRecord::default() }

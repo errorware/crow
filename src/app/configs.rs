@@ -19,7 +19,7 @@ use gpui_kit::component::input::{EditorState, InputEvent};
 use crate::views::config::text_editor::{highlighter_factory, CONFIG_LANGUAGE};
 use std::sync::Arc;
 
-use crate::config::{crawl_configs, load_config_file_state};
+use crate::config::{crawl_configs, load_config_file_states};
 use crate::host::{host_for, Host, LocalHost};
 use crate::os_detect::{classify_distro_family, detect_os_release, DistroFamily};
 use crate::vault::ServerRecord;
@@ -71,7 +71,7 @@ pub fn load_configs(server: Option<&ServerRecord>, firewall: &FirewallOperationa
     };
     let family = detect_os_release(host.as_ref()).map(|d| classify_distro_family(&d)).unwrap_or(DistroFamily::Unknown);
     let files = crawl_configs(host.as_ref(), family);
-    let states = files.iter().map(|f| (f.name.clone(), load_config_file_state(host.as_ref(), f))).collect();
+    let states = load_config_file_states(host.as_ref(), &files);
     let selected = files.first().map(|f| f.name.clone()).unwrap_or_else(|| "journald.conf".to_string());
 
     let mut configs = ConfigsState::new(files, states, selected);
