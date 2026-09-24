@@ -30,6 +30,14 @@ impl Host for LocalHost {
         Path::new(path).exists()
     }
 
+    fn list_dirs(&self, paths: &[&str]) -> std::collections::HashMap<String, Vec<DirEntry>> {
+        paths.iter().filter_map(|p| Some((p.to_string(), self.list_dir(p).ok()?))).collect()
+    }
+
+    fn read_files(&self, paths: &[&str]) -> std::collections::HashMap<String, Result<String, String>> {
+        paths.iter().map(|p| (p.to_string(), self.read_file(p).map_err(|e| e.to_string()))).collect()
+    }
+
     fn list_dir(&self, path: &str) -> Result<Vec<DirEntry>, HostError> {
         let mut out = Vec::new();
         for entry in std::fs::read_dir(path)?.flatten() {

@@ -147,8 +147,10 @@ pub fn crawl_configs(host: &dyn Host, family: DistroFamily) -> Vec<DiscoveredCon
         ],
     };
 
+    // One round trip for every directory.
+    let mut listings = host.list_dirs(&scan_dirs);
     for dir_str in &scan_dirs {
-        let Ok(entries) = host.list_dir(dir_str) else { continue };
+        let Some(entries) = listings.remove(*dir_str) else { continue };
         for entry in entries {
             if entry.is_dir || !is_config_file(&entry.name, entry.size_bytes) {
                 continue;
@@ -213,7 +215,7 @@ pub fn crawl_configs(host: &dyn Host, family: DistroFamily) -> Vec<DiscoveredCon
                         _ => 10,
                     }
                 };
-                priority(&a.name).cmp(&priority(&b.name))
+                priority(&a.name).cmp(&priority(&b.name)).then_with(|| a.full_path.cmp(&b.full_path))
             }
             (false, false) => a.name.cmp(&b.name),
         }
@@ -276,6 +278,37 @@ mod tests {
         assert!(first_unmapped.unwrap() > 3);
     }
 
+    /// The remote code path (one scripted exec per batch) reads the same real
+    /// /etc as the local one, in two round trips instead of one per dir/file.
+    #[test]
+    fn remote_style_crawl_matches_local_in_two_round_trips() {
+        struct Counting(std::sync::atomic::AtomicUsize);
+        impl Host for Counting {
+            fn label(&self) -> String {
+                "counting".into()
+            }
+            fn exec_stdin(&self, argv: &[&str], stdin: &[u8], timeout: std::time::Duration) -> Result<crate::host::ExecOutput, crate::host::HostError> {
+                self.0.fetch_add(1, std::sync::atomic::Ordering::SeqCst);
+                LocalHost.exec_stdin(argv, stdin, timeout)
+            }
+        }
+        let remote = Counting(Default::default());
+        let files = crawl_configs(&remote, DistroFamily::Debian);
+        let states = load_config_file_states(&remote, &files);
+        assert_eq!(remote.0.load(std::sync::atomic::Ordering::SeqCst), 2);
+
+        // Crow's own config.toml is only listed for the machine Crow runs on.
+        let local_files: Vec<_> = crawl_configs(&LocalHost, DistroFamily::Debian).into_iter().filter(|f| f.name != "config.toml").collect();
+        let local_states = load_config_file_states(&LocalHost, &local_files);
+        let names = |f: &[DiscoveredConfigFile]| f.iter().map(|f| f.full_path.clone()).collect::<Vec<_>>();
+        assert_eq!(names(&files), names(&local_files));
+        for f in &files {
+            assert_eq!(states[&f.name].current_content, local_states[&f.name].current_content, "{}", f.name);
+            assert_eq!(states[&f.name].write_blocked.is_some(), local_states[&f.name].write_blocked.is_some(), "{}", f.name);
+        }
+        println!("{} files, was {} round trips, now 2", files.len(), 11 + files.len());
+    }
+
     #[test]
     fn test_unknown_distro_fabricates_nothing() {
         let configs = crawl_configs(&LocalHost, DistroFamily::Unknown);
@@ -283,15 +316,26 @@ mod tests {
     }
 }
 
-/// Loads a discovered file's content from `host` into a versioned edit state.
-/// A file that can't be read is shown empty and marked `write_blocked`, so
-/// nothing can be written over the real file blind.
-pub fn load_config_file_state(host: &dyn Host, f: &DiscoveredConfigFile) -> super::ConfigFileState {
-    let (content, blocked) = match host.read_file(&f.full_path.to_string_lossy()) {
-        Ok(content) => (content, None),
-        Err(e) => (String::new(), Some(format!("Could not read {} from {}: {}", f.name, host.label(), e))),
-    };
-    let mut state = super::ConfigFileState::new(f.full_path.clone(), f.name.clone(), content);
-    state.write_blocked = blocked;
-    state
+/// Loads every discovered file's content from `host` in one round trip, as
+/// versioned edit states keyed by file name. A file that can't be read is
+/// shown empty and marked `write_blocked`, so nothing can be written over
+/// the real file blind.
+pub fn load_config_file_states(host: &dyn Host, files: &[DiscoveredConfigFile]) -> std::collections::HashMap<String, super::ConfigFileState> {
+    let paths: Vec<String> = files.iter().map(|f| f.full_path.to_string_lossy().into_owned()).collect();
+    let path_refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+    let mut contents = host.read_files(&path_refs);
+    files
+        .iter()
+        .zip(&paths)
+        .map(|(f, path)| {
+            let (content, blocked) = match contents.remove(path.as_str()) {
+                Some(Ok(content)) => (content, None),
+                Some(Err(e)) => (String::new(), Some(format!("Could not read {} from {}: {}", f.name, host.label(), e))),
+                None => (String::new(), Some(format!("Could not read {} from {}", f.name, host.label()))),
+            };
+            let mut state = super::ConfigFileState::new(f.full_path.clone(), f.name.clone(), content);
+            state.write_blocked = blocked;
+            (f.name.clone(), state)
+        })
+        .collect()
 }
