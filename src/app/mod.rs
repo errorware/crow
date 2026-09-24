@@ -373,6 +373,15 @@ impl CrowApp {
         } else if view == "firewall" {
             self.active_view = "firewall".to_string();
             self.configs.selected_file = "user.rules".to_string();
+        } else if view == "config" {
+            self.active_view = view.to_string();
+            // Cron and Firewall select their own files; the Config screen only
+            // shows files it lists.
+            if !self.configs.files.iter().any(|f| f.name == self.configs.selected_file) {
+                if let Some(first) = self.configs.files.first() {
+                    self.configs.selected_file = first.name.clone();
+                }
+            }
         } else if view == "users" {
             self.active_view = view.to_string();
             self.refresh_users(cx);

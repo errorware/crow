@@ -1,3 +1,4 @@
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::input::{Input, InputState, OtpInput, OtpState, Textarea, TextareaState};
@@ -134,7 +135,7 @@ pub fn render_components_lab(app: Entity<CrowApp>, caret: &TextCaret, lab_state:
             div()
                 .id("lab-scroll-testbed")
                 .flex_1()
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .p(px(20.0))
                 .flex()
                 .flex_col()

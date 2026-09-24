@@ -1,3 +1,4 @@
+use gpui_kit::component::scroll::ScrollableElement;
 use std::collections::{HashMap, HashSet};
 use gpui_kit::*;
 use crate::theme::*;
@@ -131,7 +132,7 @@ pub fn services_table(overview: &OverviewState, app: Entity<CrowApp>) -> impl In
                 .id("overview-subtab-scroll")
                 .flex_1()
                 .min_h(px(0.0))
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .flex()
                 .flex_col()
                 .children(match active_tab {
@@ -1041,9 +1042,14 @@ fn render_sockets_rows(sockets: &[SocketUnit], app: Entity<CrowApp>) -> Vec<AnyE
                     .child(
                         div()
                             .w(px(64.0))
+                            .flex_none()
                             .pl(px(12.0))
+                            .flex()
+                            .items_center()
                             .child(
                                 div()
+                                    .flex_none()
+                                    .rounded_sm()
                                     .bg(hex_rgb(0x14161b))
                                     .text_color(sock.proto_color())
                                     .text_size(px(9.0))

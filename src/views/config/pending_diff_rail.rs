@@ -1,3 +1,4 @@
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
@@ -118,7 +119,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                 .id("pending-diff-scroll")
                 .flex_1()
                 .min_h(px(0.0))
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .flex()
                 .flex_col()
                 // Dynamic Diff Block if file is modified

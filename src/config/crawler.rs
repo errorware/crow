@@ -107,7 +107,15 @@ pub fn detect_schema_kind(name: &str, path: &Path) -> Option<SchemaKind> {
 /// Crawls a host's well-known configuration paths for real files. `family`
 /// picks the directories worth scanning; nothing is listed that isn't there.
 /// Returns the files with all schema-mapped ones bumped to the top.
+/// The files the Config screen lists: everything found except files another
+/// Crow screen owns (see `ConfigEditor::is_listed`).
 pub fn crawl_configs(host: &dyn Host, family: DistroFamily) -> Vec<DiscoveredConfigFile> {
+    crawl_all_configs(host, family).into_iter().filter(|f| editor_for(f.schema_kind).is_listed()).collect()
+}
+
+/// Every config file found, including those owned by other screens (the Cron
+/// screen still edits crontab's loaded state, for example).
+pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<DiscoveredConfigFile> {
     let mut discovered: Vec<DiscoveredConfigFile> = Vec::new();
     let mut seen_paths: std::collections::HashSet<PathBuf> = std::collections::HashSet::new();
 
@@ -262,20 +270,21 @@ mod tests {
     }
 
     #[test]
-    fn test_crawl_machine_configs_sorting() {
-        // Debian family is deterministic regardless of the host running the
-        // test: its baseline seeds guarantee mapped entries exist.
+    fn crow_ui_files_come_first_and_screen_owned_files_are_not_listed() {
         let configs = crawl_configs(&LocalHost, DistroFamily::Debian);
-        assert!(!configs.is_empty());
-
-        // First configs must be schema mapped
-        assert!(configs[0].is_schema_mapped);
-        assert!(configs.iter().take(4).all(|c| c.is_schema_mapped));
-
-        // Unmapped configs must follow later
-        let first_unmapped = configs.iter().position(|c| !c.is_schema_mapped);
-        assert!(first_unmapped.is_some());
-        assert!(first_unmapped.unwrap() > 3);
+        // Every CROW UI file comes before every plain-text file.
+        if let Some(first_text) = configs.iter().position(|c| !c.is_schema_mapped) {
+            assert!(configs[first_text..].iter().all(|c| !c.is_schema_mapped));
+        }
+        assert!(configs.iter().all(|c| editor_for(c.schema_kind).is_listed()));
+        for owned in ["crontab", "user.rules", "passwd", "group"] {
+            assert!(!configs.iter().any(|c| c.name == owned), "{owned} belongs to its own screen");
+        }
+        // They are still found, for the screens that edit them.
+        let all = crawl_all_configs(&LocalHost, DistroFamily::Debian);
+        if std::path::Path::new("/etc/crontab").exists() {
+            assert!(all.iter().any(|c| c.name == "crontab"));
+        }
     }
 
     /// The remote code path (one scripted exec per batch) reads the same real

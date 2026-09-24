@@ -50,8 +50,8 @@ pub struct ServerMetrics {
     pub disk_total_bytes: u64,
     pub disk_pct: f32,
     pub disk_mount: String,
-    pub inodes_pct: f32,
-    pub iowait_pct: f32,
+    pub inodes_pct: Option<f32>,
+    pub iowait_pct: Option<f32>,
 
     // 4. Load Average
     pub load_1m: f32,
@@ -88,8 +88,8 @@ impl Default for ServerMetrics {
             disk_total_bytes: 1,
             disk_pct: 0.0,
             disk_mount: "/".to_string(),
-            inodes_pct: 0.0,
-            iowait_pct: 0.0,
+            inodes_pct: None,
+            iowait_pct: None,
             load_1m: 0.0,
             load_5m: 0.0,
             load_15m: 0.0,

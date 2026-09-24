@@ -1,3 +1,4 @@
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::app::CrowApp;
 use crate::theme::*;
@@ -205,7 +206,7 @@ pub fn managed_files_rail(selected_file: &str, caret: &TextCaret, _fleet: &Fleet
                 .id("managed-files-scroll")
                 .flex_1()
                 .min_h(px(0.0))
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .flex()
                 .flex_col()
                 // --- SECTION 1: CROW UI MAPPED (PINNED TO TOP) ---

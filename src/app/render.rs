@@ -81,6 +81,7 @@ impl Render for CrowApp {
                             self.menu_open,
                             self.fleet.servers.len(),
                             self.fleet.servers.iter().filter(|s| s.agent_installed).count(),
+                            self.session_label(),
                             app_view.clone(),
                         ))
                         // 2. Main Screen Area
@@ -407,5 +408,22 @@ impl Render for CrowApp {
             } else {
                 None
             })
+    }
+}
+
+impl CrowApp {
+    /// How Crow is talking to the active server, for the titlebar.
+    fn session_label(&self) -> String {
+        use crate::host::{connection_state, transport_kind, ConnectionState, TransportKind};
+        let Some(srv) = self.fleet.active_server() else { return "local".into() };
+        match transport_kind(&srv) {
+            TransportKind::Local => "local".into(),
+            TransportKind::Container => "lab container".into(),
+            TransportKind::Ssh => match connection_state(&srv.id) {
+                None => "ssh · connecting".into(),
+                Some(ConnectionState::Connected) => "ssh · connected".into(),
+                Some(state) => format!("ssh · {}", state.label().to_lowercase()),
+            },
+        }
     }
 }

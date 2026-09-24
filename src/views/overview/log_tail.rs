@@ -1,3 +1,4 @@
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
@@ -137,7 +138,7 @@ pub fn log_tail(
                 .id("log-stream-scroll")
                 .flex_1()
                 .min_h(px(0.0))
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .flex()
                 .flex_col()
                 .py(px(6.0))
@@ -481,7 +482,7 @@ pub fn socket_log_drawer(
                 .id("socket-drawer-scroll")
                 .flex_1()
                 .min_h(px(0.0))
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .flex()
                 .flex_col()
                 .py(px(4.0))

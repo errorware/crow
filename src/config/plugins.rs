@@ -32,33 +32,29 @@ pub enum DedicatedScreen {
     Settings,
 }
 
-impl DedicatedScreen {
-    pub fn title(&self) -> &'static str {
-        match self {
-            Self::Cron => "Cron",
-            Self::Firewall => "Firewall",
-            Self::Users => "Users",
-            Self::Settings => "Settings",
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub enum ConfigEditor {
     /// Generic editor driven by a crow-config plugin.
     Structured(StructuredFormat),
     /// Crow's own journald retention editor (no crow-config plugin yet).
     Journald,
-    /// Managed on another Crow screen.
+    /// Managed on another Crow screen; not listed on the Config screen.
     Screen(DedicatedScreen),
     /// Plain-text editor.
     Text,
 }
 
 impl ConfigEditor {
-    /// True when Crow offers more than plain text — what "CROW UI" means.
+    /// True when the file opens in a Crow editor on the Config screen —
+    /// what "CROW UI" means.
     pub fn is_crow_ui(&self) -> bool {
-        !matches!(self, ConfigEditor::Text)
+        matches!(self, ConfigEditor::Structured(_) | ConfigEditor::Journald)
+    }
+
+    /// False for files another Crow screen owns (crontab, ufw's rules, the
+    /// account databases, Crow's own config): they stay off the Config list.
+    pub fn is_listed(&self) -> bool {
+        !matches!(self, ConfigEditor::Screen(_))
     }
 }
 
@@ -231,10 +227,11 @@ mod tests {
             ("sshd_config", "/etc/ssh/sshd_config", true),
             ("pg_hba.conf", "/etc/postgresql/16/main/pg_hba.conf", true),
             ("journald.conf", "/etc/systemd/journald.conf", true),
-            ("crontab", "/etc/crontab", true),
-            ("user.rules", "/etc/ufw/user.rules", true),
+            // Owned by other screens: not CROW UI here, and not listed.
+            ("crontab", "/etc/crontab", false),
+            ("user.rules", "/etc/ufw/user.rules", false),
             ("before.rules", "/etc/ufw/before.rules", false),
-            ("passwd", "/etc/passwd", true),
+            ("passwd", "/etc/passwd", false),
             // Not the main crontab: no structured editor, so plain text.
             ("anacrontab", "/etc/anacrontab", false),
             ("e2scrub_all", "/etc/cron.d/e2scrub_all", false),
@@ -243,7 +240,24 @@ mod tests {
         for (name, path, crow_ui) in cases {
             let editor = editor_for(detect_schema_kind(name, Path::new(path)));
             assert_eq!(editor.is_crow_ui(), crow_ui, "{path} -> {editor:?}");
+            let screen_owned = matches!(name, "crontab" | "user.rules" | "passwd");
+            assert_eq!(editor.is_listed(), !screen_owned, "{path} -> {editor:?}");
         }
+    }
+
+    #[test]
+    fn multi_field_documents_get_one_column_set_with_the_comment_last() {
+        use crate::views::config::structured_editor::table_columns;
+        let names = |cols: Option<Vec<_>>| cols.map(|c: Vec<crate::views::config::structured_editor::Column>| c.into_iter().map(|c| c.name).collect::<Vec<_>>());
+        let hosts = to_ir(StructuredFormat::Hosts, "127.0.0.1 localhost # loop\n::1 localhost ip6-localhost\n").unwrap();
+        assert_eq!(names(table_columns(&hosts)), Some(vec!["address".into(), "hostnames".into(), "comment".into()]));
+        let pg = to_ir(StructuredFormat::PgHba, "local all postgres peer\nhost all all 10.0.0.0/8 scram-sha-256\n").unwrap();
+        let cols = names(table_columns(&pg)).unwrap();
+        assert_eq!(&cols[..2], ["type", "database"]);
+        assert!(cols.contains(&"address".to_string()), "a column even though the local row has no address");
+        // Key/value documents stay as labelled lines.
+        let sshd = to_ir(StructuredFormat::Sshd, "PermitRootLogin no\nPort 22\n").unwrap();
+        assert!(table_columns(&sshd).is_none());
     }
 
     #[test]

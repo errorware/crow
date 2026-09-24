@@ -106,6 +106,8 @@ pub fn init_obsidian_theme(cx: &mut App) {
     theme.radius_lg = px(4.0);
     theme.font_family = FONT_MONO.into();
     theme.mono_font_family = FONT_MONO.into();
+    // Long lists show their scrollbar at all times, not only while scrolling.
+    theme.scrollbar_mode = gpui_kit::component::scroll::ScrollbarMode::Always;
 
     // Obsidian Edge dark palette
     theme.background = BG_APP.into();
@@ -129,4 +131,31 @@ pub fn init_obsidian_theme(cx: &mut App) {
 
     // Re-project semantic tokens onto the base layer
     Theme::sync_base(cx);
+}
+
+#[cfg(test)]
+mod scrollbar_guard {
+    /// GPUI's `overflow_y_scroll` scrolls without drawing a scrollbar (ERR-17);
+    /// every scrolling list uses `overflow_y_scrollbar` instead.
+    #[test]
+    fn no_list_scrolls_without_a_scrollbar() {
+        fn visit(dir: &std::path::Path, hits: &mut Vec<String>) {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    visit(&path, hits);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    let text = std::fs::read_to_string(&path).unwrap();
+                    for (i, line) in text.lines().enumerate() {
+                        if line.contains(concat!(".overflow_y_", "scroll()")) {
+                            hits.push(format!("{}:{}", path.display(), i + 1));
+                        }
+                    }
+                }
+            }
+        }
+        let mut hits = Vec::new();
+        visit(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut hits);
+        assert!(hits.is_empty(), "use .overflow_y_scrollbar() instead: {hits:?}");
+    }
 }

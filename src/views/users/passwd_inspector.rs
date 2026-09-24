@@ -1,3 +1,4 @@
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
@@ -123,7 +124,7 @@ pub fn passwd_inspector(
             div()
                 .id("passwd-inspector-scroll")
                 .flex_1()
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .p(px(20.0))
                 .flex()
                 .flex_col()

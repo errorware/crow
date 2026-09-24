@@ -1,3 +1,4 @@
+use gpui_kit::component::scroll::ScrollableElement;
 use std::collections::HashSet;
 use gpui_kit::*;
 use crate::theme::*;
@@ -745,7 +746,7 @@ pub fn logs_explorer_view(
                 .id("journal-log-stream")
                 .flex_1()
                 .min_h(px(0.0))
-                .overflow_y_scroll()
+                .overflow_y_scrollbar()
                 .children(if filtered_entries.is_empty() {
                     vec![
                         div()

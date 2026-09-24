@@ -1,6 +1,7 @@
 pub mod clankers_state;
 pub mod keys_state;
 pub mod state;
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::{CrowApp, Screen, SettingsSection};
@@ -508,7 +509,7 @@ pub fn settings_view(
                             div()
                                 .id("settings-rows-list")
                                 .flex_1()
-                                .overflow_y_scroll()
+                                .overflow_y_scrollbar()
                                 .children(if section == SettingsSection::Security {
                                     if !is_auth_enabled {
                                         Some(
@@ -1261,12 +1262,13 @@ pub fn settings_view(
                                         .text_color(TEXT_FAINTER)
                                         .child("Working copy matches ~/.config/crow/config.toml"),
                                 )
+                                .into_any_element()
                         } else {
                             div()
                                 .id("pending-diff-scroll")
                                 .flex_none()
                                 .max_h(px(280.0))
-                                .overflow_y_scroll()
+                                .overflow_y_scrollbar()
                                 .py(px(6.0))
                                 .border_b_1()
                                 .border_color(BORDER_PANEL)
@@ -1287,6 +1289,7 @@ pub fn settings_view(
                                         .text_color(text_c)
                                         .child(line.text)
                                 }))
+                                .into_any_element()
                         })
                         // Live Sessions Warning (shown if connection changes exist)
                         .children(if has_conn_changes {
