@@ -1,4 +1,5 @@
 use gpui_kit::*;
+use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::base::InteractiveElementExt;
 use crate::theme::*;
 use crate::app::{CrowApp, Screen};
@@ -410,6 +411,8 @@ struct MenuItem {
     action: Option<MenuAction>,
     is_danger: bool,
     is_header: bool,
+    /// The menu's call to action: a faint green sheen sweeps across it.
+    is_featured: bool,
 }
 
 pub fn burger_menu_overlay(
@@ -436,6 +439,7 @@ pub fn burger_menu_overlay(
         action: None,
         is_danger: false,
         is_header: true,
+        is_featured: false,
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::LayoutDashboard),
@@ -444,6 +448,7 @@ pub fn burger_menu_overlay(
         action: Some(MenuAction::NavigateScreen(Screen::Fleet)),
         is_danger: false,
         is_header: false,
+        is_featured: false,
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Network),
@@ -452,6 +457,7 @@ pub fn burger_menu_overlay(
         action: Some(MenuAction::NavigateScreen(Screen::FleetSetup)),
         is_danger: false,
         is_header: false,
+        is_featured: false,
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Plus),
@@ -460,6 +466,7 @@ pub fn burger_menu_overlay(
         action: Some(MenuAction::NavigateScreen(Screen::Onboard)),
         is_danger: false,
         is_header: false,
+        is_featured: true,
     });
 
     // Section 2: THIS SERVER
@@ -470,6 +477,7 @@ pub fn burger_menu_overlay(
         action: None,
         is_danger: false,
         is_header: true,
+        is_featured: false,
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Server),
@@ -478,6 +486,7 @@ pub fn burger_menu_overlay(
         action: Some(MenuAction::NavigateServerView("overview")),
         is_danger: false,
         is_header: false,
+        is_featured: false,
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::AdjustmentsHorizontal),
@@ -486,6 +495,7 @@ pub fn burger_menu_overlay(
         action: Some(MenuAction::NavigateServerView("config")),
         is_danger: false,
         is_header: false,
+        is_featured: false,
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::FileText),
@@ -494,6 +504,7 @@ pub fn burger_menu_overlay(
         action: Some(MenuAction::NavigateServerView("logs")),
         is_danger: false,
         is_header: false,
+        is_featured: false,
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Box),
@@ -502,6 +513,7 @@ pub fn burger_menu_overlay(
         action: Some(MenuAction::ToggleLab),
         is_danger: false,
         is_header: false,
+        is_featured: false,
     });
 
     // Section 3: APPLICATION
@@ -512,6 +524,7 @@ pub fn burger_menu_overlay(
         action: None,
         is_danger: false,
         is_header: true,
+        is_featured: false,
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Search),
@@ -520,6 +533,7 @@ pub fn burger_menu_overlay(
         action: Some(MenuAction::TogglePalette),
         is_danger: false,
         is_header: false,
+        is_featured: false,
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Settings),
@@ -528,6 +542,7 @@ pub fn burger_menu_overlay(
         action: Some(MenuAction::NavigateScreen(Screen::Settings)),
         is_danger: false,
         is_header: false,
+        is_featured: false,
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::InfoCircle),
@@ -536,6 +551,7 @@ pub fn burger_menu_overlay(
         action: Some(MenuAction::About),
         is_danger: false,
         is_header: false,
+        is_featured: false,
     });
 
     // Section 4: SESSION
@@ -546,6 +562,7 @@ pub fn burger_menu_overlay(
         action: None,
         is_danger: false,
         is_header: true,
+        is_featured: false,
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Lock),
@@ -554,6 +571,7 @@ pub fn burger_menu_overlay(
         action: Some(MenuAction::LockVault),
         is_danger: true,
         is_header: false,
+        is_featured: false,
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Power),
@@ -562,6 +580,7 @@ pub fn burger_menu_overlay(
         action: Some(MenuAction::Quit),
         is_danger: true,
         is_header: false,
+        is_featured: false,
     });
 
     div()
@@ -628,6 +647,7 @@ pub fn burger_menu_overlay(
                         .gap(px(10.0))
                         .px(px(12.0))
                         .bg(if is_active { BG_KEY } else { hex_rgba(0, 0.0) })
+                        .when(item.is_featured, |d| d.overflow_hidden().child(enroll_sheen()))
                         .children(if is_active {
                             Some(left_indicator(TEXT_PRIMARY))
                         } else {
@@ -729,5 +749,25 @@ pub fn burger_menu_overlay(
                             None
                         })
                 })),
+        )
+}
+
+/// A faint green band sweeping left to right across the "Enroll New Server"
+/// row; the row itself stays black. GPUI gradients have two stops, so the band is two halves: one fading
+/// in, one fading out.
+fn enroll_sheen() -> impl IntoElement {
+    let green = |a: f32| hex_rgba(0x3ecf6e, a);
+    div()
+        .absolute()
+        .top_0()
+        .bottom_0()
+        .w(relative(0.45))
+        .flex()
+        .child(div().h_full().w_1_2().bg(linear_gradient(90.0, linear_color_stop(green(0.0), 0.0), linear_color_stop(green(0.08), 1.0))))
+        .child(div().h_full().w_1_2().bg(linear_gradient(90.0, linear_color_stop(green(0.08), 0.0), linear_color_stop(green(0.0), 1.0))))
+        .with_animation(
+            "enroll-sheen",
+            Animation::new(std::time::Duration::from_millis(2600)).repeat().with_easing(ease_in_out),
+            |band, t| band.left(relative(t * 1.45 - 0.45)),
         )
 }
