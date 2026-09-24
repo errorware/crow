@@ -2,7 +2,7 @@ use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
-use crate::components::icons::{TablerIcon, tabler_icon};
+use crate::components::icons::{TablerIcon, inherited_icon};
 use super::models::SystemUserRecord;
 
 pub fn passwd_inspector(
@@ -114,7 +114,7 @@ pub fn passwd_inspector(
                                         this.set_view("config", cx);
                                     });
                                 })
-                                .child(tabler_icon(TablerIcon::FileText).size(px(12.0)))
+                                .child(inherited_icon(TablerIcon::FileText, px(12.0)))
                                 .child("OPEN IN CONFIG EDITOR"),
                         ),
                 ),

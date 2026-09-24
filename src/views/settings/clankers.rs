@@ -2,7 +2,7 @@ use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::{CrowApp, ClankerModalFocus};
-use crate::components::icons::{TablerIcon, tabler_icon};
+use crate::components::icons::{TablerIcon, inherited_icon};
 use crate::components::sparkline::dynamic_sparkline;
 use crate::components::terminal_text_input_styled;
 use crate::vault::ClankerProviderConfig;
@@ -144,7 +144,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState) -> i
                                 .items_center()
                                 .justify_center()
                                 .text_color(TEXT_PRIMARY)
-                                .child(tabler_icon(TablerIcon::Cpu).size(px(16.0))),
+                                .child(inherited_icon(TablerIcon::Cpu, px(16.0))),
                         )
                         .child(
                             div()
@@ -803,7 +803,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, caret: &TextCaret, clankers: 
                                             .w(px(16.0))
                                             .h(px(16.0))
                                             .text_color(TEXT_PRIMARY)
-                                            .child(tabler_icon(TablerIcon::Key).size(px(14.0))),
+                                            .child(inherited_icon(TablerIcon::Key, px(14.0))),
                                     )
                                     .child(
                                         div()
@@ -825,7 +825,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, caret: &TextCaret, clankers: 
                                             this.close_edit_clanker_modal(cx);
                                         });
                                     })
-                                    .child(tabler_icon(TablerIcon::X).size(px(14.0))),
+                                    .child(inherited_icon(TablerIcon::X, px(14.0))),
                             ),
                     )
                     // API Key input

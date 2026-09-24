@@ -6,7 +6,7 @@ use gpui_kit::*;
 use crate::theme::*;
 use crate::app::{CrowApp, Screen, SettingsSection};
 use crate::config::DiffKind;
-use crate::components::icons::{TablerIcon, tabler_icon};
+use crate::components::icons::{TablerIcon, tabler_icon, inherited_icon};
 use crate::components::terminal_text_input_styled;
 use crow_config_core::schema::FieldType;
 
@@ -1253,7 +1253,7 @@ pub fn settings_view(
                                         .items_center()
                                         .gap(px(6.0))
                                         .text_color(OK)
-                                        .child(tabler_icon(TablerIcon::Check).size(px(12.0)))
+                                        .child(inherited_icon(TablerIcon::Check, px(12.0)))
                                         .child("Configuration in sync"),
                                 )
                                 .child(

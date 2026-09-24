@@ -9,7 +9,7 @@ use gpui_kit::*;
 use gpui_kit::component::input::Input;
 use crate::theme::*;
 use crate::app::CrowApp;
-use crate::components::icons::{TablerIcon, tabler_icon};
+use crate::components::icons::{TablerIcon, tabler_icon, inherited_icon};
 use models::FileEntry;
 
 pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState) -> impl IntoElement {
@@ -404,7 +404,7 @@ fn render_file_row(entry: &FileEntry, idx: usize, files: &FilesState, app: Entit
                                         this.toggle_file_delete_confirm(&name_for_delete, cx);
                                     });
                                 })
-                                .child(tabler_icon(TablerIcon::Trash).size(px(12.0))),
+                                .child(inherited_icon(TablerIcon::Trash, px(12.0))),
                         ),
                 ),
         )
