@@ -67,7 +67,8 @@ impl Default for DetectedFacts {
     }
 }
 
-fn log(logs: &mut Vec<ProbeLog>, glyph: &str, color: Rgba, message: String, note: String) {
+/// Appends a timestamped line to a probe log.
+pub fn log(logs: &mut Vec<ProbeLog>, glyph: &str, color: Rgba, message: String, note: String) {
     logs.push(ProbeLog { timestamp: Local::now().format("%H:%M:%S").to_string(), glyph: glyph.into(), color, message, note });
 }
 

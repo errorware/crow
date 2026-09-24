@@ -17,6 +17,13 @@ mod views;
 use app::CrowApp;
 
 fn main() {
+    // Started by ssh as its askpass helper during a password bootstrap
+    // (host::bootstrap): answer the prompt and exit, no window.
+    if let Ok(sock) = std::env::var(host::bootstrap::ASKPASS_SOCK_ENV) {
+        let prompt = std::env::args().nth(1).unwrap_or_default();
+        std::process::exit(host::bootstrap::askpass_main(&sock, &prompt));
+    }
+
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
         crate::theme::init_obsidian_theme(cx);

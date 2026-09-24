@@ -1,13 +1,18 @@
 use gpui_kit::*;
 use gpui_kit::component::input::{InputEvent, InputState};
+use zeroize::{Zeroize, Zeroizing};
 
 use super::{CrowApp, Screen};
 use crate::components::titlebar::ServerTab;
 use crate::theme::{CRIT, OK, TEXT_FAINTER, WARN};
 use crate::vault::ServerRecord;
 use crate::host::host_for;
+use crate::host::bootstrap::install_key_with_password;
+use crate::vault::SshKeyRecord;
 use crate::views::onboard::{
     gather_facts,
+    probe_log,
+    ProbeLog,
     probe_host,
     trust_host_keys,
     DetectedFacts,
@@ -131,6 +136,28 @@ impl CrowApp {
         self.menu_open = false;
         self.palette_open = false;
         self.onboard_set_focus_select(OnboardFieldFocus::Host, false, cx);
+    }
+
+    /// Add Server, filled in from an enrolled server and waiting for its
+    /// password: finishing it installs Crow's key and updates the same entry.
+    pub fn start_onboarding_for(&mut self, srv: &ServerRecord, cx: &mut Context<Self>) {
+        self.start_onboarding(cx);
+        let o = &mut self.onboard_state;
+        o.host = srv.host.clone();
+        o.port = srv.port.to_string();
+        o.user = srv.login_user.clone();
+        o.label = srv.name.clone();
+        o.env = srv.env.clone();
+        o.role = srv.role.clone();
+        o.group = srv.group_name.clone();
+        o.tags = srv.tags.join(", ");
+        o.jump_host_id = srv.jump_host_id.clone();
+        o.auth_method = "password".into();
+        o.selected_key_id = None;
+        o.step = OnboardStep::Credentials;
+        o.max_reached_step = OnboardStep::Credentials;
+        self.onboard_inputs = None;
+        self.onboard_set_focus_select(OnboardFieldFocus::Password, false, cx);
     }
 
     pub fn reload_servers(&mut self) {
@@ -272,28 +299,67 @@ impl CrowApp {
         }
     }
 
+    /// Crow's own key for servers enrolled with a password
+    /// (`~/.ssh/crow_ed25519`): created once, recorded in the vault, reused.
+    fn ensure_crow_key(&mut self, cx: &mut Context<Self>) -> Result<SshKeyRecord, String> {
+        let exists = |k: &SshKeyRecord| k.name == CROW_KEY_NAME && k.private_key_path.as_deref().is_some_and(|p| crate::keys::expand_tilde(p).exists());
+        if let Some(k) = self.keys.enrolled.iter().find(|k| exists(k)) {
+            return Ok(k.clone());
+        }
+        let dir = dirs::home_dir().ok_or("no home directory")?.join(".ssh");
+        // Never overwrite a key file that isn't recorded in this vault.
+        let file = (0..100)
+            .map(|i| if i == 0 { "crow_ed25519".to_string() } else { format!("crow_ed25519_{i}") })
+            .find(|f| !dir.join(f).exists())
+            .ok_or("no free crow_ed25519 file name in ~/.ssh")?;
+        let host = std::fs::read_to_string("/etc/hostname").map(|h| h.trim().to_string()).unwrap_or_default();
+        let comment = format!("crow@{}", if host.is_empty() { "workstation" } else { &host });
+        let (record, ..) = crate::keys::generate_keypair(CROW_KEY_NAME, crate::keys::KeyAlgorithm::Ed25519, Some(&comment), "fleet", &dir, Some(&file))?;
+        if let Ok(db) = self.vault.db().lock() {
+            db.upsert_ssh_key(&record).map_err(|e| format!("saving Crow's key in the vault: {e}"))?;
+        }
+        self.refresh_keys(cx);
+        Ok(record)
+    }
+
+    /// For password login: the password (taken out of the wizard state) and
+    /// Crow's key to install with it. Logs why when it can't start.
+    fn password_bootstrap_inputs(&mut self, cx: &mut Context<Self>) -> Result<Option<Bootstrap>, String> {
+        if self.onboard_state.auth_method != "password" {
+            return Ok(None);
+        }
+        if self.onboard_state.password.is_empty() {
+            return Err("enter the server's password on step 2 (Credentials)".into());
+        }
+        let key = self.ensure_crow_key(cx)?;
+        let jump = self.onboard_state.jump_host_id.as_ref().and_then(|id| self.fleet.servers.iter().find(|s| &s.id == id)).map(|j| {
+            if j.login_user.is_empty() { format!("{}:{}", j.host, j.port) } else { format!("{}@{}:{}", j.login_user, j.host, j.port) }
+        });
+        Ok(Some(Bootstrap { password: Zeroizing::new(self.onboard_state.password.clone()), key, jump }))
+    }
+
     /// Probes the address off the UI thread: TCP, banner, real host keys.
-    /// When the key is already trusted, reads the server's facts too.
+    /// When the key is already trusted, logs in (installing Crow's key first
+    /// for password login) and reads the server's facts.
     pub fn onboard_run_probe(&mut self, cx: &mut Context<Self>) {
         let candidate = self.onboard_candidate();
         self.onboard_state.is_probing = true;
         self.onboard_state.probe_result = None;
         self.onboard_state.probe_logs.clear();
         self.onboard_state.facts = DetectedFacts::default();
+        let bootstrap = self.password_bootstrap_inputs(cx);
         cx.notify();
         cx.spawn(async move |entity, cx| {
-            let (result, mut logs, facts) = cx
+            let (result, mut logs, facts, installed) = cx
                 .background_executor()
                 .spawn(async move {
                     let (result, mut logs) = probe_host(&candidate.host, candidate.port);
-                    let facts = if result.is_known_host {
-                        let (facts, fact_logs) = gather_facts(host_for(&candidate).as_ref());
-                        logs.extend(fact_logs);
-                        facts
+                    let (facts, installed) = if result.is_known_host {
+                        connect_and_read(candidate, bootstrap, &mut logs)
                     } else {
-                        DetectedFacts::default()
+                        (DetectedFacts::default(), None)
                     };
-                    (result, logs, facts)
+                    (result, logs, facts, installed)
                 })
                 .await;
             let _ = entity.update(cx, |this, cx| {
@@ -302,15 +368,27 @@ impl CrowApp {
                 this.onboard_state.probe_logs.append(&mut logs);
                 this.onboard_state.facts = facts;
                 this.onboard_state.is_probing = false;
+                this.switch_onboarding_to_key(installed);
                 cx.notify();
             });
         })
         .detach();
     }
 
+    /// After a password bootstrap installed Crow's key: the server is enrolled
+    /// with that key and the password is wiped.
+    fn switch_onboarding_to_key(&mut self, installed: Option<String>) {
+        if let Some(key_id) = installed {
+            self.onboard_state.auth_method = "publickey".into();
+            self.onboard_state.selected_key_id = Some(key_id);
+            self.onboard_state.password.zeroize();
+            self.onboard_inputs = None;
+        }
+    }
+
     /// Trusts exactly the host keys the server presented during the probe,
-    /// then reads its facts over SSH. Refused when known_hosts already holds
-    /// a different key for this host.
+    /// then logs in and reads its facts over SSH. Refused when known_hosts
+    /// already holds a different key for this host.
     pub fn onboard_accept_host_key(&mut self, cx: &mut Context<Self>) {
         let Some(result) = self.onboard_state.probe_result.as_ref() else { return };
         if result.host_key_mismatch {
@@ -333,14 +411,23 @@ impl CrowApp {
             res.is_known_host = true;
         }
         let candidate = self.onboard_candidate();
+        let bootstrap = self.password_bootstrap_inputs(cx);
         self.onboard_state.is_probing = true;
         cx.notify();
         cx.spawn(async move |entity, cx| {
-            let (facts, mut logs) = cx.background_executor().spawn(async move { gather_facts(host_for(&candidate).as_ref()) }).await;
+            let (facts, mut logs, installed) = cx
+                .background_executor()
+                .spawn(async move {
+                    let mut logs = Vec::new();
+                    let (facts, installed) = connect_and_read(candidate, bootstrap, &mut logs);
+                    (facts, logs, installed)
+                })
+                .await;
             let _ = entity.update(cx, |this, cx| {
                 this.onboard_state.probe_logs.append(&mut logs);
                 this.onboard_state.facts = facts;
                 this.onboard_state.is_probing = false;
+                this.switch_onboarding_to_key(installed);
                 cx.notify();
             });
         })
@@ -459,4 +546,43 @@ impl CrowApp {
         };
         self.onboard_set_focus_select(next_focus, false, cx);
     }
+}
+
+const CROW_KEY_NAME: &str = "crow";
+
+/// What a password bootstrap needs, gathered on the UI thread.
+pub struct Bootstrap {
+    password: Zeroizing<String>,
+    key: SshKeyRecord,
+    jump: Option<String>,
+}
+
+/// Logs in to the server being enrolled and reads its facts. For password
+/// login it first installs Crow's key with the password (once), then
+/// connects with the key. Returns the facts and, when a key was installed,
+/// its id.
+fn connect_and_read(mut candidate: ServerRecord, bootstrap: Result<Option<Bootstrap>, String>, logs: &mut Vec<ProbeLog>) -> (DetectedFacts, Option<String>) {
+    let mut installed = None;
+    match bootstrap {
+        Err(why) => {
+            probe_log(logs, "✕", CRIT, format!("password login: {why}"), String::new());
+            return (DetectedFacts::default(), None);
+        }
+        Ok(Some(b)) => match install_key_with_password(&candidate, b.jump.as_deref(), b.password, &b.key.public_key) {
+            Ok(()) => {
+                probe_log(logs, "✓", OK, format!("logged in with the password once; installed Crow's key ({})", b.key.fingerprint), "key-only from now on".into());
+                candidate.auth_method = "publickey".into();
+                candidate.key_id = Some(b.key.id.clone());
+                installed = Some(b.key.id);
+            }
+            Err(e) => {
+                probe_log(logs, "✕", CRIT, format!("password login: {e}"), String::new());
+                return (DetectedFacts::default(), None);
+            }
+        },
+        Ok(None) => {}
+    }
+    let (facts, fact_logs) = gather_facts(host_for(&candidate).as_ref());
+    logs.extend(fact_logs);
+    (facts, installed)
 }

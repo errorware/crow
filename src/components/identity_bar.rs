@@ -300,7 +300,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, app: Entity<CrowApp>) -> impl
 
 /// A strip under the identity bar while an SSH server can't be reached, so
 /// empty pages read as "Crow couldn't read this", not "the server has nothing".
-pub fn connection_banner(server: Option<&ServerRecord>) -> Option<Div> {
+pub fn connection_banner(server: Option<&ServerRecord>, app: Entity<CrowApp>) -> Option<Div> {
     let s = server?;
     if transport_kind(s) != TransportKind::Ssh {
         return None;
@@ -324,9 +324,29 @@ pub fn connection_banner(server: Option<&ServerRecord>) -> Option<Div> {
             .font_family(FONT_MONO)
             .text_size(px(11.0))
             .child(div().text_color(CRIT).font_weight(FontWeight::BOLD).child(format!("✕ {}", state.label())))
-            .child(div().text_color(TEXT_PRIMARY).child(format!(
+            .child(div().flex_1().min_w(px(0.0)).text_color(TEXT_PRIMARY).child(format!(
                 "Crow can't read {} right now — pages below show nothing until the connection works. {}",
                 s.name, detail
-            ))),
+            )))
+            // Password servers: log in once with the password to install Crow's key.
+            .children((s.auth_method == "password").then(|| {
+                let srv = s.clone();
+                div()
+                    .id("btn-setup-key-login")
+                    .flex_none()
+                    .px(px(10.0))
+                    .py(px(3.0))
+                    .border_1()
+                    .border_color(OK)
+                    .text_color(OK)
+                    .font_weight(FontWeight::BOLD)
+                    .cursor_pointer()
+                    .hover(|h| h.bg(OK_BG))
+                    .on_click(move |_ev, _window, cx| {
+                        let srv = srv.clone();
+                        app.update(cx, |this, cx| this.start_onboarding_for(&srv, cx));
+                    })
+                    .child("SET UP KEY LOGIN")
+            })),
     )
 }

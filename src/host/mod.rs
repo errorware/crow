@@ -7,6 +7,7 @@
 //! ([`ContainerHost`]) and everything else over the system OpenSSH client
 //! ([`SshHost`]).
 
+pub mod bootstrap;
 mod container;
 mod local;
 pub mod ssh;

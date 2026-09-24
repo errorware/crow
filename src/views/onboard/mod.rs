@@ -11,7 +11,7 @@ use crate::views::fleet::lab_state::LocalLabState;
 
 pub mod probe;
 #[allow(unused_imports)]
-pub use probe::{gather_facts, probe_host, trust_host_keys, DetectedFacts, ProbeLog, ProbeResult};
+pub use probe::{gather_facts, log as probe_log, probe_host, trust_host_keys, DetectedFacts, ProbeLog, ProbeResult};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OnboardStep {
