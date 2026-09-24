@@ -13,6 +13,9 @@ pub struct NewUserState {
     pub grant_sudo: bool,
     pub create_home: bool,
     pub selected_groups: Vec<String>,
+    /// Optional; set with chpasswd after useradd, never stored.
+    pub password: String,
+    pub password_confirm: String,
 }
 
 impl Default for NewUserState {
@@ -24,6 +27,8 @@ impl Default for NewUserState {
             grant_sudo: false,
             create_home: true,
             selected_groups: Vec::new(),
+            password: String::new(),
+            password_confirm: String::new(),
         }
     }
 }
@@ -32,6 +37,8 @@ impl Default for NewUserState {
 pub struct NewUserInputs {
     pub username: Entity<InputState>,
     pub gecos: Entity<InputState>,
+    pub password: Entity<InputState>,
+    pub password_confirm: Entity<InputState>,
     pub _events: Vec<Subscription>,
 }
 
@@ -161,6 +168,23 @@ pub fn new_user_modal(
                                 )
                                 .child(field(inputs.map(|i| &i.gecos))),
                         )
+                        // Password (optional)
+                        .child({
+                            let mismatch = !state.password_confirm.is_empty() && state.password != state.password_confirm;
+                            div()
+                                .flex()
+                                .flex_col()
+                                .gap(px(4.0))
+                                .child(div().font_family(FONT_MONO).text_size(px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MUTED).child("PASSWORD (OPTIONAL)"))
+                                .child(div().flex().gap(px(8.0)).child(div().flex_1().child(field(inputs.map(|i| &i.password)))).child(div().flex_1().child(field(inputs.map(|i| &i.password_confirm)))))
+                                .child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(if mismatch { CRIT } else { TEXT_FAINT }).child(if mismatch {
+                                    "The passwords don't match."
+                                } else if state.password.is_empty() {
+                                    "Leave empty for key-only login (add a key from the inspector afterwards)."
+                                } else {
+                                    "Set with chpasswd over stdin; Crow doesn't keep it."
+                                }))
+                        })
                         // Shell & Privileges Row
                         .child(
                             div()

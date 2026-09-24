@@ -4,16 +4,18 @@ use super::host_actions::HostCommand;
 use super::CrowApp;
 use crate::host::host_for;
 use crate::vault::ServerRecord;
-use crate::views::users::host_data::{self, read_users};
+use crate::views::users::host_data::{self, read_accounts};
 use crate::views::users::{SystemUserRecord, UserSshKeySummary};
 
 // ==========================================
 // User accounts: real data and actions on the active server
 // ==========================================
 
-fn load(srv: &ServerRecord) -> Result<Vec<SystemUserRecord>, String> {
+type Accounts = (Vec<SystemUserRecord>, Vec<(String, u32)>);
+
+fn load(srv: &ServerRecord) -> Result<Accounts, String> {
     let host = host_for(srv);
-    read_users(host.as_ref())
+    read_accounts(host.as_ref())
 }
 
 impl CrowApp {
@@ -30,10 +32,11 @@ impl CrowApp {
         .detach();
     }
 
-    fn apply_users(&mut self, result: Result<Vec<SystemUserRecord>, String>) {
+    fn apply_users(&mut self, result: Result<Accounts, String>) {
         match result {
-            Ok(users) => {
+            Ok((users, groups)) => {
                 self.users.users = users;
+                self.users.all_groups = groups;
                 self.users.load_error = None;
             }
             Err(e) => self.users.load_error = Some(e),
@@ -86,9 +89,73 @@ impl CrowApp {
     }
 
     pub fn user_create(&mut self, cx: &mut Context<Self>) {
-        let name = self.users.new_user.username.trim().to_lowercase();
-        let cmd = host_data::create_user(&self.users.new_user, self.users.sudo_group());
-        self.run_user_action(&name, cmd.map(|c| vec![HostCommand::new(c)]), true, cx);
+        let form = &self.users.new_user;
+        let name = form.username.trim().to_lowercase();
+        if form.password != form.password_confirm {
+            self.users.toast = Some("Not applied: the passwords don't match".into());
+            cx.notify();
+            return;
+        }
+        let commands = host_data::create_user(form, self.users.sudo_group()).and_then(|useradd| {
+            let mut cmds = vec![HostCommand::new(useradd)];
+            if !form.password.is_empty() {
+                let (argv, stdin) = host_data::set_password(&name, &form.password)?;
+                cmds.push(HostCommand { argv, stdin });
+            }
+            Ok(cmds)
+        });
+        self.run_user_action(&name, commands, true, cx);
+        use zeroize::Zeroize;
+        self.users.new_user.password.zeroize();
+        self.users.new_user.password_confirm.zeroize();
+    }
+
+    /// Opens (or closes) the SET PASSWORD form for `user` in the inspector.
+    pub fn toggle_password_form(&mut self, user: &str, cx: &mut Context<Self>) {
+        self.users.password_for = if self.users.password_for.as_deref() == Some(user) { None } else { Some(user.to_string()) };
+        self.password_inputs = None;
+        cx.notify();
+    }
+
+    /// Creates the SET PASSWORD inputs (masked, focused); Enter submits.
+    pub fn ensure_password_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.password_inputs.is_some() {
+            return;
+        }
+        use gpui_kit::component::input::{InputEvent, InputState};
+        let password = cx.new(|cx| InputState::new(window, cx).placeholder("new password").masked(true));
+        let confirm = cx.new(|cx| InputState::new(window, cx).placeholder("again").masked(true));
+        let events = [&password, &confirm]
+            .into_iter()
+            .map(|input| {
+                cx.subscribe(input, |this, _input, ev: &InputEvent, cx| {
+                    if matches!(ev, InputEvent::PressEnter { .. }) {
+                        this.user_set_password(cx);
+                    }
+                })
+            })
+            .collect();
+        password.update(cx, |i, cx| i.focus(window, cx));
+        self.password_inputs = Some(crate::views::users::PasswordInputs { password, confirm, _events: events });
+    }
+
+    /// Sets the password typed into the inspector's form (chpasswd, stdin).
+    pub fn user_set_password(&mut self, cx: &mut Context<Self>) {
+        let Some(user) = self.users.password_for.clone() else { return };
+        let Some(inputs) = self.password_inputs.as_ref() else { return };
+        let mut password = inputs.password.read(cx).value().to_string();
+        let confirm = inputs.confirm.read(cx).value().to_string();
+        if password != confirm {
+            self.users.toast = Some("Not applied: the passwords don't match".into());
+            cx.notify();
+            return;
+        }
+        let cmd = host_data::set_password(&user, &password).map(|(argv, stdin)| vec![HostCommand { argv, stdin }]);
+        use zeroize::Zeroize;
+        password.zeroize();
+        self.users.password_for = None;
+        self.password_inputs = None;
+        self.run_user_action(&user, cmd, false, cx);
     }
 
     /// Opens New User with a fresh form; its inputs are created on render.
@@ -123,8 +190,22 @@ impl CrowApp {
             InputEvent::PressEnter { .. } => this.user_create(cx),
             _ => {}
         });
+        let password = cx.new(|cx| InputState::new(window, cx).placeholder("password").masked(true));
+        let password_confirm = cx.new(|cx| InputState::new(window, cx).placeholder("again").masked(true));
+        let sub_pw = cx.subscribe(&password, |this, input, ev: &InputEvent, cx| {
+            if matches!(ev, InputEvent::Change) {
+                this.users.new_user.password = input.read(cx).value().to_string();
+                cx.notify();
+            }
+        });
+        let sub_confirm = cx.subscribe(&password_confirm, |this, input, ev: &InputEvent, cx| {
+            if matches!(ev, InputEvent::Change) {
+                this.users.new_user.password_confirm = input.read(cx).value().to_string();
+                cx.notify();
+            }
+        });
         username.update(cx, |i, cx| i.focus(window, cx));
-        self.new_user_inputs = Some(crate::views::users::NewUserInputs { username, gecos, _events: vec![sub_user, sub_gecos] });
+        self.new_user_inputs = Some(crate::views::users::NewUserInputs { username, gecos, password, password_confirm, _events: vec![sub_user, sub_gecos, sub_pw, sub_confirm] });
     }
 
     pub fn select_user(&mut self, user: &str, cx: &mut Context<Self>) {

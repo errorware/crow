@@ -25,12 +25,20 @@ use crate::components::table_controls::{render_table_controls, Chip};
 
 const INSPECTOR_WIDTH: f32 = 400.0;
 
+/// The inspector's SET PASSWORD inputs (masked).
+pub struct PasswordInputs {
+    pub password: Entity<InputState>,
+    pub confirm: Entity<InputState>,
+    pub _events: Vec<Subscription>,
+}
+
 pub fn user_management_view(
     app: Entity<CrowApp>,
     users: &UsersState,
     enrolled_keys: &[SshKeyRecord],
     search: Option<&Entity<InputState>>,
     new_user_inputs: Option<&NewUserInputs>,
+    password_inputs: Option<&PasswordInputs>,
 ) -> AnyElement {
     // Raw /etc/passwd view for one account.
     if let Some(target_uname) = &users.selected_for_passwd {
@@ -162,7 +170,7 @@ pub fn user_management_view(
                         .border_color(BORDER_PANEL)
                         .overflow_y_scrollbar()
                         .child(match inspected {
-                            Some(u) => inspector(u, users, app.clone()).into_any_element(),
+                            Some(u) => inspector(u, users, password_inputs, app.clone()).into_any_element(),
                             None => message_row("Select an account to see its details.".into(), TEXT_FAINT),
                         }),
                 ),
@@ -303,7 +311,7 @@ fn action_button(id: String, label: String, color: Rgba, enabled: bool, on_click
 }
 
 /// Everything about one account, with its actions.
-fn inspector(u: &SystemUserRecord, users: &UsersState, app: Entity<CrowApp>) -> impl IntoElement {
+fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&PasswordInputs>, app: Entity<CrowApp>) -> impl IntoElement {
     let busy = users.pending.is_some();
     let is_root = u.username == "root";
     let sudo_group = users.sudo_group();
@@ -363,7 +371,7 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, app: Entity<CrowApp>) -> 
         let (app, n) = (app.clone(), name.clone());
         panel = panel.child(div().px(px(14.0)).pt(px(8.0)).child(action_button(
             format!("user-sudo-{name}"),
-            if in_sudo { format!("REVOKE ADMIN ({group})") } else { format!("GRANT ADMIN ({group})") },
+            if in_sudo { format!("REMOVE FROM {group} (NO SUDO)") } else { format!("MAKE ADMIN: ADD TO {group} (SUDO)") },
             WARN,
             !busy,
             move |cx| {
@@ -442,6 +450,56 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, app: Entity<CrowApp>) -> 
                 .child(shell)
         })),
     );
+
+    // Password
+    let form_open = users.password_for.as_deref() == Some(u.username.as_str());
+    panel = panel.child(inspector_section("PASSWORD")).child(
+        div().px(px(14.0)).py(px(2.0)).font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_SECONDARY).child(if u.is_locked {
+            "locked — no password login (setting one unlocks it)"
+        } else {
+            "set (can log in with a password)"
+        }),
+    );
+    if form_open {
+        let (app_save, app_cancel, n_cancel) = (app.clone(), app.clone(), name.clone());
+        panel = panel.child(
+            div()
+                .mx(px(14.0))
+                .mt(px(6.0))
+                .p(px(10.0))
+                .bg(BG_APP)
+                .border_1()
+                .border_color(BORDER_PANEL)
+                .flex()
+                .flex_col()
+                .gap(px(6.0))
+                .children(password_inputs.map(|p| {
+                    div()
+                        .flex()
+                        .flex_col()
+                        .gap(px(6.0))
+                        .child(gpui_kit::component::input::Input::new(&p.password).font_family(FONT_MONO).text_size(px(11.0)).rounded(px(2.0)))
+                        .child(gpui_kit::component::input::Input::new(&p.confirm).font_family(FONT_MONO).text_size(px(11.0)).rounded(px(2.0)))
+                }))
+                .child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).child("Set with chpasswd over stdin; Crow doesn't keep it."))
+                .child(
+                    div()
+                        .flex()
+                        .gap(px(6.0))
+                        .child(action_button(format!("user-pw-save-{name}"), "SET PASSWORD".into(), OK, !busy, move |cx| app_save.update(cx, |this, cx| this.user_set_password(cx))))
+                        .child(action_button(format!("user-pw-cancel-{name}"), "CANCEL".into(), TEXT_SECONDARY, true, move |cx| {
+                            let n = n_cancel.clone();
+                            app_cancel.update(cx, |this, cx| this.toggle_password_form(&n, cx));
+                        })),
+                ),
+        );
+    } else {
+        let (app_pw, n_pw) = (app.clone(), name.clone());
+        panel = panel.child(div().px(px(14.0)).pt(px(6.0)).child(action_button(format!("user-pw-{name}"), "SET PASSWORD…".into(), OK, !busy, move |cx| {
+            let n = n_pw.clone();
+            app_pw.update(cx, |this, cx| this.toggle_password_form(&n, cx));
+        })));
+    }
 
     // Account actions
     let confirming = users.confirm_delete.as_deref() == Some(u.username.as_str());

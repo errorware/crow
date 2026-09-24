@@ -3,6 +3,10 @@ use super::{NewUserState, SystemUserRecord, UserFilterTab};
 /// Users screen state: the account list plus modals, filters and toast.
 pub struct UsersState {
     pub users: Vec<SystemUserRecord>,
+    /// Every group on the server (name, gid), members or not.
+    pub all_groups: Vec<(String, u32)>,
+    /// Account whose SET PASSWORD form is open in the inspector.
+    pub password_for: Option<String>,
     pub selected_for_ssh: Option<String>,
     pub selected_for_passwd: Option<String>,
     pub show_new_user_modal: bool,
@@ -24,6 +28,8 @@ impl UsersState {
     pub fn new() -> Self {
         Self {
             users: Vec::new(),
+            all_groups: Vec::new(),
+            password_for: None,
             selected_for_ssh: None,
             selected_for_passwd: None,
             show_new_user_modal: false,
@@ -66,12 +72,15 @@ impl UsersState {
     /// personal groups named after a user and the admin group (offered as
     /// its own toggle).
     pub fn group_choices(&self) -> Vec<String> {
+        // Groups people are put in by hand; the rest of the system groups
+        // (tty, disk, shadow, ...) aren't offered.
+        const USEFUL: [&str; 12] = ["adm", "docker", "www-data", "systemd-journal", "lxd", "dialout", "plugdev", "staff", "users", "audio", "video", "libvirt"];
+        let personal = |g: &str| self.users.iter().any(|u| u.username == g);
         let mut groups: Vec<String> = self
-            .users
+            .all_groups
             .iter()
-            .flat_map(|u| u.groups.iter())
-            .filter(|g| !self.users.iter().any(|u| &u.username == *g) && Some(g.as_str()) != self.sudo_group())
-            .cloned()
+            .filter(|(g, gid)| (USEFUL.contains(&g.as_str()) || (1000..60000).contains(gid)) && !personal(g) && Some(g.as_str()) != self.sudo_group())
+            .map(|(g, _)| g.clone())
             .collect();
         groups.sort();
         groups.dedup();
@@ -98,9 +107,10 @@ impl UsersState {
         self.new_user = NewUserState::default();
     }
 
-    /// The admin group this host uses for sudo rights, if it has one.
+    /// The admin group this host uses for sudo rights, if it has one (it
+    /// counts even with no members yet).
     pub fn sudo_group(&self) -> Option<&'static str> {
-        let has = |g: &str| self.users.iter().any(|u| u.groups.iter().any(|x| x == g));
+        let has = |g: &str| self.all_groups.iter().any(|(n, _)| n == g) || self.users.iter().any(|u| u.groups.iter().any(|x| x == g));
         if has("sudo") {
             Some("sudo")
         } else if has("wheel") {

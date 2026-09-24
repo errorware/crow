@@ -148,6 +148,8 @@ pub struct CrowApp {
     pub users_search: Option<overview::TableSearch>,
     /// New User dialog's text inputs (created while it's open).
     pub new_user_inputs: Option<crate::views::users::NewUserInputs>,
+    /// Inspector SET PASSWORD inputs (while the form is open).
+    pub password_inputs: Option<crate::views::users::PasswordInputs>,
     /// Focus the current table page's search box on the next render (`/`).
     pub table_search_focus_pending: bool,
     pub overview: OverviewState,
@@ -277,6 +279,7 @@ impl CrowApp {
             processes_search: None,
             users_search: None,
             new_user_inputs: None,
+            password_inputs: None,
             table_search_focus_pending: false,
             lab_state: LabState::new(window, cx),
             caret: TextCaret { blink: true, ..TextCaret::default() },

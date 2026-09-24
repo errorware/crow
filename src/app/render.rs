@@ -34,6 +34,9 @@ impl Render for CrowApp {
         if self.users.show_new_user_modal {
             self.ensure_new_user_inputs(window, cx);
         }
+        if self.users.password_for.is_some() && self.active_view == "users" {
+            self.ensure_password_inputs(window, cx);
+        }
         if self.screen == Screen::Server {
             if let Some(page) = super::overview::TablePage::for_view(&self.active_view) {
                 self.ensure_table_search(page, window, cx);
@@ -295,7 +298,7 @@ impl Render for CrowApp {
                                                                 Some(
                                                                     div()
                                                                         .size_full()
-                                                                        .child(user_management_view(app_view.clone(), &self.users, &self.keys.enrolled, self.users_search.as_ref().map(|s| &s.input), self.new_user_inputs.as_ref()))
+                                                                        .child(user_management_view(app_view.clone(), &self.users, &self.keys.enrolled, self.users_search.as_ref().map(|s| &s.input), self.new_user_inputs.as_ref(), self.password_inputs.as_ref()))
                                                                 )
                                                             } else if self.active_view == "files" {
                                                                 Some(

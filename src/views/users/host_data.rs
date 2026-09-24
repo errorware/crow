@@ -16,6 +16,28 @@ const HOME_MARKER: &str = "@@crow-home@@ ";
 /// Reads /etc/passwd, /etc/group, lock state and authorized_keys from `host`.
 /// /etc/shadow is read as root, but only the first character of each
 /// password field leaves the server — enough to tell a locked account.
+/// Every group on the host (name, gid), from /etc/group.
+pub fn parse_group_names(group: &str) -> Vec<(String, u32)> {
+    group
+        .lines()
+        .filter(|l| !l.trim().is_empty() && !l.starts_with('#'))
+        .filter_map(|l| {
+            let mut f = l.split(':');
+            let name = f.next()?.to_string();
+            let gid = f.nth(1)?.parse().ok()?;
+            Some((name, gid))
+        })
+        .collect()
+}
+
+/// Accounts plus every group that exists (a group with no members still
+/// counts, e.g. `sudo` on a fresh server where only root exists).
+pub fn read_accounts(host: &dyn Host) -> Result<(Vec<SystemUserRecord>, Vec<(String, u32)>), String> {
+    let users = read_users(host)?;
+    let groups = parse_group_names(&host.read_file("/etc/group").unwrap_or_default());
+    Ok((users, groups))
+}
+
 pub fn read_users(host: &dyn Host) -> Result<Vec<SystemUserRecord>, String> {
     let passwd = host.read_file("/etc/passwd").map_err(|e| format!("can't read /etc/passwd: {e}"))?;
     let group = host.read_file("/etc/group").unwrap_or_default();
@@ -158,6 +180,23 @@ fn argv(parts: &[&str]) -> Argv {
     parts.iter().map(|s| s.to_string()).collect()
 }
 
+/// `chpasswd` with `user:password` on stdin: the password never appears in
+/// argv (so not in `ps`, change records or the journal). Setting a password
+/// also clears a password lock.
+pub fn set_password(user: &str, password: &str) -> Result<(Argv, Vec<u8>), String> {
+    check_name("user", user)?;
+    if password.is_empty() {
+        return Err("the password is empty".into());
+    }
+    if password.contains('\n') || password.contains('\r') {
+        return Err("the password can't contain line breaks".into());
+    }
+    if password.len() > 256 {
+        return Err("the password is longer than 256 characters".into());
+    }
+    Ok((argv(&["chpasswd"]), format!("{user}:{password}\n").into_bytes()))
+}
+
 pub fn add_to_group(user: &str, group: &str) -> Result<Argv, String> {
     check_name("user", user)?;
     check_name("group", group)?;
@@ -253,6 +292,22 @@ pub fn revoke_key(home: &str, line: &str) -> Argv {
 mod tests {
     use super::*;
 
+    #[test]
+    fn passwords_go_on_stdin_never_argv() {
+        let (argv, stdin) = set_password("alice", "s3cret: pass").unwrap();
+        assert_eq!(argv, ["chpasswd"]);
+        assert_eq!(stdin, b"alice:s3cret: pass\n");
+        assert!(set_password("alice", "").is_err());
+        assert!(set_password("alice", "a\nroot:x").is_err(), "no injecting a second line");
+        assert!(set_password("-alice", "x").is_err());
+    }
+
+    #[test]
+    fn group_names_include_empty_groups() {
+        let g = parse_group_names("root:x:0:\nsudo:x:27:\ndocker:x:998:nhc\n");
+        assert_eq!(g, [("root".to_string(), 0), ("sudo".to_string(), 27), ("docker".to_string(), 998)]);
+    }
+
     const PASSWD: &str = "root:x:0:0:root:/root:/bin/bash\ndaemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin\nnhc:x:1000:1000:Nelson,,,:/home/nhc:/bin/zsh\n";
     const GROUP: &str = "root:x:0:\nsudo:x:27:nhc\nnhc:x:1000:\ndocker:x:998:nhc,other\n";
     const KEY: &str = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIOMqqnkVzrm0SdG6UOoqKLsabgH5C9okWi0dh2l9GKJl nhc@laptop";
@@ -302,6 +357,7 @@ mod tests {
             grant_sudo: true,
             create_home: true,
             selected_groups: vec!["docker".into()],
+            ..NewUserState::default()
         };
         assert_eq!(
             create_user(&form, Some("sudo")).unwrap(),
