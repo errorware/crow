@@ -9,7 +9,7 @@ pub mod host_data;
 pub use models::{SystemUserRecord, UserAccountStatus, UserFilterTab, UserSshKeySummary};
 pub use passwd_inspector::passwd_inspector;
 pub use ssh_attach_modal::ssh_attach_modal;
-pub use new_user_modal::{new_user_modal, NewUserState};
+pub use new_user_modal::{new_user_modal, NewUserInputs, NewUserState};
 pub use state::UsersState;
 
 use gpui_kit::component::input::InputState;
@@ -30,6 +30,7 @@ pub fn user_management_view(
     users: &UsersState,
     enrolled_keys: &[SshKeyRecord],
     search: Option<&Entity<InputState>>,
+    new_user_inputs: Option<&NewUserInputs>,
 ) -> AnyElement {
     // Raw /etc/passwd view for one account.
     if let Some(target_uname) = &users.selected_for_passwd {
@@ -81,10 +82,7 @@ pub fn user_management_view(
                 .font_weight(FontWeight::BOLD)
                 .cursor_pointer()
                 .hover(|s| s.bg(OK_BG))
-                .on_click(move |_ev, _window, cx| app_new.update(cx, |this, cx| {
-                    this.users.open_new_user_modal();
-                    cx.notify();
-                }))
+                .on_click(move |_ev, _window, cx| app_new.update(cx, |this, cx| this.open_new_user_modal(cx)))
                 .child("+ NEW USER"),
         );
 
@@ -125,7 +123,9 @@ pub fn user_management_view(
     };
 
     let ssh_modal_element = users.selected_for_ssh.as_ref().and_then(|name| users.users.iter().find(|u| &u.username == name)).map(|u| ssh_attach_modal(u, enrolled_keys, app.clone()).into_any_element());
-    let new_user_modal_element = users.show_new_user_modal.then(|| new_user_modal(&users.new_user, app.clone()).into_any_element());
+    let new_user_modal_element = users
+        .show_new_user_modal
+        .then(|| new_user_modal(&users.new_user, new_user_inputs, users.shell_choices(), users.group_choices(), users.sudo_group(), app.clone()).into_any_element());
 
     div()
         .id("user-management-view")

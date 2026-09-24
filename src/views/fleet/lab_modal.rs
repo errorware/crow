@@ -40,7 +40,7 @@ pub fn local_lab_modal(
                 .border_color(BORDER_PANEL)
                 .flex()
                 .flex_col()
-                .on_click(|_ev, _window, _cx| {})
+                .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // keep clicks inside from reaching the backdrop (which closes)
                 // 1. Header
                 .child(
                     div()

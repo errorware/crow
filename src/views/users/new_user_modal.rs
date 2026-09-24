@@ -1,4 +1,6 @@
 use gpui_kit::*;
+use gpui_kit::component::input::{Input, InputState};
+use gpui_kit::prelude::FluentBuilder as _;
 use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
@@ -19,15 +21,32 @@ impl Default for NewUserState {
             username: String::new(),
             gecos: String::new(),
             shell: "/bin/bash".to_string(),
-            grant_sudo: true,
+            grant_sudo: false,
             create_home: true,
-            selected_groups: vec!["sudo".to_string()],
+            selected_groups: Vec::new(),
         }
     }
 }
 
+/// The dialog's text fields (real inputs, created by the app on open).
+pub struct NewUserInputs {
+    pub username: Entity<InputState>,
+    pub gecos: Entity<InputState>,
+    pub _events: Vec<Subscription>,
+}
+
+fn field(input: Option<&Entity<InputState>>) -> Div {
+    div().w_full().children(input.map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(11.5)).bg(BG_APP).rounded(px(2.0))))
+}
+
+/// `shells`: offered login shells; `groups`: supplementary groups that
+/// exist on this server; `sudo_group`: its admin group (sudo or wheel).
 pub fn new_user_modal(
     state: &NewUserState,
+    inputs: Option<&NewUserInputs>,
+    shells: Vec<String>,
+    groups: Vec<String>,
+    sudo_group: Option<&'static str>,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
     let app_close = app.clone();
@@ -61,7 +80,7 @@ pub fn new_user_modal(
                 .rounded_md()
                 .flex()
                 .flex_col()
-                .on_click(|_ev, _window, _cx| {})
+                .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // keep clicks inside from reaching the backdrop (which closes)
                 // Header
                 .child(
                     div()
@@ -124,23 +143,7 @@ pub fn new_user_modal(
                                         .text_color(TEXT_MUTED)
                                         .child("LOGIN USERNAME (POSIX)"),
                                 )
-                                .child(
-                                    div()
-                                        .px(px(10.0))
-                                        .py(px(6.0))
-                                        .bg(BG_APP)
-                                        .border_1()
-                                        .border_color(BORDER_DEFAULT)
-                                        .rounded_sm()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(11.5))
-                                        .text_color(TEXT_MAX)
-                                        .child(if state.username.is_empty() {
-                                            "e.g. devops, alice, bob".to_string()
-                                        } else {
-                                            state.username.clone()
-                                        }),
-                                ),
+                                .child(field(inputs.map(|i| &i.username))),
                         )
                         // Full Name / GECOS
                         .child(
@@ -156,23 +159,7 @@ pub fn new_user_modal(
                                         .text_color(TEXT_MUTED)
                                         .child("FULL NAME (GECOS METADATA)"),
                                 )
-                                .child(
-                                    div()
-                                        .px(px(10.0))
-                                        .py(px(6.0))
-                                        .bg(BG_APP)
-                                        .border_1()
-                                        .border_color(BORDER_DEFAULT)
-                                        .rounded_sm()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(11.5))
-                                        .text_color(TEXT_SECONDARY)
-                                        .child(if state.gecos.is_empty() {
-                                            "e.g. Alice Wonderland".to_string()
-                                        } else {
-                                            state.gecos.clone()
-                                        }),
-                                ),
+                                .child(field(inputs.map(|i| &i.gecos))),
                         )
                         // Shell & Privileges Row
                         .child(
@@ -195,19 +182,29 @@ pub fn new_user_modal(
                                                 .text_color(TEXT_MUTED)
                                                 .child("LOGIN SHELL"),
                                         )
-                                        .child(
+                                        .child(div().flex().flex_wrap().gap(px(4.0)).children(shells.into_iter().enumerate().map(|(i, shell)| {
+                                            let current = shell == state.shell;
+                                            let (app, sh) = (app.clone(), shell.clone());
                                             div()
-                                                .px(px(10.0))
-                                                .py(px(6.0))
-                                                .bg(BG_APP)
-                                                .border_1()
-                                                .border_color(BORDER_DEFAULT)
+                                                .id(SharedString::from(format!("new-user-shell-{i}")))
+                                                .px(px(7.0))
+                                                .py(px(3.0))
                                                 .rounded_sm()
+                                                .border_1()
+                                                .border_color(if current { OK } else { BORDER_DEFAULT })
+                                                .bg(if current { OK_BG } else { BG_APP })
+                                                .text_color(if current { OK } else { TEXT_DIMMER })
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(11.0))
-                                                .text_color(hex_rgb(0x38bdf8))
-                                                .child(state.shell.clone()),
-                                        ),
+                                                .text_size(px(10.0))
+                                                .when(!current, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _window, cx| {
+                                                    let sh = sh.clone();
+                                                    app.update(cx, |this, cx| {
+                                                        this.users.new_user.shell = sh;
+                                                        cx.notify();
+                                                    });
+                                                }))
+                                                .child(shell)
+                                        }))),
                                 )
                                 .child(
                                     div()
@@ -234,19 +231,12 @@ pub fn new_user_modal(
                                                 .rounded_sm()
                                                 .cursor_pointer()
                                                 .hover(|s| s.bg(BG_ROW_HOVER))
-                                                .on_click(move |_ev, _window, cx| {
+                                                .when(sudo_group.is_some(), |d| d.on_click(move |_ev, _window, cx| {
                                                     app_sudo.update(cx, |this, cx| {
                                                         this.users.new_user.grant_sudo = !current_sudo;
-                                                        if this.users.new_user.grant_sudo {
-                                                            if !this.users.new_user.selected_groups.contains(&"sudo".to_string()) {
-                                                                this.users.new_user.selected_groups.push("sudo".to_string());
-                                                            }
-                                                        } else {
-                                                            this.users.new_user.selected_groups.retain(|g| g != "sudo");
-                                                        }
                                                         cx.notify();
                                                     });
-                                                })
+                                                }))
                                                 .flex()
                                                 .items_center()
                                                 .justify_between()
@@ -256,7 +246,11 @@ pub fn new_user_modal(
                                                         .text_size(px(11.0))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(if current_sudo { OK } else { TEXT_MUTED })
-                                                        .child(if current_sudo { "✓ SUDOER (WHEEL)" } else { "STANDARD USER" }),
+                                                        .child(match (current_sudo, sudo_group) {
+                                                            (true, Some(g)) => format!("✓ ADMIN ({g} group)"),
+                                                            (false, Some(g)) => format!("STANDARD USER · click to add to {g}"),
+                                                            (_, None) => "STANDARD USER (no sudo/wheel group here)".to_string(),
+                                                        }),
                                                 ),
                                         ),
                                 ),
@@ -280,7 +274,7 @@ pub fn new_user_modal(
                                         .flex()
                                         .flex_wrap()
                                         .gap(px(6.0))
-                                        .children(["sudo", "docker", "adm", "systemd-journal", "www-data", "dialout"].iter().map(|grp| {
+                                        .children(groups.iter().map(|grp| {
                                             let is_sel = state.selected_groups.contains(&grp.to_string());
                                             let g_name = grp.to_string();
                                             let app_grp = app.clone();

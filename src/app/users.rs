@@ -1,4 +1,4 @@
-use gpui_kit::Context;
+use gpui_kit::{AppContext, Context, Window};
 
 use super::host_actions::HostCommand;
 use super::CrowApp;
@@ -89,6 +89,42 @@ impl CrowApp {
         let name = self.users.new_user.username.trim().to_lowercase();
         let cmd = host_data::create_user(&self.users.new_user, self.users.sudo_group());
         self.run_user_action(&name, cmd.map(|c| vec![HostCommand::new(c)]), true, cx);
+    }
+
+    /// Opens New User with a fresh form; its inputs are created on render.
+    pub fn open_new_user_modal(&mut self, cx: &mut Context<Self>) {
+        self.users.open_new_user_modal();
+        self.new_user_inputs = None;
+        cx.notify();
+    }
+
+    /// Creates the New User text inputs (they need the window), focused on
+    /// the username; they write through to the form as you type.
+    pub fn ensure_new_user_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.new_user_inputs.is_some() {
+            return;
+        }
+        use gpui_kit::component::input::{InputEvent, InputState};
+        let username = cx.new(|cx| InputState::new(window, cx).placeholder("e.g. alice, deploy"));
+        let gecos = cx.new(|cx| InputState::new(window, cx).placeholder("e.g. Alice Wonderland (optional)"));
+        let sub_user = cx.subscribe(&username, |this, input, ev: &InputEvent, cx| match ev {
+            InputEvent::Change => {
+                this.users.new_user.username = input.read(cx).value().to_string();
+                cx.notify();
+            }
+            InputEvent::PressEnter { .. } => this.user_create(cx),
+            _ => {}
+        });
+        let sub_gecos = cx.subscribe(&gecos, |this, input, ev: &InputEvent, cx| match ev {
+            InputEvent::Change => {
+                this.users.new_user.gecos = input.read(cx).value().to_string();
+                cx.notify();
+            }
+            InputEvent::PressEnter { .. } => this.user_create(cx),
+            _ => {}
+        });
+        username.update(cx, |i, cx| i.focus(window, cx));
+        self.new_user_inputs = Some(crate::views::users::NewUserInputs { username, gecos, _events: vec![sub_user, sub_gecos] });
     }
 
     pub fn select_user(&mut self, user: &str, cx: &mut Context<Self>) {

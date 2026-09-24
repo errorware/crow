@@ -786,7 +786,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, caret: &TextCaret, clankers: 
                     .flex()
                     .flex_col()
                     .gap(px(14.0))
-                    .on_click(|_ev, _window, _cx| {})
+                    .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // keep clicks inside from reaching the backdrop (which closes)
                     // Header
                     .child(
                         div()

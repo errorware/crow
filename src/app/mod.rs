@@ -146,6 +146,8 @@ pub struct CrowApp {
     pub services_search: Option<overview::TableSearch>,
     pub processes_search: Option<overview::TableSearch>,
     pub users_search: Option<overview::TableSearch>,
+    /// New User dialog's text inputs (created while it's open).
+    pub new_user_inputs: Option<crate::views::users::NewUserInputs>,
     /// Focus the current table page's search box on the next render (`/`).
     pub table_search_focus_pending: bool,
     pub overview: OverviewState,
@@ -274,6 +276,7 @@ impl CrowApp {
             services_search: None,
             processes_search: None,
             users_search: None,
+            new_user_inputs: None,
             table_search_focus_pending: false,
             lab_state: LabState::new(window, cx),
             caret: TextCaret { blink: true, ..TextCaret::default() },

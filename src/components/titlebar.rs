@@ -591,7 +591,7 @@ pub fn burger_menu_overlay(
             div()
                 .id("burger-menu-dropdown")
                 .occlude()
-                .on_click(|_ev, _window, _cx| {}) // capture click so backdrop doesn't close on menu body
+                .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // keep clicks inside from reaching the backdrop (which closes)
                 .w(px(296.0))
                 .bg(BG_OVERLAY_PANEL)
                 .border_1()

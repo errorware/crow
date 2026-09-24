@@ -62,6 +62,22 @@ impl UsersState {
         self.selected.as_ref().and_then(|s| visible.iter().find(|u| &u.username == s).copied()).or_else(|| visible.first().copied())
     }
 
+    /// Supplementary groups that exist here (seen on some account), minus
+    /// personal groups named after a user and the admin group (offered as
+    /// its own toggle).
+    pub fn group_choices(&self) -> Vec<String> {
+        let mut groups: Vec<String> = self
+            .users
+            .iter()
+            .flat_map(|u| u.groups.iter())
+            .filter(|g| !self.users.iter().any(|u| &u.username == *g) && Some(g.as_str()) != self.sudo_group())
+            .cloned()
+            .collect();
+        groups.sort();
+        groups.dedup();
+        groups
+    }
+
     /// Shells to offer: the common ones plus any an account already uses.
     pub fn shell_choices(&self) -> Vec<String> {
         let mut shells: Vec<String> = ["/bin/bash", "/bin/sh", "/usr/sbin/nologin"].iter().map(|s| s.to_string()).collect();
