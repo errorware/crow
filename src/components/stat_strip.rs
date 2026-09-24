@@ -1,4 +1,5 @@
 use gpui_kit::*;
+use gpui_kit::prelude::FluentBuilder as _;
 use crate::theme::*;
 use crate::components::sparkline::dynamic_sparkline;
 use crate::metrics::{ServerMetrics, SurgeAlert};
@@ -76,8 +77,11 @@ pub fn stat_strip(
                 .justify_between()
                 .px(px(14.0))
                 .bg(if surge_alert.is_some() { hex_rgb(0x1e1215) } else { hex_rgb(0x0e1014) })
+                // A warning, not an alarm: hairlines above and below in the Danger
+                // Zone buttons' border tone, text in their muted red.
+                .when(surge_alert.is_some(), |d| d.border_t_1())
                 .border_b_1()
-                .border_color(if surge_alert.is_some() { hex_rgb(0x7f1d1d) } else { BORDER_PANEL })
+                .border_color(if surge_alert.is_some() { BORDER_DANGER_BTN } else { BORDER_PANEL })
                 // Left: Buffer info
                 .child(
                     div()
@@ -88,14 +92,14 @@ pub fn stat_strip(
                             div()
                                 .size(px(6.0))
                                 .rounded_full()
-                                .bg(if surge_alert.is_some() { CRIT } else { OK }),
+                                .bg(if surge_alert.is_some() { CRIT_INK_DIM } else { OK }),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(if surge_alert.is_some() { CRIT } else { OK })
+                                .text_color(if surge_alert.is_some() { CRIT_INK_DIM } else { OK })
                                 .child("TURBO BUFFER"),
                         )
                         .child(
@@ -112,17 +116,12 @@ pub fn stat_strip(
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .px(px(6.0))
-                        .py(px(1.5))
-                        .bg(CRIT_BG)
-                        .border_1()
-                        .border_color(CRIT)
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(CRIT)
+                                .text_color(CRIT_INK_DIM)
                                 .child(format!("⚡ FOREKNOWLEDGE ALERT: {} in +{}s", surge.description, surge.lead_seconds)),
                         )
                         .into_any_element()
