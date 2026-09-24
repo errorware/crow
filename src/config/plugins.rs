@@ -116,6 +116,110 @@ pub fn sshd_match_scopes(ir: &ConfigDocumentIr) -> Vec<(String, Option<String>)>
         .collect()
 }
 
+/// One directive on the sshd settings sheet: a known one (from the plugin
+/// manifest, set or not) or one Crow has no schema for.
+#[derive(Clone, Debug)]
+pub struct SheetRow {
+    pub name: String,
+    pub def: Option<crow_config_core::schema::FieldDef>,
+    /// Where it's set in the file, if it is.
+    pub row_id: Option<String>,
+    /// The key as written in the file (case preserved), when set.
+    pub field_name: Option<String>,
+    pub value: Option<String>,
+    pub line: Option<usize>,
+    /// A later duplicate: sshd uses the first value, so this one is ignored.
+    pub shadowed: bool,
+}
+
+impl SheetRow {
+    /// The value sshd uses: the file's, else the plugin's default.
+    pub fn effective(&self) -> Option<&str> {
+        self.value.as_deref().or_else(|| self.def.as_ref().and_then(|d| d.default.as_deref()))
+    }
+}
+
+/// sshd_config laid out for people: known directives grouped by what they
+/// do (unset ones shown at their OpenSSH default), then unknown directives,
+/// then Match blocks (read-only until ERR-12).
+#[derive(Clone, Debug, Default)]
+pub struct SshdSheet {
+    pub sections: Vec<(String, Vec<SheetRow>)>,
+    pub other: Vec<SheetRow>,
+    pub scoped: Vec<(String, Vec<SheetRow>)>,
+    /// Where new global directives go: after the last line outside any
+    /// Match block (appending after a Match would scope them to it).
+    pub insert_after: Option<String>,
+}
+
+pub fn sshd_sheet(ir: &ConfigDocumentIr) -> SshdSheet {
+    use crow_config_core::ir::RowIr;
+    let defs = plugin(StructuredFormat::Sshd).manifest().fields.clone();
+    let scopes = sshd_match_scopes(ir);
+    let scope_of = |row: &RowIr| scopes.iter().find(|(id, _)| *id == row.row_id).and_then(|(_, s)| s.clone());
+    let as_sheet_row = |row: &RowIr, def: Option<crow_config_core::schema::FieldDef>, shadowed: bool| {
+        let f = row.fields.first();
+        SheetRow {
+            name: f.map(|f| f.name.clone()).unwrap_or_default(),
+            def,
+            row_id: Some(row.row_id.clone()),
+            field_name: f.map(|f| f.name.clone()),
+            value: f.map(|f| match &f.value {
+                serde_json::Value::String(s) => s.clone(),
+                serde_json::Value::Array(a) => a.iter().filter_map(|v| v.as_str()).collect::<Vec<_>>().join(" "),
+                other => other.to_string(),
+            }),
+            line: Some(row.source_span.start_line),
+            shadowed,
+        }
+    };
+
+    let mut sheet = SshdSheet::default();
+    let mut seen: Vec<String> = Vec::new();
+    let mut global_rows: Vec<&RowIr> = Vec::new();
+    for row in ir.rows.iter().filter(|r| !r.fields.is_empty()) {
+        match scope_of(row) {
+            Some(scope) => {
+                let is_match_line = row.fields.iter().any(|f| f.name.eq_ignore_ascii_case("match"));
+                if is_match_line {
+                    sheet.scoped.push((scope, Vec::new()));
+                } else if let Some((_, rows)) = sheet.scoped.last_mut() {
+                    let def = defs.iter().find(|d| row.fields.first().is_some_and(|f| f.name.eq_ignore_ascii_case(&d.name))).cloned();
+                    rows.push(as_sheet_row(row, def, false));
+                }
+            }
+            None => {
+                global_rows.push(row);
+                sheet.insert_after = Some(row.row_id.clone());
+            }
+        }
+    }
+    // Known directives, grouped in manifest order; the first setting wins.
+    for def in &defs {
+        let group = def.group.clone().unwrap_or_else(|| "Other settings".into());
+        let found = global_rows.iter().find(|r| r.fields.first().is_some_and(|f| f.name.eq_ignore_ascii_case(&def.name)));
+        let row = match found {
+            Some(r) => {
+                seen.push(r.row_id.clone());
+                as_sheet_row(r, Some(def.clone()), false)
+            }
+            None => SheetRow { name: def.name.clone(), def: Some(def.clone()), row_id: None, field_name: None, value: None, line: None, shadowed: false },
+        };
+        match sheet.sections.iter_mut().find(|(g, _)| *g == group) {
+            Some((_, rows)) => rows.push(row),
+            None => sheet.sections.push((group, vec![row])),
+        }
+    }
+    // Everything else outside Match blocks: unknown directives and ignored
+    // duplicates of known ones.
+    for row in global_rows.into_iter().filter(|r| !seen.contains(&r.row_id)) {
+        let def = defs.iter().find(|d| row.fields.first().is_some_and(|f| f.name.eq_ignore_ascii_case(&d.name))).cloned();
+        let shadowed = def.is_some();
+        sheet.other.push(as_sheet_row(row, def, shadowed));
+    }
+    sheet
+}
+
 /// Outcome of running a plugin's file validators on a host before a write.
 #[derive(Debug, PartialEq, Eq)]
 pub enum Validation {
@@ -219,6 +323,25 @@ mod tests {
     use super::*;
     use crate::config::detect_schema_kind;
     use std::path::Path;
+
+    #[test]
+    fn sshd_sheet_groups_directives_and_shows_defaults() {
+        let text = "Include /etc/ssh/sshd_config.d/*.conf\nPort 2222\nPermitRootLogin no\nUsePAM yes\nPermitRootLogin yes\nMatch User deploy\n    PasswordAuthentication yes\n";
+        let ir = to_ir(StructuredFormat::Sshd, text).unwrap();
+        let sheet = sshd_sheet(&ir);
+        let find = |name: &str| sheet.sections.iter().flat_map(|(_, rows)| rows).find(|r| r.name.eq_ignore_ascii_case(name)).unwrap().clone();
+        assert_eq!(find("Port").value.as_deref(), Some("2222"));
+        assert_eq!(find("PermitRootLogin").value.as_deref(), Some("no"), "first value wins");
+        let pw = find("PasswordAuthentication");
+        assert_eq!((pw.value.as_deref(), pw.effective()), (None, Some("yes")), "unset globally: the OpenSSH default");
+        assert!(sheet.sections.iter().any(|(g, _)| g == "Authentication"));
+        let other: Vec<(&str, bool)> = sheet.other.iter().map(|r| (r.name.as_str(), r.shadowed)).collect();
+        assert_eq!(other, [("Include", false), ("UsePAM", false), ("PermitRootLogin", true)]);
+        assert_eq!(sheet.scoped.len(), 1);
+        assert_eq!(sheet.scoped[0].1[0].name, "PasswordAuthentication");
+        let pos = ir.rows.iter().position(|r| Some(&r.row_id) == sheet.insert_after.as_ref()).unwrap();
+        assert!(ir.rows[pos].fields[0].name == "PermitRootLogin", "new directives go before the Match block");
+    }
 
     #[test]
     fn crow_ui_label_matches_the_editor_that_opens() {

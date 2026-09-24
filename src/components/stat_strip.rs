@@ -1,7 +1,11 @@
 use gpui_kit::*;
+use gpui_kit::prelude::FluentBuilder as _;
 use crate::theme::*;
 use crate::components::sparkline::dynamic_sparkline;
 use crate::metrics::{ServerMetrics, SurgeAlert};
+
+/// Height of the status strips under the identity bar (buffer / alerts).
+pub const STATUS_STRIP_HEIGHT: f32 = 28.0;
 
 pub fn stat_strip(
     metrics: Option<&ServerMetrics>,
@@ -69,15 +73,18 @@ pub fn stat_strip(
         // 1. Foreknowledge and Turbo Buffer Ribbon
         .child(
             div()
-                .h(px(24.0))
+                .h(px(STATUS_STRIP_HEIGHT))
                 .w_full()
                 .flex()
                 .items_center()
                 .justify_between()
                 .px(px(14.0))
-                .bg(if surge_alert.is_some() { hex_rgb(0x1e1215) } else { hex_rgb(0x0e1014) })
+                .bg(if surge_alert.is_some() { CRIT_STRIP_BG } else { hex_rgb(0x0e1014) })
+                // A warning, not an alarm: the Danger Zone bar's palette (its
+                // background and hairline border) with its buttons' muted red text.
+                .when(surge_alert.is_some(), |d| d.border_t_1())
                 .border_b_1()
-                .border_color(if surge_alert.is_some() { hex_rgb(0x7f1d1d) } else { BORDER_PANEL })
+                .border_color(if surge_alert.is_some() { BORDER_DANGER } else { BORDER_PANEL })
                 // Left: Buffer info
                 .child(
                     div()
@@ -88,14 +95,14 @@ pub fn stat_strip(
                             div()
                                 .size(px(6.0))
                                 .rounded_full()
-                                .bg(if surge_alert.is_some() { CRIT } else { OK }),
+                                .bg(if surge_alert.is_some() { CRIT_INK_DIM } else { OK }),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(if surge_alert.is_some() { CRIT } else { OK })
+                                .text_color(if surge_alert.is_some() { CRIT_INK_DIM } else { OK })
                                 .child("TURBO BUFFER"),
                         )
                         .child(
@@ -112,17 +119,12 @@ pub fn stat_strip(
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .px(px(6.0))
-                        .py(px(1.5))
-                        .bg(CRIT_BG)
-                        .border_1()
-                        .border_color(CRIT)
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(CRIT)
+                                .text_color(CRIT_INK_DIM)
                                 .child(format!("⚡ FOREKNOWLEDGE ALERT: {} in +{}s", surge.description, surge.lead_seconds)),
                         )
                         .into_any_element()

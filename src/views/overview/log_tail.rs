@@ -18,15 +18,12 @@ pub fn log_tail(
     let warn_count = entries.iter().filter(|e| e.priority.is_warn()).count();
     let info_count = entries.len().saturating_sub(err_count + warn_count);
 
+    // Fills the panel it's placed in (under the Processes table).
     div()
-        .w(px(400.0))
-        .flex_none()
-        .h_full()
+        .size_full()
         .flex()
         .flex_col()
         .bg(BG_RAIL)
-        .border_l_1()
-        .border_color(BORDER_PANEL)
         // Header
         .child(
             div()

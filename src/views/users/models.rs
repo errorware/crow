@@ -105,13 +105,23 @@ pub enum UserFilterTab {
 }
 
 impl UserFilterTab {
-    #[allow(dead_code)]
+    pub const ALL: [UserFilterTab; 4] = [UserFilterTab::Human, UserFilterTab::Sudoers, UserFilterTab::System, UserFilterTab::All];
+
     pub fn label(&self) -> &'static str {
         match self {
-            Self::All => "All Accounts",
-            Self::Human => "Login Users",
-            Self::Sudoers => "Sudoers",
-            Self::System => "System Daemons",
+            Self::All => "ALL",
+            Self::Human => "LOGIN",
+            Self::Sudoers => "SUDO",
+            Self::System => "SYSTEM",
+        }
+    }
+
+    pub fn matches(&self, u: &SystemUserRecord) -> bool {
+        match self {
+            Self::All => true,
+            Self::Human => u.is_human(),
+            Self::Sudoers => u.is_sudoer(),
+            Self::System => u.is_system_user,
         }
     }
 }

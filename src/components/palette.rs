@@ -52,7 +52,7 @@ pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str) -> impl IntoElem
                 .bg(BG_OVERLAY_PANEL)
                 .border_1()
                 .border_color(BORDER_STRONG)
-                .on_click(|_ev, _window, _cx| {}) // capture click
+                .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // keep clicks inside from reaching the backdrop (which closes)
                 // Input row
                 .child(
                     div()

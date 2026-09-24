@@ -27,7 +27,7 @@ use crate::theme::*;
 use std::collections::HashMap;
 use crate::app::CrowApp;
 use crate::config::ConfigFileState;
-use crate::components::icons::{TablerIcon, tabler_icon};
+use crate::components::icons::{TablerIcon, tabler_icon, inherited_icon};
 
 pub fn firewall_view(
     app: Entity<CrowApp>,
@@ -823,7 +823,7 @@ fn render_rule_row(rule: &FirewallRule, app: Entity<CrowApp>) -> impl IntoElemen
                                 this.delete_firewall_rule(&target, cx);
                             });
                         })
-                        .child(tabler_icon(TablerIcon::Trash).size(px(12.0))),
+                        .child(inherited_icon(TablerIcon::Trash, px(12.0))),
                 ),
         )
 }

@@ -153,3 +153,35 @@ name = "security.zeroize_on_drop"
 type = "bool"
 required = true
 help = "Zeroize MasterKey from memory immediately on lock or exit."
+
+[[fields]]
+name = "appearance.fleet_background"
+type = "string"
+required = false
+help = "Picture behind the Fleet server list (a copy kept in ~/.config/crow/backgrounds). Empty for none."
+
+[[fields]]
+name = "appearance.fleet_background_opacity"
+type = "enum"
+required = false
+help = "How strongly the picture shows through. Low keeps the table easy to read."
+options = [
+  { value = "5", label = "5% · a hint", risk = "recommended" },
+  { value = "10", label = "10% · subtle", risk = "recommended" },
+  { value = "15", label = "15% · noticeable", risk = "recommended" },
+  { value = "25", label = "25% · strong", risk = "recommended" },
+  { value = "35", label = "35% · bold", risk = "recommended" }
+]
+
+[[fields]]
+name = "appearance.fleet_background_blur"
+type = "enum"
+required = false
+help = "Softens the picture so rows stay legible over it."
+options = [
+  { value = "0", label = "None", risk = "recommended" },
+  { value = "4", label = "Light", risk = "recommended" },
+  { value = "8", label = "Soft", risk = "recommended" },
+  { value = "16", label = "Heavy", risk = "recommended" },
+  { value = "32", label = "Frosted", risk = "recommended" }
+]

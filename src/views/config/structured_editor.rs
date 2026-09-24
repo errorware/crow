@@ -34,7 +34,7 @@ pub fn risk_color(risk: Option<&RiskLevel>) -> Rgba {
     }
 }
 
-fn risk_label(risk: Option<&RiskLevel>) -> Option<&'static str> {
+pub(crate) fn risk_label(risk: Option<&RiskLevel>) -> Option<&'static str> {
     match risk? {
         RiskLevel::Recommended => Some("RECOMMENDED"),
         RiskLevel::Caution => Some("CAUTION"),
@@ -55,7 +55,7 @@ pub fn value_text(value: &serde_json::Value) -> String {
     }
 }
 
-fn small_button(id: impl Into<ElementId>, label: &'static str, color: Rgba) -> Stateful<Div> {
+pub(crate) fn small_button(id: impl Into<ElementId>, label: &'static str, color: Rgba) -> Stateful<Div> {
     div()
         .id(id)
         .px(px(6.0))
@@ -228,11 +228,16 @@ pub fn structured_editor(
                 .flex_1()
                 .min_h(px(0.0))
                 .overflow_y_scrollbar()
+                // sshd_config reads as a settings sheet (grouped, defaults shown).
+                .children((format == StructuredFormat::Sshd).then(|| {
+                    super::sshd_sheet::sshd_sheet_view(&file, &crate::config::plugins::sshd_sheet(ir), read_only, active_edit.as_ref(), app.clone())
+                }))
                 .child(
                     div()
                         .flex()
                         .flex_col()
                         .py(px(6.0))
+                        .when(format == StructuredFormat::Sshd, |d| d.hidden())
                         .children(rows)
                         .children(add_section)
                         .children(ir.rows.is_empty().then(|| {

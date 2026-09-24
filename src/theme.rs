@@ -159,3 +159,35 @@ mod scrollbar_guard {
         assert!(hits.is_empty(), "use .overflow_y_scrollbar() instead: {hits:?}");
     }
 }
+
+#[cfg(test)]
+mod icon_guard {
+    /// An svg icon doesn't inherit its parent's text colour: `tabler_icon(..)`
+    /// without `.text_color(..)` renders as empty space. Use
+    /// `inherited_icon(..)` to follow the surrounding text colour instead.
+    #[test]
+    fn every_svg_icon_has_a_colour() {
+        fn visit(dir: &std::path::Path, hits: &mut Vec<String>) {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    visit(&path, hits);
+                } else if path.extension().is_some_and(|e| e == "rs") && !path.ends_with("icons.rs") {
+                    let text = std::fs::read_to_string(&path).unwrap();
+                    for (i, line) in text.lines().enumerate() {
+                        if line.contains(concat!("tabler_icon", "(TablerIcon::")) && !line.contains("text_color") {
+                            // The colour may follow on the next lines of the chain.
+                            let rest: String = text.lines().skip(i + 1).take(3).collect::<Vec<_>>().join(" ");
+                            if !rest.trim_start().starts_with(".text_color") && !rest.contains(".text_color(") {
+                                hits.push(format!("{}:{}", path.display(), i + 1));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        let mut hits = Vec::new();
+        visit(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut hits);
+        assert!(hits.is_empty(), "icons without a colour (invisible): {hits:?}");
+    }
+}

@@ -40,6 +40,7 @@ mod session;
 pub mod onboard;
 pub mod overview;
 mod keys;
+pub mod appearance;
 pub mod configs;
 mod journal;
 mod clankers;
@@ -73,6 +74,7 @@ pub enum SettingsSection {
     Security,
     Components,
     Clankers,
+    Personalisation,
 }
 
 impl SettingsSection {
@@ -84,6 +86,7 @@ impl SettingsSection {
             SettingsSection::Security => "security",
             SettingsSection::Components => "components",
             SettingsSection::Clankers => "clankers",
+            SettingsSection::Personalisation => "appearance",
         }
     }
 }
@@ -145,6 +148,14 @@ pub struct CrowApp {
     /// The Services and Processes pages' search boxes (created on first render).
     pub services_search: Option<overview::TableSearch>,
     pub processes_search: Option<overview::TableSearch>,
+    pub users_search: Option<overview::TableSearch>,
+    pub logs_search: Option<overview::TableSearch>,
+    /// New User dialog's text inputs (created while it's open).
+    pub new_user_inputs: Option<crate::views::users::NewUserInputs>,
+    /// Inspector SET PASSWORD inputs (while the form is open).
+    pub password_inputs: Option<crate::views::users::PasswordInputs>,
+    /// The Fleet page's background picture, as drawn.
+    pub fleet_background: appearance::FleetBackground,
     /// Focus the current table page's search box on the next render (`/`).
     pub table_search_focus_pending: bool,
     pub overview: OverviewState,
@@ -272,6 +283,11 @@ impl CrowApp {
             onboard_focus_pending: false,
             services_search: None,
             processes_search: None,
+            users_search: None,
+            logs_search: None,
+            new_user_inputs: None,
+            password_inputs: None,
+            fleet_background: Default::default(),
             table_search_focus_pending: false,
             lab_state: LabState::new(window, cx),
             caret: TextCaret { blink: true, ..TextCaret::default() },
@@ -315,9 +331,7 @@ impl CrowApp {
             return self.onboard_state.focus != OnboardFieldFocus::None;
         }
         if self.screen == Screen::Server {
-            if self.active_view == "logs" && self.journal.search_focused {
-                return true;
-            }
+
             if (self.active_view == "config" || self.active_view == "configure")
                 && self.configs.search_focused
             {
@@ -382,6 +396,7 @@ impl CrowApp {
         } else if view == "overview" {
             self.active_view = view.to_string();
             self.refresh_overview_tables(cx);
+            self.refresh_security(false, cx);
         } else if view == "cron" {
             self.active_view = "cron".to_string();
             self.configs.selected_file = "crontab".to_string();

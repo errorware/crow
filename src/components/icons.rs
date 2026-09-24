@@ -1,7 +1,7 @@
 use gpui_kit::*;
 
 #[allow(dead_code)]
-#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash)]
+#[derive(Copy, Clone, Debug, PartialEq, Eq, Hash, IntoElement)]
 pub enum TablerIcon {
     // Navigation / Views
     LayoutDashboard,
@@ -10,6 +10,7 @@ pub enum TablerIcon {
     Box,
     AdjustmentsHorizontal,
     FileText,
+    Photo,
     Folder,
     Clock,
     Users,
@@ -67,6 +68,7 @@ impl TablerIcon {
             Self::Box => include_bytes!("../../assets/icons/box.svg"),
             Self::AdjustmentsHorizontal => include_bytes!("../../assets/icons/adjustments-horizontal.svg"),
             Self::FileText => include_bytes!("../../assets/icons/file-text.svg"),
+            Self::Photo => include_bytes!("../../assets/icons/photo.svg"),
             Self::Folder => include_bytes!("../../assets/icons/folder.svg"),
             Self::Clock => include_bytes!("../../assets/icons/clock.svg"),
             Self::Users => include_bytes!("../../assets/icons/users.svg"),
@@ -118,6 +120,14 @@ pub fn tabler_icon(icon: TablerIcon) -> Svg {
     svg()
         .data(icon.bytes())
         .flex_shrink_0()
+}
+
+/// An icon that takes its colour (hover colours included) from the text
+/// around it, like a glyph would. `tabler_icon` needs an explicit
+/// `.text_color(...)`: an svg doesn't inherit the parent's text colour and
+/// is invisible without one.
+pub fn inherited_icon(icon: TablerIcon, size: Pixels) -> Div {
+    div().flex_none().flex().items_center().text_size(size).child(icon)
 }
 
 impl RenderOnce for TablerIcon {

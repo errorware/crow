@@ -6,6 +6,7 @@ use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::host::{connection_state, transport_kind, ConnectionState, TransportKind};
 use crate::vault::ServerRecord;
 use crate::views::fleet::FleetState;
+use crate::components::resize::{bottom_panel_height, resize_handle, BottomPanelResize};
 use crate::views::fleet::lab_state::LocalLabState;
 
 pub struct FleetHost {
@@ -117,7 +118,9 @@ pub fn fleet_stat_strip(
         }))
 }
 
-pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: &LocalLabState) -> impl IntoElement {
+/// `background`: the Personalisation picture (already blurred) and its
+/// opacity, drawn behind the server list.
+pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: &LocalLabState, background: Option<(std::path::PathBuf, f32)>) -> impl IntoElement {
     let hosts: Vec<FleetHost> = if !fleet.servers.is_empty() {
         fleet.servers.iter().map(|s| {
             let (status_color, pill, is_crit) = match s.status.as_str() {
@@ -242,19 +245,35 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
             avg_load,
             total_vcpu,
         ))
-        // 2. Main content split: host table on left, alerts/activity rail on right
+        // 2. Server list on top, alerts & activity panel below (drag the divider)
         .child(
             div()
                 .flex_1()
                 .min_h(px(0.0))
                 .flex()
+                .flex_col()
+                .on_drag_move::<BottomPanelResize>({
+                    let app = app.clone();
+                    move |ev, _window, cx| {
+                        let height = bottom_panel_height(ev, 120.0, 160.0);
+                        app.update(cx, |this, cx| {
+                            this.fleet.bottom_panel_height = height;
+                            cx.notify();
+                        });
+                    }
+                })
                 // Left Table Panel
                 .child(
                     div()
                         .flex_1()
-                        .min_w(px(0.0))
+                        .min_h(px(0.0))
+                        .relative()
                         .flex()
                         .flex_col()
+                        // Personalisation picture, under everything in the list.
+                        .children(background.map(|(path, opacity)| {
+                            img(path).absolute().inset_0().size_full().object_fit(ObjectFit::Cover).opacity(opacity)
+                        }))
                         // Sub bar with filters
                         .child(
                             div()
@@ -710,16 +729,26 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                 }),
                         ),
                 )
-                // Right Rail: Fleet Alerts (top) & Activity Log (bottom)
+                // Drag handle between the list and the panel
+                .child(resize_handle("fleet-panel-resize"))
+                // Bottom panel: Fleet Alerts (left) & Activity Log (right)
                 .child(
                     div()
-                        .w(px(380.0))
+                        .h(px(fleet.bottom_panel_height))
                         .flex_none()
                         .flex()
-                        .flex_col()
+                        .min_h(px(0.0))
                         .bg(BG_RAIL)
-                        .border_l_1()
+                        .overflow_hidden()
                         .border_color(BORDER_PANEL)
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w(px(0.0))
+                                .flex()
+                                .flex_col()
+                                .border_r_1()
+                                .border_color(BORDER_PANEL)
                         // Alerts Header
                         .child(
                             div()
@@ -759,11 +788,14 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                         // Alerts List
                         .child(
                             div()
-                                .flex_none()
+                                .id("fleet-alerts-list")
+                                .flex_1()
+                                .min_h(px(0.0))
+                                .overflow_y_scrollbar()
                                 .flex()
                                 .flex_col()
-                                .border_b_1()
-                                .border_color(BORDER_PANEL)
+
+
                                 .children(if alerts.is_empty() {
                                     Some(
                                         div()
@@ -837,6 +869,13 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                     }).collect::<Vec<_>>()
                                 }),
                         )
+                        )
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w(px(0.0))
+                                .flex()
+                                .flex_col()
                         // Activity Header
                         .child(
                             div()
@@ -914,6 +953,7 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                     }).collect::<Vec<_>>()
                                 }),
                         ),
+                        )
                 ),
         )
         // 3. Persistent Fleet-Wide Destructive Strip with Abort Gate

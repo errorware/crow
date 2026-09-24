@@ -201,11 +201,13 @@ pub fn non_operational_view(
                                 .text_color(TEXT_SECONDARY)
                                 .on_click(move |_ev, _window, cx| {
                                     app_config.update(cx, |this, cx| {
-                                        this.select_managed_file("user.rules", cx);
+                                        // Open Config first: entering it resets the selection
+                                        // to a listed file, and user.rules belongs to Firewall.
                                         this.set_view("config", cx);
+                                        this.select_managed_file("user.rules", cx);
                                     });
                                 })
-                                .child(tabler_icon(TablerIcon::FileText).size(px(13.0)))
+                                .child(tabler_icon(TablerIcon::FileText).size(px(13.0)).text_color(TEXT_SECONDARY))
                                 .child("INSPECT /etc/ufw/user.rules"),
                         )
                         .child(
@@ -229,7 +231,7 @@ pub fn non_operational_view(
                                         this.toggle_firewall_active(cx);
                                     });
                                 })
-                                .child(tabler_icon(TablerIcon::ShieldCheck).size(px(14.0)))
+                                .child(tabler_icon(TablerIcon::ShieldCheck).size(px(14.0)).text_color(rgb(0x0a0a0c)))
                                 .child("ACTIVATE FIREWALL IN CROW"),
                         ),
                 ),

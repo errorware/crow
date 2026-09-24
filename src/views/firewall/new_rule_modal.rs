@@ -100,7 +100,7 @@ pub fn new_rule_modal(
                 .rounded_md()
                 .flex()
                 .flex_col()
-                .on_click(|_ev, _window, _cx| {})
+                .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // keep clicks inside from reaching the backdrop (which closes)
                 // Modal Header
                 .child(
                     div()

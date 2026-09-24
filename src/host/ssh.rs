@@ -151,7 +151,7 @@ impl SshHost {
         let mut unsupported = None;
         match server.auth_method.as_str() {
             "password" => {
-                unsupported = Some("this server is set to password login; Crow connects with keys — use SET UP KEY LOGIN to install one with the password once".to_string());
+                unsupported = Some("This server is set to password login; Crow connects with keys, installed once with the password.".to_string());
             }
             "publickey" => match &key_path {
                 Some(path) => args.extend(["-i".into(), expand_home(path), "-o".into(), "IdentitiesOnly=yes".into()]),

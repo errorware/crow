@@ -7,8 +7,9 @@ use crate::components::icons::{TablerIcon, tabler_icon};
 use super::models::{ProcessUnit, ServiceUnit, SocketUnit};
 use crate::views::overview::OverviewState;
 use crate::app::overview::TablePage;
+use crate::components::table_controls::{render_table_controls, Chip};
 use crate::views::overview::state::{filter_processes, filter_services, page_of, ProcessFilter, ServiceFilter, TABLE_PAGE_SIZE};
-use gpui_kit::component::input::{Input, InputState};
+use gpui_kit::component::input::InputState;
 use gpui_kit::prelude::FluentBuilder as _;
 
 pub fn services_table(overview: &OverviewState, search: Option<&Entity<InputState>>, app: Entity<CrowApp>) -> impl IntoElement {
@@ -184,17 +185,6 @@ fn page_services(overview: &OverviewState) -> Vec<ServiceUnit> {
     page_of(&filtered, overview.service_page).0.iter().map(|s| (*s).clone()).collect()
 }
 
-/// One filter chip: label, count, selected, count shown in red, and what a
-/// click does.
-struct Chip {
-    id: String,
-    label: &'static str,
-    count: usize,
-    is_on: bool,
-    alarming: bool,
-    on_click: Box<dyn Fn(&mut App)>,
-}
-
 fn service_chips(overview: &OverviewState, app: Entity<CrowApp>) -> Vec<Chip> {
     ServiceFilter::ALL
         .into_iter()
@@ -229,50 +219,6 @@ fn process_chips(overview: &OverviewState, app: Entity<CrowApp>) -> Vec<Chip> {
             }
         })
         .collect()
-}
-
-/// Search box and filter chips (with counts) in a table page's header.
-fn render_table_controls(search: Option<&Entity<InputState>>, chips: Vec<Chip>) -> impl IntoElement {
-    div()
-        .h_full()
-        .flex()
-        .items_center()
-        .gap(px(6.0))
-        .px(px(10.0))
-        .border_r_1()
-        .border_color(BORDER_PANEL)
-        .children(search.map(|input| {
-            div().w(px(240.0)).child(
-                Input::new(input)
-                    .font_family(FONT_MONO)
-                    .text_size(px(11.0))
-                    .bg(BG_APP)
-                    .rounded(px(2.0))
-                    .prefix(tabler_icon(TablerIcon::Search).size(px(11.0)).text_color(TEXT_DIMMER)),
-            )
-        }))
-        .children(chips.into_iter().map(|chip| {
-            let on_click = chip.on_click;
-            div()
-                .id(SharedString::from(chip.id))
-                .flex()
-                .items_center()
-                .gap(px(5.0))
-                .px(px(8.0))
-                .py(px(3.0))
-                .border_1()
-                .border_color(if chip.is_on { TEXT_SECONDARY } else { BORDER_DEFAULT })
-                .bg(if chip.is_on { BG_CHIP } else { hex_rgba(0, 0.0) })
-                .cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER))
-                .font_family(FONT_MONO)
-                .text_size(px(9.5))
-                .font_weight(FontWeight::BOLD)
-                .text_color(if chip.is_on { TEXT_PRIMARY } else { TEXT_DIMMER })
-                .on_click(move |_ev, _window, cx| on_click(cx))
-                .child(chip.label)
-                .child(div().font_weight(FontWeight::NORMAL).text_color(if chip.alarming { CRIT } else { TEXT_FAINT }).child(chip.count.to_string()))
-        }))
 }
 
 /// "1–50 of 87 · ‹ PREV · 1 / 2 · NEXT ›" under a table, when there's more

@@ -45,7 +45,7 @@ impl CrowApp {
 
     /// Routes a key press to whichever surface owns the keyboard right now, in
     /// priority order: vault lock screen, vault setup, key-hub modals, settings
-    /// dropdown, onboarding, log search, config search, then global shortcuts.
+    /// dropdown, onboarding, config search, then global shortcuts.
     pub(super) fn handle_key_down(&mut self, ev: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
         let key = ev.keystroke.key.to_lowercase();
         let k = KeyPress {
@@ -62,7 +62,6 @@ impl CrowApp {
             || self.keys_modals(&k, cx)
             || self.keys_settings_dropdown(&k, cx)
             || self.keys_onboard(&k, cx)
-            || self.keys_log_search(&k, cx)
             || self.keys_config_search(&k, cx)
             || self.keys_global_shortcuts(&k, cx);
     }
@@ -384,34 +383,6 @@ impl CrowApp {
         } else {
             false
         }
-    }
-
-    /// Logs screen journal search box. Returns true when the key was consumed.
-    fn keys_log_search(&mut self, k: &KeyPress, cx: &mut Context<Self>) -> bool {
-        let KeyPress { ev, key, .. } = *k;
-        if self.screen == Screen::Server && self.active_view == "logs" && self.journal.search_focused {
-            self.caret.blink = true;
-            if ev.keystroke.key == "escape" {
-                self.journal.search_focused = false;
-                cx.notify();
-                return true;
-            } else if key == "enter" {
-                self.run_journal_query(cx);
-                return true;
-            } else {
-                let changed = crate::components::handle_text_key_event(
-                    &mut self.journal.search,
-                    &mut self.caret.cursor,
-                    &mut self.caret.selection,
-                    ev,
-                );
-                if changed {
-                    cx.notify();
-                }
-                return true;
-            }
-        }
-        false
     }
 
     /// Config screen file search box. Returns true when the key was consumed.

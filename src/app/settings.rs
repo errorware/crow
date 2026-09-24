@@ -12,6 +12,12 @@ impl CrowApp {
         if let Err(e) = self.config.update_field(row_id, new_value) {
             eprintln!("Failed to update config field {}: {:?}", row_id, e);
         }
+        // Personalisation is saved as soon as it changes; nothing to review.
+        if row_id.starts_with("appearance.") {
+            if let Err(e) = self.config.save() {
+                eprintln!("Failed to save config: {:?}", e);
+            }
+        }
         cx.notify();
     }
 

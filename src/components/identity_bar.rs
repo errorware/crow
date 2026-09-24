@@ -310,44 +310,41 @@ pub fn connection_banner(server: Option<&ServerRecord>, app: Entity<CrowApp>) ->
         return None;
     }
     let detail = state.detail().unwrap_or_default().to_string();
+    // A warning strip, not an alarm: the Danger Zone bar's palette (background
+    // and hairlines) with its buttons' muted red text, like the surge strip.
     Some(
         div()
             .w_full()
+            .h(px(crate::components::stat_strip::STATUS_STRIP_HEIGHT))
+            .flex_none()
             .px(px(16.0))
-            .py(px(6.0))
-            .bg(hex_rgb(0x1f0d0d))
+            .bg(CRIT_STRIP_BG)
             .border_t_1()
             .border_b_1()
-            .border_color(CRIT)
+            .border_color(BORDER_DANGER)
             .flex()
             .items_center()
             .gap(px(8.0))
             .font_family(FONT_MONO)
-            .text_size(px(11.0))
-            .child(div().text_color(CRIT).font_weight(FontWeight::BOLD).child(format!("✕ {}", state.label())))
-            .child(div().flex_1().min_w(px(0.0)).text_color(TEXT_PRIMARY).child(format!(
-                "Crow can't read {} right now — pages below show nothing until the connection works. {}",
-                s.name, detail
-            )))
-            // Password servers: log in once with the password to install Crow's key.
+            .text_size(px(10.5))
+            .text_color(CRIT_INK_DIM)
+            .child(div().flex_none().font_weight(FontWeight::BOLD).child(format!("✕ {}", state.label())))
+            .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().child(format!("Crow can't read {} right now — pages below stay empty until the connection works. {}", s.name, detail)))
+            // Password servers: an inline link to log in once with the password
+            // and install Crow's key.
             .children((s.auth_method == "password").then(|| {
                 let srv = s.clone();
                 div()
-                    .id("btn-setup-key-login")
+                    .id("link-setup-key-login")
                     .flex_none()
-                    .px(px(10.0))
-                    .py(px(3.0))
-                    .border_1()
-                    .border_color(OK)
-                    .text_color(OK)
-                    .font_weight(FontWeight::BOLD)
+                    .text_color(hex_rgb(0x8ab4ff))
                     .cursor_pointer()
-                    .hover(|h| h.bg(OK_BG))
+                    .hover(|h| h.text_color(TEXT_PRIMARY).underline())
                     .on_click(move |_ev, _window, cx| {
                         let srv = srv.clone();
                         app.update(cx, |this, cx| this.start_onboarding_for(&srv, cx));
                     })
-                    .child("SET UP KEY LOGIN")
+                    .child("set up key login →")
             })),
     )
 }

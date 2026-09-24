@@ -4,6 +4,7 @@ pub mod services_table;
 pub mod models;
 pub mod collector;
 pub mod state;
+pub mod updates;
 pub mod summary;
 pub mod dashboard;
 

@@ -1391,6 +1391,7 @@ dependencies = [
  "crow-config-schemas",
  "dirs 7.0.0",
  "gpui-kit",
+ "image",
  "rand 0.10.2",
  "rusqlite",
  "serde",

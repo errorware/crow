@@ -40,7 +40,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool) -> impl IntoElement
             div()
                 .id("about-modal-panel")
                 .occlude()
-                .on_click(|_ev, _window, _cx| {}) // Capture click
+                .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // keep clicks inside from reaching the backdrop (which closes)
                 .w(px(520.0))
                 .bg(BG_OVERLAY_PANEL)
                 .border_1()

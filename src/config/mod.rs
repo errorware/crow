@@ -5,7 +5,7 @@ pub mod crontab;
 pub mod versioning;
 pub mod syntax;
 
-pub use plugin::{default_config_toml, CrowConfigPlugin, CROW_CONFIG_MANIFEST};
+pub use plugin::{default_config_toml, CrowConfigPlugin, APPEARANCE_DEFAULTS, CROW_CONFIG_MANIFEST};
 pub use crawler::{crawl_all_configs, crawl_configs, detect_schema_kind, load_config_file_states, DiscoveredConfigFile, SchemaKind};
 pub use versioning::{compute_unified_diff, ConfigFileState, ConfigRevision};
 pub use syntax::{highlight_config_line, SyntaxToken};
@@ -66,6 +66,13 @@ impl CrowConfigManager {
             default_text
         };
 
+        // Config files from before Personalisation get its section (written
+        // out with the next save).
+        let text = if text.lines().any(|l| l.trim() == "[appearance]") {
+            text
+        } else {
+            format!("{}\n{}", text.trim_end(), plugin::APPEARANCE_DEFAULTS)
+        };
         let cst = plugin.parse(&text).unwrap_or_else(|_| {
             plugin.parse(default_config_toml()).expect("Default config must parse")
         });

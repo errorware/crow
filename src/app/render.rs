@@ -31,6 +31,15 @@ impl Render for CrowApp {
         if self.screen == Screen::Onboard {
             self.ensure_onboard_inputs(window, cx);
         }
+        if self.screen == Screen::Fleet || (self.screen == Screen::Settings && self.settings.section == super::SettingsSection::Personalisation) {
+            self.ensure_fleet_background(cx);
+        }
+        if self.users.show_new_user_modal {
+            self.ensure_new_user_inputs(window, cx);
+        }
+        if self.users.password_for.is_some() && self.active_view == "users" {
+            self.ensure_password_inputs(window, cx);
+        }
         if self.screen == Screen::Server {
             if let Some(page) = super::overview::TablePage::for_view(&self.active_view) {
                 self.ensure_table_search(page, window, cx);
@@ -247,19 +256,29 @@ impl Render for CrowApp {
                                                                             } else {
                                                                                 None
                                                                             })
+                                                                    } else if self.overview.active_tab == "processes" {
+                                                                        // Table above, live log panel below (drag the divider).
+                                                                        let app_resize = app_view.clone();
+                                                                        div()
+                                                                            .size_full()
+                                                                            .flex()
+                                                                            .flex_col()
+                                                                            .on_drag_move::<crate::components::resize::BottomPanelResize>(move |ev, _window, cx| {
+                                                                                let height = crate::components::resize::bottom_panel_height(ev, 120.0, 180.0);
+                                                                                app_resize.update(cx, |this, cx| {
+                                                                                    this.overview.process_log_height = height;
+                                                                                    cx.notify();
+                                                                                });
+                                                                            })
+                                                                            .child(div().flex_1().min_h(px(0.0)).flex().child(services_table(&self.overview, self.processes_search.as_ref().map(|s| &s.input), app_view.clone())))
+                                                                            .child(crate::components::resize::resize_handle("process-log-resize"))
+                                                                            .child(div().h(px(self.overview.process_log_height)).flex_none().child(log_tail(&self.journal.entries, app_view.clone())))
                                                                     } else {
                                                                         div()
                                                                             .size_full()
                                                                             .flex()
-                                                                            .child(services_table(&self.overview, match self.active_view.as_str() {
-                                                                        "processes" => self.processes_search.as_ref().map(|s| &s.input),
-                                                                        _ => self.services_search.as_ref().map(|s| &s.input),
-                                                                    }, app_view.clone()))
-                                                                            .child(if self.overview.active_tab == "services" {
-                                                                                service_inspector_rail(&self.vault, &self.fleet, &self.overview, app_view.clone()).into_any_element()
-                                                                            } else {
-                                                                                log_tail(&self.journal.entries, app_view.clone()).into_any_element()
-                                                                            })
+                                                                            .child(services_table(&self.overview, self.services_search.as_ref().map(|s| &s.input), app_view.clone()))
+                                                                            .child(service_inspector_rail(&self.vault, &self.fleet, &self.overview, app_view.clone()).into_any_element())
                                                                     }
                                                                 )
                                                             } else if is_config {
@@ -278,7 +297,7 @@ impl Render for CrowApp {
                                                                     div()
                                                                         .size_full()
                                                                         .flex()
-                                                                        .child(logs_explorer_view(app_view.clone(), &self.caret, &self.journal))
+                                                                        .child(logs_explorer_view(app_view.clone(), self.logs_search.as_ref().map(|s| &s.input), &self.journal, self.ai_provider_name()))
                                                                 )
                                                             } else if self.active_view == "cron" {
                                                                 Some(
@@ -292,7 +311,7 @@ impl Render for CrowApp {
                                                                 Some(
                                                                     div()
                                                                         .size_full()
-                                                                        .child(user_management_view(app_view.clone(), &self.users, &self.keys.enrolled))
+                                                                        .child(user_management_view(app_view.clone(), &self.users, &self.keys.enrolled, self.users_search.as_ref().map(|s| &s.input), self.new_user_inputs.as_ref(), self.password_inputs.as_ref()))
                                                                 )
                                                             } else if self.active_view == "files" {
                                                                 Some(
@@ -369,12 +388,12 @@ impl Render for CrowApp {
                                     Screen::Fleet => Some(
                                         div()
                                             .size_full()
-                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab)),
+                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab, self.fleet_background.rendered.clone().filter(|_| self.fleet_background_source().is_some()).map(|p| (p, self.fleet_background_opacity())))),
                                     ),
                                     Screen::Settings => Some(
                                         div()
                                             .size_full()
-                                            .child(settings_view(app_view.clone(), &self.vault, &self.config, &self.caret, &self.fleet, &self.keys, &self.clankers, &self.settings, &self.lab_state, self.settings.section)),
+                                            .child(settings_view(app_view.clone(), &self.vault, &self.config, &self.caret, &self.fleet, &self.keys, &self.clankers, &self.settings, &self.lab_state, self.settings.section, (&self.fleet_background, self.fleet_background_source()))),
                                     ),
                                     Screen::Onboard => Some(
                                         div()

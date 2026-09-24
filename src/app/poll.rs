@@ -171,6 +171,11 @@ impl CrowApp {
         
                     if entity.update(cx, |this, cx| {
                         this.apply_poll_result(res);
+                        // Overview on screen: keep the updates/CVE check current
+                        // (a no-op while it's fresh; also covers startup).
+                        if this.screen == super::Screen::Server && this.active_view == "overview" {
+                            this.refresh_security(false, cx);
+                        }
                         cx.notify();
                     }).is_err() {
                         break;

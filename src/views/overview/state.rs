@@ -28,6 +28,22 @@ pub struct OverviewState {
     pub process_query: String,
     pub process_filter: ProcessFilter,
     pub process_page: usize,
+    /// Overview's Updates & Security card.
+    pub security: SecurityState,
+    /// Height of the log panel under the Processes table (drag to resize).
+    pub process_log_height: f32,
+}
+
+/// Pending updates and CVEs for one server, refreshed at most every few
+/// hours (the OSV lookup leaves the machine).
+#[derive(Default)]
+pub struct SecurityState {
+    pub server_id: Option<String>,
+    pub loading: bool,
+    pub checked_at: Option<std::time::Instant>,
+    pub checked_label: String,
+    pub updates: Option<Result<super::updates::UpdatesReport, String>>,
+    pub cves: Option<Result<crate::security::osv::CveReport, String>>,
 }
 
 impl OverviewState {
@@ -52,6 +68,8 @@ impl OverviewState {
             process_query: String::new(),
             process_filter: ProcessFilter::Apps,
             process_page: 0,
+            security: SecurityState::default(),
+            process_log_height: 240.0,
         }
     }
 }
