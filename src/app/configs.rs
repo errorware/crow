@@ -123,6 +123,9 @@ pub struct RiskConfirm {
     pub error: Option<String>,
 }
 
+/// Row id of an inline input for a directive not yet in the file.
+pub const NEW_DIRECTIVE_PREFIX: &str = "new:";
+
 /// What must be typed to stage a never-on-prod change.
 pub const RISK_CONFIRM_KEYWORD: &str = "CONFIRM";
 
@@ -243,9 +246,23 @@ impl CrowApp {
         cx.notify();
     }
 
+    /// Opens an inline input for a directive that isn't in the file yet;
+    /// Enter adds it with the typed value (nothing is added if left empty).
+    pub fn begin_new_directive(&mut self, file: &str, name: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.begin_structured_field_edit(file, &format!("{NEW_DIRECTIVE_PREFIX}{name}"), name, "", false, window, cx);
+    }
+
     pub fn commit_structured_field_edit(&mut self, cx: &mut Context<Self>) {
         let Some(edit) = self.structured_field_edit.take() else { return };
         let text = edit.input.read(cx).value().trim().to_string();
+        if edit.row_id.starts_with(NEW_DIRECTIVE_PREFIX) {
+            if !text.is_empty() {
+                self.insert_structured_row(&edit.file, Some((edit.field.clone(), text)), cx);
+            } else {
+                cx.notify();
+            }
+            return;
+        }
         let value = if edit.is_list {
             serde_json::json!(text.split_whitespace().collect::<Vec<_>>())
         } else {
@@ -268,7 +285,12 @@ impl CrowApp {
     pub fn insert_structured_row(&mut self, file: &str, keyed: Option<(String, String)>, cx: &mut Context<Self>) {
         let Some(format) = self.structured_format_of(file) else { return };
         let Some(state) = self.configs.states.get(file) else { return };
-        let last_row = plugins::to_ir(format, &state.current_content).ok().and_then(|ir| ir.rows.last().map(|r| r.row_id.clone()));
+        let ir = plugins::to_ir(format, &state.current_content).ok();
+        // sshd: after the last global line, never inside a trailing Match block.
+        let last_row = match format {
+            StructuredFormat::Sshd => ir.as_ref().and_then(|ir| plugins::sshd_sheet(ir).insert_after),
+            _ => ir.as_ref().and_then(|ir| ir.rows.last().map(|r| r.row_id.clone())),
+        };
         let mut fields = HashMap::new();
         match (format, keyed) {
             (_, Some((key, value))) => {
