@@ -284,7 +284,7 @@ impl Render for CrowApp {
                                                                     div()
                                                                         .size_full()
                                                                         .flex()
-                                                                        .child(logs_explorer_view(app_view.clone(), &self.caret, &self.journal))
+                                                                        .child(logs_explorer_view(app_view.clone(), self.logs_search.as_ref().map(|s| &s.input), &self.journal))
                                                                 )
                                                             } else if self.active_view == "cron" {
                                                                 Some(

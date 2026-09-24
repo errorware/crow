@@ -360,3 +360,24 @@ mod tests {
         assert!(JournalPriority::Warning.is_warn());
     }
 }
+
+#[cfg(test)]
+impl JournalEntry {
+    /// A bare entry for tests, with `unit` set.
+    pub fn from_marker_for_test(unit: &str) -> Self {
+        JournalEntry {
+            id: String::new(),
+            cursor: None,
+            timestamp_usec: 0,
+            timestamp_formatted: String::new(),
+            time_relative: String::new(),
+            priority: JournalPriority::Info,
+            unit: unit.to_string(),
+            syslog_identifier: String::new(),
+            pid: None,
+            message: String::new(),
+            fields: Vec::new(),
+            is_expanded: false,
+        }
+    }
+}

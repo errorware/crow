@@ -11,7 +11,6 @@ const MAX_ACTION_MARKERS: usize = 50;
 pub struct JournalState {
     pub entries: Vec<JournalEntry>,
     pub search: String,
-    pub search_focused: bool,
     pub severity_filter: Option<JournalPriority>,
     pub unit_filter: Option<String>,
     pub pid_filter: Option<u32>,
@@ -26,6 +25,11 @@ pub struct JournalState {
     pub retention: JournalRetentionConfig,
     pub telemetry: JournalTelemetry,
     pub show_retention_modal: bool,
+    /// Units seen logging most (from the last unfiltered read), for the
+    /// unit filter chips.
+    pub known_units: Vec<(String, usize)>,
+    /// Bumped on every search keystroke; a query runs once typing pauses.
+    pub search_generation: u64,
 }
 
 impl JournalState {
@@ -33,7 +37,6 @@ impl JournalState {
         Self {
             entries,
             search: String::new(),
-            search_focused: false,
             severity_filter: None,
             unit_filter: None,
             pid_filter: None,
@@ -48,6 +51,8 @@ impl JournalState {
             retention,
             telemetry,
             show_retention_modal: false,
+            known_units: Vec::new(),
+            search_generation: 0,
         }
     }
 
@@ -63,6 +68,22 @@ impl JournalState {
             grep: if self.search.trim().is_empty() { None } else { Some(self.search.clone()) },
             time_range: self.time_range,
             boot: self.boot,
+        }
+    }
+
+    /// Remembers which units log most, from a read with no unit filter.
+    pub fn learn_units(&mut self, entries: &[JournalEntry]) {
+        let mut counts: std::collections::HashMap<&str, usize> = std::collections::HashMap::new();
+        // Only real systemd units (they carry a type suffix: .service, .scope, ...);
+        // a bare syslog identifier like "sudo" can't be passed to `journalctl -u`.
+        for e in entries.iter().filter(|e| e.syslog_identifier != "kernel" && e.unit.contains('.')) {
+            *counts.entry(e.unit.as_str()).or_default() += 1;
+        }
+        let mut units: Vec<(String, usize)> = counts.into_iter().map(|(u, n)| (u.to_string(), n)).collect();
+        units.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+        units.truncate(8);
+        if !units.is_empty() {
+            self.known_units = units;
         }
     }
 
@@ -160,6 +181,26 @@ mod tests {
         assert_eq!(st.pid_filter, None);
         assert!(st.search.is_empty());
         assert_eq!(st.unit_filter.as_deref(), Some("sshd.service"));
+    }
+
+    #[test]
+    fn learns_the_busiest_real_units() {
+        let entry = |unit: &str, ident: &str| {
+            let mut e = JournalEntry::from_marker_for_test(unit);
+            e.syslog_identifier = ident.to_string();
+            e
+        };
+        let entries = vec![
+            entry("nginx.service", "nginx"),
+            entry("nginx.service", "nginx"),
+            entry("sshd.service", "sshd"),
+            entry("sudo", "sudo"),
+            entry("kernel", "kernel"),
+        ];
+        let mut st = state();
+        st.learn_units(&entries);
+        let units: Vec<&str> = st.known_units.iter().map(|(u, _)| u.as_str()).collect();
+        assert_eq!(units, ["nginx.service", "sshd.service"], "busiest first; identifiers and kernel left out");
     }
 
     #[test]

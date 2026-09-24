@@ -26,11 +26,30 @@ impl CrowApp {
                     read_journal_for_server(&active_srv, &query)
                 }).await;
                 let _ = entity.update(cx, |this, cx| {
+                    if this.journal.unit_filter.is_none() {
+                        this.journal.learn_units(&entries);
+                    }
                     this.journal.entries = entries;
                     cx.notify();
                 });
             }).detach();
         }
+    }
+
+    /// Search typed into the box: query the server once typing pauses.
+    pub fn schedule_journal_search(&mut self, cx: &mut Context<Self>) {
+        self.journal.search_generation += 1;
+        let generation = self.journal.search_generation;
+        cx.spawn(async move |entity, cx| {
+            cx.background_executor().timer(std::time::Duration::from_millis(350)).await;
+            let _ = entity.update(cx, |this, cx| {
+                if this.journal.search_generation == generation {
+                    this.run_journal_query(cx);
+                }
+            });
+        })
+        .detach();
+        cx.notify();
     }
 
     pub fn set_journal_pid_filter(&mut self, pid: Option<u32>, cx: &mut Context<Self>) {

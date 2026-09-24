@@ -2,6 +2,9 @@ use crate::host::{host_for, Host, HostError, DEFAULT_TIMEOUT};
 use crate::vault::ServerRecord;
 use super::{parse_journal_json, JournalEntry, JournalQuery};
 
+/// The unit filter value that selects kernel messages (dmesg).
+pub const KERNEL_UNIT: &str = "kernel";
+
 /// `journalctl` arguments for a query — built fresh from the filters so every
 /// transport runs the same lookup.
 pub fn journalctl_argv(query: &JournalQuery) -> Vec<String> {
@@ -11,7 +14,10 @@ pub fn journalctl_argv(query: &JournalQuery) -> Vec<String> {
     argv.push("-b".into());
     argv.push(query.boot.offset().to_string());
     if let Some(ref u) = query.unit {
-        if !u.is_empty() && u != "ALL" && u != "ALL UNITS" {
+        if u == KERNEL_UNIT {
+            // Kernel messages have no systemd unit; they arrive by the kernel transport.
+            argv.push("_TRANSPORT=kernel".into());
+        } else if !u.is_empty() && u != "ALL" && u != "ALL UNITS" {
             argv.extend(["-u".to_string(), u.clone()]);
         }
     }
@@ -52,4 +58,21 @@ pub fn read_journal(host: &dyn Host, query: &JournalQuery) -> Option<Vec<Journal
 /// stand-in entries.
 pub fn read_journal_for_server(server: &ServerRecord, query: &JournalQuery) -> Vec<JournalEntry> {
     read_journal(host_for(server).as_ref(), query).unwrap_or_default()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::journal::JournalPriority;
+
+    #[test]
+    fn kernel_is_a_transport_not_a_unit() {
+        let q = JournalQuery { unit: Some(KERNEL_UNIT.into()), ..Default::default() };
+        let argv = journalctl_argv(&q);
+        assert!(argv.contains(&"_TRANSPORT=kernel".to_string()) && !argv.contains(&"-u".to_string()));
+        let q = JournalQuery { unit: Some("nginx.service".into()), priority: Some(JournalPriority::Warning), ..Default::default() };
+        let argv = journalctl_argv(&q);
+        assert!(argv.windows(2).any(|w| w == ["-u", "nginx.service"]));
+        assert!(argv.windows(2).any(|w| w == ["-p", "4"]), "warning and worse");
+    }
 }

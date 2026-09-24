@@ -146,6 +146,7 @@ pub struct CrowApp {
     pub services_search: Option<overview::TableSearch>,
     pub processes_search: Option<overview::TableSearch>,
     pub users_search: Option<overview::TableSearch>,
+    pub logs_search: Option<overview::TableSearch>,
     /// New User dialog's text inputs (created while it's open).
     pub new_user_inputs: Option<crate::views::users::NewUserInputs>,
     /// Inspector SET PASSWORD inputs (while the form is open).
@@ -278,6 +279,7 @@ impl CrowApp {
             services_search: None,
             processes_search: None,
             users_search: None,
+            logs_search: None,
             new_user_inputs: None,
             password_inputs: None,
             table_search_focus_pending: false,
@@ -323,9 +325,7 @@ impl CrowApp {
             return self.onboard_state.focus != OnboardFieldFocus::None;
         }
         if self.screen == Screen::Server {
-            if self.active_view == "logs" && self.journal.search_focused {
-                return true;
-            }
+
             if (self.active_view == "config" || self.active_view == "configure")
                 && self.configs.search_focused
             {

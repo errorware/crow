@@ -5,8 +5,8 @@ use crate::theme::*;
 use crate::app::CrowApp;
 use crate::journal::{JournalBootScope, JournalEntry, JournalPriority, JournalStorageMode, JournalTimeRange};
 use crate::keys::copy_to_clipboard_system;
-use crate::components::terminal_text_input_styled;
-use crate::components::text_caret::TextCaret;
+use gpui_kit::component::input::{Input, InputState};
+use crate::components::icons::{tabler_icon, TablerIcon};
 
 pub mod retention_modal;
 pub mod state;
@@ -15,7 +15,8 @@ pub use state::JournalState;
 
 pub fn logs_explorer_view(
     app: Entity<CrowApp>,
-    caret: &TextCaret, journal: &JournalState,
+    search: Option<&Entity<InputState>>,
+    journal: &JournalState,
 ) -> impl IntoElement {
     let app_clone = app.clone();
 
@@ -32,44 +33,23 @@ pub fn logs_explorer_view(
         .collect();
     combined_entries.sort_by_key(|e| e.timestamp_usec);
 
-    // Filter entries based on level, unit, and search query
+    // journalctl already applied every filter to the server's entries (unit,
+    // priority as "this level and worse", PID, time, --grep as a regex), so
+    // they're shown as returned. Only Crow's own action markers, which never
+    // went through journalctl, are filtered here, with the same meanings.
+    let marker_visible = |e: &JournalEntry| -> bool {
+        if journal.unit_filter.as_deref().is_some_and(|u| u != "ALL") || journal.pid_filter.is_some() {
+            return false;
+        }
+        if journal.severity_filter.is_some_and(|p| (e.priority as u8) > (p as u8)) {
+            return false;
+        }
+        let q = journal.search.trim().to_lowercase();
+        q.is_empty() || e.message.to_lowercase().contains(&q)
+    };
     let filtered_entries: Vec<&JournalEntry> = combined_entries
         .into_iter()
-        .filter(|e| {
-            // Level filter
-            if let Some(prio) = journal.severity_filter {
-                if prio == JournalPriority::Err {
-                    if !e.priority.is_error() {
-                        return false;
-                    }
-                } else if e.priority != prio {
-                    return false;
-                }
-            }
-            // PID filter (set by clicking a PID in the table)
-            if let Some(fpid) = journal.pid_filter {
-                if e.pid != Some(fpid) {
-                    return false;
-                }
-            }
-            // Unit filter
-            if let Some(ref u) = journal.unit_filter {
-                if u != "ALL" && !e.unit.to_lowercase().contains(&u.to_lowercase()) && !e.syslog_identifier.to_lowercase().contains(&u.to_lowercase()) {
-                    return false;
-                }
-            }
-            // Search query
-            if !journal.search.trim().is_empty() {
-                let q = journal.search.to_lowercase();
-                let matches_msg = e.message.to_lowercase().contains(&q);
-                let matches_unit = e.unit.to_lowercase().contains(&q);
-                let matches_pid = e.pid.map(|p| p.to_string().contains(&q)).unwrap_or(false);
-                if !matches_msg && !matches_unit && !matches_pid {
-                    return false;
-                }
-            }
-            true
-        })
+        .filter(|e| !e.id.starts_with("crow-action_") || marker_visible(e))
         .collect();
 
     let filtered_count = filtered_entries.len();
@@ -434,7 +414,7 @@ pub fn logs_explorer_view(
                                         this.set_journal_severity(Some(JournalPriority::Err), cx);
                                     });
                                 })
-                                .child("ERR")
+                                .child("ERR+")
                                 .children(if err_count > 0 {
                                     Some(
                                         div()
@@ -470,7 +450,7 @@ pub fn logs_explorer_view(
                                         this.set_journal_severity(Some(JournalPriority::Warning), cx);
                                     });
                                 })
-                                .child("WARN")
+                                .child("WARN+")
                                 .children(if warn_count > 0 {
                                     Some(
                                         div()
@@ -503,13 +483,19 @@ pub fn logs_explorer_view(
                                         this.set_journal_severity(Some(JournalPriority::Info), cx);
                                     });
                                 })
-                                .child("INFO")
+                                .child("INFO+")
                         })
                         // Divider
                         .child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_PANEL).mx(px(4.0)))
-                        // Unit Pills (Common systemd units)
+                        // Unit chips: ALL, KERNEL, then the units logging most on this
+                        // server (learned from the last unfiltered read), plus the
+                        // selected unit if it isn't among them.
                         .child({
-                            let units = ["ALL", "nginx", "postgres", "redis", "sshd", "kernel", "ufw"];
+                            let mut units: Vec<String> = vec!["ALL".into(), crate::journal::reader::KERNEL_UNIT.into()];
+                            units.extend(journal.known_units.iter().map(|(u, _)| u.clone()));
+                            if let Some(sel) = journal.unit_filter.as_ref().filter(|u| !units.contains(u)) {
+                                units.push(sel.clone());
+                            }
                             div()
                                 .flex()
                                 .items_center()
@@ -517,7 +503,7 @@ pub fn logs_explorer_view(
                                 .children(units.into_iter().enumerate().map(|(idx, u)| {
                                     let app_u = app_clone.clone();
                                     let current_u = journal.unit_filter.as_deref().unwrap_or("ALL");
-                                    let is_active = current_u == u;
+                                    let is_active = current_u == u.as_str();
                                     div()
                                         .id(ElementId::NamedInteger("journal-unit-pill".into(), idx as u64))
                                         .px(px(6.0))
@@ -528,13 +514,11 @@ pub fn logs_explorer_view(
                                         .cursor_pointer()
                                         .font_family("JetBrains Mono")
                                         .text_size(px(9.5))
+                                        .child(if u == crate::journal::reader::KERNEL_UNIT { "KERNEL".to_string() } else { clean_unit_display(&u) })
                                         .on_click(move |_ev, _window, cx| {
-                                            app_u.update(cx, |this, cx| {
-                                                let target = if u == "ALL" { None } else { Some(u.to_string()) };
-                                                this.set_journal_unit(target, cx);
-                                            });
+                                            let target = if u == "ALL" { None } else { Some(u.clone()) };
+                                            app_u.update(cx, |this, cx| this.set_journal_unit(target, cx));
                                         })
-                                        .child(u)
                                 }))
                         })
                         // Active PID filter chip + kill action
@@ -668,33 +652,15 @@ pub fn logs_explorer_view(
                         .gap(px(6.0))
                         .child(
                             div()
-                                .w(px(260.0))
-                                .child({
-                                    let app_search = app_clone.clone();
-                                    terminal_text_input_styled(
-                                        "input-journal-search",
-                                        &journal.search,
-                                        "Filter or grep logs… (⏎ to search)",
-                                        journal.search_focused,
-                                        false,
-                                        24.0,
-                                        10.5,
-                                        if journal.search_focused { caret.cursor } else { 0 },
-                                        if journal.search_focused { caret.selection } else { None },
-                                        if journal.search_focused { caret.drag_anchor } else { None },
-                                        caret.blink,
-                                        move |cursor, anchor, selection, _window, cx| {
-                                            app_search.update(cx, |this, cx| {
-                                                this.journal.search_focused = true;
-                                                this.caret.cursor = cursor;
-                                                this.caret.drag_anchor = anchor;
-                                                this.caret.selection = selection;
-                                                this.caret.blink = true;
-                                                cx.notify();
-                                            });
-                                        },
-                                    )
-                                }),
+                                .w(px(320.0))
+                                .children(search.map(|input| {
+                                    Input::new(input)
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(10.5))
+                                        .bg(BG_APP)
+                                        .rounded(px(2.0))
+                                        .prefix(tabler_icon(TablerIcon::Search).size(px(11.0)).text_color(TEXT_DIMMER))
+                                })),
                         )
                         .children(if !journal.search.is_empty() {
                             let app_search_clear = app_clone.clone();
@@ -709,6 +675,7 @@ pub fn logs_explorer_view(
                                     .on_click(move |_ev, _window, cx| {
                                         app_search_clear.update(cx, |this, cx| {
                                             this.journal.search.clear();
+                                            this.logs_search = None; // rebuilt empty on the next render
                                             this.run_journal_query(cx);
                                         });
                                     })
