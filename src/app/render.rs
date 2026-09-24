@@ -31,6 +31,9 @@ impl Render for CrowApp {
         if self.screen == Screen::Onboard {
             self.ensure_onboard_inputs(window, cx);
         }
+        if self.screen == Screen::Server && self.active_view == "services" {
+            self.ensure_services_search(window, cx);
+        }
         let is_overview = self.active_view == "overview";
         let is_table_page = super::is_table_page(&self.active_view);
         let is_config = self.active_view == "config";
@@ -232,7 +235,7 @@ impl Render for CrowApp {
                                                                                 div()
                                                                                     .flex_1()
                                                                                     .min_h(px(0.0))
-                                                                                    .child(services_table(&self.overview, app_view.clone()))
+                                                                                    .child(services_table(&self.overview, self.services_search.as_ref().map(|s| &s.input), app_view.clone()))
                                                                             )
                                                                             .children(if self.overview.socket_drawer_open {
                                                                                 Some(socket_log_drawer(&self.fleet, &self.overview, &self.journal, app_view.clone()).into_any_element())
@@ -243,7 +246,7 @@ impl Render for CrowApp {
                                                                         div()
                                                                             .size_full()
                                                                             .flex()
-                                                                            .child(services_table(&self.overview, app_view.clone()))
+                                                                            .child(services_table(&self.overview, self.services_search.as_ref().map(|s| &s.input), app_view.clone()))
                                                                             .child(if self.overview.active_tab == "services" {
                                                                                 service_inspector_rail(&self.vault, &self.fleet, &self.overview, app_view.clone()).into_any_element()
                                                                             } else {

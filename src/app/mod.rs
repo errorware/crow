@@ -142,6 +142,10 @@ pub struct CrowApp {
     pub onboard_inputs: Option<onboard::OnboardInputs>,
     /// Focus `onboard_state.focus`'s field on the next render.
     pub onboard_focus_pending: bool,
+    /// The Services page's search box (created on first render).
+    pub services_search: Option<overview::ServicesSearch>,
+    /// Focus the Services search box on the next render (the `/` key).
+    pub services_search_focus_pending: bool,
     pub overview: OverviewState,
     pub journal: JournalState,
     pub configs: ConfigsState,
@@ -265,6 +269,8 @@ impl CrowApp {
             onboard_state,
             onboard_inputs: None,
             onboard_focus_pending: false,
+            services_search: None,
+            services_search_focus_pending: false,
             lab_state: LabState::new(window, cx),
             caret: TextCaret { blink: true, ..TextCaret::default() },
             _cursor_blink_task: Self::spawn_cursor_blink(cx),

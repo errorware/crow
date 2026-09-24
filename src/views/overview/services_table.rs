@@ -6,8 +6,11 @@ use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
 use super::models::{ProcessUnit, ServiceUnit, SocketUnit};
 use crate::views::overview::OverviewState;
+use crate::views::overview::state::{filter_services, page_of, ServiceFilter, SERVICES_PAGE_SIZE};
+use gpui_kit::component::input::{Input, InputState};
+use gpui_kit::prelude::FluentBuilder as _;
 
-pub fn services_table(overview: &OverviewState, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn services_table(overview: &OverviewState, search: Option<&Entity<InputState>>, app: Entity<CrowApp>) -> impl IntoElement {
     let services = &overview.services;
     let processes = &overview.processes;
     let sockets = &overview.sockets;
@@ -45,6 +48,8 @@ pub fn services_table(overview: &OverviewState, app: Entity<CrowApp>) -> impl In
                         .text_color(TEXT_PRIMARY)
                         .child(active_tab.to_uppercase()),
                 )
+                // Services: live search and status filter chips.
+                .children((active_tab == "services").then(|| render_service_controls(overview, search, app.clone())))
                 .child(div().flex_1())
                 // Dynamic counts cluster based on active tab
                 .child(render_counts_cluster(active_tab, services, processes, sockets))
@@ -107,6 +112,7 @@ pub fn services_table(overview: &OverviewState, app: Entity<CrowApp>) -> impl In
                                 .text_color(TEXT_TERTIARY)
                                 .child(match active_tab {
                                     "sockets" => "sort port ↑",
+                                    "services" => "sort status · name",
                                     _ => "sort cpu ↓",
                                 }),
                         )
@@ -145,14 +151,112 @@ pub fn services_table(overview: &OverviewState, app: Entity<CrowApp>) -> impl In
                     }
                     "sockets" => render_sockets_rows(sockets, app.clone()),
                     _ => {
-                        if overview.group_services {
-                            render_services_rows_grouped(services, &overview.collapsed_service_groups, overview, app.clone())
+                        let shown = page_services(overview);
+                        if shown.is_empty() && !services.is_empty() {
+                            vec![empty_state("No services match — try ALL, or clear the search")]
+                        } else if overview.group_services {
+                            render_services_rows_grouped(&shown, &overview.collapsed_service_groups, overview, app.clone())
                         } else {
-                            render_services_rows(services, overview, app.clone())
+                            render_services_rows(&shown, overview, app.clone())
                         }
                     }
                 }),
         )
+        .children((active_tab == "services").then(|| render_service_pager(overview, app.clone())).flatten())
+}
+
+/// The services on the current page, after the filter and search.
+fn page_services(overview: &OverviewState) -> Vec<ServiceUnit> {
+    let filtered = filter_services(&overview.services, overview.service_filter, &overview.service_query);
+    page_of(&filtered, overview.service_page).0.iter().map(|s| (*s).clone()).collect()
+}
+
+/// Search box and filter chips (with counts) for the Services page.
+fn render_service_controls(overview: &OverviewState, search: Option<&Entity<InputState>>, app: Entity<CrowApp>) -> impl IntoElement {
+    div()
+        .h_full()
+        .flex()
+        .items_center()
+        .gap(px(6.0))
+        .px(px(10.0))
+        .border_r_1()
+        .border_color(BORDER_PANEL)
+        .children(search.map(|input| {
+            div().w(px(240.0)).child(
+                Input::new(input)
+                    .font_family(FONT_MONO)
+                    .text_size(px(11.0))
+                    .bg(BG_APP)
+                    .rounded(px(2.0))
+                    .prefix(tabler_icon(TablerIcon::Search).size(px(11.0)).text_color(TEXT_DIMMER)),
+            )
+        }))
+        .children(ServiceFilter::ALL.into_iter().map(|filter| {
+            let count = overview.services.iter().filter(|s| filter.matches(&s.status)).count();
+            let is_on = overview.service_filter == filter;
+            let app = app.clone();
+            div()
+                .id(SharedString::from(format!("svc-filter-{}", filter.label())))
+                .flex()
+                .items_center()
+                .gap(px(5.0))
+                .px(px(8.0))
+                .py(px(3.0))
+                .border_1()
+                .border_color(if is_on { TEXT_SECONDARY } else { BORDER_DEFAULT })
+                .bg(if is_on { BG_CHIP } else { hex_rgba(0, 0.0) })
+                .cursor_pointer()
+                .hover(|s| s.bg(BG_ROW_HOVER))
+                .font_family(FONT_MONO)
+                .text_size(px(9.5))
+                .font_weight(FontWeight::BOLD)
+                .text_color(if is_on { TEXT_PRIMARY } else { TEXT_DIMMER })
+                .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_service_filter(filter, cx)))
+                .child(filter.label())
+                .child(div().font_weight(FontWeight::NORMAL).text_color(if filter == ServiceFilter::Failed && count > 0 { CRIT } else { TEXT_FAINT }).child(count.to_string()))
+        }))
+}
+
+/// "1–50 of 87  ‹ PREV  NEXT ›" under the Services table, when there's more
+/// than one page.
+fn render_service_pager(overview: &OverviewState, app: Entity<CrowApp>) -> Option<Div> {
+    let filtered = filter_services(&overview.services, overview.service_filter, &overview.service_query);
+    let (items, page, pages) = page_of(&filtered, overview.service_page);
+    if pages <= 1 {
+        return None;
+    }
+    let first = page * SERVICES_PAGE_SIZE + 1;
+    let button = |id: &'static str, label: &'static str, target: Option<usize>| {
+        let app = app.clone();
+        div()
+            .id(id)
+            .px(px(8.0))
+            .py(px(2.0))
+            .border_1()
+            .border_color(BORDER_DEFAULT)
+            .text_color(if target.is_some() { TEXT_SECONDARY } else { TEXT_FAINTER })
+            .when_some(target, |d, p| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_service_page(p, cx))))
+            .child(label)
+    };
+    Some(
+        div()
+            .h(px(30.0))
+            .flex_none()
+            .flex()
+            .items_center()
+            .gap(px(8.0))
+            .px(px(14.0))
+            .bg(BG_PANEL)
+            .border_t_1()
+            .border_color(BORDER_PANEL)
+            .font_family(FONT_MONO)
+            .text_size(px(10.5))
+            .child(div().text_color(TEXT_DIMMER).child(format!("{}–{} of {}", first, first + items.len() - 1, filtered.len())))
+            .child(div().flex_1())
+            .child(button("svc-page-prev", "‹ PREV", page.checked_sub(1)))
+            .child(div().text_color(TEXT_FAINT).child(format!("{} / {}", page + 1, pages)))
+            .child(button("svc-page-next", "NEXT ›", (page + 1 < pages).then_some(page + 1))),
+    )
 }
 
 // ---------------------------------------------------------------------------

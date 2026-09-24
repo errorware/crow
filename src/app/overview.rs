@@ -1,6 +1,8 @@
 use gpui_kit::*;
+use gpui_kit::component::input::{InputEvent, InputState};
 
 use super::CrowApp;
+use crate::views::overview::state::ServiceFilter;
 use crate::components::sidebar::NavBadges;
 use crate::theme::{CRIT, OK, TEXT_FAINT, WARN};
 use crate::views::firewall::FirewallOperationalState;
@@ -15,6 +17,46 @@ use crate::views::overview::collector::{
     systemctl_service_action,
     terminate_process,
 };
+
+/// The Services page's live search box.
+pub struct ServicesSearch {
+    pub input: Entity<InputState>,
+    _events: Subscription,
+}
+
+impl CrowApp {
+    /// Creates the Services search box on first render (inputs need the
+    /// window) and applies a pending focus request (the `/` key).
+    pub fn ensure_services_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.services_search.is_none() {
+            let input = cx.new(|cx| InputState::new(window, cx).placeholder("search services…  ( / )").default_value(self.overview.service_query.clone()));
+            let events = cx.subscribe(&input, |this, input, ev: &InputEvent, cx| {
+                if matches!(ev, InputEvent::Change) {
+                    this.overview.service_query = input.read(cx).value().to_string();
+                    this.overview.service_page = 0;
+                    cx.notify();
+                }
+            });
+            self.services_search = Some(ServicesSearch { input, _events: events });
+        }
+        if std::mem::take(&mut self.services_search_focus_pending) {
+            if let Some(s) = &self.services_search {
+                s.input.update(cx, |i, cx| i.focus(window, cx));
+            }
+        }
+    }
+
+    pub fn set_service_filter(&mut self, filter: ServiceFilter, cx: &mut Context<Self>) {
+        self.overview.service_filter = filter;
+        self.overview.service_page = 0;
+        cx.notify();
+    }
+
+    pub fn set_service_page(&mut self, page: usize, cx: &mut Context<Self>) {
+        self.overview.service_page = page;
+        cx.notify();
+    }
+}
 
 // ==========================================
 // Server overview: services, processes, sockets, service manager

@@ -65,9 +65,10 @@ pub fn parse_systemctl_services(stdout: &str) -> Vec<ServiceUnit> {
             name: unit_name,
             status: status.to_string(),
             status_color_hex: color_hex,
+            // Not read yet: systemctl list-units carries no per-unit usage.
             pid: "—".to_string(),
-            cpu: "0.0".to_string(),
-            mem: "0.0".to_string(),
+            cpu: "—".to_string(),
+            mem: "—".to_string(),
             rss: "—".to_string(),
             uptime: "—".to_string(),
             description,
