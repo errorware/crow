@@ -29,7 +29,7 @@ impl OnboardStep {
             Self::Credentials => "Credentials",
             Self::VerifyHost => "Verify Host",
             Self::Classify => "Classify",
-            Self::Finish => "Install Agent",
+            Self::Finish => "Review",
         }
     }
 
@@ -73,8 +73,6 @@ pub struct OnboardState {
     pub role: String, // "web · nginx", "postgres 16", "cache · queue", "sidekiq", "ssh jump", "custom"
     pub group: String, // "workers", "edge", "data", "staging"
     pub tags: String,
-    // Step 5: Install Agent / Review
-    pub install_agent: bool,
     pub facts: DetectedFacts,
     // UI state
     pub focus: OnboardFieldFocus,
@@ -103,7 +101,6 @@ impl OnboardState {
             role: "sidekiq".into(),
             group: "workers".into(),
             tags: "queue, ruby, eu-west".into(),
-            install_agent: false,
             facts: DetectedFacts::default(),
             focus: OnboardFieldFocus::Host,
             error_message: None,
@@ -251,7 +248,7 @@ pub fn onboard_view(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet:
                 }))
                 .child(div().flex_1()),
         )
-        // 3. Main Split: Target Form (flex-1) | Facts & Probe Rail (420px)
+        // 3. Main Split: Target Form (flex-1) | Facts & Probe Rail (560px)
         .child(
             div()
                 .flex_1()
@@ -365,7 +362,7 @@ fn render_step_content(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fle
         OnboardStep::Credentials => render_step_credentials(app, inputs, fleet, onboard_state, keys),
         OnboardStep::VerifyHost => render_step_verify(app, state),
         OnboardStep::Classify => render_step_classify(app, inputs, onboard_state),
-        OnboardStep::Finish => render_step_finish(app, state, &keys.enrolled),
+        OnboardStep::Finish => render_step_finish(state, &keys.enrolled),
     }
 }
 
@@ -672,7 +669,7 @@ fn render_step_credentials(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>,
                                         .font_family(FONT_MONO)
                                         .text_size(px(11.0))
                                         .text_color(if state.auth_method == "agent" { TEXT_MAX } else { TEXT_DIM })
-                                        .child("○ SSH Agent Forwarding"),
+                                        .child("○ SSH agent (ssh-agent keys)"),
                                 ),
                         )
                         .child(
@@ -1040,14 +1037,11 @@ fn render_step_verify(app: Entity<CrowApp>, state: &OnboardState) -> Div {
                                 }),
                         ),
                 )
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .text_color(TEXT_PRIMARY)
-                        .child(state.probe_result.as_ref().map(|p| p.host_key_fingerprint.clone()).filter(|f| !f.is_empty())
-        .unwrap_or_else(|| if state.is_probing { "fetching host keys…".to_string() } else { "no host key fetched".to_string() })),
-                )
+                .child(fingerprint_box(
+                    &state.probe_result.as_ref().map(|p| p.host_key_fingerprint.clone()).filter(|f| !f.is_empty())
+                        .unwrap_or_else(|| if state.is_probing { "fetching host keys…".to_string() } else { "no host key fetched".to_string() }),
+                    state.host_key_accepted,
+                ))
                 .children(if !state.host_key_accepted && state.probe_result.as_ref().is_some_and(|p| !p.host_key_mismatch && !p.scanned_keys.is_empty()) {
                     Some(
                         div()
@@ -1328,17 +1322,15 @@ fn render_step_classify(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, on
 }
 
 // -----------------------------------------------------------------------------
-// Step 5: Finish & Install Agent
+// Step 5: Review
 // -----------------------------------------------------------------------------
 fn render_step_finish(
-    app: Entity<CrowApp>,
     state: &OnboardState,
     enrolled_keys: &[crate::vault::SshKeyRecord],
 ) -> Div {
-    let app_toggle_agent = app.clone();
     let key_name = state.selected_key_id.as_ref()
         .and_then(|kid| enrolled_keys.iter().find(|k| &k.id == kid).map(|k| k.name.clone()))
-        .unwrap_or_else(|| "id_ed25519_fleet".to_string());
+        .unwrap_or_else(|| "ssh-agent / ~/.ssh defaults".to_string());
 
     div()
         .flex()
@@ -1423,7 +1415,7 @@ fn render_step_finish(
                         .child(div().text_color(TEXT_MUTED).child(state.tags.clone())),
                 ),
         )
-        // Agent Deployment Choice
+        // How Crow manages the server: over SSH, installing nothing.
         .child(
             div()
                 .p(px(12.0))
@@ -1431,72 +1423,12 @@ fn render_step_finish(
                 .border_1()
                 .border_color(BORDER_PANEL)
                 .flex()
-                .flex_col()
+                .items_center()
                 .gap(px(8.0))
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIMMER)
-                        .child("TELEMETRY MODE:"),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .gap(px(10.0))
-                        .child(
-                            div()
-                                .id("chip-mode-agentless")
-                                .px(px(12.0))
-                                .py(px(6.0))
-                                .bg(if !state.install_agent { BG_OVERLAY_PANEL } else { BG_CONTROL })
-                                .border_1()
-                                .border_color(if !state.install_agent { OK } else { BORDER_DEFAULT })
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .on_click(move |_ev, _window, cx| {
-                                    app_toggle_agent.update(cx, |this, cx| {
-                                        this.onboard_state.install_agent = false;
-                                        cx.notify();
-                                    });
-                                })
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
-                                        .font_weight(if !state.install_agent { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                        .text_color(if !state.install_agent { OK } else { TEXT_DIM })
-                                        .child("● Pure Agentless SSH (Zero footprint)"),
-                                ),
-                        )
-                        .child({
-                            let app_tog2 = app.clone();
-                            div()
-                                .id("chip-mode-agent")
-                                .px(px(12.0))
-                                .py(px(6.0))
-                                .bg(if state.install_agent { BG_OVERLAY_PANEL } else { BG_CONTROL })
-                                .border_1()
-                                .border_color(if state.install_agent { OK } else { BORDER_DEFAULT })
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .on_click(move |_ev, _window, cx| {
-                                    app_tog2.update(cx, |this, cx| {
-                                        this.onboard_state.install_agent = true;
-                                        cx.notify();
-                                    });
-                                })
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
-                                        .font_weight(if state.install_agent { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                        .text_color(if state.install_agent { OK } else { TEXT_DIM })
-                                        .child("○ Install crow-agent 0.9.4 (1.8 MB daemon)"),
-                                )
-                        }),
-                ),
+                .font_family(FONT_MONO)
+                .text_size(px(11.0))
+                .child(div().text_color(OK).child("●"))
+                .child(div().text_color(TEXT_SECONDARY).child("Agentless: Crow connects over SSH and installs nothing on this server.")),
         )
 }
 
@@ -1522,11 +1454,11 @@ fn render_right_rail(app: Entity<CrowApp>, onboard_state: &OnboardState) -> Div 
         ("OPEN PORTS", state.facts.open_ports.clone(), TEXT_SECONDARY),
         ("FIREWALL", state.facts.firewall.clone(), OK),
         ("TIME", state.facts.time_sync.clone(), TEXT_SECONDARY),
-        ("AGENT STATUS", if state.install_agent { "deploy pending".to_string() } else { "agentless SSH".to_string() }, if state.install_agent { WARN } else { OK }),
+        ("MANAGED VIA", "agentless SSH".to_string(), OK),
     ];
 
     div()
-        .w(px(420.0))
+        .w(px(560.0))
         .flex_none()
         .flex()
         .flex_col()
@@ -1564,17 +1496,7 @@ fn render_right_rail(app: Entity<CrowApp>, onboard_state: &OnboardState) -> Div 
                                 .child(if state.host_key_accepted { "HOST KEY VERIFIED IN KNOWN_HOSTS" } else { "UNKNOWN HOST KEY FINGERPRINT" }),
                         ),
                 )
-                .child(
-                    div()
-                        .p(px(8.0))
-                        .bg(BG_PANEL)
-                        .border_1()
-                        .border_color(if state.host_key_accepted { hex_rgb(0x1a3322) } else { hex_rgb(0x2e2210) })
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .text_color(TEXT_PRIMARY)
-                        .child(fp),
-                )
+                .child(fingerprint_box(&fp, state.host_key_accepted))
                 .children(if !state.host_key_accepted && state.probe_result.as_ref().is_some_and(|p| !p.host_key_mismatch && !p.scanned_keys.is_empty()) {
                     Some(
                         div()
@@ -1643,20 +1565,20 @@ fn render_right_rail(app: Entity<CrowApp>, onboard_state: &OnboardState) -> Div 
                     state.probe_logs.iter().map(|log| {
                         div()
                             .flex()
-                            .items_center()
+                            .items_start()
                             .gap(px(7.0))
                             .py(px(1.5))
                             .font_family(FONT_MONO)
                             .text_size(px(10.0))
-                            .child(div().w(px(10.0)).text_color(log.color).child(log.glyph.clone()))
-                            .child(div().flex_1().text_color(TEXT_MUTED).child(log.message.clone()))
-                            .children(if !log.timestamp.is_empty() {
-                                Some(div().text_color(TEXT_FAINTER).child(log.timestamp.clone()))
+                            .child(div().w(px(10.0)).flex_none().text_color(log.color).child(log.glyph.clone()))
+                            .child(div().flex_1().min_w(px(0.0)).text_color(TEXT_MUTED).child(log.message.clone()))
+                            .children(if !log.note.is_empty() {
+                                Some(div().flex_none().text_color(TEXT_FAINT).child(log.note.clone()))
                             } else {
                                 None
                             })
-                            .children(if !log.note.is_empty() {
-                                Some(div().text_color(TEXT_FAINT).child(log.note.clone()))
+                            .children(if !log.timestamp.is_empty() {
+                                Some(div().flex_none().text_color(TEXT_FAINTER).child(log.timestamp.clone()))
                             } else {
                                 None
                             })
@@ -1791,4 +1713,25 @@ fn onboard_field(inputs: Option<&OnboardInputs>, field: OnboardFieldFocus) -> Di
             .bg(BG_APP)
             .rounded(px(2.0))
     }))
+}
+
+/// The host key's SHA256 fingerprint on its own line with the key type below
+/// it: the hash has no spaces to wrap at, so it gets the full width.
+fn fingerprint_box(fp: &str, accepted: bool) -> Div {
+    let (hash, kind) = match fp.rsplit_once(" (") {
+        Some((hash, kind)) => (hash.to_string(), Some(kind.trim_end_matches(')').to_string())),
+        None => (fp.to_string(), None),
+    };
+    div()
+        .p(px(8.0))
+        .bg(BG_PANEL)
+        .border_1()
+        .border_color(if accepted { hex_rgb(0x1a3322) } else { hex_rgb(0x2e2210) })
+        .overflow_hidden()
+        .flex()
+        .flex_col()
+        .gap(px(3.0))
+        .font_family(FONT_MONO)
+        .child(div().text_size(px(10.5)).text_color(TEXT_PRIMARY).child(hash))
+        .children(kind.map(|k| div().text_size(px(9.0)).text_color(TEXT_FAINT).child(k)))
 }

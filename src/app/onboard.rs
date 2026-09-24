@@ -387,7 +387,7 @@ impl CrowApp {
             arch: self.onboard_state.facts.arch.clone(),
             memory_total: self.onboard_state.facts.memory.clone(),
             disk_total: self.onboard_state.facts.disk.clone(),
-            agent_installed: self.onboard_state.install_agent,
+            agent_installed: false,
             agent_version: None,
             status: status.clone(),
             created_at: now.clone(),

@@ -83,7 +83,6 @@ impl Render for CrowApp {
                             self.screen,
                             self.menu_open,
                             self.fleet.servers.len(),
-                            self.fleet.servers.iter().filter(|s| s.agent_installed).count(),
                             self.session_label(),
                             app_view.clone(),
                         ))
@@ -344,7 +343,7 @@ impl Render for CrowApp {
                                                                                 .text_size(px(11.5))
                                                                                 .text_color(TEXT_FAINT)
                                                                                 .child(div().size(px(6.0)).rounded_full().bg(OK))
-                                                                                .child(format!("{} · agent discovery stream pending", self.active_view)),
+                                                                                .child(format!("{} · not built yet", self.active_view)),
                                                                         ),
                                                                 )
                                                             })

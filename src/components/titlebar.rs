@@ -49,7 +49,6 @@ pub fn titlebar(
     current_screen: Screen,
     menu_open: bool,
     server_count: usize,
-    agent_count: usize,
     session: String,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
@@ -262,13 +261,7 @@ pub fn titlebar(
 
     // 4. Session meta (varies by screen)
     let meta_text = if current_screen == Screen::Fleet {
-        format!(
-            "{} host{} · {} agent{}",
-            server_count,
-            if server_count == 1 { "" } else { "s" },
-            agent_count,
-            if agent_count == 1 { "" } else { "s" }
-        )
+        format!("{} host{} · agentless ssh", server_count, if server_count == 1 { "" } else { "s" })
     } else {
         session
     };
