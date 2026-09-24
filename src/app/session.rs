@@ -96,8 +96,11 @@ impl CrowApp {
 
     pub fn set_screen(&mut self, screen: Screen, cx: &mut Context<Self>) {
         if screen == Screen::Onboard && self.screen != Screen::Onboard {
+            // A fresh wizard: new state, and new inputs so the text boxes
+            // don't keep the last server's values.
             self.onboard_state = OnboardState::new(&self.keys.enrolled);
-            self.caret.place(self.onboard_state.host.chars().count());
+            self.onboard_inputs = None;
+            self.onboard_focus_pending = true;
         } else if screen == Screen::VaultSetup && self.screen != Screen::VaultSetup {
             self.setup_state = SetupState::default();
             self.caret.place(0);

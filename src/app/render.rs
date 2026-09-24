@@ -3,6 +3,7 @@ use gpui_kit::*;
 use super::{CrowApp, Screen};
 use crate::components::danger_zone::danger_zone;
 use crate::components::identity_bar::{connection_banner, identity_bar};
+use crate::components::window_frame::window_frame;
 use crate::components::palette::palette_overlay;
 use crate::components::sidebar::sidebar;
 use crate::components::stat_strip::stat_strip;
@@ -39,7 +40,7 @@ impl Render for CrowApp {
         let app_view = cx.entity();
         let vault_status = self.vault.status();
 
-        div()
+        let app_root = div()
             .track_focus(&self.focus_handle)
             .on_key_down(cx.listener(|this, ev: &KeyDownEvent, window, cx| {
                 this.handle_key_down(ev, window, cx);
@@ -409,7 +410,8 @@ impl Render for CrowApp {
                 )
             } else {
                 None
-            })
+            });
+        window_frame(window, app_root)
     }
 }
 

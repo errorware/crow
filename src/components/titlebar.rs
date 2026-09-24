@@ -251,12 +251,7 @@ pub fn titlebar(
                     .id("titlebar-drag-region")
                     .flex_1()
                     .h_full()
-                    .on_mouse_down(MouseButton::Left, |_ev, window, _cx| {
-                        window.start_window_move();
-                    })
-                    .on_double_click(|_ev, window, _cx| {
-                        window.zoom_window();
-                    }),
+                    .on_mouse_down(MouseButton::Left, |ev, window, _cx| crate::components::window_frame::titlebar_mouse_down(ev, window)),
             ),
     );
 
@@ -281,12 +276,7 @@ pub fn titlebar(
             .text_color(TEXT_FAINT)
             .border_l_1()
             .border_color(BORDER_PANEL)
-            .on_mouse_down(MouseButton::Left, |_ev, window, _cx| {
-                window.start_window_move();
-            })
-            .on_double_click(|_ev, window, _cx| {
-                window.zoom_window();
-            })
+            .on_mouse_down(MouseButton::Left, |ev, window, _cx| crate::components::window_frame::titlebar_mouse_down(ev, window))
             .child(div().child(meta_text))
             .children(if current_screen == Screen::Server {
                 Some(

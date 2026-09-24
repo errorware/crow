@@ -62,6 +62,9 @@ fn main() {
                     traffic_light_position: None,
                 });
                 options.window_decorations = Some(WindowDecorations::Client);
+                // The resize border around the app (components::window_frame)
+                // must show the desktop through it.
+                options.window_background = WindowBackgroundAppearance::Transparent;
             }
             options.is_resizable = true;
             options.is_minimizable = true;

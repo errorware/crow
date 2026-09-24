@@ -462,7 +462,9 @@ impl CrowApp {
             port,
             login_user: self.onboard_state.user.trim().to_string(),
             auth_method: self.onboard_state.auth_method.clone(),
-            key_id: self.onboard_state.selected_key_id.clone(),
+            // Only key login uses a key; a key picked earlier in the wizard
+            // doesn't belong to a password or ssh-agent server.
+            key_id: self.onboard_state.selected_key_id.clone().filter(|_| self.onboard_state.auth_method == "publickey"),
             jump_host_id: self.onboard_state.jump_host_id.clone(),
             env: self.onboard_state.env.clone(),
             role: self.onboard_state.role.clone(),
@@ -515,6 +517,9 @@ impl CrowApp {
         self.screen = Screen::Server;
         self.active_view = "overview".to_string();
         self.keys.toast = Some(format!("Server '{}' enrolled into fleet", name));
+        // Nothing of the wizard outlives it, least of all a password.
+        self.onboard_state.password.zeroize();
+        self.onboard_inputs = None;
 
         cx.notify();
     }
