@@ -9,17 +9,16 @@ use crow_config_core::edit::EditOp;
 use gpui_kit::component::input::InputState;
 
 use super::CrowApp;
-use crate::config::plugins::{self, apply_edit as apply_structured_edit, editor_for, ConfigEditor, DedicatedScreen, RiskFinding, StructuredFormat};
+use crate::config::plugins::{self, apply_edit as apply_structured_edit, editor_for, ConfigEditor, RiskFinding, StructuredFormat};
 use crate::theme::{FONT_MONO, TEXT_FAINT};
 use crate::views::config::journald_editor::journald_editor;
 use crate::views::config::raw_config_editor;
-use crate::views::config::structured_editor::{screen_handoff, structured_editor, ActiveFieldEdit};
-use super::Screen;
+use crate::views::config::structured_editor::{structured_editor, ActiveFieldEdit};
 use gpui_kit::component::input::{EditorState, InputEvent};
 use crate::views::config::text_editor::{highlighter_factory, CONFIG_LANGUAGE};
 use std::sync::Arc;
 
-use crate::config::{crawl_configs, load_config_file_states};
+use crate::config::{crawl_all_configs, load_config_file_states};
 use crate::host::{host_for, Host, LocalHost};
 use crate::os_detect::{classify_distro_family, detect_os_release, DistroFamily};
 use crate::vault::ServerRecord;
@@ -70,8 +69,11 @@ pub fn load_configs(server: Option<&ServerRecord>, firewall: &FirewallOperationa
         None => Arc::new(LocalHost),
     };
     let family = detect_os_release(host.as_ref()).map(|d| classify_distro_family(&d)).unwrap_or(DistroFamily::Unknown);
-    let files = crawl_configs(host.as_ref(), family);
-    let states = load_config_file_states(host.as_ref(), &files);
+    // States for every file (the Cron screen edits crontab's); the list
+    // only shows files the Config screen edits itself.
+    let all = crawl_all_configs(host.as_ref(), family);
+    let states = load_config_file_states(host.as_ref(), &all);
+    let files: Vec<_> = all.into_iter().filter(|f| editor_for(f.schema_kind).is_listed()).collect();
     let selected = files.first().map(|f| f.name.clone()).unwrap_or_else(|| "journald.conf".to_string());
 
     let mut configs = ConfigsState::new(files, states, selected);
@@ -302,7 +304,6 @@ impl CrowApp {
             ConfigEditor::Journald => {
                 return journald_editor(&self.journal.retention, &self.journal.telemetry, &self.configs, app).into_any_element();
             }
-            ConfigEditor::Screen(screen) => return screen_handoff(&selected, screen, app).into_any_element(),
             ConfigEditor::Structured(format) if !self.configs.text_mode.contains(&selected) => {
                 if let Some(st) = self.configs.states.get(&selected) {
                     match plugins::to_ir(format, &st.current_content) {
@@ -337,32 +338,17 @@ impl CrowApp {
         }
     }
 
-    /// Opens the Crow screen that owns a config file.
-    pub fn open_dedicated_screen(&mut self, screen: DedicatedScreen, cx: &mut Context<Self>) {
-        match screen {
-            DedicatedScreen::Cron => self.set_view("cron", cx),
-            DedicatedScreen::Firewall => self.set_view("firewall", cx),
-            DedicatedScreen::Users => self.set_view("users", cx),
-            DedicatedScreen::Settings => self.set_screen(Screen::Settings, cx),
-        }
-    }
-
     pub fn toggle_config_history(&mut self, cx: &mut Context<Self>) {
         self.configs.show_history = !self.configs.show_history;
         cx.notify();
     }
 
-    /// Selects a file; files owned by a dedicated screen open that screen.
     pub fn select_managed_file(&mut self, filename: &str, cx: &mut Context<Self>) {
         self.configs.selected_file = filename.to_string();
         self.configs.open_enum = None;
         self.configs.adding_row = false;
         self.configs.edit_error = None;
         self.structured_field_edit = None;
-        let kind = self.configs.files.iter().find(|f| f.name == filename).and_then(|f| f.schema_kind);
-        if let ConfigEditor::Screen(screen) = editor_for(kind) {
-            self.open_dedicated_screen(screen, cx);
-        }
         cx.notify();
     }
 

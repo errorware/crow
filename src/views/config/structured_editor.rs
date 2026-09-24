@@ -12,7 +12,7 @@ use crow_config_core::schema::{FieldType, RiskLevel, WidgetKind};
 
 use crate::app::configs::{RiskConfirm, RISK_CONFIRM_KEYWORD};
 use crate::app::CrowApp;
-use crate::config::plugins::{plugin, sshd_match_scopes, DedicatedScreen, StructuredFormat};
+use crate::config::plugins::{plugin, sshd_match_scopes, StructuredFormat};
 use crate::config::ConfigFileState;
 use crate::theme::*;
 
@@ -513,29 +513,6 @@ fn render_add_section(file: &str, format: StructuredFormat, ir: &ConfigDocumentI
                 })
                 .child(div().w(px(200.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_PRIMARY).child(name))
                 .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(risk_color(risk.as_ref())).child(value))
-        }))
-}
-
-/// Shown for a config file owned by another Crow screen (e.g. crontab → Cron).
-pub fn screen_handoff(file: &str, screen: DedicatedScreen, app: Entity<CrowApp>) -> impl IntoElement {
-    div()
-        .flex_1()
-        .h_full()
-        .flex()
-        .flex_col()
-        .items_center()
-        .justify_center()
-        .gap(px(10.0))
-        .bg(BG_APP)
-        .child(
-            div()
-                .font_family(FONT_MONO)
-                .text_size(px(12.0))
-                .text_color(TEXT_SECONDARY)
-                .child(format!("{file} is managed on the {} screen.", screen.title())),
-        )
-        .child(small_button("btn-open-dedicated-screen", "OPEN SCREEN", hex_rgb(0x8ab4ff)).on_click(move |_ev, _window, cx| {
-            app.update(cx, |this, cx| this.open_dedicated_screen(screen, cx));
         }))
 }
 
