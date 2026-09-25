@@ -1,6 +1,8 @@
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
+use gpui_kit::prelude::FluentBuilder as _;
 use crate::theme::*;
+use crate::app::region::FleetEnvFilter;
 use crate::app::{CrowApp, Screen};
 use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::host::{connection_state, transport_kind, ConnectionState, TransportKind};
@@ -30,6 +32,8 @@ pub struct FleetHost {
     pub is_critical_border: bool,
     pub pill: String,
     pub is_selected: bool,
+    /// ISO country code ("" when unknown).
+    pub country: String,
 }
 
 pub fn fleet_stat_strip(
@@ -42,11 +46,17 @@ pub fn fleet_stat_strip(
 ) -> impl IntoElement {
     let server_count = servers.len();
     let groups: std::collections::BTreeSet<&str> = servers.iter().map(|s| s.group_name.as_str()).filter(|g| !g.is_empty()).collect();
+    let regions: std::collections::BTreeSet<&str> = servers.iter().map(|s| s.region_country.as_str()).filter(|c| !c.is_empty()).collect();
     let group_note = match groups.len() {
         0 if server_count == 0 => "none enrolled".to_string(),
         0 => "ungrouped".to_string(),
         1 => "1 group".to_string(),
         n => format!("{n} groups"),
+    };
+    let group_note = match regions.len() {
+        0 => group_note,
+        1 => format!("1 region · {group_note}"),
+        n => format!("{n} regions · {group_note}"),
     };
     let load_val = avg_load.map(|l| format!("{:.2}", l)).unwrap_or_else(|| "—".to_string());
     let vcpu_note = if total_vcpu > 0 { format!("avg 1m load · {} vCPU", total_vcpu) } else { "no metrics yet".to_string() };
@@ -187,6 +197,7 @@ pub fn fleet_overview_view(
                 is_critical_border: is_crit,
                 pill,
                 is_selected: s.id == fleet.active_tab_id,
+                country: s.region_country.clone(),
             }
         }).collect()
     } else {
@@ -194,6 +205,24 @@ pub fn fleet_overview_view(
     };
 
     let server_count = hosts.len();
+    // Counts for the tabs and region chips come from the whole fleet; the
+    // table shows what the environment tab and region chip select (ERR-36).
+    let env_count = |f: FleetEnvFilter| hosts.iter().filter(|h| f.matches(&h.env)).count();
+    let env_counts = [FleetEnvFilter::All, FleetEnvFilter::Prod, FleetEnvFilter::Stage, FleetEnvFilter::DevLab].map(env_count);
+    let mut region_counts: Vec<(String, usize)> = Vec::new();
+    for h in &hosts {
+        match region_counts.iter_mut().find(|(c, _)| *c == h.country) {
+            Some((_, n)) => *n += 1,
+            None => region_counts.push((h.country.clone(), 1)),
+        }
+    }
+    region_counts.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.is_empty().cmp(&b.0.is_empty())).then_with(|| a.0.cmp(&b.0)));
+    let hosts: Vec<FleetHost> = hosts
+        .into_iter()
+        .filter(|h| fleet.env_filter.matches(&h.env))
+        .filter(|h| fleet.region_filter.as_ref().is_none_or(|c| *c == h.country))
+        .collect();
+    let visible_count = hosts.len();
     // Servers Crow can talk to right now: local and lab transports, or SSH
     // whose last command connected.
     let connected_count = fleet.servers.iter().filter(|s| match transport_kind(s) {
@@ -300,21 +329,22 @@ pub fn fleet_overview_view(
                                 .gap(px(14.0))
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.5))
-                                .child(
-                                    div()
-                                        .px(px(8.0))
-                                        .py(px(2.0))
-                                        .bg(BG_ROW_SELECTED)
-                                        .border_1()
-                                        .border_color(BORDER_CONTROL_SEL)
-                                        .text_color(TEXT_MAX)
-                                        .font_weight(FontWeight::BOLD)
-                                        .child(format!("ALL ({})", server_count)),
-                                )
-                                .child(div().text_color(TEXT_MUTED).child(format!("PRODUCTION ({})", hosts.iter().filter(|h| h.env == "PROD").count())))
-                                .child(div().text_color(TEXT_MUTED).child(format!("STAGING ({})", hosts.iter().filter(|h| h.env == "STAGE").count())))
-                                .child(div().text_color(TEXT_MUTED).child(format!("DEV / LAB ({})", hosts.iter().filter(|h| h.env == "DEV" || h.env == "LAB").count())))
-                                .child(div().text_color(TEXT_MUTED).child("BY REGION"))
+                                .children([
+                                    (FleetEnvFilter::All, "ALL", env_counts[0]),
+                                    (FleetEnvFilter::Prod, "PRODUCTION", env_counts[1]),
+                                    (FleetEnvFilter::Stage, "STAGING", env_counts[2]),
+                                    (FleetEnvFilter::DevLab, "DEV / LAB", env_counts[3]),
+                                ].into_iter().map(|(filter, label, count)| {
+                                    let app = app.clone();
+                                    fleet_tab(SharedString::from(format!("fleet-env-{label}")), format!("{label} ({count})"), fleet.env_filter == filter)
+                                        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_fleet_env_filter(filter, cx)))
+                                }))
+                                .child({
+                                    let app = app.clone();
+                                    let regions = region_counts.iter().filter(|(c, _)| !c.is_empty()).count();
+                                    fleet_tab("fleet-by-region".into(), if regions > 0 { format!("BY REGION ({regions})") } else { "BY REGION".into() }, fleet.region_bar_open)
+                                        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.toggle_fleet_region_bar(cx)))
+                                })
                                 .child({
                                     let app_lab = app.clone();
                                     div()
@@ -343,9 +373,66 @@ pub fn fleet_overview_view(
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.5))
                                         .text_color(TEXT_DIMMER)
-                                        .child(format!("{} hosts · sort health ↓ · click to open", server_count)),
+                                        .child(if visible_count == server_count { format!("{} hosts · sort health ↓ · click to open", server_count) } else { format!("{visible_count} of {server_count} hosts · click to open") }),
                                 ),
                         )
+                        // Region chips (BY REGION): one per country, with counts.
+                        .children(fleet.region_bar_open.then(|| {
+                            let app_detect = app.clone();
+                            div()
+                                .h(px(32.0))
+                                .flex_none()
+                                .flex()
+                                .items_center()
+                                .gap(px(6.0))
+                                .px(px(14.0))
+                                .bg(BG_APP)
+                                .border_b_1()
+                                .border_color(BORDER_PANEL)
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .children(region_counts.iter().map(|(cc, n)| {
+                                    let app = app.clone();
+                                    let on = fleet.region_filter.as_deref() == Some(cc.as_str());
+                                    let target = if on { None } else { Some(cc.clone()) };
+                                    let label = if cc.is_empty() { "UNKNOWN".to_string() } else { crate::region::country_name(cc).unwrap_or(cc).to_uppercase() };
+                                    div()
+                                        .id(SharedString::from(format!("fleet-region-{cc}")))
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(6.0))
+                                        .px(px(7.0))
+                                        .py(px(2.0))
+                                        .border_1()
+                                        .border_color(if on { TEXT_SECONDARY } else { BORDER_DEFAULT })
+                                        .bg(if on { BG_CHIP } else { hex_rgba(0, 0.0) })
+                                        .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+                                        .cursor_pointer()
+                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .on_click(move |_ev, _window, cx| {
+                                            let target = target.clone();
+                                            app.update(cx, |this, cx| this.set_fleet_region_filter(target, cx));
+                                        })
+                                        .child(crate::components::flag::flag(cc, 10.0))
+                                        .child(format!("{label} {n}"))
+                                }))
+                                .child(div().flex_1())
+                                .children(fleet.region_note.clone().map(|n| div().text_color(TEXT_FAINT).child(n)))
+                                .child(
+                                    div()
+                                        .id("fleet-detect-regions")
+                                        .px(px(8.0))
+                                        .py(px(2.0))
+                                        .border_1()
+                                        .border_color(if fleet.region_detecting { BORDER_DEFAULT } else { OK })
+                                        .text_color(if fleet.region_detecting { TEXT_FAINT } else { OK })
+                                        .font_weight(FontWeight::BOLD)
+                                        .when(!fleet.region_detecting, |d| {
+                                            d.cursor_pointer().hover(|s| s.bg(OK_BG)).on_click(move |_ev, _window, cx| app_detect.update(cx, |this, cx| this.detect_server_regions(None, cx)))
+                                        })
+                                        .child(if fleet.region_detecting { "DETECTING…" } else { "DETECT REGIONS ↻" }),
+                                )
+                        }))
                         // Table Column Headers
                         .child(
                             div()
@@ -550,6 +637,7 @@ pub fn fleet_overview_view(
                                                     .flex()
                                                     .items_center()
                                                     .gap(px(6.0))
+                                                    .child(crate::components::flag::flag(&host.country, 11.0))
                                                     .child(
                                                         div()
                                                             .font_weight(if host.is_selected {
@@ -1114,4 +1202,20 @@ pub fn fleet_overview_view(
         .children(fleet.pending_archive.as_ref().and_then(|id| fleet.servers.iter().find(|s| &s.id == id)).map(|srv| {
             archive_confirm_overlay(srv, &purge_due, app.clone())
         }))
+}
+
+/// One tab in the Fleet list's filter bar.
+fn fleet_tab(id: SharedString, label: String, selected: bool) -> Stateful<Div> {
+    div()
+        .id(id)
+        .px(px(8.0))
+        .py(px(2.0))
+        .border_1()
+        .border_color(if selected { BORDER_CONTROL_SEL } else { hex_rgba(0, 0.0) })
+        .bg(if selected { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
+        .text_color(if selected { TEXT_MAX } else { TEXT_MUTED })
+        .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
+        .cursor_pointer()
+        .hover(|s| s.text_color(TEXT_PRIMARY))
+        .child(label)
 }

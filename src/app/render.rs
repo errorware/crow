@@ -219,7 +219,7 @@ impl Render for CrowApp {
                                                     .flex()
                                                     .flex_col()
                                                     // Server Identity Bar
-                                                    .child(identity_bar(active_srv, app_view.clone()))
+                                                    .child(identity_bar(active_srv, self.region_picker_open, app_view.clone()))
                                                     .children(connection_banner(active_srv, app_view.clone()))
                                                     // Server Stat Strip
                                                     .child(stat_strip(active_mtr, self.fleet.metrics_lag_secs, self.fleet.active_surge_alert.as_ref()))

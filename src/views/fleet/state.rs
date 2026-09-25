@@ -26,6 +26,14 @@ pub struct FleetState {
     pub notice: Option<String>,
     /// Server awaiting archive confirmation.
     pub pending_archive: Option<String>,
+    /// Fleet list filters: environment tab, and region (country code; ""
+    /// for servers with no known region) under the BY REGION tab (ERR-36).
+    pub env_filter: crate::app::region::FleetEnvFilter,
+    pub region_bar_open: bool,
+    pub region_filter: Option<String>,
+    /// A region detection run is in progress / its result.
+    pub region_detecting: bool,
+    pub region_note: Option<String>,
 }
 
 impl FleetState {
@@ -45,6 +53,11 @@ impl FleetState {
             metrics_lag_secs: 24,
             active_surge_alert: None,
             bottom_panel_height: 260.0,
+            env_filter: Default::default(),
+            region_bar_open: false,
+            region_filter: None,
+            region_detecting: false,
+            region_note: None,
             archived: Vec::new(),
             show_archived: false,
             notice: None,

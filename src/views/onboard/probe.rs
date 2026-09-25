@@ -46,6 +46,8 @@ pub struct DetectedFacts {
     pub firewall: String,
     pub time_sync: String,
     pub schema_packs: Vec<(String, Rgba, Rgba)>,
+    /// Where the server lives, from its cloud provider's metadata (ERR-36).
+    pub region: Option<crate::region::DetectedRegion>,
 }
 
 /// Facts not read yet: shown as unknown, never guessed.
@@ -63,6 +65,7 @@ impl Default for DetectedFacts {
             firewall: unknown(),
             time_sync: unknown(),
             schema_packs: Vec::new(),
+            region: None,
         }
     }
 }
@@ -204,7 +207,9 @@ t=$(timedatectl show -p NTPSynchronized --value 2>/dev/null); [ -n "$t" ] && ech
 for b in sshd systemctl ufw nginx postgres redis-server docker podman; do command -v "$b" >/dev/null 2>&1 && echo "tool=$b"; done
 if [ "$(id -u)" = 0 ]; then echo "sudo=root"; elif sudo -n true 2>/dev/null; then echo "sudo=passwordless"; else echo "sudo=needs password"; fi
 true"#;
-    let out = match host.exec(&["sh", "-c", script], DEFAULT_TIMEOUT) {
+    // The region probe rides along in the same round trip.
+    let script = format!("{script}\n{}", crate::region::REGION_PROBE);
+    let out = match host.exec(&["sh", "-c", &script], DEFAULT_TIMEOUT) {
         Ok(o) => o.stdout,
         Err(e) => {
             log(&mut logs, "✕", CRIT, format!("could not read facts over SSH: {e}"), String::new());
@@ -235,6 +240,15 @@ true"#;
             }
             _ => {}
         }
+    }
+    facts.region = crate::region::parse_region_probe(&out);
+    if let Some(r) = &facts.region {
+        let place = match (crate::region::country_name(&r.country), r.city.is_empty()) {
+            (Some(c), false) => format!("{}, {c}", r.city),
+            (Some(c), true) => c.to_string(),
+            (None, _) => "unknown location".to_string(),
+        };
+        log(&mut logs, "✓", OK, format!("region {place} · {} {}", r.provider, r.code), "cloud metadata".into());
     }
     facts.firewall = if tools.iter().any(|t| t == "ufw") { "ufw installed".into() } else { "—".into() };
     facts.schema_packs = tools.iter().filter(|t| *t != "systemctl").map(|t| (t.clone(), OK, OK_BG)).collect();

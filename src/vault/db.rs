@@ -136,6 +136,20 @@ pub struct ServerRecord {
     /// When Crow deleted the data it stored about this server, if the archive
     /// window has closed. The server record itself is never deleted.
     pub purged_at: Option<String>,
+    /// Where the server lives (ERR-36): ISO 3166 country code ("DE"), city
+    /// ("Frankfurt"), cloud provider ("Linode"), the provider's region code
+    /// ("de-fra-2") and where it came from ("metadata" or "manual").
+    /// Empty when unknown.
+    #[serde(default)]
+    pub region_country: String,
+    #[serde(default)]
+    pub region_city: String,
+    #[serde(default)]
+    pub region_provider: String,
+    #[serde(default)]
+    pub region_code: String,
+    #[serde(default)]
+    pub region_source: String,
 }
 
 /// The audit-log scope for actions Crow takes on its own behalf, such as
@@ -429,6 +443,10 @@ impl VaultDb {
         // has both, so these alters fail harmlessly there.
         let _ = self.conn.execute("ALTER TABLE servers ADD COLUMN archived_at TEXT", []);
         let _ = self.conn.execute("ALTER TABLE servers ADD COLUMN purged_at TEXT", []);
+        // ERR-36: where each server lives.
+        for col in ["region_country", "region_city", "region_provider", "region_code", "region_source"] {
+            let _ = self.conn.execute(&format!("ALTER TABLE servers ADD COLUMN {col} TEXT NOT NULL DEFAULT ''"), []);
+        }
 
         // Older vaults were seeded with invented usage numbers and a
         // placeholder provider. Usage with no last-used time was never real.
@@ -946,7 +964,8 @@ impl VaultDb {
     const SERVER_COLUMNS: &'static str = "id, name, host, port, login_user, auth_method, key_id, jump_host_id,
                 env, role, group_name, tags, host_key_fingerprint, os_distro, os_kernel,
                 arch, memory_total, disk_total, agent_installed, agent_version, status,
-                created_at, last_seen_at, archived_at, purged_at";
+                created_at, last_seen_at, archived_at, purged_at,
+                region_country, region_city, region_provider, region_code, region_source";
 
     fn row_to_server(r: &rusqlite::Row<'_>) -> rusqlite::Result<ServerRecord> {
         let tags_json: String = r.get(11)?;
@@ -978,6 +997,11 @@ impl VaultDb {
             last_seen_at: r.get(22)?,
             archived_at: r.get(23)?,
             purged_at: r.get(24)?,
+            region_country: r.get(25)?,
+            region_city: r.get(26)?,
+            region_provider: r.get(27)?,
+            region_code: r.get(28)?,
+            region_source: r.get(29)?,
         })
     }
 
@@ -1021,8 +1045,9 @@ impl VaultDb {
                 id, name, host, port, login_user, auth_method, key_id, jump_host_id,
                 env, role, group_name, tags, host_key_fingerprint, os_distro, os_kernel,
                 arch, memory_total, disk_total, agent_installed, agent_version, status,
-                created_at, last_seen_at, archived_at, purged_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)
+                created_at, last_seen_at, archived_at, purged_at,
+                region_country, region_city, region_provider, region_code, region_source
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 host = excluded.host,
@@ -1046,14 +1071,20 @@ impl VaultDb {
                 status = excluded.status,
                 last_seen_at = excluded.last_seen_at,
                 archived_at = excluded.archived_at,
-                purged_at = excluded.purged_at",
+                purged_at = excluded.purged_at,
+                region_country = excluded.region_country,
+                region_city = excluded.region_city,
+                region_provider = excluded.region_provider,
+                region_code = excluded.region_code,
+                region_source = excluded.region_source",
             params![
                 srv.id, srv.name, srv.host, srv.port, srv.login_user, srv.auth_method,
                 srv.key_id, srv.jump_host_id, srv.env, srv.role, srv.group_name,
                 tags_json, srv.host_key_fingerprint, srv.os_distro, srv.os_kernel,
                 srv.arch, srv.memory_total, srv.disk_total, agent_inst,
                 srv.agent_version, srv.status, created, srv.last_seen_at,
-                srv.archived_at, srv.purged_at
+                srv.archived_at, srv.purged_at,
+                srv.region_country, srv.region_city, srv.region_provider, srv.region_code, srv.region_source
             ],
         )?;
         Ok(())
@@ -1547,12 +1578,18 @@ mod tests {
             last_seen_at: None,
             archived_at: None,
             purged_at: None,
+            region_country: "DE".into(),
+            region_city: "Frankfurt".into(),
+            region_provider: "Linode".into(),
+            region_code: "de-fra-2".into(),
+            region_source: "metadata".into(),
         };
 
         db.upsert_server(&srv).unwrap();
 
         let fetched = db.get_server("srv-custom-01").unwrap().unwrap();
         assert_eq!(fetched.name, "custom-01");
+        assert_eq!((fetched.region_country.as_str(), fetched.region_code.as_str(), fetched.region_source.as_str()), ("DE", "de-fra-2", "metadata"), "region round-trips");
         assert_eq!(fetched.host, "10.0.9.99");
         assert_eq!(fetched.port, 22);
         assert_eq!(fetched.tags.len(), 2);

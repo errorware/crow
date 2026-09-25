@@ -1,4 +1,5 @@
 use gpui_kit::*;
+use gpui_kit::component::scroll::ScrollableElement;
 use crate::theme::*;
 use crate::app::CrowApp;
 use crate::host::{connection_state, transport_kind, ConnectionState, TransportKind};
@@ -6,7 +7,7 @@ use crate::vault::ServerRecord;
 use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::os_detect::{classify_distro_family, DistroFamily};
 
-pub fn identity_bar(server: Option<&ServerRecord>, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn identity_bar(server: Option<&ServerRecord>, region_picker_open: bool, app: Entity<CrowApp>) -> impl IntoElement {
     let app_clone = app.clone();
 
     let server_name = server.map(|s| s.name.as_str()).unwrap_or("localhost");
@@ -72,28 +73,49 @@ pub fn identity_bar(server: Option<&ServerRecord>, app: Entity<CrowApp>) -> impl
         .bg(BG_PANEL)
         .border_b_1()
         .border_color(BORDER_PANEL)
-        // 1. Server identity
+        // 1. Server identity, with where it lives (ERR-36)
         .child(
             div()
+                .relative()
                 .flex()
                 .flex_col()
                 .gap(px(2.0))
                 .px(px(16.0))
                 .child(
                     div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(15.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
-                        .child(server_name.to_string()),
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .children(server.map(|s| crate::components::flag::flag(&s.region_country, 12.0)))
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(15.0))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(TEXT_PRIMARY)
+                                .child(server_name.to_string()),
+                        ),
                 )
                 .child(
                     div()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
                         .font_family("JetBrains Mono")
                         .text_size(px(9.5))
-                        .text_color(hex_rgb(0x22d3ee))
-                        .child(endpoint_str),
-                ),
+                        .child(div().text_color(hex_rgb(0x22d3ee)).child(endpoint_str))
+                        .children(server.map(|s| {
+                            let app = app.clone();
+                            div()
+                                .id("identity-region")
+                                .text_color(TEXT_DIM)
+                                .cursor_pointer()
+                                .hover(|h| h.text_color(TEXT_PRIMARY))
+                                .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.toggle_region_picker(cx)))
+                                .child(format!("· {}", region_label(s)))
+                        })),
+                )
+                .children(server.filter(|_| region_picker_open).map(|s| deferred(region_picker(s, app.clone())).with_priority(1))),
         )
         // 2. Connection state
         .child(
@@ -347,4 +369,86 @@ pub fn connection_banner(server: Option<&ServerRecord>, app: Entity<CrowApp>) ->
                     .child("set up key login →")
             })),
     )
+}
+
+/// "Frankfurt, Germany · Linode de-fra-2", "Germany (set by hand)", or an
+/// invitation to set it.
+fn region_label(s: &ServerRecord) -> String {
+    let place = match (crate::region::country_name(&s.region_country), s.region_city.as_str()) {
+        (Some(c), "") => c.to_string(),
+        (Some(c), city) => format!("{city}, {c}"),
+        (None, _) if !s.region_country.is_empty() => s.region_country.clone(),
+        (None, _) => return if s.region_provider.is_empty() { "region: unknown ▾".into() } else { format!("{} · region unknown ▾", s.region_provider) },
+    };
+    match s.region_source.as_str() {
+        "manual" => format!("{place} (set by hand) ▾"),
+        _ if !s.region_provider.is_empty() => format!("{place} · {} {} ▾", s.region_provider, s.region_code).replace("  ", " "),
+        _ => format!("{place} ▾"),
+    }
+}
+
+/// Pick the server's country by hand, detect it again, or clear it.
+fn region_picker(s: &ServerRecord, app: Entity<CrowApp>) -> impl IntoElement {
+    let id = s.id.clone();
+    let (app_detect, app_clear, id_detect, id_clear) = (app.clone(), app.clone(), id.clone(), id.clone());
+    let action = |el_id: &'static str, label: &'static str, color: Rgba| {
+        div().id(el_id).px(px(8.0)).py(px(3.0)).border_1().border_color(color).text_color(color).font_weight(FontWeight::BOLD).cursor_pointer().hover(|h| h.bg(BG_ROW_HOVER)).child(label)
+    };
+    div()
+        .absolute()
+        .top(px(46.0))
+        .left(px(16.0))
+        .w(px(300.0))
+        .bg(BG_PANEL)
+        .border_1()
+        .border_color(BORDER_DEFAULT)
+        .rounded_md()
+        .shadow_lg()
+        .occlude()
+        .flex()
+        .flex_col()
+        .font_family(FONT_MONO)
+        .text_size(px(10.5))
+        .child(
+            div()
+                .flex()
+                .gap(px(6.0))
+                .p(px(8.0))
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .child(action("region-detect", "DETECT FROM CLOUD", OK).on_click(move |_ev, _window, cx| {
+                    let id = id_detect.clone();
+                    app_detect.update(cx, |this, cx| {
+                        this.region_picker_open = false;
+                        this.detect_server_regions(Some(id), cx);
+                    })
+                }))
+                .child(action("region-clear", "CLEAR", TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
+                    let id = id_clear.clone();
+                    app_clear.update(cx, |this, cx| this.set_server_region(&id, None, cx))
+                })),
+        )
+        .child(
+            div().id("region-country-list").h(px(260.0)).overflow_y_scrollbar().py(px(4.0)).children(crate::region::COUNTRIES.iter().map(|(cc, name)| {
+                let (app, id) = (app.clone(), id.clone());
+                let selected = s.region_country == *cc;
+                div()
+                    .id(SharedString::from(format!("region-pick-{cc}")))
+                    .flex()
+                    .items_center()
+                    .gap(px(8.0))
+                    .px(px(10.0))
+                    .py(px(4.0))
+                    .bg(if selected { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
+                    .text_color(if selected { TEXT_MAX } else { TEXT_SECONDARY })
+                    .cursor_pointer()
+                    .hover(|h| h.bg(BG_ROW_HOVER))
+                    .on_click(move |_ev, _window, cx| {
+                        let id = id.clone();
+                        app.update(cx, |this, cx| this.set_server_region(&id, Some(cc), cx))
+                    })
+                    .child(crate::components::flag::flag(cc, 11.0))
+                    .child(*name)
+            })),
+        )
 }
