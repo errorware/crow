@@ -19,6 +19,9 @@ struct KeyPress<'a> {
     /// Platform (⌘) or Control held.
     is_mod: bool,
     is_shift: bool,
+    /// A text input inside the window has focus (the key is being typed
+    /// into it), so unmodified shortcuts must stay out of the way (ERR-64).
+    typing: bool,
 }
 
 impl CrowApp {
@@ -46,13 +49,17 @@ impl CrowApp {
     /// Routes a key press to whichever surface owns the keyboard right now, in
     /// priority order: vault lock screen, vault setup, key-hub modals, settings
     /// dropdown, onboarding, config search, then global shortcuts.
-    pub(super) fn handle_key_down(&mut self, ev: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn handle_key_down(&mut self, ev: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         let key = ev.keystroke.key.to_lowercase();
+        // The root keeps focus unless a gpui Input (or another focusable
+        // child) took it; key events still bubble up to here.
+        let typing = window.focused(cx).is_some_and(|f| f != self.focus_handle);
         let k = KeyPress {
             ev,
             key: &key,
             is_mod: ev.keystroke.modifiers.platform || ev.keystroke.modifiers.control,
             is_shift: ev.keystroke.modifiers.shift,
+            typing,
         };
         // Danger Zone confirm and Files new-folder prompt are native
         // gpui-component Input widgets — they own their own focus and
@@ -413,7 +420,24 @@ impl CrowApp {
 
     /// Global shortcuts (escape, palette, sidebar, screens). Returns true when the key was consumed.
     fn keys_global_shortcuts(&mut self, k: &KeyPress, cx: &mut Context<Self>) -> bool {
-        let KeyPress { ev, key, is_mod, is_shift, .. } = *k;
+        let KeyPress { ev, key, is_mod, is_shift, typing } = *k;
+        if typing && !is_mod {
+            // Escape closes the form being typed into, and nothing else;
+            // other plain keys belong to the input.
+            if ev.keystroke.key == "escape" {
+                if self.firewall.show_new_rule_modal {
+                    self.close_new_firewall_rule_modal(cx);
+                } else if self.users.show_new_user_modal {
+                    self.users.show_new_user_modal = false;
+                    cx.notify();
+                } else if self.provider_inputs.is_some() {
+                    self.close_provider_form(cx);
+                } else if self.vault_form.open.is_some() {
+                    self.open_vault_form(None, cx);
+                }
+            }
+            return false;
+        }
         if ev.keystroke.key == "escape" {
             if self.firewall.show_new_rule_modal {
                 self.close_new_firewall_rule_modal(cx);
