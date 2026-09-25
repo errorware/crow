@@ -33,6 +33,8 @@ help = "Base font size across all views. UI scales proportionally."
 [[fields]]
 name = "general.refresh_interval"
 type = "integer"
+min = 1
+max = 60
 required = true
 help = "Frequency of background polling in seconds for services and telemetry."
 
@@ -87,12 +89,16 @@ help = "Reuse one TCP connection per host for all panels. Reduces handshakes fro
 [[fields]]
 name = "connection.keepalive_interval"
 type = "integer"
+min = 1
+max = 3600
 required = true
 help = "Seconds between keepalive probes. Lower detects dead hosts faster, costs more chatter."
 
 [[fields]]
 name = "connection.connect_timeout"
 type = "integer"
+min = 1
+max = 300
 required = true
 help = "Give up on a TCP handshake after this long."
 
@@ -146,6 +152,8 @@ help = "Query local 1Password / ssh-agent for available identities."
 [[fields]]
 name = "security.auto_lock_minutes"
 type = "integer"
+min = 0
+max = 1440
 required = true
 help = "Lock vault and wipe decrypted keys from RAM after inactivity."
 

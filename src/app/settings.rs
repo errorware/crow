@@ -9,8 +9,10 @@ impl CrowApp {
     }
 
     pub fn update_config_field(&mut self, row_id: &str, new_value: serde_json::Value, cx: &mut Context<Self>) {
-        if let Err(e) = self.config.update_field(row_id, new_value) {
-            eprintln!("Failed to update config field {}: {:?}", row_id, e);
+        match self.config.update_field(row_id, new_value) {
+            Ok(()) => self.settings.edit_error = None,
+            Err(crow_config_core::edit::EditError::InvalidValue { message, .. }) => self.settings.edit_error = Some(format!("Not changed: {message}")),
+            Err(e) => self.settings.edit_error = Some(format!("Not changed: {e}")),
         }
         // Personalisation is saved as soon as it changes; nothing to review.
         if row_id.starts_with("appearance.") {
@@ -91,7 +93,7 @@ impl CrowApp {
         let field_is_int = self
             .config
             .get_field(row_id)
-            .map(|f| matches!(&f.field_type, crow_config_core::schema::FieldType::Other(cow) if cow == "integer"))
+            .map(|f| matches!(&f.field_type, crow_config_core::schema::FieldType::Integer))
             .unwrap_or(false);
 
         if field_is_int {

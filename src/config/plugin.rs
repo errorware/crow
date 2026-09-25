@@ -270,7 +270,7 @@ impl ConfigPlugin for CrowConfigPlugin {
                         FieldType::Bool => {
                             serde_json::Value::Bool(raw_val.parse::<bool>().unwrap_or(false))
                         }
-                        FieldType::Other(cow) if cow == "integer" => {
+                        FieldType::Integer => {
                             if let Ok(n) = raw_val.parse::<i64>() {
                                 serde_json::Value::Number(serde_json::Number::from(n))
                             } else {
@@ -312,6 +312,11 @@ impl ConfigPlugin for CrowConfigPlugin {
     fn apply_edit(&self, cst: &mut CstNode, op: &EditOp) -> Result<(), EditError> {
         match op {
             EditOp::UpdateField { row_id, field_name: _, new_value } => {
+                // Values are checked against the manifest (types, options,
+                // integer bounds) before they touch the file.
+                if let Some(def) = self.manifest.find_field(row_id) {
+                    crow_config_core::schema::validate_field_value(def, new_value).map_err(|message| EditError::InvalidValue { field: row_id.clone(), message })?;
+                }
                 let target_key = if let Some((_, k)) = row_id.split_once('.') {
                     k
                 } else {
@@ -377,6 +382,17 @@ impl ConfigPlugin for CrowConfigPlugin {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn settings_edits_are_checked_against_the_manifest() {
+        let plugin = CrowConfigPlugin::new();
+        let mut cst = plugin.parse(default_config_toml()).unwrap();
+        let set = |cst: &mut CstNode, v: serde_json::Value| plugin.apply_edit(cst, &EditOp::UpdateField { row_id: "security.auto_lock_minutes".into(), field_name: "security.auto_lock_minutes".into(), new_value: v });
+        assert!(matches!(set(&mut cst, serde_json::json!(99999)), Err(EditError::InvalidValue { .. })), "above max");
+        assert!(matches!(set(&mut cst, serde_json::json!("soon")), Err(EditError::InvalidValue { .. })), "not a number");
+        set(&mut cst, serde_json::json!(30)).unwrap();
+        assert!(cst.to_string_lossless().contains("auto_lock_minutes = 30"));
+    }
 
     #[test]
     fn test_default_config_lossless_roundtrip() {

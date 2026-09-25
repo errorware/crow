@@ -714,6 +714,7 @@ pub fn settings_view(
                                     None
                                 })
                                 .children((section == SettingsSection::Security && is_auth_enabled).then(|| vault_manage::render(vault_form.0, vault_form.1, app.clone())))
+                                .children(settings.edit_error.clone().map(|e| div().px(px(14.0)).py(px(8.0)).font_family(FONT_MONO).text_size(px(10.5)).text_color(CRIT).child(e)))
                                 .children((hidden_settings > 0).then(|| {
                                     div()
                                         .px(px(14.0))
@@ -732,7 +733,7 @@ pub fn settings_view(
                                     let is_changed = config.is_field_changed(&row.row_id);
 
                                     let is_bool = matches!(field.map(|f| &f.field_type), Some(FieldType::Bool));
-                                    let is_int = matches!(field.map(|f| &f.field_type), Some(FieldType::Other(cow)) if cow == "integer");
+                                    let is_int = matches!(field.map(|f| &f.field_type), Some(FieldType::Integer));
                                     let is_open = open_dropdown == Some(row.row_id.as_str());
 
                                     let display_val = format_display_value(leaf, field);

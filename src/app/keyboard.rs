@@ -356,7 +356,7 @@ impl CrowApp {
                     let field_is_int = self
                         .config
                         .get_field(&open_row_id)
-                        .map(|f| matches!(&f.field_type, crow_config_core::schema::FieldType::Other(cow) if cow == "integer"))
+                        .map(|f| matches!(&f.field_type, crow_config_core::schema::FieldType::Integer))
                         .unwrap_or(false);
                     if field_is_int {
                         self.settings.custom_input.retain(|c| c.is_ascii_digit());
