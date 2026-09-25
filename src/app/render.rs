@@ -43,6 +43,9 @@ impl Render for CrowApp {
         if self.screen == Screen::Settings && self.settings.section == super::SettingsSection::Security && self.vault_form.open.is_some() {
             self.ensure_vault_form_inputs(window, cx);
         }
+        if self.screen == Screen::Settings && self.clankers.editing.is_some() {
+            self.ensure_clanker_inputs(window, cx);
+        }
         if self.users.password_for.is_some() && self.active_view == "users" {
             self.ensure_password_inputs(window, cx);
         }
@@ -417,7 +420,7 @@ impl Render for CrowApp {
                                     Screen::Settings => Some(
                                         div()
                                             .size_full()
-                                            .child(settings_view(app_view.clone(), &self.vault, &self.config, &self.caret, &self.fleet, &self.keys, &self.clankers, &self.settings, &self.lab_state, self.settings.section, (&self.fleet_background, self.fleet_background_source()), &self.providers, self.provider_inputs.as_ref(), self.secrets_notice.as_deref(), (&self.vault_form, self.vault_form_inputs.as_ref()))),
+                                            .child(settings_view(app_view.clone(), &self.vault, &self.config, &self.caret, &self.fleet, &self.keys, &self.clankers, &self.settings, &self.lab_state, self.settings.section, (&self.fleet_background, self.fleet_background_source()), &self.providers, self.provider_inputs.as_ref(), self.secrets_notice.as_deref(), (&self.vault_form, self.vault_form_inputs.as_ref()), self.clanker_inputs.as_ref())),
                                     ),
                                     Screen::Onboard => Some(
                                         div()

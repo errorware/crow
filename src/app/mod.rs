@@ -100,22 +100,25 @@ impl SettingsSection {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ClankerModalFocus {
-    ApiKey,
-    Model,
-    BaseUrl,
-}
-
 #[derive(Clone, Debug)]
 pub struct ClankerEditModalState {
     pub provider_id: String,
     pub display_name: String,
-    pub api_key_input: String,
-    pub model_input: String,
-    pub base_url_input: String,
-    pub focus: ClankerModalFocus,
+    /// Whether a key is already stored (the field starts empty either way).
+    pub has_key: bool,
+    /// Current model and endpoint, to prefill the inputs.
+    pub model: String,
+    pub base_url: String,
     pub error_message: Option<String>,
+}
+
+/// The Clankers edit dialog's inputs (created on render: they need the window).
+pub struct ClankerInputs {
+    pub provider_id: String,
+    pub key: Entity<gpui_kit::component::input::InputState>,
+    pub model: Entity<gpui_kit::component::input::InputState>,
+    pub base_url: Entity<gpui_kit::component::input::InputState>,
+    pub _events: Vec<Subscription>,
 }
 
 
@@ -188,6 +191,7 @@ pub struct CrowApp {
     /// Settings → Providers: accounts and the open form (ERR-45).
     pub providers: providers::ProvidersState,
     pub provider_inputs: Option<providers::ProviderFormInputs>,
+    pub clanker_inputs: Option<ClankerInputs>,
     /// Something the user should know about their stored secrets (moved,
     /// lost with the keyring, ...), shown on Providers and Clankers.
     pub secrets_notice: Option<String>,
@@ -343,6 +347,7 @@ impl CrowApp {
             firewall: FirewallState::new(initial_firewall_state),
             providers: Default::default(),
             provider_inputs: None,
+            clanker_inputs: None,
             secrets_notice: None,
             last_activity: std::time::Instant::now(),
             stance_panel_open: false,
@@ -371,9 +376,7 @@ impl CrowApp {
         {
             return true;
         }
-        if self.keys.any_modal_open()
-            || self.clankers.editing.is_some()
-        {
+        if self.keys.any_modal_open() {
             return true;
         }
         if self.vault.status() == VaultStatus::Locked {
@@ -393,7 +396,7 @@ impl CrowApp {
                 return true;
             }
         }
-        if self.screen == Screen::Settings && (self.provider_inputs.is_some() || self.vault_form_inputs.is_some()) {
+        if self.screen == Screen::Settings && (self.provider_inputs.is_some() || self.vault_form_inputs.is_some() || self.clanker_inputs.is_some()) {
             return true;
         }
         if self.screen == Screen::Settings && self.settings.dropdown_open.is_some() {

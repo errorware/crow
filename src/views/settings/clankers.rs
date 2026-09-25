@@ -1,12 +1,12 @@
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
-use crate::app::{CrowApp, ClankerModalFocus};
+use gpui_kit::component::input::{Input, InputState};
+
+use crate::app::{ClankerInputs, CrowApp};
 use crate::components::icons::{TablerIcon, inherited_icon};
 use crate::components::sparkline::dynamic_sparkline;
-use crate::components::terminal_text_input_styled;
 use crate::vault::ClankerProviderConfig;
-use crate::components::text_caret::TextCaret;
 use crate::views::settings::clankers_state::ClankersState;
 
 pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secrets_blocker: Option<String>, secrets_notice: Option<&str>) -> impl IntoElement {
@@ -751,8 +751,9 @@ fn render_eli5_sandbox(
         })
 }
 
-pub fn render_clanker_modals(app: Entity<CrowApp>, caret: &TextCaret, clankers: &ClankersState) -> Option<impl IntoElement> {
+pub fn render_clanker_modals(app: Entity<CrowApp>, clankers: &ClankersState, inputs: Option<&ClankerInputs>) -> Option<impl IntoElement> {
     let state = clankers.editing.as_ref()?;
+    let inputs = inputs.filter(|i| i.provider_id == state.provider_id);
     let p_name = state.display_name.clone();
     let err = state.error_message.clone();
 
@@ -760,18 +761,14 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, caret: &TextCaret, clankers: 
     let app_close = app.clone();
     let app_submit = app.clone();
 
-    let app_focus_key = app.clone();
-    let app_focus_model = app.clone();
-    let app_focus_url = app.clone();
-
-    let is_key_focused = state.focus == ClankerModalFocus::ApiKey;
-    let is_model_focused = state.focus == ClankerModalFocus::Model;
-    let is_url_focused = state.focus == ClankerModalFocus::BaseUrl;
-
-    let key_val = state.api_key_input.clone();
-    let is_configured_key = clankers.providers.iter().any(|p| p.id == state.provider_id && !p.api_key.trim().is_empty());
-    let model_val = state.model_input.clone();
-    let url_val = state.base_url_input.clone();
+    let field = |label: &'static str, input: Option<&Entity<InputState>>| {
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(4.0))
+            .child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_DIM).child(label))
+            .children(input.map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0))))
+    };
 
     Some(
         div()
@@ -842,177 +839,9 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, caret: &TextCaret, clankers: 
                                     .child(inherited_icon(TablerIcon::X, px(14.0))),
                             ),
                     )
-                    // API Key input
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap(px(4.0))
-                            .child(
-                                div()
-                                    .font_family(FONT_MONO)
-                                    .text_size(px(10.5))
-                                    .text_color(TEXT_DIM)
-                                    .child("API Key (stored encrypted in Crow's vault; never shown again):"),
-                            )
-                            .child(
-                                div()
-                                    .id("wrap-input-key")
-                                    .on_click(move |_ev, _window, cx| {
-                                        app_focus_key.update(cx, |this, cx| {
-                                            if let Some(ref mut st) = this.clankers.editing {
-                                                st.focus = ClankerModalFocus::ApiKey;
-                                                this.caret.place(st.api_key_input.chars().count());
-                                                cx.notify();
-                                            }
-                                        });
-                                    })
-                                    .child(
-                                        terminal_text_input_styled(
-                                            "input-clanker-key",
-                                            &key_val,
-                                            if is_configured_key { "set · leave blank to keep it, or paste a new key" } else { "e.g. sk-proj-..." },
-                                            is_key_focused,
-                                            true,
-                                            32.0,
-                                            11.0,
-                                            if is_key_focused { caret.cursor } else { 0 },
-                                            if is_key_focused { caret.selection } else { None },
-                                            if is_key_focused { caret.drag_anchor } else { None },
-                                            caret.blink,
-                                            {
-                                                let app = app.clone();
-                                                move |cursor, anchor, selection, _window, cx| {
-                                                    app.update(cx, |this, cx| {
-                                                        if let Some(ref mut st) = this.clankers.editing {
-                                                            st.focus = ClankerModalFocus::ApiKey;
-                                                        }
-                                                        this.caret.cursor = cursor;
-                                                        this.caret.drag_anchor = anchor;
-                                                        this.caret.selection = selection;
-                                                        this.caret.blink = true;
-                                                        cx.notify();
-                                                    });
-                                                }
-                                            },
-                                        )
-                                    ),
-                            ),
-                    )
-                    // Model input
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap(px(4.0))
-                            .child(
-                                div()
-                                    .font_family(FONT_MONO)
-                                    .text_size(px(10.5))
-                                    .text_color(TEXT_DIM)
-                                    .child("Default Model:"),
-                            )
-                            .child(
-                                div()
-                                    .id("wrap-input-model")
-                                    .on_click(move |_ev, _window, cx| {
-                                        app_focus_model.update(cx, |this, cx| {
-                                            if let Some(ref mut st) = this.clankers.editing {
-                                                st.focus = ClankerModalFocus::Model;
-                                                this.caret.place(st.model_input.chars().count());
-                                                cx.notify();
-                                            }
-                                        });
-                                    })
-                                    .child(
-                                        terminal_text_input_styled(
-                                            "input-clanker-model",
-                                            &model_val,
-                                            "e.g. gpt-4o-mini",
-                                            is_model_focused,
-                                            false,
-                                            32.0,
-                                            11.0,
-                                            if is_model_focused { caret.cursor } else { 0 },
-                                            if is_model_focused { caret.selection } else { None },
-                                            if is_model_focused { caret.drag_anchor } else { None },
-                                            caret.blink,
-                                            {
-                                                let app = app.clone();
-                                                move |cursor, anchor, selection, _window, cx| {
-                                                    app.update(cx, |this, cx| {
-                                                        if let Some(ref mut st) = this.clankers.editing {
-                                                            st.focus = ClankerModalFocus::Model;
-                                                        }
-                                                        this.caret.cursor = cursor;
-                                                        this.caret.drag_anchor = anchor;
-                                                        this.caret.selection = selection;
-                                                        this.caret.blink = true;
-                                                        cx.notify();
-                                                    });
-                                                }
-                                            },
-                                        )
-                                    ),
-                            ),
-                    )
-                    // Custom Base URL input
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap(px(4.0))
-                            .child(
-                                div()
-                                    .font_family(FONT_MONO)
-                                    .text_size(px(10.5))
-                                    .text_color(TEXT_DIM)
-                                    .child("Custom API Endpoint / Proxy (optional):"),
-                            )
-                            .child(
-                                div()
-                                    .id("wrap-input-url")
-                                    .on_click(move |_ev, _window, cx| {
-                                        app_focus_url.update(cx, |this, cx| {
-                                            if let Some(ref mut st) = this.clankers.editing {
-                                                st.focus = ClankerModalFocus::BaseUrl;
-                                                this.caret.place(st.base_url_input.chars().count());
-                                                cx.notify();
-                                            }
-                                        });
-                                    })
-                                    .child(
-                                        terminal_text_input_styled(
-                                            "input-clanker-url",
-                                            &url_val,
-                                            "https://api.openai.com/v1",
-                                            is_url_focused,
-                                            false,
-                                            32.0,
-                                            11.0,
-                                            if is_url_focused { caret.cursor } else { 0 },
-                                            if is_url_focused { caret.selection } else { None },
-                                            if is_url_focused { caret.drag_anchor } else { None },
-                                            caret.blink,
-                                            {
-                                                let app = app.clone();
-                                                move |cursor, anchor, selection, _window, cx| {
-                                                    app.update(cx, |this, cx| {
-                                                        if let Some(ref mut st) = this.clankers.editing {
-                                                            st.focus = ClankerModalFocus::BaseUrl;
-                                                        }
-                                                        this.caret.cursor = cursor;
-                                                        this.caret.drag_anchor = anchor;
-                                                        this.caret.selection = selection;
-                                                        this.caret.blink = true;
-                                                        cx.notify();
-                                                    });
-                                                }
-                                            },
-                                        )
-                                    ),
-                            ),
-                    )
+                    .child(field("API Key (stored encrypted in Crow's vault; never shown again):", inputs.map(|i| &i.key)))
+                    .child(field("Default Model:", inputs.map(|i| &i.model)))
+                    .child(field("Custom API Endpoint / Proxy (optional):", inputs.map(|i| &i.base_url)))
                     // Error message
                     .children(if let Some(ref e) = err {
                         Some(

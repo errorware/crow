@@ -1,6 +1,6 @@
 use gpui_kit::*;
 
-use super::{ClankerModalFocus, CrowApp, Screen};
+use super::{CrowApp, Screen};
 use crate::keys::KeyGenFieldFocus;
 use crate::vault::VaultStatus;
 use crate::views::lock::{LockFieldFocus, SetupFieldFocus, SetupState, SetupStep};
@@ -282,56 +282,6 @@ impl CrowApp {
             return true;
         }
 
-        if let Some(ref mut clk) = self.clankers.editing {
-            self.caret.blink = true;
-            if ev.keystroke.key == "escape" {
-                self.close_edit_clanker_modal(cx);
-                return true;
-            } else if key == "enter" {
-                self.submit_edit_clanker(cx);
-                return true;
-            } else if key == "tab" {
-                clk.focus = match clk.focus {
-                    ClankerModalFocus::ApiKey => ClankerModalFocus::Model,
-                    ClankerModalFocus::Model => ClankerModalFocus::BaseUrl,
-                    ClankerModalFocus::BaseUrl => ClankerModalFocus::ApiKey,
-                };
-                let target_len = match clk.focus {
-                    ClankerModalFocus::ApiKey => clk.api_key_input.chars().count(),
-                    ClankerModalFocus::Model => clk.model_input.chars().count(),
-                    ClankerModalFocus::BaseUrl => clk.base_url_input.chars().count(),
-                };
-                self.caret.place(target_len);
-                cx.notify();
-                return true;
-            }
-
-            let handled = match clk.focus {
-                ClankerModalFocus::ApiKey => crate::components::handle_text_key_event(
-                    &mut clk.api_key_input,
-                    &mut self.caret.cursor,
-                    &mut self.caret.selection,
-                    ev,
-                ),
-                ClankerModalFocus::Model => crate::components::handle_text_key_event(
-                    &mut clk.model_input,
-                    &mut self.caret.cursor,
-                    &mut self.caret.selection,
-                    ev,
-                ),
-                ClankerModalFocus::BaseUrl => crate::components::handle_text_key_event(
-                    &mut clk.base_url_input,
-                    &mut self.caret.cursor,
-                    &mut self.caret.selection,
-                    ev,
-                ),
-            };
-            if handled {
-                clk.error_message = None;
-                cx.notify();
-            }
-            return true;
-        }
         false
     }
 
@@ -430,6 +380,8 @@ impl CrowApp {
                 } else if self.users.show_new_user_modal {
                     self.users.show_new_user_modal = false;
                     cx.notify();
+                } else if self.clanker_inputs.is_some() {
+                    self.close_edit_clanker_modal(cx);
                 } else if self.provider_inputs.is_some() {
                     self.close_provider_form(cx);
                 } else if self.vault_form.open.is_some() {

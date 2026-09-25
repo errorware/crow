@@ -238,6 +238,7 @@ pub fn settings_view(
     provider_inputs: Option<&crate::app::providers::ProviderFormInputs>,
     secrets_notice: Option<&str>,
     vault_form: (&crate::app::vault_manage::VaultFormState, Option<&crate::app::vault_manage::VaultFormInputs>),
+    clanker_inputs: Option<&crate::app::ClankerInputs>,
 ) -> impl IntoElement {
     let is_auth_enabled = vault.is_password_auth_enabled();
     let open_dropdown = settings.dropdown_open.as_deref();
@@ -1425,7 +1426,7 @@ pub fn settings_view(
                 }),
         )
         .children(render_key_modals(app.clone(), caret, fleet, keys))
-        .children(clankers::render_clanker_modals(app.clone(), caret, clankers))
+        .children(clankers::render_clanker_modals(app.clone(), clankers, clanker_inputs))
 }
 
 /// Fleet page background: preview, choose, remove. Opacity and blur are the
