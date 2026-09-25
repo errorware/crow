@@ -16,6 +16,15 @@ use crate::vault::{generate_data_key, key_from_bytes, KeyringState, CLANKER_SECR
 pub const KEYRING_URL: &str = "crow.rs/vault-data-key";
 const KEYRING_USER: &str = "crow";
 
+/// Set once the user has chosen Open knowingly (ERR-60).
+const OPEN_ACKNOWLEDGED: &str = "stance.open_acknowledged";
+
+/// What to run once a data key is available (or why it isn't).
+pub type SecretContinuation = Box<dyn FnOnce(&mut CrowApp, Result<(), String>, &mut Context<CrowApp>)>;
+
+/// A secret save paused on the stance choice.
+pub struct PendingSecret(SecretContinuation);
+
 /// Vault entry categories that hold secrets encrypted with the data key.
 const SECRET_CATEGORIES: [&str; 2] = [PROVIDER_SECRET_CATEGORY, CLANKER_SECRET_CATEGORY];
 
@@ -52,7 +61,53 @@ impl CrowApp {
     /// Runs `then` once a data key exists, creating one in the OS keyring
     /// first if this is the first secret. `then` gets the reason when no
     /// key can be had.
+    ///
+    /// While Open, the first secret waits for the user to choose a stance on
+    /// purpose: Open is never a silent default (ERR-60).
     pub fn with_data_key(&mut self, cx: &mut Context<Self>, then: impl FnOnce(&mut Self, Result<(), String>, &mut Context<Self>) + 'static) {
+        if !self.vault.is_password_auth_enabled() && !self.open_acknowledged() {
+            self.pending_secret = Some(PendingSecret(Box::new(then)));
+            cx.notify();
+            return;
+        }
+        self.ensure_data_key(cx, then);
+    }
+
+    fn open_acknowledged(&self) -> bool {
+        self.vault.db().lock().is_ok_and(|db| db.flag(OPEN_ACKNOWLEDGED).is_some())
+    }
+
+    /// The stance choice: stay Open (knowingly) and continue the save.
+    pub fn choose_open(&mut self, cx: &mut Context<Self>) {
+        if let Ok(db) = self.vault.db().lock() {
+            let _ = db.set_flag(OPEN_ACKNOWLEDGED, &chrono::Utc::now().to_rfc3339());
+        }
+        if let Some(PendingSecret(then)) = self.pending_secret.take() {
+            self.ensure_data_key(cx, then);
+        }
+        cx.notify();
+    }
+
+    /// The stance choice: go Locked first. The pending save is dropped; the
+    /// vault setup follows, then the user saves again.
+    pub fn choose_locked(&mut self, cx: &mut Context<Self>) {
+        if let Some(PendingSecret(then)) = self.pending_secret.take() {
+            then(self, Err("not saved: set up the vault password first, then save again".into()), cx);
+        }
+        self.set_screen(super::Screen::VaultSetup, cx);
+    }
+
+    pub fn cancel_stance_choice(&mut self, cx: &mut Context<Self>) {
+        if let Some(PendingSecret(then)) = self.pending_secret.take() {
+            then(self, Err("not saved".into()), cx);
+        }
+        cx.notify();
+    }
+
+    /// Makes sure a data key exists, creating it in the OS keyring when
+    /// there's no password. No stance prompt (used for moving plain-text
+    /// keys, which only ever makes things safer).
+    fn ensure_data_key(&mut self, cx: &mut Context<Self>, then: impl FnOnce(&mut Self, Result<(), String>, &mut Context<Self>) + 'static) {
         if self.vault.key().is_some() {
             return then(self, Ok(()), cx);
         }
@@ -108,7 +163,7 @@ impl CrowApp {
             None if self.vault.keyring_state == KeyringState::Empty && plaintext_waiting() => {
                 // First run after upgrading: plain-text AI keys are waiting,
                 // so make the data key now (this calls back here and moves them).
-                self.with_data_key(cx, |this, ready, cx| {
+                self.ensure_data_key(cx, |this, ready, cx| {
                     if let Err(why) = ready {
                         this.secrets_notice = Some(format!("AI API keys are still stored in plain text: {why}."));
                         cx.notify();
@@ -120,8 +175,32 @@ impl CrowApp {
             }
             None => {}
         }
+        self.plaintext_ai_keys = self.vault.db().lock().is_ok_and(|db| db.has_plaintext_clanker_keys());
         self.refresh_clankers(cx);
         self.refresh_providers();
+        cx.notify();
+    }
+
+    /// Where Crow stands right now (ERR-60).
+    pub fn stance_report(&self) -> crate::security::stance::StanceReport {
+        use crow_provider_core::capabilities::{INSTANCES_POWER, SNAPSHOTS};
+        let action_capable_accounts = self
+            .providers
+            .accounts
+            .iter()
+            .filter(|a| crate::providers::factory(&a.plugin).is_some_and(|f| (f.manifest)().plugin.capabilities.iter().any(|c| c == INSTANCES_POWER || c == SNAPSHOTS)))
+            .count();
+        crate::security::stance::assess(&crate::security::stance::StanceInputs {
+            password_on: self.vault.is_password_auth_enabled(),
+            keyring: self.vault.keyring_state.clone(),
+            plaintext_ai_keys: self.plaintext_ai_keys,
+            auto_lock_minutes: self.auto_lock_minutes(),
+            action_capable_accounts,
+        })
+    }
+
+    pub fn toggle_stance_panel(&mut self, cx: &mut Context<Self>) {
+        self.stance_panel_open = !self.stance_panel_open;
         cx.notify();
     }
 

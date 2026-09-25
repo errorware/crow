@@ -51,6 +51,7 @@ pub fn titlebar(
     menu_open: bool,
     server_count: usize,
     session: String,
+    stance: &crate::security::stance::StanceReport,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
     let mut bar = div()
@@ -277,6 +278,7 @@ pub fn titlebar(
             .border_l_1()
             .border_color(BORDER_PANEL)
             .on_mouse_down(MouseButton::Left, |ev, window, _cx| crate::components::window_frame::titlebar_mouse_down(ev, window))
+            .child(crate::components::stance::stance_badge(stance, app.clone()))
             .child(div().child(meta_text))
             .children(if current_screen == Screen::Server {
                 Some(

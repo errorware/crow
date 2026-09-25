@@ -190,6 +190,18 @@ pub struct CrowApp {
     /// Something the user should know about their stored secrets (moved,
     /// lost with the keyring, ...), shown on Providers and Clankers.
     pub secrets_notice: Option<String>,
+    /// Last key press or click, for auto-lock.
+    pub last_activity: std::time::Instant,
+    /// The security stance panel is open (titlebar badge).
+    pub stance_panel_open: bool,
+    /// Older AI keys are still in plain text (checked when keys load, so
+    /// rendering never waits on the database).
+    pub plaintext_ai_keys: bool,
+    /// A secret save waiting for the user to choose a stance (first secret
+    /// while Open, ERR-60).
+    pub pending_secret: Option<secrets::PendingSecret>,
+    /// The stance choice's "I understand" box.
+    pub stance_choice_ack: bool,
     pub settings: SettingsState,
     /// UI components sandbox (Settings → Components).
     pub lab_state: LabState,
@@ -328,6 +340,11 @@ impl CrowApp {
             providers: Default::default(),
             provider_inputs: None,
             secrets_notice: None,
+            last_activity: std::time::Instant::now(),
+            stance_panel_open: false,
+            plaintext_ai_keys: false,
+            pending_secret: None,
+            stance_choice_ack: false,
         };
         app.refresh_providers();
         app.load_keyring_key(cx);

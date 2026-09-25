@@ -15,7 +15,7 @@ use crate::app::{CrowApp, SettingsSection};
 use crate::components::icons::{inherited_icon, TablerIcon};
 use crate::theme::*;
 
-pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, inputs: Option<&ProviderFormInputs>, secrets_blocker: Option<String>, secrets_notice: Option<&str>) -> impl IntoElement {
+pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, inputs: Option<&ProviderFormInputs>, secrets_blocker: Option<String>, secrets_notice: Option<&str>, open_stance: bool) -> impl IntoElement {
     let factories = crate::providers::factories();
     let configured = factories.iter().filter(|f| state.account(&(f.manifest)().plugin.name).is_some()).count();
 
@@ -61,7 +61,7 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                 .child(intro())
                 .children(secrets_notice.map(|n| notice(n.to_string(), TEXT_SECONDARY, None, Some(app.clone()))))
                 .children(secrets_blocker.map(|why| notice(format!("Tokens can't be saved right now: {why}."), WARN, Some(app.clone()), None)))
-                .children(factories.into_iter().map(|f| card(f, state, inputs, app.clone()))),
+                .children(factories.into_iter().map(|f| card(f, state, inputs, open_stance, app.clone()))),
         )
 }
 
@@ -119,7 +119,7 @@ pub(crate) fn notice(text: String, color: Rgba, link: Option<Entity<CrowApp>>, d
         }))
 }
 
-fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&ProviderFormInputs>, app: Entity<CrowApp>) -> impl IntoElement {
+fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&ProviderFormInputs>, open_stance: bool, app: Entity<CrowApp>) -> impl IntoElement {
     let manifest = (factory.manifest)();
     let plugin = manifest.plugin.name.clone();
     let account = state.account(&plugin);
@@ -180,6 +180,13 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
         .gap(px(8.0))
         .child(header)
         .child(status_line)
+        .children((open_stance && can_act(manifest)).then(|| {
+            div()
+                .font_family(FONT_MONO)
+                .text_size(px(10.0))
+                .text_color(WARN)
+                .child("Crow is OPEN: anyone at this session can use this token to power servers off or snapshot them. See the stance badge.")
+        }))
         .children(state.errors.get(&plugin).map(|e| div().font_family(FONT_MONO).text_size(px(10.5)).text_color(CRIT).child(format!("Not saved: {e}"))))
         .children(editing.then(|| form(&factory, state, inputs, app.clone())))
         .child(actions)
@@ -251,6 +258,12 @@ fn form(factory: &ProviderFactory, state: &ProvidersState, inputs: Option<&Provi
                 .child(button(format!("provider-save-{plugin}"), "SAVE & TEST".into(), OK, true, move |cx| a_save.update(cx, |this, cx| this.save_provider_form(cx))))
                 .child(button(format!("provider-cancel-{plugin}"), "CANCEL".into(), TEXT_SECONDARY, true, move |cx| a_cancel.update(cx, |this, cx| this.close_provider_form(cx)))),
         )
+}
+
+/// Whether the provider's token can act on servers, not just read.
+fn can_act(manifest: &crow_config_core::PluginManifest) -> bool {
+    use crow_provider_core::capabilities::{INSTANCES_POWER, SNAPSHOTS};
+    manifest.plugin.capabilities.iter().any(|c| c == INSTANCES_POWER || c == SNAPSHOTS)
 }
 
 fn tag(text: String, color: Rgba) -> impl IntoElement {

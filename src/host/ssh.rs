@@ -133,6 +133,9 @@ impl SshHost {
         let mut args: Vec<String> = [
             "-o", "BatchMode=yes",
             "-o", "StrictHostKeyChecking=yes",
+            // Crow never needs them; override whatever ~/.ssh/config says.
+            "-o", "ForwardAgent=no",
+            "-o", "ForwardX11=no",
             "-o", "ConnectTimeout=8",
             "-o", "ServerAliveInterval=15",
             "-o", "ServerAliveCountMax=2",

@@ -62,9 +62,16 @@ impl Render for CrowApp {
         let screen = self.screen;
         let app_view = cx.entity();
         let vault_status = self.vault.status();
+        let stance = self.stance_report();
 
         let app_root = div()
             .track_focus(&self.focus_handle)
+            .capture_key_down(cx.listener(|this, _ev: &KeyDownEvent, _window, _cx| {
+                this.last_activity = std::time::Instant::now();
+            }))
+            .capture_any_mouse_down(cx.listener(|this, _ev: &MouseDownEvent, _window, _cx| {
+                this.last_activity = std::time::Instant::now();
+            }))
             .on_key_down(cx.listener(|this, ev: &KeyDownEvent, window, cx| {
                 this.handle_key_down(ev, window, cx);
             }))
@@ -108,6 +115,7 @@ impl Render for CrowApp {
                             self.menu_open,
                             self.fleet.servers.len(),
                             self.session_label(),
+                            &stance,
                             app_view.clone(),
                         ))
                         // 2. Main Screen Area
@@ -444,6 +452,10 @@ impl Render for CrowApp {
                         } else {
                             None
                         })
+                        // Security stance panel (titlebar badge, ERR-60)
+                        .children(self.stance_panel_open.then(|| crate::components::stance::stance_panel(&stance, app_view.clone())))
+                        // First secret while Open: choose a stance on purpose (ERR-60)
+                        .children(self.pending_secret.is_some().then(|| crate::components::stance::stance_choice_modal(self.stance_choice_ack, app_view.clone())))
                         // 5. About Crow Modal
                         .children(if self.show_about_modal {
                             Some(crate::components::about::about_modal(app_view.clone(), self.about_copied_toast))

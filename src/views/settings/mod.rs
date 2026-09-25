@@ -480,7 +480,7 @@ pub fn settings_view(
                 } else if section == SettingsSection::Clankers {
                     Some(clankers::render_clankers_view(app.clone(), clankers, vault.secrets_blocker().filter(|_| !matches!(vault.keyring_state, crate::vault::KeyringState::Loading)), secrets_notice).into_any_element())
                 } else if section == SettingsSection::Providers {
-                    Some(providers::render_providers_view(app.clone(), providers_state, provider_inputs, vault.secrets_blocker().filter(|_| !matches!(vault.keyring_state, crate::vault::KeyringState::Loading)), secrets_notice).into_any_element())
+                    Some(providers::render_providers_view(app.clone(), providers_state, provider_inputs, vault.secrets_blocker().filter(|_| !matches!(vault.keyring_state, crate::vault::KeyringState::Loading)), secrets_notice, !is_auth_enabled).into_any_element())
                 } else {
                     None
                 })

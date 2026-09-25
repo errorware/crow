@@ -2,6 +2,7 @@ use std::path::{Path, PathBuf};
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroize;
 
 use super::crypto::{
     decrypt_data, derive_master_key, encrypt_data, generate_data_key, generate_salt, hash_password_verifier, unwrap_key, wrap_key,
@@ -379,6 +380,11 @@ impl VaultDb {
                 daily_history TEXT NOT NULL DEFAULT '[]'
             );
 
+            CREATE TABLE IF NOT EXISTS app_flags (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS provider_accounts (
                 id TEXT PRIMARY KEY,
                 plugin TEXT NOT NULL,
@@ -661,8 +667,33 @@ impl VaultDb {
                 nonce.copy_from_slice(&nonce_vec);
                 Ok(unwrap_key(&master_key, &ct, &nonce)?)
             }
-            _ => Ok(master_key),
+            _ => self.upgrade_to_data_key(&master_key),
         }
+    }
+
+    /// Moves a vault from before ERR-56 (entries encrypted with the
+    /// password-derived key) to a data key: re-encrypts every entry and
+    /// stores the new key wrapped, in one transaction. Returns the data key.
+    fn upgrade_to_data_key(&self, password_key: &MasterKey) -> Result<MasterKey, VaultError> {
+        let data_key = generate_data_key();
+        let tx = self.conn.unchecked_transaction()?;
+        let entries: Vec<(String, Vec<u8>, Vec<u8>)> = {
+            let mut stmt = tx.prepare("SELECT id, nonce, ciphertext FROM vault_entries")?;
+            let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+            rows.collect::<Result<_, _>>()?
+        };
+        for (id, nonce_vec, ciphertext) in entries {
+            let nonce: [u8; NONCE_LEN] = nonce_vec.try_into().map_err(|_| VaultError::Crypto(format!("entry {id} has a bad nonce")))?;
+            let mut plain = decrypt_data(password_key, &ciphertext, &nonce)?;
+            let sealed = encrypt_data(&data_key, &plain);
+            plain.zeroize();
+            let (ct, n) = sealed?;
+            tx.execute("UPDATE vault_entries SET nonce = ?2, ciphertext = ?3 WHERE id = ?1", params![id, n.as_slice(), ct])?;
+        }
+        let (wrapped, nonce) = wrap_key(password_key, &data_key)?;
+        tx.execute("UPDATE vault_meta SET wrapped_data_key = ?1, data_key_nonce = ?2 WHERE id = 1", params![wrapped, nonce.as_slice()])?;
+        tx.commit()?;
+        Ok(data_key)
     }
 
     /// Stores an encrypted entry in the vault.
@@ -1486,6 +1517,15 @@ impl VaultDb {
         }
     }
 
+    pub fn flag(&self, key: &str) -> Option<String> {
+        self.conn.query_row("SELECT value FROM app_flags WHERE key = ?1", params![key], |r| r.get(0)).optional().ok().flatten()
+    }
+
+    pub fn set_flag(&self, key: &str, value: &str) -> Result<(), VaultError> {
+        self.conn.execute("INSERT INTO app_flags (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value", params![key, value])?;
+        Ok(())
+    }
+
     /// Whether older versions left any AI key in plain text.
     pub fn has_plaintext_clanker_keys(&self) -> bool {
         self.conn.query_row("SELECT EXISTS(SELECT 1 FROM clanker_providers WHERE api_key != '')", [], |r| r.get::<_, bool>(0)).unwrap_or(false)
@@ -1596,13 +1636,20 @@ mod tests {
     }
 
     #[test]
-    fn legacy_vaults_without_a_wrapped_key_use_the_password_key() {
+    fn legacy_vaults_move_to_a_data_key_on_unlock() {
         let mut db = VaultDb::open_in_memory().unwrap();
         db.init_vault("pw", None, None).unwrap();
+        // As a pre-ERR-56 vault: no wrapped key, entries under the password key.
         db.conn.execute("UPDATE vault_meta SET wrapped_data_key = NULL, data_key_nonce = NULL", []).unwrap();
         let (salt,): (Vec<u8>,) = db.conn.query_row("SELECT salt FROM vault_meta", [], |r| Ok((r.get(0)?,))).unwrap();
         let kek = derive_master_key("pw", &salt.try_into().unwrap()).unwrap();
-        assert_eq!(db.unlock("pw", None).unwrap().as_bytes(), kek.as_bytes());
+        db.store_entry(&kek, "server:edge-01", "ssh_key", "k", b"old secret").unwrap();
+
+        let key = db.unlock("pw", None).unwrap();
+        assert_ne!(key.as_bytes(), kek.as_bytes(), "a fresh data key, not the password key");
+        assert_eq!(db.load_entry(&key, "server:edge-01").unwrap(), b"old secret", "entries re-encrypted");
+        assert!(db.load_entry(&kek, "server:edge-01").is_err(), "the password key no longer opens them");
+        assert_eq!(db.unlock("pw", None).unwrap().as_bytes(), key.as_bytes(), "later unlocks unwrap the same key");
     }
 
     #[test]

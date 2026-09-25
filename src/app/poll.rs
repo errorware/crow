@@ -155,11 +155,14 @@ impl CrowApp {
                 let mut local_prev = CollectorStates::default();
                 loop {
                     cx.background_executor().timer(std::time::Duration::from_millis(2000)).await;
-                    let req_res = entity.update(cx, |this, _cx| {
-                        this.prepare_poll_request()
+                    // Auto-lock rides this tick; a locked Crow doesn't touch servers.
+                    let req_res = entity.update(cx, |this, cx| {
+                        this.check_auto_lock(cx);
+                        (this.vault.status() != crate::vault::VaultStatus::Locked).then(|| this.prepare_poll_request())
                     });
                     let req = match req_res {
-                        Ok(r) => r,
+                        Ok(Some(r)) => r,
+                        Ok(None) => continue,
                         Err(_) => break,
                     };
         
