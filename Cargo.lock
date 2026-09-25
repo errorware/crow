@@ -1381,7 +1381,28 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
 
 [[package]]
-name = "crow"
+name = "crow-config-core"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "toml 0.8.23",
+]
+
+[[package]]
+name = "crow-config-schemas"
+version = "0.1.0"
+dependencies = [
+ "crow-config-core",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "toml 0.8.23",
+]
+
+[[package]]
+name = "crow-rs"
 version = "0.1.0"
 dependencies = [
  "argon2",
@@ -1401,27 +1422,6 @@ dependencies = [
  "toml_edit 0.22.27",
  "totp-rs",
  "zeroize",
-]
-
-[[package]]
-name = "crow-config-core"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "toml 0.8.23",
-]
-
-[[package]]
-name = "crow-config-schemas"
-version = "0.1.0"
-dependencies = [
- "crow-config-core",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
- "toml 0.8.23",
 ]
 
 [[package]]
