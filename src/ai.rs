@@ -9,6 +9,7 @@
 use std::time::Duration;
 
 use serde_json::{json, Value};
+use zeroize::Zeroizing;
 
 use crate::host::{Host, LocalHost};
 use crate::vault::ClankerProviderConfig;
@@ -42,25 +43,29 @@ pub fn curl_config_quote(s: &str) -> String {
 }
 
 /// The curl config (URL, headers with the key, JSON body) for a request.
-pub fn request_config(p: &ClankerProviderConfig, context: &str, logs: &str) -> String {
+/// It holds the API key, so it's wiped when dropped.
+pub fn request_config(p: &ClankerProviderConfig, context: &str, logs: &str) -> Zeroizing<String> {
+    chat_config(p, SYSTEM_PROMPT, &format!("{context}\n\nJournal lines:\n{logs}"), 1200)
+}
+
+fn chat_config(p: &ClankerProviderConfig, system: &str, user: &str, max_tokens: u32) -> Zeroizing<String> {
     let base = p.base_url.trim_end_matches('/');
-    let user = format!("{context}\n\nJournal lines:\n{logs}");
     let (url, headers, body) = if is_anthropic(p) {
         (
             format!("{base}/messages"),
-            vec![format!("x-api-key: {}", p.api_key), "anthropic-version: 2023-06-01".to_string()],
-            json!({"model": p.model, "max_tokens": 1200, "system": SYSTEM_PROMPT, "messages": [{"role": "user", "content": user}]}),
+            vec![Zeroizing::new(format!("x-api-key: {}", p.api_key)), Zeroizing::new("anthropic-version: 2023-06-01".to_string())],
+            json!({"model": p.model, "max_tokens": max_tokens, "system": system, "messages": [{"role": "user", "content": user}]}),
         )
     } else {
         (
             format!("{base}/chat/completions"),
-            vec![format!("Authorization: Bearer {}", p.api_key)],
-            json!({"model": p.model, "max_tokens": 1200, "messages": [{"role": "system", "content": SYSTEM_PROMPT}, {"role": "user", "content": user}]}),
+            vec![Zeroizing::new(format!("Authorization: Bearer {}", p.api_key))],
+            json!({"model": p.model, "max_tokens": max_tokens, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}),
         )
     };
-    let mut cfg = format!("url = {}\n", curl_config_quote(&url));
-    for h in headers.iter().chain(std::iter::once(&"Content-Type: application/json".to_string())) {
-        cfg.push_str(&format!("header = {}\n", curl_config_quote(h)));
+    let mut cfg = Zeroizing::new(format!("url = {}\n", curl_config_quote(&url)));
+    for h in headers.iter().map(|h| h.as_str()).chain(std::iter::once("Content-Type: application/json")) {
+        cfg.push_str(&Zeroizing::new(format!("header = {}\n", curl_config_quote(h))));
     }
     cfg.push_str(&format!("data = {}\n", curl_config_quote(&body.to_string())));
     cfg.push_str("silent\nshow-error\nmax-time = 90\n");
@@ -82,13 +87,22 @@ pub fn parse_response(v: &Value) -> Result<String, String> {
     text.ok_or_else(|| "the provider's answer had no text".into())
 }
 
+/// Checks that `provider`'s key and model work with the smallest possible
+/// request (a few tokens). Returns the model's reply.
+pub fn check_key(provider: &ClankerProviderConfig) -> Result<String, String> {
+    send(provider, &chat_config(provider, "You are a connectivity check.", "Reply with exactly: OK", 5))
+}
+
 /// Asks `provider` to explain `logs` (already capped by the caller).
 /// `context` says what the lines are (filters, time range), never which host.
 pub fn explain_logs(provider: &ClankerProviderConfig, context: &str, logs: &str) -> Result<String, String> {
+    send(provider, &request_config(provider, context, logs))
+}
+
+fn send(provider: &ClankerProviderConfig, cfg: &str) -> Result<String, String> {
     if provider.api_key.trim().is_empty() {
         return Err(format!("{} has no API key; add one in Settings → Clankers", provider.display_name));
     }
-    let cfg = request_config(provider, context, logs);
     let out = LocalHost
         .exec_stdin(&["curl", "--config", "-"], cfg.as_bytes(), Duration::from_secs(100))
         .map_err(|e| format!("request to {} failed: {e}", provider.display_name))?;

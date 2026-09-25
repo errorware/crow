@@ -57,6 +57,7 @@ pub enum TablerIcon {
     Upload,
     GitBranch,
     GitCommit,
+    Cloud,
 }
 
 impl TablerIcon {
@@ -112,6 +113,7 @@ impl TablerIcon {
             Self::Upload => include_bytes!("../../assets/icons/upload.svg"),
             Self::GitBranch => include_bytes!("../../assets/icons/git-branch.svg"),
             Self::GitCommit => include_bytes!("../../assets/icons/git-commit.svg"),
+            Self::Cloud => include_bytes!("../../assets/icons/cloud.svg"),
         }
     }
 }

@@ -20,3 +20,5 @@ pub mod window_frame;
 pub mod table_controls;
 pub mod resize;
 pub mod flag;
+pub mod stance;
+pub mod snapshot_offer;

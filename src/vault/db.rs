@@ -2,9 +2,10 @@ use std::path::{Path, PathBuf};
 use chrono::Utc;
 use rusqlite::{params, Connection, OptionalExtension};
 use serde::{Deserialize, Serialize};
+use zeroize::Zeroize;
 
 use super::crypto::{
-    decrypt_data, derive_master_key, encrypt_data, generate_salt, hash_password_verifier,
+    decrypt_data, derive_master_key, encrypt_data, generate_data_key, generate_salt, hash_password_verifier, unwrap_key, wrap_key,
     verify_password, verify_totp_code, MasterKey, NONCE_LEN, SALT_LEN,
 };
 
@@ -150,6 +151,12 @@ pub struct ServerRecord {
     pub region_code: String,
     #[serde(default)]
     pub region_source: String,
+    /// The provider account and instance this server is (ERR-46), e.g.
+    /// ("linode", "123"); empty when it isn't linked to a provider.
+    #[serde(default)]
+    pub provider_account: String,
+    #[serde(default)]
+    pub provider_instance: String,
 }
 
 /// The audit-log scope for actions Crow takes on its own behalf, such as
@@ -164,10 +171,12 @@ pub struct PurgeOutcome {
     pub key_attachments: usize,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct ClankerProviderConfig {
     pub id: String,
     pub display_name: String,
+    /// Loaded from the vault into memory only; never serialized or printed.
+    #[serde(skip)]
     pub api_key: String,
     pub model: String,
     pub base_url: String,
@@ -176,6 +185,50 @@ pub struct ClankerProviderConfig {
     pub calls_30d: u64,
     pub last_used_at: Option<String>,
     pub daily_history: Vec<f32>,
+}
+
+/// A configured account at a provider plugin (Linode, UpCloud, ...). Plain
+/// settings live here as JSON; its secrets (API tokens, passwords) are
+/// encrypted vault entries under [`provider_secret_id`], never in this row.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProviderAccount {
+    pub id: String,
+    /// The plugin's manifest name, e.g. "linode".
+    pub plugin: String,
+    pub label: String,
+    pub settings: serde_json::Map<String, serde_json::Value>,
+    /// The last TEST CONNECTION: its summary or error, whether it worked, when.
+    pub last_check: Option<String>,
+    pub last_check_ok: bool,
+    pub last_check_at: Option<String>,
+}
+
+/// Vault entry category for AI (Clankers) API keys.
+pub const CLANKER_SECRET_CATEGORY: &str = "clanker_secret";
+
+/// The vault entry id holding AI provider `id`'s API key.
+pub fn clanker_secret_id(id: &str) -> String {
+    format!("clanker:{id}:api_key")
+}
+
+/// Vault entry category for provider secrets.
+pub const PROVIDER_SECRET_CATEGORY: &str = "provider_secret";
+
+/// The vault entry id holding secret `key` of provider account `account`.
+pub fn provider_secret_id(account: &str, key: &str) -> String {
+    format!("provider:{account}:{key}")
+}
+
+impl std::fmt::Debug for ClankerProviderConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ClankerProviderConfig")
+            .field("id", &self.id)
+            .field("api_key", &if self.api_key.is_empty() { "" } else { "[secret]" })
+            .field("model", &self.model)
+            .field("base_url", &self.base_url)
+            .field("is_default", &self.is_default)
+            .finish_non_exhaustive()
+    }
 }
 
 /// A durable record of one run through the Apply Pipeline — the audit trail
@@ -226,7 +279,8 @@ impl VaultDb {
         conn.execute_batch(
             "PRAGMA journal_mode = WAL;
              PRAGMA synchronous = NORMAL;
-             PRAGMA foreign_keys = ON;",
+             PRAGMA foreign_keys = ON;
+             PRAGMA secure_delete = ON;",
         )?;
 
         let db = Self { conn, path };
@@ -346,6 +400,23 @@ impl VaultDb {
                 daily_history TEXT NOT NULL DEFAULT '[]'
             );
 
+            CREATE TABLE IF NOT EXISTS app_flags (
+                key TEXT PRIMARY KEY,
+                value TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS provider_accounts (
+                id TEXT PRIMARY KEY,
+                plugin TEXT NOT NULL,
+                label TEXT NOT NULL,
+                settings TEXT NOT NULL DEFAULT '{}',
+                last_check TEXT,
+                last_check_ok INTEGER NOT NULL DEFAULT 0,
+                last_check_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS change_records (
                 id TEXT PRIMARY KEY,
                 server_id TEXT NOT NULL,
@@ -441,10 +512,15 @@ impl VaultDb {
         // ERR-32: vaults created before archiving existed have neither column,
         // and CREATE TABLE IF NOT EXISTS won't add them. A fresh vault already
         // has both, so these alters fail harmlessly there.
+        // ERR-56: the vault's data key, wrapped by the password-derived key.
+        // Vaults created before it have neither column; for them the
+        // password-derived key is the data key.
+        let _ = self.conn.execute("ALTER TABLE vault_meta ADD COLUMN wrapped_data_key BLOB", []);
+        let _ = self.conn.execute("ALTER TABLE vault_meta ADD COLUMN data_key_nonce BLOB", []);
         let _ = self.conn.execute("ALTER TABLE servers ADD COLUMN archived_at TEXT", []);
         let _ = self.conn.execute("ALTER TABLE servers ADD COLUMN purged_at TEXT", []);
         // ERR-36: where each server lives.
-        for col in ["region_country", "region_city", "region_provider", "region_code", "region_source"] {
+        for col in ["region_country", "region_city", "region_provider", "region_code", "region_source", "provider_account", "provider_instance"] {
             let _ = self.conn.execute(&format!("ALTER TABLE servers ADD COLUMN {col} TEXT NOT NULL DEFAULT ''"), []);
         }
 
@@ -499,13 +575,19 @@ impl VaultDb {
     }
 
     /// First-time setup: initializes the vault with a master password and optional TOTP secret.
-    pub fn init_vault(&mut self, password: &str, totp_secret: Option<&str>) -> Result<MasterKey, VaultError> {
+    /// Turns on the vault password. Secrets keep their data key: pass the one
+    /// already in use (held by the OS keyring until now), or `None` to start
+    /// a new one. The data key is stored wrapped by the password-derived key
+    /// and returned for the session.
+    pub fn init_vault(&mut self, password: &str, totp_secret: Option<&str>, data_key: Option<&MasterKey>) -> Result<MasterKey, VaultError> {
         if self.is_initialized()? {
             return Err(VaultError::AlreadyInitialized);
         }
 
         let salt = generate_salt();
         let master_key = derive_master_key(password, &salt)?;
+        let data_key = data_key.cloned().unwrap_or_else(generate_data_key);
+        let (wrapped_data_key, data_key_nonce) = wrap_key(&master_key, &data_key)?;
         let verifier_hash = hash_password_verifier(password)?;
         let now = Utc::now().to_rfc3339();
 
@@ -517,8 +599,8 @@ impl VaultDb {
         };
 
         self.conn.execute(
-            "INSERT INTO vault_meta (id, salt, verifier_hash, totp_enabled, encrypted_totp_secret, totp_nonce, auto_lock_minutes, created_at, updated_at)
-             VALUES (1, ?1, ?2, ?3, ?4, ?5, 15, ?6, ?6)",
+            "INSERT INTO vault_meta (id, salt, verifier_hash, totp_enabled, encrypted_totp_secret, totp_nonce, auto_lock_minutes, created_at, updated_at, wrapped_data_key, data_key_nonce)
+             VALUES (1, ?1, ?2, ?3, ?4, ?5, 15, ?6, ?6, ?7, ?8)",
             params![
                 salt.as_slice(),
                 verifier_hash,
@@ -526,14 +608,24 @@ impl VaultDb {
                 enc_secret,
                 totp_nonce,
                 now,
+                wrapped_data_key,
+                data_key_nonce.as_slice(),
             ],
         )?;
 
-        Ok(master_key)
+        Ok(data_key)
     }
 
-    /// Authenticates with password and optional TOTP code, returning the derived MasterKey on success.
+    /// Authenticates with password and optional TOTP code, returning the
+    /// vault's data key on success.
     pub fn unlock(&self, password: &str, totp_code: Option<&str>) -> Result<MasterKey, VaultError> {
+        let (password_key, _totp_secret) = self.authenticate(password, totp_code)?;
+        self.data_key(&password_key)
+    }
+
+    /// Checks the password (and TOTP code, when enabled). Returns the
+    /// password-derived key and the decrypted TOTP secret.
+    fn authenticate(&self, password: &str, totp_code: Option<&str>) -> Result<(MasterKey, Option<zeroize::Zeroizing<String>>), VaultError> {
         let row = self.conn.query_row(
             "SELECT salt, verifier_hash, totp_enabled, encrypted_totp_secret, totp_nonce FROM vault_meta WHERE id = 1",
             [],
@@ -581,15 +673,97 @@ impl VaultDb {
             nonce.copy_from_slice(&nonce_vec);
 
             let decrypted_secret_bytes = decrypt_data(&master_key, &enc_secret, &nonce)?;
-            let secret_base32 = String::from_utf8(decrypted_secret_bytes)
-                .map_err(|_| VaultError::Crypto("Corrupt TOTP secret encoding".into()))?;
+            let secret_base32 = zeroize::Zeroizing::new(String::from_utf8(decrypted_secret_bytes)
+                .map_err(|_| VaultError::Crypto("Corrupt TOTP secret encoding".into()))?);
 
             if !verify_totp_code(&secret_base32, code) {
                 return Err(VaultError::InvalidTotpCode);
             }
+            return Ok((master_key, Some(secret_base32)));
         }
+        Ok((master_key, None))
+    }
 
-        Ok(master_key)
+    /// The data key, unwrapped with the password-derived key.
+    fn data_key(&self, master_key: &MasterKey) -> Result<MasterKey, VaultError> {
+        // Unwrap the data key. Vaults from before ERR-56 have none: their
+        //    entries were encrypted with the password-derived key itself.
+        let wrapped: (Option<Vec<u8>>, Option<Vec<u8>>) = self.conn.query_row(
+            "SELECT wrapped_data_key, data_key_nonce FROM vault_meta WHERE id = 1",
+            [],
+            |r| Ok((r.get(0)?, r.get(1)?)),
+        )?;
+        match wrapped {
+            (Some(ct), Some(nonce_vec)) if nonce_vec.len() == NONCE_LEN => {
+                let mut nonce = [0u8; NONCE_LEN];
+                nonce.copy_from_slice(&nonce_vec);
+                Ok(unwrap_key(master_key, &ct, &nonce)?)
+            }
+            _ => self.upgrade_to_data_key(master_key),
+        }
+    }
+
+    /// Changes the vault password. Only the data key (and the TOTP secret)
+    /// are re-encrypted, under a key from the new password; entries don't
+    /// change. Needs the current password and 2FA code.
+    pub fn change_password(&self, current: &str, totp_code: Option<&str>, new_password: &str) -> Result<MasterKey, VaultError> {
+        if new_password.chars().count() < 8 {
+            return Err(VaultError::Crypto("the new password must be at least 8 characters".into()));
+        }
+        let (old_key, totp_secret) = self.authenticate(current, totp_code)?;
+        let data_key = self.data_key(&old_key)?;
+        let salt = generate_salt();
+        let new_key = derive_master_key(new_password, &salt)?;
+        let verifier = hash_password_verifier(new_password)?;
+        let (wrapped, nonce) = wrap_key(&new_key, &data_key)?;
+        let totp = totp_secret.map(|t| encrypt_data(&new_key, t.as_bytes())).transpose()?;
+        self.conn.execute(
+            "UPDATE vault_meta SET salt = ?1, verifier_hash = ?2, wrapped_data_key = ?3, data_key_nonce = ?4,
+                 encrypted_totp_secret = COALESCE(?5, encrypted_totp_secret), totp_nonce = COALESCE(?6, totp_nonce), updated_at = ?7
+             WHERE id = 1",
+            params![salt.as_slice(), verifier, wrapped, nonce.as_slice(), totp.as_ref().map(|(c, _)| c.clone()), totp.as_ref().map(|(_, n)| n.to_vec()), Utc::now().to_rfc3339()],
+        )?;
+        Ok(data_key)
+    }
+
+    /// Turning the password off, step one: checks the password and 2FA code
+    /// and returns the data key, which the caller must put in the OS
+    /// keyring before calling [`Self::remove_password`].
+    pub fn data_key_for_removal(&self, password: &str, totp_code: Option<&str>) -> Result<MasterKey, VaultError> {
+        let (key, _) = self.authenticate(password, totp_code)?;
+        self.data_key(&key)
+    }
+
+    /// Turning the password off, step two: forgets the password (and the
+    /// wrapped data key). Only call once the keyring holds the data key.
+    pub fn remove_password(&self) -> Result<(), VaultError> {
+        self.conn.execute("DELETE FROM vault_meta WHERE id = 1", [])?;
+        Ok(())
+    }
+
+    /// Moves a vault from before ERR-56 (entries encrypted with the
+    /// password-derived key) to a data key: re-encrypts every entry and
+    /// stores the new key wrapped, in one transaction. Returns the data key.
+    fn upgrade_to_data_key(&self, password_key: &MasterKey) -> Result<MasterKey, VaultError> {
+        let data_key = generate_data_key();
+        let tx = self.conn.unchecked_transaction()?;
+        let entries: Vec<(String, Vec<u8>, Vec<u8>)> = {
+            let mut stmt = tx.prepare("SELECT id, nonce, ciphertext FROM vault_entries")?;
+            let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?, r.get(2)?)))?;
+            rows.collect::<Result<_, _>>()?
+        };
+        for (id, nonce_vec, ciphertext) in entries {
+            let nonce: [u8; NONCE_LEN] = nonce_vec.try_into().map_err(|_| VaultError::Crypto(format!("entry {id} has a bad nonce")))?;
+            let mut plain = decrypt_data(password_key, &ciphertext, &nonce)?;
+            let sealed = encrypt_data(&data_key, &plain);
+            plain.zeroize();
+            let (ct, n) = sealed?;
+            tx.execute("UPDATE vault_entries SET nonce = ?2, ciphertext = ?3 WHERE id = ?1", params![id, n.as_slice(), ct])?;
+        }
+        let (wrapped, nonce) = wrap_key(password_key, &data_key)?;
+        tx.execute("UPDATE vault_meta SET wrapped_data_key = ?1, data_key_nonce = ?2 WHERE id = 1", params![wrapped, nonce.as_slice()])?;
+        tx.commit()?;
+        Ok(data_key)
     }
 
     /// Stores an encrypted entry in the vault.
@@ -965,7 +1139,8 @@ impl VaultDb {
                 env, role, group_name, tags, host_key_fingerprint, os_distro, os_kernel,
                 arch, memory_total, disk_total, agent_installed, agent_version, status,
                 created_at, last_seen_at, archived_at, purged_at,
-                region_country, region_city, region_provider, region_code, region_source";
+                region_country, region_city, region_provider, region_code, region_source,
+                provider_account, provider_instance";
 
     fn row_to_server(r: &rusqlite::Row<'_>) -> rusqlite::Result<ServerRecord> {
         let tags_json: String = r.get(11)?;
@@ -1002,6 +1177,8 @@ impl VaultDb {
             region_provider: r.get(27)?,
             region_code: r.get(28)?,
             region_source: r.get(29)?,
+            provider_account: r.get(30)?,
+            provider_instance: r.get(31)?,
         })
     }
 
@@ -1046,8 +1223,9 @@ impl VaultDb {
                 env, role, group_name, tags, host_key_fingerprint, os_distro, os_kernel,
                 arch, memory_total, disk_total, agent_installed, agent_version, status,
                 created_at, last_seen_at, archived_at, purged_at,
-                region_country, region_city, region_provider, region_code, region_source
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30)
+                region_country, region_city, region_provider, region_code, region_source,
+                provider_account, provider_instance
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 host = excluded.host,
@@ -1076,7 +1254,9 @@ impl VaultDb {
                 region_city = excluded.region_city,
                 region_provider = excluded.region_provider,
                 region_code = excluded.region_code,
-                region_source = excluded.region_source",
+                region_source = excluded.region_source,
+                provider_account = excluded.provider_account,
+                provider_instance = excluded.provider_instance",
             params![
                 srv.id, srv.name, srv.host, srv.port, srv.login_user, srv.auth_method,
                 srv.key_id, srv.jump_host_id, srv.env, srv.role, srv.group_name,
@@ -1084,7 +1264,8 @@ impl VaultDb {
                 srv.arch, srv.memory_total, srv.disk_total, agent_inst,
                 srv.agent_version, srv.status, created, srv.last_seen_at,
                 srv.archived_at, srv.purged_at,
-                srv.region_country, srv.region_city, srv.region_provider, srv.region_code, srv.region_source
+                srv.region_country, srv.region_city, srv.region_provider, srv.region_code, srv.region_source,
+                srv.provider_account, srv.provider_instance
             ],
         )?;
         Ok(())
@@ -1266,7 +1447,6 @@ impl VaultDb {
             ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
             ON CONFLICT(id) DO UPDATE SET
                 display_name = excluded.display_name,
-                api_key = excluded.api_key,
                 model = excluded.model,
                 base_url = excluded.base_url,
                 is_default = excluded.is_default,
@@ -1277,7 +1457,8 @@ impl VaultDb {
             params![
                 config.id,
                 config.display_name,
-                config.api_key,
+                // Keys live in the vault (set_clanker_api_key), never here.
+                "",
                 config.model,
                 config.base_url,
                 if config.is_default { 1 } else { 0 },
@@ -1394,6 +1575,118 @@ impl VaultDb {
     pub fn path(&self) -> &Path {
         &self.path
     }
+
+    /// Stores (or with `None`, removes) AI provider `id`'s API key as an
+    /// encrypted vault entry.
+    pub fn set_clanker_api_key(&self, key: &MasterKey, id: &str, api_key: Option<&str>) -> Result<(), VaultError> {
+        match api_key.map(str::trim).filter(|k| !k.is_empty()) {
+            Some(k) => self.store_entry(key, &clanker_secret_id(id), CLANKER_SECRET_CATEGORY, &format!("{id} API key"), k.as_bytes()),
+            None => self.delete_entry(&clanker_secret_id(id)).map(drop),
+        }
+    }
+
+    /// Fills each provider's `api_key` from the vault (in memory only).
+    pub fn load_clanker_api_keys(&self, key: &MasterKey, providers: &mut [ClankerProviderConfig]) {
+        for p in providers {
+            if let Ok(bytes) = self.load_entry(key, &clanker_secret_id(&p.id)) {
+                p.api_key = String::from_utf8(bytes).unwrap_or_default();
+            }
+        }
+    }
+
+    pub fn flag(&self, key: &str) -> Option<String> {
+        self.conn.query_row("SELECT value FROM app_flags WHERE key = ?1", params![key], |r| r.get(0)).optional().ok().flatten()
+    }
+
+    pub fn set_flag(&self, key: &str, value: &str) -> Result<(), VaultError> {
+        self.conn.execute("INSERT INTO app_flags (key, value) VALUES (?1, ?2) ON CONFLICT(key) DO UPDATE SET value = excluded.value", params![key, value])?;
+        Ok(())
+    }
+
+    /// Whether older versions left any AI key in plain text.
+    pub fn has_plaintext_clanker_keys(&self) -> bool {
+        self.conn.query_row("SELECT EXISTS(SELECT 1 FROM clanker_providers WHERE api_key != '')", [], |r| r.get::<_, bool>(0)).unwrap_or(false)
+    }
+
+    /// Moves API keys left in plain text by older versions into the vault,
+    /// blanks the column and rewrites the database file so the plain text
+    /// doesn't survive in free pages or the WAL. Returns how many moved.
+    pub fn migrate_plaintext_clanker_keys(&self, key: &MasterKey) -> Result<usize, VaultError> {
+        let plain: Vec<(String, String)> = {
+            let mut stmt = self.conn.prepare("SELECT id, api_key FROM clanker_providers WHERE api_key != ''")?;
+            let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+            rows.collect::<Result<_, _>>()?
+        };
+        for (id, api_key) in &plain {
+            self.set_clanker_api_key(key, id, Some(api_key))?;
+            self.conn.execute("UPDATE clanker_providers SET api_key = '' WHERE id = ?1", params![id])?;
+        }
+        if !plain.is_empty() {
+            self.conn.execute_batch("VACUUM; PRAGMA wal_checkpoint(TRUNCATE);")?;
+        }
+        Ok(plain.len())
+    }
+
+    pub fn list_provider_accounts(&self) -> Result<Vec<ProviderAccount>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, plugin, label, settings, last_check, last_check_ok, last_check_at FROM provider_accounts ORDER BY plugin, created_at",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            let settings: String = r.get(3)?;
+            let ok: i64 = r.get(5)?;
+            Ok(ProviderAccount {
+                id: r.get(0)?,
+                plugin: r.get(1)?,
+                label: r.get(2)?,
+                settings: serde_json::from_str(&settings).unwrap_or_default(),
+                last_check: r.get(4)?,
+                last_check_ok: ok > 0,
+                last_check_at: r.get(6)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Saves an account's label and plain settings (not its check result).
+    pub fn upsert_provider_account(&self, account: &ProviderAccount) -> Result<(), VaultError> {
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "INSERT INTO provider_accounts (id, plugin, label, settings, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+             ON CONFLICT(id) DO UPDATE SET label = excluded.label, settings = excluded.settings, updated_at = excluded.updated_at",
+            params![account.id, account.plugin, account.label, serde_json::Value::Object(account.settings.clone()).to_string(), now],
+        )?;
+        Ok(())
+    }
+
+    pub fn record_provider_check(&self, id: &str, ok: bool, message: &str) -> Result<(), VaultError> {
+        self.conn.execute(
+            "UPDATE provider_accounts SET last_check = ?2, last_check_ok = ?3, last_check_at = ?4 WHERE id = ?1",
+            params![id, message, ok as i64, Utc::now().to_rfc3339()],
+        )?;
+        Ok(())
+    }
+
+    /// Deletes an account and every secret it kept in the vault.
+    pub fn delete_provider_account(&self, id: &str) -> Result<(), VaultError> {
+        self.conn.execute("DELETE FROM provider_accounts WHERE id = ?1", params![id])?;
+        self.conn.execute(
+            "DELETE FROM vault_entries WHERE category = ?1 AND substr(id, 1, length(?2)) = ?2",
+            params![PROVIDER_SECRET_CATEGORY, provider_secret_id(id, "")],
+        )?;
+        Ok(())
+    }
+
+    /// Keys of the secrets account `id` has in the vault (their values stay
+    /// encrypted; this reads ids only).
+    pub fn provider_secret_keys(&self, id: &str) -> Result<Vec<String>, VaultError> {
+        let prefix = provider_secret_id(id, "");
+        Ok(self
+            .list_entries(Some(PROVIDER_SECRET_CATEGORY))?
+            .into_iter()
+            .filter_map(|e| e.id.strip_prefix(&prefix).map(str::to_string))
+            .collect())
+    }
 }
 
 #[cfg(test)]
@@ -1402,12 +1695,132 @@ mod tests {
     use crate::vault::crypto::generate_totp_secret;
 
     #[test]
+    fn data_key_survives_the_password_and_wraps_under_it() {
+        let mut db = VaultDb::open_in_memory().unwrap();
+        // Secrets stored while the password was off (key from the keyring)...
+        let keyring_key = crate::vault::generate_data_key();
+        db.store_entry(&keyring_key, "provider:linode:api_token", PROVIDER_SECRET_CATEGORY, "t", b"tok").unwrap();
+        // ...stay readable once a password is turned on: same data key.
+        let session = db.init_vault("pw", None, Some(&keyring_key)).unwrap();
+        assert_eq!(session.as_bytes(), keyring_key.as_bytes());
+        let unlocked = db.unlock("pw", None).unwrap();
+        assert_eq!(db.load_entry(&unlocked, "provider:linode:api_token").unwrap(), b"tok");
+        // The data key isn't the password-derived key.
+        let (salt, wrapped): (Vec<u8>, Vec<u8>) = db.conn.query_row("SELECT salt, wrapped_data_key FROM vault_meta", [], |r| Ok((r.get(0)?, r.get(1)?))).unwrap();
+        let kek = derive_master_key("pw", &salt.try_into().unwrap()).unwrap();
+        assert_ne!(kek.as_bytes(), unlocked.as_bytes());
+        assert!(!wrapped.windows(8).any(|w| unlocked.as_bytes().windows(8).any(|k| k == w)), "stored wrapped, not raw");
+    }
+
+    fn current_code(secret: &str) -> String {
+        totp_rs::Builder::new().with_secret(totp_rs::Secret::try_from_base32(secret).unwrap()).build().unwrap().generate_current().to_string()
+    }
+
+    #[test]
+    fn changing_the_password_keeps_the_secrets_and_the_2fa() {
+        let mut db = VaultDb::open_in_memory().unwrap();
+        let totp = generate_totp_secret();
+        let key = db.init_vault("old-password", Some(&totp), None).unwrap();
+        db.store_entry(&key, "provider:linode:api_token", PROVIDER_SECRET_CATEGORY, "t", b"tok").unwrap();
+
+        assert!(matches!(db.change_password("wrong", Some(&current_code(&totp)), "new-password"), Err(VaultError::InvalidPassword)));
+        assert!(matches!(db.change_password("old-password", Some("000000"), "new-password"), Err(VaultError::InvalidTotpCode)));
+        assert!(db.change_password("old-password", Some(&current_code(&totp)), "short").is_err());
+
+        db.change_password("old-password", Some(&current_code(&totp)), "new-password").unwrap();
+        assert!(matches!(db.unlock("old-password", Some(&current_code(&totp))), Err(VaultError::InvalidPassword)));
+        let after = db.unlock("new-password", Some(&current_code(&totp))).unwrap();
+        assert_eq!(after.as_bytes(), key.as_bytes(), "same data key");
+        assert_eq!(db.load_entry(&after, "provider:linode:api_token").unwrap(), b"tok");
+    }
+
+    #[test]
+    fn turning_the_password_off_hands_back_the_data_key() {
+        let mut db = VaultDb::open_in_memory().unwrap();
+        let totp = generate_totp_secret();
+        let key = db.init_vault("password", Some(&totp), None).unwrap();
+        assert!(db.data_key_for_removal("password", Some("000000")).is_err());
+        let handed = db.data_key_for_removal("password", Some(&current_code(&totp))).unwrap();
+        assert_eq!(handed.as_bytes(), key.as_bytes());
+        db.remove_password().unwrap();
+        assert!(!db.is_initialized().unwrap());
+    }
+
+    #[test]
+    fn legacy_vaults_move_to_a_data_key_on_unlock() {
+        let mut db = VaultDb::open_in_memory().unwrap();
+        db.init_vault("pw", None, None).unwrap();
+        // As a pre-ERR-56 vault: no wrapped key, entries under the password key.
+        db.conn.execute("UPDATE vault_meta SET wrapped_data_key = NULL, data_key_nonce = NULL", []).unwrap();
+        let (salt,): (Vec<u8>,) = db.conn.query_row("SELECT salt FROM vault_meta", [], |r| Ok((r.get(0)?,))).unwrap();
+        let kek = derive_master_key("pw", &salt.try_into().unwrap()).unwrap();
+        db.store_entry(&kek, "server:edge-01", "ssh_key", "k", b"old secret").unwrap();
+
+        let key = db.unlock("pw", None).unwrap();
+        assert_ne!(key.as_bytes(), kek.as_bytes(), "a fresh data key, not the password key");
+        assert_eq!(db.load_entry(&key, "server:edge-01").unwrap(), b"old secret", "entries re-encrypted");
+        assert!(db.load_entry(&kek, "server:edge-01").is_err(), "the password key no longer opens them");
+        assert_eq!(db.unlock("pw", None).unwrap().as_bytes(), key.as_bytes(), "later unlocks unwrap the same key");
+    }
+
+    #[test]
+    fn plaintext_ai_keys_move_into_the_vault() {
+        let db = VaultDb::open_in_memory().unwrap();
+        let key = crate::vault::generate_data_key();
+        // As an older Crow left it: the key in plain text in the row.
+        db.conn.execute("UPDATE clanker_providers SET api_key = 'sk-ant-PLAIN' WHERE id = 'anthropic'", []).unwrap();
+        assert_eq!(db.migrate_plaintext_clanker_keys(&key).unwrap(), 1);
+        let mut providers = db.list_clanker_providers().unwrap();
+        let p = providers.iter().find(|p| p.id == "anthropic").unwrap();
+        assert_eq!(p.api_key, "", "the column is blank");
+        db.load_clanker_api_keys(&key, &mut providers);
+        assert_eq!(providers.iter().find(|p| p.id == "anthropic").unwrap().api_key, "sk-ant-PLAIN");
+        assert_eq!(db.migrate_plaintext_clanker_keys(&key).unwrap(), 0, "runs once");
+        // Saving a provider never writes a key back into the column.
+        let mut p = providers.into_iter().find(|p| p.id == "anthropic").unwrap();
+        p.api_key = "sk-ant-NEW".into();
+        db.upsert_clanker_provider(&p).unwrap();
+        let raw: String = db.conn.query_row("SELECT api_key FROM clanker_providers WHERE id = 'anthropic'", [], |r| r.get(0)).unwrap();
+        assert_eq!(raw, "");
+    }
+
+    #[test]
+    fn provider_accounts_keep_secrets_out_of_their_row() {
+        let mut db = VaultDb::open_in_memory().unwrap();
+        let key = db.init_vault("pw", None, None).unwrap();
+        let mut acct = ProviderAccount {
+            id: "linode".into(),
+            plugin: "linode".into(),
+            label: "Linode".into(),
+            settings: serde_json::Map::new(),
+            last_check: None,
+            last_check_ok: false,
+            last_check_at: None,
+        };
+        acct.settings.insert("page_size".into(), serde_json::json!(100));
+        db.upsert_provider_account(&acct).unwrap();
+        db.store_entry(&key, &provider_secret_id("linode", "api_token"), PROVIDER_SECRET_CATEGORY, "linode api_token", b"tok").unwrap();
+        db.store_entry(&key, &provider_secret_id("linode-2", "api_token"), PROVIDER_SECRET_CATEGORY, "other", b"tok2").unwrap();
+        db.record_provider_check("linode", true, "3 instances").unwrap();
+
+        let listed = db.list_provider_accounts().unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!((listed[0].settings["page_size"].clone(), listed[0].last_check.as_deref(), listed[0].last_check_ok), (serde_json::json!(100), Some("3 instances"), true));
+        assert_eq!(db.provider_secret_keys("linode").unwrap(), ["api_token"]);
+
+        db.delete_provider_account("linode").unwrap();
+        assert!(db.list_provider_accounts().unwrap().is_empty());
+        assert!(db.provider_secret_keys("linode").unwrap().is_empty(), "its secrets are gone");
+        assert_eq!(db.provider_secret_keys("linode-2").unwrap(), ["api_token"], "another account's aren't");
+    }
+
+    #[test]
     fn test_vault_init_and_unlock_lifecycle() {
         let mut db = VaultDb::open_in_memory().unwrap();
         assert!(!db.is_initialized().unwrap());
 
         let password = "CorrectHorseBatteryStaple!";
-        let key = db.init_vault(password, None).unwrap();
+        let key = db.init_vault(password, None, None).unwrap();
         assert!(db.is_initialized().unwrap());
         assert!(!db.is_totp_enabled().unwrap());
 
@@ -1436,7 +1849,7 @@ mod tests {
         let password = "MyMasterPassword456";
         let totp_secret = generate_totp_secret();
 
-        let _ = db.init_vault(password, Some(&totp_secret)).unwrap();
+        let _ = db.init_vault(password, Some(&totp_secret), None).unwrap();
         assert!(db.is_totp_enabled().unwrap());
 
         // Unlock without code should fail with TotpRequired
@@ -1583,6 +1996,8 @@ mod tests {
             region_provider: "Linode".into(),
             region_code: "de-fra-2".into(),
             region_source: "metadata".into(),
+            provider_account: "linode".into(),
+            provider_instance: "123".into(),
         };
 
         db.upsert_server(&srv).unwrap();
@@ -1590,6 +2005,7 @@ mod tests {
         let fetched = db.get_server("srv-custom-01").unwrap().unwrap();
         assert_eq!(fetched.name, "custom-01");
         assert_eq!((fetched.region_country.as_str(), fetched.region_code.as_str(), fetched.region_source.as_str()), ("DE", "de-fra-2", "metadata"), "region round-trips");
+        assert_eq!((fetched.provider_account.as_str(), fetched.provider_instance.as_str()), ("linode", "123"), "provider link round-trips");
         assert_eq!(fetched.host, "10.0.9.99");
         assert_eq!(fetched.port, 22);
         assert_eq!(fetched.tags.len(), 2);
@@ -1770,12 +2186,16 @@ mod tests {
         assert_eq!(deepseek_after.calls_30d, before_calls + 1);
         assert!(deepseek_after.last_used_at.is_some());
 
-        // Update API key
+        // API keys go to the vault, encrypted; the row never holds one.
+        let key = crate::vault::generate_data_key();
         let mut custom = deepseek_after.clone();
         custom.api_key = "sk-deepseek-test-key-12345".into();
         db.upsert_clanker_provider(&custom).unwrap();
-        let deepseek_updated = db.get_clanker_provider("deepseek").unwrap().unwrap();
-        assert_eq!(deepseek_updated.api_key, "sk-deepseek-test-key-12345");
+        db.set_clanker_api_key(&key, "deepseek", Some("sk-deepseek-test-key-12345")).unwrap();
+        let mut listed = db.list_clanker_providers().unwrap();
+        assert_eq!(listed.iter().find(|p| p.id == "deepseek").unwrap().api_key, "", "not in the row");
+        db.load_clanker_api_keys(&key, &mut listed);
+        assert_eq!(listed.iter().find(|p| p.id == "deepseek").unwrap().api_key, "sk-deepseek-test-key-12345");
 
         // Reset usage
         db.reset_clanker_usage("deepseek").unwrap();

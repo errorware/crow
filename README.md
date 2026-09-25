@@ -11,8 +11,9 @@
 
 <p align="center">
   <a href="#overview">Overview</a> •
-  <a href="#key-features">Features</a> •
-  <a href="#design-system">Design System</a> •
+  <a href="#what-it-does">What it does</a> •
+  <a href="#security">Security</a> •
+  <a href="#providers-and-plugins">Providers & Plugins</a> •
   <a href="#getting-started">Getting Started</a> •
   <a href="#keyboard-shortcuts">Keyboard Shortcuts</a> •
   <a href="#license">License</a>
@@ -22,48 +23,87 @@
 
 ## Overview
 
-**Crow** is a high-performance native desktop application for operators, sysadmins, and site reliability engineers managing remote Linux infrastructure over SSH.
+**Crow** is a native desktop app for operators and SREs who manage Linux servers over SSH. It's inspired by the density and keyboard speed of `k9s` and `lazygit`, drawn as a hardware-accelerated GUI with **GPUI**.
 
-Inspired by the information density and keyboard efficiency of high-octane TUIs (`k9s`, `lazygit`) and financial trading terminals, Crow translates operator workflows into a hardware-accelerated GUI. Density is a core feature: no excessive whitespace, no decorative charts without telemetry signals, and zero compromises on speed.
-
-Built natively in **Rust** on top of the **GPUI** vector rendering engine, Crow delivers sub-millisecond input latency, smooth 120fps scrolling, and minimal memory footprint.
+Crow is **agentless**: it talks to your servers over plain SSH, reusing one connection per server, and never installs anything on them.
 
 ---
 
-## Key Features
+## What it does
 
-### 1. Live Telemetry & Stat Strip
-- **Real-Time Metrics**: Instant visibility into 1m/5m/15m CPU load, memory breakdown (active usage vs cache/buffers), disk usage per mount, network throughput with bandwidth sparklines, kernel uptime, and SELinux/AppArmor/UFW security posture.
-- **Signal-First Color Palette**: Color is reserved strictly for operational status (`OK` green, `WARN` amber, `CRIT` red). All non-status elements remain crisp monochrome.
+### Fleet
+- Every enrolled server with its health, environment (PROD / STAGE / DEV / LAB) and **region**, shown as a country flag. The region comes from the cloud provider, the machine's metadata service, or your own choice.
+- Filter by environment or region. Archive servers you no longer manage; their data is purged after a window you set.
+- **Add Server** checks the host key before trusting it, can bootstrap a password-only server onto Crow's own SSH key, and reads the machine's facts (distro, kernel, memory, disk, region).
+- **Import from providers**: list your Linode / UpCloud instances, link the servers already in the fleet by IP, and add the rest through Add Server.
 
-### 2. Services, Processes & Sockets Inspector
-- **Dense Service Units Table**: Real-time listing of active, degraded, and failed `systemd` units with instant sort by CPU, memory, RSS, or uptime.
-- **Destructive Safety Guards**: Inline confirmation step before restarting or stopping production services, displaying active connection counts and potential blast radius.
-- **Processes & Sockets Sub-views**: Quick switching between systemd service units, raw process trees, and open listening sockets.
+### A server
+- **Overview**: live CPU, memory, disk and network; pending package updates; CVEs affecting installed packages (from [OSV](https://osv.dev)).
+- **Services, processes and sockets**: live search, filters, pagination, and actions with confirmation.
+- **Logs**: `journalctl` with unit, priority, time and PID filters, highlighted search matches, and an optional plain-English explanation from an AI provider you configure.
+- **Configs**: edit `sshd_config`, `/etc/hosts`, `pg_hba.conf` and ufw rules as structured, validated rows through [crow-config](https://github.com/errorware/crow-config). Edits are surgical, every change is a revision you can roll back, and values rated *never on prod* need a typed confirmation. Files are written atomically (temp file, then rename).
+- **Firewall** (ufw), **users** (create, sudo, passwords over stdin), **files**.
+- **Danger Zone**: destructive actions behind a typed keyword. For servers linked to a provider, **power off / reboot / boot and snapshots go through the provider**, so they work even when SSH is down.
 
-### 3. Streaming Journalctl Log Tail
-- **Live Stream**: Direct tailing of `journalctl -f` across all systemd units.
-- **Log Filters & Autoscroll**: Filter dynamically by log level (`ERR`, `WARN`, `INFO`), pause streaming to inspect stack traces, or lock auto-scroll to the latest entries.
-
-### 4. Grammar-Aware Graphical Config Editor
-- **Structured Table Editing**: Edit complex system configuration files (such as PostgreSQL's `pg_hba.conf`) as structured, validated table rows instead of brittle raw text files.
-- **Pre-Flight Grammar Validation**: Rules are continuously parsed and validated against target grammar schemas (e.g. PostgreSQL 16 syntax) before applying.
-- **Staged Diffs & Blast Radius**: Inspect color-coded unified diffs and evaluate live session impacts prior to execution.
-- **Atomic Application & Auto-Rollback**: Files are written via atomic renames with file backups and an armed 60-second auto-rollback timer if services fail authentication after reload.
-
-### 5. Native Wayland & Desktop Integration
-- **Client-Side Decorations (CSD)**: Seamless, frameless window chrome that integrates natively with modern Wayland compositors (KDE Plasma, GNOME) without duplicate OS titlebar borders.
-- **Multi-Server Tab Strip**: Manage concurrent SSH sessions across staging, production, and edge servers with integrated tab dragging and window management.
+### Settings
+- Connection and SSH timeouts, auto-lock, archive retention, appearance. Only settings that change something are shown.
+- **Providers**: connect cloud accounts (Linode, UpCloud).
+- **Clankers**: AI providers for the Logs explanation (Anthropic, OpenAI-compatible).
+- **Personalisation**: a picture behind the Fleet list, with opacity and blur.
 
 ---
 
-## Design System: Obsidian Edge
+## Security
 
-Crow is built around the **Obsidian Edge** design language:
+Crow holds things that matter: provider tokens that can power servers off, AI keys, and SSH access to your fleet. Security has a cost, so Crow doesn't hide the trade-off. It shows you which **stance** you're in, and what that protects and exposes. The badge in the titlebar is always visible; click it for the details.
 
-- **Typography**: 100% pure **JetBrains Mono** monospace typography across the entire interface. Visual hierarchy is established strictly through font weight (`BOLD`, `SEMIBOLD`, `NORMAL`), micro-scale font sizing, and contrast tokens.
-- **Vector Icons**: Standardized catalog of 24×24 **Tabler SVG icons** (`assets/icons/`) embedded into the binary at compile time and tinted dynamically via GPUI's vector engine.
-- **High Information Density**: Precise hairlines (1px), subdued cool-neutral surfaces (`#050507` ground, `#0b0b0e` panels), and responsive vertical virtualized scrolling.
+| | **OPEN** (default) | **LOCKED** |
+|---|---|---|
+| How | No password; the OS keyring (Keychain, Secret Service, Credential Manager) holds Crow's encryption key | Master password + TOTP 2FA; the key is locked by your password |
+| Protects against | Someone copying `crow.db` or your backups | That, and anything or anyone using your computer while Crow is locked |
+| Exposed to | Anything running as you while you're logged in can read the key from the keyring; anyone at your unlocked desk can use Crow | Anyone at your computer while Crow is unlocked (it auto-locks when idle) |
+| Costs | Nothing to type | Unlock with password + 2FA; lose either and the stored secrets are gone for good |
+
+In both stances:
+- **Secrets** (provider tokens, AI keys) are encrypted with ChaCha20-Poly1305 under one random data key. That key is never written to disk unencrypted.
+- **Never on the command line or in logs**: secrets never appear in argv, logs or error messages. HTTP requests carry them to `curl` on stdin.
+- **Wiped from memory**: secrets are wiped when no longer needed, and locking wipes the ones Crow holds in memory and closes its SSH connections.
+- **Not encrypted**: the rest of `crow.db` (server list, settings, history) and your SSH keys in `~/.ssh`.
+- **Strict SSH**: host keys are always checked strictly, and agent and X11 forwarding are always off, whatever `~/.ssh/config` says.
+
+The first secret you save asks you to choose a stance on purpose. See [docs/security.md](docs/security.md) for the full model.
+
+---
+
+## Providers and plugins
+
+Crow's extensions are **plugins** described by crow-config manifests:
+
+- A **category** is a contract: `provider.hosts` (where servers come from) today, `provider.dns` next.
+- **Capabilities** say which parts of that contract a plugin supports (`instances.list`, `instances.power`, `snapshots`). Crow only offers what a provider declares.
+- **Modules** (planned) declare the categories they need rather than naming a provider.
+
+| Provider | Category | Capabilities |
+|---|---|---|
+| Linode | `provider.hosts` | list instances, power, backup snapshots |
+| UpCloud | `provider.hosts` | list instances, power |
+
+Providers are compiled in, one cargo feature each (`provider-linode`, `provider-upcloud`, both on by default). Their settings forms are generated from the manifest, and tokens are stored only in the encrypted vault.
+
+### Repository layout
+
+```
+crow/
+├── src/                         # the app
+├── crates/
+│   ├── crow-provider-core/      # provider contracts: Provider, ListInstances, PowerControl, Snapshots; curl-based HTTP
+│   ├── crow-provider-linode/    # Linode API v4
+│   └── crow-provider-upcloud/   # UpCloud API 1.3
+├── assets/                      # icons, flags
+└── docs/
+```
+
+The provider crates live here, next to the app they serve. [crow-config](https://github.com/errorware/crow-config), the general-purpose config engine, has its own repository.
 
 ---
 
@@ -86,8 +126,7 @@ xattr -d com.apple.quarantine ./crow
 
 ### Prerequisites
 
-#### Linux (Fedora / Bazzite / Debian / Ubuntu / Arch)
-Crow requires a standard Rust toolchain (1.80+) and native windowing/font libraries.
+A Rust toolchain (1.85+), native windowing and font libraries, and `curl` (Crow uses it for provider and AI requests).
 
 ```bash
 # Fedora / Bazzite
@@ -97,26 +136,24 @@ sudo dnf install fontconfig-devel libxkbcommon-devel libxcb-devel wayland-devel
 sudo apt install libfontconfig1-dev libxkbcommon-dev libxcb1-dev libwayland-dev
 ```
 
-Ensure **JetBrains Mono** is installed on your system:
-```bash
-# macOS
-brew install --cask font-jetbrains-mono
+For the Open stance on Linux you need a Secret Service provider (GNOME Keyring or KWallet); most desktops have one running.
 
-# Linux (Homebrew)
-brew install font-jetbrains-mono
+Crow uses **JetBrains Mono**:
+```bash
+brew install --cask font-jetbrains-mono   # macOS
+brew install font-jetbrains-mono          # Linux (Homebrew)
 ```
 
 ### Build & Run
 
+Crow builds against crow-config from a sibling checkout:
+
 ```bash
-# Clone the repository
+git clone git@github.com:errorware/crow-config.git crow-config-core
 git clone git@github.com:errorware/crow.git
 cd crow
 
-# Check and build debug binary
-cargo build
-
-# Run Crow
+cargo test --workspace
 cargo run --release
 ```
 
@@ -126,21 +163,26 @@ cargo run --release
 
 | Shortcut | Action |
 | :--- | :--- |
-| `⌘K` / `Ctrl+K` | Open Command Palette / Global Search |
-| `⌘\` / `Ctrl+\` | Toggle Sidebar Collapse / Expand |
-| `⌘T` / `Ctrl+T` | Open Terminal |
-| `⌘N` / `Ctrl+N` | Add New Rule (Config View) |
-| `⌘⏎` / `Ctrl+Enter` | Apply Staged Config Plan & Reload |
-| `f` | Toggle Table Sort by CPU |
-| `p` | Toggle Log Autoscroll Pause |
-| `c` | Clear Log Stream Buffer |
-| `Esc` | Cancel Destructive Action / Close Modal |
+| `⌘K` / `Ctrl+K` | Command palette |
+| `⌘1` / `⌘2` / `⌘3` / `⌘4` | Fleet / server overview / configs / logs |
+| `⌘N` | Add server |
+| `⌘,` | Settings |
+| `⌘S` | Save settings (on Settings) |
+| `⌘/` | Open `config.toml` in your editor (on Settings) |
+| `⌘\` | Collapse / expand the sidebar |
+| `⇧⌘L` | Lock Crow (Locked stance) |
+| `/` | Search the table (services, processes, users, logs) |
+| `Tab` / `⇧Tab` | Next / previous field in a form |
+| `Esc` | Close the dialog or form, or cancel |
+
+`Ctrl` works wherever `⌘` is shown.
 
 ---
 
 ## Acknowledgements
 
-- **[Tabler Icons](https://tabler.io/icons)** by Paweł Kuna and contributors (licensed under MIT). See [assets/README.md](assets/README.md) for full license and attribution.
+- **[Tabler Icons](https://tabler.io/icons)** by Paweł Kuna and contributors (MIT). See [assets/README.md](assets/README.md).
+- **[flag-icons](https://flagicons.lipis.dev)** (MIT) for country flags.
 
 ---
 

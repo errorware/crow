@@ -9,8 +9,10 @@ impl CrowApp {
     }
 
     pub fn update_config_field(&mut self, row_id: &str, new_value: serde_json::Value, cx: &mut Context<Self>) {
-        if let Err(e) = self.config.update_field(row_id, new_value) {
-            eprintln!("Failed to update config field {}: {:?}", row_id, e);
+        match self.config.update_field(row_id, new_value) {
+            Ok(()) => self.settings.edit_error = None,
+            Err(crow_config_core::edit::EditError::InvalidValue { message, .. }) => self.settings.edit_error = Some(format!("Not changed: {message}")),
+            Err(e) => self.settings.edit_error = Some(format!("Not changed: {e}")),
         }
         // Personalisation is saved as soon as it changes; nothing to review.
         if row_id.starts_with("appearance.") {
@@ -32,7 +34,23 @@ impl CrowApp {
         if let Err(e) = self.config.save() {
             eprintln!("Failed to save config: {:?}", e);
         }
+        self.apply_settings();
         cx.notify();
+    }
+
+    /// Pushes saved settings to the parts of Crow that use them.
+    pub fn apply_settings(&self) {
+        let d = crate::host::ssh::SshSettings::default();
+        crate::host::ssh::set_ssh_settings(crate::host::ssh::SshSettings {
+            connect_timeout: self.config.saved_int("connection.connect_timeout").map_or(d.connect_timeout, |v| v.clamp(1, 300) as u32),
+            keepalive_interval: self.config.saved_int("connection.keepalive_interval").map_or(d.keepalive_interval, |v| v.clamp(1, 3600) as u32),
+            control_master: self.config.saved_bool("connection.control_master").unwrap_or(d.control_master),
+        });
+    }
+
+    /// Seconds between live refreshes of the server on screen.
+    pub fn refresh_interval_secs(&self) -> u64 {
+        self.config.saved_int("general.refresh_interval").map_or(2, |v| v.clamp(1, 60) as u64)
     }
 
     pub fn open_config_file(&self) {
@@ -75,7 +93,7 @@ impl CrowApp {
         let field_is_int = self
             .config
             .get_field(row_id)
-            .map(|f| matches!(&f.field_type, crow_config_core::schema::FieldType::Other(cow) if cow == "integer"))
+            .map(|f| matches!(&f.field_type, crow_config_core::schema::FieldType::Integer))
             .unwrap_or(false);
 
         if field_is_int {

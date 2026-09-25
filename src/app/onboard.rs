@@ -69,7 +69,7 @@ impl CrowApp {
                 (OnboardFieldFocus::Host, st.host.clone(), "e.g. 10.0.4.32 or prod-db.internal", false),
                 (OnboardFieldFocus::Port, st.port.clone(), "22", false),
                 (OnboardFieldFocus::User, st.user.clone(), "root", false),
-                (OnboardFieldFocus::Password, st.password.clone(), "password", true),
+                (OnboardFieldFocus::Password, st.password.to_string(), "password", true),
                 (OnboardFieldFocus::Label, st.label.clone(), "e.g. prod-db-01", false),
                 (OnboardFieldFocus::Tags, st.tags.clone(), "e.g. postgres, primary", false),
             ];
@@ -335,7 +335,7 @@ impl CrowApp {
         let jump = self.onboard_state.jump_host_id.as_ref().and_then(|id| self.fleet.servers.iter().find(|s| &s.id == id)).map(|j| {
             if j.login_user.is_empty() { format!("{}:{}", j.host, j.port) } else { format!("{}@{}:{}", j.login_user, j.host, j.port) }
         });
-        Ok(Some(Bootstrap { password: Zeroizing::new(self.onboard_state.password.clone()), key, jump }))
+        Ok(Some(Bootstrap { password: Zeroizing::new(self.onboard_state.password.to_string()), key, jump }))
     }
 
     /// Probes the address off the UI thread: TCP, banner, real host keys.
@@ -455,6 +455,9 @@ impl CrowApp {
             "online".to_string()
         };
         let host_key_fingerprint = self.onboard_state.probe_result.as_ref().map(|p| p.host_key_fingerprint.clone());
+        // A provider knows where its instances live better than metadata does.
+        let link = self.onboard_state.provider.clone();
+        let provider_region = link.as_ref().and_then(|l| crate::region::locate(&l.provider_name, &l.region_code).map(|(cc, city)| (cc, city, l)));
         let record = ServerRecord {
             id: id.clone(),
             name: name.clone(),
@@ -488,6 +491,19 @@ impl CrowApp {
             region_provider: self.onboard_state.facts.region.as_ref().map(|r| r.provider.clone()).unwrap_or_default(),
             region_code: self.onboard_state.facts.region.as_ref().map(|r| r.code.clone()).unwrap_or_default(),
             region_source: if self.onboard_state.facts.region.is_some() { "metadata".into() } else { String::new() },
+            provider_account: link.as_ref().map(|l| l.account.clone()).unwrap_or_default(),
+            provider_instance: link.as_ref().map(|l| l.instance.clone()).unwrap_or_default(),
+        };
+        let record = match provider_region {
+            Some((cc, city, l)) => ServerRecord {
+                region_country: cc.to_string(),
+                region_city: city.to_string(),
+                region_provider: l.provider_name.clone(),
+                region_code: l.region_code.clone(),
+                region_source: "provider".into(),
+                ..record
+            },
+            None => record,
         };
 
         // Persist to SQLite

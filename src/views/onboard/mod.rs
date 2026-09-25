@@ -61,7 +61,7 @@ pub struct OnboardState {
     pub auth_method: String, // "publickey", "agent", "password"
     pub selected_key_id: Option<String>,
     pub jump_host_id: Option<String>,
-    pub password: String,
+    pub password: crate::secret_string::SecretString,
     // Step 3: Probe
     pub probe_result: Option<ProbeResult>,
     pub probe_logs: Vec<ProbeLog>,
@@ -74,9 +74,21 @@ pub struct OnboardState {
     pub group: String, // "workers", "edge", "data", "staging"
     pub tags: String,
     pub facts: DetectedFacts,
+    /// Set when the server was imported from a provider (ERR-46).
+    pub provider: Option<ProviderLink>,
     // UI state
     pub focus: OnboardFieldFocus,
     pub error_message: Option<String>,
+}
+
+/// Which provider instance a server being added is.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProviderLink {
+    pub account: String,
+    pub instance: String,
+    /// The provider's display name (also what the region tables use).
+    pub provider_name: String,
+    pub region_code: String,
 }
 
 impl OnboardState {
@@ -91,7 +103,7 @@ impl OnboardState {
             auth_method: "publickey".into(),
             selected_key_id: default_key,
             jump_host_id: None,
-            password: String::new(),
+            password: Default::default(),
             probe_result: None,
             probe_logs: Vec::new(),
             host_key_accepted: false,
@@ -102,6 +114,7 @@ impl OnboardState {
             group: "workers".into(),
             tags: "queue, ruby, eu-west".into(),
             facts: DetectedFacts::default(),
+            provider: None,
             focus: OnboardFieldFocus::Host,
             error_message: None,
         }

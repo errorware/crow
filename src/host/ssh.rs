@@ -45,6 +45,55 @@ impl ConnectionState {
     }
 }
 
+/// Settings → Connection & SSH, as applied to every connection.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SshSettings {
+    /// Seconds to wait for the TCP connection.
+    pub connect_timeout: u32,
+    /// Seconds between keepalives (two missed ones drop the connection).
+    pub keepalive_interval: u32,
+    /// Reuse one connection per server (ControlMaster).
+    pub control_master: bool,
+}
+
+impl Default for SshSettings {
+    fn default() -> Self {
+        Self { connect_timeout: 8, keepalive_interval: 15, control_master: true }
+    }
+}
+
+fn ssh_settings() -> &'static RwLock<SshSettings> {
+    static SETTINGS: OnceLock<RwLock<SshSettings>> = OnceLock::new();
+    SETTINGS.get_or_init(Default::default)
+}
+
+/// Applies saved settings to connections opened from now on.
+pub fn set_ssh_settings(s: SshSettings) {
+    if let Ok(mut current) = ssh_settings().write() {
+        *current = s;
+    }
+}
+
+/// The `-o` options every connection gets. Security ones are fixed;
+/// the rest come from Settings → Connection & SSH.
+fn base_options(settings: &SshSettings) -> Vec<String> {
+    let fixed = [
+        "BatchMode=yes".to_string(),
+        "StrictHostKeyChecking=yes".to_string(),
+        // Crow never needs them; override whatever ~/.ssh/config says.
+        "ForwardAgent=no".to_string(),
+        "ForwardX11=no".to_string(),
+        "ServerAliveCountMax=2".to_string(),
+    ];
+    let configured = [
+        format!("ConnectTimeout={}", settings.connect_timeout.max(1)),
+        format!("ServerAliveInterval={}", settings.keepalive_interval.max(1)),
+        format!("ControlMaster={}", if settings.control_master { "auto" } else { "no" }),
+        format!("ControlPersist={}", if settings.control_master { "600" } else { "no" }),
+    ];
+    fixed.into_iter().chain(configured).flat_map(|o| ["-o".to_string(), o]).collect()
+}
+
 fn states() -> &'static Mutex<HashMap<String, ConnectionState>> {
     static STATES: OnceLock<Mutex<HashMap<String, ConnectionState>>> = OnceLock::new();
     STATES.get_or_init(Default::default)
@@ -130,18 +179,8 @@ impl SshHost {
 
     pub(crate) fn new(server: &ServerRecord, key_path: Option<String>, jump: Option<String>, control_dir: PathBuf) -> Self {
         let port = if server.port == 0 { 22 } else { server.port };
-        let mut args: Vec<String> = [
-            "-o", "BatchMode=yes",
-            "-o", "StrictHostKeyChecking=yes",
-            "-o", "ConnectTimeout=8",
-            "-o", "ServerAliveInterval=15",
-            "-o", "ServerAliveCountMax=2",
-            "-o", "ControlMaster=auto",
-            "-o", "ControlPersist=600",
-        ]
-        .iter()
-        .map(|s| s.to_string())
-        .collect();
+        let settings = ssh_settings().read().map(|s| *s).unwrap_or_default();
+        let mut args = base_options(&settings);
         args.push("-o".into());
         args.push(format!("ControlPath={}/%C", control_dir.display()));
         args.extend(["-p".into(), port.to_string()]);
@@ -432,5 +471,17 @@ mod tests {
         assert!(h3.exec(&["true"], Duration::from_secs(20)).is_err());
         assert!(matches!(connection_state("live-closed"), Some(ConnectionState::Unreachable(_))));
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn settings_reach_the_ssh_options_and_security_ones_stay_fixed() {
+        let args = base_options(&SshSettings { connect_timeout: 20, keepalive_interval: 30, control_master: false }).join(" ");
+        assert!(args.contains("ConnectTimeout=20") && args.contains("ServerAliveInterval=30"));
+        assert!(args.contains("ControlMaster=no") && args.contains("ControlPersist=no"));
+        for fixed in ["BatchMode=yes", "StrictHostKeyChecking=yes", "ForwardAgent=no", "ForwardX11=no"] {
+            assert!(args.contains(fixed), "{fixed} is always set");
+        }
+        let default = base_options(&SshSettings::default()).join(" ");
+        assert!(default.contains("ControlMaster=auto") && default.contains("ControlPersist=600"));
     }
 }

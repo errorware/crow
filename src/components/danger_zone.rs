@@ -47,6 +47,8 @@ pub fn danger_action_keyword(action: &str) -> &'static str {
     match action {
         "poweroff" => "POWEROFF",
         "reboot" => "REBOOT",
+        "boot" => "BOOT",
+        "snapshot" => "SNAPSHOT",
         "flush_firewall" => "FLUSH",
         "kill_containers" => "KILL",
         _ => "CONFIRM",
@@ -73,7 +75,15 @@ pub fn danger_triangle() -> impl IntoElement {
     .flex_none()
 }
 
-fn action_btn(id: &'static str, label: &'static str, app: Entity<CrowApp>, action: &'static str) -> impl IntoElement {
+/// What the active server's provider can do from outside SSH (ERR-47).
+#[derive(Clone, Debug)]
+pub struct ProviderActions {
+    pub name: String,
+    pub power: bool,
+    pub snapshots: bool,
+}
+
+fn action_btn(id: &'static str, label: impl Into<SharedString>, app: Entity<CrowApp>, action: &'static str) -> impl IntoElement {
     div()
         .id(id)
         .font_family("JetBrains Mono")
@@ -90,10 +100,12 @@ fn action_btn(id: &'static str, label: &'static str, app: Entity<CrowApp>, actio
                 this.arm_danger_zone_action(action, window, cx);
             });
         })
-        .child(label)
+        .child(label.into())
 }
 
-pub fn danger_zone(danger: &DangerZoneState, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>, app: Entity<CrowApp>) -> impl IntoElement {
+    let power = provider.filter(|p| p.power);
+    let snapshots = provider.filter(|p| p.snapshots);
     div()
         .h(px(46.0))
         .flex_none()
@@ -135,8 +147,21 @@ pub fn danger_zone(danger: &DangerZoneState, app: Entity<CrowApp>) -> impl IntoE
                     .items_center()
                     .gap(px(8.0))
                     .px(px(14.0))
-                    .child(action_btn("btn-danger-poweroff", "POWER OFF", app.clone(), "poweroff"))
-                    .child(action_btn("btn-danger-reboot", "REBOOT · 45s DOWNTIME", app.clone(), "reboot"))
+                    // Linked to a provider that can power it: real actions
+                    // there (they work with SSH down). Otherwise the named
+                    // simulation below.
+                    .children(match power {
+                        Some(p) => vec![
+                            action_btn("btn-danger-poweroff", format!("POWER OFF · {}", p.name.to_uppercase()), app.clone(), "poweroff").into_any_element(),
+                            action_btn("btn-danger-reboot", format!("REBOOT · {}", p.name.to_uppercase()), app.clone(), "reboot").into_any_element(),
+                            action_btn("btn-danger-boot", format!("BOOT · {}", p.name.to_uppercase()), app.clone(), "boot").into_any_element(),
+                        ],
+                        None => vec![
+                            action_btn("btn-danger-poweroff", "POWER OFF", app.clone(), "poweroff").into_any_element(),
+                            action_btn("btn-danger-reboot", "REBOOT · 45s DOWNTIME", app.clone(), "reboot").into_any_element(),
+                        ],
+                    })
+                    .children(snapshots.map(|p| action_btn("btn-danger-snapshot", format!("SNAPSHOT · {}", p.name.to_uppercase()), app.clone(), "snapshot")))
                     .child(action_btn("btn-danger-flush-fw", "FLUSH FIREWALL (UFW)", app.clone(), "flush_firewall"))
                     .child(
                         div()

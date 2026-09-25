@@ -118,6 +118,34 @@ pub fn encrypt_data(key: &MasterKey, plaintext: &[u8]) -> Result<(Vec<u8>, [u8; 
     Ok((ciphertext, nonce_bytes))
 }
 
+/// A fresh random data key: the key every vault secret is encrypted with.
+/// It's never derived from a password; the password (or the OS keyring)
+/// only protects it, so either can change without re-encrypting anything.
+pub fn generate_data_key() -> MasterKey {
+    let mut key = [0u8; KEY_LEN];
+    rand::rng().fill(&mut key);
+    MasterKey(key)
+}
+
+/// Encrypts `data_key` with `wrapping_key` (e.g. the password-derived key).
+pub fn wrap_key(wrapping_key: &MasterKey, data_key: &MasterKey) -> Result<(Vec<u8>, [u8; NONCE_LEN]), CryptoError> {
+    encrypt_data(wrapping_key, data_key.as_bytes())
+}
+
+/// Decrypts a data key wrapped by [`wrap_key`].
+pub fn unwrap_key(wrapping_key: &MasterKey, wrapped: &[u8], nonce: &[u8; NONCE_LEN]) -> Result<MasterKey, CryptoError> {
+    let mut bytes = decrypt_data(wrapping_key, wrapped, nonce)?;
+    let key = key_from_bytes(&bytes);
+    bytes.zeroize();
+    key.ok_or_else(|| CryptoError::DecryptionFailed("wrapped key has the wrong length".into()))
+}
+
+/// A key from exactly [`KEY_LEN`] bytes (e.g. read back from the OS keyring).
+pub fn key_from_bytes(bytes: &[u8]) -> Option<MasterKey> {
+    let arr: [u8; KEY_LEN] = bytes.try_into().ok()?;
+    Some(MasterKey(arr))
+}
+
 /// Decrypts ciphertext using ChaCha20-Poly1305 with the MasterKey and the specified nonce.
 pub fn decrypt_data(key: &MasterKey, ciphertext: &[u8], nonce_bytes: &[u8; NONCE_LEN]) -> Result<Vec<u8>, CryptoError> {
     let cipher = ChaCha20Poly1305::new_from_slice(key.as_bytes())
@@ -174,9 +202,22 @@ pub fn totp_auth_url(secret_base32: &str, account: &str) -> Result<String, Crypt
     totp.to_url().map_err(|e| CryptoError::InvalidTotp(e.to_string()))
 }
 
+/// The QR code (PNG) of the otpauth link, for pairing an authenticator app
+/// by scanning instead of typing the secret.
+pub fn totp_qr_png(secret_base32: &str, account: &str) -> Result<Vec<u8>, CryptoError> {
+    let secret = Secret::try_from_base32(secret_base32.trim()).map_err(|e| CryptoError::InvalidTotp(e.to_string()))?;
+    build_totp(secret, account)?.to_qr_png().map_err(|e| CryptoError::InvalidTotp(e.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn totp_qr_is_a_png() {
+        let png = totp_qr_png(&generate_totp_secret(), "nhc@workstation").unwrap();
+        assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+    }
 
     #[test]
     fn test_argon2_and_chacha_roundtrip() {

@@ -123,6 +123,28 @@ pub struct RiskConfirm {
     pub error: Option<String>,
 }
 
+/// A change to a file that can lock you out, on a server whose provider can
+/// snapshot it: offered a whole-server snapshot first (ERR-48).
+pub struct SnapshotOffer {
+    pub file: String,
+    pub description: String,
+    pub provider: String,
+    /// Remember the choice for next time.
+    pub remember: bool,
+    /// A snapshot is being taken; the change waits for it.
+    pub busy: bool,
+    pub error: Option<String>,
+}
+
+/// Files whose mistakes cut Crow (and you) off from the server.
+pub fn is_lockout_risk(file: &str) -> bool {
+    let name = file.rsplit('/').next().unwrap_or(file);
+    name == "sshd_config" || file.contains("sshd_config.d/") || name == "user.rules" || name == "user6.rules"
+}
+
+/// app_flags key for the remembered choice: "always" or "never".
+const SNAPSHOT_PREF: &str = "apply.snapshot_before_lockout_risk";
+
 /// Row id of an inline input for a directive not yet in the file.
 pub const NEW_DIRECTIVE_PREFIX: &str = "new:";
 
@@ -497,7 +519,108 @@ impl CrowApp {
                 return;
             }
         }
-        self.stage_config_version_confirmed(file, description, cx);
+        self.stage_or_offer_snapshot(file, description, cx);
+    }
+
+    /// Before a lockout-risk change on a server whose provider can snapshot,
+    /// offers a snapshot first (or follows the remembered choice).
+    fn stage_or_offer_snapshot(&mut self, file: &str, description: &str, cx: &mut Context<Self>) {
+        let provider = self.active_provider_actions().filter(|p| p.snapshots);
+        let Some(provider) = provider.filter(|_| is_lockout_risk(file)) else {
+            return self.stage_config_version_confirmed(file, description, cx);
+        };
+        let pref = self.vault.db().lock().ok().and_then(|db| db.flag(SNAPSHOT_PREF));
+        match pref.as_deref() {
+            Some("never") => self.stage_config_version_confirmed(file, description, cx),
+            Some("always") => self.snapshot_then_stage(file.to_string(), description.to_string(), cx),
+            _ => {
+                self.snapshot_offer = Some(SnapshotOffer { file: file.to_string(), description: description.to_string(), provider: provider.name, remember: false, busy: false, error: None });
+                cx.notify();
+            }
+        }
+    }
+
+    /// The offer's answer: `snapshot` or apply without; optionally remembered.
+    pub fn answer_snapshot_offer(&mut self, snapshot: bool, cx: &mut Context<Self>) {
+        let Some(offer) = self.snapshot_offer.as_ref() else { return };
+        if offer.busy {
+            return;
+        }
+        if offer.remember {
+            if let Ok(db) = self.vault.db().lock() {
+                let _ = db.set_flag(SNAPSHOT_PREF, if snapshot { "always" } else { "never" });
+            }
+        }
+        let (file, description) = (offer.file.clone(), offer.description.clone());
+        if snapshot {
+            self.snapshot_then_stage(file, description, cx);
+        } else {
+            self.snapshot_offer = None;
+            self.stage_config_version_confirmed(&file, &description, cx);
+        }
+    }
+
+    pub fn cancel_snapshot_offer(&mut self, cx: &mut Context<Self>) {
+        if self.snapshot_offer.as_ref().is_some_and(|o| !o.busy) {
+            self.snapshot_offer = None;
+            cx.notify();
+        }
+    }
+
+    pub fn toggle_snapshot_offer_remember(&mut self, cx: &mut Context<Self>) {
+        if let Some(o) = self.snapshot_offer.as_mut() {
+            o.remember = !o.remember;
+            cx.notify();
+        }
+    }
+
+    /// Asks the provider for a snapshot and applies the change only once it
+    /// was accepted; the revision notes the restore point.
+    fn snapshot_then_stage(&mut self, file: String, description: String, cx: &mut Context<Self>) {
+        let Some(srv) = self.fleet.active_server() else { return };
+        let Some(account) = self.providers.accounts.iter().find(|a| a.id == srv.provider_account).cloned() else { return };
+        let provider_name = crate::providers::display_name(&account.plugin);
+        let settings = match (self.vault.key(), self.vault.db().lock()) {
+            (Some(key), Ok(db)) => crate::providers::load_settings(&db, key, &account),
+            _ => Err(self.vault.secrets_blocker().unwrap_or_else(|| "the vault is busy".into())),
+        };
+        let offer = self.snapshot_offer.get_or_insert_with(|| SnapshotOffer { file: file.clone(), description: description.clone(), provider: provider_name.clone(), remember: false, busy: false, error: None });
+        let settings = match settings {
+            Ok(s) => s,
+            Err(e) => {
+                offer.error = Some(format!("No snapshot, nothing applied: {e}"));
+                cx.notify();
+                return;
+            }
+        };
+        offer.busy = true;
+        offer.error = None;
+        cx.notify();
+        let instance = srv.provider_instance.clone();
+        cx.spawn(async move |entity, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    let provider = crate::providers::connect(&account, settings).map_err(|e| e.to_string())?;
+                    crate::providers::run_action(provider.as_ref(), &instance, crate::providers::ProviderAction::Snapshot)
+                })
+                .await;
+            let _ = entity.update(cx, |this, cx| match result {
+                Ok(msg) => {
+                    this.snapshot_offer = None;
+                    this.push_journal_action_marker(format!("crow: {msg}"));
+                    this.stage_config_version_confirmed(&file, &format!("{description} · restore point: {msg}"), cx);
+                }
+                Err(e) => {
+                    if let Some(o) = this.snapshot_offer.as_mut() {
+                        o.busy = false;
+                        o.error = Some(format!("The snapshot failed, so nothing was applied: {e}"));
+                    }
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
     }
 
     /// Stages the pending never-on-prod change if the keyword was typed.
@@ -510,7 +633,7 @@ impl CrowApp {
             return;
         }
         let pending = self.risk_confirm.take().expect("checked above");
-        self.stage_config_version_confirmed(&pending.file, &pending.description, cx);
+        self.stage_or_offer_snapshot(&pending.file, &pending.description, cx);
     }
 
     pub fn cancel_risky_stage(&mut self, cx: &mut Context<Self>) {
@@ -582,4 +705,19 @@ impl CrowApp {
     }
 
     // --- SSH Key Management Subsystem ---
+}
+
+#[cfg(test)]
+mod lockout_tests {
+    use super::is_lockout_risk;
+
+    #[test]
+    fn sshd_and_firewall_rules_are_lockout_risks() {
+        for f in ["sshd_config", "/etc/ssh/sshd_config", "sshd_config.d/50-crow.conf", "user.rules", "/etc/ufw/user6.rules"] {
+            assert!(is_lockout_risk(f), "{f}");
+        }
+        for f in ["hosts", "crontab", "journald.conf", "pg_hba.conf"] {
+            assert!(!is_lockout_risk(f), "{f}");
+        }
+    }
 }

@@ -153,13 +153,20 @@ impl CrowApp {
     pub(super) fn spawn_metrics_poll(cx: &mut Context<Self>) -> Task<()> {
         cx.spawn(async move |entity, cx| {
                 let mut local_prev = CollectorStates::default();
+                let mut interval = std::time::Duration::from_secs(2);
                 loop {
-                    cx.background_executor().timer(std::time::Duration::from_millis(2000)).await;
-                    let req_res = entity.update(cx, |this, _cx| {
-                        this.prepare_poll_request()
+                    cx.background_executor().timer(interval).await;
+                    if let Ok(secs) = entity.update(cx, |this, _cx| this.refresh_interval_secs()) {
+                        interval = std::time::Duration::from_secs(secs);
+                    }
+                    // Auto-lock rides this tick; a locked Crow doesn't touch servers.
+                    let req_res = entity.update(cx, |this, cx| {
+                        this.check_auto_lock(cx);
+                        (this.vault.status() != crate::vault::VaultStatus::Locked).then(|| this.prepare_poll_request())
                     });
                     let req = match req_res {
-                        Ok(r) => r,
+                        Ok(Some(r)) => r,
+                        Ok(None) => continue,
                         Err(_) => break,
                     };
         

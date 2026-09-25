@@ -73,6 +73,8 @@ pub fn locate(provider: &str, code: &str) -> Option<(&'static str, &'static str)
         // GCP reports the zone ("europe-west3-b").
         "GCP" => prefix(GCP),
         "Azure" => exact(AZURE),
+        // UpCloud zones ("de-fra1") start with the country, like Linode's.
+        "UpCloud" => prefix(UPCLOUD).or_else(|| country_from_prefix(&code)),
         _ => None,
     }
 }
@@ -140,6 +142,23 @@ const HETZNER: &[(&str, &str, &str)] = &[
     ("ash", "US", "Ashburn"),
     ("hil", "US", "Hillsboro"),
     ("sin", "SG", "Singapore"),
+];
+
+const UPCLOUD: &[(&str, &str, &str)] = &[
+    ("au-syd", "AU", "Sydney"),
+    ("de-fra", "DE", "Frankfurt"),
+    ("dk-cph", "DK", "Copenhagen"),
+    ("es-mad", "ES", "Madrid"),
+    ("fi-hel", "FI", "Helsinki"),
+    ("nl-ams", "NL", "Amsterdam"),
+    ("no-svg", "NO", "Stavanger"),
+    ("pl-waw", "PL", "Warsaw"),
+    ("se-sto", "SE", "Stockholm"),
+    ("sg-sin", "SG", "Singapore"),
+    ("uk-lon", "GB", "London"),
+    ("us-chi", "US", "Chicago"),
+    ("us-nyc", "US", "New York"),
+    ("us-sjo", "US", "San Jose"),
 ];
 
 const AWS: &[(&str, &str, &str)] = &[
@@ -311,6 +330,8 @@ mod tests {
         assert_eq!(locate("GCP", "europe-west3-b"), Some(("DE", "Frankfurt")));
         assert_eq!(locate("GCP", "europe-west1-c"), Some(("BE", "Belgium")), "europe-west1 isn't europe-west10/12");
         assert_eq!(locate("Azure", "westeurope"), Some(("NL", "Netherlands")));
+        assert_eq!(locate("UpCloud", "de-fra1"), Some(("DE", "Frankfurt")));
+        assert_eq!(locate("UpCloud", "uk-lon1"), Some(("GB", "London")), "UpCloud says uk, the flag is GB");
         assert_eq!(locate("Linode", ""), None);
     }
 

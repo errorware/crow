@@ -1,9 +1,9 @@
 use gpui_kit::*;
 
-use super::{ClankerModalFocus, CrowApp, Screen};
+use super::{CrowApp, Screen};
 use crate::keys::KeyGenFieldFocus;
 use crate::vault::VaultStatus;
-use crate::views::lock::{LockFieldFocus, SetupFieldFocus, SetupState, SetupStep};
+use crate::views::lock::{LockFieldFocus, SetupState, SetupStep};
 use crate::views::onboard::OnboardFieldFocus;
 
 // ==========================================
@@ -19,6 +19,9 @@ struct KeyPress<'a> {
     /// Platform (⌘) or Control held.
     is_mod: bool,
     is_shift: bool,
+    /// A text input inside the window has focus (the key is being typed
+    /// into it), so unmodified shortcuts must stay out of the way (ERR-64).
+    typing: bool,
 }
 
 impl CrowApp {
@@ -46,14 +49,24 @@ impl CrowApp {
     /// Routes a key press to whichever surface owns the keyboard right now, in
     /// priority order: vault lock screen, vault setup, key-hub modals, settings
     /// dropdown, onboarding, config search, then global shortcuts.
-    pub(super) fn handle_key_down(&mut self, ev: &KeyDownEvent, _window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn handle_key_down(&mut self, ev: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) {
         let key = ev.keystroke.key.to_lowercase();
+        // The root keeps focus unless a gpui Input (or another focusable
+        // child) took it; key events still bubble up to here.
+        let typing = window.focused(cx).is_some_and(|f| f != self.focus_handle);
         let k = KeyPress {
             ev,
             key: &key,
             is_mod: ev.keystroke.modifiers.platform || ev.keystroke.modifiers.control,
             is_shift: ev.keystroke.modifiers.shift,
+            typing,
         };
+        // Tab / Shift+Tab move between the fields of the form being typed in.
+        if typing && key == "tab" && !k.is_mod {
+            if self.cycle_form_focus(k.is_shift, window, cx) {
+                return;
+            }
+        }
         // Danger Zone confirm and Files new-folder prompt are native
         // gpui-component Input widgets — they own their own focus and
         // keyboard handling, so they have no entry here.
@@ -109,6 +122,34 @@ impl CrowApp {
         false
     }
 
+    /// The gpui inputs of the form on screen, in tab order.
+    fn open_form_inputs(&self) -> Vec<Entity<gpui_kit::component::input::InputState>> {
+        if let (Screen::VaultSetup, Some(i)) = (self.screen, self.setup_inputs.as_ref()) {
+            return vec![i.password.clone(), i.confirm.clone(), i.code.clone()];
+        }
+        if let Some(i) = self.clanker_inputs.as_ref() {
+            return vec![i.key.clone(), i.model.clone(), i.base_url.clone()];
+        }
+        if let Some(i) = self.provider_inputs.as_ref() {
+            return i.fields.iter().map(|(_, _, input)| input.clone()).collect();
+        }
+        if let Some(i) = self.vault_form_inputs.as_ref() {
+            return i.inputs.iter().map(|(_, input)| input.clone()).collect();
+        }
+        Vec::new()
+    }
+
+    /// Moves focus to the next (or previous) field of the open form.
+    /// Returns false when no form of ours has focus.
+    fn cycle_form_focus(&mut self, back: bool, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let inputs = self.open_form_inputs();
+        let Some(at) = inputs.iter().position(|i| i.focus_handle(cx).is_focused(window)) else { return false };
+        let n = inputs.len();
+        let next = if back { (at + n - 1) % n } else { (at + 1) % n };
+        inputs[next].update(cx, |i, cx| i.focus(window, cx));
+        true
+    }
+
     /// Vault setup wizard. Returns true when the key was consumed.
     fn keys_vault_setup(&mut self, k: &KeyPress, cx: &mut Context<Self>) -> bool {
         let KeyPress { ev, key, .. } = *k;
@@ -119,55 +160,17 @@ impl CrowApp {
                         self.setup_state = SetupState::default();
                         self.set_screen(Screen::Settings, cx);
                     } else if key == "enter" {
-                        self.setup_state.step = SetupStep::ConfigureCredentials;
-                        if self.setup_state.totp_secret.is_empty() {
-                            self.setup_state.totp_secret = crate::vault::generate_totp_secret();
-                        }
-                        self.caret.place(self.setup_state.password_input.chars().count());
-                        self.caret.blink = true;
-                        cx.notify();
+                        self.enter_setup_credentials(cx);
                     }
                 }
                 SetupStep::ConfigureCredentials => {
-                    self.caret.blink = true;
+                    // The fields are gpui inputs (Enter activates through
+                    // them); only Escape, to go back, is handled here.
                     if ev.keystroke.key == "escape" {
                         self.setup_state.step = SetupStep::WarningNotice;
                         cx.notify();
-                    } else if key == "tab" {
-                        self.setup_state.active_focus = match self.setup_state.active_focus {
-                            SetupFieldFocus::Password => SetupFieldFocus::ConfirmPassword,
-                            SetupFieldFocus::ConfirmPassword => SetupFieldFocus::TotpConfirm,
-                            SetupFieldFocus::TotpConfirm => SetupFieldFocus::Password,
-                        };
-                        let len = match self.setup_state.active_focus {
-                            SetupFieldFocus::Password => self.setup_state.password_input.chars().count(),
-                            SetupFieldFocus::ConfirmPassword => self.setup_state.confirm_input.chars().count(),
-                            SetupFieldFocus::TotpConfirm => self.setup_state.totp_confirm_input.chars().count(),
-                        };
-                        self.caret.place(len);
-                        cx.notify();
-                    } else if key == "enter" {
-                        self.submit_setup(cx);
                     } else {
-                        let is_totp = self.setup_state.active_focus == SetupFieldFocus::TotpConfirm;
-                        let text = match self.setup_state.active_focus {
-                            SetupFieldFocus::Password => &mut self.setup_state.password_input,
-                            SetupFieldFocus::ConfirmPassword => &mut self.setup_state.confirm_input,
-                            SetupFieldFocus::TotpConfirm => &mut self.setup_state.totp_confirm_input,
-                        };
-                        let changed = crate::components::handle_text_key_event(text, &mut self.caret.cursor, &mut self.caret.selection, ev);
-                        if is_totp {
-                            self.setup_state.totp_confirm_input.retain(|c| c.is_ascii_digit());
-                            if self.setup_state.totp_confirm_input.chars().count() > 6 {
-                                let s: String = self.setup_state.totp_confirm_input.chars().take(6).collect();
-                                self.setup_state.totp_confirm_input = s;
-                                self.caret.cursor = self.caret.cursor.min(6);
-                            }
-                        }
-                        if changed {
-                            self.setup_state.error_message = None;
-                            cx.notify();
-                        }
+                        return false;
                     }
                 }
             }
@@ -275,56 +278,6 @@ impl CrowApp {
             return true;
         }
 
-        if let Some(ref mut clk) = self.clankers.editing {
-            self.caret.blink = true;
-            if ev.keystroke.key == "escape" {
-                self.close_edit_clanker_modal(cx);
-                return true;
-            } else if key == "enter" {
-                self.submit_edit_clanker(cx);
-                return true;
-            } else if key == "tab" {
-                clk.focus = match clk.focus {
-                    ClankerModalFocus::ApiKey => ClankerModalFocus::Model,
-                    ClankerModalFocus::Model => ClankerModalFocus::BaseUrl,
-                    ClankerModalFocus::BaseUrl => ClankerModalFocus::ApiKey,
-                };
-                let target_len = match clk.focus {
-                    ClankerModalFocus::ApiKey => clk.api_key_input.chars().count(),
-                    ClankerModalFocus::Model => clk.model_input.chars().count(),
-                    ClankerModalFocus::BaseUrl => clk.base_url_input.chars().count(),
-                };
-                self.caret.place(target_len);
-                cx.notify();
-                return true;
-            }
-
-            let handled = match clk.focus {
-                ClankerModalFocus::ApiKey => crate::components::handle_text_key_event(
-                    &mut clk.api_key_input,
-                    &mut self.caret.cursor,
-                    &mut self.caret.selection,
-                    ev,
-                ),
-                ClankerModalFocus::Model => crate::components::handle_text_key_event(
-                    &mut clk.model_input,
-                    &mut self.caret.cursor,
-                    &mut self.caret.selection,
-                    ev,
-                ),
-                ClankerModalFocus::BaseUrl => crate::components::handle_text_key_event(
-                    &mut clk.base_url_input,
-                    &mut self.caret.cursor,
-                    &mut self.caret.selection,
-                    ev,
-                ),
-            };
-            if handled {
-                clk.error_message = None;
-                cx.notify();
-            }
-            return true;
-        }
         false
     }
 
@@ -349,7 +302,7 @@ impl CrowApp {
                     let field_is_int = self
                         .config
                         .get_field(&open_row_id)
-                        .map(|f| matches!(&f.field_type, crow_config_core::schema::FieldType::Other(cow) if cow == "integer"))
+                        .map(|f| matches!(&f.field_type, crow_config_core::schema::FieldType::Integer))
                         .unwrap_or(false);
                     if field_is_int {
                         self.settings.custom_input.retain(|c| c.is_ascii_digit());
@@ -413,9 +366,32 @@ impl CrowApp {
 
     /// Global shortcuts (escape, palette, sidebar, screens). Returns true when the key was consumed.
     fn keys_global_shortcuts(&mut self, k: &KeyPress, cx: &mut Context<Self>) -> bool {
-        let KeyPress { ev, key, is_mod, is_shift, .. } = *k;
+        let KeyPress { ev, key, is_mod, is_shift, typing } = *k;
+        if typing && !is_mod {
+            // Escape closes the form being typed into, and nothing else;
+            // other plain keys belong to the input.
+            if ev.keystroke.key == "escape" {
+                if self.firewall.show_new_rule_modal {
+                    self.close_new_firewall_rule_modal(cx);
+                } else if self.users.show_new_user_modal {
+                    self.users.show_new_user_modal = false;
+                    cx.notify();
+                } else if self.clanker_inputs.is_some() {
+                    self.close_edit_clanker_modal(cx);
+                } else if self.provider_inputs.is_some() {
+                    self.close_provider_form(cx);
+                } else if self.vault_form.open.is_some() {
+                    self.open_vault_form(None, cx);
+                }
+            }
+            return false;
+        }
         if ev.keystroke.key == "escape" {
-            if self.firewall.show_new_rule_modal {
+            if self.import.open {
+                self.close_import(cx);
+            } else if self.stance_panel_open {
+                self.toggle_stance_panel(cx);
+            } else if self.firewall.show_new_rule_modal {
                 self.close_new_firewall_rule_modal(cx);
             } else if self.users.show_new_user_modal {
                 self.users.show_new_user_modal = false; cx.notify();

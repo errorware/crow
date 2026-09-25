@@ -22,6 +22,8 @@ use crate::views::settings::state::SettingsState;
 use crate::views::settings::lab::LabState;
 pub mod lab;
 pub mod clankers;
+pub mod providers;
+pub mod vault_manage;
 
 fn format_field_label(leaf: &str) -> String {
     match leaf {
@@ -232,6 +234,11 @@ pub fn settings_view(
     vault: &Vault, config: &CrowConfigManager, caret: &TextCaret, fleet: &FleetState, keys: &KeysState, clankers: &ClankersState, settings: &SettingsState, lab_state: &LabState,
     section: SettingsSection,
     fleet_background: (&crate::app::appearance::FleetBackground, Option<std::path::PathBuf>),
+    providers_state: &crate::app::providers::ProvidersState,
+    provider_inputs: Option<&crate::app::providers::ProviderFormInputs>,
+    secrets_notice: Option<&str>,
+    vault_form: (&crate::app::vault_manage::VaultFormState, Option<&crate::app::vault_manage::VaultFormInputs>),
+    clanker_inputs: Option<&crate::app::ClankerInputs>,
 ) -> impl IntoElement {
     let is_auth_enabled = vault.is_password_auth_enabled();
     let open_dropdown = settings.dropdown_open.as_deref();
@@ -244,6 +251,7 @@ pub fn settings_view(
         (TablerIcon::Server, "Servers & Archives", SettingsSection::Servers),
         (TablerIcon::Box, "UI Components Lab", SettingsSection::Components),
         (TablerIcon::Cpu, "Clankers (AI)", SettingsSection::Clankers),
+        (TablerIcon::Cloud, "Providers", SettingsSection::Providers),
         (TablerIcon::Photo, "Personalisation", SettingsSection::Personalisation),
     ];
 
@@ -251,10 +259,11 @@ pub fn settings_view(
         SettingsSection::General => ("GENERAL", "[general] · application behavior"),
         SettingsSection::Connection => ("CONNECTION & SSH", "[connection] · applies to every host unless overridden"),
         SettingsSection::Keys => ("KEYS & ROTATION", "[keys] · key distribution & policies"),
-        SettingsSection::Security => ("VAULT & SECURITY", "[vault] · local encrypted sqlite & master key"),
+        SettingsSection::Security => ("VAULT & SECURITY", "[vault] · encrypted secrets & who can open Crow"),
         SettingsSection::Servers => ("SERVERS & ARCHIVES", "[servers] · archiving and how long stored data is kept"),
         SettingsSection::Components => ("UI COMPONENTS LAB", "[lab] · gpui-component testbed & sandbox"),
         SettingsSection::Clankers => ("CLANKERS (AI USABILITY)", "[clankers] · api keys & log eli5 helpers"),
+        SettingsSection::Providers => ("PROVIDERS", "[providers] · cloud accounts your servers run on"),
         SettingsSection::Personalisation => ("PERSONALISATION", "[appearance] · make Crow yours · saved as you change it"),
     };
 
@@ -295,7 +304,10 @@ pub fn settings_view(
         .filter(|r| r.row_id.starts_with(&sec_prefix))
         // The picture is chosen with the picker below, not typed as a path.
         .filter(|r| r.row_id != crate::app::appearance::FLEET_BACKGROUND)
+        // Only settings some code reads (ERR-69).
+        .filter(|r| crate::config::WIRED_SETTINGS.contains(&r.row_id.as_str()))
         .collect();
+    let hidden_settings = config.ir.rows.iter().filter(|r| r.row_id.starts_with(&sec_prefix) && !crate::config::WIRED_SETTINGS.contains(&r.row_id.as_str())).count();
 
     let has_section_changes = config.changed_count_for_section(section.id_prefix()) > 0;
     let sec_prefix_id = section.id_prefix().to_string();
@@ -472,11 +484,13 @@ pub fn settings_view(
                 } else if section == SettingsSection::Components {
                     Some(lab::render_components_lab(app.clone(), caret, lab_state).into_any_element())
                 } else if section == SettingsSection::Clankers {
-                    Some(clankers::render_clankers_view(app.clone(), clankers).into_any_element())
+                    Some(clankers::render_clankers_view(app.clone(), clankers, vault.secrets_blocker().filter(|_| !matches!(vault.keyring_state, crate::vault::KeyringState::Loading)), secrets_notice).into_any_element())
+                } else if section == SettingsSection::Providers {
+                    Some(providers::render_providers_view(app.clone(), providers_state, provider_inputs, vault.secrets_blocker().filter(|_| !matches!(vault.keyring_state, crate::vault::KeyringState::Loading)), secrets_notice, !is_auth_enabled).into_any_element())
                 } else {
                     None
                 })
-                .children(if section != SettingsSection::Keys && section != SettingsSection::Components && section != SettingsSection::Clankers {
+                .children(if section != SettingsSection::Keys && section != SettingsSection::Components && section != SettingsSection::Clankers && section != SettingsSection::Providers {
                     Some(
                         div()
                             .flex_1()
@@ -578,7 +592,7 @@ pub fn settings_view(
                                                         .text_size(px(11.0))
                                                         .text_color(TEXT_MUTED)
                                                         .line_height(px(16.0))
-                                                        .child("By default, Crow operates with direct unauthenticated local access. You can protect your local keys, sessions, and configuration by enabling master password logon and mandatory two-factor authentication (RFC 6238 TOTP)."),
+                                                        .child("Without a password, anyone using your computer account can open Crow. Secrets (provider tokens, AI keys) are still encrypted, with the key held by your OS keyring. A master password with two-factor authentication (RFC 6238 TOTP) makes Crow ask before it opens, and locks the secrets' key with that password instead."),
                                                 )
                                                 .child(
                                                     div()
@@ -662,7 +676,7 @@ pub fn settings_view(
                                                         .text_size(px(11.0))
                                                         .text_color(TEXT_MUTED)
                                                         .line_height(px(16.0))
-                                                        .child("Database is encrypted at ~/.config/crow/crow.db via Argon2id + ChaCha20-Poly1305. MasterKey is zeroized on lock."),
+                                                        .child("Secrets (provider tokens, AI keys) in ~/.config/crow/crow.db are encrypted with ChaCha20-Poly1305; their key is unlocked by your password (Argon2id) and wiped from memory on lock. Server list, settings and history are not encrypted."),
                                                 )
                                                 .child(
                                                     div()
@@ -700,6 +714,17 @@ pub fn settings_view(
                                 } else {
                                     None
                                 })
+                                .children((section == SettingsSection::Security && is_auth_enabled).then(|| vault_manage::render(vault_form.0, vault_form.1, app.clone())))
+                                .children(settings.edit_error.clone().map(|e| div().px(px(14.0)).py(px(8.0)).font_family(FONT_MONO).text_size(px(10.5)).text_color(CRIT).child(e)))
+                                .children((hidden_settings > 0).then(|| {
+                                    div()
+                                        .px(px(14.0))
+                                        .py(px(8.0))
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(10.0))
+                                        .text_color(TEXT_FAINT)
+                                        .child(format!("{hidden_settings} more setting{} in this section {} not wired to anything yet, so {} hidden rather than pretending to work.", if hidden_settings == 1 { "" } else { "s" }, if hidden_settings == 1 { "is" } else { "are" }, if hidden_settings == 1 { "it's" } else { "they're" }))
+                                }))
                                 .children(sec_rows.into_iter().enumerate().map(|(idx, row)| {
                                     let is_even = idx % 2 == 0;
                                     let field = row.get_field(&row.row_id);
@@ -709,7 +734,7 @@ pub fn settings_view(
                                     let is_changed = config.is_field_changed(&row.row_id);
 
                                     let is_bool = matches!(field.map(|f| &f.field_type), Some(FieldType::Bool));
-                                    let is_int = matches!(field.map(|f| &f.field_type), Some(FieldType::Other(cow)) if cow == "integer");
+                                    let is_int = matches!(field.map(|f| &f.field_type), Some(FieldType::Integer));
                                     let is_open = open_dropdown == Some(row.row_id.as_str());
 
                                     let display_val = format_display_value(leaf, field);
@@ -1204,7 +1229,7 @@ pub fn settings_view(
                     None
                 })
                 // Right Rail: Pending Diff, Session Warning, Keychain (340px)
-                .children(if section != SettingsSection::Components && section != SettingsSection::Clankers {
+                .children(if section != SettingsSection::Components && section != SettingsSection::Clankers && section != SettingsSection::Providers {
                     Some(
                         div()
                         .w(px(340.0))
@@ -1401,7 +1426,7 @@ pub fn settings_view(
                 }),
         )
         .children(render_key_modals(app.clone(), caret, fleet, keys))
-        .children(clankers::render_clanker_modals(app.clone(), caret, clankers))
+        .children(clankers::render_clanker_modals(app.clone(), clankers, clanker_inputs))
 }
 
 /// Fleet page background: preview, choose, remove. Opacity and blur are the

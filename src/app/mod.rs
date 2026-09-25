@@ -46,6 +46,9 @@ pub mod configs;
 pub mod region;
 mod journal;
 mod clankers;
+pub mod providers;
+mod secrets;
+pub mod vault_manage;
 mod lab;
 
 use crate::views::fleet::lab_state::LocalLabState;
@@ -77,6 +80,7 @@ pub enum SettingsSection {
     Servers,
     Components,
     Clankers,
+    Providers,
     Personalisation,
 }
 
@@ -90,27 +94,39 @@ impl SettingsSection {
             SettingsSection::Servers => "servers",
             SettingsSection::Components => "components",
             SettingsSection::Clankers => "clankers",
+            SettingsSection::Providers => "providers",
             SettingsSection::Personalisation => "appearance",
         }
     }
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum ClankerModalFocus {
-    ApiKey,
-    Model,
-    BaseUrl,
 }
 
 #[derive(Clone, Debug)]
 pub struct ClankerEditModalState {
     pub provider_id: String,
     pub display_name: String,
-    pub api_key_input: String,
-    pub model_input: String,
-    pub base_url_input: String,
-    pub focus: ClankerModalFocus,
+    /// Whether a key is already stored (the field starts empty either way).
+    pub has_key: bool,
+    /// Current model and endpoint, to prefill the inputs.
+    pub model: String,
+    pub base_url: String,
     pub error_message: Option<String>,
+}
+
+/// Vault setup's inputs (created on render: they need the window).
+pub struct SetupInputs {
+    pub password: Entity<gpui_kit::component::input::InputState>,
+    pub confirm: Entity<gpui_kit::component::input::InputState>,
+    pub code: Entity<gpui_kit::component::input::InputState>,
+    pub _events: Vec<Subscription>,
+}
+
+/// The Clankers edit dialog's inputs (created on render: they need the window).
+pub struct ClankerInputs {
+    pub provider_id: String,
+    pub key: Entity<gpui_kit::component::input::InputState>,
+    pub model: Entity<gpui_kit::component::input::InputState>,
+    pub base_url: Entity<gpui_kit::component::input::InputState>,
+    pub _events: Vec<Subscription>,
 }
 
 
@@ -180,6 +196,34 @@ pub struct CrowApp {
     pub keys: KeysState,
     pub local_lab: LocalLabState,
     pub clankers: ClankersState,
+    /// Settings → Providers: accounts and the open form (ERR-45).
+    pub providers: providers::ProvidersState,
+    pub provider_inputs: Option<providers::ProviderFormInputs>,
+    pub clanker_inputs: Option<ClankerInputs>,
+    /// Fleet → IMPORT FROM PROVIDERS.
+    pub import: providers::ImportState,
+    /// Vault setup's password, confirm and 2FA code inputs.
+    pub setup_inputs: Option<SetupInputs>,
+    /// Snapshot-first offer before a lockout-risk change (ERR-48).
+    pub snapshot_offer: Option<configs::SnapshotOffer>,
+    /// Something the user should know about their stored secrets (moved,
+    /// lost with the keyring, ...), shown on Providers and Clankers.
+    pub secrets_notice: Option<String>,
+    /// Last key press or click, for auto-lock.
+    pub last_activity: std::time::Instant,
+    /// The security stance panel is open (titlebar badge).
+    pub stance_panel_open: bool,
+    /// Older AI keys are still in plain text (checked when keys load, so
+    /// rendering never waits on the database).
+    pub plaintext_ai_keys: bool,
+    /// A secret save waiting for the user to choose a stance (first secret
+    /// while Open, ERR-60).
+    pub pending_secret: Option<secrets::PendingSecret>,
+    /// The stance choice's "I understand" box.
+    pub stance_choice_ack: bool,
+    /// Vault & Security: change password / go back to Open.
+    pub vault_form: vault_manage::VaultFormState,
+    pub vault_form_inputs: Option<vault_manage::VaultFormInputs>,
     pub settings: SettingsState,
     /// UI components sandbox (Settings → Components).
     pub lab_state: LabState,
@@ -266,7 +310,7 @@ impl CrowApp {
             .map(|st| crate::journal::retention::parse_journald_conf(&st.current_content))
             .unwrap_or(journal_retention);
 
-        Self {
+        let mut app = Self {
             focus_handle: cx.focus_handle(),
             vault,
             config,
@@ -315,7 +359,25 @@ impl CrowApp {
             clankers: ClankersState::new(clanker_providers),
             users: UsersState::new(),
             firewall: FirewallState::new(initial_firewall_state),
-        }
+            providers: Default::default(),
+            provider_inputs: None,
+            clanker_inputs: None,
+            import: Default::default(),
+            snapshot_offer: None,
+            setup_inputs: None,
+            secrets_notice: None,
+            last_activity: std::time::Instant::now(),
+            stance_panel_open: false,
+            plaintext_ai_keys: false,
+            pending_secret: None,
+            stance_choice_ack: false,
+            vault_form: Default::default(),
+            vault_form_inputs: None,
+        };
+        app.refresh_providers();
+        app.apply_settings();
+        app.load_keyring_key(cx);
+        app
     }
 }
 
@@ -331,9 +393,7 @@ impl CrowApp {
         {
             return true;
         }
-        if self.keys.any_modal_open()
-            || self.clankers.editing.is_some()
-        {
+        if self.keys.any_modal_open() {
             return true;
         }
         if self.vault.status() == VaultStatus::Locked {
@@ -352,6 +412,9 @@ impl CrowApp {
             {
                 return true;
             }
+        }
+        if self.screen == Screen::Settings && (self.provider_inputs.is_some() || self.vault_form_inputs.is_some() || self.clanker_inputs.is_some()) {
+            return true;
         }
         if self.screen == Screen::Settings && self.settings.dropdown_open.is_some() {
             return true;

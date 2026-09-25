@@ -1388,6 +1388,7 @@ dependencies = [
  "serde_json",
  "thiserror 2.0.20",
  "toml 0.8.23",
+ "zeroize",
 ]
 
 [[package]]
@@ -1402,6 +1403,35 @@ dependencies = [
 ]
 
 [[package]]
+name = "crow-provider-core"
+version = "0.1.0"
+dependencies = [
+ "crow-config-core",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+ "zeroize",
+]
+
+[[package]]
+name = "crow-provider-linode"
+version = "0.1.0"
+dependencies = [
+ "crow-provider-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "crow-provider-upcloud"
+version = "0.1.0"
+dependencies = [
+ "crow-provider-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "crow-rs"
 version = "0.1.0"
 dependencies = [
@@ -1410,6 +1440,9 @@ dependencies = [
  "chrono",
  "crow-config-core",
  "crow-config-schemas",
+ "crow-provider-core",
+ "crow-provider-linode",
+ "crow-provider-upcloud",
  "dirs 7.0.0",
  "gpui-kit",
  "image",
@@ -5610,6 +5643,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "qrcodegen"
+version = "1.8.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4339fc7a1021c9c1621d87f5e3505f2805c8c105420ba2f2a4df86814590c142"
+
+[[package]]
+name = "qrcodegen-image"
+version = "1.5.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e3dd60f5b603f72c307455fc52deec52ada1ba53c7580918bb2a8e3247d4fe7"
+dependencies = [
+ "base64 0.22.1",
+ "image",
+ "qrcodegen",
+]
+
+[[package]]
 name = "quick-error"
 version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7554,6 +7604,7 @@ dependencies = [
  "constant_time_eq",
  "hmac 0.13.0",
  "percent-encoding",
+ "qrcodegen-image",
  "rand 0.10.2",
  "serde",
  "sha1",

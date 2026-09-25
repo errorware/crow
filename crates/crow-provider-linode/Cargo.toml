@@ -1,0 +1,18 @@
+[package]
+name = "crow-provider-linode"
+version = "0.1.0"
+edition = "2021"
+license-file = "../../LICENSE"
+authors = ["Nelson <nelson@errorware.net>"]
+readme = "README.md"
+description = "Linode (Akamai) provider for Crow: instances, power and backup snapshots"
+homepage = "https://crow.rs"
+repository = "https://github.com/errorware/crow"
+
+[dependencies]
+crow-provider-core = { path = "../crow-provider-core", version = "0.1.0" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[dev-dependencies]
+crow-provider-core = { path = "../crow-provider-core", version = "0.1.0", features = ["testing"] }

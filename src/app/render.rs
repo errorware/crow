@@ -37,6 +37,18 @@ impl Render for CrowApp {
         if self.users.show_new_user_modal {
             self.ensure_new_user_inputs(window, cx);
         }
+        if self.screen == Screen::Settings && self.settings.section == super::SettingsSection::Providers && self.providers.editing.is_some() {
+            self.ensure_provider_inputs(window, cx);
+        }
+        if self.screen == Screen::Settings && self.settings.section == super::SettingsSection::Security && self.vault_form.open.is_some() {
+            self.ensure_vault_form_inputs(window, cx);
+        }
+        if self.screen == Screen::Settings && self.clankers.editing.is_some() {
+            self.ensure_clanker_inputs(window, cx);
+        }
+        if self.screen == Screen::VaultSetup && self.setup_state.step == crate::views::lock::SetupStep::ConfigureCredentials {
+            self.ensure_setup_inputs(window, cx);
+        }
         if self.users.password_for.is_some() && self.active_view == "users" {
             self.ensure_password_inputs(window, cx);
         }
@@ -59,9 +71,16 @@ impl Render for CrowApp {
         let screen = self.screen;
         let app_view = cx.entity();
         let vault_status = self.vault.status();
+        let stance = self.stance_report();
 
         let app_root = div()
             .track_focus(&self.focus_handle)
+            .capture_key_down(cx.listener(|this, _ev: &KeyDownEvent, _window, _cx| {
+                this.last_activity = std::time::Instant::now();
+            }))
+            .capture_any_mouse_down(cx.listener(|this, _ev: &MouseDownEvent, _window, _cx| {
+                this.last_activity = std::time::Instant::now();
+            }))
             .on_key_down(cx.listener(|this, ev: &KeyDownEvent, window, cx| {
                 this.handle_key_down(ev, window, cx);
             }))
@@ -105,6 +124,7 @@ impl Render for CrowApp {
                             self.menu_open,
                             self.fleet.servers.len(),
                             self.session_label(),
+                            &stance,
                             app_view.clone(),
                         ))
                         // 2. Main Screen Area
@@ -387,7 +407,7 @@ impl Render for CrowApp {
                                                     ),
                                             )
                                             // Persistent Danger Zone Strip
-                                            .child(danger_zone(&self.danger, app_view.clone()))
+                                            .child(danger_zone(&self.danger, self.active_provider_actions().as_ref(), app_view.clone()))
                                             // Archive confirmation for this server (ERR-32).
                                             .children(self.fleet.pending_archive.as_ref().and_then(|id| self.fleet.servers.iter().find(|s| &s.id == id)).map(|srv| {
                                                 crate::views::fleet::archived::archive_confirm_overlay(srv, &archive_purge_due, app_view.clone())
@@ -403,7 +423,7 @@ impl Render for CrowApp {
                                     Screen::Settings => Some(
                                         div()
                                             .size_full()
-                                            .child(settings_view(app_view.clone(), &self.vault, &self.config, &self.caret, &self.fleet, &self.keys, &self.clankers, &self.settings, &self.lab_state, self.settings.section, (&self.fleet_background, self.fleet_background_source()))),
+                                            .child(settings_view(app_view.clone(), &self.vault, &self.config, &self.caret, &self.fleet, &self.keys, &self.clankers, &self.settings, &self.lab_state, self.settings.section, (&self.fleet_background, self.fleet_background_source()), &self.providers, self.provider_inputs.as_ref(), self.secrets_notice.as_deref(), (&self.vault_form, self.vault_form_inputs.as_ref()), self.clanker_inputs.as_ref())),
                                     ),
                                     Screen::Onboard => Some(
                                         div()
@@ -418,7 +438,7 @@ impl Render for CrowApp {
                                     Screen::VaultSetup => Some(
                                         div()
                                             .size_full()
-                                            .child(vault_setup_view(app_view.clone(), &self.caret, &self.setup_state)),
+                                            .child(vault_setup_view(app_view.clone(), &self.setup_state, self.setup_inputs.as_ref())),
                                     ),
                                 }),
                         )
@@ -441,6 +461,14 @@ impl Render for CrowApp {
                         } else {
                             None
                         })
+                        // Snapshot first? before a lockout-risk change (ERR-48)
+                        .children(self.snapshot_offer.as_ref().map(|o| crate::components::snapshot_offer::snapshot_offer(o, app_view.clone())))
+                        // Fleet → IMPORT FROM PROVIDERS (ERR-46)
+                        .children(self.import.open.then(|| crate::views::fleet::import::import_panel(&self.import, app_view.clone())))
+                        // Security stance panel (titlebar badge, ERR-60)
+                        .children(self.stance_panel_open.then(|| crate::components::stance::stance_panel(&stance, app_view.clone())))
+                        // First secret while Open: choose a stance on purpose (ERR-60)
+                        .children(self.pending_secret.is_some().then(|| crate::components::stance::stance_choice_modal(self.stance_choice_ack, app_view.clone())))
                         // 5. About Crow Modal
                         .children(if self.show_about_modal {
                             Some(crate::components::about::about_modal(app_view.clone(), self.about_copied_toast))
