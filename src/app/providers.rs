@@ -345,6 +345,7 @@ impl CrowApp {
         }
         self.import.linked += r.updates.len();
         self.import.missing.extend(r.missing.into_iter().map(|m| format!("{m} (no longer listed by {name})")));
+        self.import.missing.extend(r.address_changed.into_iter().map(|(m, addrs)| format!("{m}: {name} now lists {} for it; Crow still connects to the old address", addrs.join(", "))));
         self.import.rows.extend(r.rows);
         if !r.updates.is_empty() {
             self.reload_servers();

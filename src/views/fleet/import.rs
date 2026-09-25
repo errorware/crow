@@ -75,7 +75,7 @@ pub fn import_panel(state: &ImportState, app: Entity<CrowApp>) -> impl IntoEleme
                 .child(div().text_color(TEXT_MUTED).line_height(px(15.0)).child("Instances already in the fleet are matched by IP and linked, so their region comes from the provider. IMPORT opens Add Server filled in: the host key and login are checked as usual."))
                 .children((state.linked > 0).then(|| div().text_color(OK).child(format!("Linked {} enrolled server(s) to their instances.", state.linked))))
                 .children(state.errors.iter().map(|e| div().text_color(CRIT).child(e.clone())))
-                .children(state.missing.iter().map(|m| div().text_color(WARN).child(format!("Linked but missing: {m}"))))
+                .children(state.missing.iter().map(|m| div().text_color(WARN).child(format!("⚠ {m}"))))
                 .children(state.rows.iter().map(|row| {
                     let inst = &row.instance;
                     let country = inst.region.as_deref().and_then(|c| crate::region::locate(&row.provider_name, c)).map(|(cc, _)| cc);

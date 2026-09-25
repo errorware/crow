@@ -121,6 +121,9 @@ pub struct Reconciled {
     pub updates: Vec<crate::vault::ServerRecord>,
     /// Linked servers the provider no longer has (deleted or moved there).
     pub missing: Vec<String>,
+    /// Linked servers whose address isn't one the provider lists any more:
+    /// (server name, the instance's addresses).
+    pub address_changed: Vec<(String, Vec<String>)>,
 }
 
 /// Matches `instances` from `account` against `servers`: first by an
@@ -131,6 +134,13 @@ pub fn reconcile(servers: &[crate::vault::ServerRecord], account: &str, provider
         let linked = servers.iter().find(|s| s.provider_account == account && s.provider_instance == inst.id.0);
         let by_ip = || servers.iter().find(|s| s.host.trim().parse().is_ok_and(|ip| inst.has_ip(ip)));
         let server = linked.or_else(by_ip);
+        // A linked server added by IP whose IP the instance no longer has.
+        if let Some((s, ip)) = linked.and_then(|s| Some((s, s.host.trim().parse::<std::net::IpAddr>().ok()?))) {
+            if !inst.has_ip(ip) {
+                let addrs = inst.ipv4.iter().chain(&inst.ipv6).map(|ip| ip.to_string()).collect();
+                out.address_changed.push((s.name.clone(), addrs));
+            }
+        }
         if let Some(s) = server {
             let mut updated = s.clone();
             updated.provider_account = account.to_string();
@@ -279,6 +289,16 @@ mod tests {
         let settled = first.updates[0].clone();
         let again = reconcile(&[settled], "linode", "Linode", &[instance("1", "172.105.91.183", "de-fra-2")]);
         assert!(again.updates.is_empty() && again.missing.is_empty());
+    }
+
+    #[test]
+    fn reconcile_flags_a_linked_server_whose_address_changed() {
+        let mut s = server("web-01", "172.105.91.183");
+        s.provider_account = "linode".into();
+        s.provider_instance = "1".into();
+        let r = reconcile(&[s], "linode", "Linode", &[instance("1", "45.9.9.9", "de-fra-2")]);
+        assert_eq!(r.address_changed, [("web-01".to_string(), vec!["45.9.9.9".to_string()])]);
+        assert_eq!(r.rows[0].enrolled_as.as_deref(), Some("web-01"), "still the same instance");
     }
 
     #[test]
