@@ -22,6 +22,7 @@ use crate::views::settings::state::SettingsState;
 use crate::views::settings::lab::LabState;
 pub mod lab;
 pub mod clankers;
+pub mod providers;
 
 fn format_field_label(leaf: &str) -> String {
     match leaf {
@@ -232,6 +233,8 @@ pub fn settings_view(
     vault: &Vault, config: &CrowConfigManager, caret: &TextCaret, fleet: &FleetState, keys: &KeysState, clankers: &ClankersState, settings: &SettingsState, lab_state: &LabState,
     section: SettingsSection,
     fleet_background: (&crate::app::appearance::FleetBackground, Option<std::path::PathBuf>),
+    providers_state: &crate::app::providers::ProvidersState,
+    provider_inputs: Option<&crate::app::providers::ProviderFormInputs>,
 ) -> impl IntoElement {
     let is_auth_enabled = vault.is_password_auth_enabled();
     let open_dropdown = settings.dropdown_open.as_deref();
@@ -244,6 +247,7 @@ pub fn settings_view(
         (TablerIcon::Server, "Servers & Archives", SettingsSection::Servers),
         (TablerIcon::Box, "UI Components Lab", SettingsSection::Components),
         (TablerIcon::Cpu, "Clankers (AI)", SettingsSection::Clankers),
+        (TablerIcon::Cloud, "Providers", SettingsSection::Providers),
         (TablerIcon::Photo, "Personalisation", SettingsSection::Personalisation),
     ];
 
@@ -255,6 +259,7 @@ pub fn settings_view(
         SettingsSection::Servers => ("SERVERS & ARCHIVES", "[servers] · archiving and how long stored data is kept"),
         SettingsSection::Components => ("UI COMPONENTS LAB", "[lab] · gpui-component testbed & sandbox"),
         SettingsSection::Clankers => ("CLANKERS (AI USABILITY)", "[clankers] · api keys & log eli5 helpers"),
+        SettingsSection::Providers => ("PROVIDERS", "[providers] · cloud accounts your servers run on"),
         SettingsSection::Personalisation => ("PERSONALISATION", "[appearance] · make Crow yours · saved as you change it"),
     };
 
@@ -473,10 +478,12 @@ pub fn settings_view(
                     Some(lab::render_components_lab(app.clone(), caret, lab_state).into_any_element())
                 } else if section == SettingsSection::Clankers {
                     Some(clankers::render_clankers_view(app.clone(), clankers).into_any_element())
+                } else if section == SettingsSection::Providers {
+                    Some(providers::render_providers_view(app.clone(), providers_state, provider_inputs, is_auth_enabled).into_any_element())
                 } else {
                     None
                 })
-                .children(if section != SettingsSection::Keys && section != SettingsSection::Components && section != SettingsSection::Clankers {
+                .children(if section != SettingsSection::Keys && section != SettingsSection::Components && section != SettingsSection::Clankers && section != SettingsSection::Providers {
                     Some(
                         div()
                             .flex_1()
@@ -1204,7 +1211,7 @@ pub fn settings_view(
                     None
                 })
                 // Right Rail: Pending Diff, Session Warning, Keychain (340px)
-                .children(if section != SettingsSection::Components && section != SettingsSection::Clankers {
+                .children(if section != SettingsSection::Components && section != SettingsSection::Clankers && section != SettingsSection::Providers {
                     Some(
                         div()
                         .w(px(340.0))

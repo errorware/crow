@@ -46,6 +46,7 @@ pub mod configs;
 pub mod region;
 mod journal;
 mod clankers;
+pub mod providers;
 mod lab;
 
 use crate::views::fleet::lab_state::LocalLabState;
@@ -77,6 +78,7 @@ pub enum SettingsSection {
     Servers,
     Components,
     Clankers,
+    Providers,
     Personalisation,
 }
 
@@ -90,6 +92,7 @@ impl SettingsSection {
             SettingsSection::Servers => "servers",
             SettingsSection::Components => "components",
             SettingsSection::Clankers => "clankers",
+            SettingsSection::Providers => "providers",
             SettingsSection::Personalisation => "appearance",
         }
     }
@@ -180,6 +183,9 @@ pub struct CrowApp {
     pub keys: KeysState,
     pub local_lab: LocalLabState,
     pub clankers: ClankersState,
+    /// Settings → Providers: accounts and the open form (ERR-45).
+    pub providers: providers::ProvidersState,
+    pub provider_inputs: Option<providers::ProviderFormInputs>,
     pub settings: SettingsState,
     /// UI components sandbox (Settings → Components).
     pub lab_state: LabState,
@@ -266,7 +272,7 @@ impl CrowApp {
             .map(|st| crate::journal::retention::parse_journald_conf(&st.current_content))
             .unwrap_or(journal_retention);
 
-        Self {
+        let mut app = Self {
             focus_handle: cx.focus_handle(),
             vault,
             config,
@@ -315,7 +321,11 @@ impl CrowApp {
             clankers: ClankersState::new(clanker_providers),
             users: UsersState::new(),
             firewall: FirewallState::new(initial_firewall_state),
-        }
+            providers: Default::default(),
+            provider_inputs: None,
+        };
+        app.refresh_providers();
+        app
     }
 }
 
@@ -352,6 +362,9 @@ impl CrowApp {
             {
                 return true;
             }
+        }
+        if self.screen == Screen::Settings && self.provider_inputs.is_some() {
+            return true;
         }
         if self.screen == Screen::Settings && self.settings.dropdown_open.is_some() {
             return true;

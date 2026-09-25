@@ -37,6 +37,9 @@ impl Render for CrowApp {
         if self.users.show_new_user_modal {
             self.ensure_new_user_inputs(window, cx);
         }
+        if self.screen == Screen::Settings && self.settings.section == super::SettingsSection::Providers && self.providers.editing.is_some() {
+            self.ensure_provider_inputs(window, cx);
+        }
         if self.users.password_for.is_some() && self.active_view == "users" {
             self.ensure_password_inputs(window, cx);
         }
@@ -403,7 +406,7 @@ impl Render for CrowApp {
                                     Screen::Settings => Some(
                                         div()
                                             .size_full()
-                                            .child(settings_view(app_view.clone(), &self.vault, &self.config, &self.caret, &self.fleet, &self.keys, &self.clankers, &self.settings, &self.lab_state, self.settings.section, (&self.fleet_background, self.fleet_background_source()))),
+                                            .child(settings_view(app_view.clone(), &self.vault, &self.config, &self.caret, &self.fleet, &self.keys, &self.clankers, &self.settings, &self.lab_state, self.settings.section, (&self.fleet_background, self.fleet_background_source()), &self.providers, self.provider_inputs.as_ref())),
                                     ),
                                     Screen::Onboard => Some(
                                         div()

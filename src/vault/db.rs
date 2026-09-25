@@ -178,6 +178,30 @@ pub struct ClankerProviderConfig {
     pub daily_history: Vec<f32>,
 }
 
+/// A configured account at a provider plugin (Linode, UpCloud, ...). Plain
+/// settings live here as JSON; its secrets (API tokens, passwords) are
+/// encrypted vault entries under [`provider_secret_id`], never in this row.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ProviderAccount {
+    pub id: String,
+    /// The plugin's manifest name, e.g. "linode".
+    pub plugin: String,
+    pub label: String,
+    pub settings: serde_json::Map<String, serde_json::Value>,
+    /// The last TEST CONNECTION: its summary or error, whether it worked, when.
+    pub last_check: Option<String>,
+    pub last_check_ok: bool,
+    pub last_check_at: Option<String>,
+}
+
+/// Vault entry category for provider secrets.
+pub const PROVIDER_SECRET_CATEGORY: &str = "provider_secret";
+
+/// The vault entry id holding secret `key` of provider account `account`.
+pub fn provider_secret_id(account: &str, key: &str) -> String {
+    format!("provider:{account}:{key}")
+}
+
 /// A durable record of one run through the Apply Pipeline — the audit trail
 /// `CROW.md` describes: what changed, on which server, whether it worked.
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -344,6 +368,18 @@ impl VaultDb {
                 calls_30d INTEGER NOT NULL DEFAULT 0,
                 last_used_at TEXT,
                 daily_history TEXT NOT NULL DEFAULT '[]'
+            );
+
+            CREATE TABLE IF NOT EXISTS provider_accounts (
+                id TEXT PRIMARY KEY,
+                plugin TEXT NOT NULL,
+                label TEXT NOT NULL,
+                settings TEXT NOT NULL DEFAULT '{}',
+                last_check TEXT,
+                last_check_ok INTEGER NOT NULL DEFAULT 0,
+                last_check_at TEXT,
+                created_at TEXT NOT NULL,
+                updated_at TEXT NOT NULL
             );
 
             CREATE TABLE IF NOT EXISTS change_records (
@@ -1394,12 +1430,103 @@ impl VaultDb {
     pub fn path(&self) -> &Path {
         &self.path
     }
+
+    pub fn list_provider_accounts(&self) -> Result<Vec<ProviderAccount>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, plugin, label, settings, last_check, last_check_ok, last_check_at FROM provider_accounts ORDER BY plugin, created_at",
+        )?;
+        let rows = stmt.query_map([], |r| {
+            let settings: String = r.get(3)?;
+            let ok: i64 = r.get(5)?;
+            Ok(ProviderAccount {
+                id: r.get(0)?,
+                plugin: r.get(1)?,
+                label: r.get(2)?,
+                settings: serde_json::from_str(&settings).unwrap_or_default(),
+                last_check: r.get(4)?,
+                last_check_ok: ok > 0,
+                last_check_at: r.get(6)?,
+            })
+        })?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// Saves an account's label and plain settings (not its check result).
+    pub fn upsert_provider_account(&self, account: &ProviderAccount) -> Result<(), VaultError> {
+        let now = Utc::now().to_rfc3339();
+        self.conn.execute(
+            "INSERT INTO provider_accounts (id, plugin, label, settings, created_at, updated_at)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?5)
+             ON CONFLICT(id) DO UPDATE SET label = excluded.label, settings = excluded.settings, updated_at = excluded.updated_at",
+            params![account.id, account.plugin, account.label, serde_json::Value::Object(account.settings.clone()).to_string(), now],
+        )?;
+        Ok(())
+    }
+
+    pub fn record_provider_check(&self, id: &str, ok: bool, message: &str) -> Result<(), VaultError> {
+        self.conn.execute(
+            "UPDATE provider_accounts SET last_check = ?2, last_check_ok = ?3, last_check_at = ?4 WHERE id = ?1",
+            params![id, message, ok as i64, Utc::now().to_rfc3339()],
+        )?;
+        Ok(())
+    }
+
+    /// Deletes an account and every secret it kept in the vault.
+    pub fn delete_provider_account(&self, id: &str) -> Result<(), VaultError> {
+        self.conn.execute("DELETE FROM provider_accounts WHERE id = ?1", params![id])?;
+        self.conn.execute(
+            "DELETE FROM vault_entries WHERE category = ?1 AND substr(id, 1, length(?2)) = ?2",
+            params![PROVIDER_SECRET_CATEGORY, provider_secret_id(id, "")],
+        )?;
+        Ok(())
+    }
+
+    /// Keys of the secrets account `id` has in the vault (their values stay
+    /// encrypted; this reads ids only).
+    pub fn provider_secret_keys(&self, id: &str) -> Result<Vec<String>, VaultError> {
+        let prefix = provider_secret_id(id, "");
+        Ok(self
+            .list_entries(Some(PROVIDER_SECRET_CATEGORY))?
+            .into_iter()
+            .filter_map(|e| e.id.strip_prefix(&prefix).map(str::to_string))
+            .collect())
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::vault::crypto::generate_totp_secret;
+
+    #[test]
+    fn provider_accounts_keep_secrets_out_of_their_row() {
+        let mut db = VaultDb::open_in_memory().unwrap();
+        let key = db.init_vault("pw", None).unwrap();
+        let mut acct = ProviderAccount {
+            id: "linode".into(),
+            plugin: "linode".into(),
+            label: "Linode".into(),
+            settings: serde_json::Map::new(),
+            last_check: None,
+            last_check_ok: false,
+            last_check_at: None,
+        };
+        acct.settings.insert("page_size".into(), serde_json::json!(100));
+        db.upsert_provider_account(&acct).unwrap();
+        db.store_entry(&key, &provider_secret_id("linode", "api_token"), PROVIDER_SECRET_CATEGORY, "linode api_token", b"tok").unwrap();
+        db.store_entry(&key, &provider_secret_id("linode-2", "api_token"), PROVIDER_SECRET_CATEGORY, "other", b"tok2").unwrap();
+        db.record_provider_check("linode", true, "3 instances").unwrap();
+
+        let listed = db.list_provider_accounts().unwrap();
+        assert_eq!(listed.len(), 1);
+        assert_eq!((listed[0].settings["page_size"].clone(), listed[0].last_check.as_deref(), listed[0].last_check_ok), (serde_json::json!(100), Some("3 instances"), true));
+        assert_eq!(db.provider_secret_keys("linode").unwrap(), ["api_token"]);
+
+        db.delete_provider_account("linode").unwrap();
+        assert!(db.list_provider_accounts().unwrap().is_empty());
+        assert!(db.provider_secret_keys("linode").unwrap().is_empty(), "its secrets are gone");
+        assert_eq!(db.provider_secret_keys("linode-2").unwrap(), ["api_token"], "another account's aren't");
+    }
 
     #[test]
     fn test_vault_init_and_unlock_lifecycle() {

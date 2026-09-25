@@ -8,7 +8,7 @@ pub use crypto::{
     generate_salt, generate_totp_secret, totp_auth_url, verify_totp_code, MasterKey,
 };
 pub use db::{
-    ChangeRecord, ClankerProviderConfig, PurgeOutcome, ServerRecord, SshKeyGroup, SshKeyRecord,
+    provider_secret_id, ChangeRecord, ClankerProviderConfig, ProviderAccount, PurgeOutcome, PROVIDER_SECRET_CATEGORY, ServerRecord, SshKeyGroup, SshKeyRecord,
     SshScanPath, VaultDb, VaultEntryMeta, VaultError, VaultMeta, AUDIT_SERVER_ID,
 };
 
