@@ -17,7 +17,9 @@ pub enum SetupFieldFocus {
     TotpConfirm,
 }
 
-#[derive(Clone, Debug)]
+/// Holds the new password, its confirmation and the TOTP seed: redacted
+/// in Debug, wiped on drop.
+#[derive(Clone)]
 pub struct SetupState {
     pub step: SetupStep,
     pub password_input: String,
@@ -33,14 +35,30 @@ impl Default for SetupState {
     fn default() -> Self {
         Self {
             step: SetupStep::WarningNotice,
-            password_input: String::new(),
-            confirm_input: String::new(),
+            password_input: String::with_capacity(256),
+            confirm_input: String::with_capacity(256),
             totp_secret: String::new(),
-            totp_confirm_input: String::new(),
+            totp_confirm_input: String::with_capacity(16),
             active_focus: SetupFieldFocus::Password,
             show_password: false,
             error_message: None,
         }
+    }
+}
+
+impl std::fmt::Debug for SetupState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SetupState").field("step", &self.step).field("secrets", &"[secret]").field("error_message", &self.error_message).finish()
+    }
+}
+
+impl Drop for SetupState {
+    fn drop(&mut self) {
+        use zeroize::Zeroize;
+        self.password_input.zeroize();
+        self.confirm_input.zeroize();
+        self.totp_secret.zeroize();
+        self.totp_confirm_input.zeroize();
     }
 }
 

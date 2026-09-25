@@ -1,4 +1,5 @@
 use gpui_kit::*;
+use zeroize::Zeroize;
 
 use super::{CrowApp, Screen, SettingsSection};
 use crate::views::lock::SetupState;
@@ -45,8 +46,8 @@ impl CrowApp {
         if self.vault.is_password_auth_enabled() {
             self.vault.lock();
             self.wipe_session_secrets(cx);
-            self.lock_state.password_input.clear();
-            self.lock_state.totp_input.clear();
+            self.lock_state.password_input.zeroize();
+            self.lock_state.totp_input.zeroize();
             self.lock_state.error_message = None;
             self.caret.place(0);
             self.menu_open = false;
@@ -62,7 +63,7 @@ impl CrowApp {
     }
 
     pub fn submit_unlock(&mut self, cx: &mut Context<Self>) {
-        let pwd = self.lock_state.password_input.clone();
+        let pwd = zeroize::Zeroizing::new(self.lock_state.password_input.clone());
         if pwd.is_empty() {
             self.lock_state.error_message = Some("Password cannot be empty".into());
             cx.notify();
@@ -77,8 +78,8 @@ impl CrowApp {
 
         match self.vault.unlock(&pwd, totp) {
             Ok(_) => {
-                self.lock_state.password_input.clear();
-                self.lock_state.totp_input.clear();
+                self.lock_state.password_input.zeroize();
+                self.lock_state.totp_input.zeroize();
                 self.lock_state.error_message = None;
                 self.caret.place(0);
                 self.on_data_key_ready(cx);
@@ -92,8 +93,8 @@ impl CrowApp {
     }
 
     pub fn submit_setup(&mut self, cx: &mut Context<Self>) {
-        let pwd = self.setup_state.password_input.clone();
-        let confirm = self.setup_state.confirm_input.clone();
+        let pwd = zeroize::Zeroizing::new(self.setup_state.password_input.clone());
+        let confirm = zeroize::Zeroizing::new(self.setup_state.confirm_input.clone());
 
         if pwd.len() < 8 {
             self.setup_state.error_message = Some("Password must be at least 8 characters".into());

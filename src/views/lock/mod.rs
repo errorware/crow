@@ -14,7 +14,10 @@ pub enum LockFieldFocus {
     Totp,
 }
 
-#[derive(Clone, Debug)]
+/// Holds the password and 2FA code as they're typed: redacted in Debug,
+/// wiped on drop, with room reserved so typing doesn't reallocate (and
+/// leave copies behind).
+#[derive(Clone)]
 pub struct LockState {
     pub password_input: String,
     pub totp_input: String,
@@ -26,12 +29,26 @@ pub struct LockState {
 impl Default for LockState {
     fn default() -> Self {
         Self {
-            password_input: String::new(),
-            totp_input: String::new(),
+            password_input: String::with_capacity(256),
+            totp_input: String::with_capacity(16),
             active_focus: LockFieldFocus::Password,
             show_password: false,
             error_message: None,
         }
+    }
+}
+
+impl std::fmt::Debug for LockState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("LockState").field("password_input", &"[secret]").field("totp_input", &"[secret]").field("error_message", &self.error_message).finish()
+    }
+}
+
+impl Drop for LockState {
+    fn drop(&mut self) {
+        use zeroize::Zeroize;
+        self.password_input.zeroize();
+        self.totp_input.zeroize();
     }
 }
 
