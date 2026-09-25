@@ -202,9 +202,22 @@ pub fn totp_auth_url(secret_base32: &str, account: &str) -> Result<String, Crypt
     totp.to_url().map_err(|e| CryptoError::InvalidTotp(e.to_string()))
 }
 
+/// The QR code (PNG) of the otpauth link, for pairing an authenticator app
+/// by scanning instead of typing the secret.
+pub fn totp_qr_png(secret_base32: &str, account: &str) -> Result<Vec<u8>, CryptoError> {
+    let secret = Secret::try_from_base32(secret_base32.trim()).map_err(|e| CryptoError::InvalidTotp(e.to_string()))?;
+    build_totp(secret, account)?.to_qr_png().map_err(|e| CryptoError::InvalidTotp(e.to_string()))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn totp_qr_is_a_png() {
+        let png = totp_qr_png(&generate_totp_secret(), "nhc@workstation").unwrap();
+        assert_eq!(&png[..8], b"\x89PNG\r\n\x1a\n");
+    }
 
     #[test]
     fn test_argon2_and_chacha_roundtrip() {

@@ -3,7 +3,7 @@ use gpui_kit::*;
 use super::{CrowApp, Screen};
 use crate::keys::KeyGenFieldFocus;
 use crate::vault::VaultStatus;
-use crate::views::lock::{LockFieldFocus, SetupFieldFocus, SetupState, SetupStep};
+use crate::views::lock::{LockFieldFocus, SetupState, SetupStep};
 use crate::views::onboard::OnboardFieldFocus;
 
 // ==========================================
@@ -126,55 +126,17 @@ impl CrowApp {
                         self.setup_state = SetupState::default();
                         self.set_screen(Screen::Settings, cx);
                     } else if key == "enter" {
-                        self.setup_state.step = SetupStep::ConfigureCredentials;
-                        if self.setup_state.totp_secret.is_empty() {
-                            self.setup_state.totp_secret = crate::vault::generate_totp_secret();
-                        }
-                        self.caret.place(self.setup_state.password_input.chars().count());
-                        self.caret.blink = true;
-                        cx.notify();
+                        self.enter_setup_credentials(cx);
                     }
                 }
                 SetupStep::ConfigureCredentials => {
-                    self.caret.blink = true;
+                    // The fields are gpui inputs (Enter activates through
+                    // them); only Escape, to go back, is handled here.
                     if ev.keystroke.key == "escape" {
                         self.setup_state.step = SetupStep::WarningNotice;
                         cx.notify();
-                    } else if key == "tab" {
-                        self.setup_state.active_focus = match self.setup_state.active_focus {
-                            SetupFieldFocus::Password => SetupFieldFocus::ConfirmPassword,
-                            SetupFieldFocus::ConfirmPassword => SetupFieldFocus::TotpConfirm,
-                            SetupFieldFocus::TotpConfirm => SetupFieldFocus::Password,
-                        };
-                        let len = match self.setup_state.active_focus {
-                            SetupFieldFocus::Password => self.setup_state.password_input.chars().count(),
-                            SetupFieldFocus::ConfirmPassword => self.setup_state.confirm_input.chars().count(),
-                            SetupFieldFocus::TotpConfirm => self.setup_state.totp_confirm_input.chars().count(),
-                        };
-                        self.caret.place(len);
-                        cx.notify();
-                    } else if key == "enter" {
-                        self.submit_setup(cx);
                     } else {
-                        let is_totp = self.setup_state.active_focus == SetupFieldFocus::TotpConfirm;
-                        let text = match self.setup_state.active_focus {
-                            SetupFieldFocus::Password => &mut self.setup_state.password_input,
-                            SetupFieldFocus::ConfirmPassword => &mut self.setup_state.confirm_input,
-                            SetupFieldFocus::TotpConfirm => &mut self.setup_state.totp_confirm_input,
-                        };
-                        let changed = crate::components::handle_text_key_event(text, &mut self.caret.cursor, &mut self.caret.selection, ev);
-                        if is_totp {
-                            self.setup_state.totp_confirm_input.retain(|c| c.is_ascii_digit());
-                            if self.setup_state.totp_confirm_input.chars().count() > 6 {
-                                let s: String = self.setup_state.totp_confirm_input.chars().take(6).collect();
-                                self.setup_state.totp_confirm_input = s;
-                                self.caret.cursor = self.caret.cursor.min(6);
-                            }
-                        }
-                        if changed {
-                            self.setup_state.error_message = None;
-                            cx.notify();
-                        }
+                        return false;
                     }
                 }
             }

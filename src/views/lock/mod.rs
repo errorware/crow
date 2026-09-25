@@ -6,7 +6,7 @@ use crate::components::terminal_text_input_styled;
 use crate::theme::*;
 use crate::components::text_caret::TextCaret;
 
-pub use setup::{vault_setup_view, SetupFieldFocus, SetupState, SetupStep};
+pub use setup::{vault_setup_view, SetupState, SetupStep};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum LockFieldFocus {

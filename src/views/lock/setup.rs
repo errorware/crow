@@ -1,8 +1,7 @@
 use gpui_kit::*;
 use crate::app::{CrowApp, Screen};
-use crate::components::terminal_text_input_styled;
+use gpui_kit::component::input::{Input, InputState};
 use crate::theme::*;
-use crate::components::text_caret::TextCaret;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum SetupStep {
@@ -10,23 +9,17 @@ pub enum SetupStep {
     ConfigureCredentials,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum SetupFieldFocus {
-    Password,
-    ConfirmPassword,
-    TotpConfirm,
-}
-
-/// Holds the new password, its confirmation and the TOTP seed: redacted
-/// in Debug, wiped on drop.
+/// The setup wizard's state. The password fields are gpui inputs
+/// (`CrowApp::setup_inputs`); this holds the TOTP seed: redacted in Debug,
+/// wiped on drop.
 #[derive(Clone)]
 pub struct SetupState {
     pub step: SetupStep,
-    pub password_input: String,
-    pub confirm_input: String,
     pub totp_secret: String,
-    pub totp_confirm_input: String,
-    pub active_focus: SetupFieldFocus,
+    /// The otpauth QR code, made once per secret.
+    pub totp_qr: Option<std::sync::Arc<gpui_kit::Image>>,
+    /// The secret was just copied (the COPY button says so).
+    pub secret_copied: bool,
     pub show_password: bool,
     pub error_message: Option<String>,
 }
@@ -35,11 +28,9 @@ impl Default for SetupState {
     fn default() -> Self {
         Self {
             step: SetupStep::WarningNotice,
-            password_input: String::with_capacity(256),
-            confirm_input: String::with_capacity(256),
             totp_secret: String::new(),
-            totp_confirm_input: String::with_capacity(16),
-            active_focus: SetupFieldFocus::Password,
+            totp_qr: None,
+            secret_copied: false,
             show_password: false,
             error_message: None,
         }
@@ -55,14 +46,11 @@ impl std::fmt::Debug for SetupState {
 impl Drop for SetupState {
     fn drop(&mut self) {
         use zeroize::Zeroize;
-        self.password_input.zeroize();
-        self.confirm_input.zeroize();
         self.totp_secret.zeroize();
-        self.totp_confirm_input.zeroize();
     }
 }
 
-pub fn vault_setup_view(app: Entity<CrowApp>, caret: &TextCaret, setup_state: &SetupState) -> impl IntoElement {
+pub fn vault_setup_view(app: Entity<CrowApp>, setup_state: &SetupState, inputs: Option<&crate::app::SetupInputs>) -> impl IntoElement {
     let state = &setup_state;
     div()
         .size_full()
@@ -71,7 +59,7 @@ pub fn vault_setup_view(app: Entity<CrowApp>, caret: &TextCaret, setup_state: &S
             SetupStep::ConfigureCredentials => None,
         })
         .children(match state.step {
-            SetupStep::ConfigureCredentials => Some(render_credentials_step(app, caret, setup_state)),
+            SetupStep::ConfigureCredentials => Some(render_credentials_step(app, setup_state, inputs)),
             SetupStep::WarningNotice => None,
         })
 }
@@ -284,13 +272,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                         .items_center()
                                         .gap(px(8.0))
                                         .on_click(move |_ev, _window, cx| {
-                                            app_proceed.update(cx, |this, cx| {
-                                                this.setup_state.step = SetupStep::ConfigureCredentials;
-                                                if this.setup_state.totp_secret.is_empty() {
-                                                    this.setup_state.totp_secret = crate::vault::generate_totp_secret();
-                                                }
-                                                cx.notify();
-                                            });
+                                            app_proceed.update(cx, |this, cx| this.enter_setup_credentials(cx));
                                         })
                                         .child(
                                             div()
@@ -306,21 +288,18 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
         )
 }
 
-fn render_credentials_step(app: Entity<CrowApp>, caret: &TextCaret, setup_state: &SetupState) -> impl IntoElement {
+fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, inputs: Option<&crate::app::SetupInputs>) -> impl IntoElement {
     let state = &setup_state;
     let has_error = state.error_message.is_some();
     let error_text = state.error_message.clone().unwrap_or_default();
 
-    let is_pwd_focused = state.active_focus == SetupFieldFocus::Password;
-    let is_confirm_focused = state.active_focus == SetupFieldFocus::ConfirmPassword;
-    let is_totp_focused = state.active_focus == SetupFieldFocus::TotpConfirm;
     let show_pwd = state.show_password;
-    let totp_secret = state.totp_secret.clone();
+    // Groups of four, easier to read and type: "ABCD EFGH …".
+    let totp_secret = state.totp_secret.chars().collect::<Vec<_>>().chunks(4).map(|c| c.iter().collect::<String>()).collect::<Vec<_>>().join(" ");
+    let input = |i: Option<&Entity<InputState>>| i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(13.0)).bg(BG_WINDOW).rounded(px(2.0)));
 
-    let app_pwd_focus = app.clone();
-    let app_confirm_focus = app.clone();
-    let app_totp_focus = app.clone();
     let app_toggle_show = app.clone();
+    let app_copy = app.clone();
     let app_back = app.clone();
     let app_submit = app.clone();
 
@@ -430,7 +409,7 @@ fn render_credentials_step(app: Entity<CrowApp>, caret: &TextCaret, setup_state:
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(10.5))
                                                 .font_weight(FontWeight::SEMIBOLD)
-                                                .text_color(if is_pwd_focused { TEXT_PRIMARY } else { TEXT_MUTED })
+                                                .text_color(TEXT_MUTED)
                                                 .child("MASTER PASSWORD"),
                                         )
                                         .child(
@@ -441,43 +420,13 @@ fn render_credentials_step(app: Entity<CrowApp>, caret: &TextCaret, setup_state:
                                                 .text_color(TEXT_DIMMER)
                                                 .cursor_pointer()
                                                 .hover(|s| s.text_color(TEXT_PRIMARY))
-                                                .on_click(move |_ev, _window, cx| {
-                                                    app_toggle_show.update(cx, |this, cx| {
-                                                        this.setup_state.show_password = !this.setup_state.show_password;
-                                                        cx.notify();
-                                                    });
+                                                .on_click(move |_ev, window, cx| {
+                                                    app_toggle_show.update(cx, |this, cx| this.toggle_setup_show_password(window, cx));
                                                 })
                                                 .child(if show_pwd { "HIDE PASSWORD" } else { "SHOW PASSWORD" }),
                                         ),
                                 )
-                                .child(
-                                    terminal_text_input_styled(
-                                        "setup-input-pwd",
-                                        &state.password_input,
-                                        "Enter master password (min 8 characters)…",
-                                        is_pwd_focused,
-                                        !show_pwd,
-                                        36.0,
-                                        13.0,
-                                        if is_pwd_focused { caret.cursor } else { 0 },
-                                        if is_pwd_focused { caret.selection } else { None },
-                                        if is_pwd_focused { caret.drag_anchor } else { None },
-                                        caret.blink,
-                                        {
-                                            let app = app_pwd_focus;
-                                            move |cursor, anchor, selection, _window, cx| {
-                                                app.update(cx, |this, cx| {
-                                                    this.setup_state.active_focus = SetupFieldFocus::Password;
-                                                    this.caret.cursor = cursor;
-                                                    this.caret.drag_anchor = anchor;
-                                                    this.caret.selection = selection;
-                                                    this.caret.blink = true;
-                                                    cx.notify();
-                                                });
-                                            }
-                                        },
-                                    ),
-                                ),
+                                .children(input(inputs.map(|i| &i.password))),
                         )
                         // Field 2: Confirm Password
                         .child(
@@ -490,37 +439,10 @@ fn render_credentials_step(app: Entity<CrowApp>, caret: &TextCaret, setup_state:
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.5))
                                         .font_weight(FontWeight::SEMIBOLD)
-                                        .text_color(if is_confirm_focused { TEXT_PRIMARY } else { TEXT_MUTED })
+                                        .text_color(TEXT_MUTED)
                                         .child("CONFIRM MASTER PASSWORD"),
                                 )
-                                .child(
-                                    terminal_text_input_styled(
-                                        "setup-input-confirm",
-                                        &state.confirm_input,
-                                        "Re-type password…",
-                                        is_confirm_focused,
-                                        !show_pwd,
-                                        36.0,
-                                        13.0,
-                                        if is_confirm_focused { caret.cursor } else { 0 },
-                                        if is_confirm_focused { caret.selection } else { None },
-                                        if is_confirm_focused { caret.drag_anchor } else { None },
-                                        caret.blink,
-                                        {
-                                            let app = app_confirm_focus;
-                                            move |cursor, anchor, selection, _window, cx| {
-                                                app.update(cx, |this, cx| {
-                                                    this.setup_state.active_focus = SetupFieldFocus::ConfirmPassword;
-                                                    this.caret.cursor = cursor;
-                                                    this.caret.drag_anchor = anchor;
-                                                    this.caret.selection = selection;
-                                                    this.caret.blink = true;
-                                                    cx.notify();
-                                                });
-                                            }
-                                        },
-                                    ),
-                                ),
+                                .children(input(inputs.map(|i| &i.confirm))),
                         )
                         // Mandatory 2FA TOTP Card
                         .child(
@@ -567,23 +489,51 @@ fn render_credentials_step(app: Entity<CrowApp>, caret: &TextCaret, setup_state:
                                 )
                                 .child(
                                     div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(10.5))
-                                        .text_color(TEXT_MUTED)
-                                        .child("Add this secret to your Authenticator app (1Password, Google Authenticator, etc.):"),
-                                )
-                                .child(
-                                    div()
-                                        .p(px(10.0))
-                                        .bg(BG_WINDOW)
-                                        .border_1()
-                                        .border_color(BORDER_DEFAULT)
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(13.0))
-                                        .font_weight(FontWeight::BOLD)
-                                        .text_color(OK)
-                                        .text_align(TextAlign::Center)
-                                        .child(totp_secret),
+                                        .flex()
+                                        .gap(px(14.0))
+                                        // Scan it...
+                                        .children(state.totp_qr.clone().map(|qr| {
+                                            div().flex_none().p(px(6.0)).bg(rgb(0xffffff)).child(img(qr).size(px(148.0)))
+                                        }))
+                                        // ...or type / paste it.
+                                        .child(
+                                            div()
+                                                .flex_1()
+                                                .min_w(px(0.0))
+                                                .flex()
+                                                .flex_col()
+                                                .gap(px(8.0))
+                                                .child(div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(TEXT_MUTED).child("Scan the code with your authenticator app (1Password, Google Authenticator, Aegis…), or enter this key:"))
+                                                .child(
+                                                    div()
+                                                        .p(px(8.0))
+                                                        .bg(BG_WINDOW)
+                                                        .border_1()
+                                                        .border_color(BORDER_DEFAULT)
+                                                        .font_family(FONT_MONO)
+                                                        .text_size(px(12.0))
+                                                        .font_weight(FontWeight::BOLD)
+                                                        .text_color(OK)
+                                                        .child(totp_secret),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .id("btn-copy-totp-secret")
+                                                        .flex_none()
+                                                        .px(px(9.0))
+                                                        .py(px(4.0))
+                                                        .border_1()
+                                                        .border_color(if state.secret_copied { OK } else { BORDER_DEFAULT })
+                                                        .font_family(FONT_MONO)
+                                                        .text_size(px(10.0))
+                                                        .font_weight(FontWeight::BOLD)
+                                                        .text_color(if state.secret_copied { OK } else { TEXT_SECONDARY })
+                                                        .cursor_pointer()
+                                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                                        .on_click(move |_ev, _window, cx| app_copy.update(cx, |this, cx| this.copy_setup_secret(cx)))
+                                                        .child(if state.secret_copied { "✓ COPIED" } else { "COPY KEY" }),
+                                                ),
+                                        ),
                                 )
                                 .child(
                                     div()
@@ -592,34 +542,7 @@ fn render_credentials_step(app: Entity<CrowApp>, caret: &TextCaret, setup_state:
                                         .text_color(TEXT_MUTED)
                                         .child("ENTER 6-DIGIT CODE TO CONFIRM PAIRING:"),
                                 )
-                                .child(
-                                    terminal_text_input_styled(
-                                        "setup-input-totp",
-                                        &state.totp_confirm_input,
-                                        "6-digit code (e.g. 123456)",
-                                        is_totp_focused,
-                                        false,
-                                        36.0,
-                                        13.0,
-                                        if is_totp_focused { caret.cursor } else { 0 },
-                                        if is_totp_focused { caret.selection } else { None },
-                                        if is_totp_focused { caret.drag_anchor } else { None },
-                                        caret.blink,
-                                        {
-                                            let app = app_totp_focus;
-                                            move |cursor, anchor, selection, _window, cx| {
-                                                app.update(cx, |this, cx| {
-                                                    this.setup_state.active_focus = SetupFieldFocus::TotpConfirm;
-                                                    this.caret.cursor = cursor;
-                                                    this.caret.drag_anchor = anchor;
-                                                    this.caret.selection = selection;
-                                                    this.caret.blink = true;
-                                                    cx.notify();
-                                                });
-                                            }
-                                        },
-                                    ),
-                                ),
+                                .children(input(inputs.map(|i| &i.code))),
                         )
                         // Action buttons
                         .child(

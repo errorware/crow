@@ -46,6 +46,9 @@ impl Render for CrowApp {
         if self.screen == Screen::Settings && self.clankers.editing.is_some() {
             self.ensure_clanker_inputs(window, cx);
         }
+        if self.screen == Screen::VaultSetup && self.setup_state.step == crate::views::lock::SetupStep::ConfigureCredentials {
+            self.ensure_setup_inputs(window, cx);
+        }
         if self.users.password_for.is_some() && self.active_view == "users" {
             self.ensure_password_inputs(window, cx);
         }
@@ -435,7 +438,7 @@ impl Render for CrowApp {
                                     Screen::VaultSetup => Some(
                                         div()
                                             .size_full()
-                                            .child(vault_setup_view(app_view.clone(), &self.caret, &self.setup_state)),
+                                            .child(vault_setup_view(app_view.clone(), &self.setup_state, self.setup_inputs.as_ref())),
                                     ),
                                 }),
                         )
