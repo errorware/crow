@@ -31,10 +31,40 @@ pub fn sshd_sheet_view(file: &str, sheet: &SshdSheet, read_only: bool, active_ed
         .filter(|r| r.def.as_ref().is_some_and(|d| d.options.is_some() || d.name == "Port"))
         .collect();
 
+    let app_pw = app.clone();
     div()
         .flex()
         .flex_col()
         .pb(px(16.0))
+        // Password login off, the safe way (ERR-34).
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(10.0))
+                .px(px(14.0))
+                .py(px(8.0))
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .font_family(FONT_MONO)
+                .text_size(px(10.5))
+                .child(div().flex_1().min_w(px(0.0)).text_color(TEXT_DIMMER).child("Turning PasswordAuthentication off by hand can lock you out, and a cloud image's drop-in may override it. Crow can do it with checks and automatic undo."))
+                .child(
+                    div()
+                        .id("sshd-password-login-off")
+                        .flex_none()
+                        .px(px(9.0))
+                        .py(px(4.0))
+                        .border_1()
+                        .border_color(WARN.opacity(0.6))
+                        .text_color(WARN)
+                        .font_weight(FontWeight::BOLD)
+                        .cursor_pointer()
+                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .on_click(move |_ev, _window, cx| app_pw.update(cx, |this, cx| this.open_password_login(cx)))
+                        .child("TURN OFF PASSWORD LOGIN SAFELY…"),
+                ),
+        )
         // Posture at a glance.
         .child(
             div()

@@ -356,6 +356,8 @@ impl CrowApp {
         if ev.keystroke.key == "escape" {
             if self.snapshots_panel.is_some() {
                 self.close_snapshots_panel(cx);
+            } else if self.password_login.is_some() {
+                self.close_password_login(cx);
             } else if self.import.open {
                 self.close_import(cx);
             } else if self.stance_panel_open {

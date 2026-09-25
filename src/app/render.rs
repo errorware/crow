@@ -466,6 +466,8 @@ impl Render for CrowApp {
                         })
                         // Danger Zone → SNAPSHOTS (ERR-47)
                         .children(self.snapshots_panel.as_ref().map(|p| crate::components::snapshots_panel::snapshots_panel(p, app_view.clone())))
+                        // Turn off SSH password login (ERR-34)
+                        .children(self.password_login.as_ref().map(|f| crate::components::password_login::password_login_dialog(f, app_view.clone())))
                         // Snapshot first? before a lockout-risk change (ERR-48)
                         .children(self.snapshot_offer.as_ref().map(|o| crate::components::snapshot_offer::snapshot_offer(o, app_view.clone())))
                         // Fleet → IMPORT FROM PROVIDERS (ERR-46)

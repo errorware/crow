@@ -48,6 +48,7 @@ mod journal;
 mod clankers;
 pub mod providers;
 mod secrets;
+pub mod password_login;
 pub mod vault_manage;
 mod lab;
 
@@ -217,6 +218,8 @@ pub struct CrowApp {
     pub snapshot_offer: Option<configs::SnapshotOffer>,
     /// Danger Zone → SNAPSHOTS: the active server's provider snapshots.
     pub snapshots_panel: Option<danger::SnapshotsPanel>,
+    /// Turn off SSH password login (ERR-34).
+    pub password_login: Option<password_login::PasswordLoginFlow>,
     /// Something the user should know about their stored secrets (moved,
     /// lost with the keyring, ...), shown on Providers and Clankers.
     pub secrets_notice: Option<String>,
@@ -376,6 +379,7 @@ impl CrowApp {
             import: Default::default(),
             snapshot_offer: None,
             snapshots_panel: None,
+            password_login: None,
             setup_inputs: None,
             lock_inputs: None,
             secrets_notice: None,
