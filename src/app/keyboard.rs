@@ -391,7 +391,11 @@ impl CrowApp {
             return false;
         }
         if ev.keystroke.key == "escape" {
-            if self.firewall.show_new_rule_modal {
+            if self.import.open {
+                self.close_import(cx);
+            } else if self.stance_panel_open {
+                self.toggle_stance_panel(cx);
+            } else if self.firewall.show_new_rule_modal {
                 self.close_new_firewall_rule_modal(cx);
             } else if self.users.show_new_user_modal {
                 self.users.show_new_user_modal = false; cx.notify();

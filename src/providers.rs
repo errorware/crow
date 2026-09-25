@@ -102,6 +102,61 @@ pub fn connect(account: &ProviderAccount, settings: ProviderSettings) -> Result<
     (f.build)(settings, Arc::new(CurlHttp::default()))
 }
 
+/// An instance a provider reported, and the enrolled server it is (if any).
+#[derive(Clone, Debug)]
+pub struct InstanceRow {
+    pub account: String,
+    pub provider_name: String,
+    pub instance: crow_provider_core::hosts::Instance,
+    /// The enrolled server's id, when it's already in the fleet.
+    pub enrolled_as: Option<String>,
+}
+
+/// How one account's instances line up with the fleet.
+#[derive(Clone, Debug, Default)]
+pub struct Reconciled {
+    pub rows: Vec<InstanceRow>,
+    /// Servers to save: newly linked to their instance (matched by IP), or
+    /// with a region learned from the provider.
+    pub updates: Vec<crate::vault::ServerRecord>,
+    /// Linked servers the provider no longer has (deleted or moved there).
+    pub missing: Vec<String>,
+}
+
+/// Matches `instances` from `account` against `servers`: first by an
+/// existing link, then by IP. Manual region choices are never overwritten.
+pub fn reconcile(servers: &[crate::vault::ServerRecord], account: &str, provider_name: &str, instances: &[crow_provider_core::hosts::Instance]) -> Reconciled {
+    let mut out = Reconciled::default();
+    for inst in instances {
+        let linked = servers.iter().find(|s| s.provider_account == account && s.provider_instance == inst.id.0);
+        let by_ip = || servers.iter().find(|s| s.host.trim().parse().is_ok_and(|ip| inst.has_ip(ip)));
+        let server = linked.or_else(by_ip);
+        if let Some(s) = server {
+            let mut updated = s.clone();
+            updated.provider_account = account.to_string();
+            updated.provider_instance = inst.id.0.clone();
+            let code = inst.region.as_deref().unwrap_or_default();
+            if let (true, Some((cc, city))) = (updated.region_source != "manual", crate::region::locate(provider_name, code)) {
+                updated.region_country = cc.to_string();
+                updated.region_city = city.to_string();
+                updated.region_provider = provider_name.to_string();
+                updated.region_code = code.to_string();
+                updated.region_source = "provider".into();
+            }
+            if &updated != s {
+                out.updates.push(updated);
+            }
+        }
+        out.rows.push(InstanceRow { account: account.to_string(), provider_name: provider_name.to_string(), instance: inst.clone(), enrolled_as: server.map(|s| s.id.clone()) });
+    }
+    out.missing = servers
+        .iter()
+        .filter(|s| s.provider_account == account && !instances.iter().any(|i| i.id.0 == s.provider_instance))
+        .map(|s| s.name.clone())
+        .collect();
+    out
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -175,6 +230,55 @@ mod tests {
         let err = save_form(&db, None, &mut acct, vec![SettingsEdit::SetSecret { key: "api_token".into(), value: SecretValue::new("t") }]).unwrap_err();
         assert!(err.contains("encryption key"), "{err}");
         assert!(db.list_provider_accounts().unwrap().is_empty());
+    }
+
+    fn instance(id: &str, ip: &str, region: &str) -> crow_provider_core::hosts::Instance {
+        crow_provider_core::hosts::Instance {
+            id: crow_provider_core::hosts::InstanceId(id.into()),
+            label: format!("inst-{id}"),
+            status: crow_provider_core::hosts::InstanceStatus::Running,
+            ipv4: vec![ip.parse().unwrap()],
+            ipv6: vec![],
+            region: Some(region.into()),
+            plan: None,
+            tags: vec![],
+            extra: Default::default(),
+        }
+    }
+
+    fn server(id: &str, host: &str) -> crate::vault::ServerRecord {
+        crate::vault::ServerRecord { id: id.into(), name: id.into(), host: host.into(), ..Default::default() }
+    }
+
+    #[test]
+    fn reconcile_links_by_ip_learns_the_region_and_flags_missing() {
+        let mut gone = server("old-box", "10.9.9.9");
+        gone.provider_account = "linode".into();
+        gone.provider_instance = "999".into();
+        let mut manual = server("fra-box", "104.105.13.91");
+        manual.region_source = "manual".into();
+        manual.region_country = "NL".into();
+        let servers = vec![server("web-01", "172.105.91.183"), manual, gone];
+        let r = reconcile(&servers, "linode", "Linode", &[instance("1", "172.105.91.183", "de-fra-2"), instance("2", "104.105.13.91", "de-fra-2"), instance("3", "45.1.2.3", "us-east")]);
+
+        assert_eq!(r.rows.iter().map(|r| r.enrolled_as.as_deref()).collect::<Vec<_>>(), [Some("web-01"), Some("fra-box"), None]);
+        let web = r.updates.iter().find(|s| s.id == "web-01").unwrap();
+        assert_eq!((web.provider_instance.as_str(), web.region_country.as_str(), web.region_source.as_str()), ("1", "DE", "provider"));
+        let fra = r.updates.iter().find(|s| s.id == "fra-box").unwrap();
+        assert_eq!((fra.region_country.as_str(), fra.region_source.as_str()), ("NL", "manual"), "a manual region is kept");
+        assert_eq!(fra.provider_instance, "2", "but it's still linked");
+        assert_eq!(r.missing, ["old-box"]);
+    }
+
+    #[test]
+    fn reconcile_is_quiet_when_nothing_changed() {
+        let mut s = server("web-01", "172.105.91.183");
+        s.provider_account = "linode".into();
+        s.provider_instance = "1".into();
+        let first = reconcile(&[s], "linode", "Linode", &[instance("1", "172.105.91.183", "de-fra-2")]);
+        let settled = first.updates[0].clone();
+        let again = reconcile(&[settled], "linode", "Linode", &[instance("1", "172.105.91.183", "de-fra-2")]);
+        assert!(again.updates.is_empty() && again.missing.is_empty());
     }
 
     #[test]

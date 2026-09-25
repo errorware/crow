@@ -458,6 +458,8 @@ impl Render for CrowApp {
                         } else {
                             None
                         })
+                        // Fleet → IMPORT FROM PROVIDERS (ERR-46)
+                        .children(self.import.open.then(|| crate::views::fleet::import::import_panel(&self.import, app_view.clone())))
                         // Security stance panel (titlebar badge, ERR-60)
                         .children(self.stance_panel_open.then(|| crate::components::stance::stance_panel(&stance, app_view.clone())))
                         // First secret while Open: choose a stance on purpose (ERR-60)

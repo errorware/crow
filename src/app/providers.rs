@@ -256,3 +256,120 @@ impl CrowApp {
         .detach();
     }
 }
+
+/// Fleet → IMPORT FROM PROVIDERS (ERR-46).
+#[derive(Default)]
+pub struct ImportState {
+    pub open: bool,
+    /// Accounts still being asked.
+    pub loading: usize,
+    pub rows: Vec<providers::InstanceRow>,
+    /// Per-account failures, in words.
+    pub errors: Vec<String>,
+    /// Linked servers their provider no longer lists.
+    pub missing: Vec<String>,
+    /// Servers linked to their instance (or given a region) this time.
+    pub linked: usize,
+}
+
+impl CrowApp {
+    pub fn close_import(&mut self, cx: &mut Context<Self>) {
+        self.import.open = false;
+        cx.notify();
+    }
+
+    /// Asks every provider account that can list instances for them, in the
+    /// background, then links enrolled servers to their instances.
+    pub fn open_import(&mut self, cx: &mut Context<Self>) {
+        use crow_provider_core::capabilities::INSTANCES_LIST;
+        self.import = ImportState { open: true, ..Default::default() };
+        let accounts: Vec<ProviderAccount> = self
+            .providers
+            .accounts
+            .iter()
+            .filter(|a| providers::factory(&a.plugin).is_some_and(|f| (f.manifest)().has_capability(INSTANCES_LIST)))
+            .cloned()
+            .collect();
+        if accounts.is_empty() {
+            self.import.errors.push("No provider accounts yet. Set one up in Settings → Providers.".into());
+            cx.notify();
+            return;
+        }
+        let Some(key) = self.vault.key().cloned() else {
+            self.import.errors.push(self.vault.secrets_blocker().unwrap_or_else(|| "no encryption key".into()));
+            cx.notify();
+            return;
+        };
+        let mut jobs = Vec::new();
+        if let Ok(db) = self.vault.db().lock() {
+            for a in accounts {
+                match providers::load_settings(&db, &key, &a) {
+                    Ok(settings) => jobs.push((a, settings)),
+                    Err(e) => self.import.errors.push(format!("{}: {e}", a.label)),
+                }
+            }
+        }
+        self.import.loading = jobs.len();
+        cx.notify();
+        for (account, settings) in jobs {
+            cx.spawn(async move |entity, cx| {
+                let acct = account.clone();
+                let result = cx
+                    .background_executor()
+                    .spawn(async move {
+                        let provider = providers::connect(&acct, settings).map_err(|e| e.to_string())?;
+                        let list = provider.as_list_instances().ok_or("this provider can't list instances")?;
+                        list.instances().map_err(|e| e.to_string())
+                    })
+                    .await;
+                let _ = entity.update(cx, |this, cx| {
+                    this.import.loading = this.import.loading.saturating_sub(1);
+                    match result {
+                        Ok(instances) => this.apply_instances(&account, &instances),
+                        Err(e) => this.import.errors.push(format!("{}: {e}", account.label)),
+                    }
+                    cx.notify();
+                });
+            })
+            .detach();
+        }
+    }
+
+    fn apply_instances(&mut self, account: &ProviderAccount, instances: &[crow_provider_core::hosts::Instance]) {
+        let name = providers::display_name(&account.plugin);
+        let r = providers::reconcile(&self.fleet.servers, &account.id, &name, instances);
+        if let Ok(db) = self.vault.db().lock() {
+            for s in &r.updates {
+                let _ = db.upsert_server(s);
+            }
+        }
+        self.import.linked += r.updates.len();
+        self.import.missing.extend(r.missing.into_iter().map(|m| format!("{m} (no longer listed by {name})")));
+        self.import.rows.extend(r.rows);
+        if !r.updates.is_empty() {
+            self.reload_servers();
+        }
+    }
+
+    /// Opens Add Server filled in from an instance. The usual host-key check
+    /// and login still happen; nothing is trusted just because a provider
+    /// listed it.
+    pub fn import_instance(&mut self, account: &str, instance_id: &str, cx: &mut Context<Self>) {
+        let Some(row) = self.import.rows.iter().find(|r| r.account == account && r.instance.id.0 == instance_id).cloned() else { return };
+        self.import.open = false;
+        self.start_onboarding(cx);
+        let inst = &row.instance;
+        let o = &mut self.onboard_state;
+        o.host = inst.ipv4.first().or(inst.ipv6.first()).map(|ip| ip.to_string()).unwrap_or_default();
+        o.label = inst.label.clone();
+        o.tags = inst.tags.join(", ");
+        o.provider = Some(crate::views::onboard::ProviderLink {
+            account: row.account.clone(),
+            instance: inst.id.0.clone(),
+            provider_name: row.provider_name.clone(),
+            region_code: inst.region.clone().unwrap_or_default(),
+        });
+        self.onboard_inputs = None;
+        cx.notify();
+    }
+}

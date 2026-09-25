@@ -192,6 +192,8 @@ pub struct CrowApp {
     pub providers: providers::ProvidersState,
     pub provider_inputs: Option<providers::ProviderFormInputs>,
     pub clanker_inputs: Option<ClankerInputs>,
+    /// Fleet → IMPORT FROM PROVIDERS.
+    pub import: providers::ImportState,
     /// Something the user should know about their stored secrets (moved,
     /// lost with the keyring, ...), shown on Providers and Clankers.
     pub secrets_notice: Option<String>,
@@ -348,6 +350,7 @@ impl CrowApp {
             providers: Default::default(),
             provider_inputs: None,
             clanker_inputs: None,
+            import: Default::default(),
             secrets_notice: None,
             last_activity: std::time::Instant::now(),
             stance_panel_open: false,

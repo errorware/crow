@@ -74,9 +74,21 @@ pub struct OnboardState {
     pub group: String, // "workers", "edge", "data", "staging"
     pub tags: String,
     pub facts: DetectedFacts,
+    /// Set when the server was imported from a provider (ERR-46).
+    pub provider: Option<ProviderLink>,
     // UI state
     pub focus: OnboardFieldFocus,
     pub error_message: Option<String>,
+}
+
+/// Which provider instance a server being added is.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ProviderLink {
+    pub account: String,
+    pub instance: String,
+    /// The provider's display name (also what the region tables use).
+    pub provider_name: String,
+    pub region_code: String,
 }
 
 impl OnboardState {
@@ -102,6 +114,7 @@ impl OnboardState {
             group: "workers".into(),
             tags: "queue, ruby, eu-west".into(),
             facts: DetectedFacts::default(),
+            provider: None,
             focus: OnboardFieldFocus::Host,
             error_message: None,
         }

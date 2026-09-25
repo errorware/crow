@@ -151,6 +151,12 @@ pub struct ServerRecord {
     pub region_code: String,
     #[serde(default)]
     pub region_source: String,
+    /// The provider account and instance this server is (ERR-46), e.g.
+    /// ("linode", "123"); empty when it isn't linked to a provider.
+    #[serde(default)]
+    pub provider_account: String,
+    #[serde(default)]
+    pub provider_instance: String,
 }
 
 /// The audit-log scope for actions Crow takes on its own behalf, such as
@@ -514,7 +520,7 @@ impl VaultDb {
         let _ = self.conn.execute("ALTER TABLE servers ADD COLUMN archived_at TEXT", []);
         let _ = self.conn.execute("ALTER TABLE servers ADD COLUMN purged_at TEXT", []);
         // ERR-36: where each server lives.
-        for col in ["region_country", "region_city", "region_provider", "region_code", "region_source"] {
+        for col in ["region_country", "region_city", "region_provider", "region_code", "region_source", "provider_account", "provider_instance"] {
             let _ = self.conn.execute(&format!("ALTER TABLE servers ADD COLUMN {col} TEXT NOT NULL DEFAULT ''"), []);
         }
 
@@ -1133,7 +1139,8 @@ impl VaultDb {
                 env, role, group_name, tags, host_key_fingerprint, os_distro, os_kernel,
                 arch, memory_total, disk_total, agent_installed, agent_version, status,
                 created_at, last_seen_at, archived_at, purged_at,
-                region_country, region_city, region_provider, region_code, region_source";
+                region_country, region_city, region_provider, region_code, region_source,
+                provider_account, provider_instance";
 
     fn row_to_server(r: &rusqlite::Row<'_>) -> rusqlite::Result<ServerRecord> {
         let tags_json: String = r.get(11)?;
@@ -1170,6 +1177,8 @@ impl VaultDb {
             region_provider: r.get(27)?,
             region_code: r.get(28)?,
             region_source: r.get(29)?,
+            provider_account: r.get(30)?,
+            provider_instance: r.get(31)?,
         })
     }
 
@@ -1214,8 +1223,9 @@ impl VaultDb {
                 env, role, group_name, tags, host_key_fingerprint, os_distro, os_kernel,
                 arch, memory_total, disk_total, agent_installed, agent_version, status,
                 created_at, last_seen_at, archived_at, purged_at,
-                region_country, region_city, region_provider, region_code, region_source
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30)
+                region_country, region_city, region_provider, region_code, region_source,
+                provider_account, provider_instance
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31, ?32)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 host = excluded.host,
@@ -1244,7 +1254,9 @@ impl VaultDb {
                 region_city = excluded.region_city,
                 region_provider = excluded.region_provider,
                 region_code = excluded.region_code,
-                region_source = excluded.region_source",
+                region_source = excluded.region_source,
+                provider_account = excluded.provider_account,
+                provider_instance = excluded.provider_instance",
             params![
                 srv.id, srv.name, srv.host, srv.port, srv.login_user, srv.auth_method,
                 srv.key_id, srv.jump_host_id, srv.env, srv.role, srv.group_name,
@@ -1252,7 +1264,8 @@ impl VaultDb {
                 srv.arch, srv.memory_total, srv.disk_total, agent_inst,
                 srv.agent_version, srv.status, created, srv.last_seen_at,
                 srv.archived_at, srv.purged_at,
-                srv.region_country, srv.region_city, srv.region_provider, srv.region_code, srv.region_source
+                srv.region_country, srv.region_city, srv.region_provider, srv.region_code, srv.region_source,
+                srv.provider_account, srv.provider_instance
             ],
         )?;
         Ok(())
@@ -1983,6 +1996,8 @@ mod tests {
             region_provider: "Linode".into(),
             region_code: "de-fra-2".into(),
             region_source: "metadata".into(),
+            provider_account: "linode".into(),
+            provider_instance: "123".into(),
         };
 
         db.upsert_server(&srv).unwrap();
@@ -1990,6 +2005,7 @@ mod tests {
         let fetched = db.get_server("srv-custom-01").unwrap().unwrap();
         assert_eq!(fetched.name, "custom-01");
         assert_eq!((fetched.region_country.as_str(), fetched.region_code.as_str(), fetched.region_source.as_str()), ("DE", "de-fra-2", "metadata"), "region round-trips");
+        assert_eq!((fetched.provider_account.as_str(), fetched.provider_instance.as_str()), ("linode", "123"), "provider link round-trips");
         assert_eq!(fetched.host, "10.0.9.99");
         assert_eq!(fetched.port, 22);
         assert_eq!(fetched.tags.len(), 2);
