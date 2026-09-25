@@ -112,6 +112,13 @@ pub struct ClankerEditModalState {
     pub error_message: Option<String>,
 }
 
+/// The lock screen's inputs (created on render: they need the window).
+pub struct LockInputs {
+    pub password: Entity<gpui_kit::component::input::InputState>,
+    pub code: Entity<gpui_kit::component::input::InputState>,
+    pub _events: Vec<Subscription>,
+}
+
 /// Vault setup's inputs (created on render: they need the window).
 pub struct SetupInputs {
     pub password: Entity<gpui_kit::component::input::InputState>,
@@ -202,6 +209,8 @@ pub struct CrowApp {
     pub clanker_inputs: Option<ClankerInputs>,
     /// Fleet → IMPORT FROM PROVIDERS.
     pub import: providers::ImportState,
+    /// The lock screen's password and 2FA code inputs (while locked).
+    pub lock_inputs: Option<LockInputs>,
     /// Vault setup's password, confirm and 2FA code inputs.
     pub setup_inputs: Option<SetupInputs>,
     /// Snapshot-first offer before a lockout-risk change (ERR-48).
@@ -365,6 +374,7 @@ impl CrowApp {
             import: Default::default(),
             snapshot_offer: None,
             setup_inputs: None,
+            lock_inputs: None,
             secrets_notice: None,
             last_activity: std::time::Instant::now(),
             stance_panel_open: false,

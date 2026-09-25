@@ -3,7 +3,7 @@ use gpui_kit::*;
 use super::{CrowApp, Screen};
 use crate::keys::KeyGenFieldFocus;
 use crate::vault::VaultStatus;
-use crate::views::lock::{LockFieldFocus, SetupState, SetupStep};
+use crate::views::lock::{SetupState, SetupStep};
 use crate::views::onboard::OnboardFieldFocus;
 
 // ==========================================
@@ -80,50 +80,17 @@ impl CrowApp {
     }
 
     /// Vault locked: keyboard input is dedicated to unlocking. Returns true when the key was consumed.
-    fn keys_lock_screen(&mut self, k: &KeyPress, cx: &mut Context<Self>) -> bool {
-        let KeyPress { ev, key, .. } = *k;
-        if self.vault.status() == VaultStatus::Locked {
-            self.caret.blink = true;
-            if key == "tab" {
-                self.lock_state.active_focus = match self.lock_state.active_focus {
-                    LockFieldFocus::Password => LockFieldFocus::Totp,
-                    LockFieldFocus::Totp => LockFieldFocus::Password,
-                };
-                let len = match self.lock_state.active_focus {
-                    LockFieldFocus::Password => self.lock_state.password_input.chars().count(),
-                    LockFieldFocus::Totp => self.lock_state.totp_input.chars().count(),
-                };
-                self.caret.place(len);
-                cx.notify();
-            } else if key == "enter" {
-                self.submit_unlock(cx);
-            } else {
-                let is_totp = self.lock_state.active_focus == LockFieldFocus::Totp;
-                let text = match self.lock_state.active_focus {
-                    LockFieldFocus::Password => &mut self.lock_state.password_input,
-                    LockFieldFocus::Totp => &mut self.lock_state.totp_input,
-                };
-                let changed = crate::components::handle_text_key_event(text, &mut self.caret.cursor, &mut self.caret.selection, ev);
-                if is_totp {
-                    self.lock_state.totp_input.retain(|c| c.is_ascii_digit());
-                    if self.lock_state.totp_input.chars().count() > 6 {
-                        let s: String = self.lock_state.totp_input.chars().take(6).collect();
-                        self.lock_state.totp_input = s;
-                        self.caret.cursor = self.caret.cursor.min(6);
-                    }
-                }
-                if changed {
-                    self.lock_state.error_message = None;
-                    cx.notify();
-                }
-            }
-            return true;
-        }
-        false
+    fn keys_lock_screen(&mut self, _k: &KeyPress, _cx: &mut Context<Self>) -> bool {
+        // Locked: the inputs take typing (Enter unlocks through them) and no
+        // shortcut reaches the app behind the lock screen.
+        self.vault.status() == VaultStatus::Locked
     }
 
     /// The gpui inputs of the form on screen, in tab order.
     fn open_form_inputs(&self) -> Vec<Entity<gpui_kit::component::input::InputState>> {
+        if let (VaultStatus::Locked, Some(i)) = (self.vault.status(), self.lock_inputs.as_ref()) {
+            return vec![i.password.clone(), i.code.clone()];
+        }
         if let (Screen::VaultSetup, Some(i)) = (self.screen, self.setup_inputs.as_ref()) {
             return vec![i.password.clone(), i.confirm.clone(), i.code.clone()];
         }

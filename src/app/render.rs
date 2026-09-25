@@ -46,6 +46,9 @@ impl Render for CrowApp {
         if self.screen == Screen::Settings && self.clankers.editing.is_some() {
             self.ensure_clanker_inputs(window, cx);
         }
+        if self.vault.status() == crate::vault::VaultStatus::Locked {
+            self.ensure_lock_inputs(window, cx);
+        }
         if self.screen == Screen::VaultSetup && self.setup_state.step == crate::views::lock::SetupStep::ConfigureCredentials {
             self.ensure_setup_inputs(window, cx);
         }
@@ -104,7 +107,7 @@ impl Render for CrowApp {
             // If locked, show full lock screen
             .children(if vault_status == VaultStatus::Locked {
                 Some(
-                    div().size_full().child(vault_lock_view(app_view.clone(), &self.caret, &self.lock_state))
+                    div().size_full().child(vault_lock_view(app_view.clone(), &self.lock_state, self.lock_inputs.as_ref()))
                 )
             } else {
                 None

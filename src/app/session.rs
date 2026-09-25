@@ -1,5 +1,4 @@
 use gpui_kit::*;
-use zeroize::Zeroize;
 
 use super::{CrowApp, Screen, SettingsSection};
 use crate::views::lock::SetupState;
@@ -46,9 +45,8 @@ impl CrowApp {
         if self.vault.is_password_auth_enabled() {
             self.vault.lock();
             self.wipe_session_secrets(cx);
-            self.lock_state.password_input.zeroize();
-            self.lock_state.totp_input.zeroize();
-            self.lock_state.error_message = None;
+            self.lock_inputs = None;
+            self.lock_state = Default::default();
             self.caret.place(0);
             self.menu_open = false;
             self.palette_open = false;
@@ -62,14 +60,49 @@ impl CrowApp {
         }
     }
 
+    /// Creates the lock screen's inputs (masked password, 6-digit code),
+    /// focused on the password; Enter in either unlocks.
+    pub fn ensure_lock_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        use gpui_kit::component::input::{InputEvent, InputState};
+        if self.lock_inputs.is_some() {
+            return;
+        }
+        let masked = !self.lock_state.show_password;
+        let password = cx.new(|cx| InputState::new(window, cx).placeholder("Enter master password…").masked(masked));
+        let code = cx.new(|cx| InputState::new(window, cx).placeholder("000000"));
+        let events = [&password, &code]
+            .into_iter()
+            .map(|input| {
+                cx.subscribe(input, |this, _input, ev: &InputEvent, cx| {
+                    if matches!(ev, InputEvent::PressEnter { .. }) {
+                        this.submit_unlock(cx);
+                    }
+                })
+            })
+            .collect();
+        password.update(cx, |i, cx| i.focus(window, cx));
+        self.lock_inputs = Some(super::LockInputs { password, code, _events: events });
+    }
+
+    pub fn toggle_lock_show_password(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.lock_state.show_password = !self.lock_state.show_password;
+        let masked = !self.lock_state.show_password;
+        if let Some(i) = self.lock_inputs.as_ref() {
+            i.password.update(cx, |i, cx| i.set_masked(masked, window, cx));
+        }
+        cx.notify();
+    }
+
     pub fn submit_unlock(&mut self, cx: &mut Context<Self>) {
-        let pwd = zeroize::Zeroizing::new(self.lock_state.password_input.clone());
+        let Some(inputs) = self.lock_inputs.as_ref() else { return };
+        let pwd = zeroize::Zeroizing::new(inputs.password.read(cx).value().to_string());
+        let code: String = inputs.code.read(cx).value().chars().filter(|c| c.is_ascii_digit()).collect();
         if pwd.is_empty() {
             self.lock_state.error_message = Some("Password cannot be empty".into());
             cx.notify();
             return;
         }
-        let totp = self.lock_state.totp_input.trim();
+        let totp = code.as_str();
         if totp.is_empty() {
             self.lock_state.error_message = Some("6-digit 2FA code is required".into());
             cx.notify();
@@ -78,8 +111,7 @@ impl CrowApp {
 
         match self.vault.unlock(&pwd, totp) {
             Ok(_) => {
-                self.lock_state.password_input.zeroize();
-                self.lock_state.totp_input.zeroize();
+                self.lock_inputs = None;
                 self.lock_state.error_message = None;
                 self.caret.place(0);
                 self.on_data_key_ready(cx);
