@@ -306,11 +306,32 @@ where
 /// - Home / End
 /// - Backspace / Delete
 /// - Printable character typing (replacing selection if active)
+/// Clipboard traffic for one key press: text to paste in (read only for
+/// ⌘V) and text copied or cut out. Keeps the editing logic free of the app.
+#[derive(Default)]
+pub struct ClipboardIo {
+    pub paste: Option<String>,
+    pub copied: Option<String>,
+}
+
+/// [`handle_text_key_event`] with the app's clipboard (GPUI's, which works
+/// on Wayland, X11 and macOS alike).
+pub fn handle_text_key_event_in(cx: &mut App, text: &mut String, cursor: &mut usize, selection: &mut Option<(usize, usize)>, ev: &KeyDownEvent) -> bool {
+    let is_paste = (ev.keystroke.modifiers.platform || ev.keystroke.modifiers.control) && ev.keystroke.key.eq_ignore_ascii_case("v");
+    let mut clip = ClipboardIo { paste: if is_paste { cx.read_from_clipboard().and_then(|c| c.text()) } else { None }, copied: None };
+    let changed = handle_text_key_event(text, cursor, selection, ev, &mut clip);
+    if let Some(t) = clip.copied {
+        cx.write_to_clipboard(ClipboardItem::new_string(t));
+    }
+    changed
+}
+
 pub fn handle_text_key_event(
     text: &mut String,
     cursor: &mut usize,
     selection: &mut Option<(usize, usize)>,
     ev: &KeyDownEvent,
+    clip: &mut ClipboardIo,
 ) -> bool {
     let is_mod = ev.keystroke.modifiers.platform || ev.keystroke.modifiers.control;
     let is_shift = ev.keystroke.modifiers.shift;
@@ -337,7 +358,7 @@ pub fn handle_text_key_event(
             text.clone()
         };
         if !copy_str.is_empty() {
-            crate::keys::copy_to_clipboard_system(&copy_str);
+            clip.copied = Some(copy_str);
         }
         return true;
     }
@@ -348,13 +369,13 @@ pub fn handle_text_key_event(
             let s = s.min(len);
             let e = e.min(len);
             let cut_str = chars[s..e].iter().collect::<String>();
-            crate::keys::copy_to_clipboard_system(&cut_str);
+            clip.copied = Some(cut_str);
             chars.drain(s..e);
             *text = chars.into_iter().collect();
             *cursor = s;
             *selection = None;
         } else if len > 0 {
-            crate::keys::copy_to_clipboard_system(text);
+            clip.copied = Some(text.clone());
             text.clear();
             *cursor = 0;
             *selection = None;
@@ -364,7 +385,7 @@ pub fn handle_text_key_event(
 
     // 4. Paste (Cmd+V / Ctrl+V)
     if is_mod && key == "v" {
-        let clip_text = crate::keys::read_clipboard_system();
+        let clip_text = clip.paste.take();
         if let Some(paste) = clip_text {
             let sanitized: String = paste.chars().filter(|c| *c != '\n' && *c != '\r').collect();
             if !sanitized.is_empty() {
@@ -563,13 +584,13 @@ mod tests {
         let mut selection = None;
 
         let ev = make_event("a", false, false);
-        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
+        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev, &mut ClipboardIo::default()));
         assert_eq!(text, "a");
         assert_eq!(cursor, 1);
         assert_eq!(selection, None);
 
         let ev = make_event("b", false, false);
-        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
+        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev, &mut ClipboardIo::default()));
         assert_eq!(text, "ab");
         assert_eq!(cursor, 2);
     }
@@ -582,12 +603,12 @@ mod tests {
 
         // Cmd+A
         let ev = make_event("a", true, false);
-        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
+        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev, &mut ClipboardIo::default()));
         assert_eq!(selection, Some((0, 5)));
 
         // Type 'x' replaces selection
         let ev = make_event("x", false, false);
-        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
+        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev, &mut ClipboardIo::default()));
         assert_eq!(text, "x");
         assert_eq!(cursor, 1);
         assert_eq!(selection, None);
@@ -601,14 +622,14 @@ mod tests {
 
         // Backspace without selection
         let ev = make_event("backspace", false, false);
-        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
+        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev, &mut ClipboardIo::default()));
         assert_eq!(text, "hell");
         assert_eq!(cursor, 4);
 
         // Select "el"
         selection = Some((1, 3));
         let ev = make_event("backspace", false, false);
-        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
+        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev, &mut ClipboardIo::default()));
         assert_eq!(text, "hl");
         assert_eq!(cursor, 1);
         assert_eq!(selection, None);
@@ -622,14 +643,14 @@ mod tests {
 
         // Delete 'c'
         let ev = make_event("delete", false, false);
-        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
+        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev, &mut ClipboardIo::default()));
         assert_eq!(text, "row");
         assert_eq!(cursor, 0);
 
         // Select "ow"
         selection = Some((1, 3));
         let ev = make_event("delete", false, false);
-        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
+        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev, &mut ClipboardIo::default()));
         assert_eq!(text, "r");
         assert_eq!(cursor, 1);
         assert_eq!(selection, None);
@@ -643,25 +664,25 @@ mod tests {
 
         // Left arrow moves cursor left
         let ev = make_event("left", false, false);
-        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
+        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev, &mut ClipboardIo::default()));
         assert_eq!(cursor, 4);
         assert_eq!(selection, None);
 
         // Shift+Left expands selection leftwards
         let ev = make_event("left", false, true);
-        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
+        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev, &mut ClipboardIo::default()));
         assert_eq!(cursor, 3);
         assert_eq!(selection, Some((3, 4)));
 
         // Shift+Left again
         let ev = make_event("left", false, true);
-        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
+        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev, &mut ClipboardIo::default()));
         assert_eq!(cursor, 2);
         assert_eq!(selection, Some((2, 4)));
 
         // Right arrow clears selection and sets cursor
         let ev = make_event("right", false, false);
-        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
+        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev, &mut ClipboardIo::default()));
         assert_eq!(cursor, 4);
         assert_eq!(selection, None);
     }
@@ -673,15 +694,15 @@ mod tests {
         let mut selection = Some((1, 4));
 
         let ev = make_event("escape", false, false);
-        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
+        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev, &mut ClipboardIo::default()));
         assert_eq!(selection, None);
 
         let ev = make_event("home", false, false);
-        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
+        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev, &mut ClipboardIo::default()));
         assert_eq!(cursor, 0);
 
         let ev = make_event("end", false, false);
-        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev));
+        assert!(handle_text_key_event(&mut text, &mut cursor, &mut selection, &ev, &mut ClipboardIo::default()));
         assert_eq!(cursor, 6);
     }
 

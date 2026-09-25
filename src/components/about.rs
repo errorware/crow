@@ -2,7 +2,6 @@ use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
-use crate::keys::copy_to_clipboard_system;
 
 pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool) -> impl IntoElement {
     let app_close1 = app.clone();
@@ -225,7 +224,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool) -> impl IntoElement
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_CONTROL_ALT))
                                 .on_click(move |_ev, _window, cx| {
-                                    copy_to_clipboard_system(&system_report);
+                                    cx.write_to_clipboard(ClipboardItem::new_string(system_report.clone()));
                                     app_copy.update(cx, |this, cx| {
                                         this.about_copied_toast = true;
                                         cx.notify();

@@ -34,6 +34,11 @@ pub struct JournalState {
     pub show_actions: bool,
     /// The AI "explain these lines" side panel.
     pub ai: AiPanelState,
+    /// CLEAR: show only lines newer than this (µs since the epoch), so the
+    /// live refresh doesn't bring cleared lines back. SHOW ALL resets it.
+    pub cleared_after: Option<u64>,
+    /// What the last EXPORT did ("Copied 214 lines").
+    pub export_note: Option<String>,
 }
 
 #[derive(Default)]
@@ -80,7 +85,26 @@ impl JournalState {
             search_generation: 0,
             show_actions: true,
             ai: AiPanelState::default(),
+            cleared_after: None,
+            export_note: None,
         }
+    }
+
+    /// Takes a fresh read, keeping only lines newer than a CLEAR.
+    pub fn set_entries(&mut self, mut entries: Vec<JournalEntry>) {
+        if let Some(after) = self.cleared_after {
+            entries.retain(|e| e.timestamp_usec > after);
+        }
+        self.entries = entries;
+    }
+
+    /// CLEAR: empties the view and hides everything logged up to now.
+    pub fn clear(&mut self) {
+        let newest = self.entries.iter().map(|e| e.timestamp_usec).max();
+        let now = std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_micros() as u64).unwrap_or(0);
+        // The newest line on screen, not the local clock: the server's clock may differ.
+        self.cleared_after = Some(newest.unwrap_or(now));
+        self.entries.clear();
     }
 
     /// The single source of truth for what a journal lookup should ask for — built
@@ -195,6 +219,38 @@ mod tests {
         assert_eq!(q.unit.as_deref(), Some("nginx.service"));
         assert_eq!(q.pid, Some(42));
         assert_eq!(q.limit, 200);
+    }
+
+    fn entry(usec: u64) -> JournalEntry {
+        JournalEntry {
+            id: usec.to_string(),
+            cursor: None,
+            timestamp_usec: usec,
+            timestamp_formatted: String::new(),
+            time_relative: String::new(),
+            priority: JournalPriority::Info,
+            unit: "sshd.service".into(),
+            syslog_identifier: String::new(),
+            pid: None,
+            message: format!("line {usec}"),
+            fields: Vec::new(),
+            is_expanded: false,
+        }
+    }
+
+    #[test]
+    fn clear_hides_what_was_logged_and_keeps_what_comes_next() {
+        let mut st = state();
+        st.set_entries(vec![entry(100), entry(200)]);
+        st.clear();
+        assert!(st.entries.is_empty());
+        // The live refresh reads the same lines again, plus a new one.
+        st.set_entries(vec![entry(100), entry(200), entry(300)]);
+        assert_eq!(st.entries.iter().map(|e| e.timestamp_usec).collect::<Vec<_>>(), [300]);
+        // SHOW ALL
+        st.cleared_after = None;
+        st.set_entries(vec![entry(100), entry(200), entry(300)]);
+        assert_eq!(st.entries.len(), 3);
     }
 
     #[test]

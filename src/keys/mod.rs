@@ -103,57 +103,6 @@ pub struct EditKeyModalState {
     pub error_message: Option<String>,
 }
 
-pub fn copy_to_clipboard_system(text: &str) {
-    #[cfg(target_os = "macos")]
-    {
-        use std::io::Write;
-        if let Ok(mut child) = std::process::Command::new("pbcopy")
-            .stdin(std::process::Stdio::piped())
-            .spawn()
-        {
-            if let Some(mut stdin) = child.stdin.take() {
-                let _ = stdin.write_all(text.as_bytes());
-            }
-        }
-    }
-    #[cfg(target_os = "linux")]
-    {
-        use std::io::Write;
-        if let Ok(mut child) = std::process::Command::new("xclip")
-            .args(["-selection", "clipboard"])
-            .stdin(std::process::Stdio::piped())
-            .spawn()
-        {
-            if let Some(mut stdin) = child.stdin.take() {
-                let _ = stdin.write_all(text.as_bytes());
-            }
-        }
-    }
-}
-
-pub fn read_clipboard_system() -> Option<String> {
-    #[cfg(target_os = "macos")]
-    {
-        if let Ok(output) = std::process::Command::new("pbpaste").output() {
-            if output.status.success() {
-                return String::from_utf8(output.stdout).ok();
-            }
-        }
-    }
-    #[cfg(target_os = "linux")]
-    {
-        if let Ok(output) = std::process::Command::new("xclip")
-            .args(["-selection", "clipboard", "-o"])
-            .output()
-        {
-            if output.status.success() {
-                return String::from_utf8(output.stdout).ok();
-            }
-        }
-    }
-    None
-}
-
 /// Expands a leading '~' into the user's home directory.
 pub fn expand_tilde(path_str: &str) -> PathBuf {
     if let Some(stripped) = path_str.strip_prefix("~/") {

@@ -103,7 +103,7 @@ impl CrowApp {
                     LockFieldFocus::Password => &mut self.lock_state.password_input,
                     LockFieldFocus::Totp => &mut self.lock_state.totp_input,
                 };
-                let changed = crate::components::handle_text_key_event(text, &mut self.caret.cursor, &mut self.caret.selection, ev);
+                let changed = crate::components::handle_text_key_event_in(cx, text, &mut self.caret.cursor, &mut self.caret.selection, ev);
                 if is_totp {
                     self.lock_state.totp_input.retain(|c| c.is_ascii_digit());
                     if self.lock_state.totp_input.chars().count() > 6 {
@@ -211,7 +211,7 @@ impl CrowApp {
                     KeyGenFieldFocus::Comment => &mut gen.comment_input,
                     KeyGenFieldFocus::Directory => &mut gen.custom_dir_input,
                 };
-                if crate::components::handle_text_key_event(
+                if crate::components::handle_text_key_event_in(cx, 
                     target,
                     &mut self.caret.cursor,
                     &mut self.caret.selection,
@@ -230,7 +230,7 @@ impl CrowApp {
                 self.close_new_group_modal(cx);
             } else if key == "enter" {
                 self.submit_new_group(cx);
-            } else if crate::components::handle_text_key_event(
+            } else if crate::components::handle_text_key_event_in(cx, 
                 &mut grp.name_input,
                 &mut self.caret.cursor,
                 &mut self.caret.selection,
@@ -248,7 +248,7 @@ impl CrowApp {
                 self.close_add_scan_path_modal(cx);
             } else if key == "enter" {
                 self.submit_add_scan_path(cx);
-            } else if crate::components::handle_text_key_event(
+            } else if crate::components::handle_text_key_event_in(cx, 
                 &mut sp.path_input,
                 &mut self.caret.cursor,
                 &mut self.caret.selection,
@@ -266,7 +266,7 @@ impl CrowApp {
                 self.close_edit_key_modal(cx);
             } else if key == "enter" {
                 self.submit_edit_key(cx);
-            } else if crate::components::handle_text_key_event(
+            } else if crate::components::handle_text_key_event_in(cx, 
                 &mut edit.name_input,
                 &mut self.caret.cursor,
                 &mut self.caret.selection,
@@ -293,7 +293,7 @@ impl CrowApp {
                 } else if key == "enter" {
                     self.apply_settings_custom_input(&open_row_id, cx);
                     return true;
-                } else if crate::components::handle_text_key_event(
+                } else if crate::components::handle_text_key_event_in(cx, 
                     &mut self.settings.custom_input,
                     &mut self.caret.cursor,
                     &mut self.caret.selection,
@@ -349,7 +349,7 @@ impl CrowApp {
                 cx.notify();
                 return true;
             } else {
-                let changed = crate::components::handle_text_key_event(
+                let changed = crate::components::handle_text_key_event_in(cx, 
                     &mut self.configs.search_query,
                     &mut self.caret.cursor,
                     &mut self.caret.selection,

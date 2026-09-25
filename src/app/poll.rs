@@ -322,7 +322,7 @@ impl CrowApp {
         }
 
         if let Some(entries) = res.journal_entries {
-            self.journal.entries = entries;
+            self.journal.set_entries(entries);
         }
         if let Some(telemetry) = res.journal_telemetry {
             self.journal.telemetry = telemetry;
