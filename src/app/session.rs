@@ -47,7 +47,6 @@ impl CrowApp {
             self.wipe_session_secrets(cx);
             self.lock_inputs = None;
             self.lock_state = Default::default();
-            self.caret.place(0);
             self.menu_open = false;
             self.palette_open = false;
             cx.notify();
@@ -113,7 +112,6 @@ impl CrowApp {
             Ok(_) => {
                 self.lock_inputs = None;
                 self.lock_state.error_message = None;
-                self.caret.place(0);
                 self.on_data_key_ready(cx);
                 cx.notify();
             }
@@ -224,7 +222,6 @@ impl CrowApp {
                 self.on_data_key_ready(cx);
                 self.setup_state = SetupState::default();
                 self.setup_inputs = None;
-                self.caret.place(0);
                 self.screen = Screen::Fleet;
                 cx.notify();
             }
@@ -244,7 +241,6 @@ impl CrowApp {
             self.onboard_focus_pending = true;
         } else if screen == Screen::VaultSetup && self.screen != Screen::VaultSetup {
             self.setup_state = SetupState::default();
-            self.caret.place(0);
         }
         self.screen = screen;
         self.menu_open = false;

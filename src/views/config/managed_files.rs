@@ -3,12 +3,11 @@ use gpui_kit::*;
 use crate::app::CrowApp;
 use crate::theme::*;
 use crate::components::icons::{TablerIcon, tabler_icon};
-use crate::components::terminal_text_input_styled;
-use crate::components::text_caret::TextCaret;
+use gpui_kit::component::input::{Input, InputState};
 use crate::views::fleet::FleetState;
 use crate::views::config::state::ConfigsState;
 
-pub fn managed_files_rail(selected_file: &str, caret: &TextCaret, _fleet: &FleetState, configs: &ConfigsState, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<InputState>>, _fleet: &FleetState, configs: &ConfigsState, app: Entity<CrowApp>) -> impl IntoElement {
     let files = &configs.files;
     let app_clone = app.clone();
     let app_scan = app.clone();
@@ -143,36 +142,15 @@ pub fn managed_files_rail(selected_file: &str, caret: &TextCaret, _fleet: &Fleet
                         .size(px(11.0))
                         .text_color(TEXT_FAINT),
                 )
-                .child({
-                    let app_search = app_clone.clone();
+                .child(
                     div()
                         .flex_1()
-                        .child(
-                            terminal_text_input_styled(
-                                "input-config-search",
-                                &configs.search_query,
-                                "Filter configs...",
-                                configs.search_focused,
-                                false,
-                                24.0,
-                                11.0,
-                                if configs.search_focused { caret.cursor } else { 0 },
-                                if configs.search_focused { caret.selection } else { None },
-                                if configs.search_focused { caret.drag_anchor } else { None },
-                                caret.blink,
-                                move |cursor, anchor, selection, _window, cx| {
-                                    app_search.update(cx, |this, cx| {
-                                        this.configs.search_focused = true;
-                                        this.caret.cursor = cursor;
-                                        this.caret.drag_anchor = anchor;
-                                        this.caret.selection = selection;
-                                        this.caret.blink = true;
-                                        cx.notify();
-                                    });
-                                },
-                            )
-                        )
-                })
+                        .child(if let Some(input) = search_input {
+                            div().child(Input::new(input))
+                        } else {
+                            div()
+                        })
+                )
                 .children(if !configs.search_query.is_empty() {
                     let app_clear = app_clone.clone();
                     Some(

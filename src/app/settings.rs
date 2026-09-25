@@ -1,6 +1,13 @@
+use gpui_kit::component::input::{InputEvent, InputState};
 use gpui_kit::*;
 
 use super::{CrowApp, SettingsSection};
+
+pub struct CustomSettingInput {
+    pub row_id: String,
+    pub input: Entity<InputState>,
+    pub _events: Subscription,
+}
 
 impl CrowApp {
     pub fn set_settings_section(&mut self, section: SettingsSection, cx: &mut Context<Self>) {
@@ -19,6 +26,13 @@ impl CrowApp {
             if let Err(e) = self.config.save() {
                 eprintln!("Failed to save config: {:?}", e);
             }
+        }
+        cx.notify();
+    }
+
+    pub fn reset_config_field(&mut self, row_id: &str, cx: &mut Context<Self>) {
+        if let Err(e) = self.config.reset_field(row_id) {
+            eprintln!("Failed to reset config field {}: {:?}", row_id, e);
         }
         cx.notify();
     }
@@ -67,11 +81,11 @@ impl CrowApp {
         if self.settings.dropdown_open.as_deref() == Some(row_id) {
             self.settings.dropdown_open = None;
             self.settings.custom_input.clear();
+            self.custom_setting_input = None;
         } else {
             self.settings.dropdown_open = Some(row_id.to_string());
             self.settings.custom_input = initial_val.to_string();
-            self.caret.place(self.settings.custom_input.chars().count());
-            self.caret.blink = true;
+            self.custom_setting_input = None;
         }
         cx.notify();
     }
@@ -79,6 +93,7 @@ impl CrowApp {
     pub fn close_settings_dropdown(&mut self, cx: &mut Context<Self>) {
         self.settings.dropdown_open = None;
         self.settings.custom_input.clear();
+        self.custom_setting_input = None;
         cx.notify();
     }
 
@@ -101,12 +116,53 @@ impl CrowApp {
                 self.update_config_field(row_id, serde_json::Value::Number(serde_json::Number::from(n)), cx);
                 self.settings.dropdown_open = None;
                 self.settings.custom_input.clear();
+                self.custom_setting_input = None;
             }
         } else {
             self.update_config_field(row_id, serde_json::Value::String(trimmed.to_string()), cx);
             self.settings.dropdown_open = None;
             self.settings.custom_input.clear();
+            self.custom_setting_input = None;
         }
         cx.notify();
+    }
+
+    pub fn ensure_settings_custom_input(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(row_id) = self.settings.dropdown_open.clone() else {
+            self.custom_setting_input = None;
+            return;
+        };
+        if self.custom_setting_input.as_ref().is_some_and(|s| s.row_id == row_id) {
+            return;
+        }
+        let input = cx.new(|cx| {
+            InputState::new(window, cx)
+                .placeholder("value…")
+                .default_value(&self.settings.custom_input)
+        });
+        let rid = row_id.clone();
+        let events = cx.subscribe(&input, move |this, input, ev: &InputEvent, cx| match ev {
+            InputEvent::Change => {
+                this.settings.custom_input = input.read(cx).value().to_string();
+                let field_is_int = this
+                    .config
+                    .get_field(&rid)
+                    .map(|f| matches!(&f.field_type, crow_config_core::schema::FieldType::Integer))
+                    .unwrap_or(false);
+                if field_is_int {
+                    this.settings.custom_input.retain(|c| c.is_ascii_digit());
+                }
+                cx.notify();
+            }
+            InputEvent::PressEnter { .. } => {
+                this.apply_settings_custom_input(&rid, cx);
+            }
+            _ => {}
+        });
+        self.custom_setting_input = Some(CustomSettingInput {
+            row_id,
+            input,
+            _events: events,
+        });
     }
 }

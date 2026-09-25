@@ -180,6 +180,20 @@ impl CrowConfigManager {
             .count()
     }
 
+    pub fn reset_field(&mut self, row_id: &str) -> Result<(), EditError> {
+        if let Some(base_val) = self
+            .baseline_ir
+            .rows
+            .iter()
+            .find(|r| r.row_id == row_id)
+            .and_then(|r| r.get_field(row_id))
+            .map(|f| f.value.clone())
+        {
+            self.update_field(row_id, base_val)?;
+        }
+        Ok(())
+    }
+
     pub fn reset_section(&mut self, sec_prefix: &str) -> Result<(), EditError> {
         let prefix = format!("{}.", sec_prefix);
         let to_reset: Vec<(String, serde_json::Value)> = self

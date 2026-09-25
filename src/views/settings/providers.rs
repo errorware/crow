@@ -147,7 +147,7 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
         .child(div().flex_1())
         .children(account.and_then(|a| a.last_check_at.as_deref()).map(|t| div().font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINTER).child(format!("checked {}", short_time(t)))));
 
-    let status_line = div().font_family(FONT_MONO).text_size(px(10.5)).text_color(status.1).child(status.0);
+    let status_line = div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(14.0)).text_color(status.1).child(status.0);
 
     let (a_edit, a_test, a_remove, p_edit, p_test, p_remove) = (app.clone(), app.clone(), app.clone(), plugin.clone(), plugin.clone(), plugin.clone());
     let confirming = state.confirm_remove.as_deref() == Some(plugin.as_str());
@@ -185,10 +185,11 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
             div()
                 .font_family(FONT_MONO)
                 .text_size(px(10.0))
+                .line_height(px(13.5))
                 .text_color(WARN)
                 .child("Crow is OPEN: anyone at this session can use this token to power servers off or snapshot them. See the stance badge.")
         }))
-        .children(state.errors.get(&plugin).map(|e| div().font_family(FONT_MONO).text_size(px(10.5)).text_color(CRIT).child(format!("Not saved: {e}"))))
+        .children(state.errors.get(&plugin).map(|e| div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(14.0)).text_color(CRIT).child(format!("Not saved: {e}"))))
         .children(editing.then(|| form(&factory, state, inputs, app.clone())))
         .child(actions)
 }

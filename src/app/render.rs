@@ -60,6 +60,9 @@ impl Render for CrowApp {
                 self.ensure_table_search(page, window, cx);
             }
         }
+        self.ensure_key_inputs(window, cx);
+        self.ensure_settings_custom_input(window, cx);
+        self.ensure_config_search(window, cx);
 
         // The Fleet screen's Archived tab needs the purge window and Crow's
         // own purge audit trail (ERR-32).
@@ -86,12 +89,6 @@ impl Render for CrowApp {
             }))
             .on_key_down(cx.listener(|this, ev: &KeyDownEvent, window, cx| {
                 this.handle_key_down(ev, window, cx);
-            }))
-            .on_mouse_up(MouseButton::Left, cx.listener(|this, _ev: &MouseUpEvent, _window, cx| {
-                if this.caret.drag_anchor.is_some() {
-                    this.caret.drag_anchor = None;
-                    cx.notify();
-                }
             }))
             .size_full()
             .bg(BG_WINDOW)
@@ -317,7 +314,7 @@ impl Render for CrowApp {
                                                                     div()
                                                                         .size_full()
                                                                         .flex()
-                                                                        .child(managed_files_rail(&self.configs.selected_file, &self.caret, &self.fleet, &self.configs, app_view.clone()))
+                                                                        .child(managed_files_rail(&self.configs.selected_file, self.config_search.as_ref().map(|s| &s.input), &self.fleet, &self.configs, app_view.clone()))
                                                                         .child(editor_view)
                                                                         .child(pending_diff_rail(&self.configs, app_view.clone()))
                                                                 )
@@ -426,7 +423,25 @@ impl Render for CrowApp {
                                     Screen::Settings => Some(
                                         div()
                                             .size_full()
-                                            .child(settings_view(app_view.clone(), &self.vault, &self.config, &self.caret, &self.fleet, &self.keys, &self.clankers, &self.settings, &self.lab_state, self.settings.section, (&self.fleet_background, self.fleet_background_source()), &self.providers, self.provider_inputs.as_ref(), self.secrets_notice.as_deref(), (&self.vault_form, self.vault_form_inputs.as_ref()), self.clanker_inputs.as_ref())),
+                                            .child(settings_view(
+                                                app_view.clone(),
+                                                &self.vault,
+                                                &self.config,
+                                                self.key_inputs.as_ref(),
+                                                &self.fleet,
+                                                &self.keys,
+                                                &self.clankers,
+                                                &self.settings,
+                                                &self.lab_state,
+                                                self.settings.section,
+                                                (&self.fleet_background, self.fleet_background_source()),
+                                                &self.providers,
+                                                self.provider_inputs.as_ref(),
+                                                self.secrets_notice.as_deref(),
+                                                (&self.vault_form, self.vault_form_inputs.as_ref()),
+                                                self.clanker_inputs.as_ref(),
+                                                self.custom_setting_input.as_ref().map(|s| &s.input),
+                                            )),
                                     ),
                                     Screen::Onboard => Some(
                                         div()

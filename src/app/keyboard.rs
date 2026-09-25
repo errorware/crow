@@ -1,7 +1,6 @@
 use gpui_kit::*;
 
 use super::{CrowApp, Screen};
-use crate::keys::KeyGenFieldFocus;
 use crate::vault::VaultStatus;
 use crate::views::lock::{SetupState, SetupStep};
 use crate::views::onboard::OnboardFieldFocus;
@@ -25,27 +24,6 @@ struct KeyPress<'a> {
 }
 
 impl CrowApp {
-    /// Toggles the caret blink phase every 530ms while a text input is active.
-    pub(super) fn spawn_cursor_blink(cx: &mut Context<Self>) -> Task<()> {
-        cx.spawn(async move |entity, cx| {
-                loop {
-                    cx.background_executor().timer(std::time::Duration::from_millis(530)).await;
-                    let should_notify = entity.update(cx, |this, cx| {
-                        if this.has_active_text_input() {
-                            this.caret.blink = !this.caret.blink;
-                            cx.notify();
-                            true
-                        } else {
-                            false
-                        }
-                    });
-                    if should_notify.is_err() {
-                        break;
-                    }
-                }
-            })
-    }
-
     /// Routes a key press to whichever surface owns the keyboard right now, in
     /// priority order: vault lock screen, vault setup, key-hub modals, settings
     /// dropdown, onboarding, config search, then global shortcuts.
@@ -93,6 +71,22 @@ impl CrowApp {
         }
         if let (Screen::VaultSetup, Some(i)) = (self.screen, self.setup_inputs.as_ref()) {
             return vec![i.password.clone(), i.confirm.clone(), i.code.clone()];
+        }
+        if let Some(i) = self.key_inputs.as_ref() {
+            match i {
+                crate::app::keys::KeyModalInputs::Gen(g) => {
+                    return vec![g.name.clone(), g.comment.clone(), g.custom_dir.clone()]
+                }
+                crate::app::keys::KeyModalInputs::NewGroup(g) => return vec![g.name.clone()],
+                crate::app::keys::KeyModalInputs::AddScanPath(p) => return vec![p.path.clone()],
+                crate::app::keys::KeyModalInputs::Edit(e) => return vec![e.name.clone()],
+            }
+        }
+        if let Some(i) = self.custom_setting_input.as_ref() {
+            return vec![i.input.clone()];
+        }
+        if let Some(i) = self.config_search.as_ref() {
+            return vec![i.input.clone()];
         }
         if let Some(i) = self.clanker_inputs.as_ref() {
             return vec![i.key.clone(), i.model.clone(), i.base_url.clone()];
@@ -148,99 +142,31 @@ impl CrowApp {
 
     /// SSH key hub and Clankers edit modals. Returns true when the key was consumed.
     fn keys_modals(&mut self, k: &KeyPress, cx: &mut Context<Self>) -> bool {
-        let KeyPress { ev, key, .. } = *k;
-        if let Some(ref mut gen) = self.keys.gen_modal {
-            self.caret.blink = true;
+        let KeyPress { ev, .. } = *k;
+        if self.keys.gen_modal.is_some() {
             if ev.keystroke.key == "escape" {
                 self.close_key_gen_modal(cx);
-            } else if key == "enter" {
-                if gen.generated_public_key.is_some() {
-                    self.close_key_gen_modal(cx);
-                } else {
-                    self.submit_key_generation(cx);
-                }
-            } else if key == "tab" {
-                gen.active_focus = match gen.active_focus {
-                    KeyGenFieldFocus::Name => KeyGenFieldFocus::Comment,
-                    KeyGenFieldFocus::Comment => KeyGenFieldFocus::Directory,
-                    KeyGenFieldFocus::Directory => KeyGenFieldFocus::Name,
-                };
-                self.caret.cursor = match gen.active_focus {
-                    KeyGenFieldFocus::Name => gen.name_input.chars().count(),
-                    KeyGenFieldFocus::Comment => gen.comment_input.chars().count(),
-                    KeyGenFieldFocus::Directory => gen.custom_dir_input.chars().count(),
-                };
-                self.caret.selection = None;
-                cx.notify();
-            } else {
-                let target = match gen.active_focus {
-                    KeyGenFieldFocus::Name => &mut gen.name_input,
-                    KeyGenFieldFocus::Comment => &mut gen.comment_input,
-                    KeyGenFieldFocus::Directory => &mut gen.custom_dir_input,
-                };
-                if crate::components::handle_text_key_event_in(cx, 
-                    target,
-                    &mut self.caret.cursor,
-                    &mut self.caret.selection,
-                    ev,
-                ) {
-                    gen.error_message = None;
-                    cx.notify();
-                }
             }
             return true;
         }
 
-        if let Some(ref mut grp) = self.keys.new_group_modal {
-            self.caret.blink = true;
+        if self.keys.new_group_modal.is_some() {
             if ev.keystroke.key == "escape" {
                 self.close_new_group_modal(cx);
-            } else if key == "enter" {
-                self.submit_new_group(cx);
-            } else if crate::components::handle_text_key_event_in(cx, 
-                &mut grp.name_input,
-                &mut self.caret.cursor,
-                &mut self.caret.selection,
-                ev,
-            ) {
-                grp.error_message = None;
-                cx.notify();
             }
             return true;
         }
 
-        if let Some(ref mut sp) = self.keys.add_scan_path_modal {
-            self.caret.blink = true;
+        if self.keys.add_scan_path_modal.is_some() {
             if ev.keystroke.key == "escape" {
                 self.close_add_scan_path_modal(cx);
-            } else if key == "enter" {
-                self.submit_add_scan_path(cx);
-            } else if crate::components::handle_text_key_event_in(cx, 
-                &mut sp.path_input,
-                &mut self.caret.cursor,
-                &mut self.caret.selection,
-                ev,
-            ) {
-                sp.error_message = None;
-                cx.notify();
             }
             return true;
         }
 
-        if let Some(ref mut edit) = self.keys.edit_modal {
-            self.caret.blink = true;
+        if self.keys.edit_modal.is_some() {
             if ev.keystroke.key == "escape" {
                 self.close_edit_key_modal(cx);
-            } else if key == "enter" {
-                self.submit_edit_key(cx);
-            } else if crate::components::handle_text_key_event_in(cx, 
-                &mut edit.name_input,
-                &mut self.caret.cursor,
-                &mut self.caret.selection,
-                ev,
-            ) {
-                edit.error_message = None;
-                cx.notify();
             }
             return true;
         }
@@ -248,37 +174,15 @@ impl CrowApp {
         false
     }
 
-    /// Settings screen with a dropdown open: typing, escape, enter. Returns true when the key was consumed.
+    /// Settings screen with a dropdown open: escape closes it.
     fn keys_settings_dropdown(&mut self, k: &KeyPress, cx: &mut Context<Self>) -> bool {
-        let KeyPress { ev, key, .. } = *k;
-        if self.screen == Screen::Settings {
-            if let Some(open_row_id) = self.settings.dropdown_open.clone() {
-                self.caret.blink = true;
-                if ev.keystroke.key == "escape" {
-                    self.close_settings_dropdown(cx);
-                    return true;
-                } else if key == "enter" {
-                    self.apply_settings_custom_input(&open_row_id, cx);
-                    return true;
-                } else if crate::components::handle_text_key_event_in(cx, 
-                    &mut self.settings.custom_input,
-                    &mut self.caret.cursor,
-                    &mut self.caret.selection,
-                    ev,
-                ) {
-                    let field_is_int = self
-                        .config
-                        .get_field(&open_row_id)
-                        .map(|f| matches!(&f.field_type, crow_config_core::schema::FieldType::Integer))
-                        .unwrap_or(false);
-                    if field_is_int {
-                        self.settings.custom_input.retain(|c| c.is_ascii_digit());
-                        self.caret.cursor = self.caret.cursor.min(self.settings.custom_input.chars().count());
-                    }
-                    cx.notify();
-                    return true;
-                }
+        let KeyPress { ev, .. } = *k;
+        if self.screen == Screen::Settings && self.settings.dropdown_open.is_some() {
+            if ev.keystroke.key == "escape" {
+                self.close_settings_dropdown(cx);
+                return true;
             }
+            return true;
         }
         false
     }
@@ -309,24 +213,13 @@ impl CrowApp {
     fn keys_config_search(&mut self, k: &KeyPress, cx: &mut Context<Self>) -> bool {
         let KeyPress { ev, .. } = *k;
         if self.screen == Screen::Server && (self.active_view == "config" || self.active_view == "configure") && self.configs.search_focused {
-            self.caret.blink = true;
             if ev.keystroke.key == "escape" {
                 self.configs.search_focused = false;
                 self.configs.search_query.clear();
                 cx.notify();
                 return true;
-            } else {
-                let changed = crate::components::handle_text_key_event_in(cx, 
-                    &mut self.configs.search_query,
-                    &mut self.caret.cursor,
-                    &mut self.caret.selection,
-                    ev,
-                );
-                if changed {
-                    cx.notify();
-                }
-                return true;
             }
+            return true;
         }
         false
     }

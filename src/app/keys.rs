@@ -1,3 +1,4 @@
+use gpui_kit::component::input::{InputEvent, InputState};
 use gpui_kit::*;
 
 use super::CrowApp;
@@ -9,6 +10,35 @@ use crate::keys::{
     NewGroupModalState,
 };
 use crate::vault::SshKeyRecord;
+
+pub struct KeyGenInputs {
+    pub name: Entity<InputState>,
+    pub comment: Entity<InputState>,
+    pub custom_dir: Entity<InputState>,
+    pub _events: Vec<Subscription>,
+}
+
+pub struct NewGroupInputs {
+    pub name: Entity<InputState>,
+    pub _events: Vec<Subscription>,
+}
+
+pub struct AddScanPathInputs {
+    pub path: Entity<InputState>,
+    pub _events: Vec<Subscription>,
+}
+
+pub struct EditKeyInputs {
+    pub name: Entity<InputState>,
+    pub _events: Vec<Subscription>,
+}
+
+pub enum KeyModalInputs {
+    Gen(KeyGenInputs),
+    NewGroup(NewGroupInputs),
+    AddScanPath(AddScanPathInputs),
+    Edit(EditKeyInputs),
+}
 
 // ==========================================
 // SSH Key Management Hub
@@ -67,13 +97,13 @@ impl CrowApp {
 
     pub fn open_key_gen_modal(&mut self, cx: &mut Context<Self>) {
         self.keys.gen_modal = Some(KeyGenModalState::default());
-        self.caret.place(0);
-        self.caret.blink = true;
+        self.key_inputs = None;
         cx.notify();
     }
 
     pub fn close_key_gen_modal(&mut self, cx: &mut Context<Self>) {
         self.keys.gen_modal = None;
+        self.key_inputs = None;
         self.refresh_keys(cx);
     }
 
@@ -126,13 +156,13 @@ impl CrowApp {
             color_input: "#4ade80".to_string(),
             error_message: None,
         });
-        self.caret.place(0);
-        self.caret.blink = true;
+        self.key_inputs = None;
         cx.notify();
     }
 
     pub fn close_new_group_modal(&mut self, cx: &mut Context<Self>) {
         self.keys.new_group_modal = None;
+        self.key_inputs = None;
         cx.notify();
     }
 
@@ -144,14 +174,21 @@ impl CrowApp {
                 cx.notify();
                 return;
             }
-            let slug = name.to_lowercase().replace(' ', "-").replace('_', "-");
-            let color = if state.color_input.is_empty() { "#60a5fa" } else { &state.color_input };
+
+            let id = name.to_lowercase().replace(' ', "-");
+            let group = crate::keys::SshKeyGroup {
+                id: id.clone(),
+                name: name.to_string(),
+                color: state.color_input.clone(),
+                created_at: chrono::Utc::now().to_rfc3339(),
+            };
 
             let db = self.vault.db();
             if let Ok(db_guard) = db.lock() {
-                let _ = db_guard.add_key_group(&slug, name, color);
+                let _ = db_guard.add_key_group(&group.id, &group.name, &group.color);
             }
             self.keys.new_group_modal = None;
+            self.key_inputs = None;
             self.refresh_keys(cx);
         }
     }
@@ -169,13 +206,13 @@ impl CrowApp {
 
     pub fn open_add_scan_path_modal(&mut self, cx: &mut Context<Self>) {
         self.keys.add_scan_path_modal = Some(AddScanPathModalState::default());
-        self.caret.place(0);
-        self.caret.blink = true;
+        self.key_inputs = None;
         cx.notify();
     }
 
     pub fn close_add_scan_path_modal(&mut self, cx: &mut Context<Self>) {
         self.keys.add_scan_path_modal = None;
+        self.key_inputs = None;
         cx.notify();
     }
 
@@ -199,6 +236,7 @@ impl CrowApp {
                 let _ = db_guard.add_scan_path(path);
             }
             self.keys.add_scan_path_modal = None;
+            self.key_inputs = None;
             self.refresh_keys(cx);
         }
     }
@@ -213,7 +251,6 @@ impl CrowApp {
 
     pub fn open_edit_key_modal(&mut self, key_id: &str, cx: &mut Context<Self>) {
         if let Some(key) = self.keys.enrolled.iter().find(|k| k.id == key_id) {
-            let name_len = key.name.chars().count();
             self.keys.edit_modal = Some(EditKeyModalState {
                 key_id: key.id.clone(),
                 name_input: key.name.clone(),
@@ -221,14 +258,14 @@ impl CrowApp {
                 attached_servers: key.attached_servers.clone(),
                 error_message: None,
             });
-            self.caret.place(name_len);
-            self.caret.blink = true;
+            self.key_inputs = None;
             cx.notify();
         }
     }
 
     pub fn close_edit_key_modal(&mut self, cx: &mut Context<Self>) {
         self.keys.edit_modal = None;
+        self.key_inputs = None;
         cx.notify();
     }
 
@@ -247,14 +284,25 @@ impl CrowApp {
                 let _ = db_guard.update_ssh_key_attached_servers(&state.key_id, &state.attached_servers);
             }
             self.keys.edit_modal = None;
+            self.key_inputs = None;
             self.refresh_keys(cx);
         }
     }
 
-    pub fn toggle_edit_key_server(&mut self, server_id: &str, cx: &mut Context<Self>) {
+    pub fn copy_generated_public_key(&mut self, cx: &mut Context<Self>) {
+        if let Some(ref state) = self.keys.gen_modal {
+            if let Some(ref pubkey) = state.generated_public_key {
+                cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(pubkey.clone()));
+                self.keys.toast = Some("Copied OpenSSH public key to clipboard".to_string());
+                cx.notify();
+            }
+        }
+    }
+
+    pub fn toggle_server_attachment(&mut self, server_id: &str, cx: &mut Context<Self>) {
         if let Some(ref mut state) = self.keys.edit_modal {
-            if let Some(idx) = state.attached_servers.iter().position(|s| s == server_id) {
-                state.attached_servers.remove(idx);
+            if let Some(pos) = state.attached_servers.iter().position(|id| id == server_id) {
+                state.attached_servers.remove(pos);
             } else {
                 state.attached_servers.push(server_id.to_string());
             }
@@ -262,16 +310,103 @@ impl CrowApp {
         }
     }
 
+    pub fn clear_key_toast(&mut self, cx: &mut Context<Self>) {
+        self.keys.toast = None;
+        cx.notify();
+    }
+
     pub fn copy_text_with_toast(&mut self, text: &str, toast: &str, cx: &mut Context<Self>) {
-        if !text.is_empty() {
-            cx.write_to_clipboard(ClipboardItem::new_string(text.to_string()));
-        }
+        cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(text.to_string()));
         self.keys.toast = Some(toast.to_string());
         cx.notify();
     }
 
-    pub fn clear_key_toast(&mut self, cx: &mut Context<Self>) {
-        self.keys.toast = None;
-        cx.notify();
+    pub fn ensure_key_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(ref gen) = self.keys.gen_modal {
+            if !matches!(self.key_inputs, Some(KeyModalInputs::Gen(_))) {
+                let name = cx.new(|cx| InputState::new(window, cx).placeholder("e.g. id_ed25519_bastion").default_value(&gen.name_input));
+                let comment = cx.new(|cx| InputState::new(window, cx).placeholder("e.g. nelson@crow").default_value(&gen.comment_input));
+                let custom_dir = cx.new(|cx| InputState::new(window, cx).placeholder("~/.ssh").default_value(&gen.custom_dir_input));
+                let mut events = Vec::new();
+                for (input, field_idx) in [(&name, 0), (&comment, 1), (&custom_dir, 2)] {
+                    events.push(cx.subscribe(input, move |this, input, ev: &InputEvent, cx| match ev {
+                        InputEvent::Change => {
+                            let val = input.read(cx).value().to_string();
+                            if let Some(ref mut g) = this.keys.gen_modal {
+                                match field_idx {
+                                    0 => g.name_input = val,
+                                    1 => g.comment_input = val,
+                                    2 => g.custom_dir_input = val,
+                                    _ => {}
+                                }
+                                g.error_message = None;
+                            }
+                            cx.notify();
+                        }
+                        InputEvent::PressEnter { .. } => {
+                            this.submit_key_generation(cx);
+                        }
+                        _ => {}
+                    }));
+                }
+                self.key_inputs = Some(KeyModalInputs::Gen(KeyGenInputs { name, comment, custom_dir, _events: events }));
+            }
+        } else if let Some(ref grp) = self.keys.new_group_modal {
+            if !matches!(self.key_inputs, Some(KeyModalInputs::NewGroup(_))) {
+                let name = cx.new(|cx| InputState::new(window, cx).placeholder("e.g. Staging Fleet, Edge Bastions").default_value(&grp.name_input));
+                let events = vec![cx.subscribe(&name, |this, input, ev: &InputEvent, cx| match ev {
+                    InputEvent::Change => {
+                        if let Some(ref mut g) = this.keys.new_group_modal {
+                            g.name_input = input.read(cx).value().to_string();
+                            g.error_message = None;
+                        }
+                        cx.notify();
+                    }
+                    InputEvent::PressEnter { .. } => {
+                        this.submit_new_group(cx);
+                    }
+                    _ => {}
+                })];
+                self.key_inputs = Some(KeyModalInputs::NewGroup(NewGroupInputs { name, _events: events }));
+            }
+        } else if let Some(ref sp) = self.keys.add_scan_path_modal {
+            if !matches!(self.key_inputs, Some(KeyModalInputs::AddScanPath(_))) {
+                let path = cx.new(|cx| InputState::new(window, cx).placeholder("e.g. ~/work-keys or /etc/ssh").default_value(&sp.path_input));
+                let events = vec![cx.subscribe(&path, |this, input, ev: &InputEvent, cx| match ev {
+                    InputEvent::Change => {
+                        if let Some(ref mut s) = this.keys.add_scan_path_modal {
+                            s.path_input = input.read(cx).value().to_string();
+                            s.error_message = None;
+                        }
+                        cx.notify();
+                    }
+                    InputEvent::PressEnter { .. } => {
+                        this.submit_add_scan_path(cx);
+                    }
+                    _ => {}
+                })];
+                self.key_inputs = Some(KeyModalInputs::AddScanPath(AddScanPathInputs { path, _events: events }));
+            }
+        } else if let Some(ref edit) = self.keys.edit_modal {
+            if !matches!(self.key_inputs, Some(KeyModalInputs::Edit(_))) {
+                let name = cx.new(|cx| InputState::new(window, cx).placeholder("Enter key name…").default_value(&edit.name_input));
+                let events = vec![cx.subscribe(&name, |this, input, ev: &InputEvent, cx| match ev {
+                    InputEvent::Change => {
+                        if let Some(ref mut e) = this.keys.edit_modal {
+                            e.name_input = input.read(cx).value().to_string();
+                            e.error_message = None;
+                        }
+                        cx.notify();
+                    }
+                    InputEvent::PressEnter { .. } => {
+                        this.submit_edit_key(cx);
+                    }
+                    _ => {}
+                })];
+                self.key_inputs = Some(KeyModalInputs::Edit(EditKeyInputs { name, _events: events }));
+            }
+        } else {
+            self.key_inputs = None;
+        }
     }
 }

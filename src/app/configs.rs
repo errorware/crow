@@ -27,6 +27,11 @@ use crate::views::firewall::generate_user_rules_content;
 use crate::journal::retention::parse_journald_conf;
 use crate::views::firewall::FirewallOperationalState;
 
+pub struct ConfigSearchInput {
+    pub input: Entity<InputState>,
+    pub _events: Subscription,
+}
+
 // ==========================================
 // Config files: discovery, staging, versions
 // ==========================================
@@ -466,6 +471,23 @@ impl CrowApp {
             }
         }
         state.save_to(host.as_ref()).map_err(|e| format!("{file}: {e}"))
+    }
+
+    pub fn ensure_config_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.config_search.is_none() {
+            let input = cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder("Filter configs...")
+                    .default_value(&self.configs.search_query)
+            });
+            let events = cx.subscribe(&input, |this, input, ev: &InputEvent, cx| {
+                if matches!(ev, InputEvent::Change) {
+                    this.configs.search_query = input.read(cx).value().to_string();
+                    cx.notify();
+                }
+            });
+            self.config_search = Some(ConfigSearchInput { input, _events: events });
+        }
     }
 
     #[allow(dead_code)]

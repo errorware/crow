@@ -283,4 +283,22 @@ mod tests {
         let (u, _) = with_token(RecordedHttp::new().on(Method::Get, &format!("{API}/server"), 401, r#"{"error": {"error_code": "AUTHENTICATION_FAILED", "error_message": "Authentication failed using the given username and password."}}"#));
         assert_eq!(u.check().unwrap_err(), ProviderError::Auth("Authentication failed using the given username and password.".into()));
     }
+
+    #[test]
+    #[ignore = "needs a real UpCloud account; set CROW_UPCLOUD_TOKEN (or CROW_UPCLOUD_USER and CROW_UPCLOUD_PASSWORD)"]
+    fn live_read_only() {
+        let http = Arc::new(crow_provider_core::curl::CurlHttp::default());
+        let settings = if let Ok(token) = std::env::var("CROW_UPCLOUD_TOKEN") {
+            ProviderSettings::default().with_secret("api_token", token)
+        } else if let (Ok(user), Ok(pass)) = (std::env::var("CROW_UPCLOUD_USER"), std::env::var("CROW_UPCLOUD_PASSWORD")) {
+            ProviderSettings::default().with_value("username", user).with_secret("password", pass)
+        } else {
+            return;
+        };
+        let u = UpCloud::new(&settings, http).unwrap();
+        println!("check: {}", u.check().unwrap());
+        for i in u.instances().unwrap() {
+            println!("{} {} {:?} {:?} {:?}", i.id, i.label, i.status, i.region, i.ipv4);
+        }
+    }
 }

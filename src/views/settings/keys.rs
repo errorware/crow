@@ -3,11 +3,9 @@ use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
-use crate::components::terminal_text_input_styled;
-use crate::keys::{
-    KeyAlgorithm, KeyGenFieldFocus,
-};
-use crate::components::text_caret::TextCaret;
+use crate::keys::KeyAlgorithm;
+use gpui_kit::component::input::Input;
+use crate::app::keys::KeyModalInputs;
 use crate::views::fleet::FleetState;
 use crate::views::settings::keys_state::KeysState;
 
@@ -1133,24 +1131,25 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
         )
 }
 
-pub fn render_key_modals(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetState, keys: &KeysState) -> Vec<Div> {
+pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, fleet: &FleetState, keys: &KeysState) -> Vec<Div> {
     let mut overlays = Vec::new();
 
     // 1. Key Generation Modal
     if let Some(ref gen) = keys.gen_modal {
         let app_close = app.clone();
+        let app_cancel = app.clone();
         let app_submit = app.clone();
         let app_copy = app.clone();
-        let app_cycle_focus = app.clone();
-        let app_focus_name = app.clone();
-        let app_focus_comment = app.clone();
-        let app_focus_dir = app.clone();
 
         let is_success = gen.generated_public_key.is_some();
         let pubkey_to_copy = gen.generated_public_key.clone().unwrap_or_default();
         let priv_path = gen.generated_priv_path.clone().unwrap_or_default();
         let fp = gen.generated_fingerprint.clone().unwrap_or_default();
         let err = gen.error_message.clone();
+        let gen_inputs = match inputs {
+            Some(KeyModalInputs::Gen(g)) => Some(g),
+            _ => None,
+        };
 
         overlays.push(
             div()
@@ -1287,38 +1286,19 @@ pub fn render_key_modals(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetS
                                                     .font_family(FONT_MONO)
                                                     .text_size(px(10.0))
                                                     .font_weight(FontWeight::BOLD)
-                                                    .text_color(if gen.active_focus == KeyGenFieldFocus::Name { TEXT_MAX } else { TEXT_DIM })
+                                                    .text_color(TEXT_DIM)
                                                     .child("KEY NAME:"),
                                             )
                                             .child(
-                                                terminal_text_input_styled(
-                                                    "input-keygen-name",
-                                                    &gen.name_input,
-                                                    "e.g. id_ed25519_bastion",
-                                                    gen.active_focus == KeyGenFieldFocus::Name,
-                                                    false,
-                                                    28.0,
-                                                    11.0,
-                                                    if gen.active_focus == KeyGenFieldFocus::Name { caret.cursor } else { 0 },
-                                                    if gen.active_focus == KeyGenFieldFocus::Name { caret.selection } else { None },
-                                                    if gen.active_focus == KeyGenFieldFocus::Name { caret.drag_anchor } else { None },
-                                                    caret.blink,
-                                                    {
-                                                        let app = app_focus_name;
-                                                        move |cursor, anchor, selection, _window, cx| {
-                                                            app.update(cx, |this, cx| {
-                                                                if let Some(ref mut g) = this.keys.gen_modal {
-                                                                    g.active_focus = KeyGenFieldFocus::Name;
-                                                                }
-                                                                this.caret.cursor = cursor;
-                                                                this.caret.drag_anchor = anchor;
-                                                                this.caret.selection = selection;
-                                                                this.caret.blink = true;
-                                                                cx.notify();
-                                                            });
-                                                        }
-                                                    },
-                                                ),
+                                                div()
+                                                    .w_full()
+                                                    .children(gen_inputs.map(|i| {
+                                                        Input::new(&i.name)
+                                                            .font_family(FONT_MONO)
+                                                            .text_size(px(11.0))
+                                                            .bg(BG_APP)
+                                                            .rounded(px(2.0))
+                                                    })),
                                             ),
                                     )
                                     // Field 2: Algorithm
@@ -1384,38 +1364,19 @@ pub fn render_key_modals(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetS
                                                     .font_family(FONT_MONO)
                                                     .text_size(px(10.0))
                                                     .font_weight(FontWeight::BOLD)
-                                                    .text_color(if gen.active_focus == KeyGenFieldFocus::Comment { TEXT_MAX } else { TEXT_DIM })
+                                                    .text_color(TEXT_DIM)
                                                     .child("COMMENT (OPTIONAL):"),
                                             )
                                             .child(
-                                                terminal_text_input_styled(
-                                                    "input-keygen-comment",
-                                                    &gen.comment_input,
-                                                    "e.g. nelson@crow",
-                                                    gen.active_focus == KeyGenFieldFocus::Comment,
-                                                    false,
-                                                    28.0,
-                                                    11.0,
-                                                    if gen.active_focus == KeyGenFieldFocus::Comment { caret.cursor } else { 0 },
-                                                    if gen.active_focus == KeyGenFieldFocus::Comment { caret.selection } else { None },
-                                                    if gen.active_focus == KeyGenFieldFocus::Comment { caret.drag_anchor } else { None },
-                                                    caret.blink,
-                                                    {
-                                                        let app = app_focus_comment;
-                                                        move |cursor, anchor, selection, _window, cx| {
-                                                            app.update(cx, |this, cx| {
-                                                                if let Some(ref mut g) = this.keys.gen_modal {
-                                                                    g.active_focus = KeyGenFieldFocus::Comment;
-                                                                }
-                                                                this.caret.cursor = cursor;
-                                                                this.caret.drag_anchor = anchor;
-                                                                this.caret.selection = selection;
-                                                                this.caret.blink = true;
-                                                                cx.notify();
-                                                            });
-                                                        }
-                                                    },
-                                                ),
+                                                div()
+                                                    .w_full()
+                                                    .children(gen_inputs.map(|i| {
+                                                        Input::new(&i.comment)
+                                                            .font_family(FONT_MONO)
+                                                            .text_size(px(11.0))
+                                                            .bg(BG_APP)
+                                                            .rounded(px(2.0))
+                                                    })),
                                             ),
                                     )
                                     // Field 4: Destination directory
@@ -1429,38 +1390,19 @@ pub fn render_key_modals(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetS
                                                     .font_family(FONT_MONO)
                                                     .text_size(px(10.0))
                                                     .font_weight(FontWeight::BOLD)
-                                                    .text_color(if gen.active_focus == KeyGenFieldFocus::Directory { TEXT_MAX } else { TEXT_DIM })
+                                                    .text_color(TEXT_DIM)
                                                     .child("SAVE DIRECTORY:"),
                                             )
                                             .child(
-                                                terminal_text_input_styled(
-                                                    "input-keygen-dir",
-                                                    &gen.custom_dir_input,
-                                                    "~/.ssh",
-                                                    gen.active_focus == KeyGenFieldFocus::Directory,
-                                                    false,
-                                                    28.0,
-                                                    11.0,
-                                                    if gen.active_focus == KeyGenFieldFocus::Directory { caret.cursor } else { 0 },
-                                                    if gen.active_focus == KeyGenFieldFocus::Directory { caret.selection } else { None },
-                                                    if gen.active_focus == KeyGenFieldFocus::Directory { caret.drag_anchor } else { None },
-                                                    caret.blink,
-                                                    {
-                                                        let app = app_focus_dir;
-                                                        move |cursor, anchor, selection, _window, cx| {
-                                                            app.update(cx, |this, cx| {
-                                                                if let Some(ref mut g) = this.keys.gen_modal {
-                                                                    g.active_focus = KeyGenFieldFocus::Directory;
-                                                                }
-                                                                this.caret.cursor = cursor;
-                                                                this.caret.drag_anchor = anchor;
-                                                                this.caret.selection = selection;
-                                                                this.caret.blink = true;
-                                                                cx.notify();
-                                                            });
-                                                        }
-                                                    },
-                                                ),
+                                                div()
+                                                    .w_full()
+                                                    .children(gen_inputs.map(|i| {
+                                                        Input::new(&i.custom_dir)
+                                                            .font_family(FONT_MONO)
+                                                            .text_size(px(11.0))
+                                                            .bg(BG_APP)
+                                                            .rounded(px(2.0))
+                                                    })),
                                             ),
                                     )
                                     // Error message
@@ -1504,7 +1446,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetS
                                                             .cursor_pointer()
                                                             .hover(|s| s.bg(BG_ROW_HOVER))
                                                             .on_click(move |_ev, _window, cx| {
-                                                                app_cycle_focus.update(cx, |this, cx| {
+                                                                app_cancel.update(cx, |this, cx| {
                                                                     this.close_key_gen_modal(cx);
                                                                 });
                                                             })
@@ -1551,7 +1493,6 @@ pub fn render_key_modals(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetS
     } else if let Some(ref sp) = keys.add_scan_path_modal {
         let app_close = app.clone();
         let app_submit = app.clone();
-        let path_text = sp.path_input.clone();
         let err = sp.error_message.clone();
 
         overlays.push(
@@ -1608,31 +1549,11 @@ pub fn render_key_modals(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetS
                                 .child("Enter directory path (e.g. ~/work-keys or /etc/ssh):"),
                         )
                         .child(
-                            terminal_text_input_styled(
-                                "input-scan-path",
-                                &path_text,
-                                "e.g. ~/work-keys or /etc/ssh",
-                                true,
-                                false,
-                                30.0,
-                                11.0,
-                                caret.cursor,
-                                caret.selection,
-                                caret.drag_anchor,
-                                caret.blink,
-                                {
-                                    let app = app.clone();
-                                    move |cursor, anchor, selection, _window, cx| {
-                                        app.update(cx, |this, cx| {
-                                            this.caret.cursor = cursor;
-                                            this.caret.drag_anchor = anchor;
-                                            this.caret.selection = selection;
-                                            this.caret.blink = true;
-                                            cx.notify();
-                                        });
-                                    }
-                                },
-                            ),
+                            if let Some(KeyModalInputs::AddScanPath(i)) = inputs {
+                                div().child(Input::new(&i.path))
+                            } else {
+                                div()
+                            }
                         )
                         .children(if let Some(ref e) = err {
                             Some(
@@ -1680,7 +1601,6 @@ pub fn render_key_modals(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetS
     } else if let Some(ref grp) = keys.new_group_modal {
         let app_close = app.clone();
         let app_submit = app.clone();
-        let name_text = grp.name_input.clone();
         let err = grp.error_message.clone();
 
         overlays.push(
@@ -1737,31 +1657,11 @@ pub fn render_key_modals(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetS
                                 .child("Enter group name (e.g. Staging Fleet, Edge Bastions):"),
                         )
                         .child(
-                            terminal_text_input_styled(
-                                "input-new-group-name",
-                                &name_text,
-                                "e.g. Staging Fleet, Edge Bastions",
-                                true,
-                                false,
-                                30.0,
-                                11.0,
-                                caret.cursor,
-                                caret.selection,
-                                caret.drag_anchor,
-                                caret.blink,
-                                {
-                                    let app = app.clone();
-                                    move |cursor, anchor, selection, _window, cx| {
-                                        app.update(cx, |this, cx| {
-                                            this.caret.cursor = cursor;
-                                            this.caret.drag_anchor = anchor;
-                                            this.caret.selection = selection;
-                                            this.caret.blink = true;
-                                            cx.notify();
-                                        });
-                                    }
-                                },
-                            ),
+                            if let Some(KeyModalInputs::NewGroup(i)) = inputs {
+                                div().child(Input::new(&i.name))
+                            } else {
+                                div()
+                            }
                         )
                         .children(if let Some(ref e) = err {
                             Some(
@@ -1809,7 +1709,6 @@ pub fn render_key_modals(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetS
     } else if let Some(ref edit) = keys.edit_modal {
         let app_close = app.clone();
         let app_submit = app.clone();
-        let name_text = edit.name_input.clone();
         let attached = edit.attached_servers.clone();
         let key_groups = &keys.groups;
         let tabs = &fleet.tabs;
@@ -1876,31 +1775,11 @@ pub fn render_key_modals(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetS
                                         .child("NAME:"),
                                 )
                                 .child(
-                                    terminal_text_input_styled(
-                                        "input-edit-key-name",
-                                        &name_text,
-                                        "Enter key name…",
-                                        true,
-                                        false,
-                                        28.0,
-                                        11.0,
-                                        caret.cursor,
-                                        caret.selection,
-                                        caret.drag_anchor,
-                                        caret.blink,
-                                        {
-                                            let app = app.clone();
-                                            move |cursor, anchor, selection, _window, cx| {
-                                                app.update(cx, |this, cx| {
-                                                    this.caret.cursor = cursor;
-                                                    this.caret.drag_anchor = anchor;
-                                                    this.caret.selection = selection;
-                                                    this.caret.blink = true;
-                                                    cx.notify();
-                                                });
-                                            }
-                                        },
-                                    ),
+                                    if let Some(KeyModalInputs::Edit(i)) = inputs {
+                                        div().child(Input::new(&i.name))
+                                    } else {
+                                        div()
+                                    }
                                 ),
                         )
                         // Group selector chips
@@ -1990,7 +1869,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, caret: &TextCaret, fleet: &FleetS
                                                 .on_click(move |_ev, _window, cx| {
                                                     let sid = srv_id.clone();
                                                     app_tog.update(cx, |this, cx| {
-                                                        this.toggle_edit_key_server(&sid, cx);
+                                                        this.toggle_server_attachment(&sid, cx);
                                                     });
                                                 })
                                                 .child(

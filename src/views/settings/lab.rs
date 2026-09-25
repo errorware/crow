@@ -4,22 +4,17 @@ use gpui_kit::component::button::{Button, ButtonVariants};
 use gpui_kit::component::input::{Input, InputState, OtpInput, OtpState, Textarea, TextareaState};
 use crate::app::CrowApp;
 use crate::components::icons::{tabler_icon, TablerIcon};
-use crate::components::terminal_text_input;
 use crate::theme::*;
-use crate::components::text_caret::TextCaret;
 
 /// Render the UI Components Lab sandbox view within Settings.
 /// Provides an isolated testing ground for `gpui-component` widgets:
 /// - Single-line `Input`
-/// - Side-by-side comparison with hand-rolled `terminal_text_input`
 /// - Password `Input` with mask toggle
 /// - Cleanable `Input` with quick-clear 'X'
 /// - Prefixed / Suffixed `Input`
 /// - 6-Digit grouped `OtpInput`
 /// - Multi-line `Textarea`
 /// - Native `Button` styles and variants
-/// UI components sandbox (Settings → Components): live gpui-component
-/// widgets beside Crow's own text input for side-by-side comparison.
 pub struct LabState {
     pub text_input: Entity<InputState>,
     pub cleanable_input: Entity<InputState>,
@@ -27,53 +22,45 @@ pub struct LabState {
     pub prefix_input: Entity<InputState>,
     pub textarea: Entity<TextareaState>,
     pub otp_input: Entity<OtpState>,
-    pub custom_compare_text: String,
-    pub custom_compare_cursor: usize,
-    pub custom_compare_selection: Option<(usize, usize)>,
-    pub custom_compare_drag_anchor: Option<usize>,
 }
 
 impl LabState {
     pub fn new(window: &mut Window, cx: &mut Context<CrowApp>) -> Self {
         Self {
-        text_input: cx.new(|cx| {
-            InputState::new(window, cx)
-                .placeholder("Type something here to test gpui-component...")
-                .default_value("prod-db-cluster.internal")
-        }),
-        cleanable_input: cx.new(|cx| {
-            InputState::new(window, cx)
-                .placeholder("Type to reveal clear button...")
-                .default_value("search fleet by tag or region...")
-        }),
-        password_input: cx.new(|cx| {
-            InputState::new(window, cx)
-                .placeholder("Enter sensitive secret...")
-                .masked(true)
-                .default_value("crow_vault_master_key_9981")
-        }),
-        prefix_input: cx.new(|cx| {
-            InputState::new(window, cx)
-                .placeholder("10.0.0.1")
-                .default_value("bastion.eu-west-1.aws")
-        }),
-        textarea: cx.new(|cx| {
-            TextareaState::new(window, cx).default_value(
-                "# Fleet Deployment Manifest\nenv: production\nreplicas: 4\nregion: us-east-1\nauto_drain: true",
-            )
-        }),
-        otp_input: cx.new(|cx| {
-            OtpState::new(6, window, cx).default_value("849201")
-        }),
-        custom_compare_text: "prod-db-cluster.internal".to_string(),
-        custom_compare_cursor: 24,
-        custom_compare_selection: None,
-        custom_compare_drag_anchor: None,
+            text_input: cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder("Type something here to test gpui-component...")
+                    .default_value("prod-db-cluster.internal")
+            }),
+            cleanable_input: cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder("Type to reveal clear button...")
+                    .default_value("search fleet by tag or region...")
+            }),
+            password_input: cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder("Enter sensitive secret...")
+                    .masked(true)
+                    .default_value("crow_vault_master_key_9981")
+            }),
+            prefix_input: cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder("10.0.0.1")
+                    .default_value("bastion.eu-west-1.aws")
+            }),
+            textarea: cx.new(|cx| {
+                TextareaState::new(window, cx).default_value(
+                    "# Fleet Deployment Manifest\nenv: production\nreplicas: 4\nregion: us-east-1\nauto_drain: true",
+                )
+            }),
+            otp_input: cx.new(|cx| {
+                OtpState::new(6, window, cx).default_value("849201")
+            }),
         }
     }
 }
 
-pub fn render_components_lab(app: Entity<CrowApp>, caret: &TextCaret, lab_state: &LabState) -> Div {
+pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div {
     let lab = &lab_state;
 
     div()
@@ -189,134 +176,59 @@ pub fn render_components_lab(app: Entity<CrowApp>, caret: &TextCaret, lab_state:
                                 .text_size(px(11.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_MAX)
-                                .child("1. DIRECT SIDE-BY-SIDE COMPARISON"),
+                                .child("1. PRIMARY NATIVE GPUI INPUT"),
                         )
                         .child(
                             div()
+                                .p(px(14.0))
+                                .bg(BG_PANEL)
+                                .border_1()
+                                .border_color(OK)
+                                .rounded(px(4.0))
                                 .flex()
-                                .gap(px(16.0))
-                                // Left: Native gpui-component Input
+                                .flex_col()
+                                .gap(px(10.0))
                                 .child(
                                     div()
-                                        .flex_1()
-                                        .p(px(14.0))
-                                        .bg(BG_PANEL)
-                                        .border_1()
-                                        .border_color(OK)
-                                        .rounded(px(4.0))
                                         .flex()
-                                        .flex_col()
-                                        .gap(px(10.0))
-                                        .child(
-                                            div()
-                                                .flex()
-                                                .items_center()
-                                                .justify_between()
-                                                .child(
-                                                    div()
-                                                        .font_family(FONT_MONO)
-                                                        .text_size(px(10.5))
-                                                        .font_weight(FontWeight::BOLD)
-                                                        .text_color(OK_INK)
-                                                        .child("NATIVE GPUI-COMPONENT INPUT"),
-                                                )
-                                                .child(
-                                                    div()
-                                                        .px(px(6.0))
-                                                        .py(px(1.0))
-                                                        .bg(OK_BG)
-                                                        .font_family(FONT_MONO)
-                                                        .text_size(px(9.0))
-                                                        .text_color(OK_INK)
-                                                        .child("Rope Buffer + Shaping"),
-                                                ),
-                                        )
-                                        .child(
-                                            Input::new(&lab.text_input)
-                                                .id("lab-input-native")
-                                                .cleanable(true)
-                                                .w_full()
-                                                .font_family(FONT_MONO)
-                                                .bg(BG_APP)
-                                                .border_color(BORDER_DEFAULT)
-                                                .rounded(px(2.0)),
-                                        )
+                                        .items_center()
+                                        .justify_between()
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(9.5))
-                                                .text_color(TEXT_DIMMER)
-                                                .line_height(relative(1.4))
-                                                .child("✓ Native mouse drag selection\n✓ Cmd+A, Cmd+C, Cmd+V, Cmd+Z (undo!)\n✓ Word jumps (Alt+Arrows) & line ends (Cmd+Arrows)"),
+                                                .text_size(px(10.5))
+                                                .font_weight(FontWeight::BOLD)
+                                                .text_color(OK_INK)
+                                                .child("NATIVE GPUI-COMPONENT INPUT"),
+                                        )
+                                        .child(
+                                            div()
+                                                .px(px(6.0))
+                                                .py(px(1.0))
+                                                .bg(OK_BG)
+                                                .font_family(FONT_MONO)
+                                                .text_size(px(9.0))
+                                                .text_color(OK_INK)
+                                                .child("Rope Buffer + Shaping"),
                                         ),
                                 )
-                                // Right: Hand-rolled terminal_text_input
+                                .child(
+                                    Input::new(&lab.text_input)
+                                        .id("lab-input-native")
+                                        .cleanable(true)
+                                        .w_full()
+                                        .font_family(FONT_MONO)
+                                        .bg(BG_APP)
+                                        .border_color(BORDER_DEFAULT)
+                                        .rounded(px(2.0)),
+                                )
                                 .child(
                                     div()
-                                        .flex_1()
-                                        .p(px(14.0))
-                                        .bg(BG_PANEL)
-                                        .border_1()
-                                        .border_color(BORDER_DEFAULT)
-                                        .rounded(px(4.0))
-                                        .flex()
-                                        .flex_col()
-                                        .gap(px(10.0))
-                                        .child(
-                                            div()
-                                                .flex()
-                                                .items_center()
-                                                .justify_between()
-                                                .child(
-                                                    div()
-                                                        .font_family(FONT_MONO)
-                                                        .text_size(px(10.5))
-                                                        .font_weight(FontWeight::BOLD)
-                                                        .text_color(TEXT_MUTED)
-                                                        .child("CUSTOM HAND-ROLLED DIV INPUT"),
-                                                )
-                                                .child(
-                                                    div()
-                                                        .px(px(6.0))
-                                                        .py(px(1.0))
-                                                        .bg(hex_rgb(0x1a1a24))
-                                                        .font_family(FONT_MONO)
-                                                        .text_size(px(9.0))
-                                                        .text_color(TEXT_FAINT)
-                                                        .child("Manual Math + Ticker"),
-                                                ),
-                                        )
-                                        .child({
-                                            let app_c = app.clone();
-                                            terminal_text_input(
-                                                "lab-input-custom",
-                                                &lab.custom_compare_text,
-                                                "Type in custom input...",
-                                                true,
-                                                false,
-                                                lab.custom_compare_cursor,
-                                                lab.custom_compare_selection,
-                                                lab.custom_compare_drag_anchor,
-                                                caret.blink,
-                                                move |cursor, anchor, selection, _window, cx| {
-                                                    app_c.update(cx, |this, cx| {
-                                                        this.lab_state.custom_compare_cursor = cursor;
-                                                        this.lab_state.custom_compare_drag_anchor = anchor;
-                                                        this.lab_state.custom_compare_selection = selection;
-                                                        this.caret.blink = true;
-                                                        cx.notify();
-                                                    });
-                                                },
-                                            )
-                                        })
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(9.5))
-                                                .text_color(TEXT_DIMMER)
-                                                .line_height(relative(1.4))
-                                                .child("· Prepaint canvas origin X translation\n· Fixed 0.6*size monospace character advance\n· Custom 530ms async timer blink loop"),
-                                        ),
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(9.5))
+                                        .text_color(TEXT_DIMMER)
+                                        .line_height(relative(1.4))
+                                        .child("✓ Native mouse drag selection\n✓ Cmd+A, Cmd+C, Cmd+V, Cmd+Z (undo!)\n✓ Word jumps (Alt+Arrows) & line ends (Cmd+Arrows)"),
                                 ),
                         ),
                 )

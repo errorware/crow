@@ -1,7 +1,6 @@
 use gpui_kit::*;
 use crate::components::danger_zone_state::DangerZoneState;
-use crate::components::text_caret::TextCaret;
-use crate::vault::{Vault, VaultStatus};
+use crate::vault::Vault;
 use crate::views::config::state::ConfigsState;
 use crate::views::files::FilesState;
 use crate::views::users::UsersState;
@@ -11,7 +10,7 @@ use crate::config::CrowConfigManager;
 use crate::views::lock::{
     LockState, SetupState,
 };
-use crate::views::onboard::{OnboardFieldFocus, OnboardState};
+use crate::views::onboard::OnboardState;
 use crate::journal::{
     JournalQuery,
     reader::read_journal_for_server,
@@ -35,11 +34,11 @@ mod render;
 mod keyboard;
 mod poll;
 mod tabs;
-mod settings;
+pub mod settings;
 mod session;
 pub mod onboard;
 pub mod overview;
-mod keys;
+pub mod keys;
 pub mod appearance;
 pub mod archive;
 pub mod configs;
@@ -158,8 +157,9 @@ pub struct CrowApp {
     pub sidebar_collapsed: bool,
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
-    /// Caret shared by the hand-rolled text inputs (one is focused at a time).
-    pub caret: TextCaret,
+    pub key_inputs: Option<crate::app::keys::KeyModalInputs>,
+    pub custom_setting_input: Option<crate::app::settings::CustomSettingInput>,
+    pub config_search: Option<crate::app::configs::ConfigSearchInput>,
 
     // Shared server context
     pub fleet: FleetState,
@@ -242,7 +242,6 @@ pub struct CrowApp {
     /// UI components sandbox (Settings → Components).
     pub lab_state: LabState,
 
-    pub _cursor_blink_task: Task<()>,
     pub _metrics_poll_task: Task<()>,
     /// Deletes archived servers' stored data once its window has closed.
     pub _archive_purge_task: Task<()>,
@@ -362,8 +361,9 @@ impl CrowApp {
             region_picker_open: false,
             table_search_focus_pending: false,
             lab_state: LabState::new(window, cx),
-            caret: TextCaret { blink: true, ..TextCaret::default() },
-            _cursor_blink_task: Self::spawn_cursor_blink(cx),
+            key_inputs: None,
+            custom_setting_input: None,
+            config_search: None,
             _metrics_poll_task: Self::spawn_metrics_poll(cx),
             _archive_purge_task: Self::spawn_archive_purge(cx),
             journal: JournalState::new(initial_journal, journal_retention, journal_telemetry),
@@ -399,46 +399,6 @@ impl CrowApp {
 }
 
 impl CrowApp {
-    pub fn has_active_text_input(&self) -> bool {
-        if self.palette_open {
-            return true;
-        }
-        if self.users.show_new_user_modal
-            || self.firewall.show_new_rule_modal
-            || self.journal.show_retention_modal
-            || self.show_about_modal
-        {
-            return true;
-        }
-        if self.keys.any_modal_open() {
-            return true;
-        }
-        if self.vault.status() == VaultStatus::Locked {
-            return true;
-        }
-        if self.screen == Screen::VaultSetup {
-            return true;
-        }
-        if self.screen == Screen::Onboard {
-            return self.onboard_state.focus != OnboardFieldFocus::None;
-        }
-        if self.screen == Screen::Server {
-
-            if (self.active_view == "config" || self.active_view == "configure")
-                && self.configs.search_focused
-            {
-                return true;
-            }
-        }
-        if self.screen == Screen::Settings && (self.provider_inputs.is_some() || self.vault_form_inputs.is_some() || self.clanker_inputs.is_some()) {
-            return true;
-        }
-        if self.screen == Screen::Settings && self.settings.dropdown_open.is_some() {
-            return true;
-        }
-        false
-    }
-
     pub fn open_about_modal(&mut self, cx: &mut Context<Self>) {
         self.show_about_modal = true;
         self.about_copied_toast = false;
