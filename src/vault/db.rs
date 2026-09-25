@@ -165,10 +165,12 @@ pub struct PurgeOutcome {
     pub key_attachments: usize,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
+#[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct ClankerProviderConfig {
     pub id: String,
     pub display_name: String,
+    /// Loaded from the vault into memory only; never serialized or printed.
+    #[serde(skip)]
     pub api_key: String,
     pub model: String,
     pub base_url: String,
@@ -209,6 +211,18 @@ pub const PROVIDER_SECRET_CATEGORY: &str = "provider_secret";
 /// The vault entry id holding secret `key` of provider account `account`.
 pub fn provider_secret_id(account: &str, key: &str) -> String {
     format!("provider:{account}:{key}")
+}
+
+impl std::fmt::Debug for ClankerProviderConfig {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ClankerProviderConfig")
+            .field("id", &self.id)
+            .field("api_key", &if self.api_key.is_empty() { "" } else { "[secret]" })
+            .field("model", &self.model)
+            .field("base_url", &self.base_url)
+            .field("is_default", &self.is_default)
+            .finish_non_exhaustive()
+    }
 }
 
 /// A durable record of one run through the Apply Pipeline — the audit trail

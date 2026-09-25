@@ -61,7 +61,7 @@ pub struct OnboardState {
     pub auth_method: String, // "publickey", "agent", "password"
     pub selected_key_id: Option<String>,
     pub jump_host_id: Option<String>,
-    pub password: String,
+    pub password: crate::secret_string::SecretString,
     // Step 3: Probe
     pub probe_result: Option<ProbeResult>,
     pub probe_logs: Vec<ProbeLog>,
@@ -91,7 +91,7 @@ impl OnboardState {
             auth_method: "publickey".into(),
             selected_key_id: default_key,
             jump_host_id: None,
-            password: String::new(),
+            password: Default::default(),
             probe_result: None,
             probe_logs: Vec::new(),
             host_key_accepted: false,

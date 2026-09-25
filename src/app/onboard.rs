@@ -69,7 +69,7 @@ impl CrowApp {
                 (OnboardFieldFocus::Host, st.host.clone(), "e.g. 10.0.4.32 or prod-db.internal", false),
                 (OnboardFieldFocus::Port, st.port.clone(), "22", false),
                 (OnboardFieldFocus::User, st.user.clone(), "root", false),
-                (OnboardFieldFocus::Password, st.password.clone(), "password", true),
+                (OnboardFieldFocus::Password, st.password.to_string(), "password", true),
                 (OnboardFieldFocus::Label, st.label.clone(), "e.g. prod-db-01", false),
                 (OnboardFieldFocus::Tags, st.tags.clone(), "e.g. postgres, primary", false),
             ];
@@ -335,7 +335,7 @@ impl CrowApp {
         let jump = self.onboard_state.jump_host_id.as_ref().and_then(|id| self.fleet.servers.iter().find(|s| &s.id == id)).map(|j| {
             if j.login_user.is_empty() { format!("{}:{}", j.host, j.port) } else { format!("{}@{}:{}", j.login_user, j.host, j.port) }
         });
-        Ok(Some(Bootstrap { password: Zeroizing::new(self.onboard_state.password.clone()), key, jump }))
+        Ok(Some(Bootstrap { password: Zeroizing::new(self.onboard_state.password.to_string()), key, jump }))
     }
 
     /// Probes the address off the UI thread: TCP, banner, real host keys.

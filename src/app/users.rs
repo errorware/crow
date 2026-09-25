@@ -194,13 +194,13 @@ impl CrowApp {
         let password_confirm = cx.new(|cx| InputState::new(window, cx).placeholder("again").masked(true));
         let sub_pw = cx.subscribe(&password, |this, input, ev: &InputEvent, cx| {
             if matches!(ev, InputEvent::Change) {
-                this.users.new_user.password = input.read(cx).value().to_string();
+                this.users.new_user.password = crate::secret_string::SecretString::new(input.read(cx).value().to_string());
                 cx.notify();
             }
         });
         let sub_confirm = cx.subscribe(&password_confirm, |this, input, ev: &InputEvent, cx| {
             if matches!(ev, InputEvent::Change) {
-                this.users.new_user.password_confirm = input.read(cx).value().to_string();
+                this.users.new_user.password_confirm = crate::secret_string::SecretString::new(input.read(cx).value().to_string());
                 cx.notify();
             }
         });

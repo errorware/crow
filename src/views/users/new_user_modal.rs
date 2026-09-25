@@ -14,8 +14,8 @@ pub struct NewUserState {
     pub create_home: bool,
     pub selected_groups: Vec<String>,
     /// Optional; set with chpasswd after useradd, never stored.
-    pub password: String,
-    pub password_confirm: String,
+    pub password: crate::secret_string::SecretString,
+    pub password_confirm: crate::secret_string::SecretString,
 }
 
 impl Default for NewUserState {
@@ -27,8 +27,8 @@ impl Default for NewUserState {
             grant_sudo: false,
             create_home: true,
             selected_groups: Vec::new(),
-            password: String::new(),
-            password_confirm: String::new(),
+            password: Default::default(),
+            password_confirm: Default::default(),
         }
     }
 }

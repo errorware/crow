@@ -15,6 +15,7 @@ pub mod metrics;
 pub mod os_detect;
 pub mod providers;
 pub mod region;
+pub mod secret_string;
 pub mod security;
 pub mod vault;
 mod views;
