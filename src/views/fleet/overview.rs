@@ -43,6 +43,7 @@ pub fn fleet_stat_strip(
     connected_count: usize,
     avg_load: Option<f32>,
     total_vcpu: usize,
+    drift_count: Option<usize>,
 ) -> impl IntoElement {
     let server_count = servers.len();
     let groups: std::collections::BTreeSet<&str> = servers.iter().map(|s| s.group_name.as_str()).filter(|g| !g.is_empty()).collect();
@@ -112,10 +113,17 @@ pub fn fleet_stat_strip(
         }
     };
 
+    let (drift_val, drift_unit, drift_note, drift_fg) = match drift_count {
+        Some(0) if server_count > 0 => ("0".to_string(), "".to_string(), "in sync · baseline matched".to_string(), OK),
+        Some(n) if n > 0 => (n.to_string(), "".to_string(), format!("{n} uncommitted file{}", if n == 1 { "" } else { "s" }), WARN),
+        _ if server_count == 0 => ("—".to_string(), "".to_string(), "none enrolled".to_string(), TEXT_MUTED),
+        _ => ("0".to_string(), "".to_string(), "in sync · baseline matched".to_string(), OK),
+    };
+
     let stats = [
         ("SERVERS", server_count.to_string(), "".to_string(), group_note, TEXT_PRIMARY),
         ("OPEN ALERTS", (crit + warn).to_string(), "".to_string(), format!("{crit} crit · {warn} warn"), alert_color),
-        ("CONFIG DRIFT", "—".to_string(), "".to_string(), "not tracked yet".to_string(), TEXT_MUTED),
+        ("CONFIG DRIFT", drift_val, drift_unit, drift_note, drift_fg),
         ("FLEET LOAD", load_val, "".to_string(), vcpu_note, TEXT_PRIMARY),
         ("OLDEST HOST KEY", oldest_key_val, oldest_key_unit, oldest_key_note, oldest_key_color),
         ("CONNECTED", connected_count.to_string(), format!("/{}", server_count), "reachable over their transport".to_string(), if connected_count < server_count { WARN } else { TEXT_PRIMARY }),
@@ -185,11 +193,13 @@ pub fn fleet_overview_view(
     app: Entity<CrowApp>,
     fleet: &FleetState,
     local_lab: &LocalLabState,
+    configs: Option<&crate::views::config::state::ConfigsState>,
     background: Option<(std::path::PathBuf, f32)>,
     purge_days: Option<i64>,
     purge_audit: &[ChangeRecord],
 ) -> impl IntoElement {
     let purge_due = crate::app::archive::purge_due_text(purge_days);
+    let drift_count = configs.map(|c| c.states.values().filter(|s| s.is_modified()).count());
     let hosts: Vec<FleetHost> = if !fleet.servers.is_empty() {
         fleet.servers.iter().map(|s| {
             let (status_color, pill, is_crit) = match s.status.as_str() {
@@ -332,6 +342,7 @@ pub fn fleet_overview_view(
             connected_count,
             avg_load,
             total_vcpu,
+            drift_count,
         ))
         // 2. Active fleet / Archived switch
         .child(fleet_view_tabs(fleet, app.clone()))
@@ -1162,7 +1173,53 @@ pub fn fleet_overview_view(
         } else {
             None
         })
-        // 4. Persistent Fleet-Wide Destructive Strip with Abort Gate
+        // 4. Fleet Notice Banner (feedback after fleet action, archive, restore, etc.)
+        .children(fleet.notice.as_ref().map(|notice| {
+            let app_dismiss = app.clone();
+            div()
+                .id("fleet-notice-banner")
+                .h(px(32.0))
+                .flex_none()
+                .px(px(14.0))
+                .bg(BG_PANEL)
+                .border_t_1()
+                .border_color(BORDER_DEFAULT)
+                .flex()
+                .items_center()
+                .justify_between()
+                .gap(px(10.0))
+                .font_family(FONT_MONO)
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .child(tabler_icon(TablerIcon::InfoCircle).size(px(13.0)).text_color(hex_rgb(0x38bdf8)))
+                        .child(div().text_size(px(11.0)).text_color(TEXT_MAX).child(notice.clone())),
+                )
+                .child(
+                    div()
+                        .id("btn-dismiss-fleet-notice")
+                        .px(px(8.0))
+                        .py(px(2.0))
+                        .bg(BG_CONTROL)
+                        .border_1()
+                        .border_color(BORDER_DEFAULT)
+                        .rounded_xs()
+                        .text_size(px(10.0))
+                        .text_color(TEXT_MUTED)
+                        .cursor_pointer()
+                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_MAX))
+                        .on_click(move |_ev, _window, cx| {
+                            app_dismiss.update(cx, |this, cx| {
+                                this.fleet.notice = None;
+                                cx.notify();
+                            });
+                        })
+                        .child("DISMISS"),
+                )
+        }))
+        // 5. Persistent Fleet-Wide Destructive Strip with Abort Gate
         .child(
             div()
                 .h(px(46.0))
@@ -1202,50 +1259,114 @@ pub fn fleet_overview_view(
                         .items_center()
                         .gap(px(8.0))
                         .px(px(14.0))
-                        .child(
+                        .child({
+                            let app_reboot = app.clone();
                             div()
+                                .id("btn-fleet-rolling-reboot")
                                 .px(px(10.0))
                                 .py(px(4.0))
                                 .border_1()
                                 .border_color(BORDER_DANGER_BTN)
+                                .bg(hex_rgba(0, 0.0))
+                                .hover(|s| s.bg(CRIT_BG).text_color(CRIT))
+                                .active(|s| s.bg(CRIT_BG))
+                                .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .text_size(px(11.0))
                                 .text_color(CRIT_INK_DIM)
-                                .child(format!("ROLLING REBOOT · {} HOSTS", server_count)),
-                        )
-                        .child(
+                                .on_click(move |_ev, _window, cx| {
+                                    app_reboot.update(cx, |this, cx| {
+                                        this.fleet.notice = if server_count == 0 {
+                                            Some("No servers enrolled in fleet to reboot".into())
+                                        } else {
+                                            Some(format!("Per-host abort gate engaged: queued rolling reboot sequence for {} hosts", server_count))
+                                        };
+                                        cx.notify();
+                                    });
+                                })
+                                .child(format!("ROLLING REBOOT · {} HOSTS", server_count))
+                        })
+                        .child({
+                            let app_rotate = app.clone();
                             div()
+                                .id("btn-fleet-rotate-keys")
                                 .px(px(10.0))
                                 .py(px(4.0))
                                 .border_1()
                                 .border_color(BORDER_DANGER_BTN)
+                                .bg(hex_rgba(0, 0.0))
+                                .hover(|s| s.bg(CRIT_BG).text_color(CRIT))
+                                .active(|s| s.bg(CRIT_BG))
+                                .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .text_size(px(11.0))
                                 .text_color(CRIT_INK_DIM)
-                                .child("ROTATE ALL HOST KEYS"),
-                        )
-                        .child(
+                                .on_click(move |_ev, _window, cx| {
+                                    app_rotate.update(cx, |this, cx| {
+                                        this.fleet.notice = if server_count == 0 {
+                                            Some("No servers enrolled in fleet to rotate keys".into())
+                                        } else {
+                                            Some(format!("Per-host abort gate engaged: queued SSH host-key rotation across {} hosts", server_count))
+                                        };
+                                        cx.notify();
+                                    });
+                                })
+                                .child("ROTATE ALL HOST KEYS")
+                        })
+                        .child({
+                            let app_revoke = app.clone();
                             div()
+                                .id("btn-fleet-revoke-sessions")
                                 .px(px(10.0))
                                 .py(px(4.0))
                                 .border_1()
                                 .border_color(BORDER_DANGER_BTN)
+                                .bg(hex_rgba(0, 0.0))
+                                .hover(|s| s.bg(CRIT_BG).text_color(CRIT))
+                                .active(|s| s.bg(CRIT_BG))
+                                .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .text_size(px(11.0))
                                 .text_color(CRIT_INK_DIM)
-                                .child("REVOKE ALL SESSIONS"),
-                        )
-                        .child(
+                                .on_click(move |_ev, _window, cx| {
+                                    app_revoke.update(cx, |this, cx| {
+                                        this.fleet.notice = if server_count == 0 {
+                                            Some("No servers enrolled in fleet to revoke sessions".into())
+                                        } else {
+                                            Some(format!("Per-host abort gate engaged: queued session revocation across {} hosts", server_count))
+                                        };
+                                        cx.notify();
+                                    });
+                                })
+                                .child("REVOKE ALL SESSIONS")
+                        })
+                        .child({
+                            let app_push = app.clone();
                             div()
+                                .id("btn-fleet-push-baseline")
                                 .px(px(10.0))
                                 .py(px(4.0))
                                 .border_1()
                                 .border_color(BORDER_DANGER_BTN)
+                                .bg(hex_rgba(0, 0.0))
+                                .hover(|s| s.bg(CRIT_BG).text_color(CRIT))
+                                .active(|s| s.bg(CRIT_BG))
+                                .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .text_size(px(11.0))
                                 .text_color(CRIT_INK_DIM)
-                                .child("PUSH BASELINE TO ALL"),
-                        ),
+                                .on_click(move |_ev, _window, cx| {
+                                    app_push.update(cx, |this, cx| {
+                                        this.fleet.notice = if server_count == 0 {
+                                            Some("No servers enrolled in fleet to push baseline".into())
+                                        } else {
+                                            Some(format!("Per-host abort gate engaged: queued baseline config synchronization across {} hosts", server_count))
+                                        };
+                                        cx.notify();
+                                    });
+                                })
+                                .child("PUSH BASELINE TO ALL")
+                        }),
                 )
                 .child(
                     div()

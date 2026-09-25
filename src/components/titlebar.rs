@@ -235,7 +235,7 @@ pub fn titlebar(
                     .items_center()
                     .px(px(12.0))
                     .cursor_pointer()
-                    .hover(|s| s.bg(BG_ROW_HOVER))
+                    .hover(|s| s.bg(hex_rgba(0x22c55e, 0.14)))
                     .on_click(move |_ev, _window, cx| {
                         app_plus.update(cx, |this, cx| {
                             this.set_screen(Screen::Onboard, cx);
@@ -244,7 +244,7 @@ pub fn titlebar(
                     .child(
                         tabler_icon(TablerIcon::Plus)
                             .size(px(13.0))
-                            .text_color(TEXT_FAINT),
+                            .text_color(hex_rgb(0x4ade80)),
                     ),
             )
             .child(
@@ -642,15 +642,20 @@ pub fn burger_menu_overlay(
                         .items_center()
                         .gap(px(10.0))
                         .px(px(12.0))
-                        .bg(if is_active { BG_KEY } else { hex_rgba(0, 0.0) })
-                        .when(item.is_featured, |d| d.overflow_hidden().child(enroll_sheen()))
+                        .bg(if is_active { BG_KEY } else if item.is_featured { hex_rgba(0x22c55e, 0.06) } else { hex_rgba(0, 0.0) })
+                        .when(item.is_featured, |d| {
+                            d.overflow_hidden()
+                                .border_l_2()
+                                .border_color(hex_rgba(0x4ade80, 0.85))
+                                .child(enroll_sheen())
+                        })
                         .children(if is_active {
                             Some(left_indicator(TEXT_PRIMARY))
                         } else {
                             None
                         })
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_KEY))
+                        .hover(|s| s.bg(if item.is_featured { hex_rgba(0x22c55e, 0.12) } else { BG_KEY }))
                         .on_click(move |_ev, _window, cx| {
                             match action {
                                 Some(MenuAction::Quit) => {
@@ -706,6 +711,8 @@ pub fn burger_menu_overlay(
                                         .size(px(13.5))
                                         .text_color(if item.is_danger {
                                             CRIT
+                                        } else if item.is_featured {
+                                            hex_rgb(0x4ade80)
                                         } else if is_active {
                                             TEXT_PRIMARY
                                         } else {
@@ -718,9 +725,11 @@ pub fn burger_menu_overlay(
                                 .flex_1()
                                 .font_family(FONT_MONO)
                                 .text_size(px(11.5))
-                                .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+                                .font_weight(if item.is_featured || is_active { FontWeight::BOLD } else { FontWeight::NORMAL })
                                 .text_color(if item.is_danger {
                                     CRIT_INK_DIM
+                                } else if item.is_featured {
+                                    hex_rgb(0x86efac)
                                 } else if is_active {
                                     TEXT_MAX
                                 } else {
@@ -733,12 +742,12 @@ pub fn burger_menu_overlay(
                                 div()
                                     .px(px(5.0))
                                     .py(px(1.0))
-                                    .bg(BG_KEY)
+                                    .bg(if item.is_featured { hex_rgba(0x22c55e, 0.16) } else { BG_KEY })
                                     .border_1()
-                                    .border_color(BORDER_KEY)
+                                    .border_color(if item.is_featured { hex_rgba(0x4ade80, 0.45) } else { BORDER_KEY })
                                     .font_family(FONT_MONO)
                                     .text_size(px(10.0))
-                                    .text_color(TEXT_MUTED)
+                                    .text_color(if item.is_featured { hex_rgb(0x4ade80) } else { TEXT_MUTED })
                                     .child(item.shortcut),
                             )
                         } else {
@@ -748,22 +757,51 @@ pub fn burger_menu_overlay(
         )
 }
 
-/// A faint green band sweeping left to right across the "Enroll New Server"
-/// row; the row itself stays black. GPUI gradients have two stops, so the band is two halves: one fading
-/// in, one fading out.
+/// A dramatic emerald photon laser beam sweeping left to right across the
+/// "Enroll New Server" row. Composed of an atmospheric outer aura, neon gradient
+/// shoulders, and an intense high-energy photon core.
 fn enroll_sheen() -> impl IntoElement {
-    let green = |a: f32| hex_rgba(0x3ecf6e, a);
+    let emerald = |a: f32| hex_rgba(0x22c55e, a);
+    let neon = |a: f32| hex_rgba(0x4ade80, a);
+    let core = |a: f32| hex_rgba(0xf0fdf4, a);
+
     div()
         .absolute()
         .top_0()
         .bottom_0()
-        .w(relative(0.45))
+        .w(relative(0.55))
         .flex()
-        .child(div().h_full().w_1_2().bg(linear_gradient(90.0, linear_color_stop(green(0.0), 0.0), linear_color_stop(green(0.08), 1.0))))
-        .child(div().h_full().w_1_2().bg(linear_gradient(90.0, linear_color_stop(green(0.08), 0.0), linear_color_stop(green(0.0), 1.0))))
+        // Leading ambient bloom
+        .child(
+            div()
+                .h_full()
+                .w(relative(0.30))
+                .bg(linear_gradient(90.0, linear_color_stop(emerald(0.0), 0.0), linear_color_stop(emerald(0.28), 1.0)))
+        )
+        // Leading neon edge into hot core
+        .child(
+            div()
+                .h_full()
+                .w(relative(0.20))
+                .bg(linear_gradient(90.0, linear_color_stop(neon(0.32), 0.0), linear_color_stop(core(0.70), 1.0)))
+        )
+        // Hot core fading into trailing neon edge
+        .child(
+            div()
+                .h_full()
+                .w(relative(0.20))
+                .bg(linear_gradient(90.0, linear_color_stop(core(0.70), 0.0), linear_color_stop(neon(0.32), 1.0)))
+        )
+        // Trailing ambient bloom
+        .child(
+            div()
+                .h_full()
+                .w(relative(0.30))
+                .bg(linear_gradient(90.0, linear_color_stop(emerald(0.28), 0.0), linear_color_stop(emerald(0.0), 1.0)))
+        )
         .with_animation(
             "enroll-sheen",
-            Animation::new(std::time::Duration::from_millis(2600)).repeat().with_easing(ease_in_out),
-            |band, t| band.left(relative(t * 1.45 - 0.45)),
+            Animation::new(std::time::Duration::from_millis(1800)).repeat().with_easing(ease_in_out),
+            |band, t| band.left(relative(t * 1.55 - 0.55)),
         )
 }
