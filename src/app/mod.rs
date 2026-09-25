@@ -26,7 +26,7 @@ use crate::views::overview::{
     OverviewState,
 };
 
-mod danger;
+pub mod danger;
 mod files;
 mod firewall;
 mod users;
@@ -215,6 +215,8 @@ pub struct CrowApp {
     pub setup_inputs: Option<SetupInputs>,
     /// Snapshot-first offer before a lockout-risk change (ERR-48).
     pub snapshot_offer: Option<configs::SnapshotOffer>,
+    /// Danger Zone → SNAPSHOTS: the active server's provider snapshots.
+    pub snapshots_panel: Option<danger::SnapshotsPanel>,
     /// Something the user should know about their stored secrets (moved,
     /// lost with the keyring, ...), shown on Providers and Clankers.
     pub secrets_notice: Option<String>,
@@ -373,6 +375,7 @@ impl CrowApp {
             clanker_inputs: None,
             import: Default::default(),
             snapshot_offer: None,
+            snapshots_panel: None,
             setup_inputs: None,
             lock_inputs: None,
             secrets_notice: None,

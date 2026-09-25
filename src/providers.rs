@@ -150,6 +150,13 @@ pub fn run_action(provider: &dyn Provider, id: &str, action: ProviderAction) -> 
     .map_err(|e| e.to_string())
 }
 
+/// The instance's snapshots, as the provider lists them.
+pub fn list_snapshots(provider: &dyn Provider, id: &str) -> Result<Vec<crow_provider_core::hosts::Snapshot>, String> {
+    let name = provider.manifest().display_name().to_string();
+    let snaps = provider.as_snapshots().ok_or_else(|| format!("{name} can't take snapshots"))?;
+    snaps.snapshots(&crow_provider_core::hosts::InstanceId(id.to_string())).map_err(|e| e.to_string())
+}
+
 /// An instance a provider reported, and the enrolled server it is (if any).
 #[derive(Clone, Debug)]
 pub struct InstanceRow {
@@ -360,6 +367,20 @@ mod tests {
         assert_eq!(run_action(upcloud.as_ref(), "abc", ProviderAction::Reboot).unwrap(), "UpCloud accepted: reboot abc");
         assert_eq!(run_action(upcloud.as_ref(), "abc", ProviderAction::Snapshot).unwrap_err(), "UpCloud can't take snapshots");
         assert_eq!(http.requests().len(), 1, "nothing sent for the unsupported one");
+    }
+
+    #[test]
+    fn snapshots_are_listed_through_the_provider() {
+        use crow_provider_core::http::Method;
+        use crow_provider_core::testing::RecordedHttp;
+        let api = crow_provider_linode::API;
+        let body = r#"{"automatic": [], "snapshot": {"current": {"id": 7, "label": "before-sshd", "status": "successful", "created": "2026-09-25T10:00:00"}, "in_progress": null}}"#;
+        let http = std::sync::Arc::new(RecordedHttp::new().on(Method::Get, &format!("{api}/linode/instances/123/backups"), 200, body));
+        let linode = (factory("linode").unwrap().build)(ProviderSettings::default().with_secret("api_token", "t"), http).unwrap();
+        let list = list_snapshots(linode.as_ref(), "123").unwrap();
+        assert_eq!((list[0].id.0.as_str(), list[0].label.as_deref()), ("7", Some("before-sshd")));
+        let upcloud = (factory("upcloud").unwrap().build)(ProviderSettings::default().with_secret("api_token", "t"), std::sync::Arc::new(RecordedHttp::new())).unwrap();
+        assert_eq!(list_snapshots(upcloud.as_ref(), "x").unwrap_err(), "UpCloud can't take snapshots");
     }
 
     #[test]

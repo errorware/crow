@@ -354,7 +354,9 @@ impl CrowApp {
             return false;
         }
         if ev.keystroke.key == "escape" {
-            if self.import.open {
+            if self.snapshots_panel.is_some() {
+                self.close_snapshots_panel(cx);
+            } else if self.import.open {
                 self.close_import(cx);
             } else if self.stance_panel_open {
                 self.toggle_stance_panel(cx);
