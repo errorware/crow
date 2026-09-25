@@ -2,67 +2,27 @@ pub mod setup;
 
 use gpui_kit::*;
 use crate::app::CrowApp;
-use crate::components::terminal_text_input_styled;
+use gpui_kit::component::input::Input;
 use crate::theme::*;
-use crate::components::text_caret::TextCaret;
 
 pub use setup::{vault_setup_view, SetupState, SetupStep};
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum LockFieldFocus {
-    Password,
-    Totp,
-}
-
-/// Holds the password and 2FA code as they're typed: redacted in Debug,
-/// wiped on drop, with room reserved so typing doesn't reallocate (and
-/// leave copies behind).
-#[derive(Clone)]
+/// The lock screen's state. The password and code are gpui inputs
+/// (`CrowApp::lock_inputs`), dropped once Crow unlocks.
+#[derive(Clone, Debug, Default)]
 pub struct LockState {
-    pub password_input: String,
-    pub totp_input: String,
-    pub active_focus: LockFieldFocus,
     pub show_password: bool,
     pub error_message: Option<String>,
 }
 
-impl Default for LockState {
-    fn default() -> Self {
-        Self {
-            password_input: String::with_capacity(256),
-            totp_input: String::with_capacity(16),
-            active_focus: LockFieldFocus::Password,
-            show_password: false,
-            error_message: None,
-        }
-    }
-}
-
-impl std::fmt::Debug for LockState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("LockState").field("password_input", &"[secret]").field("totp_input", &"[secret]").field("error_message", &self.error_message).finish()
-    }
-}
-
-impl Drop for LockState {
-    fn drop(&mut self) {
-        use zeroize::Zeroize;
-        self.password_input.zeroize();
-        self.totp_input.zeroize();
-    }
-}
-
-pub fn vault_lock_view(app: Entity<CrowApp>, caret: &TextCaret, lock_state: &LockState) -> impl IntoElement {
+pub fn vault_lock_view(app: Entity<CrowApp>, lock_state: &LockState, inputs: Option<&crate::app::LockInputs>) -> impl IntoElement {
     let state = &lock_state;
     let has_error = state.error_message.is_some();
     let error_text = state.error_message.clone().unwrap_or_default();
 
-    let is_pwd_focused = state.active_focus == LockFieldFocus::Password;
-    let is_totp_focused = state.active_focus == LockFieldFocus::Totp;
     let show_pwd = state.show_password;
+    let input = |i: Option<&Entity<gpui_kit::component::input::InputState>>| i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(13.0)).bg(BG_WINDOW).rounded(px(2.0)));
 
-    let app_pwd_focus = app.clone();
-    let app_totp_focus = app.clone();
     let app_toggle_show = app.clone();
     let app_submit = app.clone();
 
@@ -192,7 +152,7 @@ pub fn vault_lock_view(app: Entity<CrowApp>, caret: &TextCaret, lock_state: &Loc
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(10.5))
                                                 .font_weight(FontWeight::SEMIBOLD)
-                                                .text_color(if is_pwd_focused { TEXT_PRIMARY } else { TEXT_MUTED })
+                                                .text_color(TEXT_MUTED)
                                                 .child("MASTER PASSWORD"),
                                         )
                                         .child(
@@ -203,43 +163,13 @@ pub fn vault_lock_view(app: Entity<CrowApp>, caret: &TextCaret, lock_state: &Loc
                                                 .text_color(TEXT_DIMMER)
                                                 .cursor_pointer()
                                                 .hover(|s| s.text_color(TEXT_PRIMARY))
-                                                .on_click(move |_ev, _window, cx| {
-                                                    app_toggle_show.update(cx, |this, cx| {
-                                                        this.lock_state.show_password = !this.lock_state.show_password;
-                                                        cx.notify();
-                                                    });
+                                                .on_click(move |_ev, window, cx| {
+                                                    app_toggle_show.update(cx, |this, cx| this.toggle_lock_show_password(window, cx));
                                                 })
                                                 .child(if show_pwd { "HIDE" } else { "SHOW" }),
                                         ),
                                 )
-                                .child(
-                                    terminal_text_input_styled(
-                                        "lock-input-pwd",
-                                        &state.password_input,
-                                        "Enter master password…",
-                                        is_pwd_focused,
-                                        !show_pwd,
-                                        38.0,
-                                        13.0,
-                                        if is_pwd_focused { caret.cursor } else { 0 },
-                                        if is_pwd_focused { caret.selection } else { None },
-                                        if is_pwd_focused { caret.drag_anchor } else { None },
-                                        caret.blink,
-                                        {
-                                            let app = app_pwd_focus;
-                                            move |cursor, anchor, selection, _window, cx| {
-                                                app.update(cx, |this, cx| {
-                                                    this.lock_state.active_focus = LockFieldFocus::Password;
-                                                    this.caret.cursor = cursor;
-                                                    this.caret.drag_anchor = anchor;
-                                                    this.caret.selection = selection;
-                                                    this.caret.blink = true;
-                                                    cx.notify();
-                                                });
-                                            }
-                                        },
-                                    ),
-                                ),
+                                .children(input(inputs.map(|i| &i.password))),
                         )
                         // TOTP Code input (always mandatory)
                         .child(
@@ -257,7 +187,7 @@ pub fn vault_lock_view(app: Entity<CrowApp>, caret: &TextCaret, lock_state: &Loc
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(10.5))
                                                 .font_weight(FontWeight::SEMIBOLD)
-                                                .text_color(if is_totp_focused { TEXT_PRIMARY } else { TEXT_MUTED })
+                                                .text_color(TEXT_MUTED)
                                                 .child("2FA TOTP CODE"),
                                         )
                                         .child(
@@ -268,34 +198,7 @@ pub fn vault_lock_view(app: Entity<CrowApp>, caret: &TextCaret, lock_state: &Loc
                                                 .child("6 DIGITS"),
                                         ),
                                 )
-                                .child(
-                                    terminal_text_input_styled(
-                                        "lock-input-totp",
-                                        &state.totp_input,
-                                        "000000",
-                                        is_totp_focused,
-                                        false,
-                                        38.0,
-                                        13.0,
-                                        if is_totp_focused { caret.cursor } else { 0 },
-                                        if is_totp_focused { caret.selection } else { None },
-                                        if is_totp_focused { caret.drag_anchor } else { None },
-                                        caret.blink,
-                                        {
-                                            let app = app_totp_focus;
-                                            move |cursor, anchor, selection, _window, cx| {
-                                                app.update(cx, |this, cx| {
-                                                    this.lock_state.active_focus = LockFieldFocus::Totp;
-                                                    this.caret.cursor = cursor;
-                                                    this.caret.drag_anchor = anchor;
-                                                    this.caret.selection = selection;
-                                                    this.caret.blink = true;
-                                                    cx.notify();
-                                                });
-                                            }
-                                        },
-                                    ),
-                                ),
+                                .children(input(inputs.map(|i| &i.code))),
                         )
                         // Bottom submit row
                         .child(
