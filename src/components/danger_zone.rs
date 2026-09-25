@@ -162,6 +162,23 @@ pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>,
                         ],
                     })
                     .children(snapshots.map(|p| action_btn("btn-danger-snapshot", format!("SNAPSHOT · {}", p.name.to_uppercase()), app.clone(), "snapshot")))
+                    // Listing snapshots is harmless: no keyword, just a panel.
+                    .children(snapshots.map(|_| {
+                        let app = app.clone();
+                        div()
+                            .id("btn-danger-snapshots")
+                            .font_family(FONT_MONO)
+                            .text_size(px(11.0))
+                            .text_color(TEXT_SECONDARY)
+                            .border_1()
+                            .border_color(BORDER_DEFAULT)
+                            .px(px(10.0))
+                            .py(px(4.0))
+                            .cursor_pointer()
+                            .hover(|s| s.bg(BG_ROW_HOVER))
+                            .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.open_snapshots_panel(cx)))
+                            .child("SNAPSHOTS…")
+                    }))
                     .child(action_btn("btn-danger-flush-fw", "FLUSH FIREWALL (UFW)", app.clone(), "flush_firewall"))
                     .child(
                         div()

@@ -2,6 +2,14 @@ use gpui_kit::*;
 use gpui_kit::component::input::InputState;
 
 use super::CrowApp;
+
+/// The active server's snapshots at its provider (ERR-47).
+pub struct SnapshotsPanel {
+    pub server: String,
+    pub provider: String,
+    /// None while loading.
+    pub result: Option<Result<Vec<crow_provider_core::hosts::Snapshot>, String>>,
+}
 use crate::components::danger_zone::{
     danger_action_keyword,
     flush_firewall,
@@ -26,6 +34,52 @@ impl CrowApp {
             power: manifest.has_capability(INSTANCES_POWER),
             snapshots: manifest.has_capability(SNAPSHOTS),
         })
+    }
+
+    /// Opens the snapshots panel for the active server and fetches the list
+    /// from its provider in the background.
+    pub fn open_snapshots_panel(&mut self, cx: &mut Context<Self>) {
+        let Some(srv) = self.fleet.active_server() else { return };
+        let Some(account) = self.providers.accounts.iter().find(|a| a.id == srv.provider_account).cloned() else { return };
+        let provider = crate::providers::display_name(&account.plugin);
+        self.snapshots_panel = Some(SnapshotsPanel { server: srv.name.clone(), provider, result: None });
+        let settings = match (self.vault.key(), self.vault.db().lock()) {
+            (Some(key), Ok(db)) => crate::providers::load_settings(&db, key, &account),
+            _ => Err(self.vault.secrets_blocker().unwrap_or_else(|| "the vault is busy".into())),
+        };
+        let settings = match settings {
+            Ok(s) => s,
+            Err(e) => {
+                if let Some(p) = self.snapshots_panel.as_mut() {
+                    p.result = Some(Err(e));
+                }
+                cx.notify();
+                return;
+            }
+        };
+        cx.notify();
+        let instance = srv.provider_instance.clone();
+        cx.spawn(async move |entity, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    let provider = crate::providers::connect(&account, settings).map_err(|e| e.to_string())?;
+                    crate::providers::list_snapshots(provider.as_ref(), &instance)
+                })
+                .await;
+            let _ = entity.update(cx, |this, cx| {
+                if let Some(p) = this.snapshots_panel.as_mut() {
+                    p.result = Some(result);
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    pub fn close_snapshots_panel(&mut self, cx: &mut Context<Self>) {
+        self.snapshots_panel = None;
+        cx.notify();
     }
 
     /// Power or snapshot at the provider, in the background, with a change
