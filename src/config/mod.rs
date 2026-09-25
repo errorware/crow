@@ -16,6 +16,21 @@ use crow_config_core::ir::{ConfigDocumentIr, FieldIr};
 use std::fs;
 use std::path::PathBuf;
 
+/// Settings some code actually reads (ERR-69). Only these are shown in
+/// Settings; a test checks each one is read outside the config and
+/// settings views, so nothing is shown that does nothing.
+pub const WIRED_SETTINGS: &[&str] = &[
+    "general.refresh_interval",
+    "connection.connect_timeout",
+    "connection.keepalive_interval",
+    "connection.control_master",
+    "security.auto_lock_minutes",
+    "servers.archive_purge_days",
+    "appearance.fleet_background",
+    "appearance.fleet_background_opacity",
+    "appearance.fleet_background_blur",
+];
+
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DiffKind {
     Hunk,
@@ -108,6 +123,22 @@ impl CrowConfigManager {
             self.ir = new_ir;
         }
         Ok(())
+    }
+
+    /// A saved setting as a whole number (settings apply once saved).
+    pub fn saved_int(&self, row_id: &str) -> Option<i64> {
+        let v = &self.baseline_ir.rows.iter().find(|r| r.row_id == row_id)?.get_field(row_id)?.value;
+        v.as_i64().or_else(|| v.as_str()?.trim().parse().ok())
+    }
+
+    /// A saved setting as a yes/no.
+    pub fn saved_bool(&self, row_id: &str) -> Option<bool> {
+        let v = &self.baseline_ir.rows.iter().find(|r| r.row_id == row_id)?.get_field(row_id)?.value;
+        v.as_bool().or_else(|| match v.as_str()?.trim() {
+            "true" | "yes" | "on" => Some(true),
+            "false" | "no" | "off" => Some(false),
+            _ => None,
+        })
     }
 
     pub fn get_field(&self, row_id: &str) -> Option<&FieldIr> {
@@ -227,5 +258,39 @@ impl CrowConfigManager {
         }
 
         diff_lines
+    }
+}
+
+#[cfg(test)]
+mod wired_tests {
+    use super::*;
+
+    /// Every shown setting is read by code outside the config module and
+    /// the Settings views; otherwise it would be shown doing nothing.
+    #[test]
+    fn every_wired_setting_is_read_somewhere() {
+        fn walk(dir: &std::path::Path, out: &mut String) {
+            for e in std::fs::read_dir(dir).unwrap().flatten() {
+                let p = e.path();
+                let s = p.to_string_lossy();
+                if s.contains("/src/config") || s.contains("/views/settings") {
+                    continue;
+                }
+                if p.is_dir() {
+                    walk(&p, out);
+                } else if p.extension().is_some_and(|x| x == "rs") {
+                    out.push_str(&std::fs::read_to_string(&p).unwrap());
+                }
+            }
+        }
+        let mut code = String::new();
+        walk(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut code);
+        for key in WIRED_SETTINGS {
+            assert!(code.contains(&format!("\"{key}\"")), "{key} is shown in Settings but no code reads it");
+        }
+        let manifest: Vec<&str> = CROW_CONFIG_MANIFEST.fields.iter().map(|f| f.name.as_str()).collect();
+        for key in WIRED_SETTINGS {
+            assert!(manifest.contains(key), "{key} isn't in the settings manifest");
+        }
     }
 }

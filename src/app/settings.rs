@@ -32,7 +32,23 @@ impl CrowApp {
         if let Err(e) = self.config.save() {
             eprintln!("Failed to save config: {:?}", e);
         }
+        self.apply_settings();
         cx.notify();
+    }
+
+    /// Pushes saved settings to the parts of Crow that use them.
+    pub fn apply_settings(&self) {
+        let d = crate::host::ssh::SshSettings::default();
+        crate::host::ssh::set_ssh_settings(crate::host::ssh::SshSettings {
+            connect_timeout: self.config.saved_int("connection.connect_timeout").map_or(d.connect_timeout, |v| v.clamp(1, 300) as u32),
+            keepalive_interval: self.config.saved_int("connection.keepalive_interval").map_or(d.keepalive_interval, |v| v.clamp(1, 3600) as u32),
+            control_master: self.config.saved_bool("connection.control_master").unwrap_or(d.control_master),
+        });
+    }
+
+    /// Seconds between live refreshes of the server on screen.
+    pub fn refresh_interval_secs(&self) -> u64 {
+        self.config.saved_int("general.refresh_interval").map_or(2, |v| v.clamp(1, 60) as u64)
     }
 
     pub fn open_config_file(&self) {

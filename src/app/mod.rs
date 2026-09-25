@@ -353,6 +353,7 @@ impl CrowApp {
             vault_form_inputs: None,
         };
         app.refresh_providers();
+        app.apply_settings();
         app.load_keyring_key(cx);
         app
     }

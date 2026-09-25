@@ -29,11 +29,7 @@ impl CrowApp {
     /// Minutes of inactivity before Crow locks (Settings → Vault & Security);
     /// 0 means never.
     pub fn auto_lock_minutes(&self) -> i64 {
-        self.config
-            .get_field("security.auto_lock_minutes")
-            .and_then(|f| f.value.as_i64().or_else(|| f.value.as_str()?.trim().parse().ok()))
-            .unwrap_or(15)
-            .max(0)
+        self.config.saved_int("security.auto_lock_minutes").unwrap_or(15).max(0)
     }
 
     /// Locks an unlocked vault once nobody has touched Crow for the

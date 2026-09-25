@@ -303,7 +303,10 @@ pub fn settings_view(
         .filter(|r| r.row_id.starts_with(&sec_prefix))
         // The picture is chosen with the picker below, not typed as a path.
         .filter(|r| r.row_id != crate::app::appearance::FLEET_BACKGROUND)
+        // Only settings some code reads (ERR-69).
+        .filter(|r| crate::config::WIRED_SETTINGS.contains(&r.row_id.as_str()))
         .collect();
+    let hidden_settings = config.ir.rows.iter().filter(|r| r.row_id.starts_with(&sec_prefix) && !crate::config::WIRED_SETTINGS.contains(&r.row_id.as_str())).count();
 
     let has_section_changes = config.changed_count_for_section(section.id_prefix()) > 0;
     let sec_prefix_id = section.id_prefix().to_string();
@@ -711,6 +714,15 @@ pub fn settings_view(
                                     None
                                 })
                                 .children((section == SettingsSection::Security && is_auth_enabled).then(|| vault_manage::render(vault_form.0, vault_form.1, app.clone())))
+                                .children((hidden_settings > 0).then(|| {
+                                    div()
+                                        .px(px(14.0))
+                                        .py(px(8.0))
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(10.0))
+                                        .text_color(TEXT_FAINT)
+                                        .child(format!("{hidden_settings} more setting{} in this section {} not wired to anything yet, so {} hidden rather than pretending to work.", if hidden_settings == 1 { "" } else { "s" }, if hidden_settings == 1 { "is" } else { "are" }, if hidden_settings == 1 { "it's" } else { "they're" }))
+                                }))
                                 .children(sec_rows.into_iter().enumerate().map(|(idx, row)| {
                                     let is_even = idx % 2 == 0;
                                     let field = row.get_field(&row.row_id);
