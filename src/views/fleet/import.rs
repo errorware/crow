@@ -37,7 +37,8 @@ pub fn import_panel(state: &ImportState, app: Entity<CrowApp>) -> impl IntoEleme
             div()
                 .id("import-panel")
                 .w(px(860.0))
-                .max_h(px(620.0))
+                // A definite height, so the list below has room to scroll in.
+                .h(px(620.0))
                 .flex()
                 .flex_col()
                 .bg(BG_PANEL)

@@ -2,7 +2,6 @@
 //! stance Crow is in, what it protects, what it exposes, what it costs, and
 //! what weakens it right now.
 
-use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
@@ -84,8 +83,8 @@ pub fn stance_panel(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
         .absolute()
         .inset_0()
         .on_click(move |_ev, _window, cx| a_close.update(cx, |this, cx| this.toggle_stance_panel(cx)))
-        // The positioned box is separate from the scrolling area: a scroll
-        // wrapper would otherwise swallow its position and width.
+        // A plain positioned box, like the region picker: no scroll wrapper
+        // (it takes over position and size) and the content fits on screen.
         .child(
             div()
                 .id("stance-panel")
@@ -93,26 +92,17 @@ pub fn stance_panel(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
                 .top(px(40.0))
                 .right(px(10.0))
                 .w(px(540.0))
-                .max_h(px(640.0))
-                .flex()
-                .flex_col()
+                .p(px(16.0))
                 .bg(BG_PANEL)
                 .border_1()
                 .border_color(color.opacity(0.7))
                 .shadow_lg()
-                .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
-                .child(
-            div()
-                .id("stance-panel-scroll")
-                .flex_1()
-                .min_h(px(0.0))
-                .overflow_y_scrollbar()
-                .p(px(16.0))
                 .flex()
                 .flex_col()
                 .gap(px(14.0))
                 .font_family(FONT_MONO)
                 .text_size(px(10.5))
+                .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
                 .child(
                     div()
                         .flex()
@@ -173,7 +163,6 @@ pub fn stance_panel(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
                                     })
                                 })),
                         ),
-                ),
                 ),
         )
 }
