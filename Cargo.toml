@@ -25,6 +25,9 @@ default = ["provider-linode", "provider-upcloud"]
 provider-linode = ["dep:crow-provider-linode"]
 provider-upcloud = ["dep:crow-provider-upcloud"]
 
+[dev-dependencies]
+crow-provider-core = { path = "crates/crow-provider-core", version = "0.1.0", features = ["testing"] }
+
 [dependencies]
 crow-provider-core = { path = "crates/crow-provider-core", version = "0.1.0" }
 crow-provider-linode = { path = "crates/crow-provider-linode", version = "0.1.0", optional = true }

@@ -404,7 +404,7 @@ impl Render for CrowApp {
                                                     ),
                                             )
                                             // Persistent Danger Zone Strip
-                                            .child(danger_zone(&self.danger, app_view.clone()))
+                                            .child(danger_zone(&self.danger, self.active_provider_actions().as_ref(), app_view.clone()))
                                             // Archive confirmation for this server (ERR-32).
                                             .children(self.fleet.pending_archive.as_ref().and_then(|id| self.fleet.servers.iter().find(|s| &s.id == id)).map(|srv| {
                                                 crate::views::fleet::archived::archive_confirm_overlay(srv, &archive_purge_due, app_view.clone())

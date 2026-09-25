@@ -102,6 +102,54 @@ pub fn connect(account: &ProviderAccount, settings: ProviderSettings) -> Result<
     (f.build)(settings, Arc::new(CurlHttp::default()))
 }
 
+/// Something done to an instance at its provider (ERR-47).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProviderAction {
+    Boot,
+    Reboot,
+    Shutdown,
+    Snapshot,
+}
+
+impl ProviderAction {
+    pub fn from_danger(action: &str) -> Option<Self> {
+        match action {
+            "boot" => Some(Self::Boot),
+            "reboot" => Some(Self::Reboot),
+            "poweroff" => Some(Self::Shutdown),
+            "snapshot" => Some(Self::Snapshot),
+            _ => None,
+        }
+    }
+
+    pub fn verb(self) -> &'static str {
+        match self {
+            Self::Boot => "boot",
+            Self::Reboot => "reboot",
+            Self::Shutdown => "shutdown",
+            Self::Snapshot => "snapshot",
+        }
+    }
+}
+
+/// Runs `action` on instance `id`, if the provider supports it.
+pub fn run_action(provider: &dyn Provider, id: &str, action: ProviderAction) -> Result<String, String> {
+    let id = crow_provider_core::hosts::InstanceId(id.to_string());
+    let name = provider.manifest().display_name().to_string();
+    let power = || provider.as_power_control().ok_or_else(|| format!("{name} can't power instances"));
+    match action {
+        ProviderAction::Boot => power()?.boot(&id).map(|()| format!("{name} accepted: boot {id}")),
+        ProviderAction::Reboot => power()?.reboot(&id).map(|()| format!("{name} accepted: reboot {id}")),
+        ProviderAction::Shutdown => power()?.shutdown(&id).map(|()| format!("{name} accepted: shut down {id}")),
+        ProviderAction::Snapshot => {
+            let snaps = provider.as_snapshots().ok_or_else(|| format!("{name} can't take snapshots"))?;
+            let label = format!("crow-{}", chrono::Utc::now().format("%Y%m%d-%H%M"));
+            snaps.snapshot(&id, &label).map(|s| format!("{name} snapshot {} ({}) started for {id}", s.id.0, s.status))
+        }
+    }
+    .map_err(|e| e.to_string())
+}
+
 /// An instance a provider reported, and the enrolled server it is (if any).
 #[derive(Clone, Debug)]
 pub struct InstanceRow {
@@ -299,6 +347,19 @@ mod tests {
         let r = reconcile(&[s], "linode", "Linode", &[instance("1", "45.9.9.9", "de-fra-2")]);
         assert_eq!(r.address_changed, [("web-01".to_string(), vec!["45.9.9.9".to_string()])]);
         assert_eq!(r.rows[0].enrolled_as.as_deref(), Some("web-01"), "still the same instance");
+    }
+
+    #[test]
+    fn actions_run_only_where_the_provider_supports_them() {
+        use crow_provider_core::http::Method;
+        use crow_provider_core::testing::RecordedHttp;
+        let up = crow_provider_upcloud::API;
+        let http = std::sync::Arc::new(RecordedHttp::new().on(Method::Post, &format!("{up}/server/abc/restart"), 200, "{}"));
+        let settings = ProviderSettings::default().with_secret("api_token", "t");
+        let upcloud = (factory("upcloud").unwrap().build)(settings, http.clone()).unwrap();
+        assert_eq!(run_action(upcloud.as_ref(), "abc", ProviderAction::Reboot).unwrap(), "UpCloud accepted: reboot abc");
+        assert_eq!(run_action(upcloud.as_ref(), "abc", ProviderAction::Snapshot).unwrap_err(), "UpCloud can't take snapshots");
+        assert_eq!(http.requests().len(), 1, "nothing sent for the unsupported one");
     }
 
     #[test]
