@@ -128,14 +128,34 @@ pub fn parse_ps_processes(stdout: &str) -> Vec<ProcessUnit> {
     procs
 }
 
-/// Parses output of `ss -tulpn` or `ss -tulnp`
+/// Parses output of `ss -tulpn` or `ss -tinp`
 pub fn parse_ss_sockets(stdout: &str) -> Vec<SocketUnit> {
     let mut sockets = Vec::new();
+
+    let mut current_sock: Option<SocketUnit> = None;
 
     for line in stdout.lines() {
         let trimmed = line.trim();
         if trimmed.is_empty() || trimmed.starts_with("Netid") {
             continue;
+        }
+
+        // A line starting with whitespace or a tab is the TCP info extension line (from ss -i)
+        if line.starts_with(' ') || line.starts_with('\t') {
+            if let Some(ref mut sock) = current_sock {
+                if let Some(bs) = parse_bytes_metric(trimmed, "bytes_sent:") {
+                    sock.bytes_sent = Some(bs);
+                }
+                if let Some(br) = parse_bytes_metric(trimmed, "bytes_received:") {
+                    sock.bytes_recv = Some(br);
+                }
+            }
+            continue;
+        }
+
+        // If we had a previous socket pending, push it
+        if let Some(sock) = current_sock.take() {
+            sockets.push(sock);
         }
 
         let parts: Vec<&str> = trimmed.split_whitespace().collect();
@@ -161,7 +181,7 @@ pub fn parse_ss_sockets(stdout: &str) -> Vec<SocketUnit> {
 
         let (process_name, pid) = parse_users_field(&remaining);
 
-        sockets.push(SocketUnit {
+        current_sock = Some(SocketUnit {
             protocol: proto_raw,
             state,
             local_addr,
@@ -171,10 +191,65 @@ pub fn parse_ss_sockets(stdout: &str) -> Vec<SocketUnit> {
             process: process_name,
             pid,
             is_focused: false,
+            bytes_sent: None,
+            bytes_recv: None,
         });
     }
 
+    if let Some(sock) = current_sock {
+        sockets.push(sock);
+    }
+
     sockets
+}
+
+fn parse_bytes_metric(line: &str, prefix: &str) -> Option<u64> {
+    let idx = line.find(prefix)?;
+    let rem = &line[idx + prefix.len()..];
+    let num_str: String = rem.chars().take_while(|c| c.is_ascii_digit()).collect();
+    num_str.parse::<u64>().ok()
+}
+
+pub fn categorize_peer(addr: &str) -> super::models::PeerCategory {
+    let clean = addr.trim_start_matches('[').trim_end_matches(']');
+    let ip_str = clean.split('%').next().unwrap_or(clean);
+
+    if ip_str == "localhost"
+        || ip_str.starts_with("127.")
+        || ip_str == "::1"
+        || ip_str == "0.0.0.0"
+        || ip_str == "::"
+        || ip_str == "*"
+    {
+        return super::models::PeerCategory::Loopback;
+    }
+
+    if let Ok(ip) = ip_str.parse::<std::net::IpAddr>() {
+        match ip {
+            std::net::IpAddr::V4(v4) => {
+                if v4.is_loopback() {
+                    super::models::PeerCategory::Loopback
+                } else if v4.is_private() || v4.is_link_local() {
+                    super::models::PeerCategory::Private
+                } else {
+                    super::models::PeerCategory::Public
+                }
+            }
+            std::net::IpAddr::V6(v6) => {
+                if v6.is_loopback() {
+                    super::models::PeerCategory::Loopback
+                } else if (v6.segments()[0] & 0xfe00) == 0xfc00 // Unique Local IPv6 fc00::/7
+                    || (v6.segments()[0] & 0xffc0) == 0xfe80 // Link-Local IPv6 fe80::/10
+                {
+                    super::models::PeerCategory::Private
+                } else {
+                    super::models::PeerCategory::Public
+                }
+            }
+        }
+    } else {
+        super::models::PeerCategory::Public
+    }
 }
 
 fn split_endpoint(endpoint: &str) -> (String, String) {
@@ -216,6 +291,7 @@ fn parse_users_field(field: &str) -> (String, Option<u32>) {
 const LIST_SERVICES: &[&str] = &["systemctl", "list-units", "--type=service", "--all", "--no-legend", "--no-pager"];
 const LIST_PROCESSES: &[&str] = &["ps", "-eo", "pid,ppid,user,%cpu,%mem,rss,stat,time,comm", "--sort=-%cpu"];
 const LIST_SOCKETS: &[&str] = &["ss", "-tulpn"];
+const LIST_ESTABLISHED_SOCKETS: &[&str] = &["ss", "-tinp", "state", "established"];
 
 /// Runs a read-only listing on the server and parses it. A failed command
 /// (or an unreachable server) yields an empty table, never stand-in rows.
@@ -233,9 +309,13 @@ pub fn collect_processes_for_server(server: &ServerRecord) -> Vec<ProcessUnit> {
     collect(server, LIST_PROCESSES, parse_ps_processes)
 }
 
-/// Live collection of network sockets for the active server
+/// Live collection of network sockets for the active server: combines listening
+/// sockets (`ss -tulpn`) with established connections (`ss -tinp state established`).
 pub fn collect_sockets_for_server(server: &ServerRecord) -> Vec<SocketUnit> {
-    collect(server, LIST_SOCKETS, parse_ss_sockets)
+    let mut all = collect(server, LIST_SOCKETS, parse_ss_sockets);
+    let mut established = collect(server, LIST_ESTABLISHED_SOCKETS, parse_ss_sockets);
+    all.append(&mut established);
+    all
 }
 
 /// Runs a systemctl lifecycle action (start/stop/restart/reload) against a unit
@@ -327,5 +407,132 @@ udp   UNCONN 0      0       224.0.0.251:5353       0.0.0.0:*    users:((\"brave\
         assert_eq!(sockets[1].local_port, "5353");
         assert_eq!(sockets[1].process, "brave");
         assert_eq!(sockets[1].pid, Some(8309));
+    }
+
+    #[test]
+    fn test_parse_ss_established_with_traffic() {
+        let sample = "\
+Netid State  Recv-Q Send-Q Local Address:Port Peer Address:Port Process
+tcp   ESTAB  0      0        10.0.0.15:22      10.0.0.2:54321 users:((\"sshd\",pid=1234,fd=4))
+\t bbr wscale:7,7 rto:200 rtt:0.1/0.05 bytes_sent:45600 bytes_received:123000
+tcp   ESTAB  0      0        10.0.0.15:58920   1.1.1.1:443    users:((\"curl\",pid=5678,fd=3))
+\t cubic bytes_sent:800 bytes_received:4200";
+
+        let sockets = parse_ss_sockets(sample);
+        assert_eq!(sockets.len(), 2);
+
+        // SSH connection (incoming)
+        assert_eq!(sockets[0].protocol, "TCP");
+        assert_eq!(sockets[0].state, "ESTAB");
+        assert_eq!(sockets[0].local_addr, "10.0.0.15");
+        assert_eq!(sockets[0].local_port, "22");
+        assert_eq!(sockets[0].peer_addr, "10.0.0.2");
+        assert_eq!(sockets[0].peer_port, "54321");
+        assert_eq!(sockets[0].process, "sshd");
+        assert_eq!(sockets[0].pid, Some(1234));
+        assert_eq!(sockets[0].bytes_sent, Some(45600));
+        assert_eq!(sockets[0].bytes_recv, Some(123000));
+
+        // Outgoing curl connection
+        assert_eq!(sockets[1].protocol, "TCP");
+        assert_eq!(sockets[1].state, "ESTAB");
+        assert_eq!(sockets[1].local_addr, "10.0.0.15");
+        assert_eq!(sockets[1].local_port, "58920");
+        assert_eq!(sockets[1].peer_addr, "1.1.1.1");
+        assert_eq!(sockets[1].peer_port, "443");
+        assert_eq!(sockets[1].process, "curl");
+        assert_eq!(sockets[1].pid, Some(5678));
+        assert_eq!(sockets[1].bytes_sent, Some(800));
+        assert_eq!(sockets[1].bytes_recv, Some(4200));
+    }
+
+    #[test]
+    fn test_categorize_peer() {
+        use super::super::models::PeerCategory;
+
+        // Loopback
+        assert_eq!(categorize_peer("127.0.0.1"), PeerCategory::Loopback);
+        assert_eq!(categorize_peer("127.0.0.53"), PeerCategory::Loopback);
+        assert_eq!(categorize_peer("::1"), PeerCategory::Loopback);
+
+        // Private IPv4 (RFC 1918)
+        assert_eq!(categorize_peer("10.0.0.1"), PeerCategory::Private);
+        assert_eq!(categorize_peer("192.168.1.100"), PeerCategory::Private);
+        assert_eq!(categorize_peer("172.16.0.1"), PeerCategory::Private);
+        assert_eq!(categorize_peer("172.31.255.255"), PeerCategory::Private);
+
+        // Link-local
+        assert_eq!(categorize_peer("169.254.1.1"), PeerCategory::Private);
+        assert_eq!(categorize_peer("fe80::1"), PeerCategory::Private);
+
+        // Public
+        assert_eq!(categorize_peer("1.1.1.1"), PeerCategory::Public);
+        assert_eq!(categorize_peer("8.8.8.8"), PeerCategory::Public);
+        assert_eq!(categorize_peer("142.250.190.46"), PeerCategory::Public);
+        assert_eq!(categorize_peer("2607:f8b0:4005:805::200e"), PeerCategory::Public);
+    }
+
+    #[test]
+    fn test_resolve_connection_map_items() {
+        use super::super::models::{ConnectionDirection, SocketUnit};
+        use super::super::sockets_map::resolve_connection_map_items;
+
+        let sockets = vec![
+            // Listening socket on port 80
+            SocketUnit {
+                protocol: "TCP".to_string(),
+                state: "LISTEN".to_string(),
+                local_addr: "0.0.0.0".to_string(),
+                local_port: "80".to_string(),
+                peer_addr: "*".to_string(),
+                peer_port: "*".to_string(),
+                process: "nginx".to_string(),
+                pid: Some(100),
+                is_focused: false,
+                bytes_sent: None,
+                bytes_recv: None,
+            },
+            // Established incoming connection to port 80
+            SocketUnit {
+                protocol: "TCP".to_string(),
+                state: "ESTAB".to_string(),
+                local_addr: "192.168.1.10".to_string(),
+                local_port: "80".to_string(),
+                peer_addr: "192.168.1.50".to_string(),
+                peer_port: "54321".to_string(),
+                process: "nginx".to_string(),
+                pid: Some(101),
+                is_focused: false,
+                bytes_sent: Some(1000),
+                bytes_recv: Some(200),
+            },
+            // Established outgoing connection to remote 1.1.1.1:443
+            SocketUnit {
+                protocol: "TCP".to_string(),
+                state: "ESTAB".to_string(),
+                local_addr: "192.168.1.10".to_string(),
+                local_port: "49152".to_string(),
+                peer_addr: "1.1.1.1".to_string(),
+                peer_port: "443".to_string(),
+                process: "curl".to_string(),
+                pid: Some(200),
+                is_focused: false,
+                bytes_sent: Some(500),
+                bytes_recv: Some(1500),
+            },
+        ];
+
+        let items = resolve_connection_map_items(&sockets);
+        assert_eq!(items.len(), 2);
+
+        // First item is incoming (local port 80 was in listening set)
+        assert_eq!(items[0].direction, ConnectionDirection::Incoming);
+        assert_eq!(items[0].peer_category, super::super::models::PeerCategory::Private);
+        assert_eq!(items[0].socket.peer_addr, "192.168.1.50");
+
+        // Second item is outgoing (local port 49152 was NOT in listening set)
+        assert_eq!(items[1].direction, ConnectionDirection::Outgoing);
+        assert_eq!(items[1].peer_category, super::super::models::PeerCategory::Public);
+        assert_eq!(items[1].socket.peer_addr, "1.1.1.1");
     }
 }

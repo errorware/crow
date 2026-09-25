@@ -7,7 +7,10 @@ pub mod state;
 pub mod updates;
 pub mod summary;
 pub mod dashboard;
+pub mod sockets_map;
 
-pub use state::OverviewState;
+#[allow(unused_imports)]
+pub use state::{OverviewState, SocketsViewMode, MapFilter};
 
-pub use models::{BlastRadiusInfo, ServiceUnit, ProcessUnit, SocketUnit};
+#[allow(unused_imports)]
+pub use models::{BlastRadiusInfo, ServiceUnit, ProcessUnit, SocketUnit, ConnectionDirection, PeerCategory, ConnectionMapItem};

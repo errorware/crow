@@ -620,4 +620,29 @@ impl CrowApp {
         self.overview.socket_drawer_filter_this_socket = !self.overview.socket_drawer_filter_this_socket;
         cx.notify();
     }
+
+    pub fn set_sockets_subview(&mut self, mode: crate::views::overview::state::SocketsViewMode, cx: &mut Context<Self>) {
+        self.overview.sockets_subview = mode;
+        cx.notify();
+    }
+
+    pub fn set_map_filter(&mut self, filter: crate::views::overview::state::MapFilter, cx: &mut Context<Self>) {
+        self.overview.map_filter = filter;
+        cx.notify();
+    }
+
+    pub fn toggle_map_hide_loopback(&mut self, cx: &mut Context<Self>) {
+        self.overview.map_hide_loopback = !self.overview.map_hide_loopback;
+        cx.notify();
+    }
+
+    pub fn select_connection_item(&mut self, id: Option<String>, cx: &mut Context<Self>) {
+        self.overview.selected_connection_id = id;
+        cx.notify();
+    }
+
+    pub fn set_map_process_focus(&mut self, proc_name: Option<String>, cx: &mut Context<Self>) {
+        self.overview.map_process_focus = proc_name;
+        cx.notify();
+    }
 }

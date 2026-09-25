@@ -212,6 +212,8 @@ mod tests {
             process: "p".into(),
             pid: None,
             is_focused: false,
+            bytes_sent: None,
+            bytes_recv: None,
         }
     }
 

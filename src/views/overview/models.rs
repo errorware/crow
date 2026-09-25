@@ -82,7 +82,7 @@ impl ProcessUnit {
     }
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct SocketUnit {
     pub protocol: String, // "TCP", "UDP", "TCP6", "UDP6"
     pub state: String,    // "LISTEN", "ESTAB", "UNCONN", "TIME-WAIT", etc.
@@ -93,6 +93,50 @@ pub struct SocketUnit {
     pub process: String,
     pub pid: Option<u32>,
     pub is_focused: bool,
+    #[serde(default)]
+    pub bytes_sent: Option<u64>,
+    #[serde(default)]
+    pub bytes_recv: Option<u64>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ConnectionDirection {
+    Incoming,
+    Outgoing,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PeerCategory {
+    Loopback,
+    Private,
+    Public,
+}
+
+impl PeerCategory {
+    pub fn label(&self) -> &'static str {
+        match self {
+            PeerCategory::Loopback => "LOOPBACK",
+            PeerCategory::Private => "PRIVATE NET",
+            PeerCategory::Public => "PUBLIC INTERNET",
+        }
+    }
+
+    pub fn color(&self) -> Rgba {
+        match self {
+            PeerCategory::Loopback => TEXT_FAINT,
+            PeerCategory::Private => hex_rgb(0xa78bfa), // Light purple
+            PeerCategory::Public => hex_rgb(0x38bdf8),  // Cyan
+        }
+    }
+}
+
+/// Resolved connection model for the live connection map view
+#[derive(Clone, Debug, PartialEq)]
+pub struct ConnectionMapItem {
+    pub socket: SocketUnit,
+    pub direction: ConnectionDirection,
+    pub peer_category: PeerCategory,
+    pub remote_host: Option<String>,
 }
 
 impl SocketUnit {

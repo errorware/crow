@@ -28,10 +28,41 @@ pub struct OverviewState {
     pub process_query: String,
     pub process_filter: ProcessFilter,
     pub process_page: usize,
+    /// Sockets page: Table vs Map subview, direction filter, hide loopback, selected connection
+    pub sockets_subview: SocketsViewMode,
+    pub map_filter: MapFilter,
+    pub map_hide_loopback: bool,
+    pub map_process_focus: Option<String>,
+    pub selected_connection_id: Option<String>,
     /// Overview's Updates & Security card.
     pub security: SecurityState,
     /// Height of the log panel under the Processes table (drag to resize).
     pub process_log_height: f32,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SocketsViewMode {
+    Table,
+    Map,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum MapFilter {
+    Both,
+    Incoming,
+    Outgoing,
+}
+
+impl MapFilter {
+    pub const ALL: [MapFilter; 3] = [MapFilter::Both, MapFilter::Incoming, MapFilter::Outgoing];
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            MapFilter::Both => "ALL TRAFFIC",
+            MapFilter::Incoming => "INCOMING",
+            MapFilter::Outgoing => "OUTGOING",
+        }
+    }
 }
 
 /// Pending updates and CVEs for one server, refreshed at most every few
@@ -68,6 +99,11 @@ impl OverviewState {
             process_query: String::new(),
             process_filter: ProcessFilter::Apps,
             process_page: 0,
+            sockets_subview: SocketsViewMode::Table,
+            map_filter: MapFilter::Both,
+            map_hide_loopback: false,
+            map_process_focus: None,
+            selected_connection_id: None,
             security: SecurityState::default(),
             process_log_height: 240.0,
         }

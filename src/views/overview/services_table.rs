@@ -5,7 +5,7 @@ use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
 use super::models::{ProcessUnit, ServiceUnit, SocketUnit};
-use crate::views::overview::OverviewState;
+use crate::views::overview::{OverviewState, SocketsViewMode};
 use crate::app::overview::TablePage;
 use crate::components::table_controls::{render_table_controls, Chip};
 use crate::views::overview::state::{filter_processes, filter_services, page_of, ProcessFilter, ServiceFilter, TABLE_PAGE_SIZE};
@@ -65,6 +65,68 @@ pub fn services_table(overview: &OverviewState, search: Option<&Entity<InputStat
                 } else {
                     None
                 })
+                // Sockets view mode toggle: TABLE | MAP
+                .children(if active_tab == "sockets" {
+                    let app_tbl = app.clone();
+                    let app_map = app.clone();
+                    let is_map = overview.sockets_subview == SocketsViewMode::Map;
+                    Some(
+                        div()
+                            .h_full()
+                            .flex()
+                            .items_center()
+                            .border_l_1()
+                            .border_color(BORDER_PANEL)
+                            .px(px(6.0))
+                            .gap(px(3.0))
+                            .child(
+                                div()
+                                    .id("btn-sockets-subview-table")
+                                    .h(px(22.0))
+                                    .flex()
+                                    .items_center()
+                                    .px(px(8.0))
+                                    .rounded(px(3.0))
+                                    .cursor_pointer()
+                                    .bg(if !is_map { hex_rgba(0xffffff, 0.08) } else { hex_rgba(0, 0.0) })
+                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(10.0))
+                                    .font_weight(if !is_map { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+                                    .text_color(if !is_map { TEXT_PRIMARY } else { TEXT_SECONDARY })
+                                    .on_click(move |_ev, _window, cx| {
+                                        app_tbl.update(cx, |this, cx| {
+                                            this.set_sockets_subview(SocketsViewMode::Table, cx);
+                                        });
+                                    })
+                                    .child("TABLE"),
+                            )
+                            .child(
+                                div()
+                                    .id("btn-sockets-subview-map")
+                                    .h(px(22.0))
+                                    .flex()
+                                    .items_center()
+                                    .px(px(8.0))
+                                    .rounded(px(3.0))
+                                    .cursor_pointer()
+                                    .bg(if is_map { hex_rgba(0x8ab4ff, 0.16) } else { hex_rgba(0, 0.0) })
+                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(10.0))
+                                    .font_weight(if is_map { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+                                    .text_color(if is_map { hex_rgb(0x8ab4ff) } else { TEXT_SECONDARY })
+                                    .on_click(move |_ev, _window, cx| {
+                                        app_map.update(cx, |this, cx| {
+                                            this.set_sockets_subview(SocketsViewMode::Map, cx);
+                                        });
+                                    })
+                                    .child("MAP"),
+                            ),
+                    )
+                } else {
+                    None
+                })
                 // Socket Log Drawer Toggle (sockets subtab only)
                 .children(if active_tab == "sockets" {
                     let app_drawer = app.clone();
@@ -102,76 +164,99 @@ pub fn services_table(overview: &OverviewState, search: Option<&Entity<InputStat
                     None
                 })
                 // Sort indicator
-                .child(
-                    div()
-                        .h_full()
-                        .flex()
-                        .items_center()
-                        .gap(px(7.0))
-                        .px(px(12.0))
-                        .border_l_1()
-                        .border_color(BORDER_PANEL)
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.5))
-                                .text_color(TEXT_TERTIARY)
-                                .child(match active_tab {
-                                    "sockets" => "sort port ↑",
-                                    "services" => "sort status · name",
-                                    _ => "sort cpu ↓",
-                                }),
-                        )
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .text_color(TEXT_MUTED)
-                                .bg(BG_KEY)
-                                .border_1()
-                                .border_color(BORDER_KEY)
-                                .px(px(5.0))
-                                .py(px(1.0))
-                                .child("s"),
-                        ),
-                ),
-        )
-        // 2. Column Header
-        .child(render_column_header(active_tab))
-        // 3. Table Body
-        .child(
-            div()
-                .id("overview-subtab-scroll")
-                .flex_1()
-                .min_h(px(0.0))
-                .overflow_y_scrollbar()
-                .flex()
-                .flex_col()
-                .children(match active_tab {
-                    "processes" => {
-                        let filtered = filter_processes(processes, overview.process_filter, &overview.process_query);
-                        let shown: Vec<ProcessUnit> = page_of(&filtered, overview.process_page).0.iter().map(|p| (*p).clone()).collect();
-                        if shown.is_empty() && !processes.is_empty() {
-                            vec![empty_state("No processes match — try ALL, or clear the search")]
-                        } else if overview.group_processes {
-                            render_processes_rows_grouped(&shown, &overview.collapsed_process_groups, app.clone())
-                        } else {
-                            render_processes_rows(&shown, app.clone())
-                        }
-                    }
-                    "sockets" => render_sockets_rows(sockets, app.clone()),
-                    _ => {
-                        let shown = page_services(overview);
-                        if shown.is_empty() && !services.is_empty() {
-                            vec![empty_state("No services match — try ALL, or clear the search")]
-                        } else if overview.group_services {
-                            render_services_rows_grouped(&shown, &overview.collapsed_service_groups, overview, app.clone())
-                        } else {
-                            render_services_rows(&shown, overview, app.clone())
-                        }
-                    }
+                .children(if active_tab == "sockets" && overview.sockets_subview == SocketsViewMode::Map {
+                    None
+                } else {
+                    Some(
+                        div()
+                            .h_full()
+                            .flex()
+                            .items_center()
+                            .gap(px(7.0))
+                            .px(px(12.0))
+                            .border_l_1()
+                            .border_color(BORDER_PANEL)
+                            .child(
+                                div()
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(10.5))
+                                    .text_color(TEXT_TERTIARY)
+                                    .child(match active_tab {
+                                        "sockets" => "sort port ↑",
+                                        "services" => "sort status · name",
+                                        _ => "sort cpu ↓",
+                                    }),
+                            )
+                            .child(
+                                div()
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(10.0))
+                                    .text_color(TEXT_MUTED)
+                                    .bg(BG_KEY)
+                                    .border_1()
+                                    .border_color(BORDER_KEY)
+                                    .px(px(5.0))
+                                    .py(px(1.0))
+                                    .child("s"),
+                            ),
+                    )
                 }),
         )
+        // Main view content: If Sockets Map subview is selected, render sockets map view. Otherwise, table view.
+        .children(if active_tab == "sockets" && overview.sockets_subview == SocketsViewMode::Map {
+            Some(
+                div()
+                    .flex_1()
+                    .min_h(px(0.0))
+                    .child(super::sockets_map::render_sockets_map(overview, app.clone())),
+            )
+        } else {
+            None
+        })
+        // 2. Column Header (tables only)
+        .children(if active_tab == "sockets" && overview.sockets_subview == SocketsViewMode::Map {
+            None
+        } else {
+            Some(render_column_header(active_tab))
+        })
+        // 3. Table Body (tables only)
+        .children(if active_tab == "sockets" && overview.sockets_subview == SocketsViewMode::Map {
+            None
+        } else {
+            Some(
+                div()
+                    .id("overview-subtab-scroll")
+                    .flex_1()
+                    .min_h(px(0.0))
+                    .overflow_y_scrollbar()
+                    .flex()
+                    .flex_col()
+                    .children(match active_tab {
+                        "processes" => {
+                            let filtered = filter_processes(processes, overview.process_filter, &overview.process_query);
+                            let shown: Vec<ProcessUnit> = page_of(&filtered, overview.process_page).0.iter().map(|p| (*p).clone()).collect();
+                            if shown.is_empty() && !processes.is_empty() {
+                                vec![empty_state("No processes match — try ALL, or clear the search")]
+                            } else if overview.group_processes {
+                                render_processes_rows_grouped(&shown, &overview.collapsed_process_groups, app.clone())
+                            } else {
+                                render_processes_rows(&shown, app.clone())
+                            }
+                        }
+                        "sockets" => render_sockets_rows(sockets, app.clone()),
+                        _ => {
+                            let shown = page_services(overview);
+                            if shown.is_empty() && !services.is_empty() {
+                                vec![empty_state("No services match — try ALL, or clear the search")]
+                            } else if overview.group_services {
+                                render_services_rows_grouped(&shown, &overview.collapsed_service_groups, overview, app.clone())
+                            } else {
+                                render_services_rows(&shown, overview, app.clone())
+                            }
+                        }
+                    }),
+            )
+        })
         .children(match active_tab {
             "services" => render_pager(TablePage::Services, filter_services(services, overview.service_filter, &overview.service_query).len(), overview.service_page, app.clone()),
             "processes" => render_pager(TablePage::Processes, filter_processes(processes, overview.process_filter, &overview.process_query).len(), overview.process_page, app.clone()),
