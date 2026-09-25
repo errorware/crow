@@ -5,6 +5,7 @@ use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
 use super::models::{ProcessUnit, ServiceUnit, SocketUnit};
+use crate::views::firewall::{correlate_port_firewall, FirewallOperationalState, PortFirewallMatch};
 use crate::views::overview::{OverviewState, SocketsViewMode};
 use crate::app::overview::TablePage;
 use crate::components::table_controls::{render_table_controls, Chip};
@@ -12,7 +13,12 @@ use crate::views::overview::state::{filter_processes, filter_services, page_of, 
 use gpui_kit::component::input::InputState;
 use gpui_kit::prelude::FluentBuilder as _;
 
-pub fn services_table(overview: &OverviewState, search: Option<&Entity<InputState>>, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn services_table(
+    overview: &OverviewState,
+    search: Option<&Entity<InputState>>,
+    firewall: Option<&FirewallOperationalState>,
+    app: Entity<CrowApp>,
+) -> impl IntoElement {
     let services = &overview.services;
     let processes = &overview.processes;
     let sockets = &overview.sockets;
@@ -208,7 +214,7 @@ pub fn services_table(overview: &OverviewState, search: Option<&Entity<InputStat
                 div()
                     .flex_1()
                     .min_h(px(0.0))
-                    .child(super::sockets_map::render_sockets_map(overview, app.clone())),
+                    .child(super::sockets_map::render_sockets_map(overview, firewall, app.clone())),
             )
         } else {
             None
@@ -243,7 +249,7 @@ pub fn services_table(overview: &OverviewState, search: Option<&Entity<InputStat
                                 render_processes_rows(&shown, app.clone())
                             }
                         }
-                        "sockets" => render_sockets_rows(sockets, app.clone()),
+                        "sockets" => render_sockets_rows(sockets, firewall, app.clone()),
                         _ => {
                             let shown = page_services(overview);
                             if shown.is_empty() && !services.is_empty() {
@@ -502,7 +508,7 @@ fn render_column_header(active_tab: &str) -> impl IntoElement {
             .child(div().w(px(78.0)).text_right().pr(px(12.0)).child("ACTIONS")),
         "sockets" => header_box
             .child(div().w(px(64.0)).pl(px(12.0)).child("PROTO"))
-            .child(div().w(px(170.0)).child("LOCAL ENDPOINT"))
+            .child(div().w(px(230.0)).child("LOCAL ENDPOINT / FIREWALL"))
             .child(div().w(px(150.0)).child("PEER ENDPOINT"))
             .child(div().w(px(90.0)).child("STATE"))
             .child(div().flex_1().min_w(px(0.0)).child("PROCESS / SERVICE"))
@@ -1187,7 +1193,11 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
 // Rows: Sockets
 // ---------------------------------------------------------------------------
 
-fn render_sockets_rows(sockets: &[SocketUnit], app: Entity<CrowApp>) -> Vec<AnyElement> {
+fn render_sockets_rows(
+    sockets: &[SocketUnit],
+    firewall: Option<&FirewallOperationalState>,
+    app: Entity<CrowApp>,
+) -> Vec<AnyElement> {
     if sockets.is_empty() {
         return vec![empty_state("No open network sockets detected on active host")];
     }
@@ -1253,17 +1263,57 @@ fn render_sockets_rows(sockets: &[SocketUnit], app: Entity<CrowApp>) -> Vec<AnyE
                                     .child(sock.protocol.clone()),
                             ),
                     )
-                    // Col 2: LOCAL ENDPOINT
-                    .child(
+                    // Col 2: LOCAL ENDPOINT / FIREWALL
+                    .child({
+                        let is_listen = super::summary::is_listening(sock);
+                        let fw_pill = if is_listen {
+                            let fw_match = correlate_port_firewall(firewall, &sock.local_port, &sock.protocol);
+                            let app_fw = app.clone();
+                            let port_val = sock.local_port.clone();
+                            let label = match fw_match {
+                                PortFirewallMatch::Allowed { rule_number, .. } => format!("FW ALLOW #{}", rule_number),
+                                PortFirewallMatch::Denied { rule_number, .. } => format!("FW DENY #{}", rule_number),
+                                PortFirewallMatch::AllowedDefault => "FW ALLOW (DEFAULT)".to_string(),
+                                PortFirewallMatch::NoRule => "NO FW RULE".to_string(),
+                                PortFirewallMatch::Inactive => "FW OFF".to_string(),
+                            };
+                            Some(
+                                div()
+                                    .id(ElementId::NamedInteger("btn-fw-pill".into(), idx as u64))
+                                    .ml(px(6.0))
+                                    .px(px(4.0))
+                                    .py(px(1.0))
+                                    .bg(fw_match.color().opacity(0.12))
+                                    .border_1()
+                                    .border_color(fw_match.color())
+                                    .text_color(fw_match.color())
+                                    .text_size(px(8.5))
+                                    .font_weight(FontWeight::BOLD)
+                                    .cursor_pointer()
+                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                    .on_click(move |_ev, _window, cx| {
+                                        let p = port_val.clone();
+                                        app_fw.update(cx, |this, cx| {
+                                            this.set_view("firewall", cx);
+                                            this.firewall.search_query = p;
+                                        });
+                                    })
+                                    .child(label),
+                            )
+                        } else {
+                            None
+                        };
+
                         div()
-                            .w(px(170.0))
+                            .w(px(230.0))
                             .flex()
                             .items_center()
                             .gap(px(2.0))
                             .child(div().text_color(TEXT_SECONDARY).child(sock.local_addr.clone()))
                             .child(div().text_color(TEXT_DIMMER).child(":"))
-                            .child(div().text_color(hex_rgb(0x38bdf8)).font_weight(FontWeight::BOLD).child(sock.local_port.clone())),
-                    )
+                            .child(div().text_color(hex_rgb(0x38bdf8)).font_weight(FontWeight::BOLD).child(sock.local_port.clone()))
+                            .children(fw_pill)
+                    })
                     // Col 3: PEER ENDPOINT
                     .child(
                         div()

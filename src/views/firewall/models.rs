@@ -183,6 +183,105 @@ impl FirewallOperationalState {
     }
 }
 
+/// Firewall rule correlation outcome for a listening or established port
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum PortFirewallMatch {
+    Allowed { rule_number: usize, comment: Option<String> },
+    Denied { rule_number: usize, comment: Option<String> },
+    AllowedDefault,
+    NoRule,
+    Inactive,
+}
+
+impl PortFirewallMatch {
+    pub fn label(&self) -> &'static str {
+        match self {
+            Self::Allowed { .. } => "UFW: ALLOWED",
+            Self::Denied { .. } => "UFW: BLOCKED",
+            Self::AllowedDefault => "UFW: ALLOW (DEFAULT)",
+            Self::NoRule => "UFW: NO INBOUND RULE",
+            Self::Inactive => "FIREWALL: INACTIVE",
+        }
+    }
+
+    pub fn color(&self) -> gpui_kit::Rgba {
+        match self {
+            Self::Allowed { .. } | Self::AllowedDefault => crate::theme::OK,
+            Self::Denied { .. } => crate::theme::CRIT,
+            Self::NoRule => crate::theme::WARN,
+            Self::Inactive => crate::theme::TEXT_MUTED,
+        }
+    }
+}
+
+pub fn correlate_port_firewall(
+    status: Option<&FirewallOperationalState>,
+    port: &str,
+    protocol: &str,
+) -> PortFirewallMatch {
+    let Some(status) = status else {
+        return PortFirewallMatch::Inactive;
+    };
+    match status {
+        FirewallOperationalState::Active(summary) if summary.is_active => {
+            let port_num: u16 = port.parse().unwrap_or(0);
+            let proto_upper = protocol.to_uppercase();
+            let is_tcp = proto_upper.contains("TCP");
+            let is_udp = proto_upper.contains("UDP");
+
+            for rule in &summary.rules {
+                if rule.direction != RuleDirection::Inbound {
+                    continue;
+                }
+                let proto_match = match rule.protocol {
+                    RuleProtocol::Tcp => is_tcp,
+                    RuleProtocol::Udp => is_udp,
+                    RuleProtocol::Both | RuleProtocol::Any => is_tcp || is_udp,
+                };
+                if !proto_match {
+                    continue;
+                }
+                let port_match = if rule.port.is_empty() {
+                    true
+                } else if rule.port == port {
+                    true
+                } else if let Some((start_s, end_s)) = rule.port.split_once(':') {
+                    if let (Ok(start), Ok(end)) = (start_s.parse::<u16>(), end_s.parse::<u16>()) {
+                        port_num >= start && port_num <= end
+                    } else {
+                        false
+                    }
+                } else {
+                    false
+                };
+
+                if port_match {
+                    match rule.action {
+                        RuleAction::Allow | RuleAction::Limit => {
+                            return PortFirewallMatch::Allowed {
+                                rule_number: rule.number,
+                                comment: rule.comment.clone(),
+                            };
+                        }
+                        RuleAction::Deny | RuleAction::Reject => {
+                            return PortFirewallMatch::Denied {
+                                rule_number: rule.number,
+                                comment: rule.comment.clone(),
+                            };
+                        }
+                    }
+                }
+            }
+
+            match summary.default_incoming {
+                RuleAction::Allow => PortFirewallMatch::AllowedDefault,
+                _ => PortFirewallMatch::NoRule,
+            }
+        }
+        _ => PortFirewallMatch::Inactive,
+    }
+}
+
 /// Generates baseline seeded UFW rules for an active production Linux node
 /// A representative ufw ruleset, for tests.
 #[cfg(test)]
@@ -390,5 +489,30 @@ mod tests {
             is_ipv6: false,
         };
         assert_eq!(rule.display_port_proto(), "8080/tcp");
+    }
+
+    #[test]
+    fn test_correlate_port_firewall() {
+        let active = default_active_ufw_state();
+
+        // Port 22 is allowed in default rules (rule #1)
+        let m22 = correlate_port_firewall(Some(&active), "22", "TCP");
+        assert!(matches!(m22, PortFirewallMatch::Allowed { rule_number: 1, .. }));
+
+        // Port 443 is allowed (rule #3)
+        let m443 = correlate_port_firewall(Some(&active), "443", "TCP");
+        assert!(matches!(m443, PortFirewallMatch::Allowed { rule_number: 3, .. }));
+
+        // Port 6379 is denied (rule #5)
+        let m6379 = correlate_port_firewall(Some(&active), "6379", "TCP");
+        assert!(matches!(m6379, PortFirewallMatch::Denied { rule_number: 5, .. }));
+
+        // Port 9999 has no rule and default incoming is Deny
+        let m9999 = correlate_port_firewall(Some(&active), "9999", "TCP");
+        assert_eq!(m9999, PortFirewallMatch::NoRule);
+
+        // Inactive firewall
+        let minactive = correlate_port_firewall(None, "22", "TCP");
+        assert_eq!(minactive, PortFirewallMatch::Inactive);
     }
 }

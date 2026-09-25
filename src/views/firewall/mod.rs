@@ -10,9 +10,9 @@ pub mod commands;
 #[cfg(test)]
 pub use models::{default_active_ufw_state, default_ufw_rules};
 pub use models::{
-    common_quick_ports, FirewallBackend,
-    FirewallOperationalState, FirewallRule, FirewallStatusSummary, RuleAction,
-    RuleDirection, RuleProtocol,
+    common_quick_ports, correlate_port_firewall, FirewallBackend,
+    FirewallOperationalState, FirewallRule, FirewallStatusSummary, PortFirewallMatch,
+    RuleAction, RuleDirection, RuleProtocol,
 };
 pub use detector::detect_firewall_status;
 pub use non_operational::non_operational_view;

@@ -62,12 +62,62 @@ pub fn fleet_stat_strip(
     let vcpu_note = if total_vcpu > 0 { format!("avg 1m load · {} vCPU", total_vcpu) } else { "no metrics yet".to_string() };
     let alert_color = if crit > 0 { CRIT } else if warn > 0 { WARN } else if server_count == 0 { TEXT_MUTED } else { OK };
 
+    let oldest_key_info = servers
+        .iter()
+        .filter(|s| s.host_key_fingerprint.as_ref().map_or(false, |f| !f.trim().is_empty()))
+        .filter_map(|s| {
+            chrono::DateTime::parse_from_rfc3339(&s.created_at)
+                .ok()
+                .map(|t| (t.with_timezone(&chrono::Utc), s.name.as_str()))
+        })
+        .min_by_key(|(t, _)| *t);
+
+    let (oldest_key_val, oldest_key_unit, oldest_key_note, oldest_key_color) = match oldest_key_info {
+        Some((created, srv_name)) => {
+            let days = (chrono::Utc::now() - created).num_days().max(0);
+            let count_over_180 = servers
+                .iter()
+                .filter(|s| s.host_key_fingerprint.as_ref().map_or(false, |f| !f.trim().is_empty()))
+                .filter_map(|s| chrono::DateTime::parse_from_rfc3339(&s.created_at).ok())
+                .filter(|t| (chrono::Utc::now() - t.with_timezone(&chrono::Utc)).num_days() > 180)
+                .count();
+
+            let (val, unit) = if days >= 365 {
+                (format!("{:.1}", days as f64 / 365.25), "y".to_string())
+            } else {
+                (days.to_string(), "d".to_string())
+            };
+
+            let note = if count_over_180 > 1 {
+                format!("{srv_name} · {count_over_180} > 180d")
+            } else {
+                srv_name.to_string()
+            };
+
+            let color = if days >= 365 {
+                WARN
+            } else {
+                TEXT_PRIMARY
+            };
+
+            (val, unit, note, color)
+        }
+        None => {
+            let note = if server_count == 0 {
+                "none enrolled".to_string()
+            } else {
+                "no keys tracked".to_string()
+            };
+            ("—".to_string(), "".to_string(), note, TEXT_MUTED)
+        }
+    };
+
     let stats = [
         ("SERVERS", server_count.to_string(), "".to_string(), group_note, TEXT_PRIMARY),
         ("OPEN ALERTS", (crit + warn).to_string(), "".to_string(), format!("{crit} crit · {warn} warn"), alert_color),
         ("CONFIG DRIFT", "—".to_string(), "".to_string(), "not tracked yet".to_string(), TEXT_MUTED),
         ("FLEET LOAD", load_val, "".to_string(), vcpu_note, TEXT_PRIMARY),
-        ("OLDEST HOST KEY", "—".to_string(), "".to_string(), "not tracked yet".to_string(), TEXT_MUTED),
+        ("OLDEST HOST KEY", oldest_key_val, oldest_key_unit, oldest_key_note, oldest_key_color),
         ("CONNECTED", connected_count.to_string(), format!("/{}", server_count), "reachable over their transport".to_string(), if connected_count < server_count { WARN } else { TEXT_PRIMARY }),
     ];
 

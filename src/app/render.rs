@@ -275,7 +275,7 @@ impl Render for CrowApp {
                                                                                     .child(services_table(&self.overview, match self.active_view.as_str() {
                                                                         "processes" => self.processes_search.as_ref().map(|s| &s.input),
                                                                         _ => self.services_search.as_ref().map(|s| &s.input),
-                                                                    }, app_view.clone()))
+                                                                    }, Some(&self.firewall.status), app_view.clone()))
                                                                             )
                                                                             .children(if self.overview.socket_drawer_open {
                                                                                 Some(socket_log_drawer(&self.fleet, &self.overview, &self.journal, app_view.clone()).into_any_element())
@@ -296,14 +296,14 @@ impl Render for CrowApp {
                                                                                     cx.notify();
                                                                                 });
                                                                             })
-                                                                            .child(div().flex_1().min_h(px(0.0)).flex().child(services_table(&self.overview, self.processes_search.as_ref().map(|s| &s.input), app_view.clone())))
+                                                                            .child(div().flex_1().min_h(px(0.0)).flex().child(services_table(&self.overview, self.processes_search.as_ref().map(|s| &s.input), Some(&self.firewall.status), app_view.clone())))
                                                                             .child(crate::components::resize::resize_handle("process-log-resize"))
                                                                             .child(div().h(px(self.overview.process_log_height)).flex_none().child(log_tail(&self.journal.entries, app_view.clone())))
                                                                     } else {
                                                                         div()
                                                                             .size_full()
                                                                             .flex()
-                                                                            .child(services_table(&self.overview, self.services_search.as_ref().map(|s| &s.input), app_view.clone()))
+                                                                            .child(services_table(&self.overview, self.services_search.as_ref().map(|s| &s.input), Some(&self.firewall.status), app_view.clone()))
                                                                             .child(service_inspector_rail(&self.vault, &self.fleet, &self.overview, app_view.clone()).into_any_element())
                                                                     }
                                                                 )
@@ -451,7 +451,7 @@ impl Render for CrowApp {
                                     Screen::FleetSetup => Some(
                                         div()
                                             .size_full()
-                                            .child(fleet_setup_view(app_view.clone())),
+                                            .child(fleet_setup_view(&self.fleet, app_view.clone())),
                                     ),
                                     Screen::VaultSetup => Some(
                                         div()

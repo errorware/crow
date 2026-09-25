@@ -10,6 +10,7 @@ use gpui_kit::*;
 use crate::app::CrowApp;
 use crate::components::icons::{tabler_icon, TablerIcon};
 use crate::theme::*;
+use crate::views::firewall::{correlate_port_firewall, FirewallOperationalState, PortFirewallMatch};
 use crate::views::overview::collector::categorize_peer;
 use crate::views::overview::models::{ConnectionDirection, ConnectionMapItem, PeerCategory, SocketUnit};
 use crate::views::overview::state::{MapFilter, OverviewState};
@@ -67,6 +68,7 @@ fn format_bytes(bytes: u64) -> String {
 
 pub fn render_sockets_map(
     overview: &OverviewState,
+    firewall: Option<&FirewallOperationalState>,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
     let all_items = resolve_connection_map_items(&overview.sockets);
@@ -179,7 +181,7 @@ pub fn render_sockets_map(
                 )),
         )
         // 3. Bottom Inspector Drawer for Selected Connection
-        .children(selected_conn.map(|c| render_connection_inspector(c, app.clone())))
+        .children(selected_conn.map(|c| render_connection_inspector(c, firewall, app.clone())))
 }
 
 fn render_map_filter_toolbar(
@@ -609,11 +611,16 @@ fn render_process_card(
         )
 }
 
-fn render_connection_inspector(item: &ConnectionMapItem, app: Entity<CrowApp>) -> impl IntoElement {
+fn render_connection_inspector(
+    item: &ConnectionMapItem,
+    firewall: Option<&FirewallOperationalState>,
+    app: Entity<CrowApp>,
+) -> impl IntoElement {
     let app_close = app.clone();
     let app_proc = app.clone();
     let sock = &item.socket;
     let proc_target = sock.process.clone();
+    let fw_match = correlate_port_firewall(firewall, &sock.local_port, &sock.protocol);
 
     div()
         .h(px(64.0))
@@ -698,6 +705,53 @@ fn render_connection_inspector(item: &ConnectionMapItem, app: Entity<CrowApp>) -
                         })
                         .child("VIEW IN PROCESSES →"),
                 ),
+        )
+        // Center-Right: Firewall Rule Status & Jump
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.0))
+                .child(
+                    div()
+                        .px(px(6.0))
+                        .py(px(2.0))
+                        .bg(fw_match.color().opacity(0.12))
+                        .border_1()
+                        .border_color(fw_match.color())
+                        .text_color(fw_match.color())
+                        .text_size(px(9.5))
+                        .font_weight(FontWeight::BOLD)
+                        .child(fw_match.label()),
+                )
+                .children(match fw_match {
+                    PortFirewallMatch::Allowed { .. } | PortFirewallMatch::Denied { .. } => {
+                        let app_fw = app.clone();
+                        let target_port = sock.local_port.clone();
+                        Some(
+                            div()
+                                .id("btn-inspector-jump-fw")
+                                .px(px(8.0))
+                                .py(px(4.0))
+                                .bg(BG_CONTROL)
+                                .border_1()
+                                .border_color(BORDER_DEFAULT)
+                                .text_size(px(9.5))
+                                .text_color(TEXT_PRIMARY)
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .on_click(move |_ev, _window, cx| {
+                                    let p = target_port.clone();
+                                    app_fw.update(cx, |this, cx| {
+                                        this.set_view("firewall", cx);
+                                        this.firewall.search_query = p;
+                                    });
+                                })
+                                .child("VIEW IN FIREWALL →"),
+                        )
+                    }
+                    _ => None,
+                }),
         )
         // Right: Close button
         .child(
