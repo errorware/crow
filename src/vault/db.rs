@@ -1486,6 +1486,11 @@ impl VaultDb {
         }
     }
 
+    /// Whether older versions left any AI key in plain text.
+    pub fn has_plaintext_clanker_keys(&self) -> bool {
+        self.conn.query_row("SELECT EXISTS(SELECT 1 FROM clanker_providers WHERE api_key != '')", [], |r| r.get::<_, bool>(0)).unwrap_or(false)
+    }
+
     /// Moves API keys left in plain text by older versions into the vault,
     /// blanks the column and rewrites the database file so the plain text
     /// doesn't survive in free pages or the WAL. Returns how many moved.

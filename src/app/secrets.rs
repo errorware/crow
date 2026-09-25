@@ -90,14 +90,35 @@ impl CrowApp {
     /// unlocked or set up): moves plain-text AI keys into the vault and
     /// reloads what shows secrets.
     pub fn on_data_key_ready(&mut self, cx: &mut Context<Self>) {
-        if let (Some(key), Ok(db)) = (self.vault.key(), self.vault.db().lock()) {
-            match db.migrate_plaintext_clanker_keys(key) {
-                Ok(0) => {}
-                Ok(n) => self.secrets_notice = Some(format!("Moved {n} AI API key(s) out of plain text into the encrypted vault.")),
-                Err(e) => self.secrets_notice = Some(format!("Couldn't move AI API keys into the vault: {e}")),
+        // Each check takes the database lock on its own and lets it go:
+        // holding it across branches would deadlock the next lock().
+        let migrated = self.vault.key().cloned().map(|key| {
+            let db = self.vault.db();
+            let db = db.lock().map_err(|_| "the vault is busy".to_string())?;
+            db.migrate_plaintext_clanker_keys(&key).map_err(|e| e.to_string())
+        });
+        let plaintext_waiting = || self.vault.db().lock().is_ok_and(|db| db.has_plaintext_clanker_keys());
+        match migrated {
+            Some(Ok(0)) => {}
+            Some(Ok(n)) => self.secrets_notice = Some(format!("Moved {n} AI API key(s) out of plain text into the encrypted vault.")),
+            Some(Err(e)) => self.secrets_notice = Some(format!("Couldn't move AI API keys into the vault: {e}")),
+            None if self.vault.keyring_state == KeyringState::Empty && self.count_secret_entries() > 0 => {
+                self.secrets_notice = Some("The OS keyring no longer has Crow's encryption key, so saved provider tokens and AI keys can't be read. Enter them again.".into());
             }
-        } else if self.vault.keyring_state == KeyringState::Empty && self.count_secret_entries() > 0 {
-            self.secrets_notice = Some("The OS keyring no longer has Crow's encryption key, so saved provider tokens and AI keys can't be read. Enter them again.".into());
+            None if self.vault.keyring_state == KeyringState::Empty && plaintext_waiting() => {
+                // First run after upgrading: plain-text AI keys are waiting,
+                // so make the data key now (this calls back here and moves them).
+                self.with_data_key(cx, |this, ready, cx| {
+                    if let Err(why) = ready {
+                        this.secrets_notice = Some(format!("AI API keys are still stored in plain text: {why}."));
+                        cx.notify();
+                    }
+                });
+            }
+            None if matches!(self.vault.keyring_state, KeyringState::Unavailable(_)) && plaintext_waiting() => {
+                self.secrets_notice = Some("AI API keys are still stored in plain text because no OS keyring is available. Turn on the vault password to encrypt them.".into());
+            }
+            None => {}
         }
         self.refresh_clankers(cx);
         self.refresh_providers();
