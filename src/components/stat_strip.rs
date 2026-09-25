@@ -125,7 +125,7 @@ pub fn stat_strip(
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(CRIT_INK_DIM)
-                                .child(format!("⚡ FOREKNOWLEDGE ALERT: {} in +{}s", surge.description, surge.lead_seconds)),
+                                .child(format!("AHEAD · {} · in {}s", surge.description, surge.lead_seconds)),
                         )
                         .into_any_element()
                 } else {
@@ -137,7 +137,7 @@ pub fn stat_strip(
                         .text_size(px(9.5))
                         .text_color(TEXT_FAINT)
                         .child(div().text_color(OK).child("✓"))
-                        .child(format!("next +{}s nominal · no upcoming anomalies detected", lag_secs))
+                        .child(format!("next {}s: nothing unusual", lag_secs))
                         .into_any_element()
                 }),
         )
