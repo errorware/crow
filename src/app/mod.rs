@@ -47,6 +47,7 @@ pub mod region;
 mod journal;
 mod clankers;
 pub mod providers;
+mod secrets;
 mod lab;
 
 use crate::views::fleet::lab_state::LocalLabState;
@@ -186,6 +187,9 @@ pub struct CrowApp {
     /// Settings → Providers: accounts and the open form (ERR-45).
     pub providers: providers::ProvidersState,
     pub provider_inputs: Option<providers::ProviderFormInputs>,
+    /// Something the user should know about their stored secrets (moved,
+    /// lost with the keyring, ...), shown on Providers and Clankers.
+    pub secrets_notice: Option<String>,
     pub settings: SettingsState,
     /// UI components sandbox (Settings → Components).
     pub lab_state: LabState,
@@ -323,8 +327,10 @@ impl CrowApp {
             firewall: FirewallState::new(initial_firewall_state),
             providers: Default::default(),
             provider_inputs: None,
+            secrets_notice: None,
         };
         app.refresh_providers();
+        app.load_keyring_key(cx);
         app
     }
 }

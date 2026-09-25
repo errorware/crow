@@ -44,6 +44,7 @@ impl CrowApp {
                 self.lock_state.totp_input.clear();
                 self.lock_state.error_message = None;
                 self.caret.place(0);
+                self.on_data_key_ready(cx);
                 cx.notify();
             }
             Err(e) => {
@@ -82,6 +83,9 @@ impl CrowApp {
 
         match self.vault.initialize(&pwd, &self.setup_state.totp_secret) {
             Ok(_) => {
+                // The data key now lives in the vault, wrapped by the password.
+                self.forget_keyring_key(cx);
+                self.on_data_key_ready(cx);
                 self.setup_state = SetupState::default();
                 self.caret.place(0);
                 self.screen = Screen::Fleet;

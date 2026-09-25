@@ -6,6 +6,8 @@ use std::io::Write;
 use std::process::{Command, Stdio};
 use std::time::Duration;
 
+use zeroize::Zeroizing;
+
 use crate::http::{Http, HttpRequest, HttpResponse};
 use crate::ProviderError;
 
@@ -39,11 +41,13 @@ pub fn quote(s: &str) -> String {
 }
 
 /// The curl config for `request`. Response headers are included in the
-/// output (`include`) so `Retry-After` can be read.
-pub fn config(request: &HttpRequest, timeout: Duration) -> String {
-    let mut cfg = format!("url = {}\nrequest = {}\n", quote(&request.url), request.method.as_str());
+/// output (`include`) so `Retry-After` can be read. It carries credentials,
+/// so it (and every piece it's built from) is wiped when dropped.
+pub fn config(request: &HttpRequest, timeout: Duration) -> Zeroizing<String> {
+    let mut cfg = Zeroizing::new(format!("url = {}\nrequest = {}\n", quote(&request.url), request.method.as_str()));
     for (name, value) in &request.headers {
-        cfg.push_str(&format!("header = {}\n", quote(&format!("{name}: {}", value.expose()))));
+        let line = Zeroizing::new(format!("{name}: {}", value.expose()));
+        cfg.push_str(&Zeroizing::new(format!("header = {}\n", Zeroizing::new(quote(&line)).as_str())));
     }
     if let Some(body) = &request.body {
         cfg.push_str(&format!("header = {}\n", quote("Content-Type: application/json")));
@@ -111,9 +115,9 @@ mod tests {
     fn config_carries_method_headers_and_body() {
         let req = HttpRequest::post("https://api.example.com/x?a=1", json!({"label": "a \"b\""})).bearer(&SecretValue::new("tok"));
         let cfg = config(&req, Duration::from_secs(30));
-        assert!(cfg.starts_with("url = \"https://api.example.com/x?a=1\"\nrequest = POST\n"), "{cfg}");
+        assert!(cfg.starts_with("url = \"https://api.example.com/x?a=1\"\nrequest = POST\n"), "{}", cfg.as_str());
         assert!(cfg.contains("header = \"Authorization: Bearer tok\""));
-        assert!(cfg.contains(r#"data = "{\"label\":\"a \\\"b\\\"\"}""#), "{cfg}");
+        assert!(cfg.contains(r#"data = "{\"label\":\"a \\\"b\\\"\"}""#), "{}", cfg.as_str());
     }
 
     #[test]

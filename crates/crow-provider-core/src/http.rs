@@ -6,6 +6,7 @@
 
 use serde::de::DeserializeOwned;
 use serde_json::Value;
+use zeroize::Zeroizing;
 
 use crate::{ProviderError, SecretValue};
 
@@ -84,8 +85,10 @@ impl HttpRequest {
 
     /// `Authorization: Basic <base64(user:password)>`, kept secret.
     pub fn basic_auth(mut self, user: &str, password: &SecretValue) -> Self {
-        let encoded = base64(format!("{user}:{}", password.expose()).as_bytes());
-        self.headers.push(("Authorization".into(), HeaderValue::Secret(SecretValue::new(format!("Basic {encoded}")))));
+        // Every intermediate copy of the password is wiped when dropped.
+        let pair = Zeroizing::new(format!("{user}:{}", password.expose()));
+        let encoded = Zeroizing::new(base64(pair.as_bytes()));
+        self.headers.push(("Authorization".into(), HeaderValue::Secret(SecretValue::new(format!("Basic {}", encoded.as_str())))));
         self
     }
 }

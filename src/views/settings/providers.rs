@@ -15,7 +15,7 @@ use crate::app::{CrowApp, SettingsSection};
 use crate::components::icons::{inherited_icon, TablerIcon};
 use crate::theme::*;
 
-pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, inputs: Option<&ProviderFormInputs>, vault_enabled: bool) -> impl IntoElement {
+pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, inputs: Option<&ProviderFormInputs>, secrets_blocker: Option<String>, secrets_notice: Option<&str>) -> impl IntoElement {
     let factories = crate::providers::factories();
     let configured = factories.iter().filter(|f| state.account(&(f.manifest)().plugin.name).is_some()).count();
 
@@ -59,8 +59,9 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                 .flex_col()
                 .gap(px(14.0))
                 .child(intro())
-                .children((!vault_enabled).then(|| vault_notice(app.clone())))
-                .children(factories.into_iter().map(|f| card(f, state, inputs, vault_enabled, app.clone()))),
+                .children(secrets_notice.map(|n| notice(n.to_string(), TEXT_SECONDARY, None, Some(app.clone()))))
+                .children(secrets_blocker.map(|why| notice(format!("Tokens can't be saved right now: {why}."), WARN, Some(app.clone()), None)))
+                .children(factories.into_iter().map(|f| card(f, state, inputs, app.clone()))),
         )
 }
 
@@ -80,35 +81,45 @@ fn intro() -> impl IntoElement {
                 .text_size(px(10.5))
                 .line_height(px(15.0))
                 .text_color(TEXT_MUTED)
-                .child("Connect the cloud accounts your servers run on. Crow reads your instances from them and, where the provider supports it, can power servers and take snapshots from outside SSH. API tokens are kept only in the encrypted vault and sent to the provider through curl's stdin."),
+                .child("Connect the cloud accounts your servers run on. Crow reads your instances from them and, where the provider supports it, can power servers and take snapshots from outside SSH. Tokens are stored encrypted in Crow's vault: its key is held by your OS keyring (Keychain, Secret Service) or, with a vault password, locked by that password. They reach the provider through curl's stdin, never the command line."),
         )
 }
 
-fn vault_notice(app: Entity<CrowApp>) -> impl IntoElement {
+/// A one-line notice; with `link`, it links to Vault & Security, with
+/// `dismiss`, it has a ✕ that clears the secrets notice.
+pub(crate) fn notice(text: String, color: Rgba, link: Option<Entity<CrowApp>>, dismiss: Option<Entity<CrowApp>>) -> impl IntoElement {
     div()
-        .id("providers-vault-notice")
         .p(px(10.0))
         .border_1()
-        .border_color(WARN.opacity(0.5))
-        .bg(WARN.opacity(0.06))
+        .border_color(color.opacity(0.5))
+        .bg(color.opacity(0.06))
         .flex()
         .items_center()
         .gap(px(10.0))
         .font_family(FONT_MONO)
         .text_size(px(10.5))
-        .child(div().flex_1().text_color(WARN).child("Provider tokens are only ever stored in the encrypted vault, and the vault password is off."))
-        .child(
+        .child(div().flex_1().text_color(color).child(text))
+        .children(dismiss.map(|app| {
             div()
-                .id("providers-vault-link")
+                .id("secrets-notice-dismiss")
+                .cursor_pointer()
+                .text_color(TEXT_DIMMER)
+                .hover(|s| s.text_color(TEXT_PRIMARY))
+                .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.dismiss_secrets_notice(cx)))
+                .child("✕")
+        }))
+        .children(link.map(|app| {
+            div()
+                .id("secrets-vault-link")
                 .cursor_pointer()
                 .text_color(TEXT_PRIMARY)
                 .hover(|s| s.underline())
                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_settings_section(SettingsSection::Security, cx)))
-                .child("turn it on in Vault & Security →"),
-        )
+                .child("Vault & Security →")
+        }))
 }
 
-fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&ProviderFormInputs>, vault_enabled: bool, app: Entity<CrowApp>) -> impl IntoElement {
+fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&ProviderFormInputs>, app: Entity<CrowApp>) -> impl IntoElement {
     let manifest = (factory.manifest)();
     let plugin = manifest.plugin.name.clone();
     let account = state.account(&plugin);
@@ -143,7 +154,7 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
         .flex()
         .gap(px(6.0))
         .when(!editing, |d| {
-            d.child(button(format!("provider-edit-{plugin}"), if account.is_some() { "EDIT" } else { "SET UP" }.into(), OK, vault_enabled, move |cx| {
+            d.child(button(format!("provider-edit-{plugin}"), if account.is_some() { "EDIT" } else { "SET UP" }.into(), OK, true, move |cx| {
                 let p = p_edit.clone();
                 a_edit.update(cx, |this, cx| this.open_provider_form(&p, cx));
             }))

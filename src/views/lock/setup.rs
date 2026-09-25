@@ -183,7 +183,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                         .text_size(px(11.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("2. ZERO-KNOWLEDGE ENCRYPTION AT REST"),
+                                        .child("2. WHAT THE PASSWORD PROTECTS"),
                                 )
                                 .child(
                                     div()
@@ -191,7 +191,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                         .text_size(px(11.0))
                                         .text_color(TEXT_MUTED)
                                         .line_height(px(16.0))
-                                        .child("Your database (~/.config/crow/crow.db) will be encrypted using Argon2id (64MB memory, 3 iterations) and ChaCha20-Poly1305. The master encryption key is never written to disk and is wiped from RAM upon lock."),
+                                        .child("Crow encrypts its secrets (provider tokens, AI API keys) with ChaCha20-Poly1305. With a password, their key is locked by it (Argon2id, 64MB, 3 iterations) instead of your OS keyring, is never written to disk unencrypted and is wiped from RAM on lock. The rest of ~/.config/crow/crow.db (server list, settings, change history) is not encrypted. Your SSH keys stay where they are in ~/.ssh."),
                                 ),
                         )
                         // Warning 3: No Cloud Recovery
@@ -218,7 +218,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                         .text_size(px(11.0))
                                         .text_color(TEXT_MUTED)
                                         .line_height(px(16.0))
-                                        .child("This is a local-only, single-user system with zero telemetry. If you lose either your master password or your 2FA authenticator, your local credentials and host configs are permanently lost."),
+                                        .child("This is a local-only, single-user system with zero telemetry. If you lose your master password or your 2FA authenticator, the secrets Crow stored (provider tokens, AI keys) can't be recovered and must be entered again. Your server list and settings stay readable."),
                                 ),
                         )
                         // Buttons

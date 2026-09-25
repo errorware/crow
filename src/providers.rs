@@ -58,7 +58,7 @@ pub fn save_form(db: &VaultDb, key: Option<&MasterKey>, account: &mut ProviderAc
         return Err(format!("{} {} required", names.join(", "), if names.len() == 1 { "is" } else { "are" }));
     }
     if changes.iter().any(|c| matches!(c, SettingsChange::StoreSecret { .. })) && key.is_none() {
-        return Err("provider secrets are kept in the encrypted vault: turn on the vault password (Vault & Security) first".into());
+        return Err("provider secrets are only stored encrypted, and no encryption key is available".into());
     }
     for change in &changes {
         match change {
@@ -143,7 +143,7 @@ mod tests {
     #[test]
     fn saving_a_form_puts_secrets_in_the_vault_only() {
         let mut db = VaultDb::open_in_memory().unwrap();
-        let key = db.init_vault("pw", None).unwrap();
+        let key = db.init_vault("pw", None, None).unwrap();
         let mut acct = account("upcloud");
         let edits = vec![
             SettingsEdit::Set { key: "username".into(), value: serde_json::json!("crow-api") },
@@ -162,7 +162,7 @@ mod tests {
     #[test]
     fn nothing_is_saved_when_an_edit_is_invalid_or_a_required_field_is_missing() {
         let mut db = VaultDb::open_in_memory().unwrap();
-        let key = db.init_vault("pw", None).unwrap();
+        let key = db.init_vault("pw", None, None).unwrap();
         let mut acct = account("linode");
         let err = save_form(&db, Some(&key), &mut acct, vec![]).unwrap_err();
         assert_eq!(err, "API token is required");
@@ -176,7 +176,7 @@ mod tests {
         let db = VaultDb::open_in_memory().unwrap();
         let mut acct = account("linode");
         let err = save_form(&db, None, &mut acct, vec![SettingsEdit::SetSecret { key: "api_token".into(), value: SecretValue::new("t") }]).unwrap_err();
-        assert!(err.contains("vault password"), "{err}");
+        assert!(err.contains("encryption key"), "{err}");
         assert!(db.list_provider_accounts().unwrap().is_empty());
     }
 

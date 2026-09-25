@@ -118,6 +118,34 @@ pub fn encrypt_data(key: &MasterKey, plaintext: &[u8]) -> Result<(Vec<u8>, [u8; 
     Ok((ciphertext, nonce_bytes))
 }
 
+/// A fresh random data key: the key every vault secret is encrypted with.
+/// It's never derived from a password; the password (or the OS keyring)
+/// only protects it, so either can change without re-encrypting anything.
+pub fn generate_data_key() -> MasterKey {
+    let mut key = [0u8; KEY_LEN];
+    rand::rng().fill(&mut key);
+    MasterKey(key)
+}
+
+/// Encrypts `data_key` with `wrapping_key` (e.g. the password-derived key).
+pub fn wrap_key(wrapping_key: &MasterKey, data_key: &MasterKey) -> Result<(Vec<u8>, [u8; NONCE_LEN]), CryptoError> {
+    encrypt_data(wrapping_key, data_key.as_bytes())
+}
+
+/// Decrypts a data key wrapped by [`wrap_key`].
+pub fn unwrap_key(wrapping_key: &MasterKey, wrapped: &[u8], nonce: &[u8; NONCE_LEN]) -> Result<MasterKey, CryptoError> {
+    let mut bytes = decrypt_data(wrapping_key, wrapped, nonce)?;
+    let key = key_from_bytes(&bytes);
+    bytes.zeroize();
+    key.ok_or_else(|| CryptoError::DecryptionFailed("wrapped key has the wrong length".into()))
+}
+
+/// A key from exactly [`KEY_LEN`] bytes (e.g. read back from the OS keyring).
+pub fn key_from_bytes(bytes: &[u8]) -> Option<MasterKey> {
+    let arr: [u8; KEY_LEN] = bytes.try_into().ok()?;
+    Some(MasterKey(arr))
+}
+
 /// Decrypts ciphertext using ChaCha20-Poly1305 with the MasterKey and the specified nonce.
 pub fn decrypt_data(key: &MasterKey, ciphertext: &[u8], nonce_bytes: &[u8; NONCE_LEN]) -> Result<Vec<u8>, CryptoError> {
     let cipher = ChaCha20Poly1305::new_from_slice(key.as_bytes())

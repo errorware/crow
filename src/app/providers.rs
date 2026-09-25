@@ -138,6 +138,19 @@ impl CrowApp {
                 (false, true) => {}
             }
         }
+        // A new secret needs the data key; the first one creates it in the
+        // OS keyring (when there's no vault password), then saving resumes.
+        if self.vault.key().is_none() && edits.iter().any(|e| matches!(e, SettingsEdit::SetSecret { .. })) {
+            drop(edits);
+            self.with_data_key(cx, move |this, ready, cx| match ready {
+                Ok(()) => this.save_provider_form(cx),
+                Err(e) => {
+                    this.providers.errors.insert(plugin, e);
+                    cx.notify();
+                }
+            });
+            return;
+        }
         let result = match self.vault.db().lock() {
             Ok(db) => providers::save_form(&db, self.vault.key(), &mut account, edits),
             Err(_) => Err("the vault is busy; try again".into()),

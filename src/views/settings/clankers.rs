@@ -9,14 +9,15 @@ use crate::vault::ClankerProviderConfig;
 use crate::components::text_caret::TextCaret;
 use crate::views::settings::clankers_state::ClankersState;
 
-pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState) -> impl IntoElement {
+pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secrets_blocker: Option<String>, secrets_notice: Option<&str>) -> impl IntoElement {
     let providers = &clankers.providers;
     let total_calls_30d: u64 = providers.iter().map(|p| p.calls_30d).sum();
     let configured_count = providers.iter().filter(|p| !p.api_key.trim().is_empty()).count();
     let default_provider = providers.iter().find(|p| p.is_default).cloned();
 
     let demo_log = &clankers.demo_log;
-    let demo_output = clankers.demo_output.as_deref();
+    let demo_output = clankers.demo_output.as_ref().map(|r| r.as_ref().map(String::as_str).map_err(String::as_str));
+    let demo_loading = clankers.demo_loading;
 
     div()
         .flex_1()
@@ -167,11 +168,13 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState) -> i
                                         .text_color(TEXT_MUTED)
                                         .line_height(px(15.0))
                                         .child(
-                                            "Configure API keys for LLM providers. Crow uses lightweight AI calls strictly for on-demand assistance like decoding cryptic systemd journal panics or kernel OOM messages into plain English with immediate actionable commands. Keys remain encrypted locally in your SQLite vault."
+                                            "Configure API keys for LLM providers. Crow calls them only when you ask, to explain journal lines in plain English. Keys are stored encrypted in Crow's vault (its key is held by your OS keyring, or locked by your vault password when it's on) and sent through curl's stdin, never the command line. Log lines you send go to that provider."
                                         ),
                                 ),
                         ),
                 )
+                .children(secrets_notice.map(|n| crate::views::settings::providers::notice(n.to_string(), TEXT_SECONDARY, None, Some(app.clone()))))
+                .children(secrets_blocker.map(|why| crate::views::settings::providers::notice(format!("Keys can't be saved right now: {why}."), WARN, Some(app.clone()), None)))
                 // Providers Grid
                 .child(
                     div()
@@ -187,24 +190,22 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState) -> i
                         .flex_wrap()
                         .gap(px(12.0))
                         .children(providers.iter().map(|prov| {
-                            render_provider_card(app.clone(), prov)
+                            render_provider_card(app.clone(), prov, clankers.key_checking.contains(&prov.id), clankers.key_checks.get(&prov.id))
                         })),
                 )
                 // Interactive AI Usability Sandbox ("WTF is this log trying to say?")
-                .child(render_eli5_sandbox(app.clone(), demo_log, demo_output)),
+                .child(render_eli5_sandbox(app.clone(), demo_log, demo_output, demo_loading)),
         )
 }
 
-fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig) -> impl IntoElement {
+fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, checking: bool, check: Option<&Result<String, String>>) -> impl IntoElement {
     let p_id = prov.id.clone();
     let is_configured = !prov.api_key.trim().is_empty();
     let masked_key = if is_configured {
+        // Only the last four characters, like a card number.
         let k = prov.api_key.trim();
-        if k.len() > 8 {
-            format!("{}...{}", &k[..4], &k[k.len() - 4..])
-        } else {
-            "••••••••".to_string()
-        }
+        let tail: String = k.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
+        if k.chars().count() > 12 { format!("set · ends …{tail}") } else { "set".to_string() }
     } else {
         "NO KEY CONFIGURED".to_string()
     };
@@ -466,12 +467,19 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig) -> i
                                 .on_click(move |_ev, _window, cx| {
                                     let id = p_id_test.clone();
                                     app_test.update(cx, |this, cx| {
-                                        this.simulate_clanker_call(&id, cx);
+                                        this.test_clanker_key(&id, cx);
                                     });
                                 })
-                                .child("⚡ Test Call"),
+                                .child(if checking { "testing…" } else { "⚡ Test Key" }),
                         ),
                 )
+                .children(check.map(|r| {
+                    let (text, color) = match r {
+                        Ok(t) => (format!("✓ {t}"), OK),
+                        Err(e) => (format!("✕ {e}"), CRIT),
+                    };
+                    div().font_family(FONT_MONO).text_size(px(9.5)).text_color(color).child(text)
+                }))
                 .child(
                     div()
                         .flex()
@@ -534,7 +542,8 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig) -> i
 fn render_eli5_sandbox(
     app: Entity<CrowApp>,
     demo_log: &str,
-    demo_output: Option<&str>,
+    demo_output: Option<Result<&str, &str>>,
+    demo_loading: bool,
 ) -> impl IntoElement {
     let app_preset1 = app.clone();
     let app_preset2 = app.clone();
@@ -709,18 +718,22 @@ fn render_eli5_sandbox(
                                         this.run_clanker_eli5(cx);
                                     });
                                 })
-                                .child("TRANSLATE LOG (ELI5) ↵"),
+                                .child(if demo_loading { "ASKING…" } else { "TRANSLATE LOG (ELI5) ↵" }),
                         ),
                 ),
         )
         // Output Translation Card
         .children(if let Some(out) = demo_output {
+            let (out, color) = match out {
+                Ok(text) => (text, OK),
+                Err(e) => (e, CRIT),
+            };
             Some(
                 div()
                     .p(px(12.0))
                     .bg(hex_rgb(0x0c0c14))
                     .border_1()
-                    .border_color(OK)
+                    .border_color(color)
                     .flex()
                     .flex_col()
                     .gap(px(6.0))
@@ -756,6 +769,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, caret: &TextCaret, clankers: 
     let is_url_focused = state.focus == ClankerModalFocus::BaseUrl;
 
     let key_val = state.api_key_input.clone();
+    let is_configured_key = clankers.providers.iter().any(|p| p.id == state.provider_id && !p.api_key.trim().is_empty());
     let model_val = state.model_input.clone();
     let url_val = state.base_url_input.clone();
 
@@ -839,7 +853,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, caret: &TextCaret, clankers: 
                                     .font_family(FONT_MONO)
                                     .text_size(px(10.5))
                                     .text_color(TEXT_DIM)
-                                    .child("API Key (saved encrypted in local SQLite vault):"),
+                                    .child("API Key (stored encrypted in Crow's vault; never shown again):"),
                             )
                             .child(
                                 div()
@@ -857,9 +871,9 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, caret: &TextCaret, clankers: 
                                         terminal_text_input_styled(
                                             "input-clanker-key",
                                             &key_val,
-                                            "e.g. sk-proj-...",
+                                            if is_configured_key { "set · leave blank to keep it, or paste a new key" } else { "e.g. sk-proj-..." },
                                             is_key_focused,
-                                            false,
+                                            true,
                                             32.0,
                                             11.0,
                                             if is_key_focused { caret.cursor } else { 0 },

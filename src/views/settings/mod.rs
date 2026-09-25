@@ -235,6 +235,7 @@ pub fn settings_view(
     fleet_background: (&crate::app::appearance::FleetBackground, Option<std::path::PathBuf>),
     providers_state: &crate::app::providers::ProvidersState,
     provider_inputs: Option<&crate::app::providers::ProviderFormInputs>,
+    secrets_notice: Option<&str>,
 ) -> impl IntoElement {
     let is_auth_enabled = vault.is_password_auth_enabled();
     let open_dropdown = settings.dropdown_open.as_deref();
@@ -255,7 +256,7 @@ pub fn settings_view(
         SettingsSection::General => ("GENERAL", "[general] · application behavior"),
         SettingsSection::Connection => ("CONNECTION & SSH", "[connection] · applies to every host unless overridden"),
         SettingsSection::Keys => ("KEYS & ROTATION", "[keys] · key distribution & policies"),
-        SettingsSection::Security => ("VAULT & SECURITY", "[vault] · local encrypted sqlite & master key"),
+        SettingsSection::Security => ("VAULT & SECURITY", "[vault] · encrypted secrets & who can open Crow"),
         SettingsSection::Servers => ("SERVERS & ARCHIVES", "[servers] · archiving and how long stored data is kept"),
         SettingsSection::Components => ("UI COMPONENTS LAB", "[lab] · gpui-component testbed & sandbox"),
         SettingsSection::Clankers => ("CLANKERS (AI USABILITY)", "[clankers] · api keys & log eli5 helpers"),
@@ -477,9 +478,9 @@ pub fn settings_view(
                 } else if section == SettingsSection::Components {
                     Some(lab::render_components_lab(app.clone(), caret, lab_state).into_any_element())
                 } else if section == SettingsSection::Clankers {
-                    Some(clankers::render_clankers_view(app.clone(), clankers).into_any_element())
+                    Some(clankers::render_clankers_view(app.clone(), clankers, vault.secrets_blocker().filter(|_| !matches!(vault.keyring_state, crate::vault::KeyringState::Loading)), secrets_notice).into_any_element())
                 } else if section == SettingsSection::Providers {
-                    Some(providers::render_providers_view(app.clone(), providers_state, provider_inputs, is_auth_enabled).into_any_element())
+                    Some(providers::render_providers_view(app.clone(), providers_state, provider_inputs, vault.secrets_blocker().filter(|_| !matches!(vault.keyring_state, crate::vault::KeyringState::Loading)), secrets_notice).into_any_element())
                 } else {
                     None
                 })
@@ -585,7 +586,7 @@ pub fn settings_view(
                                                         .text_size(px(11.0))
                                                         .text_color(TEXT_MUTED)
                                                         .line_height(px(16.0))
-                                                        .child("By default, Crow operates with direct unauthenticated local access. You can protect your local keys, sessions, and configuration by enabling master password logon and mandatory two-factor authentication (RFC 6238 TOTP)."),
+                                                        .child("Without a password, anyone using your computer account can open Crow. Secrets (provider tokens, AI keys) are still encrypted, with the key held by your OS keyring. A master password with two-factor authentication (RFC 6238 TOTP) makes Crow ask before it opens, and locks the secrets' key with that password instead."),
                                                 )
                                                 .child(
                                                     div()
@@ -669,7 +670,7 @@ pub fn settings_view(
                                                         .text_size(px(11.0))
                                                         .text_color(TEXT_MUTED)
                                                         .line_height(px(16.0))
-                                                        .child("Database is encrypted at ~/.config/crow/crow.db via Argon2id + ChaCha20-Poly1305. MasterKey is zeroized on lock."),
+                                                        .child("Secrets (provider tokens, AI keys) in ~/.config/crow/crow.db are encrypted with ChaCha20-Poly1305; their key is unlocked by your password (Argon2id) and wiped from memory on lock. Server list, settings and history are not encrypted."),
                                                 )
                                                 .child(
                                                     div()
