@@ -185,3 +185,16 @@ options = [
   { value = "16", label = "Heavy", risk = "recommended" },
   { value = "32", label = "Frosted", risk = "recommended" }
 ]
+
+[[fields]]
+name = "servers.archive_purge_days"
+type = "enum"
+required = false
+help = "How long an archived server keeps its stored data before Crow deletes it. The server record itself is never deleted."
+options = [
+  { value = "30", label = "30 days", risk = "recommended" },
+  { value = "60", label = "60 days", risk = "recommended" },
+  { value = "90", label = "90 days · default", risk = "recommended" },
+  { value = "180", label = "180 days", risk = "recommended" },
+  { value = "never", label = "Never purge", risk = "caution" }
+]

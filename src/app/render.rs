@@ -45,6 +45,12 @@ impl Render for CrowApp {
                 self.ensure_table_search(page, window, cx);
             }
         }
+
+        // The Fleet screen's Archived tab needs the purge window and Crow's
+        // own purge audit trail (ERR-32).
+        let fleet_purge_days = self.archive_purge_days();
+        let fleet_purge_audit = self.recent_purge_audit();
+        let archive_purge_due = crate::app::archive::purge_due_text(fleet_purge_days);
         let is_overview = self.active_view == "overview";
         let is_table_page = super::is_table_page(&self.active_view);
         let is_config = self.active_view == "config";
@@ -381,14 +387,18 @@ impl Render for CrowApp {
                                                     ),
                                             )
                                             // Persistent Danger Zone Strip
-                                            .child(danger_zone(&self.danger, app_view.clone())),
+                                            .child(danger_zone(&self.danger, app_view.clone()))
+                                            // Archive confirmation for this server (ERR-32).
+                                            .children(self.fleet.pending_archive.as_ref().and_then(|id| self.fleet.servers.iter().find(|s| &s.id == id)).map(|srv| {
+                                                crate::views::fleet::archived::archive_confirm_overlay(srv, &archive_purge_due, app_view.clone())
+                                            })),
                                         )
                                     }
                                 },
                                     Screen::Fleet => Some(
                                         div()
                                             .size_full()
-                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab, self.fleet_background.rendered.clone().filter(|_| self.fleet_background_source().is_some()).map(|p| (p, self.fleet_background_opacity())))),
+                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab, self.fleet_background.rendered.clone().filter(|_| self.fleet_background_source().is_some()).map(|p| (p, self.fleet_background_opacity())), fleet_purge_days, &fleet_purge_audit)),
                                     ),
                                     Screen::Settings => Some(
                                         div()

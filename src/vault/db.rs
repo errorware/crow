@@ -131,6 +131,23 @@ pub struct ServerRecord {
     pub status: String,
     pub created_at: String,
     pub last_seen_at: Option<String>,
+    /// When the server left the active fleet (ERR-32). `None` = active.
+    pub archived_at: Option<String>,
+    /// When Crow deleted the data it stored about this server, if the archive
+    /// window has closed. The server record itself is never deleted.
+    pub purged_at: Option<String>,
+}
+
+/// The audit-log scope for actions Crow takes on its own behalf, such as
+/// purging an archived server's data. Records under this id are not tied to a
+/// server, so purging a server cannot delete the record of its own purge.
+pub const AUDIT_SERVER_ID: &str = "crow";
+
+/// What one purge removed, for the audit record and the Archived tab (ERR-32).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct PurgeOutcome {
+    pub change_records: usize,
+    pub key_attachments: usize,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize, PartialEq)]
@@ -294,7 +311,9 @@ impl VaultDb {
                 agent_version TEXT,
                 status TEXT NOT NULL DEFAULT 'online',
                 created_at TEXT NOT NULL,
-                last_seen_at TEXT
+                last_seen_at TEXT,
+                archived_at TEXT,
+                purged_at TEXT
             );
 
             CREATE INDEX IF NOT EXISTS idx_servers_env ON servers (env);
@@ -404,6 +423,12 @@ impl VaultDb {
                 );
             }
         }
+
+        // ERR-32: vaults created before archiving existed have neither column,
+        // and CREATE TABLE IF NOT EXISTS won't add them. A fresh vault already
+        // has both, so these alters fail harmlessly there.
+        let _ = self.conn.execute("ALTER TABLE servers ADD COLUMN archived_at TEXT", []);
+        let _ = self.conn.execute("ALTER TABLE servers ADD COLUMN purged_at TEXT", []);
 
         // Older vaults were seeded with invented usage numbers and a
         // placeholder provider. Usage with no last-used time was never real.
@@ -917,48 +942,60 @@ impl VaultDb {
         Ok(())
     }
 
+    /// The columns every server query selects, in the order [`Self::row_to_server`] reads.
+    const SERVER_COLUMNS: &'static str = "id, name, host, port, login_user, auth_method, key_id, jump_host_id,
+                env, role, group_name, tags, host_key_fingerprint, os_distro, os_kernel,
+                arch, memory_total, disk_total, agent_installed, agent_version, status,
+                created_at, last_seen_at, archived_at, purged_at";
+
+    fn row_to_server(r: &rusqlite::Row<'_>) -> rusqlite::Result<ServerRecord> {
+        let tags_json: String = r.get(11)?;
+        let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
+        let agent_inst: i64 = r.get(18)?;
+        Ok(ServerRecord {
+            id: r.get(0)?,
+            name: r.get(1)?,
+            host: r.get(2)?,
+            port: r.get::<_, u16>(3)?,
+            login_user: r.get(4)?,
+            auth_method: r.get(5)?,
+            key_id: r.get(6)?,
+            jump_host_id: r.get(7)?,
+            env: r.get(8)?,
+            role: r.get(9)?,
+            group_name: r.get(10)?,
+            tags,
+            host_key_fingerprint: r.get(12)?,
+            os_distro: r.get(13)?,
+            os_kernel: r.get(14)?,
+            arch: r.get(15)?,
+            memory_total: r.get(16)?,
+            disk_total: r.get(17)?,
+            agent_installed: agent_inst != 0,
+            agent_version: r.get(19)?,
+            status: r.get(20)?,
+            created_at: r.get(21)?,
+            last_seen_at: r.get(22)?,
+            archived_at: r.get(23)?,
+            purged_at: r.get(24)?,
+        })
+    }
+
+    /// Servers in the active fleet — archived ones are excluded, so every
+    /// caller that lists the fleet gets that for free (ERR-32).
     pub fn list_servers(&self) -> Result<Vec<ServerRecord>, VaultError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, name, host, port, login_user, auth_method, key_id, jump_host_id,
-                    env, role, group_name, tags, host_key_fingerprint, os_distro, os_kernel,
-                    arch, memory_total, disk_total, agent_installed, agent_version, status,
-                    created_at, last_seen_at
-             FROM servers
-             ORDER BY created_at ASC",
-        )?;
+        self.query_servers("WHERE archived_at IS NULL ORDER BY created_at ASC")
+    }
 
-        let rows = stmt.query_map([], |r| {
-            let tags_json: String = r.get(11)?;
-            let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
-            let agent_inst: i64 = r.get(18)?;
+    /// Archived servers, most recently archived first — the Archived tab.
+    pub fn list_archived_servers(&self) -> Result<Vec<ServerRecord>, VaultError> {
+        self.query_servers("WHERE archived_at IS NOT NULL ORDER BY archived_at DESC")
+    }
 
-            Ok(ServerRecord {
-                id: r.get(0)?,
-                name: r.get(1)?,
-                host: r.get(2)?,
-                port: r.get::<_, u16>(3)?,
-                login_user: r.get(4)?,
-                auth_method: r.get(5)?,
-                key_id: r.get(6)?,
-                jump_host_id: r.get(7)?,
-                env: r.get(8)?,
-                role: r.get(9)?,
-                group_name: r.get(10)?,
-                tags,
-                host_key_fingerprint: r.get(12)?,
-                os_distro: r.get(13)?,
-                os_kernel: r.get(14)?,
-                arch: r.get(15)?,
-                memory_total: r.get(16)?,
-                disk_total: r.get(17)?,
-                agent_installed: agent_inst != 0,
-                agent_version: r.get(19)?,
-                status: r.get(20)?,
-                created_at: r.get(21)?,
-                last_seen_at: r.get(22)?,
-            })
-        })?;
-
+    fn query_servers(&self, tail: &str) -> Result<Vec<ServerRecord>, VaultError> {
+        let sql = format!("SELECT {} FROM servers {}", Self::SERVER_COLUMNS, tail);
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map([], |r| Self::row_to_server(r))?;
         let mut res = Vec::new();
         for r in rows {
             res.push(r?);
@@ -967,46 +1004,9 @@ impl VaultDb {
     }
 
     pub fn get_server(&self, id: &str) -> Result<Option<ServerRecord>, VaultError> {
-        let mut stmt = self.conn.prepare(
-            "SELECT id, name, host, port, login_user, auth_method, key_id, jump_host_id,
-                    env, role, group_name, tags, host_key_fingerprint, os_distro, os_kernel,
-                    arch, memory_total, disk_total, agent_installed, agent_version, status,
-                    created_at, last_seen_at
-             FROM servers
-             WHERE id = ?1",
-        )?;
-
-        let res = stmt.query_row(params![id], |r| {
-            let tags_json: String = r.get(11)?;
-            let tags: Vec<String> = serde_json::from_str(&tags_json).unwrap_or_default();
-            let agent_inst: i64 = r.get(18)?;
-
-            Ok(ServerRecord {
-                id: r.get(0)?,
-                name: r.get(1)?,
-                host: r.get(2)?,
-                port: r.get::<_, u16>(3)?,
-                login_user: r.get(4)?,
-                auth_method: r.get(5)?,
-                key_id: r.get(6)?,
-                jump_host_id: r.get(7)?,
-                env: r.get(8)?,
-                role: r.get(9)?,
-                group_name: r.get(10)?,
-                tags,
-                host_key_fingerprint: r.get(12)?,
-                os_distro: r.get(13)?,
-                os_kernel: r.get(14)?,
-                arch: r.get(15)?,
-                memory_total: r.get(16)?,
-                disk_total: r.get(17)?,
-                agent_installed: agent_inst != 0,
-                agent_version: r.get(19)?,
-                status: r.get(20)?,
-                created_at: r.get(21)?,
-                last_seen_at: r.get(22)?,
-            })
-        }).optional()?;
+        let sql = format!("SELECT {} FROM servers WHERE id = ?1", Self::SERVER_COLUMNS);
+        let mut stmt = self.conn.prepare(&sql)?;
+        let res = stmt.query_row(params![id], |r| Self::row_to_server(r)).optional()?;
         Ok(res)
     }
 
@@ -1021,8 +1021,8 @@ impl VaultDb {
                 id, name, host, port, login_user, auth_method, key_id, jump_host_id,
                 env, role, group_name, tags, host_key_fingerprint, os_distro, os_kernel,
                 arch, memory_total, disk_total, agent_installed, agent_version, status,
-                created_at, last_seen_at
-            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23)
+                created_at, last_seen_at, archived_at, purged_at
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25)
             ON CONFLICT(id) DO UPDATE SET
                 name = excluded.name,
                 host = excluded.host,
@@ -1044,18 +1044,101 @@ impl VaultDb {
                 agent_installed = excluded.agent_installed,
                 agent_version = excluded.agent_version,
                 status = excluded.status,
-                last_seen_at = excluded.last_seen_at",
+                last_seen_at = excluded.last_seen_at,
+                archived_at = excluded.archived_at,
+                purged_at = excluded.purged_at",
             params![
                 srv.id, srv.name, srv.host, srv.port, srv.login_user, srv.auth_method,
                 srv.key_id, srv.jump_host_id, srv.env, srv.role, srv.group_name,
                 tags_json, srv.host_key_fingerprint, srv.os_distro, srv.os_kernel,
                 srv.arch, srv.memory_total, srv.disk_total, agent_inst,
-                srv.agent_version, srv.status, created, srv.last_seen_at
+                srv.agent_version, srv.status, created, srv.last_seen_at,
+                srv.archived_at, srv.purged_at
             ],
         )?;
         Ok(())
     }
 
+    /// Takes a server out of the active fleet (ERR-32). The record stays; only
+    /// its `archived_at` changes. Idempotent.
+    pub fn archive_server(&self, id: &str) -> Result<(), VaultError> {
+        self.conn.execute(
+            "UPDATE servers SET archived_at = ?1, status = 'archived' WHERE id = ?2 AND archived_at IS NULL",
+            params![Utc::now().to_rfc3339(), id],
+        )?;
+        Ok(())
+    }
+
+    /// Puts an archived server back in the fleet with whatever history the
+    /// purge has not taken yet. Its status is unknown until Crow next reaches
+    /// it, so it is reported as such rather than as a stale "online".
+    pub fn restore_server(&self, id: &str) -> Result<(), VaultError> {
+        self.conn.execute(
+            "UPDATE servers SET archived_at = NULL, status = 'unknown' WHERE id = ?1",
+            params![id],
+        )?;
+        Ok(())
+    }
+
+    /// Deletes the data Crow stored *about* `id`: its change records and its
+    /// attachments on enrolled keys. The server record itself is never
+    /// deleted. `purged_at` is set last, so a failure part-way through leaves
+    /// the purge pending and it is retried on the next run.
+    ///
+    /// Attachments are stored by server id from the Keys screen but by server
+    /// name from onboarding (`attach_server_to_key` takes a name), so both
+    /// spellings are removed.
+    pub fn purge_server_data(&self, id: &str, name: &str) -> Result<PurgeOutcome, VaultError> {
+        let change_records = self.conn.execute("DELETE FROM change_records WHERE server_id = ?1", params![id])?;
+
+        let keys: Vec<(String, Vec<String>)> = {
+            let mut stmt = self.conn.prepare("SELECT id, attached_servers FROM ssh_keys")?;
+            let rows = stmt.query_map([], |r| {
+                let id: String = r.get(0)?;
+                let json: String = r.get(1)?;
+                Ok((id, serde_json::from_str::<Vec<String>>(&json).unwrap_or_default()))
+            })?;
+            rows.collect::<rusqlite::Result<Vec<_>>>()?
+        };
+
+        let mut key_attachments = 0;
+        for (key_id, mut attached) in keys {
+            let before = attached.len();
+            attached.retain(|s| s != id && s != name);
+            if attached.len() != before {
+                key_attachments += before - attached.len();
+                self.update_ssh_key_attached_servers(&key_id, &attached)?;
+            }
+        }
+
+        self.conn.execute(
+            "UPDATE servers SET purged_at = ?1 WHERE id = ?2",
+            params![Utc::now().to_rfc3339(), id],
+        )?;
+        Ok(PurgeOutcome { change_records, key_attachments })
+    }
+
+    /// Archived servers whose window has closed and whose data has not been
+    /// purged yet. `cutoff` is an RFC 3339 instant; anything archived at or
+    /// before it is due.
+    pub fn servers_due_for_purge(&self, cutoff: &str) -> Result<Vec<ServerRecord>, VaultError> {
+        let sql = format!(
+            "SELECT {} FROM servers WHERE archived_at IS NOT NULL AND purged_at IS NULL AND archived_at <= ?1",
+            Self::SERVER_COLUMNS
+        );
+        let mut stmt = self.conn.prepare(&sql)?;
+        let rows = stmt.query_map(params![cutoff], |r| Self::row_to_server(r))?;
+        let mut res = Vec::new();
+        for r in rows {
+            res.push(r?);
+        }
+        Ok(res)
+    }
+
+    /// Deleting a server record outright is never a user-facing operation
+    /// (ERR-32): servers are archived instead. This stays for tests that need
+    /// a clean vault, and cannot be reached from the app.
+    #[cfg(test)]
     pub fn delete_server(&self, id: &str) -> Result<(), VaultError> {
         self.conn.execute("DELETE FROM servers WHERE id = ?1", params![id])?;
         Ok(())
@@ -1462,6 +1545,8 @@ mod tests {
             status: "online".into(),
             created_at: String::new(),
             last_seen_at: None,
+            archived_at: None,
+            purged_at: None,
         };
 
         db.upsert_server(&srv).unwrap();
@@ -1479,9 +1564,139 @@ mod tests {
         assert_eq!(updated.status, "degraded");
         assert!(updated.last_seen_at.is_some());
 
-        // Delete
+        // Delete is test-only now (ERR-32): servers are archived, not deleted.
         db.delete_server("srv-custom-01").unwrap();
         assert!(db.get_server("srv-custom-01").unwrap().is_none());
+    }
+
+    /// A server leaves the fleet without being deleted, comes back with its
+    /// history, and its data is purged once the window closes (ERR-32).
+    #[test]
+    fn archiving_hides_a_server_and_purging_keeps_the_record() {
+        let db = VaultDb::open_in_memory().unwrap();
+        let srv = ServerRecord { id: "srv-arch".into(), name: "arch-01".into(), host: "10.0.0.9".into(), os_distro: "Ubuntu 24.04 LTS".into(), created_at: String::new(), ..ServerRecord::default() };
+        db.upsert_server(&srv).unwrap();
+        db.insert_change_record(&ChangeRecord {
+            id: "chg-1".into(),
+            server_id: "srv-arch".into(),
+            server_name: "arch-01".into(),
+            action_kind: "firewall".into(),
+            target: "allow 22/tcp".into(),
+            before_state: "none".into(),
+            after_state: None,
+            blast_radius: None,
+            outcome: "success".into(),
+            started_at: "2026-09-24T00:00:00Z".into(),
+            completed_at: None,
+        }).unwrap();
+        // Attachments are stored by id by the Keys screen and by name by
+        // onboarding, so a key carrying both must lose both.
+        db.conn.execute(
+            "INSERT INTO ssh_keys (id, name, group_id, public_key, fingerprint, algorithm, attached_servers, created_at, updated_at)
+             VALUES ('key-1', 'k', 'default', 'ssh-ed25519 AAAA', 'SHA256:x', 'ed25519', '[\"srv-arch\",\"arch-01\",\"other\"]', '2026-01-01T00:00:00Z', '2026-01-01T00:00:00Z')",
+            [],
+        ).unwrap();
+
+        assert_eq!(db.list_servers().unwrap().len(), 1);
+        db.archive_server("srv-arch").unwrap();
+
+        // Gone from the active fleet, still in the vault.
+        assert!(db.list_servers().unwrap().is_empty());
+        let archived = db.list_archived_servers().unwrap();
+        assert_eq!(archived.len(), 1);
+        assert!(archived[0].archived_at.is_some());
+        assert_eq!(archived[0].status, "archived");
+
+        // Restore brings it back with its history intact.
+        db.restore_server("srv-arch").unwrap();
+        assert_eq!(db.list_servers().unwrap().len(), 1);
+        assert_eq!(db.list_change_records("srv-arch", 10).unwrap().len(), 1);
+
+        // Archive again and purge: history and attachments go, the record stays.
+        db.archive_server("srv-arch").unwrap();
+        let outcome = db.purge_server_data("srv-arch", "arch-01").unwrap();
+        assert_eq!(outcome.change_records, 1);
+        assert_eq!(outcome.key_attachments, 2);
+        let after = db.get_server("srv-arch").unwrap().unwrap();
+        assert!(after.purged_at.is_some(), "the purge is recorded");
+        assert_eq!(after.os_distro, srv.os_distro, "the record keeps its facts");
+        assert!(db.list_change_records("srv-arch", 10).unwrap().is_empty());
+        let key = db.get_ssh_key("key-1").unwrap().unwrap();
+        assert_eq!(key.attached_servers, ["other"], "only the archived server was detached");
+        assert_eq!(db.list_archived_servers().unwrap().len(), 1, "the record itself is never deleted");
+    }
+
+    /// The daily sweep purges each server once, not every day forever.
+    #[test]
+    fn a_purged_server_is_not_due_for_purge_again() {
+        let db = VaultDb::open_in_memory().unwrap();
+        db.upsert_server(&ServerRecord { id: "s1".into(), name: "s1".into(), created_at: String::new(), ..ServerRecord::default() }).unwrap();
+        db.archive_server("s1").unwrap();
+        let far_future = "2999-01-01T00:00:00Z";
+        assert_eq!(db.servers_due_for_purge(far_future).unwrap().len(), 1);
+        db.purge_server_data("s1", "s1").unwrap();
+        assert!(db.servers_due_for_purge(far_future).unwrap().is_empty(), "purging is once, not daily");
+
+        // A server still inside its window is not due at all.
+        db.upsert_server(&ServerRecord { id: "s2".into(), name: "s2".into(), created_at: String::new(), ..ServerRecord::default() }).unwrap();
+        db.archive_server("s2").unwrap();
+        assert!(db.servers_due_for_purge("1999-01-01T00:00:00Z").unwrap().is_empty());
+        // Restoring clears the archive, so it stops being a purge candidate.
+        db.restore_server("s2").unwrap();
+        assert!(db.servers_due_for_purge(far_future).unwrap().is_empty());
+    }
+
+    /// A vault created before ERR-32 has no archived_at/purged_at columns.
+    /// Opening it must add them and leave the servers already in it alone.
+    #[test]
+    fn opening_an_old_vault_adds_the_archive_columns() {
+        let path = std::env::temp_dir().join(format!("crow-old-vault-{}.db", std::process::id()));
+        let cleanup = || {
+            for suffix in ["", "-wal", "-shm"] {
+                let _ = std::fs::remove_file(format!("{}{suffix}", path.display()));
+            }
+        };
+        cleanup();
+        {
+            let conn = Connection::open(&path).unwrap();
+            conn.execute_batch(
+                "CREATE TABLE servers (
+                    id TEXT PRIMARY KEY, name TEXT NOT NULL UNIQUE, host TEXT NOT NULL,
+                    port INTEGER NOT NULL DEFAULT 22, login_user TEXT NOT NULL,
+                    auth_method TEXT NOT NULL DEFAULT 'publickey', key_id TEXT, jump_host_id TEXT,
+                    env TEXT NOT NULL DEFAULT 'PROD', role TEXT NOT NULL DEFAULT 'generic',
+                    group_name TEXT NOT NULL DEFAULT 'default', tags TEXT NOT NULL DEFAULT '[]',
+                    host_key_fingerprint TEXT, os_distro TEXT NOT NULL DEFAULT 'Ubuntu 24.04.1 LTS',
+                    os_kernel TEXT NOT NULL DEFAULT '6.8.0-45-generic',
+                    arch TEXT NOT NULL DEFAULT 'x86_64 · 4 vCPU',
+                    memory_total TEXT NOT NULL DEFAULT '8.0 GB',
+                    disk_total TEXT NOT NULL DEFAULT '160 GB nvme',
+                    agent_installed INTEGER NOT NULL DEFAULT 0, agent_version TEXT,
+                    status TEXT NOT NULL DEFAULT 'online', created_at TEXT NOT NULL, last_seen_at TEXT
+                );
+                INSERT INTO servers (id, name, host, login_user, created_at)
+                VALUES ('old-1', 'legacy-01', '10.0.0.5', 'root', '2026-01-01T00:00:00Z');",
+            ).unwrap();
+        }
+
+        let db = VaultDb::open_or_create(Some(&path)).unwrap();
+        let servers = db.list_servers().unwrap();
+        assert_eq!(servers.len(), 1, "the server already in the vault survives");
+        assert_eq!(servers[0].name, "legacy-01");
+        assert_eq!(servers[0].archived_at, None, "and starts out active");
+
+        // The added columns work straight away.
+        db.archive_server("old-1").unwrap();
+        assert!(db.list_servers().unwrap().is_empty());
+        assert_eq!(db.list_archived_servers().unwrap().len(), 1);
+
+        // Re-opening runs the ALTERs again; that must stay harmless.
+        drop(db);
+        let db = VaultDb::open_or_create(Some(&path)).unwrap();
+        assert_eq!(db.list_archived_servers().unwrap().len(), 1);
+        assert!(db.list_archived_servers().unwrap()[0].archived_at.is_some());
+        drop(db);
+        cleanup();
     }
 
     #[test]

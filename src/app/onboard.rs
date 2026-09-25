@@ -481,6 +481,8 @@ impl CrowApp {
             status: status.clone(),
             created_at: now.clone(),
             last_seen_at: Some(now),
+            archived_at: None,
+            purged_at: None,
         };
 
         // Persist to SQLite

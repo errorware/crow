@@ -308,6 +308,8 @@ pub fn build_server_record_for_node(node: &LocalTestNode) -> ServerRecord {
         status: if node.is_running() { "online".into() } else { "offline".into() },
         created_at: now.clone(),
         last_seen_at: Some(now),
+        archived_at: None,
+        purged_at: None,
     }
 }
 

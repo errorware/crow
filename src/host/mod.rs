@@ -173,6 +173,14 @@ pub trait Host: Send + Sync {
         false
     }
 
+    /// Releases any long-lived connection this transport keeps open, so a
+    /// server that has left the fleet stops holding a session (ERR-32).
+    /// Returns true when there was nothing to release or it closed cleanly.
+    /// Local and container hosts keep no such connection.
+    fn close_connection(&self) -> bool {
+        true
+    }
+
     /// Runs `argv` and returns its output; a non-zero exit is `HostError::Failed`.
     fn exec(&self, argv: &[&str], timeout: Duration) -> Result<ExecOutput, HostError> {
         self.exec_stdin(argv, &[], timeout)

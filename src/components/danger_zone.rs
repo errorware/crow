@@ -184,6 +184,44 @@ pub fn danger_zone(danger: &DangerZoneState, app: Entity<CrowApp>) -> impl IntoE
                     None
                 }),
         )
+        // 4. Archive (ERR-32). Everything left of this acts on the host; this
+        //    acts on Crow's own record of it, so it sits apart at the far right
+        //    and opens an explanation rather than the keyword prompt.
+        .children(if danger.pending_action.is_none() {
+            let app_archive = app.clone();
+            Some(
+                div()
+                    .flex()
+                    .items_center()
+                    .px(px(14.0))
+                    .border_l_1()
+                    .border_color(BORDER_DANGER)
+                    .child(
+                        div()
+                            .id("btn-danger-archive")
+                            .font_family(FONT_MONO)
+                            .text_size(px(11.0))
+                            .font_weight(FontWeight::BOLD)
+                            .text_color(CRIT_INK)
+                            .border_1()
+                            .border_color(BORDER_DANGER_BTN)
+                            .bg(CRIT_BG)
+                            .px(px(10.0))
+                            .py(px(4.0))
+                            .cursor_pointer()
+                            .hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT))
+                            .on_click(move |_ev, _window, cx| {
+                                app_archive.update(cx, |this, cx| {
+                                    this.request_archive_active_server(cx);
+                                });
+                            })
+                            .child("ARCHIVE SERVER"),
+                    )
+                    .into_any_element(),
+            )
+        } else {
+            None
+        })
 }
 
 fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<CrowApp>) -> impl IntoElement {

@@ -41,6 +41,7 @@ pub mod onboard;
 pub mod overview;
 mod keys;
 pub mod appearance;
+pub mod archive;
 pub mod configs;
 mod journal;
 mod clankers;
@@ -72,6 +73,7 @@ pub enum SettingsSection {
     Connection,
     Keys,
     Security,
+    Servers,
     Components,
     Clankers,
     Personalisation,
@@ -84,6 +86,7 @@ impl SettingsSection {
             SettingsSection::Connection => "connection",
             SettingsSection::Keys => "keys",
             SettingsSection::Security => "security",
+            SettingsSection::Servers => "servers",
             SettingsSection::Components => "components",
             SettingsSection::Clankers => "clankers",
             SettingsSection::Personalisation => "appearance",
@@ -180,6 +183,8 @@ pub struct CrowApp {
 
     pub _cursor_blink_task: Task<()>,
     pub _metrics_poll_task: Task<()>,
+    /// Deletes archived servers' stored data once its window has closed.
+    pub _archive_purge_task: Task<()>,
 }
 
 impl CrowApp {
@@ -188,13 +193,14 @@ impl CrowApp {
         let config = CrowConfigManager::load();
 
         // Vault records: servers, SSH key hub (with an initial disk scan), AI providers
-        let (servers, keys, clanker_providers) = match vault.db().lock() {
+        let (servers, archived, keys, clanker_providers) = match vault.db().lock() {
             Ok(db) => (
                 db.list_servers().unwrap_or_default(),
+                db.list_archived_servers().unwrap_or_default(),
                 KeysState::load(&db),
                 db.list_clanker_providers().unwrap_or_default(),
             ),
-            Err(_) => (Vec::new(), KeysState::new(Vec::new(), Vec::new(), Vec::new(), Vec::new(), None), Vec::new()),
+            Err(_) => (Vec::new(), Vec::new(), KeysState::new(Vec::new(), Vec::new(), Vec::new(), Vec::new(), None), Vec::new()),
         };
 
         crate::host::update_directory(&servers, &keys.enrolled);
@@ -266,7 +272,11 @@ impl CrowApp {
             screen: Screen::Fleet,
             menu_open: false,
             settings: SettingsState::default(),
-            fleet: FleetState::new(servers, tabs, metrics_store, buffered_stores),
+            fleet: {
+                let mut fleet = FleetState::new(servers, tabs, metrics_store, buffered_stores);
+                fleet.archived = archived;
+                fleet
+            },
             active_view: "overview".to_string(),
             overview: OverviewState::new(initial_services, initial_processes, initial_sockets),
             configs,
@@ -293,6 +303,7 @@ impl CrowApp {
             caret: TextCaret { blink: true, ..TextCaret::default() },
             _cursor_blink_task: Self::spawn_cursor_blink(cx),
             _metrics_poll_task: Self::spawn_metrics_poll(cx),
+            _archive_purge_task: Self::spawn_archive_purge(cx),
             journal: JournalState::new(initial_journal, journal_retention, journal_telemetry),
             local_lab: LocalLabState::new(lab_engines, lab_nodes),
             show_about_modal: false,

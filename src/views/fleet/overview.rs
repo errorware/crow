@@ -4,9 +4,10 @@ use crate::theme::*;
 use crate::app::{CrowApp, Screen};
 use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::host::{connection_state, transport_kind, ConnectionState, TransportKind};
-use crate::vault::ServerRecord;
+use crate::vault::{ChangeRecord, ServerRecord};
 use crate::views::fleet::FleetState;
 use crate::components::resize::{bottom_panel_height, resize_handle, BottomPanelResize};
+use crate::views::fleet::archived::{archive_confirm_overlay, archived_panel, fleet_view_tabs};
 use crate::views::fleet::lab_state::LocalLabState;
 
 pub struct FleetHost {
@@ -120,7 +121,15 @@ pub fn fleet_stat_strip(
 
 /// `background`: the Personalisation picture (already blurred) and its
 /// opacity, drawn behind the server list.
-pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: &LocalLabState, background: Option<(std::path::PathBuf, f32)>) -> impl IntoElement {
+pub fn fleet_overview_view(
+    app: Entity<CrowApp>,
+    fleet: &FleetState,
+    local_lab: &LocalLabState,
+    background: Option<(std::path::PathBuf, f32)>,
+    purge_days: Option<i64>,
+    purge_audit: &[ChangeRecord],
+) -> impl IntoElement {
+    let purge_due = crate::app::archive::purge_due_text(purge_days);
     let hosts: Vec<FleetHost> = if !fleet.servers.is_empty() {
         fleet.servers.iter().map(|s| {
             let (status_color, pill, is_crit) = match s.status.as_str() {
@@ -245,8 +254,11 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
             avg_load,
             total_vcpu,
         ))
-        // 2. Server list on top, alerts & activity panel below (drag the divider)
-        .child(
+        // 2. Active fleet / Archived switch
+        .child(fleet_view_tabs(fleet, app.clone()))
+        // 3. Server list on top, alerts & activity panel below (drag the
+        //    divider). The Archived tab replaces this whole body.
+        .children(if fleet.show_archived { None } else { Some(
             div()
                 .flex_1()
                 .min_h(px(0.0))
@@ -360,7 +372,8 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                 .child(div().w(px(95.0)).flex_none().child("MEM"))
                                 .child(div().w(px(55.0)).flex_none().text_align(TextAlign::Right).child("DISK"))
                                 .child(div().w(px(80.0)).flex_none().text_align(TextAlign::Right).child("UPTIME"))
-                                .child(div().w(px(65.0)).flex_none().text_align(TextAlign::Right).child("ALERTS")),
+                                .child(div().w(px(65.0)).flex_none().text_align(TextAlign::Right).child("ALERTS"))
+                                .child(div().w(px(78.0)).flex_none().text_align(TextAlign::Right).child("")),
                         )
                         // Table Body
                         .child(
@@ -474,6 +487,8 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                     hosts.into_iter().enumerate().map(|(idx, host)| {
                                         let app_host = app.clone();
                                         let host_id = host.id.clone();
+                                        let app_archive = app.clone();
+                                        let archive_id = host.id.clone();
                                         let is_even = idx % 2 == 0;
 
                                         div()
@@ -725,6 +740,36 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                                                     .text_color(host.alert_color)
                                                     .child(host.alerts),
                                             )
+                                            // Archive (ERR-32): a server is never deleted outright.
+                                            .child(
+                                                div()
+                                                    .w(px(78.0))
+                                                    .flex_none()
+                                                    .flex()
+                                                    .justify_end()
+                                                    .child(
+                                                        div()
+                                                            .id(SharedString::from(format!("fleet-archive-{archive_id}")))
+                                                            .px(px(7.0))
+                                                            .py(px(1.5))
+                                                            .border_1()
+                                                            .border_color(BORDER_DEFAULT)
+                                                            .text_color(TEXT_DIMMER)
+                                                            .text_size(px(9.0))
+                                                            .font_weight(FontWeight::BOLD)
+                                                            .cursor_pointer()
+                                                            .hover(|s| s.bg(BG_CONTROL).text_color(WARN))
+                                                            .on_click(move |_ev, _window, cx| {
+                                                                let id = archive_id.clone();
+                                                                cx.stop_propagation();
+                                                                app_archive.update(cx, |this, cx| {
+                                                                    this.fleet.pending_archive = Some(id);
+                                                                    cx.notify();
+                                                                });
+                                                            })
+                                                            .child("ARCHIVE"),
+                                                    ),
+                                            )
                                     }).collect::<Vec<_>>()
                                 }),
                         ),
@@ -955,8 +1000,14 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
                         ),
                         )
                 ),
-        )
-        // 3. Persistent Fleet-Wide Destructive Strip with Abort Gate
+        ) })
+        // Archived servers, when that tab is showing.
+        .children(if fleet.show_archived {
+            Some(archived_panel(fleet, purge_days, purge_audit, app.clone()).into_any_element())
+        } else {
+            None
+        })
+        // 4. Persistent Fleet-Wide Destructive Strip with Abort Gate
         .child(
             div()
                 .h(px(46.0))
@@ -1059,4 +1110,8 @@ pub fn fleet_overview_view(app: Entity<CrowApp>, fleet: &FleetState, local_lab: 
         } else {
             None
         })
+        // Archive confirmation, over everything (ERR-32).
+        .children(fleet.pending_archive.as_ref().and_then(|id| fleet.servers.iter().find(|s| &s.id == id)).map(|srv| {
+            archive_confirm_overlay(srv, &purge_due, app.clone())
+        }))
 }

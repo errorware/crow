@@ -2,6 +2,7 @@ pub mod lab_state;
 pub mod state;
 
 pub use state::FleetState;
+pub mod archived;
 pub mod lab_modal;
 pub mod overview;
 pub mod setup;

@@ -214,6 +214,15 @@ impl Host for SshHost {
         self.label.clone()
     }
 
+    /// Closes the multiplexed connection this server's ControlMaster holds
+    /// (ERR-32): `ssh -O exit` with the same options resolves to the same `%C`
+    /// control socket that `exec_stdin` opened.
+    fn close_connection(&self) -> bool {
+        let mut argv: Vec<&str> = vec![self.program.as_str(), "-O", "exit"];
+        argv.extend(self.args.iter().map(String::as_str));
+        run_command(&argv, &[], Duration::from_secs(5)).is_ok()
+    }
+
     fn exec_stdin(&self, argv: &[&str], stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {
         if let Some(why) = &self.unsupported {
             record_state(&self.server_id, ConnectionState::AuthFailed(why.clone()));

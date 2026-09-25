@@ -18,6 +18,14 @@ pub struct FleetState {
     pub active_surge_alert: Option<SurgeAlert>,
     /// Height of the Fleet page's alerts/activity panel (drag to resize).
     pub bottom_panel_height: f32,
+    /// Servers that left the fleet but were never deleted (ERR-32).
+    pub archived: Vec<ServerRecord>,
+    /// Which Fleet tab is showing: the active fleet or the archive.
+    pub show_archived: bool,
+    /// One-line feedback after an archive, restore or purge.
+    pub notice: Option<String>,
+    /// Server awaiting archive confirmation.
+    pub pending_archive: Option<String>,
 }
 
 impl FleetState {
@@ -37,7 +45,16 @@ impl FleetState {
             metrics_lag_secs: 24,
             active_surge_alert: None,
             bottom_panel_height: 260.0,
+            archived: Vec::new(),
+            show_archived: false,
+            notice: None,
+            pending_archive: None,
         }
+    }
+
+    /// Archived servers still holding data, with when their purge is due.
+    pub fn archive_count(&self) -> usize {
+        self.archived.len()
     }
 
     /// The server behind the active tab.
