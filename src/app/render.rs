@@ -458,6 +458,8 @@ impl Render for CrowApp {
                         } else {
                             None
                         })
+                        // Snapshot first? before a lockout-risk change (ERR-48)
+                        .children(self.snapshot_offer.as_ref().map(|o| crate::components::snapshot_offer::snapshot_offer(o, app_view.clone())))
                         // Fleet → IMPORT FROM PROVIDERS (ERR-46)
                         .children(self.import.open.then(|| crate::views::fleet::import::import_panel(&self.import, app_view.clone())))
                         // Security stance panel (titlebar badge, ERR-60)

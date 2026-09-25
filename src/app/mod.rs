@@ -194,6 +194,8 @@ pub struct CrowApp {
     pub clanker_inputs: Option<ClankerInputs>,
     /// Fleet → IMPORT FROM PROVIDERS.
     pub import: providers::ImportState,
+    /// Snapshot-first offer before a lockout-risk change (ERR-48).
+    pub snapshot_offer: Option<configs::SnapshotOffer>,
     /// Something the user should know about their stored secrets (moved,
     /// lost with the keyring, ...), shown on Providers and Clankers.
     pub secrets_notice: Option<String>,
@@ -351,6 +353,7 @@ impl CrowApp {
             provider_inputs: None,
             clanker_inputs: None,
             import: Default::default(),
+            snapshot_offer: None,
             secrets_notice: None,
             last_activity: std::time::Instant::now(),
             stance_panel_open: false,
