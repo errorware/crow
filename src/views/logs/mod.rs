@@ -4,7 +4,6 @@ use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
 use crate::journal::{JournalBootScope, JournalEntry, JournalPriority, JournalStorageMode, JournalTimeRange};
-use crate::keys::copy_to_clipboard_system;
 use gpui_kit::component::input::{Input, InputState};
 use crate::components::icons::{tabler_icon, TablerIcon};
 
@@ -133,6 +132,10 @@ pub fn logs_explorer_view(
                     let app_clear = app_clone.clone();
                     let app_bound = app_clone.clone();
                     let export_snapshot = export_text.clone();
+                    let export_lines = filtered_entries.len();
+                    let app_export = app_clone.clone();
+                    let cleared = journal.cleared_after.is_some();
+                    let export_note = journal.export_note.clone();
                     let is_tail = journal.live_tail;
                     let is_warn = journal.telemetry.is_volatile_warning
                         || journal.retention.storage != JournalStorageMode::Persistent;
@@ -249,11 +252,13 @@ pub fn logs_explorer_view(
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
-                                .on_click(move |_ev, _window, _cx| {
-                                    copy_to_clipboard_system(&export_snapshot);
+                                .on_click(move |_ev, _window, cx| {
+                                    let text = export_snapshot.clone();
+                                    app_export.update(cx, |this, cx| this.export_journal(text, export_lines, cx));
                                 })
                                 .child("EXPORT ⧉"),
                         )
+                        .children(export_note.map(|n| div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_DIMMER).child(n)))
                         // Clear button
                         .child(
                             div()
@@ -273,7 +278,7 @@ pub fn logs_explorer_view(
                                         this.clear_journal(cx);
                                     });
                                 })
-                                .child("CLEAR"),
+                                .child(if cleared { "SHOW ALL" } else { "CLEAR" }),
                         )
                 }),
         )
@@ -1193,8 +1198,8 @@ fn render_inspector_drawer(
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.0))
-                                .on_click(move |_ev, _window, _cx| {
-                                    copy_to_clipboard_system(&copy_msg_str);
+                                .on_click(move |_ev, _window, cx| {
+                                    cx.write_to_clipboard(ClipboardItem::new_string(copy_msg_str.clone()));
                                 })
                                 .child("COPY MESSAGE"),
                         )
@@ -1211,8 +1216,8 @@ fn render_inspector_drawer(
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.0))
-                                .on_click(move |_ev, _window, _cx| {
-                                    copy_to_clipboard_system(&copy_json_str);
+                                .on_click(move |_ev, _window, cx| {
+                                    cx.write_to_clipboard(ClipboardItem::new_string(copy_json_str.clone()));
                                 })
                                 .child("COPY JSON"),
                         ),

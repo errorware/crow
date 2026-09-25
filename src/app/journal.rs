@@ -29,7 +29,7 @@ impl CrowApp {
                     if this.journal.unit_filter.is_none() {
                         this.journal.learn_units(&entries);
                     }
-                    this.journal.entries = entries;
+                    this.journal.set_entries(entries);
                     cx.notify();
                 });
             }).detach();
@@ -222,8 +222,26 @@ impl CrowApp {
         }
     }
 
+    /// CLEAR, or SHOW ALL once cleared.
     pub fn clear_journal(&mut self, cx: &mut Context<Self>) {
-        self.journal.entries.clear();
+        if self.journal.cleared_after.take().is_some() {
+            self.journal.export_note = None;
+            self.run_journal_query(cx);
+        } else {
+            self.journal.clear();
+            self.journal.export_note = None;
+            cx.notify();
+        }
+    }
+
+    /// EXPORT: copies the lines on screen (after filters) to the clipboard.
+    pub fn export_journal(&mut self, text: String, lines: usize, cx: &mut Context<Self>) {
+        if lines == 0 {
+            self.journal.export_note = Some("Nothing to export".into());
+        } else {
+            cx.write_to_clipboard(ClipboardItem::new_string(text));
+            self.journal.export_note = Some(format!("Copied {lines} line{}", if lines == 1 { "" } else { "s" }));
+        }
         cx.notify();
     }
 

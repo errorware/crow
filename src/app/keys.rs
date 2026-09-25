@@ -2,7 +2,6 @@ use gpui_kit::*;
 
 use super::CrowApp;
 use crate::keys::{
-    copy_to_clipboard_system,
     expand_tilde,
     AddScanPathModalState,
     EditKeyModalState,
@@ -264,7 +263,9 @@ impl CrowApp {
     }
 
     pub fn copy_text_with_toast(&mut self, text: &str, toast: &str, cx: &mut Context<Self>) {
-        copy_to_clipboard_system(text);
+        if !text.is_empty() {
+            cx.write_to_clipboard(ClipboardItem::new_string(text.to_string()));
+        }
         self.keys.toast = Some(toast.to_string());
         cx.notify();
     }
