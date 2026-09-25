@@ -1,14 +1,25 @@
 [package]
-name = "crow"
+# "crow" is taken on crates.io; the package is crow-rs (after crow.rs), the
+# program it installs is still `crow`.
+name = "crow-rs"
 version = "0.1.0"
 edition = "2021"
 license-file = "LICENSE"
 authors = ["Nelson <nelson@errorware.net>"]
+description = "Agentless fleet manager for Linux servers over plain SSH: services, logs, configs, firewall, users"
+homepage = "https://crow.rs"
+repository = "https://github.com/errorware/crow"
+keywords = ["ssh", "sysadmin", "fleet", "gui", "linux"]
+categories = ["command-line-utilities", "gui"]
+
+[[bin]]
+name = "crow"
+path = "src/main.rs"
 
 [dependencies]
 gpui-kit = "0.6.1"
-crow-config-core = { path = "../crow-config-core/crow-config-core" }
-crow-config-schemas = { path = "../crow-config-core/crow-config-schemas" }
+crow-config-core = { path = "../crow-config-core/crow-config-core", version = "0.1.0" }
+crow-config-schemas = { path = "../crow-config-core/crow-config-schemas", version = "0.1.0" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 chrono = "0.4"
