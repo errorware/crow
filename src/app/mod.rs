@@ -48,6 +48,7 @@ mod journal;
 mod clankers;
 pub mod providers;
 mod secrets;
+pub mod vault_manage;
 mod lab;
 
 use crate::views::fleet::lab_state::LocalLabState;
@@ -202,6 +203,9 @@ pub struct CrowApp {
     pub pending_secret: Option<secrets::PendingSecret>,
     /// The stance choice's "I understand" box.
     pub stance_choice_ack: bool,
+    /// Vault & Security: change password / go back to Open.
+    pub vault_form: vault_manage::VaultFormState,
+    pub vault_form_inputs: Option<vault_manage::VaultFormInputs>,
     pub settings: SettingsState,
     /// UI components sandbox (Settings → Components).
     pub lab_state: LabState,
@@ -345,6 +349,8 @@ impl CrowApp {
             plaintext_ai_keys: false,
             pending_secret: None,
             stance_choice_ack: false,
+            vault_form: Default::default(),
+            vault_form_inputs: None,
         };
         app.refresh_providers();
         app.load_keyring_key(cx);
@@ -386,7 +392,7 @@ impl CrowApp {
                 return true;
             }
         }
-        if self.screen == Screen::Settings && self.provider_inputs.is_some() {
+        if self.screen == Screen::Settings && (self.provider_inputs.is_some() || self.vault_form_inputs.is_some()) {
             return true;
         }
         if self.screen == Screen::Settings && self.settings.dropdown_open.is_some() {

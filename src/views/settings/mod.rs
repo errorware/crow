@@ -23,6 +23,7 @@ use crate::views::settings::lab::LabState;
 pub mod lab;
 pub mod clankers;
 pub mod providers;
+pub mod vault_manage;
 
 fn format_field_label(leaf: &str) -> String {
     match leaf {
@@ -236,6 +237,7 @@ pub fn settings_view(
     providers_state: &crate::app::providers::ProvidersState,
     provider_inputs: Option<&crate::app::providers::ProviderFormInputs>,
     secrets_notice: Option<&str>,
+    vault_form: (&crate::app::vault_manage::VaultFormState, Option<&crate::app::vault_manage::VaultFormInputs>),
 ) -> impl IntoElement {
     let is_auth_enabled = vault.is_password_auth_enabled();
     let open_dropdown = settings.dropdown_open.as_deref();
@@ -708,6 +710,7 @@ pub fn settings_view(
                                 } else {
                                     None
                                 })
+                                .children((section == SettingsSection::Security && is_auth_enabled).then(|| vault_manage::render(vault_form.0, vault_form.1, app.clone())))
                                 .children(sec_rows.into_iter().enumerate().map(|(idx, row)| {
                                     let is_even = idx % 2 == 0;
                                     let field = row.get_field(&row.row_id);

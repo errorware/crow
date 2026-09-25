@@ -599,6 +599,13 @@ impl VaultDb {
     /// Authenticates with password and optional TOTP code, returning the
     /// vault's data key on success.
     pub fn unlock(&self, password: &str, totp_code: Option<&str>) -> Result<MasterKey, VaultError> {
+        let (password_key, _totp_secret) = self.authenticate(password, totp_code)?;
+        self.data_key(&password_key)
+    }
+
+    /// Checks the password (and TOTP code, when enabled). Returns the
+    /// password-derived key and the decrypted TOTP secret.
+    fn authenticate(&self, password: &str, totp_code: Option<&str>) -> Result<(MasterKey, Option<zeroize::Zeroizing<String>>), VaultError> {
         let row = self.conn.query_row(
             "SELECT salt, verifier_hash, totp_enabled, encrypted_totp_secret, totp_nonce FROM vault_meta WHERE id = 1",
             [],
@@ -646,15 +653,20 @@ impl VaultDb {
             nonce.copy_from_slice(&nonce_vec);
 
             let decrypted_secret_bytes = decrypt_data(&master_key, &enc_secret, &nonce)?;
-            let secret_base32 = String::from_utf8(decrypted_secret_bytes)
-                .map_err(|_| VaultError::Crypto("Corrupt TOTP secret encoding".into()))?;
+            let secret_base32 = zeroize::Zeroizing::new(String::from_utf8(decrypted_secret_bytes)
+                .map_err(|_| VaultError::Crypto("Corrupt TOTP secret encoding".into()))?);
 
             if !verify_totp_code(&secret_base32, code) {
                 return Err(VaultError::InvalidTotpCode);
             }
+            return Ok((master_key, Some(secret_base32)));
         }
+        Ok((master_key, None))
+    }
 
-        // 4. Unwrap the data key. Vaults from before ERR-56 have none: their
+    /// The data key, unwrapped with the password-derived key.
+    fn data_key(&self, master_key: &MasterKey) -> Result<MasterKey, VaultError> {
+        // Unwrap the data key. Vaults from before ERR-56 have none: their
         //    entries were encrypted with the password-derived key itself.
         let wrapped: (Option<Vec<u8>>, Option<Vec<u8>>) = self.conn.query_row(
             "SELECT wrapped_data_key, data_key_nonce FROM vault_meta WHERE id = 1",
@@ -665,10 +677,48 @@ impl VaultDb {
             (Some(ct), Some(nonce_vec)) if nonce_vec.len() == NONCE_LEN => {
                 let mut nonce = [0u8; NONCE_LEN];
                 nonce.copy_from_slice(&nonce_vec);
-                Ok(unwrap_key(&master_key, &ct, &nonce)?)
+                Ok(unwrap_key(master_key, &ct, &nonce)?)
             }
-            _ => self.upgrade_to_data_key(&master_key),
+            _ => self.upgrade_to_data_key(master_key),
         }
+    }
+
+    /// Changes the vault password. Only the data key (and the TOTP secret)
+    /// are re-encrypted, under a key from the new password; entries don't
+    /// change. Needs the current password and 2FA code.
+    pub fn change_password(&self, current: &str, totp_code: Option<&str>, new_password: &str) -> Result<MasterKey, VaultError> {
+        if new_password.chars().count() < 8 {
+            return Err(VaultError::Crypto("the new password must be at least 8 characters".into()));
+        }
+        let (old_key, totp_secret) = self.authenticate(current, totp_code)?;
+        let data_key = self.data_key(&old_key)?;
+        let salt = generate_salt();
+        let new_key = derive_master_key(new_password, &salt)?;
+        let verifier = hash_password_verifier(new_password)?;
+        let (wrapped, nonce) = wrap_key(&new_key, &data_key)?;
+        let totp = totp_secret.map(|t| encrypt_data(&new_key, t.as_bytes())).transpose()?;
+        self.conn.execute(
+            "UPDATE vault_meta SET salt = ?1, verifier_hash = ?2, wrapped_data_key = ?3, data_key_nonce = ?4,
+                 encrypted_totp_secret = COALESCE(?5, encrypted_totp_secret), totp_nonce = COALESCE(?6, totp_nonce), updated_at = ?7
+             WHERE id = 1",
+            params![salt.as_slice(), verifier, wrapped, nonce.as_slice(), totp.as_ref().map(|(c, _)| c.clone()), totp.as_ref().map(|(_, n)| n.to_vec()), Utc::now().to_rfc3339()],
+        )?;
+        Ok(data_key)
+    }
+
+    /// Turning the password off, step one: checks the password and 2FA code
+    /// and returns the data key, which the caller must put in the OS
+    /// keyring before calling [`Self::remove_password`].
+    pub fn data_key_for_removal(&self, password: &str, totp_code: Option<&str>) -> Result<MasterKey, VaultError> {
+        let (key, _) = self.authenticate(password, totp_code)?;
+        self.data_key(&key)
+    }
+
+    /// Turning the password off, step two: forgets the password (and the
+    /// wrapped data key). Only call once the keyring holds the data key.
+    pub fn remove_password(&self) -> Result<(), VaultError> {
+        self.conn.execute("DELETE FROM vault_meta WHERE id = 1", [])?;
+        Ok(())
     }
 
     /// Moves a vault from before ERR-56 (entries encrypted with the
@@ -1633,6 +1683,40 @@ mod tests {
         let kek = derive_master_key("pw", &salt.try_into().unwrap()).unwrap();
         assert_ne!(kek.as_bytes(), unlocked.as_bytes());
         assert!(!wrapped.windows(8).any(|w| unlocked.as_bytes().windows(8).any(|k| k == w)), "stored wrapped, not raw");
+    }
+
+    fn current_code(secret: &str) -> String {
+        totp_rs::Builder::new().with_secret(totp_rs::Secret::try_from_base32(secret).unwrap()).build().unwrap().generate_current().to_string()
+    }
+
+    #[test]
+    fn changing_the_password_keeps_the_secrets_and_the_2fa() {
+        let mut db = VaultDb::open_in_memory().unwrap();
+        let totp = generate_totp_secret();
+        let key = db.init_vault("old-password", Some(&totp), None).unwrap();
+        db.store_entry(&key, "provider:linode:api_token", PROVIDER_SECRET_CATEGORY, "t", b"tok").unwrap();
+
+        assert!(matches!(db.change_password("wrong", Some(&current_code(&totp)), "new-password"), Err(VaultError::InvalidPassword)));
+        assert!(matches!(db.change_password("old-password", Some("000000"), "new-password"), Err(VaultError::InvalidTotpCode)));
+        assert!(db.change_password("old-password", Some(&current_code(&totp)), "short").is_err());
+
+        db.change_password("old-password", Some(&current_code(&totp)), "new-password").unwrap();
+        assert!(matches!(db.unlock("old-password", Some(&current_code(&totp))), Err(VaultError::InvalidPassword)));
+        let after = db.unlock("new-password", Some(&current_code(&totp))).unwrap();
+        assert_eq!(after.as_bytes(), key.as_bytes(), "same data key");
+        assert_eq!(db.load_entry(&after, "provider:linode:api_token").unwrap(), b"tok");
+    }
+
+    #[test]
+    fn turning_the_password_off_hands_back_the_data_key() {
+        let mut db = VaultDb::open_in_memory().unwrap();
+        let totp = generate_totp_secret();
+        let key = db.init_vault("password", Some(&totp), None).unwrap();
+        assert!(db.data_key_for_removal("password", Some("000000")).is_err());
+        let handed = db.data_key_for_removal("password", Some(&current_code(&totp))).unwrap();
+        assert_eq!(handed.as_bytes(), key.as_bytes());
+        db.remove_password().unwrap();
+        assert!(!db.is_initialized().unwrap());
     }
 
     #[test]

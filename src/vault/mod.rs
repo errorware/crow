@@ -151,6 +151,31 @@ impl Vault {
         Ok(())
     }
 
+    /// Changes the vault password (Locked stays Locked; same data key).
+    pub fn change_password(&mut self, current: &str, totp_code: &str, new_password: &str) -> Result<(), VaultError> {
+        let db = self.db.lock().map_err(|_| VaultError::Crypto("DB lock poisoned".into()))?;
+        db.change_password(current, Some(totp_code), new_password)?;
+        Ok(())
+    }
+
+    /// Going back to Open, step one: the data key, after checking the
+    /// password and code. The caller puts it in the OS keyring, then calls
+    /// [`Self::finish_password_removal`].
+    pub fn data_key_for_removal(&self, password: &str, totp_code: &str) -> Result<MasterKey, VaultError> {
+        let db = self.db.lock().map_err(|_| VaultError::Crypto("DB lock poisoned".into()))?;
+        db.data_key_for_removal(password, Some(totp_code))
+    }
+
+    /// Going back to Open, step two, once the keyring holds `key`.
+    pub fn finish_password_removal(&mut self, key: MasterKey) -> Result<(), VaultError> {
+        self.db.lock().map_err(|_| VaultError::Crypto("DB lock poisoned".into()))?.remove_password()?;
+        self.initialized = false;
+        self.totp_enabled = false;
+        self.session = None;
+        self.set_keyring_key(Some(key));
+        Ok(())
+    }
+
     pub fn lock(&mut self) {
         if self.initialized {
             // MasterKey inside session will be dropped and automatically zeroized
