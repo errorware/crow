@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license-file = "../../LICENSE"
 authors = ["Nelson <nelson@errorware.net>"]
+readme = "README.md"
 description = "Contracts for Crow's provider plugins: cloud hosts today, DNS next"
 homepage = "https://crow.rs"
 repository = "https://github.com/errorware/crow"

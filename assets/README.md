@@ -33,3 +33,11 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Country flags
+
+`assets/flags/*.svg` come from **[flag-icons](https://github.com/lipis/flag-icons)** by Panayiotis Lipiridis and contributors, licensed under the MIT License (same terms as above; Copyright (c) 2013 Panayiotis Lipiridis). They're shown next to servers by region.
+
+## Cloud icon
+
+`assets/icons/cloud.svg` is from Tabler Icons (MIT, as above).

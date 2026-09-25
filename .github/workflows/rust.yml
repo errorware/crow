@@ -40,8 +40,8 @@ jobs:
 
       - name: Build
         working-directory: crow
-        run: cargo build --locked --verbose
+        run: cargo build --workspace --locked --verbose
 
       - name: Run tests
         working-directory: crow
-        run: cargo test --locked --verbose
+        run: cargo test --workspace --locked --verbose

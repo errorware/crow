@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2021"
 license-file = "../../LICENSE"
 authors = ["Nelson <nelson@errorware.net>"]
+readme = "README.md"
 description = "UpCloud provider for Crow: servers and power"
 homepage = "https://crow.rs"
 repository = "https://github.com/errorware/crow"
