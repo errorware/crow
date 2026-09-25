@@ -210,6 +210,15 @@ pub struct SurgeAlert {
     pub is_critical: bool,
 }
 
+/// CPU or memory use, in percent, that the turbo buffer warns about.
+pub const CPU_ALERT_PCT: f32 = 90.0;
+pub const MEM_ALERT_PCT: f32 = 90.0;
+/// Load average per core that the turbo buffer warns about.
+pub const LOAD_ALERT_PER_CORE: f32 = 2.0;
+/// How many samples in a row a level must hold before it counts: a single
+/// busy second isn't worth anyone's attention.
+pub const SUSTAINED_SAMPLES: usize = 3;
+
 /// A decoupled local in-memory sliding buffer of telemetry samples.
 /// Ingestion pushes at T_head, while the UI queries at (T_head - lag_secs),
 /// providing buttery smooth rendering and lookahead foreknowledge.
@@ -276,81 +285,82 @@ impl ServerTimeSeriesBuffer {
         self.samples.back()
     }
 
-    /// Scans the lookahead window [T_playhead, T_head] for upcoming surges.
-    /// Returns the earliest detected surge along with the operator lead time in seconds.
+    /// Scans the lookahead window (T_playhead, T_head] for trouble worth
+    /// interrupting someone for: a service failing, or CPU, memory or load
+    /// staying high for several samples in a row. One-sample blips and jumps
+    /// that end at a harmless level don't count. Returns the earliest, with
+    /// its lead time.
     pub fn detect_upcoming_surge(&self, lag_secs: u64) -> Option<SurgeAlert> {
         let newest = self.samples.back()?;
         let target_ts = newest.timestamp_secs.saturating_sub(lag_secs);
-        let lagged_sample = self.query_lagged(lag_secs)?;
-        let baseline_cpu = lagged_sample.metrics.cpu_pct;
-        let baseline_mem = lagged_sample.metrics.mem_pct;
+        let baseline = self.query_lagged(lag_secs)?;
+        let ahead: Vec<&MetricSample> = self.samples.iter().filter(|s| s.timestamp_secs > target_ts).collect();
+        let mut found: Vec<SurgeAlert> = Vec::new();
 
-        for s in self.samples.iter().filter(|s| s.timestamp_secs > target_ts) {
-            let lead_seconds = s.timestamp_secs.saturating_sub(target_ts);
-
-            // 1. Check for Service Failure in lookahead
-            for svc in &s.services {
-                if svc.status == "FAILED" {
-                    let was_failed = lagged_sample.services.iter().any(|b| b.name == svc.name && b.status == "FAILED");
-                    if !was_failed {
-                        return Some(SurgeAlert {
-                            surge_type: SurgeType::ServiceFailure { unit_name: svc.name.clone() },
-                            lead_seconds,
-                            description: format!("Unit '{}' fails", svc.name),
-                            is_critical: true,
-                        });
-                    }
+        // A service that fails ahead, and wasn't failed at the playhead.
+        'services: for s in &ahead {
+            for svc in s.services.iter().filter(|svc| svc.status == "FAILED") {
+                if !baseline.services.iter().any(|b| b.name == svc.name && b.status == "FAILED") {
+                    found.push(SurgeAlert {
+                        surge_type: SurgeType::ServiceFailure { unit_name: svc.name.clone() },
+                        lead_seconds: s.timestamp_secs.saturating_sub(target_ts),
+                        description: format!("{} fails", svc.name),
+                        is_critical: true,
+                    });
+                    break 'services;
                 }
-            }
-
-            // 2. Check for CPU Spike (>20% jump or >80% threshold)
-            let cpu_delta = s.metrics.cpu_pct - baseline_cpu;
-            if s.metrics.cpu_pct >= 80.0 && baseline_cpu < 80.0 {
-                return Some(SurgeAlert {
-                    surge_type: SurgeType::CpuSpike { pct: s.metrics.cpu_pct, delta: cpu_delta },
-                    lead_seconds,
-                    description: format!("CPU spike to {:.0}% (+{:.0}%)", s.metrics.cpu_pct, cpu_delta.max(0.0)),
-                    is_critical: true,
-                });
-            } else if cpu_delta >= 25.0 {
-                return Some(SurgeAlert {
-                    surge_type: SurgeType::CpuSpike { pct: s.metrics.cpu_pct, delta: cpu_delta },
-                    lead_seconds,
-                    description: format!("Rapid CPU surge +{:.0}% (to {:.0}%)", cpu_delta, s.metrics.cpu_pct),
-                    is_critical: false,
-                });
-            }
-
-            // 3. Check for Memory Surge (>85% or +20% jump)
-            let mem_delta = s.metrics.mem_pct - baseline_mem;
-            if s.metrics.mem_pct >= 85.0 && baseline_mem < 85.0 {
-                return Some(SurgeAlert {
-                    surge_type: SurgeType::MemSurge { pct: s.metrics.mem_pct },
-                    lead_seconds,
-                    description: format!("Memory surge to {:.0}% (+{:.0}%)", s.metrics.mem_pct, mem_delta.max(0.0)),
-                    is_critical: true,
-                });
-            } else if mem_delta >= 20.0 {
-                return Some(SurgeAlert {
-                    surge_type: SurgeType::MemSurge { pct: s.metrics.mem_pct },
-                    lead_seconds,
-                    description: format!("Rapid Memory surge +{:.0}% (to {:.0}%)", mem_delta, s.metrics.mem_pct),
-                    is_critical: false,
-                });
-            }
-
-            // 4. Check for Load Spike
-            if s.metrics.load_1m >= (s.metrics.vcpu_count as f32 * 2.0).max(4.0) {
-                return Some(SurgeAlert {
-                    surge_type: SurgeType::LoadSpike { load_1m: s.metrics.load_1m },
-                    lead_seconds,
-                    description: format!("Load average surge to {:.2}", s.metrics.load_1m),
-                    is_critical: false,
-                });
             }
         }
 
-        None
+        // A level that holds for SUSTAINED_SAMPLES in a row, and isn't
+        // already there at the playhead (that's shown as current, not ahead).
+        let sustained = |over: &dyn Fn(&MetricSample) -> bool| -> Option<(usize, usize)> {
+            if over(baseline) {
+                return None;
+            }
+            let mut i = 0;
+            while i < ahead.len() {
+                let run = ahead[i..].iter().take_while(|s| over(s)).count();
+                if run >= SUSTAINED_SAMPLES {
+                    return Some((i, i + run - 1));
+                }
+                i += run.max(1);
+            }
+            None
+        };
+        let lead = |i: usize| ahead[i].timestamp_secs.saturating_sub(target_ts);
+        let held = |i: usize, j: usize| ahead[j].timestamp_secs.saturating_sub(ahead[i].timestamp_secs);
+
+        if let Some((i, j)) = sustained(&|s| s.metrics.cpu_pct >= CPU_ALERT_PCT) {
+            let peak = ahead[i..=j].iter().map(|s| s.metrics.cpu_pct).fold(0.0, f32::max);
+            found.push(SurgeAlert {
+                surge_type: SurgeType::CpuSpike { pct: peak, delta: peak - baseline.metrics.cpu_pct },
+                lead_seconds: lead(i),
+                description: format!("CPU at {peak:.0}% for {}s", held(i, j)),
+                is_critical: true,
+            });
+        }
+        if let Some((i, j)) = sustained(&|s| s.metrics.mem_pct >= MEM_ALERT_PCT) {
+            let peak = ahead[i..=j].iter().map(|s| s.metrics.mem_pct).fold(0.0, f32::max);
+            found.push(SurgeAlert {
+                surge_type: SurgeType::MemSurge { pct: peak },
+                lead_seconds: lead(i),
+                description: format!("memory at {peak:.0}% for {}s", held(i, j)),
+                is_critical: true,
+            });
+        }
+        let overloaded = |s: &MetricSample| s.metrics.vcpu_count > 0 && s.metrics.load_1m >= s.metrics.vcpu_count as f32 * LOAD_ALERT_PER_CORE;
+        if let Some((i, j)) = sustained(&overloaded) {
+            let peak = ahead[i..=j].iter().map(|s| s.metrics.load_1m).fold(0.0, f32::max);
+            found.push(SurgeAlert {
+                surge_type: SurgeType::LoadSpike { load_1m: peak },
+                lead_seconds: lead(i),
+                description: format!("load {peak:.1} on {} cores for {}s", ahead[i].metrics.vcpu_count, held(i, j)),
+                is_critical: true,
+            });
+        }
+
+        found.into_iter().min_by_key(|a| a.lead_seconds)
     }
 }
 
@@ -436,12 +446,40 @@ mod tests {
         };
 
         buffer.push_sample(make_sample(100, 25.0)); // T_playhead (lag = 24, Head = 124)
-        buffer.push_sample(make_sample(114, 88.0)); // Spike at T+14s
-        buffer.push_sample(make_sample(124, 92.0)); // Head
+        buffer.push_sample(make_sample(110, 40.0));
+        buffer.push_sample(make_sample(114, 91.0)); // high from T+14s...
+        buffer.push_sample(make_sample(118, 95.0));
+        buffer.push_sample(make_sample(124, 92.0)); // ...and it holds
 
         let alert = buffer.detect_upcoming_surge(24).expect("surge alert expected");
         assert_eq!(alert.lead_seconds, 14);
         assert!(alert.is_critical);
-        assert!(alert.description.contains("CPU spike to 88%"));
+        assert_eq!(alert.description, "CPU at 95% for 10s");
+    }
+
+    fn cpu_buffer(points: &[(u64, f32)]) -> ServerTimeSeriesBuffer {
+        let mut buffer = ServerTimeSeriesBuffer::new(180);
+        for &(ts, cpu) in points {
+            buffer.push_sample(MetricSample { timestamp_secs: ts, metrics: ServerMetrics { cpu_pct: cpu, ..Default::default() }, services: Vec::new(), processes: Vec::new(), sockets: Vec::new() });
+        }
+        buffer
+    }
+
+    #[test]
+    fn small_changes_and_harmless_jumps_are_not_alerts() {
+        // 29% → 30%: nothing to see.
+        assert!(cpu_buffer(&[(100, 29.0), (110, 29.5), (116, 30.0), (124, 30.0)]).detect_upcoming_surge(24).is_none());
+        // 5% → 30% in one tick: a jump, but to a harmless level.
+        assert!(cpu_buffer(&[(100, 5.0), (110, 30.0), (116, 31.0), (124, 30.0)]).detect_upcoming_surge(24).is_none());
+    }
+
+    #[test]
+    fn a_single_busy_sample_is_not_an_alert() {
+        assert!(cpu_buffer(&[(100, 20.0), (110, 99.0), (116, 25.0), (124, 22.0)]).detect_upcoming_surge(24).is_none());
+    }
+
+    #[test]
+    fn already_high_at_the_playhead_is_not_news() {
+        assert!(cpu_buffer(&[(100, 95.0), (110, 96.0), (116, 97.0), (124, 95.0)]).detect_upcoming_surge(24).is_none());
     }
 }
