@@ -94,6 +94,41 @@ fn base_options(settings: &SshSettings) -> Vec<String> {
     fixed.into_iter().chain(configured).flat_map(|o| ["-o".to_string(), o]).collect()
 }
 
+/// Turns connection args into ones for a brand-new login: no reused
+/// (ControlMaster) connection, keys only. ssh keeps the first value of each
+/// option, so the existing ones are replaced, not appended to.
+fn fresh_login_args(mut args: Vec<String>) -> Vec<String> {
+    for a in args.iter_mut() {
+        if a.starts_with("ControlMaster=") {
+            *a = "ControlMaster=no".into();
+        } else if a.starts_with("ControlPersist=") {
+            *a = "ControlPersist=no".into();
+        } else if a.starts_with("ControlPath=") {
+            *a = "ControlPath=none".into();
+        }
+    }
+    let at = args.iter().position(|a| a == "--").unwrap_or(args.len());
+    args.splice(at..at, ["-o".to_string(), "PreferredAuthentications=publickey".to_string()]);
+    args
+}
+
+/// Logs in to `server` anew, with its key only, and runs `true`: proof that
+/// key login works on its own, not just through a connection Crow holds.
+pub fn fresh_key_login(server: &ServerRecord) -> Result<(), String> {
+    let host = SshHost::for_server(server);
+    if let Some(why) = &host.unsupported {
+        return Err(why.clone());
+    }
+    let mut argv: Vec<String> = vec![host.program.clone()];
+    argv.extend(fresh_login_args(host.args.clone()));
+    argv.push("true".into());
+    let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
+    run_command(&argv, &[], Duration::from_secs(20)).map(|_| ()).map_err(|e| match e {
+        HostError::Failed { stderr, .. } => stderr.trim().lines().last().unwrap_or("login failed").to_string(),
+        other => other.to_string(),
+    })
+}
+
 fn states() -> &'static Mutex<HashMap<String, ConnectionState>> {
     static STATES: OnceLock<Mutex<HashMap<String, ConnectionState>>> = OnceLock::new();
     STATES.get_or_init(Default::default)
@@ -483,5 +518,15 @@ mod tests {
         }
         let default = base_options(&SshSettings::default()).join(" ");
         assert!(default.contains("ControlMaster=auto") && default.contains("ControlPersist=600"));
+    }
+
+    #[test]
+    fn fresh_login_never_reuses_a_connection_and_uses_keys_only() {
+        let args = fresh_login_args(vec!["-o".into(), "ControlMaster=auto".into(), "-o".into(), "ControlPersist=600".into(), "-o".into(), "ControlPath=/run/crow/%C".into(), "--".into(), "10.0.0.1".into()]);
+        let joined = args.join(" ");
+        assert!(joined.contains("ControlMaster=no") && joined.contains("ControlPersist=no") && joined.contains("ControlPath=none"));
+        assert!(!joined.contains("ControlMaster=auto"));
+        let dashdash = args.iter().position(|a| a == "--").unwrap();
+        assert_eq!(args[dashdash - 1], "PreferredAuthentications=publickey", "before the destination");
     }
 }

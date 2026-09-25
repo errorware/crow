@@ -48,6 +48,7 @@ mod journal;
 mod clankers;
 pub mod providers;
 mod secrets;
+pub mod password_login;
 pub mod vault_manage;
 mod lab;
 
@@ -206,6 +207,8 @@ pub struct CrowApp {
     pub setup_inputs: Option<SetupInputs>,
     /// Snapshot-first offer before a lockout-risk change (ERR-48).
     pub snapshot_offer: Option<configs::SnapshotOffer>,
+    /// Turn off SSH password login (ERR-34).
+    pub password_login: Option<password_login::PasswordLoginFlow>,
     /// Something the user should know about their stored secrets (moved,
     /// lost with the keyring, ...), shown on Providers and Clankers.
     pub secrets_notice: Option<String>,
@@ -364,6 +367,7 @@ impl CrowApp {
             clanker_inputs: None,
             import: Default::default(),
             snapshot_offer: None,
+            password_login: None,
             setup_inputs: None,
             secrets_notice: None,
             last_activity: std::time::Instant::now(),

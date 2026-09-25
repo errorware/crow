@@ -22,3 +22,4 @@ pub mod resize;
 pub mod flag;
 pub mod stance;
 pub mod snapshot_offer;
+pub mod password_login;
