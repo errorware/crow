@@ -149,7 +149,7 @@ pub fn titlebar(
                             .text_size(px(11.0))
                             .font_weight(if is_fleet_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                             .text_color(if is_fleet_active { TEXT_PRIMARY } else { TEXT_MUTED })
-                            .child("FLOCK"),
+                            .child("FLEET"),
                     ),
             )
             // Server Tabs (each with close affordance)
@@ -423,10 +423,10 @@ pub fn burger_menu_overlay(
 
     let mut items: Vec<MenuItem> = Vec::new();
 
-    // Section 1: FLOCK
+    // Section 1: FLEET
     items.push(MenuItem {
         icon: None,
-        label: "FLOCK".to_string(),
+        label: "FLEET".to_string(),
         shortcut: "",
         action: None,
         is_danger: false,
@@ -435,7 +435,7 @@ pub fn burger_menu_overlay(
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::LayoutDashboard),
-        label: "Flock Overview".to_string(),
+        label: "Fleet Overview".to_string(),
         shortcut: "⌘1",
         action: Some(MenuAction::NavigateScreen(Screen::Fleet)),
         is_danger: false,
@@ -444,7 +444,7 @@ pub fn burger_menu_overlay(
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Network),
-        label: "Flock Setup — Topology & Policy".to_string(),
+        label: "Fleet Setup — Topology & Policy".to_string(),
         shortcut: "⌘⇧F",
         action: Some(MenuAction::NavigateScreen(Screen::FleetSetup)),
         is_danger: false,

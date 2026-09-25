@@ -30,7 +30,7 @@ pub fn fleet_view_tabs(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEle
         .border_b_1()
         .border_color(BORDER_PANEL)
         .font_family(FONT_MONO)
-        .child(tab_chip("fleet-tab-active", &format!("ACTIVE FLOCK ({active_n})"), !showing_archived, move |cx| {
+        .child(tab_chip("fleet-tab-active", &format!("ACTIVE FLEET ({active_n})"), !showing_archived, move |cx| {
             app_active.update(cx, |this, cx| {
                 this.fleet.show_archived = false;
                 cx.notify();

@@ -124,7 +124,7 @@ pub fn fleet_stat_strip(
         ("SERVERS", server_count.to_string(), "".to_string(), group_note, TEXT_PRIMARY),
         ("OPEN ALERTS", (crit + warn).to_string(), "".to_string(), format!("{crit} crit · {warn} warn"), alert_color),
         ("CONFIG DRIFT", drift_val, drift_unit, drift_note, drift_fg),
-        ("FLOCK LOAD", load_val, "".to_string(), vcpu_note, TEXT_PRIMARY),
+        ("FLEET LOAD", load_val, "".to_string(), vcpu_note, TEXT_PRIMARY),
         ("OLDEST HOST KEY", oldest_key_val, oldest_key_unit, oldest_key_note, oldest_key_color),
         ("CONNECTED", connected_count.to_string(), format!("/{}", server_count), "reachable over their transport".to_string(), if connected_count < server_count { WARN } else { TEXT_PRIMARY }),
     ];
@@ -1249,7 +1249,7 @@ pub fn fleet_overview_view(
                                 .text_size(px(10.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(CRIT)
-                                .child("FLOCK-WIDE"),
+                                .child("FLEET-WIDE"),
                         ),
                 )
                 .child(
@@ -1378,7 +1378,7 @@ pub fn fleet_overview_view(
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_DIMMER)
-                        .child("flock actions run serially with a per-host abort gate"),
+                        .child("fleet actions run serially with a per-host abort gate"),
                 ),
         )
         .children(if local_lab.show_modal {

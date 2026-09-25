@@ -474,7 +474,7 @@ impl Render for CrowApp {
                             let scope = self.fleet.servers.iter()
                                 .find(|s| s.id == self.fleet.active_tab_id || s.name == self.fleet.active_tab_id)
                                 .map(|s| s.name.as_str())
-                                .unwrap_or("Flock");
+                                .unwrap_or("Fleet");
                             Some(palette_overlay(app_view.clone(), scope))
                         } else {
                             None

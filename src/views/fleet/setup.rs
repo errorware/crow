@@ -91,7 +91,7 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                                 .text_size(px(16.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_MAX)
-                                .child("FLOCK SETUP & POLICIES"),
+                                .child("FLEET SETUP & POLICIES"),
                         )
                         .child(
                             div()
@@ -148,7 +148,7 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child("FLOCK GROUPS:"))
+                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child("FLEET GROUPS:"))
                         .child(div().text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(hex_rgb(0x38bdf8)).child(group_map.len().to_string())),
                 )
                 .child(
@@ -202,7 +202,7 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                                 .text_size(px(11.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_PRIMARY)
-                                .child("FLOCK TOPOLOGY & GROUP ASSIGNMENTS"),
+                                .child("FLEET TOPOLOGY & GROUP ASSIGNMENTS"),
                         )
                         .children(if group_map.is_empty() {
                             vec![
@@ -433,7 +433,7 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                                                 .text_size(px(11.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_MAX)
-                                                .child("FLOCK TAG TAXONOMY"),
+                                                .child("FLEET TAG TAXONOMY"),
                                         ),
                                 )
                                 .children(if tag_counts.is_empty() {
