@@ -1,0 +1,24 @@
+[plugin]
+name = "upcloud"
+kind = "provider"
+category = "provider.hosts"
+capabilities = ["instances.list", "instances.power"]
+
+[[settings]]
+key = "api_token"
+label = "API token"
+type = "secret"
+help = "An UpCloud API token (ucat_...). Leave empty to sign in with an API sub-account's username and password instead."
+docs_source = "https://developers.upcloud.com/1.3/3-accounts/"
+
+[[settings]]
+key = "username"
+label = "API username"
+type = "string"
+help = "An UpCloud sub-account with API access. Only used when there's no API token."
+
+[[settings]]
+key = "password"
+label = "API password"
+type = "secret"
+help = "That sub-account's password."

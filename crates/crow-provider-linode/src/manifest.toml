@@ -1,0 +1,13 @@
+[plugin]
+name = "linode"
+kind = "provider"
+category = "provider.hosts"
+capabilities = ["instances.list", "instances.power", "snapshots"]
+
+[[settings]]
+key = "api_token"
+label = "API token"
+type = "secret"
+required = true
+help = "A Linode personal access token. Linodes: read only is enough to list servers; read/write also allows power and snapshots."
+docs_source = "https://techdocs.akamai.com/linode-api/reference/get-started#personal-access-tokens"

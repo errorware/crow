@@ -1,6 +1,7 @@
 [plugin]
 name = "crow_config"
 grammar = "toml"
+category = "config.format"
 
 [shape]
 kind = "key_value_list"

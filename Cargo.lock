@@ -1402,6 +1402,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "crow-provider-core"
+version = "0.1.0"
+dependencies = [
+ "crow-config-core",
+ "serde",
+ "serde_json",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "crow-provider-linode"
+version = "0.1.0"
+dependencies = [
+ "crow-provider-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "crow-provider-upcloud"
+version = "0.1.0"
+dependencies = [
+ "crow-provider-core",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "crow-rs"
 version = "0.1.0"
 dependencies = [
@@ -1410,6 +1438,9 @@ dependencies = [
  "chrono",
  "crow-config-core",
  "crow-config-schemas",
+ "crow-provider-core",
+ "crow-provider-linode",
+ "crow-provider-upcloud",
  "dirs 7.0.0",
  "gpui-kit",
  "image",

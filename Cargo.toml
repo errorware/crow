@@ -12,11 +12,23 @@ repository = "https://github.com/errorware/crow"
 keywords = ["ssh", "sysadmin", "fleet", "gui", "linux"]
 categories = ["command-line-utilities", "gui"]
 
+[workspace]
+members = [".", "crates/*"]
+
 [[bin]]
 name = "crow"
 path = "src/main.rs"
 
+[features]
+default = ["provider-linode", "provider-upcloud"]
+# Provider plugins are compiled in; each one is a feature.
+provider-linode = ["dep:crow-provider-linode"]
+provider-upcloud = ["dep:crow-provider-upcloud"]
+
 [dependencies]
+crow-provider-core = { path = "crates/crow-provider-core", version = "0.1.0" }
+crow-provider-linode = { path = "crates/crow-provider-linode", version = "0.1.0", optional = true }
+crow-provider-upcloud = { path = "crates/crow-provider-upcloud", version = "0.1.0", optional = true }
 gpui-kit = "0.6.1"
 crow-config-core = { path = "../crow-config-core/crow-config-core", version = "0.1.0" }
 crow-config-schemas = { path = "../crow-config-core/crow-config-schemas", version = "0.1.0" }
