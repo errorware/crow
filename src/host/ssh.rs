@@ -128,7 +128,7 @@ impl SshHost {
         Self::new(server, key_path, jump, control_dir())
     }
 
-    fn new(server: &ServerRecord, key_path: Option<String>, jump: Option<String>, control_dir: PathBuf) -> Self {
+    pub(crate) fn new(server: &ServerRecord, key_path: Option<String>, jump: Option<String>, control_dir: PathBuf) -> Self {
         let port = if server.port == 0 { 22 } else { server.port };
         let mut args: Vec<String> = [
             "-o", "BatchMode=yes",

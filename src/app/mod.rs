@@ -43,6 +43,7 @@ mod keys;
 pub mod appearance;
 pub mod archive;
 pub mod configs;
+pub mod region;
 mod journal;
 mod clankers;
 mod lab;
@@ -159,6 +160,8 @@ pub struct CrowApp {
     pub password_inputs: Option<crate::views::users::PasswordInputs>,
     /// The Fleet page's background picture, as drawn.
     pub fleet_background: appearance::FleetBackground,
+    /// The identity bar's country picker is open (manual region override).
+    pub region_picker_open: bool,
     /// Focus the current table page's search box on the next render (`/`).
     pub table_search_focus_pending: bool,
     pub overview: OverviewState,
@@ -298,6 +301,7 @@ impl CrowApp {
             new_user_inputs: None,
             password_inputs: None,
             fleet_background: Default::default(),
+            region_picker_open: false,
             table_search_focus_pending: false,
             lab_state: LabState::new(window, cx),
             caret: TextCaret { blink: true, ..TextCaret::default() },

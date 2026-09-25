@@ -483,6 +483,11 @@ impl CrowApp {
             last_seen_at: Some(now),
             archived_at: None,
             purged_at: None,
+            region_country: self.onboard_state.facts.region.as_ref().map(|r| r.country.clone()).unwrap_or_default(),
+            region_city: self.onboard_state.facts.region.as_ref().map(|r| r.city.clone()).unwrap_or_default(),
+            region_provider: self.onboard_state.facts.region.as_ref().map(|r| r.provider.clone()).unwrap_or_default(),
+            region_code: self.onboard_state.facts.region.as_ref().map(|r| r.code.clone()).unwrap_or_default(),
+            region_source: if self.onboard_state.facts.region.is_some() { "metadata".into() } else { String::new() },
         };
 
         // Persist to SQLite

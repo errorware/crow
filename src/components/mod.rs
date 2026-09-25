@@ -19,3 +19,4 @@ pub use text_input::{handle_text_key_event, terminal_text_input, terminal_text_i
 pub mod window_frame;
 pub mod table_controls;
 pub mod resize;
+pub mod flag;

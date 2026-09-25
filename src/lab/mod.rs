@@ -310,6 +310,7 @@ pub fn build_server_record_for_node(node: &LocalTestNode) -> ServerRecord {
         last_seen_at: Some(now),
         archived_at: None,
         purged_at: None,
+        ..Default::default()
     }
 }
 
