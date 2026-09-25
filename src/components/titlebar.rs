@@ -461,43 +461,7 @@ pub fn burger_menu_overlay(
         is_featured: true,
     });
 
-    // Section 2: THIS SERVER
-    items.push(MenuItem {
-        icon: None,
-        label: "THIS SERVER".to_string(),
-        shortcut: "",
-        action: None,
-        is_danger: false,
-        is_header: true,
-        is_featured: false,
-    });
-    items.push(MenuItem {
-        icon: Some(TablerIcon::Server),
-        label: server_overview_label,
-        shortcut: "⌘2",
-        action: Some(MenuAction::NavigateServerView("overview")),
-        is_danger: false,
-        is_header: false,
-        is_featured: false,
-    });
-    items.push(MenuItem {
-        icon: Some(TablerIcon::AdjustmentsHorizontal),
-        label: "Managed Configs".to_string(),
-        shortcut: "⌘3",
-        action: Some(MenuAction::NavigateServerView("config")),
-        is_danger: false,
-        is_header: false,
-        is_featured: false,
-    });
-    items.push(MenuItem {
-        icon: Some(TablerIcon::FileText),
-        label: "Systemd Journal Logs".to_string(),
-        shortcut: "⌘4",
-        action: Some(MenuAction::NavigateServerView("logs")),
-        is_danger: false,
-        is_header: false,
-        is_featured: false,
-    });
+    // Local lab is fleet-wide, not about one server.
     items.push(MenuItem {
         icon: Some(TablerIcon::Box),
         label: "Local Test Lab & VMs".to_string(),
@@ -507,6 +471,46 @@ pub fn burger_menu_overlay(
         is_header: false,
         is_featured: false,
     });
+
+    // Section 2: THIS SERVER, only while a server is on screen.
+    if current_screen == Screen::Server {
+        items.push(MenuItem {
+            icon: None,
+            label: "THIS SERVER".to_string(),
+            shortcut: "",
+            action: None,
+            is_danger: false,
+            is_header: true,
+            is_featured: false,
+        });
+        items.push(MenuItem {
+            icon: Some(TablerIcon::Server),
+            label: server_overview_label,
+            shortcut: "⌘2",
+            action: Some(MenuAction::NavigateServerView("overview")),
+            is_danger: false,
+            is_header: false,
+            is_featured: false,
+        });
+        items.push(MenuItem {
+            icon: Some(TablerIcon::AdjustmentsHorizontal),
+            label: "Managed Configs".to_string(),
+            shortcut: "⌘3",
+            action: Some(MenuAction::NavigateServerView("config")),
+            is_danger: false,
+            is_header: false,
+            is_featured: false,
+        });
+        items.push(MenuItem {
+            icon: Some(TablerIcon::FileText),
+            label: "Systemd Journal Logs".to_string(),
+            shortcut: "⌘4",
+            action: Some(MenuAction::NavigateServerView("logs")),
+            is_danger: false,
+            is_header: false,
+            is_featured: false,
+        });
+    }
 
     // Section 3: APPLICATION
     items.push(MenuItem {
