@@ -61,6 +61,12 @@ impl CrowApp {
             is_shift: ev.keystroke.modifiers.shift,
             typing,
         };
+        // Tab / Shift+Tab move between the fields of the form being typed in.
+        if typing && key == "tab" && !k.is_mod {
+            if self.cycle_form_focus(k.is_shift, window, cx) {
+                return;
+            }
+        }
         // Danger Zone confirm and Files new-folder prompt are native
         // gpui-component Input widgets — they own their own focus and
         // keyboard handling, so they have no entry here.
@@ -114,6 +120,34 @@ impl CrowApp {
             return true;
         }
         false
+    }
+
+    /// The gpui inputs of the form on screen, in tab order.
+    fn open_form_inputs(&self) -> Vec<Entity<gpui_kit::component::input::InputState>> {
+        if let (Screen::VaultSetup, Some(i)) = (self.screen, self.setup_inputs.as_ref()) {
+            return vec![i.password.clone(), i.confirm.clone(), i.code.clone()];
+        }
+        if let Some(i) = self.clanker_inputs.as_ref() {
+            return vec![i.key.clone(), i.model.clone(), i.base_url.clone()];
+        }
+        if let Some(i) = self.provider_inputs.as_ref() {
+            return i.fields.iter().map(|(_, _, input)| input.clone()).collect();
+        }
+        if let Some(i) = self.vault_form_inputs.as_ref() {
+            return i.inputs.iter().map(|(_, input)| input.clone()).collect();
+        }
+        Vec::new()
+    }
+
+    /// Moves focus to the next (or previous) field of the open form.
+    /// Returns false when no form of ours has focus.
+    fn cycle_form_focus(&mut self, back: bool, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let inputs = self.open_form_inputs();
+        let Some(at) = inputs.iter().position(|i| i.focus_handle(cx).is_focused(window)) else { return false };
+        let n = inputs.len();
+        let next = if back { (at + n - 1) % n } else { (at + 1) % n };
+        inputs[next].update(cx, |i, cx| i.focus(window, cx));
+        true
     }
 
     /// Vault setup wizard. Returns true when the key was consumed.
