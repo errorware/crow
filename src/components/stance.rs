@@ -50,7 +50,7 @@ fn list(title: &'static str, color: Rgba, items: impl IntoIterator<Item = String
                 .flex()
                 .gap(px(6.0))
                 .child(div().flex_none().text_color(color).child("•"))
-                .child(div().flex_1().line_height(px(15.0)).text_color(TEXT_SECONDARY).child(t))
+                .child(div().flex_1().min_w(px(0.0)).line_height(px(15.0)).text_color(TEXT_SECONDARY).child(t))
         }))
 }
 
@@ -84,6 +84,8 @@ pub fn stance_panel(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
         .absolute()
         .inset_0()
         .on_click(move |_ev, _window, cx| a_close.update(cx, |this, cx| this.toggle_stance_panel(cx)))
+        // The positioned box is separate from the scrolling area: a scroll
+        // wrapper would otherwise swallow its position and width.
         .child(
             div()
                 .id("stance-panel")
@@ -92,18 +94,25 @@ pub fn stance_panel(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
                 .right(px(10.0))
                 .w(px(540.0))
                 .max_h(px(640.0))
-                .overflow_y_scrollbar()
-                .p(px(16.0))
+                .flex()
+                .flex_col()
                 .bg(BG_PANEL)
                 .border_1()
                 .border_color(color.opacity(0.7))
                 .shadow_lg()
+                .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
+                .child(
+            div()
+                .id("stance-panel-scroll")
+                .flex_1()
+                .min_h(px(0.0))
+                .overflow_y_scrollbar()
+                .p(px(16.0))
                 .flex()
                 .flex_col()
                 .gap(px(14.0))
                 .font_family(FONT_MONO)
                 .text_size(px(10.5))
-                .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
                 .child(
                     div()
                         .flex()
@@ -128,7 +137,7 @@ pub fn stance_panel(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
                         .flex()
                         .flex_col()
                         .gap(px(8.0))
-                        .child(div().text_color(TEXT_MUTED).line_height(px(15.0)).child(format!(
+                        .child(div().min_w(px(0.0)).text_color(TEXT_MUTED).line_height(px(15.0)).child(format!(
                             "The other stance, {}: {}",
                             other.label(),
                             match other {
@@ -164,6 +173,7 @@ pub fn stance_panel(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
                                     })
                                 })),
                         ),
+                ),
                 ),
         )
 }

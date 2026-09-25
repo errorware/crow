@@ -38,18 +38,25 @@ pub fn import_panel(state: &ImportState, app: Entity<CrowApp>) -> impl IntoEleme
                 .id("import-panel")
                 .w(px(860.0))
                 .max_h(px(620.0))
-                .overflow_y_scrollbar()
-                .p(px(16.0))
+                .flex()
+                .flex_col()
                 .bg(BG_PANEL)
                 .border_1()
                 .border_color(BORDER_DEFAULT)
                 .shadow_lg()
+                .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
+                .child(
+            div()
+                .id("import-panel-scroll")
+                .flex_1()
+                .min_h(px(0.0))
+                .overflow_y_scrollbar()
+                .p(px(16.0))
                 .flex()
                 .flex_col()
                 .gap(px(10.0))
                 .font_family(FONT_MONO)
                 .text_size(px(10.5))
-                .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
                 .child(
                     div()
                         .flex()
@@ -117,5 +124,6 @@ pub fn import_panel(state: &ImportState, app: Entity<CrowApp>) -> impl IntoEleme
                                 .into_any_element(),
                         })
                 })),
+                ),
         )
 }

@@ -77,6 +77,7 @@ fn intro() -> impl IntoElement {
         .child(
             div()
                 .flex_1()
+                .min_w(px(0.0))
                 .font_family(FONT_MONO)
                 .text_size(px(10.5))
                 .line_height(px(15.0))
@@ -98,7 +99,7 @@ pub(crate) fn notice(text: String, color: Rgba, link: Option<Entity<CrowApp>>, d
         .gap(px(10.0))
         .font_family(FONT_MONO)
         .text_size(px(10.5))
-        .child(div().flex_1().text_color(color).child(text))
+        .child(div().flex_1().min_w(px(0.0)).text_color(color).child(text))
         .children(dismiss.map(|app| {
             div()
                 .id("secrets-notice-dismiss")

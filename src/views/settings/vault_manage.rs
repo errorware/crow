@@ -59,7 +59,7 @@ pub fn render(state: &VaultFormState, inputs: Option<&VaultFormInputs>, app: Ent
                         .flex_col()
                         .gap(px(4.0))
                         .child(div().text_color(WARN).font_weight(FontWeight::BOLD).child("Going back to OPEN means:"))
-                        .children(Stance::Open.exposed().iter().map(|e| div().flex().gap(px(6.0)).child(div().text_color(WARN).child("•")).child(div().flex_1().line_height(px(15.0)).text_color(TEXT_SECONDARY).child(*e))))
+                        .children(Stance::Open.exposed().iter().map(|e| div().flex().gap(px(6.0)).child(div().text_color(WARN).child("•")).child(div().flex_1().min_w(px(0.0)).line_height(px(15.0)).text_color(TEXT_SECONDARY).child(*e))))
                 }))
                 .children(inputs.map(|i| {
                     div().flex().flex_col().gap(px(6.0)).max_w(px(420.0)).children(i.inputs.iter().map(|(_, input)| Input::new(input).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0))))
