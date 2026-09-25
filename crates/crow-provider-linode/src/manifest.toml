@@ -1,5 +1,6 @@
 [plugin]
 name = "linode"
+display_name = "Linode"
 kind = "provider"
 category = "provider.hosts"
 capabilities = ["instances.list", "instances.power", "snapshots"]

@@ -25,14 +25,11 @@ pub fn factory(name: &str) -> Option<ProviderFactory> {
     factories().into_iter().find(|f| (f.manifest)().plugin.name == name)
 }
 
-/// The provider name the region tables use for plugin `name`, so an
-/// instance's region code becomes a country and city.
-pub fn region_provider(name: &str) -> Option<&'static str> {
-    match name {
-        "linode" => Some("Linode"),
-        "upcloud" => Some("UpCloud"),
-        _ => None,
-    }
+/// How plugin `name` is shown ("UpCloud"); the region tables use the same
+/// name, so an instance's region code becomes a country and city with
+/// `region::locate(&display_name(..), code)`.
+pub fn display_name(name: &str) -> String {
+    factory(name).map(|f| (f.manifest)().display_name().to_string()).unwrap_or_else(|| name.to_string())
 }
 
 /// A field's human name: its label, else its key.
@@ -120,7 +117,7 @@ mod tests {
             assert_eq!(m.plugin.kind, PluginKind::Provider);
             assert_eq!(m.plugin.category.as_deref(), Some(categories::PROVIDER_HOSTS));
             assert!(m.unknown_capabilities().is_empty(), "{}: {:?}", m.plugin.name, m.unknown_capabilities());
-            assert!(region_provider(&m.plugin.name).is_some(), "{} has region tables", m.plugin.name);
+            assert!(crate::region::locate(m.display_name(), "de-fra1").is_some() || crate::region::locate(m.display_name(), "de-fra-2").is_some(), "{} has region tables under its display name", m.plugin.name);
         }
     }
 
@@ -182,7 +179,7 @@ mod tests {
 
     #[test]
     fn provider_regions_map_to_flags() {
-        assert_eq!(crate::region::locate(region_provider("linode").unwrap(), "de-fra-2"), Some(("DE", "Frankfurt")));
-        assert_eq!(crate::region::locate(region_provider("upcloud").unwrap(), "fi-hel1"), Some(("FI", "Helsinki")));
+        assert_eq!(crate::region::locate(&display_name("linode"), "de-fra-2"), Some(("DE", "Frankfurt")));
+        assert_eq!(crate::region::locate(&display_name("upcloud"), "fi-hel1"), Some(("FI", "Helsinki")));
     }
 }

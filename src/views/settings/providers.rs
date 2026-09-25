@@ -10,7 +10,7 @@ use gpui_kit::*;
 use crow_config_core::FieldType;
 use crow_provider_core::ProviderFactory;
 
-use crate::app::providers::{display_name, ProviderFormInputs, ProvidersState};
+use crate::app::providers::{ProviderFormInputs, ProvidersState};
 use crate::app::{CrowApp, SettingsSection};
 use crate::components::icons::{inherited_icon, TablerIcon};
 use crate::theme::*;
@@ -140,7 +140,7 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
         .flex()
         .items_center()
         .gap(px(10.0))
-        .child(div().font_family(FONT_MONO).text_size(px(12.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(display_name(&plugin)))
+        .child(div().font_family(FONT_MONO).text_size(px(12.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(manifest.display_name().to_string()))
         .child(tag(manifest.plugin.category.clone().unwrap_or_default(), TEXT_DIMMER))
         .children(manifest.plugin.capabilities.iter().map(|c| tag(c.clone(), TEXT_SECONDARY)))
         .child(div().flex_1())

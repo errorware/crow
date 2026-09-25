@@ -121,7 +121,7 @@ impl CrowApp {
         let mut account = self.providers.account(&plugin).cloned().unwrap_or_else(|| ProviderAccount {
             id: plugin.clone(),
             plugin: plugin.clone(),
-            label: display_name(&plugin),
+            label: providers::display_name(&plugin),
             settings: Default::default(),
             last_check: None,
             last_check_ok: false,
@@ -254,16 +254,5 @@ impl CrowApp {
             });
         })
         .detach();
-    }
-}
-
-/// "linode" → "Linode", "upcloud" → "UpCloud".
-pub fn display_name(plugin: &str) -> String {
-    match plugin {
-        "upcloud" => "UpCloud".into(),
-        other => {
-            let mut c = other.chars();
-            c.next().map(|f| f.to_uppercase().chain(c).collect()).unwrap_or_default()
-        }
     }
 }
