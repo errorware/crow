@@ -118,7 +118,7 @@ impl Render for CrowApp {
                         .flex_col()
                         // 1. Frameless Titlebar
                         .child(titlebar(
-                            &self.fleet.tabs,
+                            &self.fleet.tabs_with_health(),
                             &self.fleet.active_tab_id,
                             self.screen,
                             self.menu_open,

@@ -5,9 +5,10 @@ use crate::theme::*;
 use crate::app::region::FleetEnvFilter;
 use crate::app::{CrowApp, Screen};
 use crate::components::icons::{TablerIcon, tabler_icon};
-use crate::host::{connection_state, transport_kind, ConnectionState, TransportKind};
+use crate::metrics::ServerMetrics;
+use std::collections::HashMap;
 use crate::vault::{ChangeRecord, ServerRecord};
-use crate::views::fleet::FleetState;
+use crate::views::fleet::state::{FleetHealth, FleetState};
 use crate::components::resize::{bottom_panel_height, resize_handle, BottomPanelResize};
 use crate::views::fleet::archived::{archive_confirm_overlay, archived_panel, fleet_view_tabs};
 use crate::views::fleet::lab_state::LocalLabState;
@@ -147,14 +148,15 @@ pub fn fleet_overview_view(
     purge_audit: &[ChangeRecord],
 ) -> impl IntoElement {
     let purge_due = crate::app::archive::purge_due_text(purge_days);
+    let health: HashMap<String, FleetHealth> = fleet.servers.iter().map(|s| (s.id.clone(), fleet.health(s))).collect();
     let hosts: Vec<FleetHost> = if !fleet.servers.is_empty() {
         fleet.servers.iter().map(|s| {
-            let (status_color, pill, is_crit) = match s.status.as_str() {
-                "online" => (OK, "OK".to_string(), false),
-                "warn" | "degraded" => (WARN, "DEGRADED".to_string(), false),
-                "crit" => (CRIT, "CRITICAL".to_string(), true),
-                "offline" => (CRIT, "OFFLINE".to_string(), true),
-                _ => (TEXT_FAINTER, "UNKNOWN".to_string(), false),
+            let health = &health[&s.id];
+            let status_color = health.color();
+            let (pill, is_crit) = match health {
+                FleetHealth::Ok => ("OK".to_string(), false),
+                FleetHealth::Checking => ("CHECKING".to_string(), false),
+                FleetHealth::Down { label, .. } => (label.to_string(), true),
             };
             let (env_bg, env_fg) = match s.env.as_str() {
                 "PROD" => (CRIT_BG, CRIT),
@@ -162,27 +164,16 @@ pub fn fleet_overview_view(
                 "DEV" => (OK_BG, OK),
                 _ => (BG_PANEL, TEXT_DIM),
             };
-            let (cpu_pct, cpu_label, mem_pct, mem_label, disk, uptime) = if let Some(m) = fleet.metrics_store.get(&s.id).or_else(|| fleet.metrics_store.get(&s.name)) {
-                let cpu = (m.cpu_pct.round() as u8).clamp(0, 100);
-                let mem = (m.mem_pct.round() as u8).clamp(0, 100);
-                if s.status == "unreachable" || s.status == "offline" {
-                    (0, "—".into(), 0, "—".into(), "—".into(), "—".into())
-                } else {
-                    (
-                        cpu,
-                        format!("{}%", cpu),
-                        mem,
-                        format!("{}%", mem),
-                        format!("{:.0}%", m.disk_pct),
-                        m.uptime_formatted.clone(),
-                    )
+            // Numbers only from a probe that answered; a failed one keeps
+            // stale or default values that aren't readings.
+            let reading = fleet.metrics_store.get(&s.id).or_else(|| fleet.metrics_store.get(&s.name)).filter(|m| m.reachable && health.is_ok());
+            let (cpu_pct, cpu_label, mem_pct, mem_label, disk, uptime) = match reading {
+                Some(m) => {
+                    let cpu = (m.cpu_pct.round() as u8).clamp(0, 100);
+                    let mem = (m.mem_pct.round() as u8).clamp(0, 100);
+                    (cpu, format!("{}%", cpu), mem, format!("{}%", mem), format!("{:.0}%", m.disk_pct), m.uptime_formatted.clone())
                 }
-            } else {
-                if s.status == "online" {
-                    (0, "0%".into(), 0, "0%".into(), "—".into(), "—".into())
-                } else {
-                    (0, "—".into(), 0, "—".into(), "—".into(), "—".into())
-                }
+                None => (0, "—".into(), 0, "—".into(), "—".into(), "—".into()),
             };
             FleetHost {
                 id: s.id.clone(),
@@ -198,7 +189,7 @@ pub fn fleet_overview_view(
                 mem_label,
                 disk,
                 uptime,
-                alerts: if matches!(s.status.as_str(), "unreachable" | "offline" | "crit" | "degraded" | "warn") { "1".into() } else { "0".into() },
+                alerts: if is_crit { "1".into() } else { "0".into() },
                 alert_color: if is_crit { CRIT } else { TEXT_FAINT },
                 status_color,
                 is_critical_border: is_crit,
@@ -232,36 +223,30 @@ pub fn fleet_overview_view(
     let visible_count = hosts.len();
     // Servers Crow can talk to right now: local and lab transports, or SSH
     // whose last command connected.
-    let connected_count = fleet.servers.iter().filter(|s| match transport_kind(s) {
-        TransportKind::Ssh => connection_state(&s.id) == Some(ConnectionState::Connected),
-        _ => true,
-    }).count();
-    let total_vcpu: usize = fleet.metrics_store
-        .values()
-        .map(|m| m.vcpu_count)
-        .sum::<usize>();
-    let total_load: f32 = fleet.metrics_store.values().map(|m| m.load_1m).sum();
-    let m_count = fleet.metrics_store.len();
-    let avg_load = if m_count > 0 {
-        Some(total_load / m_count as f32)
-    } else {
-        None
+    let connected_count = health.values().filter(|h| h.is_ok()).count();
+    // What an empty alert list means: reachability is all Crow watches yet.
+    let checking = health.values().filter(|h| **h == FleetHealth::Checking).count();
+    let (quiet_note, quiet_color) = match (fleet.servers.len(), checking) {
+        (0, _) => ("No servers enrolled".to_string(), TEXT_MUTED),
+        (_, 0) => (format!("All {connected_count} reachable"), OK),
+        (_, n) => (format!("Checking {n} server{}", if n == 1 { "" } else { "s" }), TEXT_MUTED),
     };
+    // Each reachable server once — metrics_store also keys by name.
+    let readings: Vec<&ServerMetrics> = fleet.servers.iter()
+        .filter(|s| health[&s.id].is_ok())
+        .filter_map(|s| fleet.metrics_store.get(&s.id))
+        .filter(|m| m.reachable)
+        .collect();
+    let total_vcpu: usize = readings.iter().map(|m| m.vcpu_count).sum();
+    let avg_load = (!readings.is_empty()).then(|| readings.iter().map(|m| m.load_1m).sum::<f32>() / readings.len() as f32);
 
     let alerts: Vec<(&'static str, Rgba, Rgba, String, String, String)> = fleet.servers.iter()
-        .filter(|s| s.status == "unreachable" || s.status == "offline" || s.status == "degraded" || s.status == "warn" || s.status == "crit")
-        .map(|s| {
-            let (lvl, fg, bg) = if s.status == "unreachable" || s.status == "offline" || s.status == "crit" {
-                ("CRIT", CRIT, CRIT_BG)
-            } else {
-                ("WARN", WARN, WARN_BG)
-            };
-            let msg = if s.status == "unreachable" || s.status == "offline" {
-                format!("Host unreachable or offline (port {})", s.port)
-            } else {
-                "Health degraded or warning status reported".to_string()
-            };
-            (lvl, fg, bg, s.name.clone(), msg, "now".to_string())
+        .filter_map(|s| match &health[&s.id] {
+            FleetHealth::Down { label, detail } => {
+                let msg = if detail.is_empty() { label.to_lowercase() } else { format!("{} · {detail}", label.to_lowercase()) };
+                Some(("CRIT", CRIT, CRIT_BG, s.name.clone(), msg, "now".to_string()))
+            }
+            _ => None,
         })
         .collect();
 
@@ -681,24 +666,8 @@ pub fn fleet_overview_view(
                                                             .px(px(4.0))
                                                             .py(px(1.5))
                                                             .rounded_sm()
-                                                            .bg(if matches!(host.pill.as_str(), "UNREACHABLE" | "OFFLINE" | "CRITICAL") {
-                                                                CRIT_BG
-                                                            } else if host.pill == "UNKNOWN" {
-                                                                BG_CHIP
-                                                            } else if host.pill == "DEGRADED" {
-                                                                WARN_BG
-                                                            } else {
-                                                                OK_BG
-                                                            })
-                                                            .text_color(if matches!(host.pill.as_str(), "UNREACHABLE" | "OFFLINE" | "CRITICAL") {
-                                                                CRIT
-                                                            } else if host.pill == "UNKNOWN" {
-                                                                TEXT_DIM
-                                                            } else if host.pill == "DEGRADED" {
-                                                                WARN
-                                                            } else {
-                                                                OK
-                                                            })
+                                                            .bg(if host.is_critical_border { CRIT_BG } else if host.status_color == OK { OK_BG } else { BG_CHIP })
+                                                            .text_color(if host.status_color == TEXT_FAINTER { TEXT_DIM } else { host.status_color })
                                                             .text_size(px(8.5))
                                                             .font_weight(FontWeight::BOLD)
                                                             .child(host.pill),
@@ -964,8 +933,8 @@ pub fn fleet_overview_view(
                                             .font_family(FONT_MONO)
                                             .text_size(px(10.5))
                                             .text_color(TEXT_MUTED)
-                                            .child(div().size(px(6.0)).rounded_full().bg(OK))
-                                            .child("✓ All fleet systems operational"),
+                                            .child(div().size(px(6.0)).rounded_full().bg(quiet_color))
+                                            .child(quiet_note.clone()),
                                     ).into_iter().collect::<Vec<_>>()
                                 } else {
                                     alerts.iter().map(|(lvl, fg, bg, host, msg, age)| {

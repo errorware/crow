@@ -29,7 +29,6 @@ pub fn crow_logo(ink: Rgba) -> impl IntoElement {
 pub struct ServerTab {
     pub id: String,
     pub name: String,
-    pub status_color: Rgba,
     #[allow(dead_code)]
     pub is_active: bool,
 }
@@ -45,7 +44,8 @@ pub fn active_tab_gradient_bar() -> impl IntoElement {
 }
 
 pub fn titlebar(
-    tabs: &[ServerTab],
+    // Each open tab with its server's live health color (ERR-71).
+    tabs: &[(ServerTab, Rgba)],
     active_tab_id: &str,
     current_screen: Screen,
     menu_open: bool,
@@ -153,7 +153,7 @@ pub fn titlebar(
                     ),
             )
             // Server Tabs (each with close affordance)
-            .children(tabs.iter().enumerate().map(|(idx, tab)| {
+            .children(tabs.iter().enumerate().map(|(idx, (tab, status_color))| {
                 let is_active = current_screen == Screen::Server && tab.id == active_tab_id;
                 let tab_id = tab.id.clone();
                 let close_tab_id = tab.id.clone();
@@ -189,7 +189,7 @@ pub fn titlebar(
                         div()
                             .size(px(6.0))
                             .rounded_full()
-                            .bg(tab.status_color)
+                            .bg(*status_color)
                             .flex_none(),
                     )
                     .child(

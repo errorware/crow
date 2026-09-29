@@ -63,7 +63,13 @@ impl HostCollector {
         let elapsed_secs = now.duration_since(prev_state.last_tick).as_secs_f64().max(0.1);
         prev_state.last_tick = now;
 
-        if let Ok(out) = host.exec(&["sh", "-c", FAST_PROBE], DEFAULT_TIMEOUT) {
+        let probe = host.exec(&["sh", "-c", FAST_PROBE], DEFAULT_TIMEOUT);
+        m.reachable = probe.is_ok();
+        if !m.reachable {
+            // Nothing new to show, and no point waiting on the slow probe too.
+            return m;
+        }
+        if let Ok(out) = probe {
             let sections: Vec<&str> = out.stdout.split(SECTION).collect();
             let section = |i: usize| sections.get(i).copied().unwrap_or("");
 
