@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::components::titlebar::ServerTab;
+use crate::host::{connection_state, transport_kind, ConnectionState, TransportKind};
 use crate::metrics::{ServerMetrics, ServerTimeSeriesBuffer, SurgeAlert};
 use crate::vault::ServerRecord;
 
@@ -70,8 +71,103 @@ impl FleetState {
         self.archived.len()
     }
 
+    /// `server`'s live health: its SSH connection state and newest sample
+    /// (not the lagged one the tables play back) (ERR-71).
+    pub fn health(&self, server: &ServerRecord) -> FleetHealth {
+        let conn = (transport_kind(server) == TransportKind::Ssh).then(|| connection_state(&server.id)).flatten();
+        let latest = self.buffered_stores.get(&server.id).and_then(|b| b.head()).map(|h| &h.metrics).or_else(|| self.metrics_store.get(&server.id));
+        FleetHealth::of(server, conn.as_ref(), latest)
+    }
+
+    /// Open tabs with their server's live health color.
+    pub fn tabs_with_health(&self) -> Vec<(ServerTab, gpui_kit::Rgba)> {
+        self.tabs.iter().map(|t| {
+            let color = self.servers.iter().find(|s| s.id == t.id || s.name == t.id).map(|s| self.health(s).color()).unwrap_or(crate::theme::TEXT_FAINTER);
+            (t.clone(), color)
+        }).collect()
+    }
+
     /// The server behind the active tab.
     pub fn active_server(&self) -> Option<ServerRecord> {
         self.servers.iter().find(|s| s.id == self.active_tab_id || s.name == self.active_tab_id).cloned()
+    }
+}
+
+/// A fleet row's health, from what Crow saw on the wire just now — never
+/// from the status stored at enrollment (ERR-71).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum FleetHealth {
+    /// Connected and the last probe answered.
+    Ok,
+    /// Not probed yet this session.
+    Checking,
+    /// Crow can't reach it; `label` is the badge, `detail` the reason.
+    Down { label: &'static str, detail: String },
+}
+
+impl FleetHealth {
+    /// `connection` is the SSH transport's state (`None` for lab and local
+    /// servers, or an SSH server not tried yet); `metrics` is the latest
+    /// sample, if one was taken.
+    pub fn of(server: &ServerRecord, connection: Option<&ConnectionState>, metrics: Option<&ServerMetrics>) -> Self {
+        match (transport_kind(server), connection) {
+            (TransportKind::Ssh, None) => FleetHealth::Checking,
+            (TransportKind::Ssh, Some(ConnectionState::Connected)) => match metrics {
+                Some(m) if !m.reachable => FleetHealth::Down { label: "NO DATA", detail: "connected, but the metrics probe failed".into() },
+                _ => FleetHealth::Ok,
+            },
+            (TransportKind::Ssh, Some(state)) => FleetHealth::Down { label: state.label(), detail: state.detail().unwrap_or_default().to_string() },
+            (_, _) => match metrics {
+                None => FleetHealth::Checking,
+                Some(m) if m.reachable => FleetHealth::Ok,
+                Some(_) if transport_kind(server) == TransportKind::Container => FleetHealth::Down { label: "STOPPED", detail: "lab container isn't answering".into() },
+                Some(_) => FleetHealth::Down { label: "NO DATA", detail: "the metrics probe failed on this machine".into() },
+            },
+        }
+    }
+
+    pub fn is_ok(&self) -> bool {
+        *self == FleetHealth::Ok
+    }
+
+    /// Dot / badge color.
+    pub fn color(&self) -> gpui_kit::Rgba {
+        match self {
+            FleetHealth::Ok => crate::theme::OK,
+            FleetHealth::Checking => crate::theme::TEXT_FAINTER,
+            FleetHealth::Down { .. } => crate::theme::CRIT,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn server(tags: &[&str], host: &str) -> ServerRecord {
+        ServerRecord { id: "s1".into(), name: "s1".into(), host: host.into(), port: 22, tags: tags.iter().map(|t| t.to_string()).collect(), status: "online".into(), ..Default::default() }
+    }
+
+    fn metrics(reachable: bool) -> ServerMetrics {
+        ServerMetrics { reachable, ..Default::default() }
+    }
+
+    #[test]
+    fn ssh_health_follows_the_connection_not_the_stored_status() {
+        let s = server(&[], "203.0.113.7");
+        assert_eq!(FleetHealth::of(&s, None, None), FleetHealth::Checking, "stored \"online\" is not evidence");
+        assert_eq!(FleetHealth::of(&s, Some(&ConnectionState::Connected), Some(&metrics(true))), FleetHealth::Ok);
+        let down = FleetHealth::of(&s, Some(&ConnectionState::Unreachable("Connection refused".into())), Some(&metrics(false)));
+        assert_eq!(down, FleetHealth::Down { label: "UNREACHABLE", detail: "Connection refused".into() });
+        assert!(matches!(FleetHealth::of(&s, Some(&ConnectionState::HostKeyRejected("changed".into())), None), FleetHealth::Down { label: "HOST KEY", .. }));
+        assert!(matches!(FleetHealth::of(&s, Some(&ConnectionState::Connected), Some(&metrics(false))), FleetHealth::Down { label: "NO DATA", .. }));
+    }
+
+    #[test]
+    fn lab_health_follows_the_probe() {
+        let s = server(&["test-node", "podman"], "127.0.0.1");
+        assert_eq!(FleetHealth::of(&s, None, None), FleetHealth::Checking);
+        assert_eq!(FleetHealth::of(&s, None, Some(&metrics(true))), FleetHealth::Ok);
+        assert!(matches!(FleetHealth::of(&s, None, Some(&metrics(false))), FleetHealth::Down { label: "STOPPED", .. }));
     }
 }

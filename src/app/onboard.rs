@@ -4,7 +4,7 @@ use zeroize::{Zeroize, Zeroizing};
 
 use super::{CrowApp, Screen};
 use crate::components::titlebar::ServerTab;
-use crate::theme::{CRIT, OK, TEXT_FAINTER, WARN};
+use crate::theme::{CRIT, OK};
 use crate::vault::ServerRecord;
 use crate::host::host_for;
 use crate::host::bootstrap::install_key_with_password;
@@ -521,17 +521,10 @@ impl CrowApp {
         self.refresh_keys(cx);
 
         // Add to tabs if not already present, switch active tab to it
-        let status_color = match status.as_str() {
-            "online" => OK,
-            "warn" => WARN,
-            "crit" => CRIT,
-            _ => TEXT_FAINTER,
-        };
         if !self.fleet.tabs.iter().any(|t| t.id == id) {
             self.fleet.tabs.push(ServerTab {
                 id: id.clone(),
                 name: name.clone(),
-                status_color,
                 is_active: true,
             });
         }

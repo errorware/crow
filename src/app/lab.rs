@@ -12,7 +12,6 @@ use crate::lab::{
     LocalTestNode,
 };
 use crate::metrics::collector::{sample_server, CollectorStates};
-use crate::theme::OK;
 use crate::vault::ServerRecord;
 use crate::views::overview::collector::{
     collect_processes_for_server,
@@ -123,7 +122,6 @@ impl CrowApp {
             self.fleet.tabs.push(ServerTab {
                 id: record.id.clone(),
                 name: record.name.clone(),
-                status_color: OK,
                 is_active: true,
             });
         }

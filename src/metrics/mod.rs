@@ -71,6 +71,9 @@ pub struct ServerMetrics {
     // 7. Services & timestamps
     pub services: Vec<LiveServiceStatus>,
     pub last_sample_ts: String,
+    /// Whether the last probe reached the host. When it didn't, the numbers
+    /// above are stale (or defaults) and must not be shown as readings.
+    pub reachable: bool,
 }
 
 impl Default for ServerMetrics {
@@ -101,6 +104,7 @@ impl Default for ServerMetrics {
             net_history: vec![0.0; MAX_HISTORY_POINTS],
             services: Vec::new(),
             last_sample_ts: chrono::Local::now().format("%H:%M:%S").to_string(),
+            reachable: false,
         }
     }
 }

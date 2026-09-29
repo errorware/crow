@@ -2,10 +2,9 @@ use gpui_kit::*;
 
 use super::{CrowApp, Screen};
 use crate::components::titlebar::ServerTab;
-use crate::theme::{CRIT, OK, TEXT_FAINTER, WARN};
 use crate::vault::ServerRecord;
 
-/// Tabs for the first few enrolled servers, colored by last known status.
+/// Tabs for the first few enrolled servers.
 pub fn initial_tabs(servers: &[ServerRecord]) -> Vec<ServerTab> {
     servers
         .iter()
@@ -13,12 +12,6 @@ pub fn initial_tabs(servers: &[ServerRecord]) -> Vec<ServerTab> {
         .map(|s| ServerTab {
             id: s.id.clone(),
             name: s.name.clone(),
-            status_color: match s.status.as_str() {
-                "online" => OK,
-                "warn" => WARN,
-                "crit" => CRIT,
-                _ => TEXT_FAINTER,
-            },
             is_active: false,
         })
         .collect()
@@ -34,16 +27,9 @@ impl CrowApp {
     pub fn switch_tab(&mut self, tab_id: &str, cx: &mut Context<Self>) {
         if let Some(srv) = self.fleet.servers.iter().find(|s| s.id == tab_id || s.name == tab_id).cloned() {
             if !self.fleet.tabs.iter().any(|t| t.id == srv.id || t.name == srv.name) {
-                let status_color = match srv.status.as_str() {
-                    "online" => OK,
-                    "warn" => WARN,
-                    "crit" => CRIT,
-                    _ => TEXT_FAINTER,
-                };
                 self.fleet.tabs.push(ServerTab {
                     id: srv.id.clone(),
                     name: srv.name.clone(),
-                    status_color,
                     is_active: true,
                 });
             }
