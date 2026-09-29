@@ -299,10 +299,12 @@ pub fn build_server_record_for_node(node: &LocalTestNode) -> ServerRecord {
         tags: vec!["local".into(), "test-node".into(), node.engine.label().to_lowercase()],
         host_key_fingerprint: None,
         os_distro: node.distro_display(),
-        os_kernel: "Linux (Host KVM/Container)".to_string(),
-        arch: "x86_64".to_string(),
-        memory_total: "4.0 GB".to_string(),
-        disk_total: "20.0 GB".to_string(),
+        // Not probed: left empty rather than guessed (a container shares
+        // the host's kernel and sees the host's memory and disk).
+        os_kernel: String::new(),
+        arch: String::new(),
+        memory_total: String::new(),
+        disk_total: String::new(),
         agent_installed: false,
         agent_version: None,
         status: if node.is_running() { "online".into() } else { "offline".into() },
