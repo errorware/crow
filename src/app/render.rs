@@ -68,6 +68,11 @@ impl Render for CrowApp {
         // own purge audit trail (ERR-32).
         let fleet_purge_days = self.archive_purge_days();
         let fleet_purge_audit = self.recent_purge_audit();
+        let audit = match self.screen {
+            Screen::Fleet => self.audit_items(30),
+            Screen::Audit => self.audit_items(1000),
+            _ => Vec::new(),
+        };
         let archive_purge_due = crate::app::archive::purge_due_text(fleet_purge_days);
         let is_overview = self.active_view == "overview";
         let is_table_page = super::is_table_page(&self.active_view);
@@ -418,7 +423,7 @@ impl Render for CrowApp {
                                     Screen::Fleet => Some(
                                         div()
                                             .size_full()
-                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab, self.fleet_background.rendered.clone().filter(|_| self.fleet_background_source().is_some()).map(|p| (p, self.fleet_background_opacity())), fleet_purge_days, &fleet_purge_audit)),
+                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab, self.fleet_background.rendered.clone().filter(|_| self.fleet_background_source().is_some()).map(|p| (p, self.fleet_background_opacity())), fleet_purge_days, &fleet_purge_audit, &audit)),
                                     ),
                                     Screen::Settings => Some(
                                         div()
@@ -447,6 +452,11 @@ impl Render for CrowApp {
                                         div()
                                             .size_full()
                                             .child(onboard_view(app_view.clone(), self.onboard_inputs.as_ref(), &self.fleet, &self.onboard_state, &self.keys, &self.local_lab)),
+                                    ),
+                                    Screen::Audit => Some(
+                                        div()
+                                            .size_full()
+                                            .child(crate::views::audit::audit_view(&audit, &self.audit_filter, app_view.clone())),
                                     ),
                                     Screen::FleetSetup => Some(
                                         div()

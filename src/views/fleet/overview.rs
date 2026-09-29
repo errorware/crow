@@ -146,6 +146,7 @@ pub fn fleet_overview_view(
     background: Option<(std::path::PathBuf, f32)>,
     purge_days: Option<i64>,
     purge_audit: &[ChangeRecord],
+    activity: &[crate::views::audit::model::AuditItem],
 ) -> impl IntoElement {
     let purge_due = crate::app::archive::purge_due_text(purge_days);
     let health: HashMap<String, FleetHealth> = fleet.servers.iter().map(|s| (s.id.clone(), fleet.health(s))).collect();
@@ -250,13 +251,16 @@ pub fn fleet_overview_view(
         })
         .collect();
 
-    let activities: Vec<(String, &'static str, Rgba, String, Rgba)> = fleet.servers.iter().take(10).map(|s| {
+    // The newest of the audit log (ERR-75): what Crow did, where.
+    let now = chrono::Local::now();
+    let activities: Vec<(String, String, Rgba, String, Rgba)> = activity.iter().take(30).map(|i| {
+        let failed = i.outcome == crate::views::audit::model::Outcome::Failed;
         (
-            s.created_at.split('T').nth(1).and_then(|t| t.get(0..8)).unwrap_or("—").to_string(),
-            "crow",
+            crate::views::audit::model::when_label(i.at, now),
+            i.server.clone(),
             TEXT_FAINT,
-            format!("enrolled host {} ({}:{})", s.name, s.host, s.port),
-            TEXT_PRIMARY,
+            i.text.clone(),
+            if failed { CRIT } else { TEXT_PRIMARY },
         )
     }).collect();
 
@@ -1022,13 +1026,18 @@ pub fn fleet_overview_view(
                                         .child("ACTIVITY"),
                                 )
                                 .child(div().flex_1())
-                                .child(
+                                .child({
+                                    let app = app.clone();
                                     div()
+                                        .id("btn-open-audit")
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.0))
                                         .text_color(TEXT_DIMMER)
-                                        .child("audit log · all hosts"),
-                                ),
+                                        .cursor_pointer()
+                                        .hover(|s| s.text_color(TEXT_PRIMARY))
+                                        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_screen(Screen::Audit, cx)))
+                                        .child("audit log · all hosts →")
+                                }),
                         )
                         // Activity Log List
                         .child(
@@ -1065,10 +1074,11 @@ pub fn fleet_overview_view(
                                             )
                                             .child(
                                                 div()
-                                                    .w(px(52.0))
+                                                    .w(px(110.0))
                                                     .text_color(*actor_color)
                                                     .flex_none()
-                                                    .child((*actor).to_string()),
+                                                    .overflow_hidden()
+                                                    .child(actor.clone()),
                                             )
                                             .child(
                                                 div()

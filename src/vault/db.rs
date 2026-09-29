@@ -1657,6 +1657,30 @@ impl VaultDb {
         Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
+    /// Change records across every server (and Crow's own), newest first.
+    pub fn list_all_change_records(&self, limit: usize) -> Result<Vec<ChangeRecord>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, server_id, server_name, action_kind, target, before_state, after_state, blast_radius, outcome, started_at, completed_at
+             FROM change_records ORDER BY started_at DESC LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit as i64], |r| {
+            Ok(ChangeRecord {
+                id: r.get(0)?,
+                server_id: r.get(1)?,
+                server_name: r.get(2)?,
+                action_kind: r.get(3)?,
+                target: r.get(4)?,
+                before_state: r.get(5)?,
+                after_state: r.get(6)?,
+                blast_radius: r.get(7)?,
+                outcome: r.get(8)?,
+                started_at: r.get(9)?,
+                completed_at: r.get(10)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
     pub fn path(&self) -> &Path {
         &self.path
     }
