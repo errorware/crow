@@ -8,6 +8,7 @@ pub mod lab_modal;
 pub mod overview;
 pub mod setup;
 pub mod run;
+pub mod alert_lines;
 pub mod run_panel;
 
 #[allow(unused_imports)]

@@ -68,6 +68,7 @@ impl Render for CrowApp {
         // own purge audit trail (ERR-32).
         let fleet_purge_days = self.archive_purge_days();
         let fleet_purge_audit = self.recent_purge_audit();
+        let (alert_lines, watch_gap) = if self.screen == Screen::Fleet { self.fleet_alert_panel() } else { (Vec::new(), None) };
         let audit = match self.screen {
             Screen::Fleet => self.audit_items(30),
             Screen::Audit => self.audit_items(1000),
@@ -424,7 +425,7 @@ impl Render for CrowApp {
                                         div()
                                             .size_full()
                                             .relative()
-                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab, self.fleet_background.rendered.clone().filter(|_| self.fleet_background_source().is_some()).map(|p| (p, self.fleet_background_opacity())), fleet_purge_days, &fleet_purge_audit, &audit))
+                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab, self.fleet_background.rendered.clone().filter(|_| self.fleet_background_source().is_some()).map(|p| (p, self.fleet_background_opacity())), fleet_purge_days, &fleet_purge_audit, &audit, &alert_lines, watch_gap))
                                             .children(self.fleet_runner.as_ref().map(|r| crate::views::fleet::run_panel::fleet_run_panel(r, app_view.clone()))),
                                     ),
                                     Screen::Settings => Some(

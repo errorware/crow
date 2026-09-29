@@ -483,6 +483,36 @@ impl VaultDb {
             );
             CREATE INDEX IF NOT EXISTS config_revisions_by_file ON config_revisions (server_id, path, seq);
 
+            CREATE TABLE IF NOT EXISTS metric_history (
+                server_id TEXT NOT NULL,
+                ts INTEGER NOT NULL,
+                reachable INTEGER NOT NULL,
+                reason TEXT,
+                cpu REAL,
+                mem REAL,
+                disk REAL,
+                load1 REAL,
+                failed_services TEXT,
+                PRIMARY KEY (server_id, ts)
+            );
+
+            CREATE TABLE IF NOT EXISTS alerts (
+                id TEXT PRIMARY KEY,
+                server_id TEXT NOT NULL,
+                kind TEXT NOT NULL,
+                level TEXT NOT NULL,
+                detail TEXT NOT NULL,
+                opened_at INTEGER NOT NULL,
+                last_seen INTEGER NOT NULL,
+                resolved_at INTEGER,
+                acknowledged_at INTEGER
+            );
+
+            CREATE TABLE IF NOT EXISTS watch_sessions (
+                started INTEGER PRIMARY KEY,
+                last_tick INTEGER NOT NULL
+            );
+
             CREATE TABLE IF NOT EXISTS config_baselines (
                 path TEXT NOT NULL,
                 scope TEXT NOT NULL,
@@ -1245,6 +1275,135 @@ impl VaultDb {
         })
     }
 
+    // ==========================================
+    // Metrics history (ERR-84)
+    // ==========================================
+
+    pub fn insert_history_rows(&self, rows: &[crate::metrics::history::HistoryRow]) -> Result<(), VaultError> {
+        let tx = self.conn.unchecked_transaction()?;
+        for r in rows {
+            tx.execute(
+                "INSERT OR REPLACE INTO metric_history (server_id, ts, reachable, reason, cpu, mem, disk, load1, failed_services)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
+                params![
+                    r.server_id,
+                    r.ts,
+                    r.reachable as i64,
+                    r.reason,
+                    r.cpu,
+                    r.mem,
+                    r.disk,
+                    r.load1,
+                    r.failed_services.as_ref().map(|f| serde_json::to_string(f).unwrap_or_default()),
+                ],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// A server's rows since `since` (Unix seconds), oldest first.
+    pub fn list_history(&self, server_id: &str, since: i64) -> Result<Vec<crate::metrics::history::HistoryRow>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT server_id, ts, reachable, reason, cpu, mem, disk, load1, failed_services FROM metric_history
+             WHERE server_id = ?1 AND ts >= ?2 ORDER BY ts",
+        )?;
+        let rows = stmt.query_map(params![server_id, since], |r| {
+            let failed: Option<String> = r.get(8)?;
+            Ok(crate::metrics::history::HistoryRow {
+                server_id: r.get(0)?,
+                ts: r.get(1)?,
+                reachable: r.get::<_, i64>(2)? != 0,
+                reason: r.get(3)?,
+                cpu: r.get(4)?,
+                mem: r.get(5)?,
+                disk: r.get(6)?,
+                disk_mount: None,
+                load1: r.get(7)?,
+                failed_services: failed.and_then(|f| serde_json::from_str(&f).ok()),
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    /// Drops history older than `before` (Unix seconds).
+    pub fn prune_history(&self, before: i64) -> Result<usize, VaultError> {
+        let n = self.conn.execute("DELETE FROM metric_history WHERE ts < ?1", params![before])?;
+        self.conn.execute("DELETE FROM alerts WHERE resolved_at IS NOT NULL AND resolved_at < ?1", params![before])?;
+        self.conn.execute("DELETE FROM watch_sessions WHERE last_tick < ?1", params![before])?;
+        Ok(n)
+    }
+
+    /// Notes that Crow is watching: a session started at `started`, still
+    /// going at `now`.
+    pub fn touch_watch_session(&self, started: i64, now: i64) -> Result<(), VaultError> {
+        self.conn.execute(
+            "INSERT INTO watch_sessions (started, last_tick) VALUES (?1, ?2) ON CONFLICT(started) DO UPDATE SET last_tick = excluded.last_tick",
+            params![started, now],
+        )?;
+        Ok(())
+    }
+
+    /// (started, last_tick) of sessions that ended after `since`, oldest first.
+    pub fn list_watch_sessions(&self, since: i64) -> Result<Vec<(i64, i64)>, VaultError> {
+        let mut stmt = self.conn.prepare("SELECT started, last_tick FROM watch_sessions WHERE last_tick >= ?1 ORDER BY started")?;
+        let rows = stmt.query_map(params![since], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    // ==========================================
+    // Alerts (ERR-85)
+    // ==========================================
+
+    /// Open alerts, and those resolved at or after `resolved_since`.
+    pub fn list_alerts(&self, resolved_since: i64) -> Result<Vec<crate::metrics::alerts::Alert>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, server_id, kind, level, detail, opened_at, last_seen, resolved_at, acknowledged_at FROM alerts
+             WHERE resolved_at IS NULL OR resolved_at >= ?1 ORDER BY opened_at DESC",
+        )?;
+        let rows = stmt.query_map(params![resolved_since], |r| {
+            Ok(crate::metrics::alerts::Alert {
+                id: r.get(0)?,
+                server_id: r.get(1)?,
+                kind: r.get(2)?,
+                level: r.get(3)?,
+                detail: r.get(4)?,
+                opened_at: r.get(5)?,
+                last_seen: r.get(6)?,
+                resolved_at: r.get(7)?,
+                acknowledged_at: r.get(8)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    pub fn apply_alert_changes(&self, c: &crate::metrics::alerts::AlertChanges, now: i64) -> Result<(), VaultError> {
+        let tx = self.conn.unchecked_transaction()?;
+        for a in &c.opened {
+            tx.execute(
+                "INSERT OR IGNORE INTO alerts (id, server_id, kind, level, detail, opened_at, last_seen) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)",
+                params![a.id, a.server_id, a.kind, a.level, a.detail, a.opened_at, a.last_seen],
+            )?;
+        }
+        for (id, level, detail, seen) in &c.updated {
+            tx.execute("UPDATE alerts SET level = ?2, detail = ?3, last_seen = ?4 WHERE id = ?1", params![id, level, detail, seen])?;
+        }
+        for id in &c.resolved {
+            tx.execute("UPDATE alerts SET resolved_at = ?2 WHERE id = ?1 AND resolved_at IS NULL", params![id, now])?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// Acknowledges alerts (all open ones when `id` is `None`).
+    pub fn acknowledge_alerts(&self, id: Option<&str>, now: i64) -> Result<(), VaultError> {
+        match id {
+            Some(id) => self.conn.execute("UPDATE alerts SET acknowledged_at = ?2 WHERE id = ?1 AND acknowledged_at IS NULL", params![id, now])?,
+            None => self.conn.execute("UPDATE alerts SET acknowledged_at = ?1 WHERE acknowledged_at IS NULL", params![now])?,
+        };
+        Ok(())
+    }
+
     /// Records when a server's oldest host key file was written (ERR-81).
     pub fn set_server_host_key_mtime(&self, id: &str, mtime: i64) -> Result<(), VaultError> {
         self.conn.execute("UPDATE servers SET host_key_mtime = ?1 WHERE id = ?2", params![mtime, id])?;
@@ -1372,6 +1531,8 @@ impl VaultDb {
     pub fn purge_server_data(&self, id: &str, name: &str) -> Result<PurgeOutcome, VaultError> {
         let change_records = self.conn.execute("DELETE FROM change_records WHERE server_id = ?1", params![id])?;
         self.conn.execute("DELETE FROM config_revisions WHERE server_id = ?1", params![id])?;
+        self.conn.execute("DELETE FROM metric_history WHERE server_id = ?1", params![id])?;
+        self.conn.execute("DELETE FROM alerts WHERE server_id = ?1", params![id])?;
 
         let keys: Vec<(String, Vec<String>)> = {
             let mut stmt = self.conn.prepare("SELECT id, attached_servers FROM ssh_keys")?;
