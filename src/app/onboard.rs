@@ -493,6 +493,7 @@ impl CrowApp {
             region_source: if self.onboard_state.facts.region.is_some() { "metadata".into() } else { String::new() },
             provider_account: link.as_ref().map(|l| l.account.clone()).unwrap_or_default(),
             provider_instance: link.as_ref().map(|l| l.instance.clone()).unwrap_or_default(),
+            host_key_mtime: None,
         };
         let record = match provider_region {
             Some((cc, city, l)) => ServerRecord {

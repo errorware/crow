@@ -251,9 +251,24 @@ impl CrowApp {
         }
     }
 
+    /// Keeps each server's host key time current, in memory and in the
+    /// vault, when a sample read it (ERR-81).
+    fn note_host_key_mtime(&mut self, server_id: &str, m: &crate::metrics::ServerMetrics) {
+        let Some(t) = m.host_key_oldest else { return };
+        let Some(srv) = self.fleet.servers.iter_mut().find(|s| s.id == server_id) else { return };
+        if srv.host_key_mtime == Some(t) {
+            return;
+        }
+        srv.host_key_mtime = Some(t);
+        if let Ok(db) = self.vault.db().lock() {
+            let _ = db.set_server_host_key_mtime(server_id, t);
+        }
+    }
+
     pub fn apply_poll_result(&mut self, res: BackgroundPollResult) {
         if let Some(ref srv_id) = res.active_server_id {
             if let Some(updated_head) = res.active_metrics {
+                self.note_host_key_mtime(srv_id, &updated_head);
                 // Retrieve current services/processes/sockets or new sample
                 let services_sample = res.services_sample.unwrap_or_else(|| self.overview.services.clone());
                 let processes_sample = res.processes_sample.unwrap_or_else(|| self.overview.processes.clone());
@@ -330,6 +345,7 @@ impl CrowApp {
 
         if !res.fleet_samples.is_empty() {
             for (id, name, m) in res.fleet_samples {
+                self.note_host_key_mtime(&id, &m);
                 let buf = self.fleet.buffered_stores.entry(id.clone()).or_insert_with(ServerTimeSeriesBuffer::default);
                 buf.push_sample(MetricSample {
                     timestamp_secs: res.now_secs,

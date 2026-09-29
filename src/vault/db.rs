@@ -157,6 +157,11 @@ pub struct ServerRecord {
     pub provider_account: String,
     #[serde(default)]
     pub provider_instance: String,
+    /// When the server's oldest SSH host key file was written (Unix seconds),
+    /// as last read from the server (ERR-81). Written only by
+    /// [`VaultDb::set_server_host_key_mtime`], so saving the record keeps it.
+    #[serde(default)]
+    pub host_key_mtime: Option<i64>,
 }
 
 /// The audit-log scope for actions Crow takes on its own behalf, such as
@@ -576,6 +581,7 @@ impl VaultDb {
         let _ = self.conn.execute("ALTER TABLE servers ADD COLUMN archived_at TEXT", []);
         let _ = self.conn.execute("ALTER TABLE servers ADD COLUMN purged_at TEXT", []);
         // ERR-36: where each server lives.
+        let _ = self.conn.execute("ALTER TABLE servers ADD COLUMN host_key_mtime INTEGER", []);
         for col in ["region_country", "region_city", "region_provider", "region_code", "region_source", "provider_account", "provider_instance"] {
             let _ = self.conn.execute(&format!("ALTER TABLE servers ADD COLUMN {col} TEXT NOT NULL DEFAULT ''"), []);
         }
@@ -1196,7 +1202,7 @@ impl VaultDb {
                 arch, memory_total, disk_total, agent_installed, agent_version, status,
                 created_at, last_seen_at, archived_at, purged_at,
                 region_country, region_city, region_provider, region_code, region_source,
-                provider_account, provider_instance";
+                provider_account, provider_instance, host_key_mtime";
 
     fn row_to_server(r: &rusqlite::Row<'_>) -> rusqlite::Result<ServerRecord> {
         let tags_json: String = r.get(11)?;
@@ -1235,7 +1241,14 @@ impl VaultDb {
             region_source: r.get(29)?,
             provider_account: r.get(30)?,
             provider_instance: r.get(31)?,
+            host_key_mtime: r.get(32)?,
         })
+    }
+
+    /// Records when a server's oldest host key file was written (ERR-81).
+    pub fn set_server_host_key_mtime(&self, id: &str, mtime: i64) -> Result<(), VaultError> {
+        self.conn.execute("UPDATE servers SET host_key_mtime = ?1 WHERE id = ?2", params![mtime, id])?;
+        Ok(())
     }
 
     /// Servers in the active fleet — archived ones are excluded, so every
@@ -2188,6 +2201,7 @@ mod tests {
             region_source: "metadata".into(),
             provider_account: "linode".into(),
             provider_instance: "123".into(),
+            host_key_mtime: None,
         };
 
         db.upsert_server(&srv).unwrap();

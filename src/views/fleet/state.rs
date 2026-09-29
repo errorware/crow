@@ -144,6 +144,34 @@ impl FleetHealth {
     }
 }
 
+/// Host key ages across servers (ERR-81), from each key file's time as last
+/// read from the server.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct KeyAges {
+    /// (age in days, server name) of the oldest key.
+    pub oldest: Option<(i64, String)>,
+    /// Under a year, one to two years, over two years.
+    pub buckets: [usize; 3],
+    /// Servers whose key files Crow hasn't read yet.
+    pub unknown: usize,
+}
+
+pub fn host_key_ages(servers: &[ServerRecord], now_unix: i64) -> KeyAges {
+    let mut ages = KeyAges::default();
+    for s in servers {
+        let Some(t) = s.host_key_mtime else {
+            ages.unknown += 1;
+            continue;
+        };
+        let days = ((now_unix - t) / 86_400).max(0);
+        ages.buckets[match days { d if d < 365 => 0, d if d < 730 => 1, _ => 2 }] += 1;
+        if ages.oldest.as_ref().is_none_or(|(d, _)| days > *d) {
+            ages.oldest = Some((days, s.name.clone()));
+        }
+    }
+    ages
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -173,5 +201,14 @@ mod tests {
         assert_eq!(FleetHealth::of(&s, None, None), FleetHealth::Checking);
         assert_eq!(FleetHealth::of(&s, None, Some(&metrics(true))), FleetHealth::Ok);
         assert!(matches!(FleetHealth::of(&s, None, Some(&metrics(false))), FleetHealth::Down { label: "STOPPED", .. }));
+    }
+
+    #[test]
+    fn key_ages_bucket_by_year_and_count_unread() {
+        let day = 86_400;
+        let now = 1_000 * day;
+        let srv = |name: &str, t: Option<i64>| ServerRecord { id: name.into(), name: name.into(), host_key_mtime: t, ..Default::default() };
+        let ages = host_key_ages(&[srv("new", Some(now - 10 * day)), srv("old", Some(now - 800 * day)), srv("mid", Some(now - 400 * day)), srv("unread", None)], now);
+        assert_eq!(ages, KeyAges { oldest: Some((800, "old".into())), buckets: [1, 1, 1], unknown: 1 });
     }
 }

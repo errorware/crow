@@ -17,6 +17,7 @@ pub struct CollectorPreviousState {
     pub last_slow_sample: Instant,
     pub cached_disk: Option<(u64, u64, Option<f32>)>,
     pub cached_services: Vec<LiveServiceStatus>,
+    pub cached_host_key: Option<i64>,
 }
 
 impl Default for CollectorPreviousState {
@@ -31,6 +32,7 @@ impl Default for CollectorPreviousState {
             last_slow_sample: Instant::now().checked_sub(std::time::Duration::from_secs(60)).unwrap_or_else(Instant::now),
             cached_disk: None,
             cached_services: Vec::new(),
+            cached_host_key: None,
         }
     }
 }
@@ -45,9 +47,12 @@ const SECTION: &str = "@@crow@@";
 const FAST_PROBE: &str = "cat /proc/stat; echo @@crow@@; cat /proc/meminfo; echo @@crow@@; \
 cat /proc/loadavg; echo @@crow@@; cat /proc/uptime; echo @@crow@@; cat /proc/net/dev";
 
-/// Slow-cadence probe (every 15s): disk and inode usage for `/`, plus systemd units.
+/// Slow-cadence probe (every 15s): disk and inode usage for `/`, systemd
+/// units, and when the SSH host keys were written (ERR-81). Ends in `true`
+/// so a failing systemctl (containers) doesn't cost the other sections.
 const SLOW_PROBE: &str = "df -k /; echo @@crow@@; df -i /; echo @@crow@@; \
-systemctl list-units --type=service --all --no-legend --no-pager";
+systemctl list-units --type=service --all --no-legend --no-pager; echo @@crow@@; \
+stat -c '%Y %n' /etc/ssh/ssh_host_*_key.pub 2>/dev/null; true";
 
 /// Real metrics for any reachable host, read from its /proc, df and systemctl.
 pub struct HostCollector;
@@ -132,6 +137,9 @@ impl HostCollector {
             if !svcs.is_empty() {
                 prev_state.cached_services = svcs;
             }
+            if let Some(t) = sections.get(3).and_then(|s| parse_host_key_times(s)) {
+                prev_state.cached_host_key = Some(t);
+            }
             prev_state.last_slow_sample = now;
         }
 
@@ -146,10 +154,17 @@ impl HostCollector {
         if !prev_state.cached_services.is_empty() {
             m.services = prev_state.cached_services.clone();
         }
+        m.host_key_oldest = prev_state.cached_host_key;
 
         m.last_sample_ts = chrono::Local::now().format("%H:%M:%S").to_string();
         m
     }
+}
+
+/// The oldest SSH host key's modification time (Unix seconds), from
+/// `stat -c '%Y %n'` lines. `None` when there are no keys to read.
+pub fn parse_host_key_times(text: &str) -> Option<i64> {
+    text.lines().filter_map(|l| l.split_whitespace().next()?.parse::<i64>().ok()).min()
 }
 
 /// One /proc/stat reading. Percentages are over the time since the previous
@@ -338,6 +353,13 @@ mod tests {
         assert_eq!(parse_proc_uptime("35412.77 280110.30\n"), 35412);
         let net = "Inter-|   Receive\n face |bytes\n    lo: 999 1 0 0 0 0 0 0 999 1 0 0 0 0 0 0\n  eth0: 5000 10 0 0 0 0 0 0 7000 12 0 0 0 0 0 0\n";
         assert_eq!(parse_proc_net_dev(net), (5000, 7000));
+    }
+
+    #[test]
+    fn host_key_times_take_the_oldest() {
+        let out = "1715000000 /etc/ssh/ssh_host_ecdsa_key.pub\n1700000000 /etc/ssh/ssh_host_ed25519_key.pub\n";
+        assert_eq!(parse_host_key_times(out), Some(1700000000));
+        assert_eq!(parse_host_key_times(""), None, "no keys readable: unknown, not zero");
     }
 
     #[test]
