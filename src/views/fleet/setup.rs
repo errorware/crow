@@ -37,6 +37,7 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
     // pinned at enrollment. Key age needs the key's own timestamp (ERR-20).
     let pinned_keys = servers.iter().filter(|s| s.host_key_fingerprint.as_ref().is_some_and(|f| !f.trim().is_empty())).count();
     let missing_keys = total_servers - pinned_keys;
+    let ages = crate::views::fleet::state::host_key_ages(servers, chrono::Utc::now().timestamp());
 
     div()
         .size_full()
@@ -360,7 +361,7 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                                     div()
                                         .text_size(px(10.5))
                                         .text_color(TEXT_DIM)
-                                        .child("Crow pins each server's host key fingerprint at enrollment and refuses to connect if it changes. Key age and a rotation policy aren't tracked yet."),
+                                        .child("Crow pins each server's host key fingerprint at enrollment and refuses to connect if it changes. Ages come from the key files' dates on each server; there's no rotation policy yet."),
                                 )
                                 // Age breakdown rows
                                 .child(
@@ -372,7 +373,11 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                                         .border_color(BORDER_ROW)
                                         .pt(px(8.0))
                                         .child(render_policy_row("Fingerprint pinned", pinned_keys, OK))
-                                        .child(render_policy_row("Not pinned", missing_keys, if missing_keys > 0 { WARN } else { TEXT_MUTED })),
+                                        .child(render_policy_row("Not pinned", missing_keys, if missing_keys > 0 { WARN } else { TEXT_MUTED }))
+                                        .child(render_policy_row("Keys under a year old", ages.buckets[0], OK))
+                                        .child(render_policy_row("Keys 1–2 years old", ages.buckets[1], TEXT_SECONDARY))
+                                        .child(render_policy_row("Keys over 2 years old", ages.buckets[2], WARN))
+                                        .children((ages.unknown > 0).then(|| render_policy_row("Key age not read yet", ages.unknown, TEXT_MUTED))),
                                 ),
                         )
                         // Card 2: Tag Taxonomy

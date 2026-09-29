@@ -64,9 +64,17 @@ pub fn fleet_stat_strip(
     let vcpu_note = if total_vcpu > 0 { format!("avg 1m load · {} vCPU", total_vcpu) } else { "no metrics yet".to_string() };
     let alert_color = if crit > 0 { CRIT } else if warn > 0 { WARN } else if server_count == 0 { TEXT_MUTED } else { OK };
 
-    // Host-key age needs the key's own timestamp from the host, not the
-    // server's enrollment date (ERR-20).
-    let (oldest_key_val, oldest_key_unit, oldest_key_note, oldest_key_color) = ("—".to_string(), "".to_string(), "not tracked yet".to_string(), TEXT_MUTED);
+    // From each server's host key file times (ERR-81).
+    let ages = crate::views::fleet::state::host_key_ages(servers, chrono::Utc::now().timestamp());
+    let (oldest_key_val, oldest_key_unit, oldest_key_note, oldest_key_color) = match &ages.oldest {
+        None if server_count == 0 => ("—".to_string(), "".to_string(), "none enrolled".to_string(), TEXT_MUTED),
+        None => ("—".to_string(), "".to_string(), "not read yet".to_string(), TEXT_MUTED),
+        Some((days, name)) => {
+            let (val, unit) = if *days >= 365 { (format!("{:.1}", *days as f64 / 365.25), "y") } else { (days.to_string(), "d") };
+            let note = if ages.unknown > 0 { format!("{name} · {} not read yet", ages.unknown) } else { name.clone() };
+            (val, unit.to_string(), note, TEXT_PRIMARY)
+        }
+    };
     // Files that mean something other than their baseline, as of each
     // server's last config read (ERR-74).
     let (drift_val, drift_unit, drift_note, drift_fg) = match drift {
