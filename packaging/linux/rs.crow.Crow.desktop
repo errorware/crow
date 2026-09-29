@@ -1,0 +1,11 @@
+[Desktop Entry]
+Type=Application
+Name=Crow
+GenericName=Server Manager
+Comment=Agentless fleet manager for Linux servers over plain SSH
+Exec=crow
+Icon=rs.crow.Crow
+Terminal=false
+Categories=System;Monitor;
+Keywords=ssh;server;fleet;sysadmin;firewall;logs;
+StartupWMClass=rs.crow.Crow
