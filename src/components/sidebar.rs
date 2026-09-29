@@ -15,6 +15,7 @@ pub struct NavItemDef {
 pub fn nav_items() -> &'static [NavItemDef] {
     &[
         NavItemDef { icon: TablerIcon::LayoutDashboard, label: "Overview", view_id: Some("overview"), hint: "" },
+        NavItemDef { icon: TablerIcon::Activity, label: "History", view_id: Some("history"), hint: "" },
         NavItemDef { icon: TablerIcon::Server, label: "Services", view_id: Some("services"), hint: "" },
         NavItemDef { icon: TablerIcon::Cpu, label: "Processes", view_id: Some("processes"), hint: "" },
         NavItemDef { icon: TablerIcon::Network, label: "Sockets", view_id: Some("sockets"), hint: "" },
