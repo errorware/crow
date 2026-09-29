@@ -1081,6 +1081,7 @@ pub fn fleet_overview_view(
                                             .line_height(relative(1.45))
                                             .child(
                                                 div()
+                                                    .w(px(84.0))
                                                     .text_color(TEXT_FAINTER)
                                                     .flex_none()
                                                     .child(ts.clone()),
@@ -1199,10 +1200,14 @@ pub fn fleet_overview_view(
                         .px(px(14.0))
                         // Not built yet (ERR-20): shown so the fleet's shape is
                         // legible, inert so nothing claims to have run.
-                        .child(fleet_action_stub("btn-fleet-rolling-reboot", format!("ROLLING REBOOT · {} HOSTS", server_count)))
+                        .child(fleet_action_stub("btn-fleet-rolling-reboot", format!("ROLLING REBOOT · {server_count} HOST{}", if server_count == 1 { "" } else { "S" })))
                         .child(fleet_action_stub("btn-fleet-rotate-keys", "ROTATE ALL HOST KEYS".into()))
                         .child(fleet_action_stub("btn-fleet-revoke-sessions", "REVOKE ALL SESSIONS".into()))
-                        .child(fleet_action_stub("btn-fleet-push-baseline", "PUSH BASELINE TO ALL".into())),
+                        .child({
+                            let app = app.clone();
+                            fleet_action_live("btn-fleet-push-baseline", "PUSH BASELINE TO ALL".into())
+                                .on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_push_baselines(window, cx)))
+                        }),
                 )
                 .child(
                     div()
@@ -1214,7 +1219,7 @@ pub fn fleet_overview_view(
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_DIMMER)
-                        .child("not built yet · nothing here runs"),
+                        .child("push runs one host at a time, stops at the first failure · the rest aren't built yet"),
                 ),
         )
         .children(if local_lab.show_modal {
@@ -1226,6 +1231,22 @@ pub fn fleet_overview_view(
         .children(fleet.pending_archive.as_ref().and_then(|id| fleet.servers.iter().find(|s| &s.id == id)).map(|srv| {
             archive_confirm_overlay(srv, &purge_due, app.clone())
         }))
+}
+
+/// A fleet-wide action that runs on the fleet runner (ERR-79).
+fn fleet_action_live(id: &'static str, label: String) -> Stateful<Div> {
+    div()
+        .id(id)
+        .px(px(10.0))
+        .py(px(4.0))
+        .border_1()
+        .border_color(BORDER_DANGER_BTN)
+        .hover(|s| s.bg(CRIT_BG).text_color(CRIT))
+        .cursor_pointer()
+        .font_family(FONT_MONO)
+        .text_size(px(11.0))
+        .text_color(CRIT_INK_DIM)
+        .child(label)
 }
 
 /// A fleet-wide action that doesn't exist yet: visibly disabled, no handler.

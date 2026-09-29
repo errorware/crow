@@ -26,6 +26,7 @@ use crate::views::overview::{
 };
 
 pub mod danger;
+pub mod fleet_run;
 mod files;
 mod firewall;
 mod users;
@@ -222,6 +223,8 @@ pub struct CrowApp {
     pub snapshot_offer: Option<configs::SnapshotOffer>,
     /// Danger Zone → SNAPSHOTS: the active server's provider snapshots.
     pub snapshots_panel: Option<danger::SnapshotsPanel>,
+    /// A fleet-wide run being planned, running, or just finished (ERR-79).
+    pub fleet_runner: Option<fleet_run::FleetRunner>,
     /// Turn off SSH password login (ERR-34).
     pub password_login: Option<password_login::PasswordLoginFlow>,
     /// Something the user should know about their stored secrets (moved,
@@ -384,6 +387,7 @@ impl CrowApp {
             import: Default::default(),
             snapshot_offer: None,
             snapshots_panel: None,
+            fleet_runner: None,
             password_login: None,
             setup_inputs: None,
             lock_inputs: None,

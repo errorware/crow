@@ -7,6 +7,8 @@ pub mod import;
 pub mod lab_modal;
 pub mod overview;
 pub mod setup;
+pub mod run;
+pub mod run_panel;
 
 #[allow(unused_imports)]
 pub use lab_modal::local_lab_modal;

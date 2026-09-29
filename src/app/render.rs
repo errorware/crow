@@ -423,7 +423,9 @@ impl Render for CrowApp {
                                     Screen::Fleet => Some(
                                         div()
                                             .size_full()
-                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab, self.fleet_background.rendered.clone().filter(|_| self.fleet_background_source().is_some()).map(|p| (p, self.fleet_background_opacity())), fleet_purge_days, &fleet_purge_audit, &audit)),
+                                            .relative()
+                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab, self.fleet_background.rendered.clone().filter(|_| self.fleet_background_source().is_some()).map(|p| (p, self.fleet_background_opacity())), fleet_purge_days, &fleet_purge_audit, &audit))
+                                            .children(self.fleet_runner.as_ref().map(|r| crate::views::fleet::run_panel::fleet_run_panel(r, app_view.clone()))),
                                     ),
                                     Screen::Settings => Some(
                                         div()
