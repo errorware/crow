@@ -46,14 +46,43 @@ jobs:
 
       - uses: dtolnay/rust-toolchain@stable
 
-      # Tarball rather than a bare binary: artifact uploads and release downloads
+      - name: Build
+        working-directory: crow
+        run: cargo build --locked --release
+
+      # Tarballs rather than bare files: artifact uploads and release downloads
       # drop the executable bit, a tar.gz keeps it.
-      - name: Build and package
+      # Linux: the binary, its desktop entry and icons, and install.sh, which
+      # puts them under ~/.local so launchers and docks show Crow's icon.
+      - name: Package (Linux)
+        if: runner.os == 'Linux'
         working-directory: crow
         run: |
-          cargo build --locked --release
-          mkdir -p dist
-          tar -czf "dist/${{ matrix.asset }}.tar.gz" -C target/release crow
+          set -eu
+          root="dist/${{ matrix.asset }}"
+          mkdir -p "$root/share/applications" "$root/share/icons"
+          cp target/release/crow packaging/linux/install.sh "$root/"
+          cp packaging/linux/rs.crow.Crow.desktop "$root/share/applications/"
+          cp -r packaging/linux/icons/hicolor "$root/share/icons/"
+          tar -czf "dist/${{ matrix.asset }}.tar.gz" -C dist "${{ matrix.asset }}"
+
+      # macOS: a Crow.app bundle with its icon, ad-hoc signed (not notarized:
+      # first launch needs right-click → Open).
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        working-directory: crow
+        run: |
+          set -eu
+          version=$(sed -n 's/^version = "\(.*\)"/\1/p' Cargo.toml | head -1)
+          app="dist/Crow.app/Contents"
+          mkdir -p "$app/MacOS" "$app/Resources"
+          cp target/release/crow "$app/MacOS/crow"
+          cp packaging/macos/AppIcon.icns "$app/Resources/"
+          # CFBundleVersion must be numeric: 0.2.0-beta.1 → 0.2.0.
+          sed -e "s/@VERSION@/$version/g" -e "s/@BUILD@/${version%%-*}/g" packaging/macos/Info.plist > "$app/Info.plist"
+          plutil -lint "$app/Info.plist"
+          codesign --force --deep --sign - dist/Crow.app
+          tar -czf "dist/${{ matrix.asset }}.tar.gz" -C dist Crow.app
 
       - uses: actions/upload-artifact@v7
         with:

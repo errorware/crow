@@ -73,6 +73,9 @@ fn main() {
                 options.window_background = WindowBackgroundAppearance::Transparent;
             }
             options.is_resizable = true;
+            // Matches the desktop entry and icon names (packaging/linux), so
+            // Wayland and X11 docks show Crow's icon.
+            options.app_id = Some("rs.crow.Crow".into());
             options.is_minimizable = true;
 
             cx.open_window(options, |window, cx| {
