@@ -21,8 +21,14 @@ use std::sync::Arc;
 use crate::config::{crawl_all_configs, load_config_file_states};
 use crate::host::{host_for, Host, LocalHost};
 use crate::os_detect::{classify_distro_family, detect_os_release, DistroFamily};
-use crate::config::history;
-use crate::vault::{ChangeRecord, KeyringState, ServerRecord, VaultError};
+use crate::config::{drift, history};
+use crate::views::config::state::AppliedBaseline;
+use crate::vault::{ChangeRecord, KeyringState, ServerRecord, VaultError, BASELINE_FLEET};
+
+/// "the fleet" or "group web".
+pub fn scope_label(scope: &str) -> String {
+    if scope == BASELINE_FLEET { "the fleet".into() } else { format!("group {scope}") }
+}
 use crate::views::config::state::ConfigsState;
 use crate::views::firewall::generate_user_rules_content;
 use crate::journal::retention::parse_journald_conf;
@@ -766,9 +772,95 @@ impl CrowApp {
             let st = self.configs.states.get_mut(file).expect("checked above");
             history::load_into(&db, key.as_ref(), &server_id, st)
         });
+        self.refresh_drift();
         if let Err(e) = result {
             self.configs.history_error = Some(format!("{file} was written, but its history wasn't recorded: {e}"));
         }
+    }
+
+    /// Recomputes baselines in force for the loaded configs' server and the
+    /// fleet's drift from them (ERR-74). Reads recorded history only.
+    pub fn refresh_drift(&mut self) {
+        let key = self.vault.key().cloned();
+        let db = self.vault.db();
+        let Ok(db) = db.lock() else { return };
+        self.fleet.drift = drift::fleet_drift(&db, key.as_ref(), &self.fleet.servers).ok();
+        let group = self.configs_server().map(|s| s.group_name).unwrap_or_default();
+        self.configs.baseline_scope = if group.trim().is_empty() { BASELINE_FLEET.to_string() } else { group.trim().to_string() };
+        let baselines = db.list_config_baselines().unwrap_or_default();
+        let names: HashMap<&str, &str> = self.fleet.servers.iter().chain(&self.fleet.archived).map(|s| (s.id.as_str(), s.name.as_str())).collect();
+        self.configs.baselines = self
+            .configs
+            .states
+            .values()
+            .filter_map(|st| {
+                let path = st.path.to_string_lossy().into_owned();
+                let b = drift::baseline_for(&baselines, &path, &group)?.clone();
+                let rev = db.get_config_revision(&b.revision_id).ok()??;
+                let applied = AppliedBaseline {
+                    from_server: names.get(rev.server_id.as_str()).map(|n| n.to_string()).unwrap_or_else(|| rev.server_id.clone()),
+                    content: history::open_content(&rev, key.as_ref()),
+                    sha256: rev.sha256,
+                    baseline: b,
+                };
+                Some((path, applied))
+            })
+            .collect();
+    }
+
+    /// Pins revision `version` of `file` as the known-good version for this
+    /// server's group, or the fleet when it has none (ERR-74).
+    pub fn pin_config_baseline(&mut self, file: &str, version: usize, cx: &mut Context<Self>) {
+        let Some(st) = self.configs.states.get(file) else { return };
+        let Some(rev) = st.revisions.iter().find(|r| r.version == version && !r.id.is_empty()) else { return };
+        let path = st.path.to_string_lossy().into_owned();
+        let scope = self.configs.baseline_scope.clone();
+        let result = self.vault.db().lock().map_err(|_| VaultError::Crypto("the vault is busy".into())).and_then(|db| {
+            db.set_config_baseline(&path, &scope, &rev.id, &self.default_author())?;
+            self.audit_baseline(&db, &path, &format!("pinned v{version} for {}", scope_label(&scope)))
+        });
+        self.configs.history_error = result.err().map(|e| format!("baseline not pinned: {e}"));
+        self.refresh_drift();
+        cx.notify();
+    }
+
+    pub fn unpin_config_baseline(&mut self, path: &str, scope: &str, cx: &mut Context<Self>) {
+        let result = self.vault.db().lock().map_err(|_| VaultError::Crypto("the vault is busy".into())).and_then(|db| {
+            db.clear_config_baseline(path, scope)?;
+            self.audit_baseline(&db, path, &format!("unpinned for {}", scope_label(scope)))
+        });
+        self.configs.history_error = result.err().map(|e| format!("baseline not unpinned: {e}"));
+        self.refresh_drift();
+        cx.notify();
+    }
+
+    /// Puts the baseline's text in the editor as an unsaved edit; saving it
+    /// goes through the usual diff, validator and history.
+    pub fn load_baseline_into_editor(&mut self, file: &str, cx: &mut Context<Self>) {
+        let Some(path) = self.configs.states.get(file).map(|st| st.path.to_string_lossy().into_owned()) else { return };
+        let Some(content) = self.configs.baselines.get(&path).and_then(|b| b.content.clone()) else { return };
+        if let Some(st) = self.configs.states.get_mut(file) {
+            st.update_content(content);
+        }
+        cx.notify();
+    }
+
+    fn audit_baseline(&self, db: &crate::vault::VaultDb, path: &str, what: &str) -> Result<(), VaultError> {
+        let now = chrono::Utc::now().to_rfc3339();
+        let srv = self.configs_server();
+        db.insert_change_record(&ChangeRecord {
+            id: format!("chg_{}", chrono::Local::now().timestamp_micros()),
+            server_id: srv.as_ref().map(|s| s.id.clone()).unwrap_or_else(|| history::LOCAL_SERVER_ID.into()),
+            server_name: srv.map(|s| s.name).unwrap_or_else(|| "this machine".into()),
+            action_kind: "config.baseline".into(),
+            target: path.into(),
+            before_state: what.into(),
+            after_state: None,
+            blast_radius: None,
+            outcome: "success".into(),
+            started_at: now.clone(),
+            completed_at: Some(now),
+        })
     }
 
     /// Reconciles the loaded configs with their recorded history (ERR-72).
@@ -803,6 +895,7 @@ impl CrowApp {
             Err(_) => return,
         };
         self.configs.history_sealed = Some(key.is_some());
+        self.refresh_drift();
         self.configs.history_error = result.err().map(|e| format!("couldn't be read or recorded: {e}"));
         cx.notify();
     }

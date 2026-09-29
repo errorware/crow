@@ -31,6 +31,10 @@ pub struct ConfigsState {
     pub history_sealed: Option<bool>,
     /// Revision being previewed on the rail: (file, version) (ERR-73).
     pub preview_revision: Option<(String, usize)>,
+    /// Baselines that apply to this server's files, by path (ERR-74).
+    pub baselines: HashMap<String, AppliedBaseline>,
+    /// Scope a pinned baseline gets here: the server's group, or the fleet.
+    pub baseline_scope: String,
     /// Structured-editor UI: files switched to the plain-text view, the enum
     /// field whose options are open (row id, field), whether the "add
     /// directive" list is open, and the last rejected edit.
@@ -38,6 +42,31 @@ pub struct ConfigsState {
     pub open_enum: Option<(String, String)>,
     pub adding_row: bool,
     pub edit_error: Option<String>,
+}
+
+/// A baseline in force for one of this server's files.
+#[derive(Clone, Debug)]
+pub struct AppliedBaseline {
+    pub baseline: crate::vault::ConfigBaseline,
+    /// Server the pinned revision came from.
+    pub from_server: String,
+    /// The baseline's text, when its content was kept and the vault is open.
+    pub content: Option<String>,
+    pub sha256: String,
+}
+
+impl AppliedBaseline {
+    /// This server's copy of the file (`on_host`) against the baseline.
+    pub fn drift(&self, path: &str, on_host: &str) -> crate::config::drift::Drift {
+        use crate::config::drift::{compare, format_for_path, Drift};
+        if crate::config::history::sha256_hex(on_host) == self.sha256 {
+            return Drift::Identical;
+        }
+        match &self.content {
+            Some(base) => compare(format_for_path(path), base, on_host),
+            None => Drift::Differs(vec!["differs from the baseline (only its hash was kept)".into()]),
+        }
+    }
 }
 
 impl ConfigsState {
@@ -61,6 +90,8 @@ impl ConfigsState {
             history_error: None,
             history_sealed: None,
             preview_revision: None,
+            baselines: HashMap::new(),
+            baseline_scope: crate::vault::BASELINE_FLEET.to_string(),
             text_mode: HashSet::new(),
             open_enum: None,
             adding_row: false,

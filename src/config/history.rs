@@ -113,15 +113,17 @@ pub fn load_into(db: &VaultDb, key: Option<&MasterKey>, server_id: &str, st: &mu
     Ok(())
 }
 
+/// A revision's content, if it was sealed and `key` opens it.
+pub fn open_content(r: &StoredConfigRevision, key: Option<&MasterKey>) -> Option<String> {
+    let ((nonce, ciphertext), k) = r.sealed.as_ref().zip(key)?;
+    let nonce = <[u8; NONCE_LEN]>::try_from(nonce.as_slice()).ok()?;
+    String::from_utf8(decrypt_data(k, ciphertext, &nonce).ok()?).ok()
+}
+
 fn to_revision(version: usize, r: &StoredConfigRevision, key: Option<&MasterKey>) -> ConfigRevision {
-    let content = match (&r.sealed, key) {
-        (Some((nonce, ciphertext)), Some(k)) => <[u8; NONCE_LEN]>::try_from(nonce.as_slice())
-            .ok()
-            .and_then(|n| decrypt_data(k, ciphertext, &n).ok())
-            .and_then(|b| String::from_utf8(b).ok()),
-        _ => None,
-    };
+    let content = open_content(r, key);
     ConfigRevision {
+        id: r.id.clone(),
         version,
         timestamp: DateTime::parse_from_rfc3339(&r.created_at)
             .map(|t| t.with_timezone(&Local).format("%Y-%m-%d %H:%M:%S").to_string())

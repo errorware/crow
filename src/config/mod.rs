@@ -4,6 +4,7 @@ pub mod plugins;
 pub mod crontab;
 pub mod versioning;
 pub mod history;
+pub mod drift;
 pub mod syntax;
 
 pub use plugin::{default_config_toml, CrowConfigPlugin, APPEARANCE_DEFAULTS, SERVERS_DEFAULTS, CROW_CONFIG_MANIFEST};
