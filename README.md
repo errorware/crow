@@ -1,6 +1,8 @@
 # Crow
 
 <p align="center">
+  <img width="300" height="300" alt="crow-logo" src="https://github.com/user-attachments/assets/3d9027d4-67b1-4548-a105-de92db8577a9" />
+  <br />
   <strong>Native Linux Server Manager over SSH</strong><br>
   <em>A high-density operator terminal built with Rust and GPUI.</em>
 </p>
