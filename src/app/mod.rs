@@ -69,6 +69,8 @@ pub enum Screen {
     Onboard,
     FleetSetup,
     VaultSetup,
+    /// Every change Crow made, on every server (ERR-75).
+    Audit,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -153,6 +155,8 @@ pub struct CrowApp {
     /// Sub-view of the Server screen ("overview", "logs", "config", ...).
     pub active_view: String,
     pub menu_open: bool,
+    /// Audit log screen filters (ERR-75).
+    pub audit_filter: crate::views::audit::model::AuditFilter,
     pub palette_open: bool,
     pub sidebar_collapsed: bool,
     pub show_about_modal: bool,
@@ -331,6 +335,7 @@ impl CrowApp {
             setup_state: SetupState::default(),
             screen: Screen::Fleet,
             menu_open: false,
+            audit_filter: Default::default(),
             settings: SettingsState::default(),
             fleet: {
                 let mut fleet = FleetState::new(servers, tabs, metrics_store, buffered_stores);

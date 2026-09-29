@@ -452,6 +452,15 @@ pub fn burger_menu_overlay(
         is_featured: false,
     });
     items.push(MenuItem {
+        icon: Some(TablerIcon::FileText),
+        label: "Audit Log — Every Change".to_string(),
+        shortcut: "",
+        action: Some(MenuAction::NavigateScreen(Screen::Audit)),
+        is_danger: false,
+        is_header: false,
+        is_featured: false,
+    });
+    items.push(MenuItem {
         icon: Some(TablerIcon::Plus),
         label: "Enroll New Server…".to_string(),
         shortcut: "⌘N",
