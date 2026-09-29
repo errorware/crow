@@ -190,7 +190,11 @@ pub enum PortFirewallMatch {
     Denied { rule_number: usize, comment: Option<String> },
     AllowedDefault,
     NoRule,
+    /// ufw is installed but switched off: nothing filters this port.
     Inactive,
+    /// Crow hasn't read this host's firewall (firewalld, nftables, iptables,
+    /// or not loaded yet). Something may well be filtering; we can't say.
+    Unknown,
 }
 
 impl PortFirewallMatch {
@@ -201,6 +205,7 @@ impl PortFirewallMatch {
             Self::AllowedDefault => "UFW: ALLOW (DEFAULT)",
             Self::NoRule => "UFW: NO INBOUND RULE",
             Self::Inactive => "FIREWALL: INACTIVE",
+            Self::Unknown => "FIREWALL: NOT READ",
         }
     }
 
@@ -209,7 +214,7 @@ impl PortFirewallMatch {
             Self::Allowed { .. } | Self::AllowedDefault => crate::theme::OK,
             Self::Denied { .. } => crate::theme::CRIT,
             Self::NoRule => crate::theme::WARN,
-            Self::Inactive => crate::theme::TEXT_MUTED,
+            Self::Inactive | Self::Unknown => crate::theme::TEXT_MUTED,
         }
     }
 }
@@ -220,7 +225,7 @@ pub fn correlate_port_firewall(
     protocol: &str,
 ) -> PortFirewallMatch {
     let Some(status) = status else {
-        return PortFirewallMatch::Inactive;
+        return PortFirewallMatch::Unknown;
     };
     match status {
         FirewallOperationalState::Active(summary) if summary.is_active => {
@@ -241,19 +246,7 @@ pub fn correlate_port_firewall(
                 if !proto_match {
                     continue;
                 }
-                let port_match = if rule.port.is_empty() {
-                    true
-                } else if rule.port == port {
-                    true
-                } else if let Some((start_s, end_s)) = rule.port.split_once(':') {
-                    if let (Ok(start), Ok(end)) = (start_s.parse::<u16>(), end_s.parse::<u16>()) {
-                        port_num >= start && port_num <= end
-                    } else {
-                        false
-                    }
-                } else {
-                    false
-                };
+                let port_match = rule_covers_port(&rule.port, port, port_num);
 
                 if port_match {
                     match rule.action {
@@ -278,8 +271,26 @@ pub fn correlate_port_firewall(
                 _ => PortFirewallMatch::NoRule,
             }
         }
-        _ => PortFirewallMatch::Inactive,
+        FirewallOperationalState::Active(_) | FirewallOperationalState::Inactive { .. } => PortFirewallMatch::Inactive,
+        FirewallOperationalState::Unmanaged { .. } => PortFirewallMatch::Unknown,
     }
+}
+
+/// Whether a ufw rule's port field ("22", "6000:6007", "80,443,8000:8010",
+/// or "Anywhere"/empty for all ports) covers `port`.
+fn rule_covers_port(rule_port: &str, port: &str, port_num: u16) -> bool {
+    if rule_port.is_empty() || rule_port.eq_ignore_ascii_case("anywhere") {
+        return true;
+    }
+    rule_port.split(',').any(|part| {
+        if part == port {
+            return true;
+        }
+        match part.split_once(':') {
+            Some((a, b)) => matches!((a.parse::<u16>(), b.parse::<u16>()), (Ok(a), Ok(b)) if (a..=b).contains(&port_num)),
+            None => false,
+        }
+    })
 }
 
 /// Generates baseline seeded UFW rules for an active production Linux node
@@ -511,8 +522,20 @@ mod tests {
         let m9999 = correlate_port_firewall(Some(&active), "9999", "TCP");
         assert_eq!(m9999, PortFirewallMatch::NoRule);
 
-        // Inactive firewall
-        let minactive = correlate_port_firewall(None, "22", "TCP");
-        assert_eq!(minactive, PortFirewallMatch::Inactive);
+        // Not loaded yet: unknown, never "off"
+        assert_eq!(correlate_port_firewall(None, "22", "TCP"), PortFirewallMatch::Unknown);
+
+        // firewalld/nftables host: Crow can't read it, so it can't say
+        let unmanaged = FirewallOperationalState::Unmanaged { detected_binaries: vec!["firewall-cmd".into()], reason: String::new() };
+        assert_eq!(correlate_port_firewall(Some(&unmanaged), "22", "TCP"), PortFirewallMatch::Unknown);
+    }
+
+    #[test]
+    fn test_rule_port_forms() {
+        assert!(rule_covers_port("80,443", "443", 443));
+        assert!(rule_covers_port("80,6000:6007", "6003", 6003));
+        assert!(!rule_covers_port("80,6000:6007", "6008", 6008));
+        assert!(rule_covers_port("Anywhere", "5432", 5432));
+        assert!(!rule_covers_port("22", "2222", 2222));
     }
 }
