@@ -23,10 +23,11 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
     };
 
     // A failed save outranks the standing read-only reason.
-    let notice = match (&configs.save_error, file_state.and_then(|st| st.write_blocked.as_ref())) {
-        (Some(err), _) => Some((format!("SAVE FAILED · {err}"), CRIT, 0xef4444)),
-        (None, Some(reason)) => Some((format!("READ-ONLY · {reason}"), WARN, 0xf59e0b)),
-        (None, None) => None,
+    let notice = match (&configs.save_error, file_state.and_then(|st| st.write_blocked.as_ref()), &configs.history_error) {
+        (Some(err), _, _) => Some((format!("SAVE FAILED · {err}"), CRIT, 0xef4444)),
+        (None, Some(reason), _) => Some((format!("READ-ONLY · {reason}"), WARN, 0xf59e0b)),
+        (None, None, Some(err)) => Some((format!("HISTORY · {err}"), WARN, 0xf59e0b)),
+        (None, None, None) => None,
     };
 
     let header_stats = if is_modified {
@@ -265,11 +266,13 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                                         .font_family(FONT_MONO)
                                         .text_size(px(9.5))
                                         .text_color(OK)
-                                        .child(format!("Active: v{}", active_rev)),
+                                        .child(if active_rev == 0 { "on host: not recorded".to_string() } else { format!("On host: v{}", active_rev) }),
                                 ),
                         )
                         .children(revisions.into_iter().rev().map(|rev| {
                             let is_current = rev.version == active_rev;
+                            let restorable = rev.content.is_some();
+                            let outside = rev.source == crate::config::history::SOURCE_OBSERVED && rev.message == "Changed outside Crow";
                             let app_rollback = app.clone();
                             let fn_str = sel_file.clone();
                             let v = rev.version;
@@ -309,7 +312,16 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                                                         .child(rev.timestamp.clone()),
                                                 ),
                                         )
-                                        .children(if !is_current {
+                                        .children(if !is_current && !restorable {
+                                            Some(
+                                                div()
+                                                    .font_family(FONT_MONO)
+                                                    .text_size(px(9.0))
+                                                    .text_color(TEXT_FAINT)
+                                                    .child("HASH ONLY")
+                                                    .into_any_element()
+                                            )
+                                        } else if !is_current {
                                             Some(
                                                 div()
                                                     .id(ElementId::NamedInteger("btn-rollback".into(), v as u64))
@@ -363,8 +375,8 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(px(9.5))
-                                        .text_color(TEXT_TERTIARY)
-                                        .child(rev.message),
+                                        .text_color(if outside { WARN } else { TEXT_TERTIARY })
+                                        .child(if restorable { rev.message } else { format!("{} · {}", rev.message, crate::config::history::MISSING_CONTENT) }),
                                 )
                         })),
                 ),

@@ -346,6 +346,7 @@ pub fn load_config_file_states(host: &dyn Host, files: &[DiscoveredConfigFile]) 
                 None => (String::new(), Some(format!("Could not read {} from {}", f.name, host.label()))),
             };
             let mut state = super::ConfigFileState::new(f.full_path.clone(), f.name.clone(), content);
+            state.read_from_host = blocked.is_none();
             state.write_blocked = blocked;
             (f.name.clone(), state)
         })

@@ -10,7 +10,12 @@ pub struct ConfigRevision {
     pub timestamp: String,
     pub author: String,
     pub message: String,
-    pub content: String,
+    /// `None` when history kept only the hash (no key when it was recorded,
+    /// or the vault is locked now): the revision can't be restored.
+    pub content: Option<String>,
+    pub sha256: String,
+    /// `history::SOURCE_CROW` or `history::SOURCE_OBSERVED`.
+    pub source: String,
 }
 
 #[derive(Clone, Debug)]
@@ -20,7 +25,12 @@ pub struct ConfigFileState {
     pub baseline_content: String,
     pub current_content: String,
     pub revisions: Vec<ConfigRevision>,
+    /// Version matching what's on the host; 0 when none does.
     pub active_revision: usize,
+    /// The content is the host's file as read, not something Crow generated
+    /// or a placeholder for a file it couldn't read. Only these go into
+    /// history (ERR-72).
+    pub read_from_host: bool,
     /// Why this file must not be written back, if it must not: a synthetic
     /// placeholder, a file that could not be read from its host, or a server
     /// Crow has no transport to. Its content is illustrative only.
@@ -29,12 +39,15 @@ pub struct ConfigFileState {
 
 impl ConfigFileState {
     pub fn new(path: PathBuf, filename: String, content: String) -> Self {
+        // Replaced by the recorded history once it's loaded (ERR-72).
         let initial_rev = ConfigRevision {
             version: 1,
             timestamp: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
-            author: "system".to_string(),
-            message: "Initial baseline read from host disk".to_string(),
-            content: content.clone(),
+            author: "on the host".to_string(),
+            message: "As read now".to_string(),
+            sha256: super::history::sha256_hex(&content),
+            content: Some(content.clone()),
+            source: super::history::SOURCE_OBSERVED.to_string(),
         };
 
         Self {
@@ -44,6 +57,7 @@ impl ConfigFileState {
             current_content: content,
             revisions: vec![initial_rev],
             active_revision: 1,
+            read_from_host: false,
             write_blocked: None,
         }
     }
@@ -67,7 +81,9 @@ impl ConfigFileState {
             timestamp: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             author,
             message,
-            content: self.current_content.clone(),
+            sha256: super::history::sha256_hex(&self.current_content),
+            content: Some(self.current_content.clone()),
+            source: super::history::SOURCE_CROW.to_string(),
         };
         self.revisions.push(rev);
         self.active_revision = next_v;
@@ -75,8 +91,8 @@ impl ConfigFileState {
     }
 
     pub fn rollback_to_revision(&mut self, version: usize) -> bool {
-        if let Some(rev) = self.revisions.iter().find(|r| r.version == version) {
-            self.current_content = rev.content.clone();
+        if let Some(content) = self.revisions.iter().find(|r| r.version == version).and_then(|r| r.content.clone()) {
+            self.current_content = content;
             self.active_revision = version;
             true
         } else {
@@ -96,7 +112,7 @@ impl ConfigFileState {
     }
 
     pub fn last_author(&self) -> &str {
-        self.revisions.last().map(|r| r.author.as_str()).unwrap_or("Nelson <nelson@errorware.net>")
+        self.revisions.last().map(|r| r.author.as_str()).unwrap_or("—")
     }
 
     pub fn latest_revision(&self) -> Option<&ConfigRevision> {
@@ -240,7 +256,7 @@ mod tests {
         assert_eq!(state.current_content, "server { listen 80; }");
 
         state.update_content("server { listen 8080; }".to_string());
-        state.stage_revision("Nelson".to_string(), "Changed to port 8080".to_string());
+        state.stage_revision("me@box".to_string(), "Changed to port 8080".to_string());
         assert_eq!(state.revisions.len(), 2);
         assert_eq!(state.active_revision, 2);
         assert!(!state.is_modified());
