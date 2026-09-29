@@ -2,7 +2,8 @@ use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
-use crate::config::DiffKind;
+use crate::config::{compute_unified_diff, DiffKind};
+use gpui_kit::prelude::FluentBuilder as _;
 use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::views::config::state::ConfigsState;
 
@@ -30,11 +31,22 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
         (None, None, None) => None,
     };
 
-    let header_stats = if is_modified {
-        format!("+{} −{}", add_count, del_count)
-    } else {
-        "clean".to_string()
+    // A previewed revision (ERR-73) takes the diff area: what restoring it
+    // would change on the host.
+    let preview = configs.previewed_revision().zip(file_state).map(|(rev, st)| {
+        let lines = compute_unified_diff(&st.baseline_content, rev.content.as_deref().unwrap_or_default());
+        (rev.version, lines)
+    });
+    let (title, header_stats, header_color) = match &preview {
+        Some((v, lines)) => {
+            let add = lines.iter().filter(|l| l.kind == DiffKind::Addition).count();
+            let del = lines.iter().filter(|l| l.kind == DiffKind::Deletion).count();
+            (format!("RESTORE v{v}?"), if add + del == 0 { "same as host".to_string() } else { format!("+{add} −{del}") }, TEXT_SECONDARY)
+        }
+        None if is_modified => ("PENDING DIFF".to_string(), format!("+{} −{}", add_count, del_count), WARN),
+        None => ("PENDING DIFF".to_string(), "clean".to_string(), OK),
     };
+    let plan = apply_plan(configs, file_state);
 
     div()
         .w(px(380.0))
@@ -63,13 +75,13 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                         .text_size(px(11.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
-                        .child("PENDING DIFF"),
+                        .child(title),
                 )
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
-                        .text_color(if is_modified { WARN } else { OK })
+                        .text_color(header_color)
                         .child(header_stats),
                 )
                 .child(div().flex_1())
@@ -125,46 +137,34 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                 .flex_col()
                 // Dynamic Diff Block if file is modified
                 .child(
-                    if is_modified && !diff_lines.is_empty() {
-                        div()
-                            .flex_none()
-                            .border_b_1()
-                            .border_color(BORDER_PANEL)
-                            .py(px(8.0))
-                            .font_family(FONT_MONO)
-                            .text_size(px(10.5))
-                            .flex()
-                            .flex_col()
+                    if let Some((v, lines)) = preview {
+                        let sel = sel_file.clone();
+                        diff_block(format!("--- on host/{}", sel_file), format!("+++ v{v}/{}", sel_file), lines)
                             .child(
                                 div()
-                                    .px(px(12.0))
-                                    .py(px(1.0))
-                                    .text_color(TEXT_FAINT)
-                                    .child(format!("--- baseline/{}", sel_file)),
+                                    .id("btn-close-preview")
+                                    .mx(px(12.0))
+                                    .mt(px(8.0))
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(9.5))
+                                    .text_color(TEXT_DIM)
+                                    .cursor_pointer()
+                                    .hover(|s| s.text_color(TEXT_PRIMARY))
+                                    .on_click({
+                                        let app = app.clone();
+                                        move |_ev, _window, cx| {
+                                            let f = sel.clone();
+                                            app.update(cx, |this, cx| {
+                                                this.configs.toggle_preview(&f, v);
+                                                cx.notify();
+                                            });
+                                        }
+                                    })
+                                    .child("← back to pending diff"),
                             )
-                            .child(
-                                div()
-                                    .px(px(12.0))
-                                    .py(px(1.0))
-                                    .text_color(TEXT_FAINT)
-                                    .child(format!("+++ staged/{} (unsaved)", sel_file)),
-                            )
-                            .children(diff_lines.into_iter().map(|line| {
-                                let (bg, fg) = match line.kind {
-                                    DiffKind::Hunk => (DIFF_HUNK_BG, TEXT_DIMMER),
-                                    DiffKind::Deletion => (DIFF_DEL_BG, CRIT_INK),
-                                    DiffKind::Addition => (DIFF_ADD_BG, OK_INK),
-                                    DiffKind::Context => (rgb(0x00000000), TEXT_SECONDARY),
-                                };
-
-                                div()
-                                    .px(px(12.0))
-                                    .py(px(1.5))
-                                    .bg(bg)
-                                    .text_color(fg)
-                                    .child(line.text)
-                            }))
                             .into_any_element()
+                    } else if is_modified && !diff_lines.is_empty() {
+                        diff_block(format!("--- baseline/{}", sel_file), format!("+++ staged/{} (unsaved)", sel_file), diff_lines).into_any_element()
                     } else {
                         // Clean file notice
                         div()
@@ -201,41 +201,19 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                                 .text_size(px(10.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_DIMMER)
-                                .child("APPLY PLAN & INTEGRITY"),
+                                .child("ON SAVE"),
                         )
-                        .child(
+                        .children(plan.into_iter().map(|(ok, text)| {
+                            let color = if ok { OK } else { WARN };
                             div()
                                 .flex()
-                                .items_center()
+                                .items_start()
                                 .gap(px(9.0))
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.5))
-                                .child(tabler_icon(TablerIcon::Check).size(px(12.0)).text_color(OK))
-                                .child(div().flex_1().min_w(px(0.0)).text_color(OK).child("Atomic rewrite with revision backup"))
-                                .child(div().flex_none().text_color(TEXT_FAINT).child("staged")),
-                        )
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(px(9.0))
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.5))
-                                .child(tabler_icon(TablerIcon::Check).size(px(12.0)).text_color(OK))
-                                .child(div().flex_1().min_w(px(0.0)).text_color(OK).child("Lossless CST trivia & formatting preserved"))
-                                .child(div().flex_none().text_color(TEXT_FAINT).child("100%")),
-                        )
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(px(9.0))
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.5))
-                                .child(div().w(px(12.0)).flex_none().text_color(TEXT_DIM).child("○"))
-                                .child(div().flex_1().min_w(px(0.0)).text_color(TEXT_DIM).child("Syntax verification before disk flush"))
-                                .child(div().flex_none().text_color(TEXT_FAINT).child("ready")),
-                        ),
+                                .child(div().w(px(12.0)).flex_none().text_color(color).child(if ok { "✓" } else { "!" }))
+                                .child(div().flex_1().min_w(px(0.0)).text_color(if ok { TEXT_SECONDARY } else { WARN }).child(text))
+                        })),
                 )
                 // Revision History / Version Audit Log Section
                 .child(
@@ -273,15 +251,28 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                             let is_current = rev.version == active_rev;
                             let restorable = rev.content.is_some();
                             let outside = rev.source == crate::config::history::SOURCE_OBSERVED && rev.message == "Changed outside Crow";
+                            let previewing = configs.preview_revision.as_ref() == Some(&(sel_file.clone(), rev.version));
+                            let app_preview = app.clone();
+                            let file_preview = sel_file.clone();
                             let app_rollback = app.clone();
                             let fn_str = sel_file.clone();
                             let v = rev.version;
 
                             div()
+                                .id(ElementId::NamedInteger("rev-card".into(), v as u64))
                                 .p(px(8.0))
-                                .bg(if is_current { hex_rgba(0x3ecf6e, 0.05) } else { hex_rgba(0xffffff, 0.02) })
+                                .bg(if previewing { BG_ROW_SELECTED } else if is_current { hex_rgba(0x3ecf6e, 0.05) } else { hex_rgba(0xffffff, 0.02) })
                                 .border_1()
-                                .border_color(if is_current { hex_rgba(0x3ecf6e, 0.3) } else { BORDER_DEFAULT })
+                                .border_color(if previewing { BORDER_CONTROL_SEL } else if is_current { hex_rgba(0x3ecf6e, 0.3) } else { BORDER_DEFAULT })
+                                .when(restorable && !is_current, |d| {
+                                    d.cursor_pointer().hover(|s| s.border_color(TEXT_DIM)).on_click(move |_ev, _window, cx| {
+                                        let f = file_preview.clone();
+                                        app_preview.update(cx, |this, cx| {
+                                            this.configs.toggle_preview(&f, v);
+                                            cx.notify();
+                                        });
+                                    })
+                                })
                                 .rounded_sm()
                                 .flex()
                                 .flex_col()
@@ -335,6 +326,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                                                     .rounded_sm()
                                                     .cursor_pointer()
                                                     .on_click(move |_ev, _window, cx| {
+                                                        cx.stop_propagation();
                                                         let f = fn_str.clone();
                                                         app_rollback.update(cx, |this, cx| {
                                                             this.rollback_config_revision(&f, v, cx);
@@ -453,4 +445,55 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                         .child("STAGE & APPLY")
                 }),
         )
+}
+
+/// A unified diff with its two header lines.
+fn diff_block(old: String, new: String, lines: Vec<crate::config::ConfigDiffLine>) -> Div {
+    div()
+        .flex_none()
+        .border_b_1()
+        .border_color(BORDER_PANEL)
+        .py(px(8.0))
+        .font_family(FONT_MONO)
+        .text_size(px(10.5))
+        .flex()
+        .flex_col()
+        .child(div().px(px(12.0)).py(px(1.0)).text_color(TEXT_FAINT).child(old))
+        .child(div().px(px(12.0)).py(px(1.0)).text_color(TEXT_FAINT).child(new))
+        .children(lines.into_iter().map(|line| {
+            let (bg, fg) = match line.kind {
+                DiffKind::Hunk => (DIFF_HUNK_BG, TEXT_DIMMER),
+                DiffKind::Deletion => (DIFF_DEL_BG, CRIT_INK),
+                DiffKind::Addition => (DIFF_ADD_BG, OK_INK),
+                DiffKind::Context => (rgb(0x00000000), TEXT_SECONDARY),
+            };
+            div().px(px(12.0)).py(px(1.5)).bg(bg).text_color(fg).child(line.text)
+        }))
+}
+
+/// What saving the selected file actually does, as (reassuring, text) lines:
+/// how it's written, what checks it, and what history keeps.
+fn apply_plan(configs: &ConfigsState, st: Option<&crate::config::ConfigFileState>) -> Vec<(bool, String)> {
+    let Some(st) = st else { return Vec::new() };
+    let mut plan = vec![(true, "Written atomically: temp file, then rename".to_string())];
+    match configs.structured_format(&configs.selected_file) {
+        Some(format) => {
+            plan.push((true, "Structured edits keep comments and layout".to_string()));
+            let checks = crate::config::plugins::file_validators(format);
+            if checks.is_empty() {
+                plan.push((false, "No host validator for this format".to_string()));
+            } else {
+                let cmds = checks.iter().map(|c| format!("`{}`", c.replace("{file}", "<file>"))).collect::<Vec<_>>().join(", ");
+                plan.push((true, format!("Checked on the host first: {cmds}")));
+            }
+        }
+        None => plan.push((false, "Plain text: nothing checks it before it's written".to_string())),
+    }
+    plan.push(match (st.read_from_host, configs.history_sealed) {
+        (false, _) => (false, "Not kept in history: Crow didn't read this file from the host".to_string()),
+        (true, Some(true)) => (true, "Every version kept in history, encrypted".to_string()),
+        (true, Some(false)) => (false, "History keeps hashes only: no encryption key available".to_string()),
+        (true, None) => (false, "History not loaded yet".to_string()),
+    });
+    plan
 }
