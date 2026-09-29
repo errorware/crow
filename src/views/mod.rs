@@ -3,6 +3,7 @@ pub mod config;
 pub mod files;
 pub mod firewall;
 pub mod fleet;
+pub mod history;
 pub mod lock;
 pub mod logs;
 pub mod onboard;

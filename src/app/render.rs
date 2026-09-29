@@ -331,6 +331,18 @@ impl Render for CrowApp {
                                                                         .flex()
                                                                         .child(logs_explorer_view(app_view.clone(), self.logs_search.as_ref().map(|s| &s.input), &self.journal, self.ai_provider_name()))
                                                                 )
+                                                            } else if self.active_view == "history" {
+                                                                let hover = self.history_hover;
+                                                                self.history_cache().map(|c| {
+                                                                    div()
+                                                                        .size_full()
+                                                                        .on_mouse_move({
+                                                                            // Leaving the charts clears the crosshair.
+                                                                            let app = app_view.clone();
+                                                                            move |_ev, _window, cx| app.update(cx, |this, cx| this.set_history_hover(None, cx))
+                                                                        })
+                                                                        .child(crate::views::history::history_view(c, hover, app_view.clone()))
+                                                                })
                                                             } else if self.active_view == "cron" {
                                                                 Some(
                                                                     div()

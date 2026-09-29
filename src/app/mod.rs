@@ -27,6 +27,7 @@ use crate::views::overview::{
 
 pub mod danger;
 pub mod fleet_run;
+pub mod history_view;
 mod files;
 mod firewall;
 mod users;
@@ -239,6 +240,10 @@ pub struct CrowApp {
     pub history: HistoryClock,
     /// Servers whose last history sample was unreachable (ERR-85).
     pub history_down: std::collections::HashSet<String>,
+    /// History view (ERR-86): range, pointer position (0..=1), cached data.
+    pub history_range: crate::metrics::chart::Range,
+    pub history_hover: Option<f32>,
+    pub history_view: Option<history_view::HistoryCache>,
     /// Turn off SSH password login (ERR-34).
     pub password_login: Option<password_login::PasswordLoginFlow>,
     /// Something the user should know about their stored secrets (moved,
@@ -404,6 +409,9 @@ impl CrowApp {
             fleet_runner: None,
             history: HistoryClock { watch_started: chrono::Utc::now().timestamp(), ..Default::default() },
             history_down: Default::default(),
+            history_range: crate::metrics::chart::Range::Day,
+            history_hover: None,
+            history_view: None,
             password_login: None,
             setup_inputs: None,
             lock_inputs: None,
