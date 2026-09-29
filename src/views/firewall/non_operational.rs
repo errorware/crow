@@ -12,6 +12,13 @@ pub fn non_operational_view(
 ) -> impl IntoElement {
     let app_enable = app.clone();
     let app_config = app.clone();
+    // Crow's enable/inspect actions are ufw's; for other backends it only
+    // says what to run.
+    let ufw = backend == FirewallBackend::Ufw;
+    let recommended = match backend {
+        FirewallBackend::Firewalld => "sudo systemctl enable --now firewalld",
+        _ => "sudo ufw default deny incoming && sudo ufw default allow outgoing && sudo ufw allow 22/tcp comment 'SSH' && sudo ufw enable",
+    };
 
     div()
         .id("firewall-non-operational-view")
@@ -164,18 +171,18 @@ pub fn non_operational_view(
                                 .text_size(px(10.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(hex_rgb(0x38bdf8))
-                                .child("RECOMMENDED INITIALIZATION:"),
+                                .child(if ufw || backend == FirewallBackend::Firewalld { "TO TURN IT ON:" } else { "TO SET ONE UP (ufw):" }),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(11.0))
                                 .text_color(TEXT_MAX)
-                                .child("sudo ufw default deny incoming && sudo ufw default allow outgoing && sudo ufw allow 22/tcp comment 'SSH' && sudo ufw enable"),
+                                .child(recommended),
                         ),
                 )
                 // Action Buttons
-                .child(
+                .children(ufw.then(|| 
                     div()
                         .flex()
                         .items_center()
@@ -234,6 +241,6 @@ pub fn non_operational_view(
                                 .child(tabler_icon(TablerIcon::ShieldCheck).size(px(14.0)).text_color(rgb(0x0a0a0c)))
                                 .child("ACTIVATE FIREWALL IN CROW"),
                         ),
-                ),
+                )),
         )
 }

@@ -1,5 +1,6 @@
 pub mod models;
 pub mod detector;
+pub mod firewalld;
 pub mod non_operational;
 pub mod new_rule_modal;
 pub mod rules_format;
@@ -23,6 +24,7 @@ pub use state::FirewallState;
 
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
+use gpui_kit::prelude::FluentBuilder as _;
 use crate::theme::*;
 use std::collections::HashMap;
 use crate::app::CrowApp;
@@ -60,6 +62,9 @@ fn render_active_firewall(
     fw: &FirewallState,
     config_file_states: &HashMap<String, ConfigFileState>,
 ) -> impl IntoElement {
+    // Crow's firewall actions are ufw commands; other backends are shown
+    // read-only (ERR-76).
+    let writable = summary.backend == FirewallBackend::Ufw;
     let app_new_rule = app.clone();
     let app_toggle_active = app.clone();
     let app_inspect_cfg = app.clone();
@@ -170,7 +175,7 @@ fn render_active_firewall(
                                 .rounded_sm()
                                 .child(format!("{} ACTIVE RULES", total_rules)),
                         )
-                        .child(if is_modified {
+                        .when(file_state.is_some(), |d| d.child(if is_modified {
                             div()
                                 .bg(hex_rgba(0xf59e0b, 0.15))
                                 .border_1()
@@ -196,7 +201,7 @@ fn render_active_firewall(
                                 .py(px(2.0))
                                 .rounded_sm()
                                 .child(format!("v{} · AUDITED", active_rev))
-                        }),
+                        })),
                 )
                 .child(
                     div()
@@ -252,7 +257,7 @@ fn render_active_firewall(
                                 .child(if fw.show_audit_rail { "AUDIT RAIL [ON]" } else { "AUDIT RAIL [OFF]" }),
                         )
                         // Reload Firewall Button
-                        .child(
+                        .when(writable, |d| d.child(
                             div()
                                 .id("btn-reload-firewall")
                                 .px(px(10.0))
@@ -273,9 +278,9 @@ fn render_active_firewall(
                                     });
                                 })
                                 .child("RELOAD ENGINE"),
-                        )
+                        ))
                         // View user.rules in Config Editor
-                        .child(
+                        .when(writable, |d| d.child(
                             div()
                                 .id("btn-firewall-open-config")
                                 .px(px(10.0))
@@ -297,9 +302,9 @@ fn render_active_firewall(
                                     });
                                 })
                                 .child("INSPECT user.rules"),
-                        )
+                        ))
                         // Disable / Enable Toggle
-                        .child(
+                        .when(writable, |d| d.child(
                             div()
                                 .id("btn-toggle-firewall-active")
                                 .px(px(10.0))
@@ -320,9 +325,9 @@ fn render_active_firewall(
                                     });
                                 })
                                 .child("DISABLE FIREWALL"),
-                        )
+                        ))
                         // + ADD RULE Button
-                        .child(
+                        .when(writable, |d| d.child(
                             div()
                                 .id("btn-open-new-rule-modal")
                                 .px(px(12.0))
@@ -341,9 +346,15 @@ fn render_active_firewall(
                                     });
                                 })
                                 .child("+ ADD RULE"),
-                        ),
+                        )),
                 ),
         )
+        // Read-only backends, and anything the reader flagged (ERR-76).
+        .children((!writable).then(|| notice_strip(format!(
+            "READ-ONLY · Crow reads {} (the running config) but doesn't change it yet; use its own tools to edit.",
+            summary.backend.label()
+        ), TEXT_SECONDARY)))
+        .children(summary.notice.clone().map(|n| notice_strip(n, WARN)))
         // 2. Global Policy Strip & Quick Port Toggles
         .child(
             div()
@@ -457,7 +468,7 @@ fn render_active_firewall(
                         ),
                 )
                 // Row 2: Service Quick Port Toggles
-                .child(
+                .when(writable, |d| d.child(
                     div()
                         .flex()
                         .items_center()
@@ -519,7 +530,7 @@ fn render_active_firewall(
                                         )
                                 })),
                         ),
-                ),
+                )),
         )
         // 3. Rules Table Header & Search Filter
         .child(
@@ -647,7 +658,7 @@ fn render_active_firewall(
                     ]
                 } else {
                     filtered_rules.iter().map(|rule| {
-                        render_rule_row(rule, app.clone()).into_any_element()
+                        render_rule_row(rule, writable, app.clone()).into_any_element()
                     }).collect()
                 }),
         )
@@ -684,7 +695,7 @@ fn render_active_firewall(
         .children(modal_element)
 }
 
-fn render_rule_row(rule: &FirewallRule, app: Entity<CrowApp>) -> impl IntoElement {
+fn render_rule_row(rule: &FirewallRule, writable: bool, app: Entity<CrowApp>) -> impl IntoElement {
     let r_id = rule.id.clone();
     let app_del = app.clone();
 
@@ -806,7 +817,7 @@ fn render_rule_row(rule: &FirewallRule, app: Entity<CrowApp>) -> impl IntoElemen
                 .child(rule.comment.as_deref().unwrap_or("—").to_string()),
         )
         // 8. Actions (Delete rule)
-        .child(
+        .when(writable, |d| d.child(
             div()
                 .w(px(60.0))
                 .child(
@@ -825,5 +836,20 @@ fn render_rule_row(rule: &FirewallRule, app: Entity<CrowApp>) -> impl IntoElemen
                         })
                         .child(inherited_icon(TablerIcon::Trash, px(12.0))),
                 ),
-        )
+        ))
+}
+
+/// One line across the firewall screen.
+fn notice_strip(text: String, color: Rgba) -> impl IntoElement {
+    div()
+        .flex_none()
+        .px(px(16.0))
+        .py(px(6.0))
+        .bg(BG_SUBHEAD)
+        .border_b_1()
+        .border_color(BORDER_PANEL)
+        .font_family(FONT_MONO)
+        .text_size(px(10.5))
+        .text_color(color)
+        .child(text)
 }

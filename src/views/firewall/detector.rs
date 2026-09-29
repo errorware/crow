@@ -69,9 +69,30 @@ pub fn detect_firewall(host: &dyn Host) -> FirewallOperationalState {
         };
     }
 
-    let reason = if has("firewall-cmd") {
-        "firewalld is installed. Crow manages ufw rules only for now; firewalld zones aren't read yet."
-    } else if has("nft") || has("iptables") {
+    if has("firewall-cmd") {
+        // `--state` needs no root. "not running" is exit status 252; any
+        // other failure means Crow couldn't tell, so it reads and reports.
+        let stopped = matches!(host.exec(&["firewall-cmd", "--state"], DEFAULT_TIMEOUT), Err(crate::host::HostError::Failed { status: 252, .. }));
+        if stopped {
+            return FirewallOperationalState::Inactive {
+                backend: FirewallBackend::Firewalld,
+                reason: "firewalld is installed but not running, so it filters nothing.".into(),
+                detected_binaries,
+                has_root: true,
+            };
+        }
+        return match super::firewalld::read(host) {
+            Ok(summary) => FirewallOperationalState::Active(summary),
+            Err(e) => FirewallOperationalState::Inactive {
+                backend: FirewallBackend::Firewalld,
+                reason: format!("firewalld is running, but Crow couldn't read its zones as root: {e}"),
+                detected_binaries,
+                has_root: false,
+            },
+        };
+    }
+
+    let reason = if has("nft") || has("iptables") {
         "Only raw nftables/iptables tools were found. Crow manages ufw rules; raw rule sets aren't read yet."
     } else {
         "No firewall tooling (ufw, firewalld, nftables, iptables) was found on this host."
@@ -111,6 +132,7 @@ pub fn parse_ufw_status(stdout: &str) -> Option<FirewallStatusSummary> {
         default_forward: RuleAction::Deny,
         rules,
         raw_output: stdout.to_string(),
+        notice: None,
     })
 }
 
@@ -204,6 +226,7 @@ pub fn parse_ufw_rule_line(line: &str) -> Option<FirewallRule> {
         destination: "Anywhere".to_string(),
         comment,
         is_ipv6,
+        zone: None,
     })
 }
 

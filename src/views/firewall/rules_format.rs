@@ -184,6 +184,7 @@ pub fn parse_user_rules_content(content: &str) -> Vec<FirewallRule> {
             destination,
             comment,
             is_ipv6,
+            zone: None,
         });
         counter += 1;
     }
@@ -209,6 +210,7 @@ mod tests {
                 destination: "Anywhere".into(),
                 comment: Some("OpenSSH Access".into()),
                 is_ipv6: false,
+                zone: None,
             },
             FirewallRule {
                 id: "rule-2".into(),
@@ -221,6 +223,7 @@ mod tests {
                 destination: "Anywhere".into(),
                 comment: Some("Block Redis".into()),
                 is_ipv6: false,
+                zone: None,
             },
             FirewallRule {
                 id: "rule-3".into(),
@@ -233,6 +236,7 @@ mod tests {
                 destination: "Anywhere".into(),
                 comment: Some("Rate limited web".into()),
                 is_ipv6: false,
+                zone: None,
             },
         ];
 

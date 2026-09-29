@@ -119,6 +119,21 @@ pub struct FirewallRule {
     pub destination: String,
     pub comment: Option<String>,
     pub is_ipv6: bool,
+    /// The firewalld zone this rule comes from; `None` for ufw (ERR-76).
+    #[serde(default)]
+    pub zone: Option<ZoneScope>,
+}
+
+/// Where a firewalld rule applies.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ZoneScope {
+    pub name: String,
+    /// "on wlo1", "from 10.0.0.0/8", ...
+    pub binding: String,
+    /// Whether the rule says anything about a listening port's exposure:
+    /// true for the default zone and source-bound zones, false for a zone
+    /// that only covers particular interfaces (docker0, a VPN).
+    pub counts_for_exposure: bool,
 }
 
 impl FirewallRule {
@@ -144,6 +159,10 @@ pub struct FirewallStatusSummary {
     pub default_forward: RuleAction,
     pub rules: Vec<FirewallRule>,
     pub raw_output: String,
+    /// Something about this firewall the user should know (firewalld:
+    /// runtime config differs from permanent).
+    #[serde(default)]
+    pub notice: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -165,6 +184,15 @@ pub enum FirewallOperationalState {
 impl FirewallOperationalState {
     pub fn is_operational(&self) -> bool {
         matches!(self, Self::Active(s) if s.is_active)
+    }
+
+    /// `self` when it's ufw's state, else `Unmanaged`: for code that only
+    /// makes sense for ufw (its user.rules file, its commands).
+    pub fn ufw_only(self) -> Self {
+        match self.backend() {
+            FirewallBackend::Ufw => self,
+            _ => Self::Unmanaged { detected_binaries: Vec::new(), reason: String::new() },
+        }
     }
 
     pub fn backend(&self) -> FirewallBackend {
@@ -200,10 +228,10 @@ pub enum PortFirewallMatch {
 impl PortFirewallMatch {
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Allowed { .. } => "UFW: ALLOWED",
-            Self::Denied { .. } => "UFW: BLOCKED",
-            Self::AllowedDefault => "UFW: ALLOW (DEFAULT)",
-            Self::NoRule => "UFW: NO INBOUND RULE",
+            Self::Allowed { .. } => "FIREWALL: ALLOWED",
+            Self::Denied { .. } => "FIREWALL: BLOCKED",
+            Self::AllowedDefault => "FIREWALL: ALLOW (DEFAULT)",
+            Self::NoRule => "FIREWALL: NO INBOUND RULE",
             Self::Inactive => "FIREWALL: INACTIVE",
             Self::Unknown => "FIREWALL: NOT READ",
         }
@@ -235,7 +263,7 @@ pub fn correlate_port_firewall(
             let is_udp = proto_upper.contains("UDP");
 
             for rule in &summary.rules {
-                if rule.direction != RuleDirection::Inbound {
+                if rule.direction != RuleDirection::Inbound || rule.zone.as_ref().is_some_and(|z| !z.counts_for_exposure) {
                     continue;
                 }
                 let proto_match = match rule.protocol {
@@ -309,6 +337,7 @@ pub fn default_ufw_rules() -> Vec<FirewallRule> {
             destination: "Anywhere".into(),
             comment: Some("OpenSSH Remote Administration".into()),
             is_ipv6: false,
+            zone: None,
         },
         FirewallRule {
             id: "rule-2".into(),
@@ -321,6 +350,7 @@ pub fn default_ufw_rules() -> Vec<FirewallRule> {
             destination: "Anywhere".into(),
             comment: Some("Nginx HTTP Ingress".into()),
             is_ipv6: false,
+            zone: None,
         },
         FirewallRule {
             id: "rule-3".into(),
@@ -333,6 +363,7 @@ pub fn default_ufw_rules() -> Vec<FirewallRule> {
             destination: "Anywhere".into(),
             comment: Some("Nginx HTTPS Ingress (TLS/SSL)".into()),
             is_ipv6: false,
+            zone: None,
         },
         FirewallRule {
             id: "rule-4".into(),
@@ -345,6 +376,7 @@ pub fn default_ufw_rules() -> Vec<FirewallRule> {
             destination: "Anywhere".into(),
             comment: Some("PostgreSQL Database Internal Subnet".into()),
             is_ipv6: false,
+            zone: None,
         },
         FirewallRule {
             id: "rule-5".into(),
@@ -357,6 +389,7 @@ pub fn default_ufw_rules() -> Vec<FirewallRule> {
             destination: "Anywhere".into(),
             comment: Some("Block Public Redis Port".into()),
             is_ipv6: false,
+            zone: None,
         },
         FirewallRule {
             id: "rule-6".into(),
@@ -369,6 +402,7 @@ pub fn default_ufw_rules() -> Vec<FirewallRule> {
             destination: "Anywhere (v6)".into(),
             comment: Some("SSH Brute-Force Rate Limit IPv6".into()),
             is_ipv6: true,
+            zone: None,
         },
     ]
 }
@@ -400,6 +434,7 @@ To                         Action      From
 [ 6] 22/tcp (v6)                LIMIT IN    Anywhere (v6)              # SSH Brute-Force Rate Limit IPv6
 "#
         .to_string(),
+        notice: None,
     })
 }
 
@@ -498,6 +533,7 @@ mod tests {
             destination: "Anywhere".into(),
             comment: None,
             is_ipv6: false,
+            zone: None,
         };
         assert_eq!(rule.display_port_proto(), "8080/tcp");
     }

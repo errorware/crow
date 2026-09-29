@@ -3,7 +3,7 @@ use gpui_kit::*;
 use super::CrowApp;
 use super::host_actions::HostCommand;
 use crate::views::firewall::commands;
-use crate::views::firewall::{detect_firewall_status, FirewallOperationalState, RuleAction, RuleProtocol};
+use crate::views::firewall::{detect_firewall_status, FirewallBackend, FirewallOperationalState, RuleAction, RuleProtocol};
 
 // ==========================================
 // Firewall & Network Security Methods
@@ -33,7 +33,7 @@ impl CrowApp {
     /// Mirrors the in-memory rule set into the `user.rules` config file state so
     /// the pending-diff rail and versioning see firewall edits.
     pub fn sync_firewall_to_config_state(&mut self) {
-        if let FirewallOperationalState::Active(ref summary) = self.firewall.status {
+        if let FirewallOperationalState::Active(ref summary) = self.firewall.status.clone().ufw_only() {
             let content = crate::views::firewall::generate_user_rules_content(&summary.rules);
             if let Some(st) = self.configs.states.get_mut("user.rules") {
                 st.update_content(content);
@@ -53,6 +53,16 @@ impl CrowApp {
 
     /// Runs a ufw command on the active server, then shows its real state.
     fn run_firewall_command(&mut self, argv: Vec<String>, closes_modal: bool, cx: &mut Context<Self>) {
+        // Every command here is a ufw command; other backends are read-only.
+        let backend = self.firewall.status.backend();
+        if backend != FirewallBackend::Ufw {
+            self.firewall.toast = Some(match backend {
+                FirewallBackend::NoneDetected => "Not applied: ufw isn't installed on this host.".to_string(),
+                b => format!("Not applied: Crow reads {} but doesn't change it yet.", b.label()),
+            });
+            cx.notify();
+            return;
+        }
         let target = argv.get(1..).map(|rest| rest.join(" ")).unwrap_or_default();
         self.firewall.pending = Some(commands::describe(&argv));
         self.run_host_action(

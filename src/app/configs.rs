@@ -94,7 +94,8 @@ pub fn load_configs(server: Option<&ServerRecord>, firewall: &FirewallOperationa
     if let Some(crontab) = configs.states.get("crontab").map(|st| st.current_content.clone()) {
         configs.reload_cron_from(&crontab);
     }
-    if let FirewallOperationalState::Active(ref summary) = firewall {
+    // ufw's own rules file, mirrored from its status; not for other backends.
+    if let FirewallOperationalState::Active(ref summary) = firewall.clone().ufw_only() {
         let fw_text = generate_user_rules_content(&summary.rules);
         configs.seed_baseline("user.rules", fw_text, Some("/etc/ufw/user.rules"));
     }
