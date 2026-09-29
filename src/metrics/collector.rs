@@ -15,9 +15,10 @@ pub struct CollectorPreviousState {
     pub prev_net_rx: u64,
     pub prev_net_tx: u64,
     pub last_slow_sample: Instant,
-    pub cached_disk: Option<(u64, u64, Option<f32>)>,
+    pub cached_disk: Option<(u64, u64, u64, Option<f32>)>,
     pub cached_services: Vec<LiveServiceStatus>,
     pub cached_host_key: Option<i64>,
+    pub cached_disk_mount: String,
 }
 
 impl Default for CollectorPreviousState {
@@ -33,6 +34,7 @@ impl Default for CollectorPreviousState {
             cached_disk: None,
             cached_services: Vec::new(),
             cached_host_key: None,
+            cached_disk_mount: "/".into(),
         }
     }
 }
@@ -47,12 +49,16 @@ const SECTION: &str = "@@crow@@";
 const FAST_PROBE: &str = "cat /proc/stat; echo @@crow@@; cat /proc/meminfo; echo @@crow@@; \
 cat /proc/loadavg; echo @@crow@@; cat /proc/uptime; echo @@crow@@; cat /proc/net/dev";
 
-/// Slow-cadence probe (every 15s): disk and inode usage for `/`, systemd
-/// units, and when the SSH host keys were written (ERR-81). Ends in `true`
-/// so a failing systemctl (containers) doesn't cost the other sections.
-const SLOW_PROBE: &str = "df -k /; echo @@crow@@; df -i /; echo @@crow@@; \
+/// Slow-cadence probe (every 15s): disk and inode usage, systemd units, when
+/// the SSH host keys were written (ERR-81), and which mount the disk
+/// figures are for. A read-only root (Fedora Atomic, CoreOS: a composefs
+/// image that is always "100%" full) is measured at /var, where the data
+/// is. Ends in `true` so a failing systemctl (containers) doesn't cost the
+/// other sections.
+const SLOW_PROBE: &str = "m=/; if awk '$2==\"/\"{o=$4} END{exit !(o ~ /^ro(,|$)/)}' /proc/mounts && [ -d /var ]; then m=/var; fi; \
+df -k \"$m\"; echo @@crow@@; df -i \"$m\"; echo @@crow@@; \
 systemctl list-units --type=service --all --no-legend --no-pager; echo @@crow@@; \
-stat -c '%Y %n' /etc/ssh/ssh_host_*_key.pub 2>/dev/null; true";
+stat -c '%Y %n' /etc/ssh/ssh_host_*_key.pub 2>/dev/null; echo @@crow@@; echo \"$m\"; true";
 
 /// Real metrics for any reachable host, read from its /proc, df and systemctl.
 pub struct HostCollector;
@@ -129,9 +135,10 @@ impl HostCollector {
                 Err(_) => String::new(),
             };
             let sections: Vec<&str> = stdout.split(SECTION).collect();
-            if let Some((used_b, total_b)) = sections.first().and_then(|s| parse_df_usage(s)) {
+            if let Some((used_b, total_b, avail_b)) = sections.first().and_then(|s| parse_df_usage(s)) {
                 let inodes_pct = sections.get(1).and_then(|s| parse_df_inodes_pct(s));
-                prev_state.cached_disk = Some((used_b, total_b, inodes_pct));
+                prev_state.cached_disk = Some((used_b, total_b, avail_b, inodes_pct));
+                prev_state.cached_disk_mount = sections.get(4).map(|m| m.trim().to_string()).filter(|m| !m.is_empty()).unwrap_or_else(|| "/".into());
             }
             let svcs = sections.get(2).map(|s| parse_live_services(s)).unwrap_or_default();
             if !svcs.is_empty() {
@@ -143,11 +150,11 @@ impl HostCollector {
             prev_state.last_slow_sample = now;
         }
 
-        if let Some((used_b, total_b, inodes_pct)) = prev_state.cached_disk {
+        if let Some((used_b, total_b, avail_b, inodes_pct)) = prev_state.cached_disk {
             m.disk_used_bytes = used_b;
             m.disk_total_bytes = total_b;
-            m.disk_pct = ((used_b as f64 / total_b.max(1) as f64) * 100.0).clamp(0.0, 100.0) as f32;
-            m.disk_mount = "/".to_string();
+            m.disk_pct = df_use_pct(used_b, avail_b);
+            m.disk_mount = prev_state.cached_disk_mount.clone();
             m.inodes_pct = inodes_pct;
         }
 
@@ -260,13 +267,22 @@ pub fn parse_proc_net_dev(text: &str) -> (u64, u64) {
 }
 
 /// Parses `df -k <path>` into (used bytes, total bytes).
-pub fn parse_df_usage(text: &str) -> Option<(u64, u64)> {
+/// (used, total, available) bytes from `df -k`. Used + available is less
+/// than total when blocks are reserved for root (5% on ext4 by default).
+pub fn parse_df_usage(text: &str) -> Option<(u64, u64, u64)> {
     text.lines().filter(|l| !l.trim().is_empty()).nth(1).and_then(|line| {
         let parts: Vec<&str> = line.split_whitespace().collect();
         let total_kb: u64 = parts.get(1)?.parse().ok()?;
         let used_kb: u64 = parts.get(2)?.parse().ok()?;
-        Some((used_kb * 1024, total_kb * 1024))
+        let avail_kb: u64 = parts.get(3)?.parse().ok()?;
+        Some((used_kb * 1024, total_kb * 1024, avail_kb * 1024))
     })
+}
+
+/// Use % the way df reports it: used over what non-root users can have
+/// (used + available), so "100%" means full for them, reserved blocks aside.
+pub fn df_use_pct(used: u64, avail: u64) -> f32 {
+    ((used as f64 / (used + avail).max(1) as f64) * 100.0).clamp(0.0, 100.0) as f32
 }
 
 /// Parses `df -i <path>` into the inode use percentage.
@@ -365,7 +381,12 @@ mod tests {
     #[test]
     fn parses_df_and_services() {
         let df = "Filesystem     1K-blocks     Used Available Use% Mounted on\n/dev/nvme0n1p2 488245288 97649056 365711928  22% /\n";
-        assert_eq!(parse_df_usage(df), Some((97649056 * 1024, 488245288 * 1024)));
+        assert_eq!(parse_df_usage(df), Some((97649056 * 1024, 488245288 * 1024, 365711928 * 1024)));
+        // This machine's /var: df says 91%; used/total would say 89.9%.
+        let (u, _, a) = parse_df_usage("F 1K-blocks Used Available Use% Mounted\n/dev/x 497394688 447105796 48633084 91% /var\n").unwrap();
+        assert_eq!(df_use_pct(u, a).ceil(), 91.0);
+        // ext4 with 5% reserved: full for users at 95% of total.
+        assert_eq!(df_use_pct(95, 0), 100.0);
         let dfi = "Filesystem       Inodes  IUsed    IFree IUse% Mounted on\n/dev/nvme0n1p2 31227904 812034 30415870    3% /\n";
         assert_eq!(parse_df_inodes_pct(dfi), Some(3.0));
         let units = "  sshd.service loaded active running OpenSSH server\n  foo.service loaded failed failed Foo\n";

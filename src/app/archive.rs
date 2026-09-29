@@ -256,6 +256,39 @@ impl CrowApp {
         crate::views::audit::model::audit_items(&records, &servers)
     }
 
+    /// FLEET ALERTS' lines and the last time Crow wasn't watching (ERR-85).
+    pub fn fleet_alert_panel(&self) -> (Vec<crate::views::fleet::alert_lines::AlertLine>, Option<(i64, i64)>) {
+        use crate::views::fleet::state::FleetHealth;
+        let now = chrono::Utc::now().timestamp();
+        let down_now: Vec<(String, String)> = self
+            .fleet
+            .servers
+            .iter()
+            .filter_map(|s| match self.fleet.health(s) {
+                FleetHealth::Down { label, detail } => Some((s.id.clone(), if detail.is_empty() { label.to_lowercase() } else { format!("{} · {detail}", label.to_lowercase()) })),
+                _ => None,
+            })
+            .collect();
+        let (stored, sessions) = self
+            .vault
+            .db()
+            .lock()
+            .map(|db| (db.list_alerts(now - 86_400).unwrap_or_default(), db.list_watch_sessions(now - 7 * 86_400).unwrap_or_default()))
+            .unwrap_or_default();
+        (
+            crate::views::fleet::alert_lines::alert_lines(&stored, &down_now, &self.fleet.servers, now),
+            crate::views::fleet::alert_lines::watch_gap(&sessions, self.history.watch_started),
+        )
+    }
+
+    /// Acknowledges one alert, or every open one.
+    pub fn acknowledge_alerts(&mut self, id: Option<&str>, cx: &mut Context<Self>) {
+        if let Ok(db) = self.vault.db().lock() {
+            let _ = db.acknowledge_alerts(id, chrono::Utc::now().timestamp());
+        }
+        cx.notify();
+    }
+
     /// Recent purge audit records, newest first — the Archived tab's log.
     pub fn recent_purge_audit(&self) -> Vec<ChangeRecord> {
         self.vault

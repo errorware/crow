@@ -167,6 +167,8 @@ pub fn fleet_overview_view(
     purge_days: Option<i64>,
     purge_audit: &[ChangeRecord],
     activity: &[crate::views::audit::model::AuditItem],
+    alert_lines: &[crate::views::fleet::alert_lines::AlertLine],
+    watch_gap: Option<(i64, i64)>,
 ) -> impl IntoElement {
     let purge_due = crate::app::archive::purge_due_text(purge_days);
     let health: HashMap<String, FleetHealth> = fleet.servers.iter().map(|s| (s.id.clone(), fleet.health(s))).collect();
@@ -192,7 +194,7 @@ pub fn fleet_overview_view(
                 Some(m) => {
                     let cpu = (m.cpu_pct.round() as u8).clamp(0, 100);
                     let mem = (m.mem_pct.round() as u8).clamp(0, 100);
-                    (cpu, format!("{}%", cpu), mem, format!("{}%", mem), format!("{:.0}%", m.disk_pct), m.uptime_formatted.clone())
+                    (cpu, format!("{}%", cpu), mem, format!("{}%", mem), format!("{:.0}%", m.disk_pct.ceil()), m.uptime_formatted.clone())
                 }
                 None => (0, "—".into(), 0, "—".into(), "—".into(), "—".into()),
             };
@@ -210,7 +212,7 @@ pub fn fleet_overview_view(
                 mem_label,
                 disk,
                 uptime,
-                alerts: if is_crit { "1".into() } else { "0".into() },
+                alerts: alert_lines.iter().filter(|l| !l.resolved && l.host == s.name).count().to_string(),
                 alert_color: if is_crit { CRIT } else { TEXT_FAINT },
                 status_color,
                 is_critical_border: is_crit,
@@ -261,15 +263,22 @@ pub fn fleet_overview_view(
     let total_vcpu: usize = readings.iter().map(|m| m.vcpu_count).sum();
     let avg_load = (!readings.is_empty()).then(|| readings.iter().map(|m| m.load_1m).sum::<f32>() / readings.len() as f32);
 
-    let alerts: Vec<(&'static str, Rgba, Rgba, String, String, String)> = fleet.servers.iter()
-        .filter_map(|s| match &health[&s.id] {
-            FleetHealth::Down { label, detail } => {
-                let msg = if detail.is_empty() { label.to_lowercase() } else { format!("{} · {detail}", label.to_lowercase()) };
-                Some(("CRIT", CRIT, CRIT_BG, s.name.clone(), msg, "now".to_string()))
-            }
-            _ => None,
-        })
-        .collect();
+    // Stored alerts and servers down right now (ERR-85); resolved and
+    // acknowledged ones are dimmed.
+    let alerts: Vec<(&'static str, Rgba, Rgba, String, String, String)> = alert_lines.iter().map(|l| {
+        let (fg, bg) = match (l.level, l.acknowledged || l.resolved) {
+            (_, true) => (TEXT_DIM, BG_CHIP),
+            ("CRIT", _) => (CRIT, CRIT_BG),
+            _ => (WARN, WARN_BG),
+        };
+        let msg = if l.acknowledged && !l.resolved { format!("{} · acknowledged", l.message) } else { l.message.clone() };
+        (l.level, fg, bg, l.host.clone(), msg, l.age.clone())
+    }).collect();
+    let open_lines: Vec<_> = alert_lines.iter().filter(|l| !l.resolved).collect();
+    let gap_note = watch_gap.map(|(from, to)| {
+        let fmt = |t: i64| chrono::DateTime::from_timestamp(t, 0).map(|d| d.with_timezone(&chrono::Local).format("%b %d %H:%M").to_string()).unwrap_or_default();
+        format!("Crow wasn't running from {} to {}: nothing was watched then.", fmt(from), fmt(to))
+    });
 
     // The newest of the audit log (ERR-75): what Crow did, where.
     let now = chrono::Local::now();
@@ -293,8 +302,8 @@ pub fn fleet_overview_view(
         // 1. Fleet Stat Strip
         .child(fleet_stat_strip(
             &fleet.servers,
-            alerts.iter().filter(|a| a.0 == "CRIT").count(),
-            alerts.iter().filter(|a| a.0 == "WARN").count(),
+            open_lines.iter().filter(|l| l.level == "CRIT").count(),
+            open_lines.iter().filter(|l| l.level == "WARN").count(),
             connected_count,
             avg_load,
             total_vcpu,
@@ -925,16 +934,21 @@ pub fn fleet_overview_view(
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.0))
                                         .text_color(TEXT_DIMMER)
-                                        .child(if alerts.is_empty() { "0 open".to_string() } else { format!("{} open", alerts.len()) }),
+                                        .child(format!("{} open", open_lines.len())),
                                 )
                                 .child(div().flex_1())
-                                .child(
+                                .children(open_lines.iter().any(|l| l.id.is_some() && !l.acknowledged).then(|| {
+                                    let app = app.clone();
                                     div()
+                                        .id("btn-ack-all-alerts")
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.0))
                                         .text_color(TEXT_DIM)
-                                        .child("ack all ⇧A"),
-                                ),
+                                        .cursor_pointer()
+                                        .hover(|s| s.text_color(TEXT_PRIMARY))
+                                        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.acknowledge_alerts(None, cx)))
+                                        .child("ACK ALL")
+                                })),
                         )
                         // Alerts List
                         .child(
@@ -947,6 +961,17 @@ pub fn fleet_overview_view(
                                 .flex_col()
 
 
+                                .children(gap_note.map(|n| {
+                                    div()
+                                        .px(px(12.0))
+                                        .py(px(6.0))
+                                        .border_b_1()
+                                        .border_color(BORDER_ROW)
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(10.0))
+                                        .text_color(TEXT_DIM)
+                                        .child(n)
+                                }))
                                 .children(if alerts.is_empty() {
                                     Some(
                                         div()

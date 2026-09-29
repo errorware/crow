@@ -41,6 +41,8 @@ pub struct BackgroundPollRequest {
     pub should_poll_retention: bool,
     pub fleet_servers: Vec<ServerRecord>,
     pub prev_fleet_metrics: HashMap<String, ServerMetrics>,
+    /// This tick samples the whole fleet for history (ERR-84).
+    pub history_tick: bool,
 }
 
 pub struct BackgroundPollResult {
@@ -53,6 +55,7 @@ pub struct BackgroundPollResult {
     pub journal_entries: Option<Vec<JournalEntry>>,
     pub journal_telemetry: Option<JournalTelemetry>,
     pub fleet_samples: Vec<(String, String, ServerMetrics)>,
+    pub history_tick: bool,
 }
 
 pub fn run_background_poll(
@@ -69,6 +72,7 @@ pub fn run_background_poll(
         journal_entries: None,
         journal_telemetry: None,
         fleet_samples: Vec::new(),
+        history_tick: req.history_tick,
     };
 
     if let Some(ref active_srv) = req.active_server {
@@ -224,7 +228,10 @@ impl CrowApp {
             None
         };
 
-        let (fleet_servers, prev_fleet_metrics) = if self.screen == Screen::Fleet {
+        // Once a minute every server is sampled, whatever is on screen, and
+        // the result goes into history (ERR-84).
+        let history_tick = now_secs >= self.history.last_tick + crate::metrics::history::HISTORY_EVERY_SECS;
+        let (fleet_servers, prev_fleet_metrics) = if self.screen == Screen::Fleet || history_tick {
             let mut prev_map = HashMap::new();
             for s in &self.fleet.servers {
                 if let Some(m) = self.fleet.buffered_stores.get(&s.id).and_then(|b| b.head()).map(|h| h.metrics.clone()).or_else(|| self.fleet.metrics_store.get(&s.id).cloned()) {
@@ -248,6 +255,7 @@ impl CrowApp {
             should_poll_retention,
             fleet_servers,
             prev_fleet_metrics,
+            history_tick,
         }
     }
 
@@ -266,6 +274,7 @@ impl CrowApp {
     }
 
     pub fn apply_poll_result(&mut self, res: BackgroundPollResult) {
+        let (history_tick, now_secs) = (res.history_tick, res.now_secs);
         if let Some(ref srv_id) = res.active_server_id {
             if let Some(updated_head) = res.active_metrics {
                 self.note_host_key_mtime(srv_id, &updated_head);
@@ -365,6 +374,54 @@ impl CrowApp {
                 self.fleet.buffered_stores.insert(name, buf_clone);
             }
         }
+        if history_tick {
+            self.record_history(now_secs as i64);
+        }
+    }
+
+    /// Applies the alert rules to a round of history rows and stores the
+    /// changes (ERR-85).
+    fn evaluate_alerts(&mut self, rows: &[crate::metrics::history::HistoryRow]) {
+        let now = chrono::Utc::now().timestamp();
+        let db = self.vault.db();
+        let Ok(db) = db.lock() else { return };
+        let open: Vec<_> = db.list_alerts(i64::MAX).unwrap_or_default();
+        let (changes, down_now) = crate::metrics::alerts::evaluate(&open, rows, &self.history_down, now);
+        self.history_down = down_now;
+        let _ = db.apply_alert_changes(&changes, now);
+    }
+
+    /// One history row per server from its newest sample, the watch session
+    /// extended, and old rows pruned hourly (ERR-84).
+    fn record_history(&mut self, now: i64) {
+        use crate::metrics::history::{row_from, HISTORY_KEEP_SECS};
+        use crate::views::fleet::state::FleetHealth;
+        self.history.last_tick = now as u64;
+        let rows: Vec<_> = self
+            .fleet
+            .servers
+            .iter()
+            .filter_map(|s| {
+                let latest = self.fleet.buffered_stores.get(&s.id).and_then(|b| b.head()).map(|h| &h.metrics).or_else(|| self.fleet.metrics_store.get(&s.id));
+                let down = match self.fleet.health(s) {
+                    FleetHealth::Checking => return None,
+                    FleetHealth::Ok => None,
+                    FleetHealth::Down { label, detail } => Some(if detail.is_empty() { label.to_lowercase() } else { format!("{} · {detail}", label.to_lowercase()) }),
+                };
+                Some(row_from(&s.id, now, latest, down))
+            })
+            .collect();
+        let db = self.vault.db();
+        let Ok(db) = db.lock() else { return };
+        let _ = db.insert_history_rows(&rows);
+        let _ = db.touch_watch_session(self.history.watch_started, now);
+        if now - self.history.last_prune >= 3600 {
+            let _ = db.prune_history(now - HISTORY_KEEP_SECS);
+            self.history.last_prune = now;
+        }
+        drop(db);
+        self.history.rows_written += rows.len();
+        self.evaluate_alerts(&rows);
     }
 
     #[allow(dead_code)]

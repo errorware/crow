@@ -62,6 +62,16 @@ use configs::{load_configs, log_config_core_self_check};
 use poll::seed_metrics;
 use tabs::initial_tabs;
 
+/// When history was last sampled and pruned, and when this run of Crow
+/// started watching (ERR-84).
+#[derive(Clone, Copy, Debug, Default)]
+pub struct HistoryClock {
+    pub last_tick: u64,
+    pub last_prune: i64,
+    pub watch_started: i64,
+    pub rows_written: usize,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Screen {
     Server,
@@ -225,6 +235,10 @@ pub struct CrowApp {
     pub snapshots_panel: Option<danger::SnapshotsPanel>,
     /// A fleet-wide run being planned, running, or just finished (ERR-79).
     pub fleet_runner: Option<fleet_run::FleetRunner>,
+    /// Metrics history bookkeeping (ERR-84).
+    pub history: HistoryClock,
+    /// Servers whose last history sample was unreachable (ERR-85).
+    pub history_down: std::collections::HashSet<String>,
     /// Turn off SSH password login (ERR-34).
     pub password_login: Option<password_login::PasswordLoginFlow>,
     /// Something the user should know about their stored secrets (moved,
@@ -388,6 +402,8 @@ impl CrowApp {
             snapshot_offer: None,
             snapshots_panel: None,
             fleet_runner: None,
+            history: HistoryClock { watch_started: chrono::Utc::now().timestamp(), ..Default::default() },
+            history_down: Default::default(),
             password_login: None,
             setup_inputs: None,
             lock_inputs: None,

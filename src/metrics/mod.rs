@@ -5,6 +5,8 @@ use crate::theme::*;
 use crate::views::overview::{ProcessUnit, ServiceUnit, SocketUnit};
 
 pub mod collector;
+pub mod history;
+pub mod alerts;
 
 pub const MAX_HISTORY_POINTS: usize = 20;
 
@@ -74,6 +76,8 @@ pub struct ServerMetrics {
     /// When the oldest SSH host key file was written (Unix seconds), if
     /// Crow could read it (ERR-81).
     pub host_key_oldest: Option<i64>,
+    /// `cpu_pct` is a measurement (the first sample has no rate to take).
+    pub cpu_known: bool,
     /// Whether the last probe reached the host. When it didn't, the numbers
     /// above are stale (or defaults) and must not be shown as readings.
     pub reachable: bool,
@@ -109,6 +113,7 @@ impl Default for ServerMetrics {
             last_sample_ts: chrono::Local::now().format("%H:%M:%S").to_string(),
             reachable: false,
             host_key_oldest: None,
+            cpu_known: false,
         }
     }
 }
@@ -116,6 +121,7 @@ impl Default for ServerMetrics {
 impl ServerMetrics {
     /// Pushes a new CPU percentage sample and updates the peak and capped history buffer.
     pub fn push_cpu_sample(&mut self, pct: f32) {
+        self.cpu_known = true;
         self.cpu_pct = pct.clamp(0.0, 100.0);
         if self.cpu_pct > self.cpu_peak {
             self.cpu_peak = self.cpu_pct;
