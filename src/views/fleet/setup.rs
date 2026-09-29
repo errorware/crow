@@ -1,5 +1,4 @@
 use std::collections::BTreeMap;
-use chrono::Utc;
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use crate::theme::*;
@@ -34,35 +33,10 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
         }
     }
 
-    // Host key age calculation
-    let mut fresh_keys = 0; // < 90d
-    let mut mature_keys = 0; // 90-180d
-    let mut stale_keys = 0; // 180-365d
-    let mut critical_keys = 0; // > 365d
-    let mut missing_keys = 0;
-
-    for s in servers {
-        if s.host_key_fingerprint.as_ref().map_or(true, |f| f.trim().is_empty()) {
-            missing_keys += 1;
-            continue;
-        }
-        if let Ok(created) = chrono::DateTime::parse_from_rfc3339(&s.created_at) {
-            let days = (Utc::now() - created.with_timezone(&Utc)).num_days();
-            if days < 90 {
-                fresh_keys += 1;
-            } else if days < 180 {
-                mature_keys += 1;
-            } else if days < 365 {
-                stale_keys += 1;
-            } else {
-                critical_keys += 1;
-            }
-        } else {
-            missing_keys += 1;
-        }
-    }
-
-    let stale_total = stale_keys + critical_keys;
+    // What Crow knows about host keys today: whether a fingerprint was
+    // pinned at enrollment. Key age needs the key's own timestamp (ERR-20).
+    let pinned_keys = servers.iter().filter(|s| s.host_key_fingerprint.as_ref().is_some_and(|f| !f.trim().is_empty())).count();
+    let missing_keys = total_servers - pinned_keys;
 
     div()
         .size_full()
@@ -164,18 +138,16 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child("HOST KEY HEALTH:"))
+                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child("HOST KEYS PINNED:"))
                         .child(
                             div()
                                 .text_size(px(11.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(if stale_total > 0 { WARN } else { OK })
-                                .child(if stale_total > 0 {
-                                    format!("{} STALE (>180d)", stale_total)
-                                } else if total_servers == 0 {
+                                .text_color(if total_servers == 0 { TEXT_MUTED } else if missing_keys > 0 { WARN } else { OK })
+                                .child(if total_servers == 0 {
                                     "NONE ENROLLED".to_string()
                                 } else {
-                                    "ALL RECENT (<180d)".to_string()
+                                    format!("{pinned_keys}/{total_servers}")
                                 }),
                         ),
                 ),
@@ -265,7 +237,7 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                                                     .rounded_xs()
                                                     .text_size(px(9.5))
                                                     .text_color(TEXT_SECONDARY)
-                                                    .child(format!("{} SERVERS", member_count)),
+                                                    .child(format!("{member_count} SERVER{}", if member_count == 1 { "" } else { "S" })),
                                             ),
                                     )
                                     // Member Server List
@@ -278,7 +250,7 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                                             .children(members.into_iter().enumerate().map(|(m_idx, srv)| {
                                                 let app_srv = app.clone();
                                                 let srv_id = srv.id.clone();
-                                                let is_online = srv.status == "active";
+                                                let is_online = srv.status == "online";
 
                                                 div()
                                                     .id(ElementId::NamedInteger(format!("grp-srv-{g_idx}").into(), m_idx as u64))
@@ -381,14 +353,14 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                                                 .text_size(px(11.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_MAX)
-                                                .child("HOST KEY ROTATION POLICY"),
+                                                .child("HOST KEYS"),
                                         ),
                                 )
                                 .child(
                                     div()
                                         .text_size(px(10.5))
                                         .text_color(TEXT_DIM)
-                                        .child("SSH host keys establish identity and protect against man-in-the-middle impersonation. Crow audits key ages across your fleet to enforce security best practices."),
+                                        .child("Crow pins each server's host key fingerprint at enrollment and refuses to connect if it changes. Key age and a rotation policy aren't tracked yet."),
                                 )
                                 // Age breakdown rows
                                 .child(
@@ -399,15 +371,8 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                                         .border_t_1()
                                         .border_color(BORDER_ROW)
                                         .pt(px(8.0))
-                                        .child(render_policy_row("Fresh (< 90 days)", fresh_keys, OK))
-                                        .child(render_policy_row("Mature (90–180 days)", mature_keys, hex_rgb(0x38bdf8)))
-                                        .child(render_policy_row("Stale (> 180 days)", stale_keys, WARN))
-                                        .child(render_policy_row("Critical (> 1 year)", critical_keys, CRIT))
-                                        .children(if missing_keys > 0 {
-                                            Some(render_policy_row("Unfingerprinted", missing_keys, TEXT_MUTED))
-                                        } else {
-                                            None
-                                        }),
+                                        .child(render_policy_row("Fingerprint pinned", pinned_keys, OK))
+                                        .child(render_policy_row("Not pinned", missing_keys, if missing_keys > 0 { WARN } else { TEXT_MUTED })),
                                 ),
                         )
                         // Card 2: Tag Taxonomy
@@ -498,7 +463,7 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                                     div()
                                         .text_size(px(10.0))
                                         .text_color(TEXT_DIM)
-                                        .child("Crow connects directly via standard SSH. Fleet-wide operations run sequentially and abort at the first failure to prevent blast-radius propagation."),
+                                        .child("Crow talks plain SSH and installs nothing on your servers. Fleet-wide actions aren't built yet; when they are, they'll run one host at a time and stop at the first failure."),
                                 ),
                         ),
                 ),
@@ -525,6 +490,6 @@ fn render_policy_row(label: &'static str, count: usize, color: Rgba) -> impl Int
             div()
                 .font_weight(FontWeight::BOLD)
                 .text_color(if count > 0 { color } else { TEXT_MUTED })
-                .child(format!("{count} servers")),
+                .child(format!("{count} server{}", if count == 1 { "" } else { "s" })),
         )
 }

@@ -1276,6 +1276,7 @@ fn render_sockets_rows(
                                 PortFirewallMatch::AllowedDefault => "FW ALLOW (DEFAULT)".to_string(),
                                 PortFirewallMatch::NoRule => "NO FW RULE".to_string(),
                                 PortFirewallMatch::Inactive => "FW OFF".to_string(),
+                                PortFirewallMatch::Unknown => "FW ?".to_string(),
                             };
                             Some(
                                 div()
