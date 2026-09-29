@@ -11,6 +11,7 @@ pub mod bootstrap;
 mod container;
 mod local;
 pub mod ssh;
+pub mod reboot;
 
 use std::collections::HashMap;
 use std::sync::Arc;
