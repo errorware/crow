@@ -1208,7 +1208,11 @@ pub fn fleet_overview_view(
                         .px(px(14.0))
                         // Not built yet (ERR-20): shown so the fleet's shape is
                         // legible, inert so nothing claims to have run.
-                        .child(fleet_action_stub("btn-fleet-rolling-reboot", format!("ROLLING REBOOT · {server_count} HOST{}", if server_count == 1 { "" } else { "S" })))
+                        .child({
+                            let app = app.clone();
+                            fleet_action_live("btn-fleet-rolling-reboot", "ROLLING REBOOT".into())
+                                .on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_rolling_reboot(window, cx)))
+                        })
                         .child(fleet_action_stub("btn-fleet-rotate-keys", "ROTATE ALL HOST KEYS".into()))
                         .child(fleet_action_stub("btn-fleet-revoke-sessions", "REVOKE ALL SESSIONS".into()))
                         .child({
@@ -1227,7 +1231,7 @@ pub fn fleet_overview_view(
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_DIMMER)
-                        .child("push runs one host at a time, stops at the first failure · the rest aren't built yet"),
+                        .child("one host at a time, stops at the first failure · key rotation and session revoke aren't built yet"),
                 ),
         )
         .children(if local_lab.show_modal {

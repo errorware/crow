@@ -60,6 +60,67 @@ impl CrowApp {
         self.open_fleet_run(FleetRun::new(title, "PUSH", steps, excluded), jobs, window, cx);
     }
 
+    /// Plans rebooting every reachable server, one at a time, each waiting
+    /// for the server to come back from a fresh boot before the next (ERR-80).
+    pub fn plan_rolling_reboot(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        use crate::host::{reboot, transport_kind, TransportKind};
+        use crow_provider_core::capabilities::INSTANCES_POWER;
+        const TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+        const POLL: std::time::Duration = std::time::Duration::from_secs(5);
+        let (mut steps, mut jobs, mut excluded): (Vec<_>, Vec<RunJob>, Vec<_>) = (Vec::new(), Vec::new(), Vec::new());
+        for srv in self.fleet.servers.clone() {
+            let kind = transport_kind(&srv);
+            if kind == TransportKind::Local {
+                excluded.push((srv.name.clone(), "the machine Crow runs on".to_string()));
+                continue;
+            }
+            if !self.fleet.health(&srv).is_ok() {
+                excluded.push((srv.name.clone(), "not reachable right now, so Crow couldn't watch it come back".to_string()));
+                continue;
+            }
+            // Through the provider when it's linked to one that can power it.
+            let provider = self.providers.accounts.iter().find(|a| a.id == srv.provider_account && !srv.provider_instance.is_empty()).cloned().filter(|a| {
+                crate::providers::factory(&a.plugin).is_some_and(|f| (f.manifest)().has_capability(INSTANCES_POWER))
+            });
+            let provider = provider.and_then(|a| {
+                let settings = match (self.vault.key(), self.vault.db().lock()) {
+                    (Some(key), Ok(db)) => crate::providers::load_settings(&db, key, &a).ok(),
+                    _ => None,
+                };
+                settings.map(|s| (a, s))
+            });
+            let how = match (&provider, kind) {
+                (Some((a, _)), _) => format!("reboot via {}", a.label),
+                (None, TransportKind::Container) => "restart the lab container".to_string(),
+                _ => "systemctl reboot over SSH".to_string(),
+            };
+            steps.push(FleetRun::step(&srv.id, &srv.name, how.clone()));
+            let db = self.vault.db();
+            jobs.push(Box::new(move || {
+                let host = host_for(&srv);
+                let trigger = || -> Result<(), String> {
+                    match provider {
+                        Some((account, settings)) => {
+                            let p = crate::providers::connect(&account, settings).map_err(|e| e.to_string())?;
+                            crate::providers::run_action(p.as_ref(), &srv.provider_instance, crate::providers::ProviderAction::Reboot).map(|_| ())
+                        }
+                        None if kind == TransportKind::Container => {
+                            let engine = if srv.tags.iter().any(|t| t == "docker") { "docker" } else { "podman" };
+                            let out = std::process::Command::new(engine).args(["restart", &srv.name]).output().map_err(|e| e.to_string())?;
+                            if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).trim().to_string()) }
+                        }
+                        None => host.exec_privileged(&["systemctl", "reboot"], &[], crate::host::DEFAULT_TIMEOUT).map(|_| ()).map_err(|e| e.to_string()),
+                    }
+                };
+                let result = reboot::reboot_and_wait(host.as_ref(), trigger, TIMEOUT, POLL);
+                record_step(&db, &srv, "fleet.reboot", &how, &result);
+                result
+            }));
+        }
+        let n = steps.len();
+        self.open_fleet_run(FleetRun::new(format!("ROLLING REBOOT · {n} SERVER{}", if n == 1 { "" } else { "S" }), "REBOOT", steps, excluded), jobs, window, cx);
+    }
+
     fn open_fleet_run(&mut self, run: FleetRun, jobs: Vec<RunJob>, window: &mut Window, cx: &mut Context<Self>) {
         let keyword = run.keyword;
         let input = cx.new(|cx| InputState::new(window, cx).placeholder(keyword));
@@ -152,4 +213,28 @@ impl CrowApp {
         self.fleet_runner = None;
         cx.notify();
     }
+}
+
+/// A change record for one host's step, once it has an outcome.
+fn record_step(db: &std::sync::Mutex<crate::vault::VaultDb>, srv: &crate::vault::ServerRecord, kind: &str, what: &str, result: &StepResult) {
+    use crate::views::fleet::run::StepOutcome;
+    let Ok(db) = db.lock() else { return };
+    let now = chrono::Utc::now().to_rfc3339();
+    let (outcome, after) = match result {
+        Ok(StepOutcome::Done(m)) | Ok(StepOutcome::Skipped(m)) => ("success", m.clone()),
+        Err(e) => ("failed", e.clone()),
+    };
+    let _ = db.insert_change_record(&crate::vault::ChangeRecord {
+        id: format!("chg_{}", chrono::Local::now().timestamp_micros()),
+        server_id: srv.id.clone(),
+        server_name: srv.name.clone(),
+        action_kind: kind.into(),
+        target: srv.name.clone(),
+        before_state: what.into(),
+        after_state: Some(after),
+        blast_radius: Some("fleet run".into()),
+        outcome: outcome.into(),
+        started_at: now.clone(),
+        completed_at: Some(now),
+    });
 }
