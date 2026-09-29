@@ -75,8 +75,4 @@ impl KeysState {
         ));
         self.discovered = discovered;
     }
-
-    pub fn any_modal_open(&self) -> bool {
-        self.gen_modal.is_some() || self.new_group_modal.is_some() || self.add_scan_path_modal.is_some() || self.edit_modal.is_some()
-    }
 }

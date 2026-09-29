@@ -9,12 +9,10 @@ pub mod palette;
 pub mod sidebar;
 pub mod sparkline;
 pub mod stat_strip;
-pub mod text_input;
 pub mod titlebar;
 
 pub use about::about_modal;
 pub use icons::{TablerIcon, tabler_icon};
-pub use text_input::{handle_text_key_event, handle_text_key_event_in};
 pub mod window_frame;
 pub mod table_controls;
 pub mod resize;

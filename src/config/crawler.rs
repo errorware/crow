@@ -321,7 +321,10 @@ mod tests {
     #[test]
     fn test_unknown_distro_fabricates_nothing() {
         let configs = crawl_configs(&LocalHost, DistroFamily::Unknown);
-        assert!(configs.iter().all(|c| c.full_path.exists()), "every listed file exists on the host");
+        // symlink_metadata, not exists(): /etc/grub2.cfg links into /boot,
+        // which an unprivileged user can't traverse — it's still a real file.
+        let missing: Vec<_> = configs.iter().filter(|c| c.full_path.symlink_metadata().is_err()).map(|c| &c.full_path).collect();
+        assert!(missing.is_empty(), "every listed file exists on the host, missing: {missing:?}");
     }
 }
 

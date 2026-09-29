@@ -289,16 +289,6 @@ impl CrowApp {
         }
     }
 
-    pub fn copy_generated_public_key(&mut self, cx: &mut Context<Self>) {
-        if let Some(ref state) = self.keys.gen_modal {
-            if let Some(ref pubkey) = state.generated_public_key {
-                cx.write_to_clipboard(gpui_kit::ClipboardItem::new_string(pubkey.clone()));
-                self.keys.toast = Some("Copied OpenSSH public key to clipboard".to_string());
-                cx.notify();
-            }
-        }
-    }
-
     pub fn toggle_server_attachment(&mut self, server_id: &str, cx: &mut Context<Self>) {
         if let Some(ref mut state) = self.keys.edit_modal {
             if let Some(pos) = state.attached_servers.iter().position(|id| id == server_id) {
