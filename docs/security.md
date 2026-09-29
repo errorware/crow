@@ -27,8 +27,9 @@ You can switch either way from Settings → Vault & Security (going back to Open
 ## What's encrypted
 
 - **Encrypted**: provider tokens and passwords, AI API keys. Each is a vault entry sealed with ChaCha20-Poly1305 under one random 256-bit **data key**.
+- **Config history**: every version of a config file Crow wrote or found on a server is sealed under the same data key, because config files can hold credentials. If there's no key (no OS keyring and no vault password), Crow keeps only each version's SHA-256: it can still tell a file changed, not what it said, and such versions can't be restored. Crow creates the key in the OS keyring for this without asking you to choose a stance, since it only ever makes things safer; storing provider tokens and AI keys still waits for your choice.
 - **The data key**: never written to disk unencrypted. It's held by the OS keyring (Open) or stored wrapped by your password-derived key (Locked). Changing the password or the stance re-wraps this one key; the entries don't change.
-- **Not encrypted**: the rest of `crow.db` (server list, settings, change history, metrics), `config.toml`, and your SSH private keys in `~/.ssh`. Unless an SSH key has a passphrase, anything running as you can use it, in either stance.
+- **Not encrypted**: the rest of `crow.db` (server list, settings, the change log with file paths and hashes, metrics), `config.toml`, and your SSH private keys in `~/.ssh`. Unless an SSH key has a passphrase, anything running as you can use it, in either stance.
 
 ## How secrets are handled
 

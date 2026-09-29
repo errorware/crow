@@ -107,7 +107,7 @@ impl CrowApp {
     /// Makes sure a data key exists, creating it in the OS keyring when
     /// there's no password. No stance prompt (used for moving plain-text
     /// keys, which only ever makes things safer).
-    fn ensure_data_key(&mut self, cx: &mut Context<Self>, then: impl FnOnce(&mut Self, Result<(), String>, &mut Context<Self>) + 'static) {
+    pub(super) fn ensure_data_key(&mut self, cx: &mut Context<Self>, then: impl FnOnce(&mut Self, Result<(), String>, &mut Context<Self>) + 'static) {
         if self.vault.key().is_some() {
             return then(self, Ok(()), cx);
         }
@@ -178,6 +178,8 @@ impl CrowApp {
         self.plaintext_ai_keys = self.vault.db().lock().is_ok_and(|db| db.has_plaintext_clanker_keys());
         self.refresh_clankers(cx);
         self.refresh_providers();
+        // Config history waits for the key (ERR-72).
+        self.sync_config_history(cx);
         cx.notify();
     }
 

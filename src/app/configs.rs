@@ -21,7 +21,8 @@ use std::sync::Arc;
 use crate::config::{crawl_all_configs, load_config_file_states};
 use crate::host::{host_for, Host, LocalHost};
 use crate::os_detect::{classify_distro_family, detect_os_release, DistroFamily};
-use crate::vault::ServerRecord;
+use crate::config::history;
+use crate::vault::{ChangeRecord, KeyringState, ServerRecord, VaultError};
 use crate::views::config::state::ConfigsState;
 use crate::views::firewall::generate_user_rules_content;
 use crate::journal::retention::parse_journald_conf;
@@ -157,8 +158,10 @@ pub const NEW_DIRECTIVE_PREFIX: &str = "new:";
 pub const RISK_CONFIRM_KEYWORD: &str = "CONFIRM";
 
 /// Author recorded on staged config revisions.
+/// Who revisions are attributed to: this machine's user (ERR-72).
 pub fn default_author() -> String {
-    "Nelson <nelson@errorware.net>".to_string()
+    static AUTHOR: std::sync::OnceLock<String> = std::sync::OnceLock::new();
+    AUTHOR.get_or_init(crate::config::history::local_author).clone()
 }
 
 impl CrowApp {
@@ -451,6 +454,7 @@ impl CrowApp {
                     if this.configs.states.contains_key(&selected) {
                         this.configs.selected_file = selected;
                     }
+                    this.sync_config_history(cx);
                     cx.notify();
                 }
             });
@@ -671,8 +675,12 @@ impl CrowApp {
             return;
         }
         self.configs.save_error = None;
+        let before = self.configs.states.get(file).map(|st| st.baseline_content.clone()).unwrap_or_default();
         if let Some(state) = self.configs.states.get_mut(file) {
             state.stage_revision(author, description.to_string());
+        }
+        self.record_config_write(file, &before, description, "config.write");
+        if let Some(state) = self.configs.states.get_mut(file) {
             let staged = state.baseline_content.clone();
             if file == "crontab" {
                 // Job ids are line numbers in the text they came from; re-read.
@@ -701,6 +709,11 @@ impl CrowApp {
             return;
         }
         self.configs.save_error = None;
+        // What's on the host now is the restored revision.
+        if let Some(st) = self.configs.states.get_mut(file) {
+            st.baseline_content = st.current_content.clone();
+        }
+        self.record_config_write(file, &before.baseline_content, &format!("Restored v{version}"), "config.restore");
         if let Some(text) = self.configs.states.get(file).map(|st| st.current_content.clone()) {
             match file {
                 "crontab" => self.configs.reload_cron_from(&text),
@@ -720,6 +733,80 @@ impl CrowApp {
                 cx.notify();
             }
         }
+    }
+
+    /// Records a successful write of `file` in its history and the audit
+    /// trail (ERR-72): a revision holding what's on the host now, and a
+    /// change record from `before` to it. The file is already written, so a
+    /// failure here is reported but undoes nothing.
+    fn record_config_write(&mut self, file: &str, before: &str, message: &str, action_kind: &str) {
+        let Some(st) = self.configs.states.get(file) else { return };
+        if !st.read_from_host {
+            return;
+        }
+        let path = st.path.to_string_lossy().into_owned();
+        let content = st.baseline_content.clone();
+        let server_id = self.configs.server_id.clone().unwrap_or_else(|| history::LOCAL_SERVER_ID.to_string());
+        let server_name = self.configs_server().map(|s| s.name).unwrap_or_else(|| "this machine".into());
+        let key = self.vault.key().cloned();
+        let db = self.vault.db();
+        let result = db.lock().map_err(|_| VaultError::Crypto("the vault is busy".into())).and_then(|db| {
+            let rev = history::record(&db, key.as_ref(), &server_id, &path, &content, &self.default_author(), message, history::SOURCE_CROW)?;
+            let now = chrono::Utc::now().to_rfc3339();
+            db.insert_change_record(&ChangeRecord {
+                id: format!("chg-{}", rev.id.trim_start_matches("cfgrev-")),
+                server_id: server_id.clone(),
+                server_name,
+                action_kind: action_kind.into(),
+                target: path.clone(),
+                before_state: format!("sha256:{}", history::sha256_hex(before)),
+                after_state: Some(format!("sha256:{}", rev.sha256)),
+                blast_radius: None,
+                outcome: "applied".into(),
+                started_at: now.clone(),
+                completed_at: Some(now),
+            })?;
+            let st = self.configs.states.get_mut(file).expect("checked above");
+            history::load_into(&db, key.as_ref(), &server_id, st)
+        });
+        if let Err(e) = result {
+            self.configs.history_error = Some(format!("{file} was written, but its history wasn't recorded: {e}"));
+        }
+    }
+
+    /// Reconciles the loaded configs with their recorded history (ERR-72).
+    /// Waits for the data key while the keyring is still being read (called
+    /// again from `on_data_key_ready`), and makes one if the keyring is
+    /// empty: sealing history only ever makes things safer, so no stance
+    /// prompt. With no keyring at all, only hashes are kept.
+    pub fn sync_config_history(&mut self, cx: &mut Context<Self>) {
+        if self.vault.is_password_auth_enabled() {
+            if !self.vault.is_unlocked() {
+                return;
+            }
+        } else {
+            match self.vault.keyring_state {
+                KeyringState::Loading => return,
+                KeyringState::Empty if self.vault.key().is_none() => {
+                    self.ensure_data_key(cx, |this, _, cx| this.sync_config_history_now(cx));
+                    return;
+                }
+                _ => {}
+            }
+        }
+        self.sync_config_history_now(cx);
+    }
+
+    fn sync_config_history_now(&mut self, cx: &mut Context<Self>) {
+        let server_id = self.configs.server_id.clone().unwrap_or_else(|| history::LOCAL_SERVER_ID.to_string());
+        let key = self.vault.key().cloned();
+        let db = self.vault.db();
+        let result = match db.lock() {
+            Ok(db) => history::sync(&db, key.as_ref(), &server_id, &mut self.configs.states),
+            Err(_) => return,
+        };
+        self.configs.history_error = result.err().map(|e| format!("couldn't be read or recorded: {e}"));
+        cx.notify();
     }
 
     pub fn apply_journal_boundaries(&mut self, cx: &mut Context<Self>) {

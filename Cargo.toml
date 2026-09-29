@@ -41,6 +41,8 @@ chrono = "0.4"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
 argon2 = "0.6.0"
 chacha20poly1305 = "0.11.0"
+# Config history hashes (already in the tree via ssh-key).
+sha2 = "0.10"
 zeroize = { version = "1.9.0", features = ["derive"] }
 totp-rs = { version = "6.0.0", features = ["gen_secret", "otpauth", "qr"] }
 rand = "0.10.2"

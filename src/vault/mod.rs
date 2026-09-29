@@ -9,7 +9,7 @@ pub use crypto::{
 };
 pub use db::{
     clanker_secret_id, provider_secret_id, ChangeRecord, CLANKER_SECRET_CATEGORY, ClankerProviderConfig, ProviderAccount, PurgeOutcome, PROVIDER_SECRET_CATEGORY, ServerRecord, SshKeyGroup, SshKeyRecord,
-    SshScanPath, VaultDb, VaultEntryMeta, VaultError, VaultMeta, AUDIT_SERVER_ID,
+    SshScanPath, StoredConfigRevision, VaultDb, VaultEntryMeta, VaultError, VaultMeta, AUDIT_SERVER_ID,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]

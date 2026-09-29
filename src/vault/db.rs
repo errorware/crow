@@ -248,6 +248,24 @@ pub struct ChangeRecord {
     pub completed_at: Option<String>,
 }
 
+/// One recorded version of a config file on a server (ERR-72). The content
+/// is sealed with the vault's data key; `sealed` is `None` when no key was
+/// available, and then only the hash is known.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct StoredConfigRevision {
+    pub id: String,
+    pub server_id: String,
+    pub path: String,
+    pub sha256: String,
+    pub author: String,
+    pub message: String,
+    /// "crow" (written by Crow) or "observed" (found on the host).
+    pub source: String,
+    pub created_at: String,
+    /// (nonce, ciphertext)
+    pub sealed: Option<(Vec<u8>, Vec<u8>)>,
+}
+
 pub struct VaultDb {
     conn: Connection,
     path: PathBuf,
@@ -429,7 +447,22 @@ impl VaultDb {
                 outcome TEXT NOT NULL DEFAULT 'pending',
                 started_at TEXT NOT NULL,
                 completed_at TEXT
-            );",
+            );
+
+            CREATE TABLE IF NOT EXISTS config_revisions (
+                seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                id TEXT NOT NULL UNIQUE,
+                server_id TEXT NOT NULL,
+                path TEXT NOT NULL,
+                sha256 TEXT NOT NULL,
+                author TEXT NOT NULL,
+                message TEXT NOT NULL,
+                source TEXT NOT NULL,
+                created_at TEXT NOT NULL,
+                nonce BLOB,
+                ciphertext BLOB
+            );
+            CREATE INDEX IF NOT EXISTS config_revisions_by_file ON config_revisions (server_id, path, seq);",
         )?;
 
         // Seed default scan path if empty
@@ -1302,6 +1335,7 @@ impl VaultDb {
     /// spellings are removed.
     pub fn purge_server_data(&self, id: &str, name: &str) -> Result<PurgeOutcome, VaultError> {
         let change_records = self.conn.execute("DELETE FROM change_records WHERE server_id = ?1", params![id])?;
+        self.conn.execute("DELETE FROM config_revisions WHERE server_id = ?1", params![id])?;
 
         let keys: Vec<(String, Vec<String>)> = {
             let mut stmt = self.conn.prepare("SELECT id, attached_servers FROM ssh_keys")?;
@@ -1570,6 +1604,57 @@ impl VaultDb {
             out.push(item?);
         }
         Ok(out)
+    }
+
+    // ==========================================
+    // Config history (ERR-72)
+    // ==========================================
+
+    pub fn insert_config_revision(&self, rev: &StoredConfigRevision) -> Result<(), VaultError> {
+        let (nonce, ciphertext) = match &rev.sealed {
+            Some((n, c)) => (Some(n.as_slice()), Some(c.as_slice())),
+            None => (None, None),
+        };
+        self.conn.execute(
+            "INSERT INTO config_revisions (id, server_id, path, sha256, author, message, source, created_at, nonce, ciphertext)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+            params![rev.id, rev.server_id, rev.path, rev.sha256, rev.author, rev.message, rev.source, rev.created_at, nonce, ciphertext],
+        )?;
+        Ok(())
+    }
+
+    /// A file's revisions on a server, oldest first.
+    pub fn list_config_revisions(&self, server_id: &str, path: &str) -> Result<Vec<StoredConfigRevision>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, server_id, path, sha256, author, message, source, created_at, nonce, ciphertext
+             FROM config_revisions WHERE server_id = ?1 AND path = ?2 ORDER BY seq",
+        )?;
+        let rows = stmt.query_map(params![server_id, path], |r| {
+            let nonce: Option<Vec<u8>> = r.get(8)?;
+            let ciphertext: Option<Vec<u8>> = r.get(9)?;
+            Ok(StoredConfigRevision {
+                id: r.get(0)?,
+                server_id: r.get(1)?,
+                path: r.get(2)?,
+                sha256: r.get(3)?,
+                author: r.get(4)?,
+                message: r.get(5)?,
+                source: r.get(6)?,
+                created_at: r.get(7)?,
+                sealed: nonce.zip(ciphertext),
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    /// The hash of each file's latest revision on a server, by path.
+    pub fn latest_config_hashes(&self, server_id: &str) -> Result<std::collections::HashMap<String, String>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT path, sha256 FROM config_revisions r
+             WHERE server_id = ?1 AND seq = (SELECT MAX(seq) FROM config_revisions WHERE server_id = r.server_id AND path = r.path)",
+        )?;
+        let rows = stmt.query_map(params![server_id], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
     pub fn path(&self) -> &Path {
