@@ -110,6 +110,7 @@ fn from_record(r: &ChangeRecord) -> Option<AuditItem> {
     let text = match r.action_kind.as_str() {
         "config.write" => format!("saved {}", r.target),
         "config.restore" => format!("restored an earlier version of {}", r.target),
+        "config.baseline" => format!("baseline for {}: {}", r.target, r.before_state),
         "process_kill" => format!("killed process {}", r.target),
         "purge" => format!("purged stored data for {}", r.target),
         "sshd.password_login_off" => "turned off SSH password login".to_string(),

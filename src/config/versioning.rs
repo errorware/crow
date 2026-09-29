@@ -6,6 +6,8 @@ use super::{ConfigDiffLine, DiffKind};
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ConfigRevision {
+    /// The stored revision's id; empty for one that only exists in memory.
+    pub id: String,
     pub version: usize,
     pub timestamp: String,
     pub author: String,
@@ -41,6 +43,7 @@ impl ConfigFileState {
     pub fn new(path: PathBuf, filename: String, content: String) -> Self {
         // Replaced by the recorded history once it's loaded (ERR-72).
         let initial_rev = ConfigRevision {
+            id: String::new(),
             version: 1,
             timestamp: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             author: "on the host".to_string(),
@@ -77,6 +80,7 @@ impl ConfigFileState {
     pub fn stage_revision(&mut self, author: String, message: String) {
         let next_v = self.revisions.len() + 1;
         let rev = ConfigRevision {
+            id: String::new(),
             version: next_v,
             timestamp: Local::now().format("%Y-%m-%d %H:%M:%S").to_string(),
             author,

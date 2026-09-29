@@ -47,6 +47,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
         None => ("PENDING DIFF".to_string(), "clean".to_string(), OK),
     };
     let plan = apply_plan(configs, file_state);
+    let baseline_rev_id = file_state.and_then(|st| configs.baselines.get(st.path.to_string_lossy().as_ref())).map(|b| b.baseline.revision_id.clone());
 
     div()
         .w(px(380.0))
@@ -180,7 +181,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                             .text_size(px(11.0))
                             .text_color(OK)
                             .child(tabler_icon(TablerIcon::Check).size(px(14.0)).text_color(OK))
-                            .child(div().child("Working copy is in sync with baseline"))
+                            .child(div().child("No unsaved edits"))
                             .into_any_element()
                     }
                 )
@@ -215,6 +216,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                                 .child(div().flex_1().min_w(px(0.0)).text_color(if ok { TEXT_SECONDARY } else { WARN }).child(text))
                         })),
                 )
+                .children(file_state.filter(|st| st.read_from_host).map(|st| baseline_section(configs, st, app.clone())))
                 // Revision History / Version Audit Log Section
                 .child(
                     div()
@@ -254,6 +256,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                             let previewing = configs.preview_revision.as_ref() == Some(&(sel_file.clone(), rev.version));
                             let app_preview = app.clone();
                             let file_preview = sel_file.clone();
+                            let is_baseline = baseline_rev_id.as_deref() == Some(rev.id.as_str()) && !rev.id.is_empty();
                             let app_rollback = app.clone();
                             let fn_str = sel_file.clone();
                             let v = rev.version;
@@ -361,7 +364,32 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                                                 .text_color(TEXT_SECONDARY)
                                                 .font_weight(FontWeight::MEDIUM)
                                                 .child(rev.author),
-                                        ),
+                                        )
+                                        .child(div().flex_1())
+                                        .children(if is_baseline {
+                                            Some(div().text_color(OK).font_weight(FontWeight::BOLD).child("BASELINE").into_any_element())
+                                        } else if restorable && !rev.id.is_empty() {
+                                            let app_pin = app.clone();
+                                            let f = sel_file.clone();
+                                            Some(
+                                                div()
+                                                    .id(ElementId::NamedInteger("btn-pin-baseline".into(), v as u64))
+                                                    .px(px(6.0))
+                                                    .py(px(1.0))
+                                                    .text_color(TEXT_DIM)
+                                                    .cursor_pointer()
+                                                    .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
+                                                    .on_click(move |_ev, _window, cx| {
+                                                        cx.stop_propagation();
+                                                        let f = f.clone();
+                                                        app_pin.update(cx, |this, cx| this.pin_config_baseline(&f, v, cx));
+                                                    })
+                                                    .child("PIN AS BASELINE")
+                                                    .into_any_element(),
+                                            )
+                                        } else {
+                                            None
+                                        }),
                                 )
                                 .child(
                                     div()
@@ -496,4 +524,91 @@ fn apply_plan(configs: &ConfigsState, st: Option<&crate::config::ConfigFileState
         (true, None) => (false, "History not loaded yet".to_string()),
     });
     plan
+}
+
+/// This server's copy against the baseline in force for it, if any (ERR-74).
+fn baseline_section(configs: &ConfigsState, st: &crate::config::ConfigFileState, app: Entity<CrowApp>) -> impl IntoElement {
+    use crate::app::configs::scope_label;
+    use crate::config::drift::Drift;
+    let path = st.path.to_string_lossy().into_owned();
+    let applied = configs.baselines.get(&path);
+    let button = |id: &'static str, label: &'static str| {
+        div()
+            .id(id)
+            .px(px(8.0))
+            .py(px(3.0))
+            .border_1()
+            .border_color(BORDER_DEFAULT)
+            .text_size(px(9.5))
+            .text_color(TEXT_SECONDARY)
+            .cursor_pointer()
+            .hover(|s| s.bg(BG_ROW_HOVER))
+            .child(label)
+    };
+    let mut body = div().flex().flex_col().gap(px(5.0)).text_size(px(10.5));
+    match applied {
+        None => {
+            body = body.child(div().text_color(TEXT_DIM).child(format!(
+                "None pinned. PIN AS BASELINE on a revision makes it the known-good {} for {}; servers that differ show as drift.",
+                st.filename,
+                scope_label(&configs.baseline_scope)
+            )));
+        }
+        Some(b) => {
+            let drift = b.drift(&path, &st.baseline_content);
+            let (ok, headline) = match &drift {
+                Drift::Identical => (true, "Matches the baseline".to_string()),
+                Drift::Cosmetic => (true, "Same settings as the baseline; only comments or layout differ".to_string()),
+                Drift::Differs(_) => (false, "Drifted from the baseline".to_string()),
+            };
+            body = body
+                .child(div().text_color(if ok { OK } else { WARN }).child(format!("{} {headline}", if ok { "✓" } else { "!" })))
+                .children(match drift {
+                    Drift::Differs(lines) => {
+                        let more = lines.len().saturating_sub(8);
+                        let mut rows: Vec<AnyElement> = lines.into_iter().take(8).map(|l| div().pl(px(14.0)).text_color(TEXT_SECONDARY).child(l).into_any_element()).collect();
+                        if more > 0 {
+                            rows.push(div().pl(px(14.0)).text_color(TEXT_FAINT).child(format!("… {more} more")).into_any_element());
+                        }
+                        rows
+                    }
+                    _ => Vec::new(),
+                })
+                .child(div().text_size(px(9.5)).text_color(TEXT_FAINT).child(format!(
+                    "pinned from {} for {} by {}",
+                    b.from_server,
+                    scope_label(&b.baseline.scope),
+                    b.baseline.set_by
+                )))
+                .child(
+                    div()
+                        .flex()
+                        .gap(px(6.0))
+                        .children((!ok && b.content.is_some()).then(|| {
+                            let app = app.clone();
+                            let file = configs.selected_file.clone();
+                            button("btn-load-baseline", "LOAD BASELINE INTO EDITOR")
+                                .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.load_baseline_into_editor(&file, cx)))
+                        }))
+                        .child({
+                            let app = app.clone();
+                            let (path, scope) = (path.clone(), b.baseline.scope.clone());
+                            button("btn-unpin-baseline", "UNPIN")
+                                .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.unpin_config_baseline(&path, &scope, cx)))
+                        }),
+                );
+        }
+    }
+    div()
+        .flex_none()
+        .border_b_1()
+        .border_color(BORDER_PANEL)
+        .p(px(10.0))
+        .px(px(12.0))
+        .flex()
+        .flex_col()
+        .gap(px(7.0))
+        .font_family(FONT_MONO)
+        .child(div().text_size(px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_DIMMER).child("BASELINE"))
+        .child(body)
 }

@@ -44,7 +44,7 @@ pub fn fleet_stat_strip(
     connected_count: usize,
     avg_load: Option<f32>,
     total_vcpu: usize,
-
+    drift: Option<&[crate::config::drift::DriftEntry]>,
 ) -> impl IntoElement {
     let server_count = servers.len();
     let groups: std::collections::BTreeSet<&str> = servers.iter().map(|s| s.group_name.as_str()).filter(|g| !g.is_empty()).collect();
@@ -67,8 +67,20 @@ pub fn fleet_stat_strip(
     // Host-key age needs the key's own timestamp from the host, not the
     // server's enrollment date (ERR-20).
     let (oldest_key_val, oldest_key_unit, oldest_key_note, oldest_key_color) = ("—".to_string(), "".to_string(), "not tracked yet".to_string(), TEXT_MUTED);
-    // Baselines don't exist yet (ERR-21), so there is nothing to drift from.
-    let (drift_val, drift_unit, drift_note, drift_fg) = ("—".to_string(), "".to_string(), "not tracked yet".to_string(), TEXT_MUTED);
+    // Files that mean something other than their baseline, as of each
+    // server's last config read (ERR-74).
+    let (drift_val, drift_unit, drift_note, drift_fg) = match drift {
+        None => ("—".to_string(), "".to_string(), "not computed yet".to_string(), TEXT_MUTED),
+        Some([]) => ("—".to_string(), "".to_string(), "no baselines pinned".to_string(), TEXT_MUTED),
+        Some(entries) => {
+            let drifted: Vec<_> = entries.iter().filter(|e| e.drift.is_drift()).collect();
+            let servers: std::collections::BTreeSet<&str> = drifted.iter().map(|e| e.server_id.as_str()).collect();
+            match drifted.len() {
+                0 => ("0".to_string(), "".to_string(), format!("{} file{} match baselines · as last read", entries.len(), if entries.len() == 1 { "" } else { "s" }), OK),
+                n => (n.to_string(), "".to_string(), format!("on {} server{} · as last read", servers.len(), if servers.len() == 1 { "" } else { "s" }), WARN),
+            }
+        }
+    };
 
     let stats = [
         ("SERVERS", server_count.to_string(), "".to_string(), group_note, TEXT_PRIMARY),
@@ -278,6 +290,7 @@ pub fn fleet_overview_view(
             connected_count,
             avg_load,
             total_vcpu,
+            fleet.drift.as_deref(),
         ))
         // 2. Active fleet / Archived switch
         .child(fleet_view_tabs(fleet, app.clone()))

@@ -266,6 +266,20 @@ pub struct StoredConfigRevision {
     pub sealed: Option<(Vec<u8>, Vec<u8>)>,
 }
 
+/// Scope of a baseline that applies to every server.
+pub const BASELINE_FLEET: &str = "*";
+
+/// A known-good version of a file for a server group or the whole fleet (ERR-74).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ConfigBaseline {
+    pub path: String,
+    /// A server group name, or [`BASELINE_FLEET`].
+    pub scope: String,
+    pub revision_id: String,
+    pub set_by: String,
+    pub set_at: String,
+}
+
 pub struct VaultDb {
     conn: Connection,
     path: PathBuf,
@@ -462,7 +476,16 @@ impl VaultDb {
                 nonce BLOB,
                 ciphertext BLOB
             );
-            CREATE INDEX IF NOT EXISTS config_revisions_by_file ON config_revisions (server_id, path, seq);",
+            CREATE INDEX IF NOT EXISTS config_revisions_by_file ON config_revisions (server_id, path, seq);
+
+            CREATE TABLE IF NOT EXISTS config_baselines (
+                path TEXT NOT NULL,
+                scope TEXT NOT NULL,
+                revision_id TEXT NOT NULL,
+                set_by TEXT NOT NULL,
+                set_at TEXT NOT NULL,
+                PRIMARY KEY (path, scope)
+            );",
         )?;
 
         // Seed default scan path if empty
@@ -1643,6 +1666,64 @@ impl VaultDb {
                 created_at: r.get(7)?,
                 sealed: nonce.zip(ciphertext),
             })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    /// One revision by id.
+    pub fn get_config_revision(&self, id: &str) -> Result<Option<StoredConfigRevision>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, server_id, path, sha256, author, message, source, created_at, nonce, ciphertext FROM config_revisions WHERE id = ?1",
+        )?;
+        Ok(stmt.query_row(params![id], Self::config_revision_row).optional()?)
+    }
+
+    /// The latest revision of `path` on every server that has one.
+    pub fn latest_config_revisions_for_path(&self, path: &str) -> Result<Vec<StoredConfigRevision>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, server_id, path, sha256, author, message, source, created_at, nonce, ciphertext FROM config_revisions r
+             WHERE path = ?1 AND seq = (SELECT MAX(seq) FROM config_revisions WHERE server_id = r.server_id AND path = r.path)",
+        )?;
+        let rows = stmt.query_map(params![path], Self::config_revision_row)?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    fn config_revision_row(r: &rusqlite::Row) -> rusqlite::Result<StoredConfigRevision> {
+        let nonce: Option<Vec<u8>> = r.get(8)?;
+        let ciphertext: Option<Vec<u8>> = r.get(9)?;
+        Ok(StoredConfigRevision {
+            id: r.get(0)?,
+            server_id: r.get(1)?,
+            path: r.get(2)?,
+            sha256: r.get(3)?,
+            author: r.get(4)?,
+            message: r.get(5)?,
+            source: r.get(6)?,
+            created_at: r.get(7)?,
+            sealed: nonce.zip(ciphertext),
+        })
+    }
+
+    /// Pins `revision_id` as the known-good `path` for `scope` (a server
+    /// group, or [`BASELINE_FLEET`]) (ERR-74).
+    pub fn set_config_baseline(&self, path: &str, scope: &str, revision_id: &str, set_by: &str) -> Result<(), VaultError> {
+        self.conn.execute(
+            "INSERT INTO config_baselines (path, scope, revision_id, set_by, set_at) VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(path, scope) DO UPDATE SET revision_id = excluded.revision_id, set_by = excluded.set_by, set_at = excluded.set_at",
+            params![path, scope, revision_id, set_by, Utc::now().to_rfc3339()],
+        )?;
+        Ok(())
+    }
+
+    pub fn clear_config_baseline(&self, path: &str, scope: &str) -> Result<(), VaultError> {
+        self.conn.execute("DELETE FROM config_baselines WHERE path = ?1 AND scope = ?2", params![path, scope])?;
+        Ok(())
+    }
+
+    pub fn list_config_baselines(&self) -> Result<Vec<ConfigBaseline>, VaultError> {
+        let mut stmt = self.conn.prepare("SELECT path, scope, revision_id, set_by, set_at FROM config_baselines ORDER BY path, scope")?;
+        let rows = stmt.query_map([], |r| {
+            Ok(ConfigBaseline { path: r.get(0)?, scope: r.get(1)?, revision_id: r.get(2)?, set_by: r.get(3)?, set_at: r.get(4)? })
         })?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }

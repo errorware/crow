@@ -35,6 +35,9 @@ pub struct FleetState {
     /// A region detection run is in progress / its result.
     pub region_detecting: bool,
     pub region_note: Option<String>,
+    /// Every server's last-read copy of each baselined file against its
+    /// baseline (ERR-74); `None` until computed.
+    pub drift: Option<Vec<crate::config::drift::DriftEntry>>,
 }
 
 impl FleetState {
@@ -59,6 +62,7 @@ impl FleetState {
             region_filter: None,
             region_detecting: false,
             region_note: None,
+            drift: None,
             archived: Vec::new(),
             show_archived: false,
             notice: None,
