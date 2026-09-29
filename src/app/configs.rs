@@ -208,11 +208,7 @@ impl CrowApp {
 
     /// The crow-config plugin that structures `file`, if any.
     pub fn structured_format_of(&self, file: &str) -> Option<StructuredFormat> {
-        let kind = self.configs.files.iter().find(|f| f.name == file).and_then(|f| f.schema_kind)?;
-        match editor_for(Some(kind)) {
-            ConfigEditor::Structured(format) => Some(format),
-            _ => None,
-        }
+        self.configs.structured_format(file)
     }
 
     /// Applies one crow-config edit to `file`'s current text. Row ids are line
@@ -709,6 +705,7 @@ impl CrowApp {
             return;
         }
         self.configs.save_error = None;
+        self.configs.preview_revision = None;
         // What's on the host now is the restored revision.
         if let Some(st) = self.configs.states.get_mut(file) {
             st.baseline_content = st.current_content.clone();
@@ -805,6 +802,7 @@ impl CrowApp {
             Ok(db) => history::sync(&db, key.as_ref(), &server_id, &mut self.configs.states),
             Err(_) => return,
         };
+        self.configs.history_sealed = Some(key.is_some());
         self.configs.history_error = result.err().map(|e| format!("couldn't be read or recorded: {e}"));
         cx.notify();
     }

@@ -233,14 +233,20 @@ pub enum Validation {
 /// placeholder, e.g. `sshd -t -f {file}`) against `content` on `host`: the
 /// content goes to a temp file there, the validator runs, the temp file is
 /// removed. A validator whose command isn't installed (exit 127) is skipped.
-pub fn validate_on_host(host: &dyn Host, format: StructuredFormat, content: &str) -> Result<Validation, String> {
-    let validators: Vec<String> = plugin(format)
+/// The format's validator commands that check a file (templates with
+/// `{file}`), e.g. `sshd -t -f {file}`.
+pub fn file_validators(format: StructuredFormat) -> Vec<String> {
+    plugin(format)
         .manifest()
         .validators
         .iter()
         .filter(|v| v.command.contains("{file}"))
         .map(|v| v.command.clone())
-        .collect();
+        .collect()
+}
+
+pub fn validate_on_host(host: &dyn Host, format: StructuredFormat, content: &str) -> Result<Validation, String> {
+    let validators = file_validators(format);
     if validators.is_empty() {
         return Ok(Validation::Skipped("no file validator for this format".into()));
     }

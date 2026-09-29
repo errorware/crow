@@ -26,6 +26,11 @@ pub struct ConfigsState {
     pub save_error: Option<String>,
     /// History couldn't be read or recorded (ERR-72); the file itself is fine.
     pub history_error: Option<String>,
+    /// Whether history content is sealed (a data key was there at the last
+    /// sync); `None` before the first sync.
+    pub history_sealed: Option<bool>,
+    /// Revision being previewed on the rail: (file, version) (ERR-73).
+    pub preview_revision: Option<(String, usize)>,
     /// Structured-editor UI: files switched to the plain-text view, the enum
     /// field whose options are open (row id, field), whether the "add
     /// directive" list is open, and the last rejected edit.
@@ -54,11 +59,38 @@ impl ConfigsState {
             family: DistroFamily::Unknown,
             save_error: None,
             history_error: None,
+            history_sealed: None,
+            preview_revision: None,
             text_mode: HashSet::new(),
             open_enum: None,
             adding_row: false,
             edit_error: None,
         }
+    }
+
+    /// The crow-config format `file` is edited with, if it has one.
+    pub fn structured_format(&self, file: &str) -> Option<crate::config::plugins::StructuredFormat> {
+        use crate::config::plugins::{editor_for, ConfigEditor};
+        let kind = self.files.iter().find(|f| f.name == file).and_then(|f| f.schema_kind)?;
+        match editor_for(Some(kind)) {
+            ConfigEditor::Structured(format) => Some(format),
+            _ => None,
+        }
+    }
+
+    /// The revision previewed for the selected file, if it can be shown.
+    pub fn previewed_revision(&self) -> Option<&crate::config::ConfigRevision> {
+        let (file, version) = self.preview_revision.as_ref()?;
+        if *file != self.selected_file {
+            return None;
+        }
+        self.states.get(file)?.revisions.iter().find(|r| r.version == *version && r.content.is_some())
+    }
+
+    /// Previews `version` of `file`, or stops previewing it if it already is.
+    pub fn toggle_preview(&mut self, file: &str, version: usize) {
+        let key = (file.to_string(), version);
+        self.preview_revision = if self.preview_revision.as_ref() == Some(&key) { None } else { Some(key) };
     }
 
     /// True when any file has edits that have not been staged.
@@ -249,5 +281,23 @@ mod tests {
         assert_eq!(st.cron_jobs[0].id, first);
         st.move_cron_job_down(&first);
         assert_eq!(st.cron_jobs[1].id, first);
+    }
+
+    #[test]
+    fn previews_only_restorable_revisions_of_the_selected_file() {
+        let mut st = with_crontab();
+        let file = st.states.get_mut("crontab").unwrap();
+        file.update_content("# edited\n".into());
+        file.stage_revision("me".into(), "edit".into());
+        file.revisions[0].content = None; // hash-only
+        st.toggle_preview("crontab", 2);
+        assert_eq!(st.previewed_revision().map(|r| r.version), Some(2));
+        st.toggle_preview("crontab", 2);
+        assert!(st.previewed_revision().is_none(), "second click closes it");
+        st.toggle_preview("crontab", 1);
+        assert!(st.previewed_revision().is_none(), "no content, nothing to preview");
+        st.toggle_preview("crontab", 2);
+        st.selected_file = "hosts".into();
+        assert!(st.previewed_revision().is_none(), "belongs to another file");
     }
 }
