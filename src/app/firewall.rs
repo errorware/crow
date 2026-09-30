@@ -51,6 +51,34 @@ impl CrowApp {
         self.stage_config_version("user.rules", message, cx);
     }
 
+    /// Reads the active server's firewall in the background (startup with a
+    /// remote first server, and every tab switch). The result is dropped if
+    /// the active server changed meanwhile.
+    pub fn refresh_firewall_for_active_server(&mut self, cx: &mut Context<Self>) {
+        let Some(srv) = self.fleet.active_server() else { return };
+        self.firewall.status = FirewallOperationalState::Unmanaged {
+            detected_binaries: Vec::new(),
+            reason: format!("Reading {}'s firewall…", srv.name),
+        };
+        let id = srv.id.clone();
+        cx.spawn(async move |entity, cx| {
+            let status = cx.background_executor().spawn(async move { detect_firewall_status(&srv) }).await;
+            let _ = entity.update(cx, |this, cx| {
+                if this.fleet.active_server().is_some_and(|s| s.id == id) {
+                    this.firewall.status = status;
+                    // ufw's own rules file, as load_configs mirrors it.
+                    if let FirewallOperationalState::Active(ref summary) = this.firewall.status.clone().ufw_only() {
+                        let text = crate::views::firewall::generate_user_rules_content(&summary.rules);
+                        this.configs.seed_baseline("user.rules", text, Some("/etc/ufw/user.rules"));
+                        this.configs.block_writes("user.rules", crate::app::configs::user_rules_read_only_reason().into());
+                    }
+                    cx.notify();
+                }
+            });
+        })
+        .detach();
+    }
+
     /// Runs a ufw command on the active server, then shows its real state.
     fn run_firewall_command(&mut self, argv: Vec<String>, closes_modal: bool, cx: &mut Context<Self>) {
         // Every command here is a ufw command; other backends are read-only.

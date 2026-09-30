@@ -55,6 +55,7 @@ impl CrowApp {
             self.screen = Screen::Server;
         }
         self.reload_configs_for_active_server(cx);
+        self.refresh_firewall_for_active_server(cx);
         cx.notify();
     }
 
