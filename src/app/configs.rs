@@ -73,6 +73,10 @@ const READ_ONLY_FILES: &[(&str, &str)] = &[(
     "ufw writes this file itself — change rules on the Firewall screen, which runs ufw",
 )];
 
+pub fn user_rules_read_only_reason() -> &'static str {
+    READ_ONLY_FILES[0].1
+}
+
 /// Discovers and loads config files from `server` (this machine when there are
 /// no servers) and blocks writes wherever the content isn't the host's real file.
 pub fn load_configs(server: Option<&ServerRecord>, firewall: &FirewallOperationalState) -> ConfigsState {
@@ -453,6 +457,12 @@ impl CrowApp {
                 if still_active && !this.configs.has_unsaved_changes() {
                     let selected = std::mem::take(&mut this.configs.selected_file);
                     this.configs = loaded;
+                    // The firewall may have been read while these loaded.
+                    if let FirewallOperationalState::Active(ref summary) = this.firewall.status.clone().ufw_only() {
+                        let text = generate_user_rules_content(&summary.rules);
+                        this.configs.seed_baseline("user.rules", text, Some("/etc/ufw/user.rules"));
+                        this.configs.block_writes("user.rules", user_rules_read_only_reason().to_string());
+                    }
                     this.apply_journald_from_configs();
                     if this.configs.states.contains_key(&selected) {
                         this.configs.selected_file = selected;
@@ -467,6 +477,12 @@ impl CrowApp {
 
     /// Writes one file's current content back to the configs' server.
     fn write_config_file(&self, file: &str) -> Result<(), String> {
+        // Configs with no server are this machine's; with servers enrolled
+        // that only happens while the active server's are still loading,
+        // and writing then would land on the wrong machine.
+        if self.configs.server_id.is_none() && !self.fleet.servers.is_empty() {
+            return Err("this server's configs are still loading; nothing was written".into());
+        }
         let state = self.configs.states.get(file).ok_or_else(|| format!("{file} is not loaded"))?;
         let host: Arc<dyn Host> = match self.configs_server() {
             Some(srv) => host_for(&srv),
