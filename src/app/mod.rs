@@ -304,29 +304,37 @@ impl CrowApp {
             Vec::new()
         };
 
-        let (journal_retention, journal_telemetry) = if let Some(first_srv) = servers.first() {
-            read_retention_for_server(first_srv)
+        let is_first_local = servers.first().map(crate::host::is_this_machine).unwrap_or(false);
+
+        let (journal_retention, journal_telemetry) = if is_first_local {
+            servers.first().map(read_retention_for_server).unwrap_or_else(|| read_retention(&LocalHost))
         } else {
             read_retention(&LocalHost)
         };
 
-        let (initial_services, initial_processes, initial_sockets) = if let Some(first_srv) = servers.first() {
-            (
-                collect_services_for_server(first_srv),
-                collect_processes_for_server(first_srv),
-                collect_sockets_for_server(first_srv),
-            )
+        let (initial_services, initial_processes, initial_sockets) = if is_first_local {
+            if let Some(first_srv) = servers.first() {
+                (
+                    collect_services_for_server(first_srv),
+                    collect_processes_for_server(first_srv),
+                    collect_sockets_for_server(first_srv),
+                )
+            } else {
+                (Vec::new(), Vec::new(), Vec::new())
+            }
         } else {
             (Vec::new(), Vec::new(), Vec::new())
         };
 
-        // Backfill the first server's seeded sample with its initial tables.
-        if let Some(first_srv) = servers.first() {
-            for key in [&first_srv.id, &first_srv.name] {
-                if let Some(sample) = buffered_stores.get_mut(key).and_then(|buf| buf.samples.back_mut()) {
-                    sample.services = initial_services.clone();
-                    sample.processes = initial_processes.clone();
-                    sample.sockets = initial_sockets.clone();
+        // Backfill the first server's seeded sample with its initial tables if local.
+        if is_first_local {
+            if let Some(first_srv) = servers.first() {
+                for key in [&first_srv.id, &first_srv.name] {
+                    if let Some(sample) = buffered_stores.get_mut(key).and_then(|buf| buf.samples.back_mut()) {
+                        sample.services = initial_services.clone();
+                        sample.processes = initial_processes.clone();
+                        sample.sockets = initial_sockets.clone();
+                    }
                 }
             }
         }
@@ -334,14 +342,25 @@ impl CrowApp {
         let lab_engines = detect_local_engines();
         let lab_nodes = scan_local_test_nodes(&servers);
 
-        let initial_firewall_state = servers
-            .first()
-            .map(|s| detect_firewall_status(s))
-            .unwrap_or_else(|| FirewallOperationalState::Unmanaged {
+        let initial_firewall_state = if is_first_local {
+            servers
+                .first()
+                .map(|s| detect_firewall_status(s))
+                .unwrap_or_else(|| FirewallOperationalState::Unmanaged {
+                    detected_binaries: Vec::new(),
+                    reason: "No server is enrolled yet.".into(),
+                })
+        } else {
+            FirewallOperationalState::Unmanaged {
                 detected_binaries: Vec::new(),
-                reason: "No server is enrolled yet.".into(),
-            });
-        let configs = load_configs(servers.first(), &initial_firewall_state);
+                reason: "Detecting...".into(),
+            }
+        };
+        let configs = if is_first_local {
+            load_configs(servers.first(), &initial_firewall_state)
+        } else {
+            load_configs(None, &initial_firewall_state)
+        };
         // The journald editor shows the real journald.conf when there is one.
         let journal_retention = configs
             .states

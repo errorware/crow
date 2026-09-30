@@ -45,44 +45,53 @@ fn main() {
             eprintln!("Failed to load embedded JetBrains Mono fonts: {err}");
         }
 
-        cx.spawn(async move |cx| {
-            let mut options = WindowOptions::default();
-            options.window_bounds = Some(WindowBounds::Windowed(Bounds {
-                origin: Point::default(),
-                size: size(px(1600.0), px(1000.0)),
-            }));
-            options.window_min_size = Some(size(px(1100.0), px(700.0)));
-            #[cfg(target_os = "macos")]
-            {
-                options.titlebar = Some(TitlebarOptions {
-                    title: None,
-                    appears_transparent: true,
-                    traffic_light_position: Some(point(px(12.0), px(11.0))),
-                });
-            }
-            #[cfg(not(target_os = "macos"))]
-            {
-                options.titlebar = Some(TitlebarOptions {
-                    title: Some("Crow".into()),
-                    appears_transparent: true,
-                    traffic_light_position: None,
-                });
-                options.window_decorations = Some(WindowDecorations::Client);
-                // The resize border around the app (components::window_frame)
-                // must show the desktop through it.
-                options.window_background = WindowBackgroundAppearance::Transparent;
-            }
-            options.is_resizable = true;
-            // Matches the desktop entry and icon names (packaging/linux), so
-            // Wayland and X11 docks show Crow's icon.
-            options.app_id = Some("rs.crow.Crow".into());
-            options.is_minimizable = true;
-
-            cx.open_window(options, |window, cx| {
-                cx.new(|cx| CrowApp::new(window, cx))
+        let (disp_w, disp_h) = cx
+            .primary_display()
+            .map(|d| {
+                let b = d.bounds();
+                (b.size.width.as_f32(), b.size.height.as_f32())
             })
-            .expect("failed to open Crow window");
+            .unwrap_or((1400.0, 900.0));
+
+        let width = (disp_w * 0.92).min(1400.0).max(1100.0);
+        let height = (disp_h * 0.88).min(860.0).max(700.0);
+        let window_size = size(px(width), px(height));
+        let bounds = Bounds::centered(None, window_size, cx);
+        let mut options = WindowOptions::default();
+        options.window_bounds = Some(WindowBounds::Windowed(bounds));
+        options.window_min_size = Some(size(px(1100.0), px(700.0)));
+        #[cfg(target_os = "macos")]
+        {
+            options.titlebar = Some(TitlebarOptions {
+                title: None,
+                appears_transparent: true,
+                traffic_light_position: Some(point(px(12.0), px(11.0))),
+            });
+        }
+        #[cfg(not(target_os = "macos"))]
+        {
+            options.titlebar = Some(TitlebarOptions {
+                title: Some("Crow".into()),
+                appears_transparent: true,
+                traffic_light_position: None,
+            });
+            options.window_decorations = Some(WindowDecorations::Client);
+            // The resize border around the app (components::window_frame)
+            // must show the desktop through it.
+            options.window_background = WindowBackgroundAppearance::Transparent;
+        }
+        options.is_resizable = true;
+        // Matches the desktop entry and icon names (packaging/linux), so
+        // Wayland and X11 docks show Crow's icon.
+        options.app_id = Some("rs.crow.Crow".into());
+        options.is_minimizable = true;
+
+        cx.open_window(options, |window, cx| {
+            window.activate_window();
+            cx.new(|cx| CrowApp::new(window, cx))
         })
-        .detach();
+        .expect("failed to open Crow window");
+
+        cx.activate(true);
     });
 }
