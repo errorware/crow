@@ -155,7 +155,7 @@ impl CrowApp {
         self.fleet.buffered_stores.extend(buffers);
 
         self.fleet.notice = Some(format!("{} restored to the fleet", srv.name));
-        self.fleet.show_archived = false;
+        self.fleet.page = crate::views::fleet::state::FleetPage::Active;
         // Opens a tab for it; then stay on the Fleet screen it was restored from.
         self.switch_tab(&srv.id, cx);
         self.screen = Screen::Fleet;

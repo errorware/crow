@@ -68,7 +68,7 @@ impl Render for CrowApp {
         // own purge audit trail (ERR-32).
         let fleet_purge_days = self.archive_purge_days();
         let fleet_purge_audit = self.recent_purge_audit();
-        let (alert_lines, watch_gap) = if self.screen == Screen::Fleet { self.fleet_alert_panel() } else { (Vec::new(), None) };
+        let (alert_lines, watch_gap) = if matches!(self.screen, Screen::Fleet | Screen::Server) { self.fleet_alert_panel() } else { (Vec::new(), None) };
         let audit = match self.screen {
             Screen::Fleet => self.audit_items(30),
             Screen::Audit => self.audit_items(1000),
@@ -397,6 +397,8 @@ impl Render for CrowApp {
                                                                         .size_full()
                                                                         .child(file_browser_view(app_view.clone(), &self.files))
                                                                 )
+                                                            } else if self.active_view == "danger" {
+                                                                Some(div().size_full().child(danger_zone(&self.danger, self.active_provider_actions().as_ref(), app_view.clone())))
                                                             } else if self.active_view == "firewall" {
                                                                 Some(
                                                                     div()
@@ -458,8 +460,6 @@ impl Render for CrowApp {
                                                             })
                                                     ),
                                             )
-                                            // Persistent Danger Zone Strip
-                                            .child(danger_zone(&self.danger, self.active_provider_actions().as_ref(), app_view.clone()))
                                             // Archive confirmation for this server (ERR-32).
                                             .children(self.fleet.pending_archive.as_ref().and_then(|id| self.fleet.servers.iter().find(|s| &s.id == id)).map(|srv| {
                                                 crate::views::fleet::archived::archive_confirm_overlay(srv, &archive_purge_due, app_view.clone())
@@ -519,6 +519,11 @@ impl Render for CrowApp {
                                     ),
                                 }),
                         )
+                        // 3. Status bar: alerts, notices, version (Fleet shows its
+                        //    notices in its own banner).
+                        .children(matches!(screen, Screen::Fleet | Screen::Server).then(|| {
+                            crate::components::status_bar::status_bar(&alert_lines, self.fleet.notice.as_deref().filter(|_| screen == Screen::Server), app_view.clone())
+                        }))
                         // 3. Burger Menu Overlay
                         .children(if menu_open {
                             let active_name = self.fleet.servers.iter()

@@ -1,5 +1,6 @@
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
+use crate::views::fleet::state::FleetPage;
 use gpui_kit::prelude::FluentBuilder as _;
 use crate::theme::*;
 use crate::app::region::FleetEnvFilter;
@@ -313,7 +314,7 @@ pub fn fleet_overview_view(
         .child(fleet_view_tabs(fleet, app.clone()))
         // 3. Server list on top, alerts & activity panel below (drag the
         //    divider). The Archived tab replaces this whole body.
-        .children(if fleet.show_archived { None } else { Some(
+        .children(if fleet.page != FleetPage::Active { None } else { Some(
             div()
                 .flex_1()
                 .min_h(px(0.0))
@@ -1140,10 +1141,10 @@ pub fn fleet_overview_view(
                 ),
         ) })
         // Archived servers, when that tab is showing.
-        .children(if fleet.show_archived {
-            Some(archived_panel(fleet, purge_days, purge_audit, app.clone()).into_any_element())
-        } else {
-            None
+        .children(match fleet.page {
+            FleetPage::Archived => Some(archived_panel(fleet, purge_days, purge_audit, app.clone()).into_any_element()),
+            FleetPage::Danger => Some(fleet_danger_page(app.clone()).into_any_element()),
+            FleetPage::Active => None,
         })
         // 4. Fleet Notice Banner (feedback after fleet action, archive, restore, etc.)
         .children(fleet.notice.as_ref().map(|notice| {
@@ -1191,74 +1192,6 @@ pub fn fleet_overview_view(
                         .child("DISMISS"),
                 )
         }))
-        // 5. Persistent Fleet-Wide Destructive Strip with Abort Gate
-        .child(
-            div()
-                .h(px(46.0))
-                .flex_none()
-                .flex()
-                .items_stretch()
-                .bg(CRIT_STRIP_BG)
-                .border_t_1()
-                .border_color(BORDER_DANGER)
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(8.0))
-                        .px(px(14.0))
-                        .border_r_1()
-                        .border_color(BORDER_DANGER)
-                        .child(
-                            div()
-                                .w(px(10.0))
-                                .h(px(10.0))
-                                .bg(CRIT),
-                        )
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(CRIT)
-                                .child("FLEET-WIDE"),
-                        ),
-                )
-                .child(
-                    div()
-                        .flex_1()
-                        .flex()
-                        .items_center()
-                        .gap(px(8.0))
-                        .px(px(14.0))
-                        // Not built yet (ERR-20): shown so the fleet's shape is
-                        // legible, inert so nothing claims to have run.
-                        .child({
-                            let app = app.clone();
-                            fleet_action_live("btn-fleet-rolling-reboot", "ROLLING REBOOT".into())
-                                .on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_rolling_reboot(window, cx)))
-                        })
-                        .child(fleet_action_stub("btn-fleet-rotate-keys", "ROTATE ALL HOST KEYS".into()))
-                        .child(fleet_action_stub("btn-fleet-revoke-sessions", "REVOKE ALL SESSIONS".into()))
-                        .child({
-                            let app = app.clone();
-                            fleet_action_live("btn-fleet-push-baseline", "PUSH BASELINE TO ALL".into())
-                                .on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_push_baselines(window, cx)))
-                        }),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .px(px(14.0))
-                        .border_l_1()
-                        .border_color(BORDER_DANGER)
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .text_color(TEXT_DIMMER)
-                        .child("one host at a time, stops at the first failure · key rotation and session revoke aren't built yet"),
-                ),
-        )
         .children(if local_lab.show_modal {
             Some(crate::views::fleet::lab_modal::local_lab_modal(&local_lab.engines, &local_lab.nodes, app.clone(), local_lab))
         } else {
@@ -1268,6 +1201,54 @@ pub fn fleet_overview_view(
         .children(fleet.pending_archive.as_ref().and_then(|id| fleet.servers.iter().find(|s| &s.id == id)).map(|srv| {
             archive_confirm_overlay(srv, &purge_due, app.clone())
         }))
+}
+
+/// The fleet-wide Danger Zone: actions across every server, run one host
+/// at a time on the fleet runner.
+fn fleet_danger_page(app: Entity<CrowApp>) -> impl IntoElement {
+    use crate::components::danger_zone::{action_row, danger_triangle};
+    let reboot = {
+        let app = app.clone();
+        fleet_action_live("btn-fleet-rolling-reboot", "ROLLING REBOOT".into()).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_rolling_reboot(window, cx)))
+    };
+    let baseline = {
+        let app = app.clone();
+        fleet_action_live("btn-fleet-push-baseline", "PUSH BASELINE TO ALL".into()).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_push_baselines(window, cx)))
+    };
+    div()
+        .id("fleet-danger-page")
+        .flex_1()
+        .min_h(px(0.0))
+        .flex()
+        .flex_col()
+        .font_family(FONT_MONO)
+        .overflow_y_scrollbar()
+        .child(
+            div()
+                .h(px(34.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap(px(9.0))
+                .px(px(16.0))
+                .bg(CRIT_STRIP_BG)
+                .border_b_1()
+                .border_color(BORDER_DANGER)
+                .child(danger_triangle())
+                .child(div().text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child("FLEET-WIDE"))
+                .child(div().flex_1())
+                .child(div().text_size(px(10.0)).text_color(TEXT_DIMMER).child("one host at a time · stops at the first failure")),
+        )
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .max_w(px(920.0))
+                .child(action_row("Rolling reboot", "Reboots every reachable server in turn, each back from a fresh boot before the next.", vec![reboot.into_any_element()]))
+                .child(action_row("Push baseline", "Pushes each config baseline to every server whose copy drifted from it.", vec![baseline.into_any_element()]))
+                .child(action_row("Rotate all host keys", "Not built yet.", vec![fleet_action_stub("btn-fleet-rotate-keys", "NOT YET BUILT".into()).into_any_element()]))
+                .child(action_row("Revoke all sessions", "Not built yet.", vec![fleet_action_stub("btn-fleet-revoke-sessions", "NOT YET BUILT".into()).into_any_element()])),
+        )
 }
 
 /// A fleet-wide action that runs on the fleet runner (ERR-79).

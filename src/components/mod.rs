@@ -10,6 +10,7 @@ pub mod palette;
 pub mod sidebar;
 pub mod sparkline;
 pub mod stat_strip;
+pub mod status_bar;
 pub mod titlebar;
 
 pub use about::about_modal;
