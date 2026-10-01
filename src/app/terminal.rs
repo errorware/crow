@@ -44,12 +44,6 @@ pub struct TabRename {
     _events: Subscription,
 }
 
-/// The right-click menu on a tab.
-pub struct TabMenu {
-    pub tab: usize,
-    /// Where it was opened, in window coordinates.
-    pub at: Point<Pixels>,
-}
 
 /// A server's terminals.
 pub struct TerminalWorkspace {
@@ -142,7 +136,6 @@ impl CrowApp {
     pub fn terminal_close_pane(&mut self, pane: Option<PaneId>, cx: &mut Context<Self>) {
         // Tab indices may shift; a rename in progress doesn't survive that.
         self.terminal_rename = None;
-        self.tab_menu = None;
         let Some(ws) = self.terminal_workspace(cx) else { return };
         let Some(tab) = ws.tabs.get_mut(ws.active) else { return };
         let id = pane.unwrap_or(tab.focused);
@@ -165,12 +158,11 @@ impl CrowApp {
         cx.notify();
     }
 
-    /// Opens the rename popup for tab `i` (double-click, the tab menu,
-    /// Ctrl+Shift+R / ⌘R), the current name selected. Enter or Save keeps
+    /// Opens the small rename panel for tab `i` (the toolbar's rename
+    /// button, or Ctrl+Shift+R / ⌘R), the current name selected. Enter or Save keeps
     /// it, Escape or Cancel doesn't; an empty name follows the shell again.
     pub fn start_tab_rename(&mut self, i: usize, window: &mut Window, cx: &mut Context<Self>) {
         use gpui_kit::component::input::{InputEvent, InputState};
-        self.tab_menu = None;
         self.terminal_rename = None;
         self.terminal_select_tab(i, cx);
         let Some(current) = self.terminal_workspace(cx).filter(|ws| i < ws.tabs.len()).map(|ws| ws.tab_title(i)) else { return };
@@ -204,44 +196,12 @@ impl CrowApp {
         cx.notify();
     }
 
-    /// Back to following the shell's title.
-    pub fn reset_tab_name(&mut self, i: usize, cx: &mut Context<Self>) {
-        self.tab_menu = None;
-        if let Some(tab) = self.terminal_workspace(cx).and_then(|ws| ws.tabs.get_mut(i)) {
-            tab.name = None;
-        }
-        cx.notify();
-    }
-
-    pub fn open_tab_menu(&mut self, i: usize, at: Point<Pixels>, cx: &mut Context<Self>) {
-        self.terminal_rename = None;
-        self.terminal_select_tab(i, cx);
-        self.tab_menu = Some(TabMenu { tab: i, at });
-        cx.notify();
-    }
-
-    pub fn close_tab_menu(&mut self, cx: &mut Context<Self>) {
-        self.tab_menu = None;
-        cx.notify();
-    }
-
     /// Closes tab `i` (every pane in it).
     pub fn terminal_close_tab(&mut self, i: usize, cx: &mut Context<Self>) {
-        self.tab_menu = None;
         self.terminal_select_tab(i, cx);
         let panes = self.terminal_workspace(cx).and_then(|ws| ws.tabs.get(i)).map(|t| t.root.panes()).unwrap_or_default();
         for p in panes {
             self.terminal_close_pane(Some(p), cx);
-        }
-    }
-
-    /// Closes every tab but `keep`.
-    pub fn terminal_close_other_tabs(&mut self, keep: usize, cx: &mut Context<Self>) {
-        self.tab_menu = None;
-        let count = self.terminal_workspace(cx).map(|ws| ws.tabs.len()).unwrap_or(0);
-        // From the end, so indices below stay valid; `keep` ends up at 0.
-        for i in (0..count).rev().filter(|i| *i != keep) {
-            self.terminal_close_tab(i, cx);
         }
     }
 
@@ -258,7 +218,6 @@ impl CrowApp {
     }
 
     pub fn terminal_focus_pane(&mut self, id: PaneId, cx: &mut Context<Self>) {
-        self.tab_menu = None;
         if let Some(ws) = self.terminal_workspace(cx) {
             if let Some(tab) = ws.tabs.get_mut(ws.active).filter(|t| t.root.panes().contains(&id)) {
                 tab.focused = id;
@@ -336,10 +295,7 @@ impl CrowApp {
     pub fn terminal_key(&mut self, ev: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let m = &ev.keystroke.modifiers;
         let key = ev.keystroke.key.to_lowercase();
-        if self.tab_menu.is_some() && key == "escape" {
-            self.close_tab_menu(cx);
-            return true;
-        }
+
         // Workspace chords: ⌘ on macOS, Ctrl+Shift elsewhere.
         let chord = if cfg!(target_os = "macos") { m.platform } else { m.control && m.shift };
         if chord {
