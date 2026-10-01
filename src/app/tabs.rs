@@ -33,23 +33,22 @@ impl CrowApp {
                     is_active: true,
                 });
             }
-            self.fleet.active_tab_id = srv.id.clone();
+            // Remember where the tab we're leaving was (also when leaving
+            // from the Fleet screen, which keeps the last server view).
+            let leaving = std::mem::replace(&mut self.fleet.active_tab_id, srv.id.clone());
+            if self.fleet.tabs.iter().any(|t| t.id == leaving) {
+                self.tab_views.insert(leaving, self.active_view.clone());
+            }
             for tab in &mut self.fleet.tabs {
                 tab.is_active = tab.id == self.fleet.active_tab_id;
             }
             self.screen = Screen::Server;
-            if self.active_view == "overview" {
-                self.refresh_overview_tables(cx);
-            } else if super::is_table_page(&self.active_view) {
-                let page = self.active_view.clone();
-                self.set_services_tab(&page, cx);
-            } else if self.active_view == "users" {
-                self.refresh_users(cx);
-            } else if self.active_view == "files" {
+            let view = self.tab_views.get(&srv.id).cloned().unwrap_or_else(|| "overview".to_string());
+            if view == "files" {
                 self.files.current_path = "/".to_string();
                 self.files.pending_delete = None;
-                self.load_file_listing(cx);
             }
+            self.set_view(&view, cx);
         } else {
             self.fleet.active_tab_id = tab_id.to_string();
             self.screen = Screen::Server;
@@ -62,6 +61,7 @@ impl CrowApp {
     pub fn close_tab(&mut self, tab_id: &str, cx: &mut Context<Self>) {
         if let Some(pos) = self.fleet.tabs.iter().position(|t| t.id == tab_id || t.name == tab_id) {
             let removed = self.fleet.tabs.remove(pos);
+            self.tab_views.remove(&removed.id);
             let was_active = self.fleet.active_tab_id == tab_id || self.fleet.active_tab_id == removed.id || self.fleet.active_tab_id == removed.name;
             if was_active {
                 if let Some(next_tab) = self.fleet.tabs.get(pos).or_else(|| self.fleet.tabs.last()) {
