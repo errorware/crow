@@ -1,5 +1,6 @@
 use gpui_kit::*;
 use gpui_kit::component::input::Input;
+use gpui_kit::component::scroll::ScrollableElement;
 use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::danger_zone_state::DangerZoneState;
@@ -103,167 +104,132 @@ fn action_btn(id: &'static str, label: impl Into<SharedString>, app: Entity<Crow
         .child(label.into())
 }
 
+/// One action on the Danger Zone page: what it does, and its button.
+pub fn action_row(title: &'static str, detail: impl Into<SharedString>, buttons: Vec<AnyElement>) -> impl IntoElement {
+    div()
+        .flex()
+        .items_center()
+        .gap(px(16.0))
+        .px(px(16.0))
+        .py(px(12.0))
+        .border_b_1()
+        .border_color(BORDER_DANGER)
+        .child(
+            div()
+                .flex_1()
+                .min_w(px(0.0))
+                .flex()
+                .flex_col()
+                .gap(px(3.0))
+                .child(div().text_size(px(12.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(title))
+                .child(div().text_size(px(11.0)).text_color(TEXT_DIM).child(detail.into())),
+        )
+        .child(div().flex().flex_none().gap(px(8.0)).children(buttons))
+}
+
+/// The server's Danger Zone, a page of its own: destructive actions, each
+/// confirmed by typing its keyword, and archiving Crow's record of it.
 pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>, app: Entity<CrowApp>) -> impl IntoElement {
     let power = provider.filter(|p| p.power);
     let snapshots = provider.filter(|p| p.snapshots);
+    let btn = |id, label: String, action| action_btn(id, label, app.clone(), action).into_any_element();
+    let mut rows: Vec<AnyElement> = Vec::new();
+    rows.push(match power {
+        Some(p) => action_row(
+            "Power",
+            format!("Through {}: works even when SSH is down.", p.name),
+            vec![btn("btn-danger-poweroff", "POWER OFF".into(), "poweroff"), btn("btn-danger-reboot", "REBOOT".into(), "reboot"), btn("btn-danger-boot", "BOOT".into(), "boot")],
+        )
+        .into_any_element(),
+        None => action_row(
+            "Power",
+            "Simulated: Crow doesn't send real power signals to hosts yet. Link a provider for real power control.",
+            vec![btn("btn-danger-poweroff", "POWER OFF".into(), "poweroff"), btn("btn-danger-reboot", "REBOOT · 45s DOWNTIME".into(), "reboot")],
+        )
+        .into_any_element(),
+    });
+    if let Some(p) = snapshots {
+        let app = app.clone();
+        let list = div()
+            .id("btn-danger-snapshots")
+            .text_size(px(11.0))
+            .text_color(TEXT_SECONDARY)
+            .border_1()
+            .border_color(BORDER_DEFAULT)
+            .px(px(10.0))
+            .py(px(4.0))
+            .cursor_pointer()
+            .hover(|s| s.bg(BG_ROW_HOVER))
+            .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.open_snapshots_panel(cx)))
+            .child("SNAPSHOTS…")
+            .into_any_element();
+        rows.push(action_row("Snapshots", format!("Taken and listed at {}.", p.name), vec![list, btn("btn-danger-snapshot", "SNAPSHOT".into(), "snapshot")]).into_any_element());
+    }
+    rows.push(action_row("Flush firewall", "Resets ufw: every rule is removed and the firewall is disabled.", vec![btn("btn-danger-flush-fw", "FLUSH FIREWALL (UFW)".into(), "flush_firewall")]).into_any_element());
+    rows.push(
+        action_row(
+            "Rotate host keys",
+            "Not built yet.",
+            vec![div().id("btn-danger-rotate-keys").text_size(px(11.0)).text_color(TEXT_FAINTER).border_1().border_color(BORDER_DEFAULT).px(px(10.0)).py(px(4.0)).child("NOT YET BUILT").into_any_element()],
+        )
+        .into_any_element(),
+    );
+    rows.push(action_row("Lab containers", "Stops every lab node Crow created on this machine, and nothing else.", vec![btn("btn-danger-kill-containers", "KILL ALL LAB CONTAINERS".into(), "kill_containers")]).into_any_element());
+    // Archive acts on Crow's own record, not the host: last, and it opens an
+    // explanation rather than the keyword prompt.
+    let app_archive = app.clone();
+    rows.push(
+        action_row(
+            "Archive server",
+            "Removes it from the fleet; its data is kept until the purge date, and it can be restored.",
+            vec![div()
+                .id("btn-danger-archive")
+                .text_size(px(11.0))
+                .font_weight(FontWeight::BOLD)
+                .text_color(CRIT_INK)
+                .border_1()
+                .border_color(BORDER_DANGER_BTN)
+                .bg(CRIT_BG)
+                .px(px(10.0))
+                .py(px(4.0))
+                .cursor_pointer()
+                .hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT))
+                .on_click(move |_ev, _window, cx| app_archive.update(cx, |this, cx| this.request_archive_active_server(cx)))
+                .child("ARCHIVE SERVER")
+                .into_any_element()],
+        )
+        .into_any_element(),
+    );
+
     div()
-        .h(px(46.0))
-        .flex_none()
+        .id("danger-zone-page")
+        .size_full()
         .flex()
-        .items_stretch()
-        .bg(CRIT_STRIP_BG)
-        .border_t_1()
-        .border_color(BORDER_DANGER)
-        // 1. Label
+        .flex_col()
+        .bg(BG_APP)
+        .font_family(FONT_MONO)
+        .overflow_y_scrollbar()
         .child(
             div()
+                .h(px(34.0))
+                .flex_none()
                 .flex()
                 .items_center()
                 .gap(px(9.0))
-                .px(px(14.0))
-                .border_r_1()
+                .px(px(16.0))
+                .bg(CRIT_STRIP_BG)
+                .border_b_1()
                 .border_color(BORDER_DANGER)
                 .child(danger_triangle())
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(CRIT)
-                        .child("DANGER ZONE"),
-                ),
+                .child(div().text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child("DANGER ZONE"))
+                .child(div().flex_1())
+                .child(div().text_size(px(10.0)).text_color(TEXT_DIMMER).child("type the action's keyword to confirm · no single-click destructive actions")),
         )
-        // 2. Actions, or the typed-confirmation prompt for an armed action
-        .children(if let Some(action) = danger.pending_action.clone() {
-            Some(render_confirm_prompt(&action, danger, app.clone()).into_any_element())
-        } else {
-            None
-        })
-        .children(if danger.pending_action.is_none() {
-            Some(
-                div()
-                    .flex_1()
-                    .flex()
-                    .items_center()
-                    .gap(px(8.0))
-                    .px(px(14.0))
-                    // Linked to a provider that can power it: real actions
-                    // there (they work with SSH down). Otherwise the named
-                    // simulation below.
-                    .children(match power {
-                        Some(p) => vec![
-                            action_btn("btn-danger-poweroff", format!("POWER OFF · {}", p.name.to_uppercase()), app.clone(), "poweroff").into_any_element(),
-                            action_btn("btn-danger-reboot", format!("REBOOT · {}", p.name.to_uppercase()), app.clone(), "reboot").into_any_element(),
-                            action_btn("btn-danger-boot", format!("BOOT · {}", p.name.to_uppercase()), app.clone(), "boot").into_any_element(),
-                        ],
-                        None => vec![
-                            action_btn("btn-danger-poweroff", "POWER OFF", app.clone(), "poweroff").into_any_element(),
-                            action_btn("btn-danger-reboot", "REBOOT · 45s DOWNTIME", app.clone(), "reboot").into_any_element(),
-                        ],
-                    })
-                    .children(snapshots.map(|p| action_btn("btn-danger-snapshot", format!("SNAPSHOT · {}", p.name.to_uppercase()), app.clone(), "snapshot")))
-                    // Listing snapshots is harmless: no keyword, just a panel.
-                    .children(snapshots.map(|_| {
-                        let app = app.clone();
-                        div()
-                            .id("btn-danger-snapshots")
-                            .font_family(FONT_MONO)
-                            .text_size(px(11.0))
-                            .text_color(TEXT_SECONDARY)
-                            .border_1()
-                            .border_color(BORDER_DEFAULT)
-                            .px(px(10.0))
-                            .py(px(4.0))
-                            .cursor_pointer()
-                            .hover(|s| s.bg(BG_ROW_HOVER))
-                            .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.open_snapshots_panel(cx)))
-                            .child("SNAPSHOTS…")
-                    }))
-                    .child(action_btn("btn-danger-flush-fw", "FLUSH FIREWALL (UFW)", app.clone(), "flush_firewall"))
-                    .child(
-                        div()
-                            .id("btn-danger-rotate-keys")
-                            .font_family("JetBrains Mono")
-                            .text_size(px(11.0))
-                            .text_color(TEXT_FAINTER)
-                            .border_1()
-                            .border_color(BORDER_DEFAULT)
-                            .px(px(10.0))
-                            .py(px(4.0))
-                            .child("ROTATE HOST KEYS · NOT YET BUILT"),
-                    )
-                    .child(action_btn("btn-danger-kill-containers", "KILL ALL LAB CONTAINERS", app.clone(), "kill_containers"))
-                    .into_any_element(),
-            )
-        } else {
-            None
-        })
-        // 3. Policy note / last result
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .gap(px(10.0))
-                .px(px(14.0))
-                .border_l_1()
-                .border_color(BORDER_DANGER)
-                .children(danger.last_result.as_ref().map(|msg| {
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .text_color(TEXT_DIM)
-                        .child(msg.clone())
-                }))
-                .children(if danger.last_result.is_none() {
-                    Some(
-                        div()
-                            .font_family("JetBrains Mono")
-                            .text_size(px(10.0))
-                            .text_color(TEXT_DIMMER)
-                            .child("type the action's keyword to confirm — no single-click destructive actions"),
-                    )
-                } else {
-                    None
-                }),
-        )
-        // 4. Archive (ERR-32). Everything left of this acts on the host; this
-        //    acts on Crow's own record of it, so it sits apart at the far right
-        //    and opens an explanation rather than the keyword prompt.
-        .children(if danger.pending_action.is_none() {
-            let app_archive = app.clone();
-            Some(
-                div()
-                    .flex()
-                    .items_center()
-                    .px(px(14.0))
-                    .border_l_1()
-                    .border_color(BORDER_DANGER)
-                    .child(
-                        div()
-                            .id("btn-danger-archive")
-                            .font_family(FONT_MONO)
-                            .text_size(px(11.0))
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(CRIT_INK)
-                            .border_1()
-                            .border_color(BORDER_DANGER_BTN)
-                            .bg(CRIT_BG)
-                            .px(px(10.0))
-                            .py(px(4.0))
-                            .cursor_pointer()
-                            .hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT))
-                            .on_click(move |_ev, _window, cx| {
-                                app_archive.update(cx, |this, cx| {
-                                    this.request_archive_active_server(cx);
-                                });
-                            })
-                            .child("ARCHIVE SERVER"),
-                    )
-                    .into_any_element(),
-            )
-        } else {
-            None
-        })
+        .children(danger.pending_action.clone().map(|action| {
+            div().flex().items_center().min_h(px(46.0)).bg(CRIT_STRIP_BG).border_b_1().border_color(BORDER_DANGER).child(render_confirm_prompt(&action, danger, app.clone()))
+        }))
+        .children(danger.last_result.as_ref().map(|msg| div().px(px(16.0)).py(px(8.0)).border_b_1().border_color(BORDER_DANGER).text_size(px(10.5)).text_color(TEXT_SECONDARY).child(msg.clone())))
+        .child(div().flex().flex_col().max_w(px(920.0)).children(rows))
 }
 
 fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<CrowApp>) -> impl IntoElement {

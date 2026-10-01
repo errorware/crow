@@ -22,7 +22,8 @@ pub struct FleetState {
     /// Servers that left the fleet but were never deleted (ERR-32).
     pub archived: Vec<ServerRecord>,
     /// Which Fleet tab is showing: the active fleet or the archive.
-    pub show_archived: bool,
+    /// Which page of the Fleet screen is showing.
+    pub page: FleetPage,
     /// One-line feedback after an archive, restore or purge.
     pub notice: Option<String>,
     /// Server awaiting archive confirmation.
@@ -64,7 +65,7 @@ impl FleetState {
             region_note: None,
             drift: None,
             archived: Vec::new(),
-            show_archived: false,
+            page: FleetPage::Active,
             notice: None,
             pending_archive: None,
         }
@@ -211,4 +212,14 @@ mod tests {
         let ages = host_key_ages(&[srv("new", Some(now - 10 * day)), srv("old", Some(now - 800 * day)), srv("mid", Some(now - 400 * day)), srv("unread", None)], now);
         assert_eq!(ages, KeyAges { oldest: Some((800, "old".into())), buckets: [1, 1, 1], unknown: 1 });
     }
+}
+
+/// The Fleet screen's pages: the servers, the archived ones, and the
+/// fleet-wide Danger Zone.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FleetPage {
+    #[default]
+    Active,
+    Archived,
+    Danger,
 }

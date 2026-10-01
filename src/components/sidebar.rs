@@ -116,6 +116,9 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, app: Enti
                 row
             }
         }))
+        // Danger Zone: last, apart, and red whether active or not.
+        .child(div().h(px(1.0)).mx(px(12.0)).my(px(4.0)).bg(BORDER_DANGER))
+        .child(danger_nav(active_view == "danger", collapsed, app.clone()))
         .child(div().flex_1())
         // Footer
         .child(
@@ -127,43 +130,6 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, app: Enti
                 .flex()
                 .flex_col()
                 .gap(px(6.0))
-                .children(if !collapsed {
-                    Some(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap(px(6.0))
-                            .child(
-                                div()
-                                    .font_family("JetBrains Mono")
-                                    .text_size(px(10.0))
-                                    .text_color(TEXT_FAINT)
-                                    .child(concat!("crow v", env!("CARGO_PKG_VERSION"))),
-                            )
-                            .child(
-                                div()
-                                    .flex()
-                                    .items_center()
-                                    .gap(px(7.0))
-                                    .child(
-                                        div()
-                                            .size(px(6.0))
-                                            .rounded_full()
-                                            .bg(OK)
-                                            .flex_none(),
-                                    )
-                                    .child(
-                                        div()
-                                            .font_family("JetBrains Mono")
-                                            .text_size(px(10.0))
-                                            .text_color(TEXT_DIM)
-                                            .child("agentless · ssh"),
-                                    ),
-                            )
-                    )
-                } else {
-                    None
-                })
                 .child({
                     let app_collapse = app.clone();
                     div()
@@ -222,4 +188,31 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, app: Enti
                         })
                 }),
         )
+}
+
+fn danger_nav(is_active: bool, collapsed: bool, app: Entity<CrowApp>) -> impl IntoElement {
+    let ink = if is_active { CRIT } else { CRIT_INK_DIM };
+    div()
+        .id("nav-item-danger")
+        .relative()
+        .flex()
+        .items_center()
+        .gap(px(10.0))
+        .h(px(30.0))
+        .px(if collapsed { px(14.0) } else { px(12.0) })
+        .bg(if is_active { CRIT_ROW_BG } else { hex_rgba(0, 0.0) })
+        .hover(|s| s.bg(CRIT_ROW_BG))
+        .cursor_pointer()
+        .children(is_active.then(|| left_indicator(CRIT)))
+        .child(div().w(px(14.0)).h(px(14.0)).flex().items_center().justify_center().flex_none().child(tabler_icon(TablerIcon::AlertTriangle).size(px(14.0)).text_color(ink)))
+        .children((!collapsed).then(|| {
+            div()
+                .flex_1()
+                .font_family(FONT_MONO)
+                .text_size(px(11.5))
+                .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+                .text_color(ink)
+                .child("Danger Zone")
+        }))
+        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_view("danger", cx)))
 }

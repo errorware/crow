@@ -11,13 +11,22 @@ use crate::components::icons::{tabler_icon, TablerIcon};
 use crate::theme::*;
 use crate::vault::{ChangeRecord, ServerRecord};
 use crate::views::fleet::FleetState;
+use crate::views::fleet::state::FleetPage;
 
-/// ACTIVE FLEET / ARCHIVED switch, plus the last action's result.
+/// ACTIVE FLEET / ARCHIVED / DANGER ZONE switch, plus the last action's result.
 pub fn fleet_view_tabs(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoElement {
     let active_n = fleet.servers.len();
     let archived_n = fleet.archive_count();
-    let showing_archived = fleet.show_archived;
-    let (app_active, app_archived) = (app.clone(), app.clone());
+    let page = fleet.page;
+    let set = |to: FleetPage| {
+        let app = app.clone();
+        move |cx: &mut App| {
+            app.update(cx, |this, cx| {
+                this.fleet.page = to;
+                cx.notify();
+            })
+        }
+    };
 
     div()
         .h(px(30.0))
@@ -30,18 +39,9 @@ pub fn fleet_view_tabs(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEle
         .border_b_1()
         .border_color(BORDER_PANEL)
         .font_family(FONT_MONO)
-        .child(tab_chip("fleet-tab-active", &format!("ACTIVE FLEET ({active_n})"), !showing_archived, move |cx| {
-            app_active.update(cx, |this, cx| {
-                this.fleet.show_archived = false;
-                cx.notify();
-            });
-        }))
-        .child(tab_chip("fleet-tab-archived", &format!("ARCHIVED ({archived_n})"), showing_archived, move |cx| {
-            app_archived.update(cx, |this, cx| {
-                this.fleet.show_archived = true;
-                cx.notify();
-            });
-        }))
+        .child(tab_chip("fleet-tab-active", &format!("ACTIVE FLEET ({active_n})"), page == FleetPage::Active, set(FleetPage::Active)))
+        .child(tab_chip("fleet-tab-archived", &format!("ARCHIVED ({archived_n})"), page == FleetPage::Archived, set(FleetPage::Archived)))
+        .child(danger_chip(page == FleetPage::Danger, set(FleetPage::Danger)))
         .child(div().flex_1())
         .children(fleet.notice.as_ref().map(|notice| {
             div()
@@ -66,6 +66,28 @@ fn tab_chip(id: &'static str, label: &str, is_on: bool, on_click: impl Fn(&mut A
         .hover(|s| s.bg(BG_ROW_HOVER))
         .on_click(move |_ev, _window, cx| on_click(cx))
         .child(label.to_string())
+}
+
+/// The fleet-wide Danger Zone's tab: red whether on or not.
+fn danger_chip(is_on: bool, on_click: impl Fn(&mut App) + 'static) -> impl IntoElement {
+    div()
+        .id("fleet-tab-danger")
+        .flex()
+        .items_center()
+        .gap(px(6.0))
+        .px(px(10.0))
+        .py(px(3.0))
+        .border_1()
+        .border_color(if is_on { CRIT } else { BORDER_DANGER_BTN })
+        .bg(if is_on { CRIT_BG } else { hex_rgba(0, 0.0) })
+        .text_color(if is_on { CRIT } else { CRIT_INK_DIM })
+        .font_weight(if is_on { FontWeight::BOLD } else { FontWeight::NORMAL })
+        .text_size(px(10.0))
+        .cursor_pointer()
+        .hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT))
+        .on_click(move |_ev, _window, cx| on_click(cx))
+        .child(tabler_icon(TablerIcon::AlertTriangle).size(px(11.0)).text_color(if is_on { CRIT } else { CRIT_INK_DIM }))
+        .child("DANGER ZONE")
 }
 
 /// The archived servers, their purge countdown, and recent purges.
