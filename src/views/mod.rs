@@ -9,5 +9,6 @@ pub mod logs;
 pub mod onboard;
 pub mod overview;
 pub mod settings;
+pub mod terminal;
 pub mod users;
 

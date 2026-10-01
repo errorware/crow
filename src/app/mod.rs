@@ -28,6 +28,7 @@ use crate::views::overview::{
 pub mod danger;
 pub mod fleet_run;
 pub mod recovery;
+pub mod terminal;
 pub mod history_view;
 mod files;
 mod firewall;
@@ -239,6 +240,9 @@ pub struct CrowApp {
     pub fleet_runner: Option<fleet_run::FleetRunner>,
     /// Why a server can't be reached, and the fix (ERR-89).
     pub recovery: Option<recovery::RecoveryPanel>,
+    /// Terminal panes by server id, and the task pumping them (ERR-93).
+    pub terminals: std::collections::HashMap<String, terminal::TerminalPane>,
+    pub terminal_pump: Option<Task<()>>,
     /// Metrics history bookkeeping (ERR-84).
     pub history: HistoryClock,
     /// Servers whose last history sample was unreachable (ERR-85).
@@ -430,6 +434,8 @@ impl CrowApp {
             snapshots_panel: None,
             fleet_runner: None,
             recovery: None,
+            terminals: std::collections::HashMap::new(),
+            terminal_pump: None,
             history: HistoryClock { watch_started: chrono::Utc::now().timestamp(), ..Default::default() },
             history_down: Default::default(),
             history_range: crate::metrics::chart::Range::Day,

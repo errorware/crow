@@ -336,6 +336,17 @@ impl Render for CrowApp {
                                                                         .flex()
                                                                         .child(logs_explorer_view(app_view.clone(), self.logs_search.as_ref().map(|s| &s.input), &self.journal, self.ai_provider_name()))
                                                                 )
+                                                            } else if self.active_view == "terminal" {
+                                                                let app = app_view.clone();
+                                                                self.terminal_pane(cx).map(|pane| {
+                                                                    if pane.focus_pending {
+                                                                        window.focus(&pane.focus, cx);
+                                                                        pane.focus_pending = false;
+                                                                    }
+                                                                    let focused = pane.focus.is_focused(window);
+                                                                    let frame = pane.session.as_ref().map(|s| s.frame());
+                                                                    div().size_full().child(crate::views::terminal::terminal_view(pane, frame, focused, app))
+                                                                })
                                                             } else if self.active_view == "history" {
                                                                 let hover = self.history_hover;
                                                                 self.history_cache().map(|c| {

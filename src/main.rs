@@ -10,6 +10,7 @@ pub mod config;
 pub mod host;
 pub mod journal;
 pub mod keys;
+pub mod terminal;
 pub mod lab;
 pub mod metrics;
 pub mod os_detect;
