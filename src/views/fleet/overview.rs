@@ -617,8 +617,8 @@ pub fn fleet_overview_view(
                                     hosts.into_iter().enumerate().map(|(idx, host)| {
                                         let app_host = app.clone();
                                         let host_id = host.id.clone();
-                                        let app_archive = app.clone();
-                                        let archive_id = host.id.clone();
+                                        let app_terminal = app.clone();
+                                        let terminal_id = host.id.clone();
                                         let is_even = idx % 2 == 0;
 
                                         div()
@@ -855,7 +855,9 @@ pub fn fleet_overview_view(
                                                     .text_color(host.alert_color)
                                                     .child(host.alerts),
                                             )
-                                            // Archive (ERR-32): a server is never deleted outright.
+                                            // Straight to the server's terminal (ERR-93). Archiving
+                                            // stays a deliberate step: the server's Danger Zone, or
+                                            // Settings → Servers & Archives.
                                             .child(
                                                 div()
                                                     .w(px(78.0))
@@ -864,25 +866,23 @@ pub fn fleet_overview_view(
                                                     .justify_end()
                                                     .child(
                                                         div()
-                                                            .id(SharedString::from(format!("fleet-archive-{archive_id}")))
+                                                            .id(SharedString::from(format!("fleet-terminal-{terminal_id}")))
                                                             .px(px(7.0))
-                                                            .py(px(1.5))
+                                                            .py(px(2.0))
                                                             .border_1()
                                                             .border_color(BORDER_DEFAULT)
-                                                            .text_color(TEXT_DIMMER)
-                                                            .text_size(px(9.0))
-                                                            .font_weight(FontWeight::BOLD)
+                                                            .text_color(TEXT_DIM)
                                                             .cursor_pointer()
-                                                            .hover(|s| s.bg(BG_CONTROL).text_color(WARN))
+                                                            .hover(|s| s.bg(BG_CONTROL).text_color(TEXT_PRIMARY).border_color(TEXT_DIM))
                                                             .on_click(move |_ev, _window, cx| {
-                                                                let id = archive_id.clone();
+                                                                let id = terminal_id.clone();
                                                                 cx.stop_propagation();
-                                                                app_archive.update(cx, |this, cx| {
-                                                                    this.fleet.pending_archive = Some(id);
-                                                                    cx.notify();
+                                                                app_terminal.update(cx, |this, cx| {
+                                                                    this.switch_tab(&id, cx);
+                                                                    this.set_view("terminal", cx);
                                                                 });
                                                             })
-                                                            .child("ARCHIVE"),
+                                                            .child(crate::components::icons::inherited_icon(TablerIcon::Terminal2, px(13.0))),
                                                     ),
                                             )
                                     }).collect::<Vec<_>>()
