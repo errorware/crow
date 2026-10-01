@@ -393,4 +393,19 @@ mod tests {
         term.selection = Some(Selection::new(SelectionType::Semantic, Point::new(alacritty_terminal::index::Line(0), Column(1)), Side::Left));
         assert_eq!(term.selection_to_string().as_deref(), Some("hello"), "double click selects the word");
     }
+
+    #[test]
+    fn programs_turn_on_mouse_reporting_and_scrolling_as_arrows() {
+        let size = GridSize { cols: 40, rows: 5, cell_w: 8, cell_h: 16 };
+        let launch = Launch { program: "sh".into(), args: vec!["-c".into(), "printf '\\033[?1049h\\033[?1002h\\033[?1006h'; sleep 5".into()] };
+        let mut s = Session::spawn(&launch, size).expect("sh runs");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(3);
+        while !s.mode().contains(TermMode::SGR_MOUSE) && std::time::Instant::now() < deadline {
+            s.pump();
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let mode = s.mode();
+        assert!(mode.contains(TermMode::MOUSE_DRAG | TermMode::SGR_MOUSE | TermMode::ALT_SCREEN), "{mode:?}");
+        assert!(mode.contains(TermMode::ALTERNATE_SCROLL), "the wheel sends arrows in full-screen programs by default");
+    }
 }
