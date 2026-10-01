@@ -10,7 +10,8 @@ use gpui_kit::*;
 
 use std::collections::HashMap;
 
-use crate::app::terminal::{TerminalPane, TerminalWorkspace};
+use crate::app::terminal::{TabRename, TerminalPane, TerminalWorkspace};
+use gpui_kit::component::input::Input;
 use crate::components::icons::{inherited_icon, TablerIcon};
 use crate::terminal::layout::{Axis, Node, PaneId};
 use crate::app::CrowApp;
@@ -27,7 +28,7 @@ fn color(c: u32) -> Hsla {
 }
 
 /// The server's terminals: a tab bar, then the active tab's panes.
-pub fn workspace_view(ws: &TerminalWorkspace, frames: &mut HashMap<PaneId, Frame>, focused: Option<PaneId>, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames: &mut HashMap<PaneId, Frame>, focused: Option<PaneId>, app: Entity<CrowApp>) -> impl IntoElement {
     let tool = |id: &'static str, icon: TablerIcon, tip: &'static str| {
         div()
             .id(id)
@@ -81,8 +82,37 @@ pub fn workspace_view(ws: &TerminalWorkspace, frames: &mut HashMap<PaneId, Frame
                         .text_color(if rang { WARN } else if selected { TEXT_MAX } else { TEXT_MUTED })
                         .cursor_pointer()
                         .hover(|s| s.text_color(TEXT_PRIMARY))
-                        .on_click(move |_ev, _w, cx| app_sel.update(cx, |this, cx| this.terminal_select_tab(i, cx)))
-                        .child(div().overflow_hidden().whitespace_nowrap().text_ellipsis().child(format!("{}{}", if rang { "● " } else { "" }, ws.tab_title(i))))
+                        // Double-click to rename.
+                        .on_click(move |ev, window, cx| {
+                            let double = ev.click_count() >= 2;
+                            app_sel.update(cx, |this, cx| {
+                                this.terminal_select_tab(i, cx);
+                                if double {
+                                    this.start_tab_rename(i, window, cx);
+                                }
+                            })
+                        })
+                        .child(match rename.filter(|r| r.tab == i) {
+                            Some(r) => {
+                                let app_esc = app.clone();
+                                div()
+                                    .w(px(150.0))
+                                    .on_key_down(move |ev: &KeyDownEvent, _w, cx| {
+                                        if ev.keystroke.key == "escape" {
+                                            cx.stop_propagation();
+                                            app_esc.update(cx, |this, cx| this.finish_tab_rename(false, cx));
+                                        }
+                                    })
+                                    .child(Input::new(&r.input))
+                                    .into_any_element()
+                            }
+                            None => div()
+                                .overflow_hidden()
+                                .whitespace_nowrap()
+                                .text_ellipsis()
+                                .child(format!("{}{}", if rang { "● " } else { "" }, ws.tab_title(i)))
+                                .into_any_element(),
+                        })
                         .child(
                             div()
                                 .id(("term-tab-close", i))

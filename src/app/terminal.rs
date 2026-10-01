@@ -32,6 +32,16 @@ pub struct TerminalPane {
 pub struct TerminalTab {
     pub root: Node,
     pub focused: PaneId,
+    /// A name the user gave the tab; `None` follows the shell's title.
+    pub name: Option<String>,
+}
+
+/// A tab being renamed in place.
+pub struct TabRename {
+    server_id: String,
+    pub tab: usize,
+    pub input: Entity<gpui_kit::component::input::InputState>,
+    _events: Subscription,
 }
 
 /// A server's terminals.
@@ -51,9 +61,13 @@ impl TerminalWorkspace {
         self.panes.get_mut(&id)
     }
 
-    /// A tab's label: the shell's title for its focused pane, else "shell N".
+    /// A tab's label: the name it was given, else the shell's title for its
+    /// focused pane, else "shell N".
     pub fn tab_title(&self, i: usize) -> String {
         let tab = &self.tabs[i];
+        if let Some(name) = &tab.name {
+            return name.clone();
+        }
         self.panes
             .get(&tab.focused)
             .and_then(|p| p.session.as_ref())
@@ -83,7 +97,7 @@ impl CrowApp {
         let srv = self.fleet.active_server()?;
         if !self.terminals.contains_key(&srv.id) {
             let pane = Self::new_pane(&srv.id, cx);
-            let tab = TerminalTab { root: Node::Pane(pane.id), focused: pane.id };
+            let tab = TerminalTab { root: Node::Pane(pane.id), focused: pane.id, name: None };
             self.terminals.insert(srv.id.clone(), TerminalWorkspace { tabs: vec![tab], active: 0, panes: HashMap::from([(pane.id, pane)]) });
             self.ensure_terminal_pump(cx);
         }
@@ -94,7 +108,7 @@ impl CrowApp {
         let Some(srv) = self.fleet.active_server() else { return };
         let pane = Self::new_pane(&srv.id, cx);
         if let Some(ws) = self.terminal_workspace(cx) {
-            ws.tabs.push(TerminalTab { root: Node::Pane(pane.id), focused: pane.id });
+            ws.tabs.push(TerminalTab { root: Node::Pane(pane.id), focused: pane.id, name: None });
             ws.active = ws.tabs.len() - 1;
             ws.panes.insert(pane.id, pane);
         }
@@ -119,6 +133,8 @@ impl CrowApp {
     /// Closes a pane (its session ends); the last pane of a tab closes the
     /// tab. `None` closes the focused pane.
     pub fn terminal_close_pane(&mut self, pane: Option<PaneId>, cx: &mut Context<Self>) {
+        // Tab indices may shift; a rename in progress doesn't survive that.
+        self.terminal_rename = None;
         let Some(ws) = self.terminal_workspace(cx) else { return };
         let Some(tab) = ws.tabs.get_mut(ws.active) else { return };
         let id = pane.unwrap_or(tab.focused);
@@ -138,6 +154,41 @@ impl CrowApp {
             }
         }
         ws.panes.remove(&id);
+        cx.notify();
+    }
+
+    /// Edits tab `i`'s name in place (double-click). Enter or clicking away
+    /// keeps it; Escape cancels; an empty name goes back to the shell's title.
+    pub fn start_tab_rename(&mut self, i: usize, window: &mut Window, cx: &mut Context<Self>) {
+        use gpui_kit::component::input::{InputEvent, InputState};
+        let Some(current) = self.terminal_workspace(cx).filter(|ws| i < ws.tabs.len()).map(|ws| ws.tab_title(i)) else { return };
+        let input = cx.new(|cx| InputState::new(window, cx).default_value(current).placeholder("tab name"));
+        input.update(cx, |inp, cx| inp.focus(window, cx));
+        let events = cx.subscribe(&input, |this, _input, ev: &InputEvent, cx| {
+            if matches!(ev, InputEvent::PressEnter { .. } | InputEvent::Blur) {
+                this.finish_tab_rename(true, cx);
+            }
+        });
+        let server_id = self.fleet.active_server().map(|s| s.id).unwrap_or_default();
+        self.terminal_rename = Some(TabRename { server_id, tab: i, input, _events: events });
+        cx.notify();
+    }
+
+    pub fn finish_tab_rename(&mut self, keep: bool, cx: &mut Context<Self>) {
+        let Some(r) = self.terminal_rename.take() else { return };
+        let text = r.input.read(cx).value().trim().to_string();
+        let same_server = self.fleet.active_server().is_some_and(|s| s.id == r.server_id);
+        let keep = keep && same_server;
+        if let Some(ws) = self.terminal_workspace(cx) {
+            if keep {
+                if let Some(tab) = ws.tabs.get_mut(r.tab) {
+                    tab.name = (!text.is_empty()).then_some(text);
+                }
+            }
+            if let Some(p) = ws.focused_pane_mut() {
+                p.focus_pending = true;
+            }
+        }
         cx.notify();
     }
 
