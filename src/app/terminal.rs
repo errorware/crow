@@ -14,7 +14,7 @@ use super::CrowApp;
 use crate::terminal::input::{self, Mods};
 use crate::terminal::launch::launch_for;
 use crate::terminal::layout::{Axis, Node, PaneId};
-use crate::terminal::session::{GridSize, Session};
+use crate::terminal::session::{GridSize, SelectBy, Session};
 
 pub struct TerminalPane {
     pub id: PaneId,
@@ -27,6 +27,10 @@ pub struct TerminalPane {
     pub target: Rc<Cell<Option<GridSize>>>,
     /// Focus the pane on the next render.
     pub focus_pending: bool,
+    /// Where the grid was last painted: its origin and cell size.
+    pub grid: Rc<Cell<Option<(Point<Pixels>, Size<Pixels>)>>>,
+    /// A mouse selection is being dragged.
+    pub selecting: bool,
 }
 
 pub struct TerminalTab {
@@ -90,7 +94,7 @@ fn next_pane_id() -> PaneId {
 
 impl CrowApp {
     fn new_pane(server_id: &str, cx: &mut Context<Self>) -> TerminalPane {
-        TerminalPane { id: next_pane_id(), server_id: server_id.into(), session: None, error: None, focus: cx.focus_handle(), target: Rc::new(Cell::new(None)), focus_pending: true }
+        TerminalPane { id: next_pane_id(), server_id: server_id.into(), session: None, error: None, focus: cx.focus_handle(), target: Rc::new(Cell::new(None)), focus_pending: true, grid: Rc::new(Cell::new(None)), selecting: false }
     }
 
     /// The active server's workspace, created with one tab on first use.
@@ -312,6 +316,7 @@ impl CrowApp {
                 ("right" | "]", _) => self.terminal_cycle(true, cx),
                 ("left" | "[", _) => self.terminal_cycle(false, cx),
                 ("v", _) => self.terminal_paste(cx),
+                ("c", _) => self.terminal_copy(cx),
                 _ => return false,
             }
             return true;
@@ -334,6 +339,7 @@ impl CrowApp {
         let app_cursor = session.mode().contains(alacritty_terminal::term::TermMode::APP_CURSOR);
         let mods = Mods { ctrl: m.control, alt: m.alt, shift: m.shift };
         if let Some(bytes) = input::encode(&key, ev.keystroke.key_char.as_deref(), mods, app_cursor) {
+            session.clear_selection();
             session.scroll_to_bottom();
             session.write(bytes);
         }
@@ -353,6 +359,82 @@ impl CrowApp {
         if let Some(s) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get(&pane)).and_then(|p| p.session.as_ref()) {
             s.scroll(lines);
             cx.notify();
+        }
+    }
+
+    /// Copies the focused pane's selection to the clipboard.
+    fn terminal_copy(&mut self, cx: &mut Context<Self>) {
+        if let Some(text) = self.terminal_workspace(cx).and_then(|ws| ws.focused_pane()).and_then(|p| p.session.as_ref()).and_then(|s| s.selection_text()) {
+            cx.write_to_clipboard(ClipboardItem::new_string(text));
+        }
+    }
+
+    /// The visible cell under `pos`: row (may be off the grid, negative
+    /// above it), column, and whether the pointer is on its right half.
+    fn cell_at(pane: &TerminalPane, pos: Point<Pixels>) -> Option<(i32, usize, bool)> {
+        let (origin, cell) = pane.grid.get()?;
+        let x = ((pos.x - origin.x) / cell.width).max(0.0);
+        let y = (pos.y - origin.y) / cell.height;
+        Some((y.floor() as i32, x.floor() as usize, x.fract() >= 0.5))
+    }
+
+    /// Mouse press in a pane: one click starts a selection by cell, two by
+    /// word, three by line; Shift extends the current one.
+    pub fn terminal_select_start(&mut self, id: PaneId, pos: Point<Pixels>, clicks: usize, shift: bool, cx: &mut Context<Self>) {
+        self.terminal_focus_pane(id, cx);
+        let Some(pane) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get_mut(&id)) else { return };
+        let (Some((row, col, right)), Some(s)) = (Self::cell_at(pane, pos), pane.session.as_ref()) else { return };
+        let row = row.max(0) as usize;
+        if shift && s.selection_text().is_some() {
+            s.update_selection(row, col, right);
+        } else {
+            let by = match clicks {
+                0 | 1 => SelectBy::Cell,
+                2 => SelectBy::Word,
+                _ => SelectBy::Line,
+            };
+            s.start_selection(row, col, right, by);
+        }
+        pane.selecting = true;
+        cx.notify();
+    }
+
+    /// Mouse moved with the button held: extends the selection, scrolling
+    /// the history when dragged past the top or bottom.
+    pub fn terminal_select_drag(&mut self, id: PaneId, pos: Point<Pixels>, cx: &mut Context<Self>) {
+        let Some(pane) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get_mut(&id)).filter(|p| p.selecting) else { return };
+        let (Some((row, col, right)), Some(s)) = (Self::cell_at(pane, pos), pane.session.as_ref()) else { return };
+        let rows = s.size().rows as i32;
+        if row < 0 {
+            s.scroll(1);
+        } else if row >= rows {
+            s.scroll(-1);
+        }
+        s.update_selection(row.clamp(0, rows - 1) as usize, col, right);
+        cx.notify();
+    }
+
+    /// Mouse released: the selection is done (and, on Linux, becomes the
+    /// primary selection for middle-click paste).
+    pub fn terminal_select_end(&mut self, id: PaneId, cx: &mut Context<Self>) {
+        let Some(pane) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get_mut(&id)).filter(|p| p.selecting) else { return };
+        pane.selecting = false;
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        if let Some(text) = pane.session.as_ref().and_then(|s| s.selection_text()) {
+            cx.write_to_primary(ClipboardItem::new_string(text));
+        }
+    }
+
+    /// Middle click: pastes the primary selection (Linux).
+    pub fn terminal_paste_primary(&mut self, id: PaneId, cx: &mut Context<Self>) {
+        self.terminal_focus_pane(id, cx);
+        #[cfg(any(target_os = "linux", target_os = "freebsd"))]
+        {
+            let text = cx.read_from_primary().and_then(|c| c.text());
+            if let (Some(text), Some(s)) = (text, self.terminal_workspace(cx).and_then(|ws| ws.panes.get(&id)).and_then(|p| p.session.as_ref())) {
+                s.scroll_to_bottom();
+                s.write(input::paste(&text, s.mode().contains(alacritty_terminal::term::TermMode::BRACKETED_PASTE)));
+            }
         }
     }
 }

@@ -228,7 +228,8 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, a
         _ => None,
     };
     let scrolled = frame.as_ref().map(|f| f.scrolled).unwrap_or(0);
-    let (app_keys, app_wheel, app_click) = (app.clone(), app.clone(), app);
+    let (app_keys, app_wheel, app_click, app_middle, app_drag) = (app.clone(), app.clone(), app.clone(), app.clone(), app);
+    let grid = pane.grid.clone();
     let pane_id = pane.id;
 
     div()
@@ -253,10 +254,30 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, a
                 app_wheel.update(cx, |this, cx| this.terminal_scroll(pane_id, lines, cx));
             }
         })
-        .on_mouse_down(MouseButton::Left, move |_ev, _window, cx| {
-            app_click.update(cx, |this, cx| this.terminal_focus_pane(pane_id, cx));
+        .on_mouse_down(MouseButton::Left, move |ev: &MouseDownEvent, _window, cx| {
+            app_click.update(cx, |this, cx| this.terminal_select_start(pane_id, ev.position, ev.click_count, ev.modifiers.shift, cx));
         })
-        .child(canvas(move |_b, _w, _cx| (), move |bounds, (), window, cx| paint_screen(bounds, frame.as_ref(), focused, &target, window, cx)).size_full())
+        .on_mouse_down(MouseButton::Middle, move |_ev, _window, cx| {
+            app_middle.update(cx, |this, cx| this.terminal_paste_primary(pane_id, cx));
+        })
+        .child(
+            canvas(move |_b, _w, _cx| (), move |bounds, (), window, cx| {
+                paint_screen(bounds, frame.as_ref(), focused, &target, &grid, window, cx);
+                // Drags keep selecting outside the pane, until released anywhere.
+                let (moved, released) = (app_drag.clone(), app_drag.clone());
+                window.on_mouse_event(move |ev: &MouseMoveEvent, phase, _window, cx| {
+                    if phase == DispatchPhase::Bubble && ev.pressed_button == Some(MouseButton::Left) {
+                        moved.update(cx, |this, cx| this.terminal_select_drag(pane_id, ev.position, cx));
+                    }
+                });
+                window.on_mouse_event(move |ev: &MouseUpEvent, phase, _window, cx| {
+                    if phase == DispatchPhase::Bubble && ev.button == MouseButton::Left {
+                        released.update(cx, |this, cx| this.terminal_select_end(pane_id, cx));
+                    }
+                });
+            })
+            .size_full(),
+        )
         .children((scrolled > 0).then(|| {
             div()
                 .absolute()
@@ -290,7 +311,7 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, a
         }))
 }
 
-fn paint_screen(bounds: Bounds<Pixels>, frame: Option<&Frame>, focused: bool, target: &Rc<Cell<Option<GridSize>>>, window: &mut Window, cx: &mut App) {
+fn paint_screen(bounds: Bounds<Pixels>, frame: Option<&Frame>, focused: bool, target: &Rc<Cell<Option<GridSize>>>, grid: &Rc<Cell<Option<(Point<Pixels>, Size<Pixels>)>>>, window: &mut Window, cx: &mut App) {
     let size = px(FONT_SIZE);
     let base = font(FONT_MONO);
     let ts = window.text_system().clone();
@@ -305,6 +326,7 @@ fn paint_screen(bounds: Bounds<Pixels>, frame: Option<&Frame>, focused: bool, ta
 
     let Some(frame) = frame else { return };
     let origin = point(bounds.origin.x + px(PAD), bounds.origin.y + px(PAD));
+    grid.set(Some((origin, size_of(cell_w, cell_h))));
     for (row, runs) in frame.rows.iter().enumerate() {
         let y = origin.y + cell_h * row as f32;
         for r in runs {
@@ -333,6 +355,11 @@ fn paint_screen(bounds: Bounds<Pixels>, frame: Option<&Frame>, focused: bool, ta
             let shaped = ts.shape_line(r.text.clone().into(), size, &[run], Some(cell_w));
             let _ = shaped.paint(point(x, y), cell_h, TextAlign::Left, None, window, cx);
         }
+    }
+    // Selection: a translucent wash over the selected cells.
+    for &(row, first, last) in &frame.selection {
+        let at = point(origin.x + cell_w * first as f32, origin.y + cell_h * row as f32);
+        window.paint_quad(fill(Bounds::new(at, size_of(cell_w * (last - first + 1) as f32, cell_h)), color(palette::SELECTION).opacity(0.3)));
     }
     if let Some((row, col, shape)) = frame.cursor {
         let at = point(origin.x + cell_w * col as f32, origin.y + cell_h * row as f32);

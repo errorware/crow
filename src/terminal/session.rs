@@ -9,6 +9,8 @@ use std::sync::Arc;
 use alacritty_terminal::event::{Event, EventListener, WindowSize};
 use alacritty_terminal::event_loop::{EventLoop, EventLoopSender, Msg};
 use alacritty_terminal::grid::{Dimensions, Scroll};
+use alacritty_terminal::index::{Column, Point, Side};
+use alacritty_terminal::selection::{Selection, SelectionType};
 use alacritty_terminal::sync::FairMutex;
 use alacritty_terminal::term::cell::Flags;
 use alacritty_terminal::term::{Config, Term, TermMode};
@@ -83,6 +85,16 @@ pub struct Frame {
     pub cursor: Option<(usize, usize, CursorShape)>,
     /// Lines scrolled back from the bottom.
     pub scrolled: usize,
+    /// Selected cells per row: (row, first col, last col), inclusive.
+    pub selection: Vec<(usize, usize, usize)>,
+}
+
+/// How a mouse press selects: by cell, word, or line (1, 2, 3 clicks).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SelectBy {
+    Cell,
+    Word,
+    Line,
 }
 
 pub struct Session {
@@ -145,6 +157,43 @@ impl Session {
     /// Back to the live screen (typing does this).
     pub fn scroll_to_bottom(&self) {
         self.term.lock().scroll_display(Scroll::Bottom);
+    }
+
+    /// The grid point under a visible cell (row/col on screen), and which
+    /// half of the cell the pointer is on.
+    fn point_at(term: &Term<Listener>, row: usize, col: usize, right_half: bool) -> (Point, Side) {
+        let row = row.min(term.screen_lines().saturating_sub(1));
+        let col = col.min(term.columns().saturating_sub(1));
+        let p = alacritty_terminal::term::viewport_to_point(term.grid().display_offset(), Point::new(row, Column(col)));
+        (p, if right_half { Side::Right } else { Side::Left })
+    }
+
+    pub fn start_selection(&self, row: usize, col: usize, right_half: bool, by: SelectBy) {
+        let mut term = self.term.lock();
+        let (p, side) = Self::point_at(&term, row, col, right_half);
+        let ty = match by {
+            SelectBy::Cell => SelectionType::Simple,
+            SelectBy::Word => SelectionType::Semantic,
+            SelectBy::Line => SelectionType::Lines,
+        };
+        term.selection = Some(Selection::new(ty, p, side));
+    }
+
+    pub fn update_selection(&self, row: usize, col: usize, right_half: bool) {
+        let mut term = self.term.lock();
+        let (p, side) = Self::point_at(&term, row, col, right_half);
+        if let Some(sel) = term.selection.as_mut() {
+            sel.update(p, side);
+        }
+    }
+
+    pub fn clear_selection(&self) {
+        self.term.lock().selection = None;
+    }
+
+    /// The selected text, if anything is selected.
+    pub fn selection_text(&self) -> Option<String> {
+        self.term.lock().selection_to_string().filter(|t| !t.is_empty())
     }
 
     /// Handles what the event loop reported; true when the screen changed.
@@ -255,7 +304,27 @@ fn frame_of<T: EventListener>(term: &Term<T>) -> Frame {
         let row = (content.cursor.point.line.0 + offset) as usize;
         (row, content.cursor.point.column.0, content.cursor.shape)
     });
-    Frame { rows, cursor, scrolled: content.display_offset }
+    let mut selection = Vec::new();
+    if let Some(range) = content.selection {
+        let cols = term.columns();
+        for row in 0..rows_n {
+            let line = alacritty_terminal::index::Line(row as i32 - offset);
+            if line < range.start.line || line > range.end.line {
+                continue;
+            }
+            let (first, last) = if range.is_block {
+                (range.start.column.0, range.end.column.0)
+            } else {
+                let first = if line == range.start.line { range.start.column.0 } else { 0 };
+                let last = if line == range.end.line { range.end.column.0 } else { cols - 1 };
+                (first, last)
+            };
+            if first <= last {
+                selection.push((row, first, last.min(cols - 1)));
+            }
+        }
+    }
+    Frame { rows, cursor, scrolled: content.display_offset, selection }
 }
 
 fn is_wide(c: char) -> bool {
@@ -309,5 +378,19 @@ mod tests {
         let f = screen(b"\x1b[7mX\x1b[0m\x1b[8mY");
         assert_eq!((f.rows[0][0].fg, f.rows[0][0].bg), (palette::BACKGROUND, Some(palette::FOREGROUND)));
         assert_eq!(f.rows[0].len(), 1, "hidden text on the default background draws nothing visible");
+    }
+
+    #[test]
+    fn selection_rows_and_text() {
+        let size = GridSize { cols: 20, rows: 4, cell_w: 8, cell_h: 16 };
+        let mut term = Term::new(Config::default(), &size, VoidListener);
+        let mut parser: Processor<StdSyncHandler> = Processor::new();
+        parser.advance(&mut term, b"hello world\r\nsecond line");
+        term.selection = Some(Selection::new(SelectionType::Simple, Point::new(alacritty_terminal::index::Line(0), Column(6)), Side::Left));
+        term.selection.as_mut().unwrap().update(Point::new(alacritty_terminal::index::Line(1), Column(5)), Side::Right);
+        assert_eq!(frame_of(&term).selection, vec![(0, 6, 19), (1, 0, 5)]);
+        assert_eq!(term.selection_to_string().as_deref(), Some("world\nsecond"));
+        term.selection = Some(Selection::new(SelectionType::Semantic, Point::new(alacritty_terminal::index::Line(0), Column(1)), Side::Left));
+        assert_eq!(term.selection_to_string().as_deref(), Some("hello"), "double click selects the word");
     }
 }
