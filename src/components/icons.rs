@@ -16,6 +16,8 @@ pub enum TablerIcon {
     Users,
     ShieldCheck,
     Terminal2,
+    LayoutColumns,
+    LayoutRows,
     Network,
     Database,
 
@@ -75,6 +77,8 @@ impl TablerIcon {
             Self::Users => include_bytes!("../../assets/icons/users.svg"),
             Self::ShieldCheck => include_bytes!("../../assets/icons/shield-check.svg"),
             Self::Terminal2 => include_bytes!("../../assets/icons/terminal-2.svg"),
+            Self::LayoutColumns => include_bytes!("../../assets/icons/layout-columns.svg"),
+            Self::LayoutRows => include_bytes!("../../assets/icons/layout-rows.svg"),
             Self::Network => include_bytes!("../../assets/icons/network.svg"),
             Self::Database => include_bytes!("../../assets/icons/database.svg"),
 

@@ -240,8 +240,8 @@ pub struct CrowApp {
     pub fleet_runner: Option<fleet_run::FleetRunner>,
     /// Why a server can't be reached, and the fix (ERR-89).
     pub recovery: Option<recovery::RecoveryPanel>,
-    /// Terminal panes by server id, and the task pumping them (ERR-93).
-    pub terminals: std::collections::HashMap<String, terminal::TerminalPane>,
+    /// Terminal workspaces by server id, and the task pumping them (ERR-93, ERR-95).
+    pub terminals: std::collections::HashMap<String, terminal::TerminalWorkspace>,
     pub terminal_pump: Option<Task<()>>,
     /// Metrics history bookkeeping (ERR-84).
     pub history: HistoryClock,

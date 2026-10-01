@@ -338,14 +338,26 @@ impl Render for CrowApp {
                                                                 )
                                                             } else if self.active_view == "terminal" {
                                                                 let app = app_view.clone();
-                                                                self.terminal_pane(cx).map(|pane| {
-                                                                    if pane.focus_pending {
-                                                                        window.focus(&pane.focus, cx);
-                                                                        pane.focus_pending = false;
+                                                                self.terminal_workspace(cx).map(|ws| {
+                                                                    // Focus what asked for it; snapshot the active tab's panes.
+                                                                    let visible = ws.tabs.get(ws.active).map(|t| t.root.panes()).unwrap_or_default();
+                                                                    let mut frames = std::collections::HashMap::new();
+                                                                    let mut focused = None;
+                                                                    for id in &visible {
+                                                                        if let Some(pane) = ws.panes.get_mut(id) {
+                                                                            if pane.focus_pending {
+                                                                                window.focus(&pane.focus, cx);
+                                                                                pane.focus_pending = false;
+                                                                            }
+                                                                            if pane.focus.is_focused(window) {
+                                                                                focused = Some(*id);
+                                                                            }
+                                                                            if let Some(f) = pane.session.as_ref().map(|s| s.frame()) {
+                                                                                frames.insert(*id, f);
+                                                                            }
+                                                                        }
                                                                     }
-                                                                    let focused = pane.focus.is_focused(window);
-                                                                    let frame = pane.session.as_ref().map(|s| s.frame());
-                                                                    div().size_full().child(crate::views::terminal::terminal_view(pane, frame, focused, app))
+                                                                    div().size_full().child(crate::views::terminal::workspace_view(ws, &mut frames, focused, app))
                                                                 })
                                                             } else if self.active_view == "history" {
                                                                 let hover = self.history_hover;

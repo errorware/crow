@@ -45,6 +45,8 @@ impl CrowApp {
         if self.vault.is_password_auth_enabled() {
             self.vault.lock();
             self.wipe_session_secrets(cx);
+            // Terminal sessions end with the lock, like SSH connections.
+            self.close_all_terminals();
             self.lock_inputs = None;
             self.lock_state = Default::default();
             self.menu_open = false;

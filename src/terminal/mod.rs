@@ -7,5 +7,6 @@
 
 pub mod input;
 pub mod launch;
+pub mod layout;
 pub mod palette;
 pub mod session;
