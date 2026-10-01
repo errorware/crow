@@ -340,6 +340,14 @@ impl CrowApp {
         }
         let Some(session) = pane.session.as_mut() else { return true };
         session.bell = false;
+        // Shift+PgUp/PgDn page through the history (full-screen programs
+        // keep the keys).
+        if m.shift && !m.control && !m.alt && matches!(key.as_str(), "pageup" | "pagedown") && !session.mode().contains(alacritty_terminal::term::TermMode::ALT_SCREEN) {
+            let page = session.size().rows.saturating_sub(1).max(1) as i32;
+            session.scroll(if key == "pageup" { page } else { -page });
+            cx.notify();
+            return true;
+        }
         let app_cursor = session.mode().contains(alacritty_terminal::term::TermMode::APP_CURSOR);
         let mods = Mods { ctrl: m.control, alt: m.alt, shift: m.shift };
         if let Some(bytes) = input::encode(&key, ev.keystroke.key_char.as_deref(), mods, app_cursor) {
