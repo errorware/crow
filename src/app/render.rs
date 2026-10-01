@@ -338,8 +338,9 @@ impl Render for CrowApp {
                                                                 )
                                                             } else if self.active_view == "terminal" {
                                                                 let app = app_view.clone();
-                                                                self.terminal_workspace(cx).map(|ws| {
-                                                                    // Focus what asked for it; snapshot the active tab's panes.
+                                                                // First pass (mutable): focus what asked for it and
+                                                                // snapshot the active tab's panes.
+                                                                let snapshot = self.terminal_workspace(cx).map(|ws| {
                                                                     let visible = ws.tabs.get(ws.active).map(|t| t.root.panes()).unwrap_or_default();
                                                                     let mut frames = std::collections::HashMap::new();
                                                                     let mut focused = None;
@@ -357,7 +358,12 @@ impl Render for CrowApp {
                                                                             }
                                                                         }
                                                                     }
-                                                                    div().size_full().child(crate::views::terminal::workspace_view(ws, &mut frames, focused, app))
+                                                                    (frames, focused)
+                                                                });
+                                                                // Then read the workspace beside the rename state.
+                                                                let server = self.fleet.active_server().map(|s| s.id).unwrap_or_default();
+                                                                snapshot.zip(self.terminals.get(&server)).map(|((mut frames, focused), ws)| {
+                                                                    div().size_full().child(crate::views::terminal::workspace_view(ws, self.terminal_rename.as_ref(), &mut frames, focused, app))
                                                                 })
                                                             } else if self.active_view == "history" {
                                                                 let hover = self.history_hover;
