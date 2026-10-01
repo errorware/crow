@@ -1,8 +1,11 @@
-//! Terminal panes (ERR-93): one per server, its session started once the
-//! view knows how many cells fit, pumped while any session is alive.
+//! Terminal workspaces (ERR-93, ERR-95): per server, tabs of split panes,
+//! each pane its own session. Sessions live while Crow runs, whatever is
+//! on screen, and end when the vault locks.
 
 use std::cell::Cell;
+use std::collections::HashMap;
 use std::rc::Rc;
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Duration;
 
 use gpui_kit::*;
@@ -10,9 +13,11 @@ use gpui_kit::*;
 use super::CrowApp;
 use crate::terminal::input::{self, Mods};
 use crate::terminal::launch::launch_for;
+use crate::terminal::layout::{Axis, Node, PaneId};
 use crate::terminal::session::{GridSize, Session};
 
 pub struct TerminalPane {
+    pub id: PaneId,
     pub server_id: String,
     pub session: Option<Session>,
     /// Why there's no session (the server can't take one), if so.
@@ -24,18 +29,155 @@ pub struct TerminalPane {
     pub focus_pending: bool,
 }
 
+pub struct TerminalTab {
+    pub root: Node,
+    pub focused: PaneId,
+}
+
+/// A server's terminals.
+pub struct TerminalWorkspace {
+    pub tabs: Vec<TerminalTab>,
+    pub active: usize,
+    pub panes: HashMap<PaneId, TerminalPane>,
+}
+
+impl TerminalWorkspace {
+    pub fn focused_pane(&self) -> Option<&TerminalPane> {
+        self.panes.get(&self.tabs.get(self.active)?.focused)
+    }
+
+    fn focused_pane_mut(&mut self) -> Option<&mut TerminalPane> {
+        let id = self.tabs.get(self.active)?.focused;
+        self.panes.get_mut(&id)
+    }
+
+    /// A tab's label: the shell's title for its focused pane, else "shell N".
+    pub fn tab_title(&self, i: usize) -> String {
+        let tab = &self.tabs[i];
+        self.panes
+            .get(&tab.focused)
+            .and_then(|p| p.session.as_ref())
+            .and_then(|s| s.title.clone())
+            .filter(|t| !t.trim().is_empty())
+            .unwrap_or_else(|| format!("shell {}", i + 1))
+    }
+
+    /// Whether a pane in tab `i` rang the bell since it was last focused.
+    pub fn tab_rang(&self, i: usize) -> bool {
+        self.tabs[i].root.panes().iter().any(|p| self.panes.get(p).and_then(|p| p.session.as_ref()).is_some_and(|s| s.bell))
+    }
+}
+
+fn next_pane_id() -> PaneId {
+    static NEXT: AtomicU64 = AtomicU64::new(1);
+    NEXT.fetch_add(1, Ordering::Relaxed)
+}
+
 impl CrowApp {
-    /// The active server's pane, created on first use.
-    pub fn terminal_pane(&mut self, cx: &mut Context<Self>) -> Option<&mut TerminalPane> {
+    fn new_pane(server_id: &str, cx: &mut Context<Self>) -> TerminalPane {
+        TerminalPane { id: next_pane_id(), server_id: server_id.into(), session: None, error: None, focus: cx.focus_handle(), target: Rc::new(Cell::new(None)), focus_pending: true }
+    }
+
+    /// The active server's workspace, created with one tab on first use.
+    pub fn terminal_workspace(&mut self, cx: &mut Context<Self>) -> Option<&mut TerminalWorkspace> {
         let srv = self.fleet.active_server()?;
         if !self.terminals.contains_key(&srv.id) {
-            self.terminals.insert(
-                srv.id.clone(),
-                TerminalPane { server_id: srv.id.clone(), session: None, error: None, focus: cx.focus_handle(), target: Rc::new(Cell::new(None)), focus_pending: true },
-            );
+            let pane = Self::new_pane(&srv.id, cx);
+            let tab = TerminalTab { root: Node::Pane(pane.id), focused: pane.id };
+            self.terminals.insert(srv.id.clone(), TerminalWorkspace { tabs: vec![tab], active: 0, panes: HashMap::from([(pane.id, pane)]) });
             self.ensure_terminal_pump(cx);
         }
         self.terminals.get_mut(&srv.id)
+    }
+
+    pub fn terminal_new_tab(&mut self, cx: &mut Context<Self>) {
+        let Some(srv) = self.fleet.active_server() else { return };
+        let pane = Self::new_pane(&srv.id, cx);
+        if let Some(ws) = self.terminal_workspace(cx) {
+            ws.tabs.push(TerminalTab { root: Node::Pane(pane.id), focused: pane.id });
+            ws.active = ws.tabs.len() - 1;
+            ws.panes.insert(pane.id, pane);
+        }
+        cx.notify();
+    }
+
+    /// Splits the focused pane: `Axis::Row` puts the new pane to its right,
+    /// `Axis::Column` below it.
+    pub fn terminal_split(&mut self, axis: Axis, cx: &mut Context<Self>) {
+        let Some(srv) = self.fleet.active_server() else { return };
+        let pane = Self::new_pane(&srv.id, cx);
+        if let Some(ws) = self.terminal_workspace(cx) {
+            let Some(tab) = ws.tabs.get_mut(ws.active) else { return };
+            if tab.root.split(tab.focused, axis, pane.id) {
+                tab.focused = pane.id;
+                ws.panes.insert(pane.id, pane);
+            }
+        }
+        cx.notify();
+    }
+
+    /// Closes a pane (its session ends); the last pane of a tab closes the
+    /// tab. `None` closes the focused pane.
+    pub fn terminal_close_pane(&mut self, pane: Option<PaneId>, cx: &mut Context<Self>) {
+        let Some(ws) = self.terminal_workspace(cx) else { return };
+        let Some(tab) = ws.tabs.get_mut(ws.active) else { return };
+        let id = pane.unwrap_or(tab.focused);
+        if tab.root.remove(id) {
+            if tab.focused == id {
+                tab.focused = tab.root.panes()[0];
+            }
+            let f = tab.focused;
+            if let Some(p) = ws.panes.get_mut(&f) {
+                p.focus_pending = true;
+            }
+        } else {
+            ws.tabs.remove(ws.active);
+            ws.active = ws.active.min(ws.tabs.len().saturating_sub(1));
+            if let Some(p) = ws.focused_pane_mut() {
+                p.focus_pending = true;
+            }
+        }
+        ws.panes.remove(&id);
+        cx.notify();
+    }
+
+    pub fn terminal_select_tab(&mut self, i: usize, cx: &mut Context<Self>) {
+        if let Some(ws) = self.terminal_workspace(cx) {
+            if i < ws.tabs.len() {
+                ws.active = i;
+                if let Some(p) = ws.focused_pane_mut() {
+                    p.focus_pending = true;
+                }
+            }
+        }
+        cx.notify();
+    }
+
+    pub fn terminal_focus_pane(&mut self, id: PaneId, cx: &mut Context<Self>) {
+        if let Some(ws) = self.terminal_workspace(cx) {
+            if let Some(tab) = ws.tabs.get_mut(ws.active).filter(|t| t.root.panes().contains(&id)) {
+                tab.focused = id;
+            }
+            if let Some(p) = ws.panes.get_mut(&id) {
+                p.focus_pending = true;
+                if let Some(s) = p.session.as_mut() {
+                    s.bell = false;
+                }
+            }
+        }
+        cx.notify();
+    }
+
+    fn terminal_cycle(&mut self, forward: bool, cx: &mut Context<Self>) {
+        let next = self.terminal_workspace(cx).and_then(|ws| ws.tabs.get(ws.active)).map(|t| t.root.cycle(t.focused, forward));
+        if let Some(id) = next {
+            self.terminal_focus_pane(id, cx);
+        }
+    }
+
+    /// Ends every session (the vault locked).
+    pub fn close_all_terminals(&mut self) {
+        self.terminals.clear();
     }
 
     fn ensure_terminal_pump(&mut self, cx: &mut Context<Self>) {
@@ -56,7 +198,7 @@ impl CrowApp {
     fn pump_terminals(&mut self, cx: &mut Context<Self>) -> bool {
         let mut dirty = false;
         let servers = self.fleet.servers.clone();
-        for pane in self.terminals.values_mut() {
+        for pane in self.terminals.values_mut().flat_map(|ws| ws.panes.values_mut()) {
             let Some(size) = pane.target.get() else { continue };
             match pane.session.as_mut() {
                 Some(s) => {
@@ -84,26 +226,31 @@ impl CrowApp {
         true
     }
 
-    /// A key pressed in the active server's terminal. Returns false for keys
-    /// left to Crow (⌘ shortcuts, Ctrl+Shift chords).
+    /// A key pressed in the focused pane. Returns false for keys left to
+    /// Crow (other ⌘ shortcuts and Ctrl+Shift chords).
     pub fn terminal_key(&mut self, ev: &KeyDownEvent, cx: &mut Context<Self>) -> bool {
         let m = &ev.keystroke.modifiers;
-        let key = ev.keystroke.key.as_str();
-        // Paste: ⌘V, Ctrl+Shift+V.
-        if (m.platform || (m.control && m.shift)) && key.eq_ignore_ascii_case("v") {
-            let text = cx.read_from_clipboard().and_then(|c| c.text());
-            if let (Some(text), Some(pane)) = (text, self.terminal_pane(cx)) {
-                if let Some(s) = pane.session.as_ref() {
-                    s.scroll_to_bottom();
-                    s.write(input::paste(&text, s.mode().contains(alacritty_terminal::term::TermMode::BRACKETED_PASTE)));
-                }
+        let key = ev.keystroke.key.to_lowercase();
+        // Workspace chords: ⌘ on macOS, Ctrl+Shift elsewhere.
+        let chord = if cfg!(target_os = "macos") { m.platform } else { m.control && m.shift };
+        if chord {
+            match (key.as_str(), m.shift) {
+                ("t", _) => self.terminal_new_tab(cx),
+                ("w", _) => self.terminal_close_pane(None, cx),
+                ("d", true) if cfg!(target_os = "macos") => self.terminal_split(Axis::Column, cx),
+                ("d", _) => self.terminal_split(Axis::Row, cx),
+                ("s", _) => self.terminal_split(Axis::Column, cx),
+                ("right" | "]", _) => self.terminal_cycle(true, cx),
+                ("left" | "[", _) => self.terminal_cycle(false, cx),
+                ("v", _) => self.terminal_paste(cx),
+                _ => return false,
             }
             return true;
         }
-        if m.platform || (m.control && m.shift) {
+        if m.platform {
             return false;
         }
-        let Some(pane) = self.terminal_pane(cx) else { return false };
+        let Some(pane) = self.terminal_workspace(cx).and_then(|ws| ws.focused_pane_mut()) else { return false };
         // An ended session starts again on Enter.
         if pane.session.as_ref().is_some_and(|s| s.exited.is_some()) || pane.error.is_some() {
             if key == "enter" {
@@ -113,19 +260,28 @@ impl CrowApp {
             }
             return true;
         }
-        let Some(session) = pane.session.as_ref() else { return true };
+        let Some(session) = pane.session.as_mut() else { return true };
+        session.bell = false;
         let app_cursor = session.mode().contains(alacritty_terminal::term::TermMode::APP_CURSOR);
         let mods = Mods { ctrl: m.control, alt: m.alt, shift: m.shift };
-        if let Some(bytes) = input::encode(key, ev.keystroke.key_char.as_deref(), mods, app_cursor) {
+        if let Some(bytes) = input::encode(&key, ev.keystroke.key_char.as_deref(), mods, app_cursor) {
             session.scroll_to_bottom();
             session.write(bytes);
         }
         true
     }
 
-    /// Mouse wheel over the terminal: scrolls the history (lines, + = up).
-    pub fn terminal_scroll(&mut self, lines: i32, cx: &mut Context<Self>) {
-        if let Some(s) = self.terminal_pane(cx).and_then(|p| p.session.as_ref()) {
+    fn terminal_paste(&mut self, cx: &mut Context<Self>) {
+        let text = cx.read_from_clipboard().and_then(|c| c.text());
+        if let (Some(text), Some(s)) = (text, self.terminal_workspace(cx).and_then(|ws| ws.focused_pane()).and_then(|p| p.session.as_ref())) {
+            s.scroll_to_bottom();
+            s.write(input::paste(&text, s.mode().contains(alacritty_terminal::term::TermMode::BRACKETED_PASTE)));
+        }
+    }
+
+    /// Mouse wheel over a pane: scrolls its history (lines, + = up).
+    pub fn terminal_scroll(&mut self, pane: PaneId, lines: i32, cx: &mut Context<Self>) {
+        if let Some(s) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get(&pane)).and_then(|p| p.session.as_ref()) {
             s.scroll(lines);
             cx.notify();
         }

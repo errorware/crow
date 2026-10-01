@@ -8,7 +8,11 @@ use std::rc::Rc;
 use alacritty_terminal::vte::ansi::CursorShape;
 use gpui_kit::*;
 
-use crate::app::terminal::TerminalPane;
+use std::collections::HashMap;
+
+use crate::app::terminal::{TerminalPane, TerminalWorkspace};
+use crate::components::icons::{inherited_icon, TablerIcon};
+use crate::terminal::layout::{Axis, Node, PaneId};
 use crate::app::CrowApp;
 use crate::terminal::palette;
 use crate::terminal::session::{Frame, GridSize};
@@ -22,6 +26,148 @@ fn color(c: u32) -> Hsla {
     rgb(c).into()
 }
 
+/// The server's terminals: a tab bar, then the active tab's panes.
+pub fn workspace_view(ws: &TerminalWorkspace, frames: &mut HashMap<PaneId, Frame>, focused: Option<PaneId>, app: Entity<CrowApp>) -> impl IntoElement {
+    let tool = |id: &'static str, icon: TablerIcon, tip: &'static str| {
+        div()
+            .id(id)
+            .flex()
+            .items_center()
+            .gap(px(5.0))
+            .px(px(7.0))
+            .py(px(3.0))
+            .text_color(TEXT_DIM)
+            .cursor_pointer()
+            .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+            .child(inherited_icon(icon, px(12.0)))
+            .child(div().text_size(px(9.5)).child(tip))
+    };
+    let shortcut = |mac: &'static str, other: &'static str| if cfg!(target_os = "macos") { mac } else { other };
+    let multi = ws.tabs.get(ws.active).is_some_and(|t| t.root.panes().len() > 1);
+    div()
+        .size_full()
+        .flex()
+        .flex_col()
+        .bg(color(palette::BACKGROUND))
+        .child(
+            div()
+                .h(px(30.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap(px(2.0))
+                .px(px(6.0))
+                .bg(BG_PANEL)
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .font_family(FONT_MONO)
+                .text_size(px(10.5))
+                .children(ws.tabs.iter().enumerate().map(|(i, _)| {
+                    let selected = i == ws.active;
+                    let rang = !selected && ws.tab_rang(i);
+                    let (app_sel, app_close) = (app.clone(), app.clone());
+                    div()
+                        .id(("term-tab", i))
+                        .flex()
+                        .items_center()
+                        .gap(px(6.0))
+                        .pl(px(10.0))
+                        .pr(px(4.0))
+                        .py(px(3.0))
+                        .max_w(px(220.0))
+                        .border_1()
+                        .border_color(if selected { BORDER_CONTROL_SEL } else { hex_rgba(0, 0.0) })
+                        .bg(if selected { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
+                        .text_color(if rang { WARN } else if selected { TEXT_MAX } else { TEXT_MUTED })
+                        .cursor_pointer()
+                        .hover(|s| s.text_color(TEXT_PRIMARY))
+                        .on_click(move |_ev, _w, cx| app_sel.update(cx, |this, cx| this.terminal_select_tab(i, cx)))
+                        .child(div().overflow_hidden().whitespace_nowrap().text_ellipsis().child(format!("{}{}", if rang { "● " } else { "" }, ws.tab_title(i))))
+                        .child(
+                            div()
+                                .id(("term-tab-close", i))
+                                .px(px(4.0))
+                                .text_color(TEXT_FAINT)
+                                .hover(|s| s.text_color(CRIT))
+                                .on_click(move |_ev, _w, cx| {
+                                    cx.stop_propagation();
+                                    app_close.update(cx, |this, cx| {
+                                        this.terminal_select_tab(i, cx);
+                                        let panes = this.terminal_workspace(cx).and_then(|ws| ws.tabs.get(i)).map(|t| t.root.panes()).unwrap_or_default();
+                                        for p in panes {
+                                            this.terminal_close_pane(Some(p), cx);
+                                        }
+                                    });
+                                })
+                                .child("×"),
+                        )
+                }))
+                .child({
+                    let app = app.clone();
+                    tool("term-new-tab", TablerIcon::Plus, shortcut("⌘T", "Ctrl+Shift+T")).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.terminal_new_tab(cx)))
+                })
+                .child(div().flex_1())
+                .child({
+                    let app = app.clone();
+                    tool("term-split-right", TablerIcon::LayoutColumns, shortcut("⌘D", "Ctrl+Shift+D")).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.terminal_split(Axis::Row, cx)))
+                })
+                .child({
+                    let app = app.clone();
+                    tool("term-split-down", TablerIcon::LayoutRows, shortcut("⌘⇧D", "Ctrl+Shift+S")).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.terminal_split(Axis::Column, cx)))
+                })
+                .child({
+                    let app = app.clone();
+                    tool("term-close-pane", TablerIcon::X, shortcut("⌘W", "Ctrl+Shift+W")).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.terminal_close_pane(None, cx)))
+                }),
+        )
+        .child(
+            div()
+                .flex_1()
+                .min_h(px(0.0))
+                .flex()
+                .children(match ws.tabs.get(ws.active) {
+                    Some(tab) => Some(node_view(&tab.root, ws, frames, focused, multi, app.clone())),
+                    None => None,
+                })
+                .children(ws.tabs.is_empty().then(|| {
+                    div()
+                        .p(px(16.0))
+                        .font_family(FONT_MONO)
+                        .text_size(px(11.0))
+                        .text_color(TEXT_DIM)
+                        .child(format!("No terminals open. {} opens one.", shortcut("⌘T", "Ctrl+Shift+T")))
+                })),
+        )
+}
+
+fn node_view(node: &Node, ws: &TerminalWorkspace, frames: &mut HashMap<PaneId, Frame>, focused: Option<PaneId>, multi: bool, app: Entity<CrowApp>) -> AnyElement {
+    match node {
+        Node::Pane(id) => match ws.panes.get(id) {
+            Some(pane) => div()
+                .flex_1()
+                .min_w(px(0.0))
+                .min_h(px(0.0))
+                .border_1()
+                .border_color(if multi && focused == Some(*id) { BORDER_CONTROL_SEL } else { hex_rgba(0, 0.0) })
+                .child(terminal_view(pane, frames.remove(id), focused == Some(*id), app))
+                .into_any_element(),
+            None => div().flex_1().into_any_element(),
+        },
+        Node::Split { axis, first, second } => {
+            let divider = match axis {
+                Axis::Row => div().w(px(1.0)).h_full().flex_none().bg(BORDER_PANEL),
+                Axis::Column => div().h(px(1.0)).w_full().flex_none().bg(BORDER_PANEL),
+            };
+            let base = div().flex_1().min_w(px(0.0)).min_h(px(0.0)).flex();
+            let base = if *axis == Axis::Column { base.flex_col() } else { base };
+            base.child(node_view(first, ws, frames, focused, multi, app.clone()))
+                .child(divider)
+                .child(node_view(second, ws, frames, focused, multi, app))
+                .into_any_element()
+        }
+    }
+}
+
 pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, app: Entity<CrowApp>) -> impl IntoElement {
     let target = pane.target.clone();
     let status = match (&pane.error, pane.session.as_ref().and_then(|s| s.exited.clone())) {
@@ -32,7 +178,7 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, a
     };
     let scrolled = frame.as_ref().map(|f| f.scrolled).unwrap_or(0);
     let (app_keys, app_wheel, app_click) = (app.clone(), app.clone(), app);
-    let focus = pane.focus.clone();
+    let pane_id = pane.id;
 
     div()
         .id("terminal-view")
@@ -53,12 +199,11 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, a
             };
             let lines = dy.round() as i32;
             if lines != 0 {
-                app_wheel.update(cx, |this, cx| this.terminal_scroll(lines, cx));
+                app_wheel.update(cx, |this, cx| this.terminal_scroll(pane_id, lines, cx));
             }
         })
-        .on_mouse_down(MouseButton::Left, move |_ev, window, cx| {
-            window.focus(&focus, cx);
-            app_click.update(cx, |_, cx| cx.notify());
+        .on_mouse_down(MouseButton::Left, move |_ev, _window, cx| {
+            app_click.update(cx, |this, cx| this.terminal_focus_pane(pane_id, cx));
         })
         .child(canvas(move |_b, _w, _cx| (), move |bounds, (), window, cx| paint_screen(bounds, frame.as_ref(), focused, &target, window, cx)).size_full())
         .children((scrolled > 0).then(|| {
