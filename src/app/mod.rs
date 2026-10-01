@@ -27,6 +27,7 @@ use crate::views::overview::{
 
 pub mod danger;
 pub mod fleet_run;
+pub mod recovery;
 pub mod history_view;
 mod files;
 mod firewall;
@@ -236,6 +237,8 @@ pub struct CrowApp {
     pub snapshots_panel: Option<danger::SnapshotsPanel>,
     /// A fleet-wide run being planned, running, or just finished (ERR-79).
     pub fleet_runner: Option<fleet_run::FleetRunner>,
+    /// Why a server can't be reached, and the fix (ERR-89).
+    pub recovery: Option<recovery::RecoveryPanel>,
     /// Metrics history bookkeeping (ERR-84).
     pub history: HistoryClock,
     /// Servers whose last history sample was unreachable (ERR-85).
@@ -426,6 +429,7 @@ impl CrowApp {
             snapshot_offer: None,
             snapshots_panel: None,
             fleet_runner: None,
+            recovery: None,
             history: HistoryClock { watch_started: chrono::Utc::now().timestamp(), ..Default::default() },
             history_down: Default::default(),
             history_range: crate::metrics::chart::Range::Day,

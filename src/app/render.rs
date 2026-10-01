@@ -506,6 +506,10 @@ impl Render for CrowApp {
                         })
                         // Danger Zone → SNAPSHOTS (ERR-47)
                         .children(self.snapshots_panel.as_ref().map(|p| crate::components::snapshots_panel::snapshots_panel(p, app_view.clone())))
+                        .children(self.recovery.as_ref().map(|p| {
+                            let name = self.fleet.servers.iter().find(|s| s.id == p.server_id).map(|s| s.name.clone()).unwrap_or_default();
+                            crate::components::recovery_panel::recovery_panel(p, &name, app_view.clone())
+                        }))
                         // Turn off SSH password login (ERR-34)
                         .children(self.password_login.as_ref().map(|f| crate::components::password_login::password_login_dialog(f, app_view.clone())))
                         // Snapshot first? before a lockout-risk change (ERR-48)
