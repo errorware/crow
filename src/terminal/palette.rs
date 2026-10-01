@@ -8,6 +8,8 @@ use alacritty_terminal::vte::ansi::{Color, NamedColor, Rgb};
 /// Default foreground, background and cursor (0xRRGGBB).
 pub const FOREGROUND: u32 = 0xd4d4d8;
 pub const BACKGROUND: u32 = 0x0a0a0c;
+/// Selected text is washed with this.
+pub const SELECTION: u32 = 0x3ecf6e;
 pub const CURSOR: u32 = 0xe4e4e7;
 
 /// black, red, green, yellow, blue, magenta, cyan, white, then bright.
