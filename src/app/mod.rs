@@ -168,6 +168,9 @@ pub struct CrowApp {
     pub screen: Screen,
     /// Sub-view of the Server screen ("overview", "logs", "config", ...).
     pub active_view: String,
+    /// The sub-view each open server tab was last on, so switching tabs
+    /// returns to it. Unvisited tabs open on the overview.
+    pub tab_views: std::collections::HashMap<String, String>,
     pub menu_open: bool,
     /// Audit log screen filters (ERR-75).
     pub audit_filter: crate::views::audit::model::AuditFilter,
@@ -392,6 +395,7 @@ impl CrowApp {
                 fleet
             },
             active_view: "overview".to_string(),
+            tab_views: std::collections::HashMap::new(),
             overview: OverviewState::new(initial_services, initial_processes, initial_sockets),
             configs,
             config_text_editor: None,
