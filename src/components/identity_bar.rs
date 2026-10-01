@@ -7,7 +7,11 @@ use crate::vault::ServerRecord;
 use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::os_detect::{classify_distro_family, DistroFamily};
 
-pub fn identity_bar(server: Option<&ServerRecord>, region_picker_open: bool, app: Entity<CrowApp>) -> impl IntoElement {
+/// The jump host a server is reached through: its name, and whether it's
+/// down right now (ERR-91).
+pub type JumpInfo = Option<(String, bool)>;
+
+pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker_open: bool, app: Entity<CrowApp>) -> impl IntoElement {
     let app_clone = app.clone();
 
     let server_name = server.map(|s| s.name.as_str()).unwrap_or("localhost");
@@ -104,6 +108,11 @@ pub fn identity_bar(server: Option<&ServerRecord>, region_picker_open: bool, app
                         .font_family("JetBrains Mono")
                         .text_size(px(9.5))
                         .child(div().text_color(hex_rgb(0x22d3ee)).child(endpoint_str))
+                        .children(jump.map(|(name, down)| {
+                            div()
+                                .text_color(if down { CRIT } else { TEXT_DIM })
+                                .child(if down { format!("via {name} (unreachable)") } else { format!("via {name}") })
+                        }))
                         .children(server.map(|s| {
                             let app = app.clone();
                             div()
@@ -322,7 +331,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, region_picker_open: bool, app
 
 /// A strip under the identity bar while an SSH server can't be reached, so
 /// empty pages read as "Crow couldn't read this", not "the server has nothing".
-pub fn connection_banner(server: Option<&ServerRecord>, app: Entity<CrowApp>) -> Option<Div> {
+pub fn connection_banner(server: Option<&ServerRecord>, jump: JumpInfo, app: Entity<CrowApp>) -> Option<Div> {
     let s = server?;
     if transport_kind(s) != TransportKind::Ssh {
         return None;
@@ -351,7 +360,11 @@ pub fn connection_banner(server: Option<&ServerRecord>, app: Entity<CrowApp>) ->
             .text_size(px(10.5))
             .text_color(CRIT_INK_DIM)
             .child(div().flex_none().font_weight(FontWeight::BOLD).child(format!("✕ {}", state.label())))
-            .child(div().flex_1().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().child(format!("Crow can't read {} right now — pages below stay empty until the connection works. {}", s.name, detail)))
+            .child(div().flex_1().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().child(match &jump {
+                // The likeliest cause, said first.
+                Some((name, true)) => format!("Crow reaches {} through {name}, which is unreachable itself: fix {name} first. {}", s.name, detail),
+                _ => format!("Crow can't read {} right now — pages below stay empty until the connection works. {}", s.name, detail),
+            }))
             // The diagnosis and the fix (ERR-89).
             .child({
                 let (app, id) = (app.clone(), s.id.clone());
