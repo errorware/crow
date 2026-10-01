@@ -443,7 +443,7 @@ impl Render for CrowApp {
                                             .size_full()
                                             .relative()
                                             .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab, self.fleet_background.rendered.clone().filter(|_| self.fleet_background_source().is_some()).map(|p| (p, self.fleet_background_opacity())), fleet_purge_days, &fleet_purge_audit, &audit, &alert_lines, watch_gap))
-                                            .children(self.fleet_runner.as_ref().map(|r| crate::views::fleet::run_panel::fleet_run_panel(r, app_view.clone()))),
+
                                     ),
                                     Screen::Settings => Some(
                                         div()
@@ -511,6 +511,7 @@ impl Render for CrowApp {
                         })
                         // Danger Zone → SNAPSHOTS (ERR-47)
                         .children(self.snapshots_panel.as_ref().map(|p| crate::components::snapshots_panel::snapshots_panel(p, app_view.clone())))
+                        .children(self.fleet_runner.as_ref().map(|r| crate::views::fleet::run_panel::fleet_run_panel(r, app_view.clone())))
                         .children(self.recovery.as_ref().map(|p| {
                             let name = self.fleet.servers.iter().find(|s| s.id == p.server_id).map(|s| s.name.clone()).unwrap_or_default();
                             crate::components::recovery_panel::recovery_panel(p, &name, app_view.clone())

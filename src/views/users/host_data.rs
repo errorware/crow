@@ -288,6 +288,13 @@ pub fn revoke_key(home: &str, line: &str) -> Argv {
     vec!["sh".into(), "-c".into(), script.into(), "crow-revoke".into(), home.into(), line.into()]
 }
 
+/// Removes every authorized_keys line carrying the key `blob` (the base64
+/// part), whatever its options or comment, keeping the file's owner and mode.
+pub fn revoke_key_blob(home: &str, blob: &str) -> Argv {
+    let script = r#"f="$1/.ssh/authorized_keys"; [ -f "$f" ] || exit 0; awk -v b="$2" '{k=1; for(i=1;i<=NF;i++) if($i==b) k=0} k' "$f" > "$f.crow"; cat "$f.crow" > "$f"; rm -f "$f.crow""#;
+    vec!["sh".into(), "-c".into(), script.into(), "crow-revoke".into(), home.into(), blob.into()]
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

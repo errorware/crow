@@ -115,6 +115,7 @@ fn from_record(r: &ChangeRecord) -> Option<AuditItem> {
         "purge" => format!("purged stored data for {}", r.target),
         "sshd.password_login_off" => "turned off SSH password login".to_string(),
         "ssh.host_key" => format!("trusted a new host key for {}", r.target),
+        "ssh.key_switch" => r.before_state.clone(),
         k if k.starts_with("service_") => format!("{} {}", k.trim_start_matches("service_"), r.target),
         k if k.starts_with("provider.") => format!("{} at the provider", k.trim_start_matches("provider.")),
         "fleet.reboot" => format!("rolling reboot: {}", r.before_state),

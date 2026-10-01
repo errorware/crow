@@ -1,3 +1,5 @@
+pub mod deploy;
+
 use std::path::{Path, PathBuf};
 use chrono::Utc;
 use serde::{Deserialize, Serialize};
