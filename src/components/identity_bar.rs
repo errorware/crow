@@ -351,7 +351,22 @@ pub fn connection_banner(server: Option<&ServerRecord>, app: Entity<CrowApp>) ->
             .text_size(px(10.5))
             .text_color(CRIT_INK_DIM)
             .child(div().flex_none().font_weight(FontWeight::BOLD).child(format!("✕ {}", state.label())))
-            .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().child(format!("Crow can't read {} right now — pages below stay empty until the connection works. {}", s.name, detail)))
+            .child(div().flex_1().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().child(format!("Crow can't read {} right now — pages below stay empty until the connection works. {}", s.name, detail)))
+            // The diagnosis and the fix (ERR-89).
+            .child({
+                let (app, id) = (app.clone(), s.id.clone());
+                div()
+                    .id("link-recovery")
+                    .flex_none()
+                    .text_color(hex_rgb(0x8ab4ff))
+                    .cursor_pointer()
+                    .hover(|h| h.text_color(TEXT_PRIMARY).underline())
+                    .on_click(move |_ev, window, cx| {
+                        let id = id.clone();
+                        app.update(cx, |this, cx| this.open_recovery(&id, window, cx));
+                    })
+                    .child("what happened →")
+            })
             // Password servers: an inline link to log in once with the password
             // and install Crow's key.
             .children((s.auth_method == "password").then(|| {

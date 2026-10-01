@@ -1,6 +1,7 @@
 #![allow(unused_imports)]
 
 pub mod about;
+pub mod recovery_panel;
 pub mod danger_zone;
 pub mod danger_zone_state;
 pub mod icons;

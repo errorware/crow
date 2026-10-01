@@ -12,6 +12,7 @@ mod container;
 mod local;
 pub mod ssh;
 pub mod reboot;
+pub mod diagnose;
 
 use std::collections::HashMap;
 use std::sync::Arc;
