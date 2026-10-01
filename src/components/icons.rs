@@ -18,6 +18,7 @@ pub enum TablerIcon {
     Terminal2,
     LayoutColumns,
     LayoutRows,
+    Pencil,
     Network,
     Database,
 
@@ -79,6 +80,7 @@ impl TablerIcon {
             Self::Terminal2 => include_bytes!("../../assets/icons/terminal-2.svg"),
             Self::LayoutColumns => include_bytes!("../../assets/icons/layout-columns.svg"),
             Self::LayoutRows => include_bytes!("../../assets/icons/layout-rows.svg"),
+            Self::Pencil => include_bytes!("../../assets/icons/pencil.svg"),
             Self::Network => include_bytes!("../../assets/icons/network.svg"),
             Self::Database => include_bytes!("../../assets/icons/database.svg"),
 

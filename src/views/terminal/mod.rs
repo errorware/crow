@@ -10,7 +10,7 @@ use gpui_kit::*;
 
 use std::collections::HashMap;
 
-use crate::app::terminal::{TabMenu, TabRename, TerminalPane, TerminalWorkspace};
+use crate::app::terminal::{TabRename, TerminalPane, TerminalWorkspace};
 use crate::components::icons::{inherited_icon, TablerIcon};
 use crate::terminal::layout::{Axis, Node, PaneId};
 use crate::app::CrowApp;
@@ -27,90 +27,91 @@ fn color(c: u32) -> Hsla {
 }
 
 /// The server's terminals: a tab bar, then the active tab's panes.
-pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, menu: Option<&TabMenu>, frames: &mut HashMap<PaneId, Frame>, focused: Option<PaneId>, app: Entity<CrowApp>) -> impl IntoElement {
-    let tool = |id: &'static str, icon: TablerIcon, tip: &'static str| {
+pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames: &mut HashMap<PaneId, Frame>, focused: Option<PaneId>, app: Entity<CrowApp>) -> impl IntoElement {
+    let shortcut = |mac: &'static str, other: &'static str| if cfg!(target_os = "macos") { mac } else { other };
+    // Toolbar buttons: icon and its shortcut, quiet until hovered.
+    let tool = |id: &'static str, icon: TablerIcon, keys: &'static str| {
         div()
             .id(id)
             .flex()
             .items_center()
             .gap(px(5.0))
-            .px(px(7.0))
-            .py(px(3.0))
+            .px(px(8.0))
+            .h_full()
             .text_color(TEXT_DIM)
             .cursor_pointer()
             .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
             .child(inherited_icon(icon, px(12.0)))
-            .child(div().text_size(px(9.5)).child(tip))
+            .child(div().text_size(px(9.5)).child(keys))
     };
-    let shortcut = |mac: &'static str, other: &'static str| if cfg!(target_os = "macos") { mac } else { other };
     let multi = ws.tabs.get(ws.active).is_some_and(|t| t.root.panes().len() > 1);
     div()
         .size_full()
+        .relative()
         .flex()
         .flex_col()
         .bg(color(palette::BACKGROUND))
+        // Tabs in Crow's own tab style: the active one on the app background
+        // with the green band on top (as the server tabs above).
         .child(
             div()
                 .h(px(30.0))
                 .flex_none()
                 .flex()
-                .items_center()
-                .gap(px(2.0))
-                .px(px(6.0))
+                .items_stretch()
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
                 .children(ws.tabs.iter().enumerate().map(|(i, _)| {
-                    let selected = i == ws.active;
-                    let rang = !selected && ws.tab_rang(i);
+                    let active = i == ws.active;
+                    let rang = !active && ws.tab_rang(i);
                     let (app_sel, app_close) = (app.clone(), app.clone());
                     div()
                         .id(("term-tab", i))
+                        .relative()
+                        .overflow_hidden()
                         .flex()
                         .items_center()
-                        .gap(px(6.0))
-                        .pl(px(10.0))
-                        .pr(px(4.0))
-                        .py(px(3.0))
-                        .max_w(px(220.0))
-                        .border_1()
-                        .border_color(if selected { BORDER_CONTROL_SEL } else { hex_rgba(0, 0.0) })
-                        .bg(if selected { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
-                        .text_color(if rang { WARN } else if selected { TEXT_MAX } else { TEXT_MUTED })
+                        .gap(px(7.0))
+                        .pl(px(12.0))
+                        .pr(px(6.0))
+                        .max_w(px(240.0))
+                        .border_r_1()
+                        .border_color(if active { BORDER_STRONG } else { BORDER_PANEL })
+                        .bg(if active { BG_APP } else { hex_rgba(0, 0.0) })
                         .cursor_pointer()
-                        .hover(|s| s.text_color(TEXT_PRIMARY))
-                        // Double-click to rename; right-click for the tab menu.
-                        .on_click(move |ev, window, cx| {
-                            let double = ev.click_count() >= 2;
-                            app_sel.update(cx, |this, cx| {
-                                this.terminal_select_tab(i, cx);
-                                if double {
-                                    this.start_tab_rename(i, window, cx);
-                                }
-                            })
-                        })
-                        .on_mouse_down(MouseButton::Right, {
-                            let app = app.clone();
-                            move |ev: &MouseDownEvent, _w, cx| {
-                                cx.stop_propagation();
-                                let at = ev.position;
-                                app.update(cx, |this, cx| this.open_tab_menu(i, at, cx));
-                            }
-                        })
-                        .child(div().overflow_hidden().whitespace_nowrap().text_ellipsis().child(format!("{}{}", if rang { "● " } else { "" }, ws.tab_title(i))))
+                        .hover(move |s| s.bg(if active { BG_APP } else { BG_ROW_HOVER }))
+                        .on_click(move |_ev, _w, cx| app_sel.update(cx, |this, cx| this.terminal_select_tab(i, cx)))
+                        .children(active.then(crate::components::titlebar::active_tab_gradient_bar))
+                        .children(rang.then(|| div().size(px(6.0)).rounded_full().bg(WARN).flex_none()))
+                        .child(
+                            div()
+                                .overflow_hidden()
+                                .whitespace_nowrap()
+                                .text_ellipsis()
+                                .text_size(px(11.0))
+                                .font_weight(if active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+                                .text_color(if active { TEXT_MAX } else { TEXT_MUTED })
+                                .child(ws.tab_title(i)),
+                        )
                         .child(
                             div()
                                 .id(("term-tab-close", i))
-                                .px(px(4.0))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .flex_none()
+                                .size(px(16.0))
+                                .rounded_sm()
                                 .text_color(TEXT_FAINT)
-                                .hover(|s| s.text_color(CRIT))
+                                .hover(|s| s.bg(hex_rgba(0xffffff, 0.08)).text_color(TEXT_PRIMARY))
+                                .on_mouse_down(MouseButton::Left, |_ev, _w, cx| cx.stop_propagation())
                                 .on_click(move |_ev, _w, cx| {
                                     cx.stop_propagation();
                                     app_close.update(cx, |this, cx| this.terminal_close_tab(i, cx));
                                 })
-                                .child("×"),
+                                .child(inherited_icon(TablerIcon::X, px(10.0))),
                         )
                 }))
                 .child({
@@ -118,6 +119,15 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, menu: 
                     tool("term-new-tab", TablerIcon::Plus, shortcut("⌘T", "Ctrl+Shift+T")).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.terminal_new_tab(cx)))
                 })
                 .child(div().flex_1())
+                .child({
+                    let app = app.clone();
+                    tool("term-rename-tab", TablerIcon::Pencil, "rename").on_click(move |_ev, window, cx| {
+                        app.update(cx, |this, cx| {
+                            let active = this.terminal_workspace(cx).map(|ws| ws.active).unwrap_or(0);
+                            this.start_tab_rename(active, window, cx);
+                        })
+                    })
+                })
                 .child({
                     let app = app.clone();
                     tool("term-split-right", TablerIcon::LayoutColumns, shortcut("⌘D", "Ctrl+Shift+D")).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.terminal_split(Axis::Row, cx)))
@@ -135,14 +145,8 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, menu: 
             div()
                 .flex_1()
                 .min_h(px(0.0))
-                .relative()
                 .flex()
-                .children(match ws.tabs.get(ws.active) {
-                    Some(tab) => Some(node_view(&tab.root, ws, frames, focused, multi, app.clone())),
-                    None => None,
-                })
-                .children(menu.map(|m| tab_menu(m, ws, app.clone())))
-                .children(rename.map(|r| rename_popup(r, app.clone())))
+                .children(ws.tabs.get(ws.active).map(|tab| node_view(&tab.root, ws, frames, focused, multi, app.clone())))
                 .children(ws.tabs.is_empty().then(|| {
                     div()
                         .p(px(16.0))
@@ -152,123 +156,39 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, menu: 
                         .child(format!("No terminals open. {} opens one.", shortcut("⌘T", "Ctrl+Shift+T")))
                 })),
         )
+        .children(rename.map(|r| rename_panel(r, app.clone())))
 }
 
-/// The rename popup: a small dialog over the terminals.
-fn rename_popup(r: &TabRename, app: Entity<CrowApp>) -> impl IntoElement {
-    let button = |id: &'static str, label: &'static str, primary: bool| {
-        div()
-            .id(id)
-            .px(px(12.0))
-            .py(px(4.0))
-            .border_1()
-            .border_color(if primary { hex_rgb(0x8ab4ff) } else { BORDER_DEFAULT })
-            .text_color(if primary { TEXT_MAX } else { TEXT_SECONDARY })
-            .cursor_pointer()
-            .hover(|s| s.bg(BG_ROW_HOVER))
-            .child(label)
-    };
-    let (app_esc, app_save, app_cancel) = (app.clone(), app.clone(), app);
+/// The rename panel: a small box dropped from the toolbar's right side, no
+/// backdrop. Enter saves, Esc or a click elsewhere cancels.
+fn rename_panel(r: &TabRename, app: Entity<CrowApp>) -> impl IntoElement {
+    let (app_esc, app_out) = (app.clone(), app);
     div()
+        .id("term-rename-panel")
         .absolute()
-        .inset_0()
-        .bg(hex_rgba(0x000000, 0.45))
+        .top(px(32.0))
+        .right(px(8.0))
+        .w(px(280.0))
+        .occlude()
+        .p(px(10.0))
         .flex()
-        .items_start()
-        .justify_center()
-        .pt(px(60.0))
-        .child(
-            div()
-                .id("term-rename-popup")
-                .occlude()
-                .w(px(340.0))
-                .p(px(14.0))
-                .flex()
-                .flex_col()
-                .gap(px(10.0))
-                .bg(BG_PANEL)
-                .border_1()
-                .border_color(BORDER_DEFAULT)
-                .shadow_lg()
-                .font_family(FONT_MONO)
-                .text_size(px(11.0))
-                .on_key_down(move |ev: &KeyDownEvent, _w, cx| {
-                    if ev.keystroke.key == "escape" {
-                        cx.stop_propagation();
-                        app_esc.update(cx, |this, cx| this.finish_tab_rename(false, cx));
-                    }
-                })
-                .child(div().font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child("RENAME TAB"))
-                .child(gpui_kit::component::input::Input::new(&r.input))
-                .child(
-                    div()
-                        .flex()
-                        .gap(px(8.0))
-                        .child(div().flex_1().text_size(px(10.0)).text_color(TEXT_FAINT).child("Enter saves · Esc cancels"))
-                        .child(button("term-rename-cancel", "CANCEL", false).on_click(move |_ev, _w, cx| app_cancel.update(cx, |this, cx| this.finish_tab_rename(false, cx))))
-                        .child(button("term-rename-save", "SAVE", true).on_click(move |_ev, _w, cx| app_save.update(cx, |this, cx| this.finish_tab_rename(true, cx)))),
-                ),
-        )
-}
-
-/// The right-click menu on a tab.
-fn tab_menu(m: &TabMenu, ws: &TerminalWorkspace, app: Entity<CrowApp>) -> impl IntoElement {
-    let i = m.tab;
-    let shortcut = |mac: &'static str, other: &'static str| if cfg!(target_os = "macos") { mac } else { other };
-    let named = ws.tabs.get(i).is_some_and(|t| t.name.is_some());
-    let many = ws.tabs.len() > 1;
-    let item = |id: &'static str, label: &'static str, keys: &'static str, danger: bool, action: Box<dyn Fn(&mut CrowApp, &mut Window, &mut Context<CrowApp>)>| {
-        let app = app.clone();
-        div()
-            .id(id)
-            .flex()
-            .items_center()
-            .gap(px(16.0))
-            .px(px(10.0))
-            .py(px(5.0))
-            .text_color(if danger { CRIT_INK_DIM } else { TEXT_SECONDARY })
-            .cursor_pointer()
-            .hover(move |s| s.bg(BG_ROW_HOVER).text_color(if danger { CRIT } else { TEXT_MAX }))
-            .on_click(move |_ev, window, cx| app.update(cx, |this, cx| action(this, window, cx)))
-            .child(div().flex_1().child(label))
-            .child(div().text_color(TEXT_FAINT).child(keys))
-    };
-    let rule = || div().h(px(1.0)).my(px(3.0)).bg(BORDER_PANEL);
-    let close_app = app.clone();
-    deferred(
-        anchored().position(m.at).snap_to_window_with_margin(px(8.0)).child(
-            div()
-                .id("term-tab-menu")
-                .w(px(240.0))
-                .py(px(4.0))
-                .bg(BG_PANEL)
-                .border_1()
-                .border_color(BORDER_DEFAULT)
-                .shadow_lg()
-                .font_family(FONT_MONO)
-                .text_size(px(11.0))
-                // Clicks on the menu stay on the menu: the pane below would
-                // otherwise take the mouse-down and close it before the click.
-                .occlude()
-                .on_mouse_down(MouseButton::Left, |_ev, _w, cx| cx.stop_propagation())
-                .on_mouse_down_out(move |_ev, _w, cx| close_app.update(cx, |this, cx| this.close_tab_menu(cx)))
-                .child(item("tm-rename", "Rename…", shortcut("⌘R", "Ctrl+Shift+R"), false, Box::new(move |this, window, cx| this.start_tab_rename(i, window, cx))))
-                .children(named.then(|| item("tm-reset", "Use the shell's title", "", false, Box::new(move |this, _w, cx| this.reset_tab_name(i, cx)))))
-                .child(rule())
-                .child(item("tm-split-right", "Split right", shortcut("⌘D", "Ctrl+Shift+D"), false, Box::new(|this, _w, cx| {
-                    this.close_tab_menu(cx);
-                    this.terminal_split(Axis::Row, cx)
-                })))
-                .child(item("tm-split-down", "Split down", shortcut("⌘⇧D", "Ctrl+Shift+S"), false, Box::new(|this, _w, cx| {
-                    this.close_tab_menu(cx);
-                    this.terminal_split(Axis::Column, cx)
-                })))
-                .child(rule())
-                .children(many.then(|| item("tm-close-others", "Close other tabs", "", true, Box::new(move |this, _w, cx| this.terminal_close_other_tabs(i, cx)))))
-                .child(item("tm-close", "Close tab", "", true, Box::new(move |this, _w, cx| this.terminal_close_tab(i, cx)))),
-        ),
-    )
-    .with_priority(1)
+        .flex_col()
+        .gap(px(6.0))
+        .bg(BG_PANEL)
+        .border_1()
+        .border_color(BORDER_DEFAULT)
+        .shadow_lg()
+        .font_family(FONT_MONO)
+        .on_mouse_down(MouseButton::Left, |_ev, _w, cx| cx.stop_propagation())
+        .on_mouse_down_out(move |_ev, _w, cx| app_out.update(cx, |this, cx| this.finish_tab_rename(false, cx)))
+        .on_key_down(move |ev: &KeyDownEvent, _w, cx| {
+            if ev.keystroke.key == "escape" {
+                cx.stop_propagation();
+                app_esc.update(cx, |this, cx| this.finish_tab_rename(false, cx));
+            }
+        })
+        .child(gpui_kit::component::input::Input::new(&r.input))
+        .child(div().text_size(px(9.5)).text_color(TEXT_FAINT).child("Enter renames · Esc cancels · empty follows the shell"))
 }
 
 fn node_view(node: &Node, ws: &TerminalWorkspace, frames: &mut HashMap<PaneId, Frame>, focused: Option<PaneId>, multi: bool, app: Entity<CrowApp>) -> AnyElement {
