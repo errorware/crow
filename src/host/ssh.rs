@@ -256,6 +256,18 @@ impl SshHost {
         }
     }
 
+    /// ssh with a terminal for an interactive shell (ERR-93): the same
+    /// options every Crow connection uses (shared connection, strict host
+    /// keys, the enrolled key, the jump host), plus -tt.
+    pub fn interactive_command(&self) -> Result<(String, Vec<String>), String> {
+        if let Some(why) = &self.unsupported {
+            return Err(why.clone());
+        }
+        let mut args = vec!["-tt".to_string()];
+        args.extend(self.args.iter().cloned());
+        Ok((self.program.clone(), args))
+    }
+
     #[cfg(test)]
     fn with_program(mut self, program: &str) -> Self {
         self.program = program.to_string();
