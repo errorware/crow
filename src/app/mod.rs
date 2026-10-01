@@ -244,6 +244,7 @@ pub struct CrowApp {
     pub terminals: std::collections::HashMap<String, terminal::TerminalWorkspace>,
     pub terminal_pump: Option<Task<()>>,
     pub terminal_rename: Option<terminal::TabRename>,
+    pub tab_menu: Option<terminal::TabMenu>,
     /// Metrics history bookkeeping (ERR-84).
     pub history: HistoryClock,
     /// Servers whose last history sample was unreachable (ERR-85).
@@ -438,6 +439,7 @@ impl CrowApp {
             terminals: std::collections::HashMap::new(),
             terminal_pump: None,
             terminal_rename: None,
+            tab_menu: None,
             history: HistoryClock { watch_started: chrono::Utc::now().timestamp(), ..Default::default() },
             history_down: Default::default(),
             history_range: crate::metrics::chart::Range::Day,
