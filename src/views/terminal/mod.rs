@@ -82,12 +82,12 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, menu: 
                         .cursor_pointer()
                         .hover(|s| s.text_color(TEXT_PRIMARY))
                         // Double-click to rename; right-click for the tab menu.
-                        .on_click(move |ev, _window, cx| {
+                        .on_click(move |ev, window, cx| {
                             let double = ev.click_count() >= 2;
                             app_sel.update(cx, |this, cx| {
                                 this.terminal_select_tab(i, cx);
                                 if double {
-                                    this.start_tab_rename(i, cx);
+                                    this.start_tab_rename(i, window, cx);
                                 }
                             })
                         })
@@ -99,15 +99,7 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, menu: 
                                 app.update(cx, |this, cx| this.open_tab_menu(i, at, cx));
                             }
                         })
-                        .child(match rename.filter(|r| r.tab == i) {
-                            Some(r) => renaming_label(r),
-                            None => div()
-                                .overflow_hidden()
-                                .whitespace_nowrap()
-                                .text_ellipsis()
-                                .child(format!("{}{}", if rang { "● " } else { "" }, ws.tab_title(i)))
-                                .into_any_element(),
-                        })
+                        .child(div().overflow_hidden().whitespace_nowrap().text_ellipsis().child(format!("{}{}", if rang { "● " } else { "" }, ws.tab_title(i))))
                         .child(
                             div()
                                 .id(("term-tab-close", i))
@@ -143,12 +135,14 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, menu: 
             div()
                 .flex_1()
                 .min_h(px(0.0))
+                .relative()
                 .flex()
                 .children(match ws.tabs.get(ws.active) {
                     Some(tab) => Some(node_view(&tab.root, ws, frames, focused, multi, app.clone())),
                     None => None,
                 })
                 .children(menu.map(|m| tab_menu(m, ws, app.clone())))
+                .children(rename.map(|r| rename_popup(r, app.clone())))
                 .children(ws.tabs.is_empty().then(|| {
                     div()
                         .p(px(16.0))
@@ -160,25 +154,61 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, menu: 
         )
 }
 
-/// The tab label while it's being renamed: same font and size, the text
-/// with a caret (or selected, as it opens), and an underline.
-fn renaming_label(r: &TabRename) -> AnyElement {
-    let (before, after, all) = r.edit.parts();
-    let caret = || div().w(px(1.0)).h(px(12.0)).flex_none().bg(TEXT_MAX);
+/// The rename popup: a small dialog over the terminals.
+fn rename_popup(r: &TabRename, app: Entity<CrowApp>) -> impl IntoElement {
+    let button = |id: &'static str, label: &'static str, primary: bool| {
+        div()
+            .id(id)
+            .px(px(12.0))
+            .py(px(4.0))
+            .border_1()
+            .border_color(if primary { hex_rgb(0x8ab4ff) } else { BORDER_DEFAULT })
+            .text_color(if primary { TEXT_MAX } else { TEXT_SECONDARY })
+            .cursor_pointer()
+            .hover(|s| s.bg(BG_ROW_HOVER))
+            .child(label)
+    };
+    let (app_esc, app_save, app_cancel) = (app.clone(), app.clone(), app);
     div()
+        .absolute()
+        .inset_0()
+        .bg(hex_rgba(0x000000, 0.45))
         .flex()
-        .items_center()
-        .min_w(px(24.0))
-        .border_b_1()
-        .border_color(hex_rgb(0x8ab4ff))
-        .whitespace_nowrap()
-        .text_color(TEXT_MAX)
-        .children(if all {
-            vec![div().bg(hex_rgba(0x8ab4ff, 0.35)).child(before).into_any_element(), caret().into_any_element()]
-        } else {
-            vec![div().child(before).into_any_element(), caret().into_any_element(), div().child(after).into_any_element()]
-        })
-        .into_any_element()
+        .items_start()
+        .justify_center()
+        .pt(px(60.0))
+        .child(
+            div()
+                .id("term-rename-popup")
+                .occlude()
+                .w(px(340.0))
+                .p(px(14.0))
+                .flex()
+                .flex_col()
+                .gap(px(10.0))
+                .bg(BG_PANEL)
+                .border_1()
+                .border_color(BORDER_DEFAULT)
+                .shadow_lg()
+                .font_family(FONT_MONO)
+                .text_size(px(11.0))
+                .on_key_down(move |ev: &KeyDownEvent, _w, cx| {
+                    if ev.keystroke.key == "escape" {
+                        cx.stop_propagation();
+                        app_esc.update(cx, |this, cx| this.finish_tab_rename(false, cx));
+                    }
+                })
+                .child(div().font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child("RENAME TAB"))
+                .child(gpui_kit::component::input::Input::new(&r.input))
+                .child(
+                    div()
+                        .flex()
+                        .gap(px(8.0))
+                        .child(div().flex_1().text_size(px(10.0)).text_color(TEXT_FAINT).child("Enter saves · Esc cancels"))
+                        .child(button("term-rename-cancel", "CANCEL", false).on_click(move |_ev, _w, cx| app_cancel.update(cx, |this, cx| this.finish_tab_rename(false, cx))))
+                        .child(button("term-rename-save", "SAVE", true).on_click(move |_ev, _w, cx| app_save.update(cx, |this, cx| this.finish_tab_rename(true, cx)))),
+                ),
+        )
 }
 
 /// The right-click menu on a tab.
@@ -187,7 +217,7 @@ fn tab_menu(m: &TabMenu, ws: &TerminalWorkspace, app: Entity<CrowApp>) -> impl I
     let shortcut = |mac: &'static str, other: &'static str| if cfg!(target_os = "macos") { mac } else { other };
     let named = ws.tabs.get(i).is_some_and(|t| t.name.is_some());
     let many = ws.tabs.len() > 1;
-    let item = |id: &'static str, label: &'static str, keys: &'static str, danger: bool, action: Box<dyn Fn(&mut CrowApp, &mut Context<CrowApp>)>| {
+    let item = |id: &'static str, label: &'static str, keys: &'static str, danger: bool, action: Box<dyn Fn(&mut CrowApp, &mut Window, &mut Context<CrowApp>)>| {
         let app = app.clone();
         div()
             .id(id)
@@ -199,7 +229,7 @@ fn tab_menu(m: &TabMenu, ws: &TerminalWorkspace, app: Entity<CrowApp>) -> impl I
             .text_color(if danger { CRIT_INK_DIM } else { TEXT_SECONDARY })
             .cursor_pointer()
             .hover(move |s| s.bg(BG_ROW_HOVER).text_color(if danger { CRIT } else { TEXT_MAX }))
-            .on_click(move |_ev, _w, cx| app.update(cx, |this, cx| action(this, cx)))
+            .on_click(move |_ev, window, cx| app.update(cx, |this, cx| action(this, window, cx)))
             .child(div().flex_1().child(label))
             .child(div().text_color(TEXT_FAINT).child(keys))
     };
@@ -217,21 +247,25 @@ fn tab_menu(m: &TabMenu, ws: &TerminalWorkspace, app: Entity<CrowApp>) -> impl I
                 .shadow_lg()
                 .font_family(FONT_MONO)
                 .text_size(px(11.0))
+                // Clicks on the menu stay on the menu: the pane below would
+                // otherwise take the mouse-down and close it before the click.
+                .occlude()
+                .on_mouse_down(MouseButton::Left, |_ev, _w, cx| cx.stop_propagation())
                 .on_mouse_down_out(move |_ev, _w, cx| close_app.update(cx, |this, cx| this.close_tab_menu(cx)))
-                .child(item("tm-rename", "Rename", shortcut("⌘R", "Ctrl+Shift+R"), false, Box::new(move |this, cx| this.start_tab_rename(i, cx))))
-                .children(named.then(|| item("tm-reset", "Use the shell's title", "", false, Box::new(move |this, cx| this.reset_tab_name(i, cx)))))
+                .child(item("tm-rename", "Rename…", shortcut("⌘R", "Ctrl+Shift+R"), false, Box::new(move |this, window, cx| this.start_tab_rename(i, window, cx))))
+                .children(named.then(|| item("tm-reset", "Use the shell's title", "", false, Box::new(move |this, _w, cx| this.reset_tab_name(i, cx)))))
                 .child(rule())
-                .child(item("tm-split-right", "Split right", shortcut("⌘D", "Ctrl+Shift+D"), false, Box::new(|this, cx| {
+                .child(item("tm-split-right", "Split right", shortcut("⌘D", "Ctrl+Shift+D"), false, Box::new(|this, _w, cx| {
                     this.close_tab_menu(cx);
                     this.terminal_split(Axis::Row, cx)
                 })))
-                .child(item("tm-split-down", "Split down", shortcut("⌘⇧D", "Ctrl+Shift+S"), false, Box::new(|this, cx| {
+                .child(item("tm-split-down", "Split down", shortcut("⌘⇧D", "Ctrl+Shift+S"), false, Box::new(|this, _w, cx| {
                     this.close_tab_menu(cx);
                     this.terminal_split(Axis::Column, cx)
                 })))
                 .child(rule())
-                .children(many.then(|| item("tm-close-others", "Close other tabs", "", true, Box::new(move |this, cx| this.terminal_close_other_tabs(i, cx)))))
-                .child(item("tm-close", "Close tab", "", true, Box::new(move |this, cx| this.terminal_close_tab(i, cx)))),
+                .children(many.then(|| item("tm-close-others", "Close other tabs", "", true, Box::new(move |this, _w, cx| this.terminal_close_other_tabs(i, cx)))))
+                .child(item("tm-close", "Close tab", "", true, Box::new(move |this, _w, cx| this.terminal_close_tab(i, cx)))),
         ),
     )
     .with_priority(1)
@@ -283,8 +317,8 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, a
         .relative()
         .bg(color(palette::BACKGROUND))
         .track_focus(&pane.focus)
-        .on_key_down(move |ev: &KeyDownEvent, _window, cx| {
-            let handled = app_keys.update(cx, |this, cx| this.terminal_key(ev, cx));
+        .on_key_down(move |ev: &KeyDownEvent, window, cx| {
+            let handled = app_keys.update(cx, |this, cx| this.terminal_key(ev, window, cx));
             if handled {
                 cx.stop_propagation();
             }
