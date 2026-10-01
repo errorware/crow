@@ -121,6 +121,102 @@ impl CrowApp {
         self.open_fleet_run(FleetRun::new(format!("ROLLING REBOOT · {n} SERVER{}", if n == 1 { "" } else { "S" }), "REBOOT", steps, excluded), jobs, window, cx);
     }
 
+    /// Plans switching every server attached to `key_id` (that doesn't use
+    /// it yet) to that key: install, prove with a fresh login, switch. The
+    /// servers' previous keys stay in authorized_keys: you may use them
+    /// yourself (ERR-90).
+    pub fn plan_key_deploy(&mut self, key_id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(key) = self.keys.enrolled.iter().find(|k| k.id == key_id).cloned() else { return };
+        let mut excluded = Vec::new();
+        let targets: Vec<_> = self
+            .fleet
+            .servers
+            .iter()
+            .filter(|s| key.attached_servers.iter().any(|a| *a == s.id || *a == s.name))
+            .filter(|s| s.key_id.as_deref() != Some(key_id))
+            .cloned()
+            .collect();
+        if key.private_key_path.is_none() {
+            excluded.push((key.name.clone(), "Crow has only the public half of this key, so it can't log in with it".into()));
+        }
+        let targets = if key.private_key_path.is_some() { targets } else { Vec::new() };
+        let title = format!("SWITCH TO KEY {}", key.name);
+        self.plan_key_switch(title, key, targets, false, excluded, window, cx);
+    }
+
+    /// Generates a new key next to `key_id`'s, then for every server using
+    /// the old key: install the new one, prove it, switch, and remove the old
+    /// one from authorized_keys (ERR-90).
+    pub fn plan_key_rotation(&mut self, key_id: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(old) = self.keys.enrolled.iter().find(|k| k.id == key_id).cloned() else { return };
+        let targets: Vec<_> = self.fleet.servers.iter().filter(|s| s.key_id.as_deref() == Some(key_id)).cloned().collect();
+        if targets.is_empty() {
+            self.keys.toast = Some(format!("No server logs in with {}; nothing to rotate.", old.name));
+            cx.notify();
+            return;
+        }
+        let dir = old
+            .private_key_path
+            .as_deref()
+            .map(crate::keys::expand_tilde)
+            .and_then(|p| p.parent().map(|d| d.to_path_buf()))
+            .unwrap_or_else(|| crate::keys::expand_tilde("~/.ssh"));
+        let name = format!("{}-{}", old.name, chrono::Local::now().format("%Y%m%d"));
+        let comment = format!("crow rotation of {}", old.name);
+        let new_key = match crate::keys::generate_keypair(&name, crate::keys::KeyAlgorithm::Ed25519, Some(&comment), &old.group_id, &dir, None) {
+            Ok((record, ..)) => record,
+            Err(e) => {
+                self.keys.toast = Some(format!("Couldn't generate the new key: {e}"));
+                cx.notify();
+                return;
+            }
+        };
+        if let Ok(db) = self.vault.db().lock() {
+            let mut record = new_key.clone();
+            record.attached_servers = old.attached_servers.clone();
+            let _ = db.upsert_ssh_key(&record);
+        }
+        self.refresh_keys(cx);
+        let excluded = vec![(new_key.name.clone(), format!("new key written to {}; if you cancel it stays there, unused", dir.display()))];
+        let title = format!("ROTATE {} → {}", old.name, new_key.name);
+        self.plan_key_switch(title, new_key, targets, true, excluded, window, cx);
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn plan_key_switch(&mut self, title: String, key: crate::vault::SshKeyRecord, targets: Vec<crate::vault::ServerRecord>, revoke_old: bool, excluded: Vec<(String, String)>, window: &mut Window, cx: &mut Context<Self>) {
+        // Verification resolves key paths through the SSH directory.
+        self.sync_ssh_directory();
+        let (mut steps, mut jobs): (Vec<_>, Vec<RunJob>) = (Vec::new(), Vec::new());
+        for srv in targets {
+            let old_blob = if revoke_old {
+                srv.key_id.as_ref().and_then(|id| self.keys.enrolled.iter().find(|k| &k.id == id)).and_then(|k| crate::keys::deploy::key_blob(&k.public_key))
+            } else {
+                None
+            };
+            let what = if revoke_old { "install new key, verify, switch, remove old key" } else { "install key, verify, switch" };
+            steps.push(FleetRun::step(&srv.id, &srv.name, what));
+            let (db, key) = (self.vault.db(), key.clone());
+            jobs.push(Box::new(move || {
+                let host = host_for(&srv);
+                let result = crate::keys::deploy::deploy_and_switch(host.as_ref(), &srv, &key, old_blob.as_deref(), crate::host::ssh::fresh_key_login);
+                let step: StepResult = match result {
+                    Ok(s) => {
+                        if let Ok(db) = db.lock() {
+                            let _ = db.upsert_server(&s.server);
+                        }
+                        // The held connection logged in with the old key.
+                        crate::host::Host::close_connection(&crate::host::SshHost::for_server(&srv));
+                        Ok(crate::views::fleet::run::StepOutcome::Done(if s.removed_old { "switched; old key removed".into() } else { "switched".into() }))
+                    }
+                    Err(e) => Err(e),
+                };
+                record_step(&db, &srv, "ssh.key_switch", &format!("{what} ({})", key.name), &step);
+                step
+            }));
+        }
+        self.open_fleet_run(FleetRun::new(title, "SWITCH", steps, excluded), jobs, window, cx);
+    }
+
     fn open_fleet_run(&mut self, run: FleetRun, jobs: Vec<RunJob>, window: &mut Window, cx: &mut Context<Self>) {
         let keyword = run.keyword;
         let input = cx.new(|cx| InputState::new(window, cx).placeholder(keyword));
@@ -185,6 +281,8 @@ impl CrowApp {
                 if let Some(m) = marker {
                     this.push_journal_action_marker(m);
                 }
+                // Server records may have changed (key switches).
+                this.reload_servers();
                 // Files changed on servers: drift, and the configs on screen.
                 this.refresh_drift();
                 if !this.configs.has_unsaved_changes() {

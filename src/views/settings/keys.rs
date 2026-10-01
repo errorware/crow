@@ -513,6 +513,9 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                     let key_id = key.id.clone();
                     let key_id_for_del = key.id.clone();
                     let key_id_for_attach = key.id.clone();
+                    // ERR-90: switch attached servers to this key, or rotate it.
+                    let (app_switch, key_id_for_switch) = (app.clone(), key.id.clone());
+                    let (app_rotate, key_id_for_rotate) = (app.clone(), key.id.clone());
                     let fp = key.fingerprint.clone();
                     let pub_key_str = key.public_key.clone();
 
@@ -826,6 +829,36 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                         .child("EDIT / ATTACH SERVERS ✎"),
                                                 ),
                                         )
+                                        .child(
+                                            div()
+                                                .id(ElementId::NamedInteger("btn-switch-key".into(), idx as u64))
+                                                .px(px(8.0))
+                                                .py(px(3.0))
+                                                .border_1()
+                                                .border_color(BORDER_DEFAULT)
+                                                .cursor_pointer()
+                                                .hover(|s| s.bg(BG_ROW_HOVER).border_color(TEXT_PRIMARY))
+                                                .on_click(move |_ev, window, cx| {
+                                                    let kid = key_id_for_switch.clone();
+                                                    app_switch.update(cx, |this, cx| this.plan_key_deploy(&kid, window, cx));
+                                                })
+                                                .child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_SECONDARY).child("SWITCH ATTACHED SERVERS TO IT")),
+                                        )
+                                        .child(
+                                            div()
+                                                .id(ElementId::NamedInteger("btn-rotate-key".into(), idx as u64))
+                                                .px(px(8.0))
+                                                .py(px(3.0))
+                                                .border_1()
+                                                .border_color(BORDER_DANGER_BTN)
+                                                .cursor_pointer()
+                                                .hover(|s| s.bg(CRIT_BG).border_color(CRIT))
+                                                .on_click(move |_ev, window, cx| {
+                                                    let kid = key_id_for_rotate.clone();
+                                                    app_rotate.update(cx, |this, cx| this.plan_key_rotation(&kid, window, cx));
+                                                })
+                                                .child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(CRIT_INK_DIM).child("ROTATE")),
+                                        )
                                         // Delete from Crow button
                                         .child(
                                             div()
@@ -1126,7 +1159,7 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                         .text_size(px(9.5))
                         .text_color(TEXT_FAINT)
                         .line_height(relative(1.45))
-                        .child("Keys enrolled in Crow remain on your filesystem and are never transmitted. Rotate keys older than 90 days in accordance with the key policy configured below."),
+                        .child("Private keys stay on this machine; only public keys go to servers. ROTATE makes a new key, installs it on every server that uses the old one, proves it logs in, then removes the old one, one server at a time. There is no automatic rotation policy."),
                 ),
         )
 }
