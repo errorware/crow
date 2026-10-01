@@ -15,6 +15,7 @@ use crate::terminal::input::{self, Mods};
 use crate::terminal::launch::launch_for;
 use crate::terminal::layout::{Axis, Node, PaneId};
 use crate::terminal::session::{GridSize, SelectBy, Session};
+use alacritty_terminal::term::TermMode;
 
 pub struct TerminalPane {
     pub id: PaneId,
@@ -31,6 +32,9 @@ pub struct TerminalPane {
     pub grid: Rc<Cell<Option<(Point<Pixels>, Size<Pixels>)>>>,
     /// A mouse selection is being dragged.
     pub selecting: bool,
+    /// A press reported to the program: its button code and the cell last
+    /// reported, so drags report only cell changes.
+    pub mouse_held: Option<(u8, Option<(usize, usize)>)>,
 }
 
 pub struct TerminalTab {
@@ -94,7 +98,7 @@ fn next_pane_id() -> PaneId {
 
 impl CrowApp {
     fn new_pane(server_id: &str, cx: &mut Context<Self>) -> TerminalPane {
-        TerminalPane { id: next_pane_id(), server_id: server_id.into(), session: None, error: None, focus: cx.focus_handle(), target: Rc::new(Cell::new(None)), focus_pending: true, grid: Rc::new(Cell::new(None)), selecting: false }
+        TerminalPane { id: next_pane_id(), server_id: server_id.into(), session: None, error: None, focus: cx.focus_handle(), target: Rc::new(Cell::new(None)), focus_pending: true, grid: Rc::new(Cell::new(None)), selecting: false, mouse_held: None }
     }
 
     /// The active server's workspace, created with one tab on first use.
@@ -354,9 +358,30 @@ impl CrowApp {
         }
     }
 
-    /// Mouse wheel over a pane: scrolls its history (lines, + = up).
-    pub fn terminal_scroll(&mut self, pane: PaneId, lines: i32, cx: &mut Context<Self>) {
-        if let Some(s) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get(&pane)).and_then(|p| p.session.as_ref()) {
+    /// Mouse wheel over a pane (lines, + = up): reported to a program that
+    /// asked for the mouse, arrow keys in a full-screen program (less, nano)
+    /// that wants them, otherwise the history scrolls.
+    pub fn terminal_wheel(&mut self, id: PaneId, lines: i32, pos: Point<Pixels>, m: Modifiers, cx: &mut Context<Self>) {
+        let Some(pane) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get(&id)) else { return };
+        let Some(s) = pane.session.as_ref() else { return };
+        let mode = s.mode();
+        let n = lines.unsigned_abs().min(10);
+        if mode.intersects(TermMode::MOUSE_MODE) && !m.shift {
+            let Some((col, row)) = Self::report_cell(pane, pos) else { return };
+            let button = if lines > 0 { 64 } else { 65 };
+            for _ in 0..n {
+                if let Some(b) = input::mouse(button, col, row, true, Self::mods(m), mode.contains(TermMode::SGR_MOUSE), mode.contains(TermMode::UTF8_MOUSE)) {
+                    s.write(b);
+                }
+            }
+        } else if mode.contains(TermMode::ALT_SCREEN | TermMode::ALTERNATE_SCROLL) && !m.shift {
+            let key = if lines > 0 { "up" } else { "down" };
+            for _ in 0..n {
+                if let Some(b) = input::encode(key, None, Mods::default(), mode.contains(TermMode::APP_CURSOR)) {
+                    s.write(b);
+                }
+            }
+        } else {
             s.scroll(lines);
             cx.notify();
         }
@@ -378,31 +403,92 @@ impl CrowApp {
         Some((y.floor() as i32, x.floor() as usize, x.fract() >= 0.5))
     }
 
-    /// Mouse press in a pane: one click starts a selection by cell, two by
-    /// word, three by line; Shift extends the current one.
-    pub fn terminal_select_start(&mut self, id: PaneId, pos: Point<Pixels>, clicks: usize, shift: bool, cx: &mut Context<Self>) {
-        self.terminal_focus_pane(id, cx);
-        let Some(pane) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get_mut(&id)) else { return };
-        let (Some((row, col, right)), Some(s)) = (Self::cell_at(pane, pos), pane.session.as_ref()) else { return };
-        let row = row.max(0) as usize;
-        if shift && s.selection_text().is_some() {
-            s.update_selection(row, col, right);
-        } else {
-            let by = match clicks {
-                0 | 1 => SelectBy::Cell,
-                2 => SelectBy::Word,
-                _ => SelectBy::Line,
-            };
-            s.start_selection(row, col, right, by);
-        }
-        pane.selecting = true;
-        cx.notify();
+
+    fn mods(m: Modifiers) -> Mods {
+        Mods { ctrl: m.control, alt: m.alt, shift: m.shift }
     }
 
-    /// Mouse moved with the button held: extends the selection, scrolling
-    /// the history when dragged past the top or bottom.
-    pub fn terminal_select_drag(&mut self, id: PaneId, pos: Point<Pixels>, cx: &mut Context<Self>) {
-        let Some(pane) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get_mut(&id)).filter(|p| p.selecting) else { return };
+    /// The cell under `pos`, clamped to the grid, for a mouse report.
+    fn report_cell(pane: &TerminalPane, pos: Point<Pixels>) -> Option<(usize, usize)> {
+        let (row, col, _) = Self::cell_at(pane, pos)?;
+        let size = pane.session.as_ref()?.size();
+        Some((col.min(size.cols as usize - 1), row.clamp(0, size.rows as i32 - 1) as usize))
+    }
+
+    /// Sends a mouse report if the pane's program asked for the mouse and
+    /// Shift isn't held (Shift always selects, as in other terminals).
+    fn report_mouse(pane: &TerminalPane, button: u8, pos: Point<Pixels>, pressed: bool, m: Modifiers) -> bool {
+        let Some(s) = pane.session.as_ref() else { return false };
+        let mode = s.mode();
+        if !mode.intersects(TermMode::MOUSE_MODE) || m.shift {
+            return false;
+        }
+        if let Some((col, row)) = Self::report_cell(pane, pos) {
+            if let Some(b) = input::mouse(button, col, row, pressed, Self::mods(m), mode.contains(TermMode::SGR_MOUSE), mode.contains(TermMode::UTF8_MOUSE)) {
+                s.write(b);
+            }
+        }
+        true
+    }
+
+    /// Mouse press in a pane. A program that asked for the mouse gets it;
+    /// otherwise left selects (one click by cell, two by word, three by
+    /// line; Shift extends) and middle pastes the primary selection.
+    pub fn terminal_mouse_down(&mut self, id: PaneId, button: MouseButton, pos: Point<Pixels>, clicks: usize, m: Modifiers, cx: &mut Context<Self>) {
+        self.terminal_focus_pane(id, cx);
+        let Some(pane) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get_mut(&id)) else { return };
+        let code = match button {
+            MouseButton::Left => 0,
+            MouseButton::Middle => 1,
+            MouseButton::Right => 2,
+            _ => return,
+        };
+        if Self::report_mouse(pane, code, pos, true, m) {
+            pane.mouse_held = Some((code, Self::report_cell(pane, pos)));
+            if let Some(s) = pane.session.as_ref() {
+                s.clear_selection();
+            }
+            return;
+        }
+        match button {
+            MouseButton::Left => {
+                let (Some((row, col, right)), Some(s)) = (Self::cell_at(pane, pos), pane.session.as_ref()) else { return };
+                let row = row.max(0) as usize;
+                if m.shift && s.selection_text().is_some() {
+                    s.update_selection(row, col, right);
+                } else {
+                    let by = match clicks {
+                        0 | 1 => SelectBy::Cell,
+                        2 => SelectBy::Word,
+                        _ => SelectBy::Line,
+                    };
+                    s.start_selection(row, col, right, by);
+                }
+                pane.selecting = true;
+                cx.notify();
+            }
+            MouseButton::Middle => self.terminal_paste_primary(id, cx),
+            _ => {}
+        }
+    }
+
+    /// Mouse moved with a button held: reported as a drag to a program
+    /// that wants drags, otherwise extends the selection (scrolling the
+    /// history when dragged past the top or bottom).
+    pub fn terminal_mouse_drag(&mut self, id: PaneId, pos: Point<Pixels>, m: Modifiers, cx: &mut Context<Self>) {
+        let Some(pane) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get_mut(&id)) else { return };
+        if let Some((code, last)) = pane.mouse_held {
+            let wants = pane.session.as_ref().is_some_and(|s| s.mode().intersects(TermMode::MOUSE_DRAG | TermMode::MOUSE_MOTION));
+            let cell = Self::report_cell(pane, pos);
+            if wants && cell != last {
+                Self::report_mouse(pane, code + 32, pos, true, m);
+                pane.mouse_held = Some((code, cell));
+            }
+            return;
+        }
+        if !pane.selecting {
+            return;
+        }
         let (Some((row, col, right)), Some(s)) = (Self::cell_at(pane, pos), pane.session.as_ref()) else { return };
         let rows = s.size().rows as i32;
         if row < 0 {
@@ -414,10 +500,18 @@ impl CrowApp {
         cx.notify();
     }
 
-    /// Mouse released: the selection is done (and, on Linux, becomes the
-    /// primary selection for middle-click paste).
-    pub fn terminal_select_end(&mut self, id: PaneId, cx: &mut Context<Self>) {
-        let Some(pane) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get_mut(&id)).filter(|p| p.selecting) else { return };
+    /// Mouse released anywhere: ends a reported press, or finishes the
+    /// selection (on Linux it becomes the primary selection).
+    pub fn terminal_mouse_up(&mut self, id: PaneId, pos: Point<Pixels>, m: Modifiers, cx: &mut Context<Self>) {
+        let Some(pane) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get_mut(&id)) else { return };
+        if let Some((code, _)) = pane.mouse_held.take() {
+            // Report the release even with Shift now held.
+            Self::report_mouse(pane, code, pos, false, Modifiers { shift: false, ..m });
+            return;
+        }
+        if !pane.selecting {
+            return;
+        }
         pane.selecting = false;
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
         if let Some(text) = pane.session.as_ref().and_then(|s| s.selection_text()) {
@@ -426,15 +520,16 @@ impl CrowApp {
     }
 
     /// Middle click: pastes the primary selection (Linux).
-    pub fn terminal_paste_primary(&mut self, id: PaneId, cx: &mut Context<Self>) {
-        self.terminal_focus_pane(id, cx);
+    fn terminal_paste_primary(&mut self, id: PaneId, cx: &mut Context<Self>) {
         #[cfg(any(target_os = "linux", target_os = "freebsd"))]
         {
             let text = cx.read_from_primary().and_then(|c| c.text());
             if let (Some(text), Some(s)) = (text, self.terminal_workspace(cx).and_then(|ws| ws.panes.get(&id)).and_then(|p| p.session.as_ref())) {
                 s.scroll_to_bottom();
-                s.write(input::paste(&text, s.mode().contains(alacritty_terminal::term::TermMode::BRACKETED_PASTE)));
+                s.write(input::paste(&text, s.mode().contains(TermMode::BRACKETED_PASTE)));
             }
         }
+        #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
+        let _ = (id, cx);
     }
 }

@@ -107,6 +107,33 @@ pub fn paste(text: &str, bracketed: bool) -> Vec<u8> {
     }
 }
 
+/// A mouse report for a program that asked for the mouse: `button` is
+/// xterm's code (0 left, 1 middle, 2 right, 64/65 wheel up/down, +32 for
+/// motion), at a 0-based cell. SGR form when the program enabled it;
+/// otherwise the legacy form (UTF-8 extended if asked), which can't
+/// express cells past 223 unless extended.
+pub fn mouse(button: u8, col: usize, row: usize, pressed: bool, m: Mods, sgr: bool, utf8: bool) -> Option<Vec<u8>> {
+    let code = button + 4 * m.shift as u8 + 8 * m.alt as u8 + 16 * m.ctrl as u8;
+    if sgr {
+        return Some(format!("\x1b[<{code};{};{}{}", col + 1, row + 1, if pressed { 'M' } else { 'm' }).into_bytes());
+    }
+    // Legacy releases don't say which button.
+    let code = if pressed { code } else { 3 + (code & !3) };
+    let mut out = b"\x1b[M".to_vec();
+    out.push(32 + code);
+    for v in [col, row] {
+        let v = 32 + 1 + v as u32;
+        if utf8 {
+            out.extend(char::from_u32(v)?.to_string().into_bytes());
+        } else if v <= 255 {
+            out.push(v as u8);
+        } else {
+            return None;
+        }
+    }
+    Some(out)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -142,5 +169,17 @@ mod tests {
     fn paste_brackets_when_asked_and_cant_be_escaped() {
         assert_eq!(paste("ls\n", false), b"ls\r".to_vec());
         assert_eq!(paste("rm -rf /\x1b[201~\n", true), b"\x1b[200~rm -rf /\n\x1b[201~".to_vec());
+    }
+
+    #[test]
+    fn mouse_reports() {
+        assert_eq!(mouse(0, 4, 2, true, NONE, true, false), Some(b"\x1b[<0;5;3M".to_vec()));
+        assert_eq!(mouse(0, 4, 2, false, NONE, true, false), Some(b"\x1b[<0;5;3m".to_vec()));
+        let ctrl = Mods { ctrl: true, ..NONE };
+        assert_eq!(mouse(65, 0, 0, true, ctrl, true, false), Some(b"\x1b[<81;1;1M".to_vec()), "wheel down with ctrl");
+        assert_eq!(mouse(2, 0, 0, true, NONE, false, false), Some(b"\x1b[M\x22\x21\x21".to_vec()));
+        assert_eq!(mouse(2, 0, 0, false, NONE, false, false), Some(b"\x1b[M\x23\x21\x21".to_vec()), "legacy release is button 3");
+        assert_eq!(mouse(0, 300, 0, true, NONE, false, false), None, "too far right for the legacy form");
+        assert_eq!(mouse(0, 300, 0, true, NONE, false, true).map(|b| String::from_utf8(b).unwrap()), Some("\x1b[M \u{14d}!".to_string()));
     }
 }
