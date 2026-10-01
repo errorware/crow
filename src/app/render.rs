@@ -144,6 +144,11 @@ impl Render for CrowApp {
                                 .children(match screen {
                                     Screen::Server => {
                                         let active_srv = self.fleet.servers.iter().find(|s| s.id == self.fleet.active_tab_id || s.name == self.fleet.active_tab_id);
+                                        // Its jump host, and whether that's down (ERR-91).
+                                        let jump = active_srv
+                                            .and_then(|s| s.jump_host_id.as_ref())
+                                            .and_then(|id| self.fleet.servers.iter().find(|j| &j.id == id))
+                                            .map(|j| (j.name.clone(), matches!(self.fleet.health(j), crate::views::fleet::state::FleetHealth::Down { .. })));
                                         let active_mtr = self.fleet.metrics_store.get(&self.fleet.active_tab_id).or_else(|| active_srv.and_then(|s| self.fleet.metrics_store.get(&s.id)));
                                         if self.fleet.servers.is_empty() || active_srv.is_none() {
                                             let app_fleet = app_view.clone();
@@ -245,8 +250,8 @@ impl Render for CrowApp {
                                                     .flex()
                                                     .flex_col()
                                                     // Server Identity Bar
-                                                    .child(identity_bar(active_srv, self.region_picker_open, app_view.clone()))
-                                                    .children(connection_banner(active_srv, app_view.clone()))
+                                                    .child(identity_bar(active_srv, jump.clone(), self.region_picker_open, app_view.clone()))
+                                                    .children(connection_banner(active_srv, jump.clone(), app_view.clone()))
                                                     // Server Stat Strip
                                                     .child(stat_strip(active_mtr, self.fleet.metrics_lag_secs, self.fleet.active_surge_alert.as_ref()))
                                                 // Main Server Body: Sidebar + Content
