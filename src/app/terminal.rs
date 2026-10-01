@@ -36,12 +36,18 @@ pub struct TerminalTab {
     pub name: Option<String>,
 }
 
-/// A tab being renamed in place.
+/// A tab being renamed in place: its own label, edited.
 pub struct TabRename {
     server_id: String,
     pub tab: usize,
-    pub input: Entity<gpui_kit::component::input::InputState>,
-    _events: Subscription,
+    pub edit: crate::terminal::line_edit::LineEdit,
+}
+
+/// The right-click menu on a tab.
+pub struct TabMenu {
+    pub tab: usize,
+    /// Where it was opened, in window coordinates.
+    pub at: Point<Pixels>,
 }
 
 /// A server's terminals.
@@ -135,6 +141,7 @@ impl CrowApp {
     pub fn terminal_close_pane(&mut self, pane: Option<PaneId>, cx: &mut Context<Self>) {
         // Tab indices may shift; a rename in progress doesn't survive that.
         self.terminal_rename = None;
+        self.tab_menu = None;
         let Some(ws) = self.terminal_workspace(cx) else { return };
         let Some(tab) = ws.tabs.get_mut(ws.active) else { return };
         let id = pane.unwrap_or(tab.focused);
@@ -157,42 +164,81 @@ impl CrowApp {
         cx.notify();
     }
 
-    /// Edits tab `i`'s name in place (double-click). Enter or clicking away
-    /// keeps it; Escape cancels; an empty name goes back to the shell's title.
-    pub fn start_tab_rename(&mut self, i: usize, window: &mut Window, cx: &mut Context<Self>) {
-        use gpui_kit::component::input::{InputEvent, InputState};
+    /// Renames tab `i` in place (double-click, the tab menu, Ctrl+Shift+R /
+    /// ⌘R): the label becomes editable, fully selected, so typing replaces
+    /// it. Enter or clicking elsewhere keeps it; Escape cancels; an empty
+    /// name goes back to the shell's title.
+    pub fn start_tab_rename(&mut self, i: usize, cx: &mut Context<Self>) {
+        self.tab_menu = None;
+        self.finish_tab_rename(true, cx);
+        self.terminal_select_tab(i, cx);
         let Some(current) = self.terminal_workspace(cx).filter(|ws| i < ws.tabs.len()).map(|ws| ws.tab_title(i)) else { return };
-        let input = cx.new(|cx| InputState::new(window, cx).default_value(current).placeholder("tab name"));
-        input.update(cx, |inp, cx| inp.focus(window, cx));
-        let events = cx.subscribe(&input, |this, _input, ev: &InputEvent, cx| {
-            if matches!(ev, InputEvent::PressEnter { .. } | InputEvent::Blur) {
-                this.finish_tab_rename(true, cx);
-            }
-        });
         let server_id = self.fleet.active_server().map(|s| s.id).unwrap_or_default();
-        self.terminal_rename = Some(TabRename { server_id, tab: i, input, _events: events });
+        self.terminal_rename = Some(TabRename { server_id, tab: i, edit: crate::terminal::line_edit::LineEdit::new(&current) });
+        if let Some(p) = self.terminal_workspace(cx).and_then(|ws| ws.focused_pane_mut()) {
+            // Keys arrive through the terminal; keep it focused.
+            p.focus_pending = true;
+        }
         cx.notify();
     }
 
     pub fn finish_tab_rename(&mut self, keep: bool, cx: &mut Context<Self>) {
         let Some(r) = self.terminal_rename.take() else { return };
-        let text = r.input.read(cx).value().trim().to_string();
         let same_server = self.fleet.active_server().is_some_and(|s| s.id == r.server_id);
-        let keep = keep && same_server;
-        if let Some(ws) = self.terminal_workspace(cx) {
-            if keep {
-                if let Some(tab) = ws.tabs.get_mut(r.tab) {
-                    tab.name = (!text.is_empty()).then_some(text);
-                }
-            }
-            if let Some(p) = ws.focused_pane_mut() {
-                p.focus_pending = true;
+        if keep && same_server {
+            let text = r.edit.text().trim().to_string();
+            if let Some(tab) = self.terminal_workspace(cx).and_then(|ws| ws.tabs.get_mut(r.tab)) {
+                tab.name = (!text.is_empty()).then_some(text);
             }
         }
         cx.notify();
     }
 
+    /// Back to following the shell's title.
+    pub fn reset_tab_name(&mut self, i: usize, cx: &mut Context<Self>) {
+        self.tab_menu = None;
+        if let Some(tab) = self.terminal_workspace(cx).and_then(|ws| ws.tabs.get_mut(i)) {
+            tab.name = None;
+        }
+        cx.notify();
+    }
+
+    pub fn open_tab_menu(&mut self, i: usize, at: Point<Pixels>, cx: &mut Context<Self>) {
+        self.finish_tab_rename(true, cx);
+        self.terminal_select_tab(i, cx);
+        self.tab_menu = Some(TabMenu { tab: i, at });
+        cx.notify();
+    }
+
+    pub fn close_tab_menu(&mut self, cx: &mut Context<Self>) {
+        self.tab_menu = None;
+        cx.notify();
+    }
+
+    /// Closes tab `i` (every pane in it).
+    pub fn terminal_close_tab(&mut self, i: usize, cx: &mut Context<Self>) {
+        self.tab_menu = None;
+        self.terminal_select_tab(i, cx);
+        let panes = self.terminal_workspace(cx).and_then(|ws| ws.tabs.get(i)).map(|t| t.root.panes()).unwrap_or_default();
+        for p in panes {
+            self.terminal_close_pane(Some(p), cx);
+        }
+    }
+
+    /// Closes every tab but `keep`.
+    pub fn terminal_close_other_tabs(&mut self, keep: usize, cx: &mut Context<Self>) {
+        self.tab_menu = None;
+        let count = self.terminal_workspace(cx).map(|ws| ws.tabs.len()).unwrap_or(0);
+        // From the end, so indices below stay valid; `keep` ends up at 0.
+        for i in (0..count).rev().filter(|i| *i != keep) {
+            self.terminal_close_tab(i, cx);
+        }
+    }
+
     pub fn terminal_select_tab(&mut self, i: usize, cx: &mut Context<Self>) {
+        if self.terminal_rename.as_ref().is_some_and(|r| r.tab != i) {
+            self.finish_tab_rename(true, cx);
+        }
         if let Some(ws) = self.terminal_workspace(cx) {
             if i < ws.tabs.len() {
                 ws.active = i;
@@ -205,6 +251,9 @@ impl CrowApp {
     }
 
     pub fn terminal_focus_pane(&mut self, id: PaneId, cx: &mut Context<Self>) {
+        // Clicking into a pane keeps a rename in progress.
+        self.finish_tab_rename(true, cx);
+        self.tab_menu = None;
         if let Some(ws) = self.terminal_workspace(cx) {
             if let Some(tab) = ws.tabs.get_mut(ws.active).filter(|t| t.root.panes().contains(&id)) {
                 tab.focused = id;
@@ -282,11 +331,29 @@ impl CrowApp {
     pub fn terminal_key(&mut self, ev: &KeyDownEvent, cx: &mut Context<Self>) -> bool {
         let m = &ev.keystroke.modifiers;
         let key = ev.keystroke.key.to_lowercase();
+        // A tab rename in progress takes every key.
+        if let Some(r) = self.terminal_rename.as_mut() {
+            use crate::terminal::line_edit::EditResult;
+            match r.edit.key(&key, ev.keystroke.key_char.as_deref(), m.control || m.platform) {
+                EditResult::Commit => self.finish_tab_rename(true, cx),
+                EditResult::Cancel => self.finish_tab_rename(false, cx),
+                EditResult::Editing => cx.notify(),
+            }
+            return true;
+        }
+        if self.tab_menu.is_some() && key == "escape" {
+            self.close_tab_menu(cx);
+            return true;
+        }
         // Workspace chords: ⌘ on macOS, Ctrl+Shift elsewhere.
         let chord = if cfg!(target_os = "macos") { m.platform } else { m.control && m.shift };
         if chord {
             match (key.as_str(), m.shift) {
                 ("t", _) => self.terminal_new_tab(cx),
+                ("r", _) => {
+                    let active = self.terminal_workspace(cx).map(|ws| ws.active).unwrap_or(0);
+                    self.start_tab_rename(active, cx);
+                }
                 ("w", _) => self.terminal_close_pane(None, cx),
                 ("d", true) if cfg!(target_os = "macos") => self.terminal_split(Axis::Column, cx),
                 ("d", _) => self.terminal_split(Axis::Row, cx),
