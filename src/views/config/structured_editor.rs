@@ -230,7 +230,7 @@ pub fn structured_editor(
                 .overflow_y_scrollbar()
                 // sshd_config reads as a settings sheet (grouped, defaults shown).
                 .children((format == StructuredFormat::Sshd).then(|| {
-                    super::sshd_sheet::sshd_sheet_view(&file, &crate::config::plugins::sshd_sheet(ir), read_only, active_edit.as_ref(), app.clone())
+                    super::sshd_sheet::sshd_sheet_view(&file, &crate::config::plugins::sshd_sheet(ir, &configs.sshd_includes), read_only, active_edit.as_ref(), app.clone())
                 }))
                 .child(
                     div()
