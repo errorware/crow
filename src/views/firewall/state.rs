@@ -14,6 +14,9 @@ pub struct FirewallState {
     pub show_audit_rail: bool,
     /// The command currently running on the server, if any.
     pub pending: Option<String>,
+    /// Read-only backends: the ruleset as the host printed it, in place of
+    /// the rule table.
+    pub show_raw: bool,
 }
 
 impl FirewallState {
@@ -27,6 +30,7 @@ impl FirewallState {
             toast: None,
             show_audit_rail: true,
             pending: None,
+            show_raw: false,
         }
     }
 

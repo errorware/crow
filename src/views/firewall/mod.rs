@@ -1,6 +1,7 @@
 pub mod models;
 pub mod detector;
 pub mod firewalld;
+pub mod raw;
 pub mod non_operational;
 pub mod new_rule_modal;
 pub mod rules_format;
@@ -71,6 +72,8 @@ fn render_active_firewall(
     let app_reload = app.clone();
     let app_stage = app.clone();
     let app_toggle_audit = app.clone();
+    let app_raw = app.clone();
+    let show_raw = fw.show_raw && !writable;
 
     let file_state = config_file_states.get("user.rules");
     let (is_modified, add_count, del_count, active_rev) = if let Some(st) = file_state {
@@ -256,6 +259,27 @@ fn render_active_firewall(
                                 })
                                 .child(if fw.show_audit_rail { "AUDIT RAIL [ON]" } else { "AUDIT RAIL [OFF]" }),
                         )
+                        // The ruleset as the host printed it (read-only backends).
+                        .when(!writable, |d| d.child(
+                            div()
+                                .id("btn-firewall-raw")
+                                .px(px(10.0))
+                                .py(px(4.5))
+                                .bg(if show_raw { hex_rgba(0x8ab4ff, 0.15) } else { BG_CONTROL })
+                                .border_1()
+                                .border_color(if show_raw { hex_rgba(0x8ab4ff, 0.4) } else { BORDER_DEFAULT })
+                                .rounded_sm()
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(if show_raw { hex_rgb(0x8ab4ff) } else { TEXT_SECONDARY })
+                                .on_click(move |_ev, _window, cx| {
+                                    app_raw.update(cx, |this, cx| this.toggle_firewall_raw(cx));
+                                })
+                                .child(if show_raw { "RULE TABLE" } else { "RAW RULESET" }),
+                        ))
                         // Reload Firewall Button
                         .when(writable, |d| d.child(
                             div()
@@ -350,10 +374,13 @@ fn render_active_firewall(
                 ),
         )
         // Read-only backends, and anything the reader flagged (ERR-76).
-        .children((!writable).then(|| notice_strip(format!(
-            "READ-ONLY · Crow reads {} (the running config) but doesn't change it yet; use its own tools to edit.",
-            summary.backend.label()
-        ), TEXT_SECONDARY)))
+        .children((!writable).then(|| notice_strip(match summary.backend {
+            FirewallBackend::Nftables | FirewallBackend::Iptables => format!(
+                "READ-ONLY · Crow reads the {} ruleset (the input chain and what it jumps to) but never writes raw rulesets.",
+                summary.backend.label()
+            ),
+            b => format!("READ-ONLY · Crow reads {} (the running config) but doesn't change it yet; use its own tools to edit.", b.label()),
+        }, TEXT_SECONDARY)))
         .children(summary.notice.clone().map(|n| notice_strip(n, WARN)))
         // 2. Global Policy Strip & Quick Port Toggles
         .child(
@@ -617,6 +644,10 @@ fn render_active_firewall(
                 .flex()
                 .flex_col()
                 .gap(px(6.0))
+                .when(show_raw, |d| d.children(summary.raw_output.lines().map(|line| {
+                    div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_SECONDARY).child(if line.is_empty() { " ".to_string() } else { line.to_string() })
+                })))
+                .when(!show_raw, |d| d
                 // Column Headers
                 .child(
                     div()
@@ -660,7 +691,7 @@ fn render_active_firewall(
                     filtered_rules.iter().map(|rule| {
                         render_rule_row(rule, writable, app.clone()).into_any_element()
                     }).collect()
-                }),
+                })),
         )
         // Toast Notification Overlay
         .children(if let Some(msg) = fw.pending.as_ref().map(|p| format!("Running: {p} …")).as_ref().or(fw.toast.as_ref()) {

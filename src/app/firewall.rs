@@ -46,6 +46,11 @@ impl CrowApp {
         cx.notify();
     }
 
+    pub fn toggle_firewall_raw(&mut self, cx: &mut Context<Self>) {
+        self.firewall.show_raw = !self.firewall.show_raw;
+        cx.notify();
+    }
+
     pub fn stage_firewall_rules(&mut self, message: &str, cx: &mut Context<Self>) {
         self.sync_firewall_to_config_state();
         self.stage_config_version("user.rules", message, cx);

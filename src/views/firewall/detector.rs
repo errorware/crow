@@ -92,12 +92,20 @@ pub fn detect_firewall(host: &dyn Host) -> FirewallOperationalState {
         };
     }
 
-    let reason = if has("nft") || has("iptables") {
-        "Only raw nftables/iptables tools were found. Crow manages ufw rules; raw rule sets aren't read yet."
-    } else {
-        "No firewall tooling (ufw, firewalld, nftables, iptables) was found on this host."
-    };
-    FirewallOperationalState::Unmanaged { detected_binaries, reason: reason.into() }
+    if has("nft") || has("iptables") {
+        // A bare ruleset, shown read-only (ERR-78).
+        return match super::raw::read(host, has("nft"), has("iptables")) {
+            Ok(summary) => FirewallOperationalState::Active(summary),
+            Err(e) => FirewallOperationalState::Unmanaged {
+                detected_binaries,
+                reason: format!("nftables/iptables are here, but Crow couldn't read the ruleset as root: {e}"),
+            },
+        };
+    }
+    FirewallOperationalState::Unmanaged {
+        detected_binaries,
+        reason: "No firewall tooling (ufw, firewalld, nftables, iptables) was found on this host.".into(),
+    }
 }
 
 /// Parses the output of `ufw status numbered`
