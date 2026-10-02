@@ -1215,6 +1215,10 @@ fn fleet_danger_page(app: Entity<CrowApp>) -> impl IntoElement {
         let app = app.clone();
         fleet_action_live("btn-fleet-push-baseline", "PUSH BASELINE TO ALL".into()).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_push_baselines(window, cx)))
     };
+    let revoke = {
+        let app = app.clone();
+        fleet_action_live("btn-fleet-revoke-sessions", "REVOKE SESSIONS".into()).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_revoke_sessions(window, cx)))
+    };
     let rotate = {
         let app = app.clone();
         fleet_action_live("btn-fleet-rotate-keys", "ROTATE HOST KEYS".into()).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_rotate_host_keys(window, cx)))
@@ -1251,7 +1255,7 @@ fn fleet_danger_page(app: Entity<CrowApp>) -> impl IntoElement {
                 .child(action_row("Rolling reboot", "Reboots every reachable server in turn, each back from a fresh boot before the next.", vec![reboot.into_any_element()]))
                 .child(action_row("Push baseline", "Pushes each config baseline to every server whose copy drifted from it.", vec![baseline.into_any_element()]))
                 .child(action_row("Rotate all host keys", "New SSH host keys on every server, re-pinned in known_hosts and proven with a fresh login; undone on any failure. Other machines will see a changed key.", vec![rotate.into_any_element()]))
-                .child(action_row("Revoke all sessions", "Not built yet.", vec![fleet_action_stub("btn-fleet-revoke-sessions", "NOT YET BUILT".into()).into_any_element()])),
+                .child(action_row("Revoke all sessions", "Ends every SSH login on every server except Crow's own. Console logins and keys are untouched: anyone whose key still works can log back in.", vec![revoke.into_any_element()])),
         )
 }
 
@@ -1265,21 +1269,6 @@ fn fleet_action_live(id: &'static str, label: String) -> Stateful<Div> {
         .border_color(BORDER_DANGER_BTN)
         .hover(|s| s.bg(CRIT_BG).text_color(CRIT))
         .cursor_pointer()
-        .font_family(FONT_MONO)
-        .text_size(px(11.0))
-        .text_color(CRIT_INK_DIM)
-        .child(label)
-}
-
-/// A fleet-wide action that doesn't exist yet: visibly disabled, no handler.
-fn fleet_action_stub(id: &'static str, label: String) -> Stateful<Div> {
-    div()
-        .id(id)
-        .px(px(10.0))
-        .py(px(4.0))
-        .border_1()
-        .border_color(BORDER_DANGER_BTN)
-        .opacity(0.45)
         .font_family(FONT_MONO)
         .text_size(px(11.0))
         .text_color(CRIT_INK_DIM)
