@@ -32,6 +32,8 @@ pub mod terminal;
 pub mod history_view;
 mod files;
 mod firewall;
+mod updates;
+pub use updates::UpdateState;
 mod users;
 mod host_actions;
 mod render;
@@ -284,6 +286,8 @@ pub struct CrowApp {
     pub _metrics_poll_task: Task<()>,
     /// Deletes archived servers' stored data once its window has closed.
     pub _archive_purge_task: Task<()>,
+    pub _update_task: Task<()>,
+    pub update: updates::UpdateState,
 }
 
 impl CrowApp {
@@ -426,6 +430,8 @@ impl CrowApp {
             config_search: None,
             _metrics_poll_task: Self::spawn_metrics_poll(cx),
             _archive_purge_task: Self::spawn_archive_purge(cx),
+            _update_task: Self::spawn_update_check(cx),
+            update: updates::UpdateState::default(),
             journal: JournalState::new(initial_journal, journal_retention, journal_telemetry),
             local_lab: LocalLabState::new(lab_engines, lab_nodes),
             show_about_modal: false,

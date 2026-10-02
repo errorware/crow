@@ -50,6 +50,10 @@ You can switch either way from Settings → Vault & Security (going back to Open
 - Revoke all sessions (Fleet → Danger Zone) ends every SSH connection to each server except Crow's own, which it finds from inside the connection; if it can't, it ends nothing. Console logins and keys are untouched, so anyone whose key still works can log back in: rotate or remove keys for that.
 - Firewall changes (ufw, firewalld) are played against the rules Crow read before they run. If one would stop the SSH port Crow is connected through from being allowed, or Crow can't tell (enabling ufw, reloading a firewalld whose saved config differs), it waits for a typed CONFIRM. Raw nftables/iptables rulesets are only read, never written.
 
+## What Crow sends over the internet
+
+Besides SSH to your servers: provider APIs you configure, AI services you configure, OSV (package names and versions, for CVEs), and, unless turned off, one request a day for Crow's release list on GitHub (no identifiers beyond the User-Agent `crow/<version>`). With GeoIP regions on, DB-IP's country database is downloaded about monthly; server addresses never leave your machine. Updates install only after slsa-verifier confirms the release's signed SLSA provenance; a release that doesn't verify is never installed.
+
 ## Anything that weakens your stance is shown
 
 The stance panel lists what weakens it right now, for example:

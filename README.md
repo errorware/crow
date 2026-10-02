@@ -128,6 +128,8 @@ cd crow-linux-x86_64 && ./install.sh
 xattr -dr com.apple.quarantine /Applications/Crow.app
 ```
 
+**Updates**: Crow checks the release list on GitHub once a day and shows `vX available` next to its version (Settings → General turns this off; nothing else is sent). Installing updates by themselves is opt-in, and only happens after [slsa-verifier](https://github.com/slsa-framework/slsa-verifier) (which must be on your PATH) confirms the release's signed provenance. Only an installed copy (`~/.local/bin/crow`, `Crow.app`) is replaced, and Crow offers a restart rather than restarting itself.
+
 ### Prerequisites
 
 A Rust toolchain (1.85+), native windowing and font libraries, and `curl` (Crow uses it for provider and AI requests).

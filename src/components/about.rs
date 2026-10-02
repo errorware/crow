@@ -1,9 +1,10 @@
 use gpui_kit::*;
+use gpui_kit::prelude::FluentBuilder as _;
 use crate::theme::*;
-use crate::app::CrowApp;
+use crate::app::{CrowApp, UpdateState};
 use crate::components::icons::{TablerIcon, tabler_icon};
 
-pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool) -> impl IntoElement {
+pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateState, auto_install: bool) -> impl IntoElement {
     let app_close1 = app.clone();
     let app_close2 = app.clone();
     let app_copy = app.clone();
@@ -184,6 +185,8 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool) -> impl IntoElement
                                 .child(info_row("CONFIG CORE", "crow-config-core · Schema IR"))
                                 .child(info_row("GEOIP DATA", crate::geoip::ATTRIBUTION)),
                         )
+                        // A newer version (ERR-88).
+                        .children(update_panel(update, auto_install, app.clone()))
                         // Author & Website metadata
                         .child(
                             div()
@@ -267,6 +270,69 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool) -> impl IntoElement
                         ),
                 ),
         )
+}
+
+/// The offered release: notes, skip, and install (when installing is on)
+/// or restart (once installed).
+fn update_panel(update: &UpdateState, auto_install: bool, app: Entity<CrowApp>) -> Option<impl IntoElement> {
+    if update.available.is_none() && update.note.is_none() {
+        return None;
+    }
+    let button = |id: &'static str, label: &'static str, color: Rgba| {
+        div()
+            .id(id)
+            .px(px(10.0))
+            .py(px(4.0))
+            .border_1()
+            .border_color(color)
+            .cursor_pointer()
+            .font_family(FONT_MONO)
+            .text_size(px(10.0))
+            .font_weight(FontWeight::BOLD)
+            .text_color(color)
+            .hover(|s| s.bg(BG_ROW_HOVER))
+            .child(label)
+    };
+    let (a_notes, a_skip, a_install, a_restart) = (app.clone(), app.clone(), app.clone(), app);
+    Some(
+        div()
+            .bg(OK_BG)
+            .border_1()
+            .border_color(OK)
+            .p(px(12.0))
+            .flex()
+            .flex_col()
+            .gap(px(8.0))
+            .children(update.available.as_ref().map(|r| {
+                div()
+                    .font_family(FONT_MONO)
+                    .text_size(px(11.0))
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(OK)
+                    .child(format!("CROW {}{} IS AVAILABLE", r.version, if r.prerelease { " (PRE-RELEASE)" } else { "" }))
+            }))
+            .children(update.note.clone().map(|n| div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_PRIMARY).child(n)))
+            .child(
+                div()
+                    .flex()
+                    .gap(px(8.0))
+                    .when(update.available.is_some(), |d| {
+                        d.child(button("btn-update-notes", "RELEASE NOTES", TEXT_SECONDARY).on_click(move |_e, _w, cx| a_notes.update(cx, |this, cx| this.open_release_notes(cx))))
+                    })
+                    .when(update.available.is_some() && !update.installed, |d| {
+                        d.child(button("btn-update-skip", "SKIP THIS VERSION", TEXT_SECONDARY).on_click(move |_e, _w, cx| a_skip.update(cx, |this, cx| this.skip_update(cx))))
+                    })
+                    .when(auto_install && update.available.is_some() && !update.installed && !update.installing, |d| {
+                        d.child(button("btn-update-install", "VERIFY & INSTALL", OK).on_click(move |_e, _w, cx| a_install.update(cx, |this, cx| this.install_update(cx))))
+                    })
+                    .when(update.installed, |d| {
+                        d.child(button("btn-update-restart", "RESTART NOW", OK).on_click(move |_e, _w, cx| a_restart.update(cx, |this, cx| this.restart_after_update(cx))))
+                    }),
+            )
+            .when(!auto_install && update.available.is_some(), |d| {
+                d.child(div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_MUTED).child("Crow doesn't download anything unless you turn on installing in Settings → General."))
+            }),
+    )
 }
 
 fn info_row(label: &'static str, value: &str) -> impl IntoElement {

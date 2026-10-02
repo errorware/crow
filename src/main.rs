@@ -19,6 +19,7 @@ pub mod providers;
 pub mod region;
 pub mod secret_string;
 pub mod security;
+pub mod update;
 pub mod vault;
 mod views;
 
