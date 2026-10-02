@@ -207,3 +207,11 @@ options = [
   { value = "180", label = "180 days", risk = "recommended" },
   { value = "never", label = "Never purge", risk = "caution" }
 ]
+
+[[fields]]
+name = "appearance.terminal_font_size"
+type = "integer"
+required = false
+min = 9
+max = 24
+help = "Font size in server terminals, in points."

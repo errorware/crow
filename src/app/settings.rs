@@ -62,6 +62,11 @@ impl CrowApp {
         });
     }
 
+    /// The terminal's font size (Personalisation), 9–24 points.
+    pub fn terminal_font_size(&self) -> f32 {
+        self.config.saved_int("appearance.terminal_font_size").map_or(crate::views::terminal::DEFAULT_FONT_SIZE, |v| v.clamp(9, 24) as f32)
+    }
+
     /// Seconds between live refreshes of the server on screen.
     pub fn refresh_interval_secs(&self) -> u64 {
         self.config.saved_int("general.refresh_interval").map_or(2, |v| v.clamp(1, 60) as u64)
