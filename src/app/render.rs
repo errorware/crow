@@ -526,7 +526,7 @@ impl Render for CrowApp {
                         // 3. Status bar: alerts, notices, version (Fleet shows its
                         //    notices in its own banner).
                         .children(matches!(screen, Screen::Fleet | Screen::Server).then(|| {
-                            crate::components::status_bar::status_bar(&alert_lines, self.fleet.notice.as_deref().filter(|_| screen == Screen::Server), app_view.clone())
+                            crate::components::status_bar::status_bar(&alert_lines, self.fleet.notice.as_deref().filter(|_| screen == Screen::Server), self.update.available.as_ref().map(|r| r.version.to_string()), app_view.clone())
                         }))
                         // 3. Burger Menu Overlay
                         .children(if menu_open {
@@ -566,7 +566,7 @@ impl Render for CrowApp {
                         .children(self.pending_secret.is_some().then(|| crate::components::stance::stance_choice_modal(self.stance_choice_ack, app_view.clone())))
                         // 5. About Crow Modal
                         .children(if self.show_about_modal {
-                            Some(crate::components::about::about_modal(app_view.clone(), self.about_copied_toast))
+                            Some(crate::components::about::about_modal(app_view.clone(), self.about_copied_toast, &self.update, self.update_auto_install()))
                         } else {
                             None
                         })

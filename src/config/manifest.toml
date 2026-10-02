@@ -221,3 +221,21 @@ name = "servers.geoip_regions"
 type = "bool"
 required = false
 help = "Find the country of servers without cloud metadata from their public IP, looked up on this machine in DB-IP's free country database (downloaded from db-ip.com about once a month; no server address is ever sent anywhere). IP geolocation by DB-IP (db-ip.com), CC BY 4.0."
+
+[[fields]]
+name = "general.update_check"
+type = "bool"
+required = false
+help = "Check GitHub once a day for a newer Crow and say so next to the version. Only the release list is requested; nothing about you or your servers is sent."
+
+[[fields]]
+name = "general.update_prereleases"
+type = "bool"
+required = false
+help = "Offer pre-releases (betas) too. Builds that are themselves pre-releases always see newer ones."
+
+[[fields]]
+name = "general.update_auto_install"
+type = "bool"
+required = false
+help = "Download and install new versions by themselves, only after slsa-verifier confirms the release's signed provenance (it must be installed). Crow offers a restart and never restarts on its own."

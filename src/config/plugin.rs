@@ -28,6 +28,9 @@ titlebar_latency = true
 confirm_destructive = true
 log_buffer_lines = 10000
 notify_failures = true
+update_check = true
+update_prereleases = false
+update_auto_install = false
 auto_update_check = true
 
 [connection]

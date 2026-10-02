@@ -614,7 +614,7 @@ impl CrowApp {
 
 /// Opens a web link in the default browser. The URL is one argument, never
 /// passed through a shell.
-fn open_url(url: &str) {
+pub(super) fn open_url(url: &str) {
     #[cfg(target_os = "macos")]
     let opener = "open";
     #[cfg(not(target_os = "macos"))]

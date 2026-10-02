@@ -7,7 +7,8 @@ use crate::app::{CrowApp, Screen};
 use crate::theme::*;
 use crate::views::fleet::alert_lines::AlertLine;
 
-pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<String>, app: Entity<CrowApp>) -> impl IntoElement {
+    let app_update = app.clone();
     let open: Vec<&AlertLine> = alerts.iter().filter(|a| !a.resolved && !a.acknowledged).collect();
     let crit = open.iter().any(|a| a.level == "CRIT");
     let (dot, summary) = match open.len() {
@@ -95,6 +96,19 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, app: Entity<CrowAp
                 .border_color(BORDER_PANEL)
                 .text_color(TEXT_FAINT)
                 .child("agentless · ssh")
-                .child(concat!("crow v", env!("CARGO_PKG_VERSION"))),
+                .child(concat!("crow v", env!("CARGO_PKG_VERSION")))
+                // A newer version (ERR-88): details in About.
+                .children(update.map(|v| {
+                    div()
+                        .id("status-update-available")
+                        .px(px(6.0))
+                        .border_1()
+                        .border_color(OK)
+                        .text_color(OK)
+                        .cursor_pointer()
+                        .hover(|s| s.bg(OK_BG))
+                        .on_click(move |_e, _w, cx| app_update.update(cx, |this, cx| this.open_about_modal(cx)))
+                        .child(format!("v{v} available ↗"))
+                })),
         )
 }
