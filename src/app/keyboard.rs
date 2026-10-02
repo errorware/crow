@@ -231,7 +231,9 @@ impl CrowApp {
             // Escape closes the form being typed into, and nothing else;
             // other plain keys belong to the input.
             if ev.keystroke.key == "escape" {
-                if self.firewall.show_new_rule_modal {
+                if self.firewall.lockout.is_some() {
+                    self.cancel_firewall_lockout(cx);
+                } else if self.firewall.show_new_rule_modal {
                     self.close_new_firewall_rule_modal(cx);
                 } else if self.users.show_new_user_modal {
                     self.users.show_new_user_modal = false;
@@ -247,7 +249,9 @@ impl CrowApp {
             return false;
         }
         if ev.keystroke.key == "escape" {
-            if self.snapshots_panel.is_some() {
+            if self.firewall.lockout.is_some() {
+                self.cancel_firewall_lockout(cx);
+            } else if self.snapshots_panel.is_some() {
                 self.close_snapshots_panel(cx);
             } else if self.password_login.is_some() {
                 self.close_password_login(cx);

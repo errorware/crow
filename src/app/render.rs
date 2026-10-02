@@ -34,6 +34,9 @@ impl Render for CrowApp {
         if self.screen == Screen::Fleet || (self.screen == Screen::Settings && self.settings.section == super::SettingsSection::Personalisation) {
             self.ensure_fleet_background(cx);
         }
+        if self.firewall.lockout.is_some() {
+            self.ensure_firewall_lockout_input(window, cx);
+        }
         if self.users.show_new_user_modal {
             self.ensure_new_user_inputs(window, cx);
         }

@@ -134,6 +134,21 @@ pub struct ZoneScope {
     /// true for the default zone and source-bound zones, false for a zone
     /// that only covers particular interfaces (docker0, a VPN).
     pub counts_for_exposure: bool,
+    /// The zone entry the rule was read from, which is what removing it
+    /// takes (ERR-77). `None` for rules Crow can't remove.
+    #[serde(default)]
+    pub entry: Option<ZoneEntry>,
+}
+
+/// One entry of a firewalld zone.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ZoneEntry {
+    Service(String),
+    /// As firewalld writes it: "8080/tcp", "6000-6007/udp".
+    Port(String),
+    RichRule(String),
+    /// The zone's target is ACCEPT: not an entry, so not removable.
+    Target,
 }
 
 impl FirewallRule {
@@ -306,7 +321,7 @@ pub fn correlate_port_firewall(
 
 /// Whether a ufw rule's port field ("22", "6000:6007", "80,443,8000:8010",
 /// or "Anywhere"/empty for all ports) covers `port`.
-fn rule_covers_port(rule_port: &str, port: &str, port_num: u16) -> bool {
+pub(crate) fn rule_covers_port(rule_port: &str, port: &str, port_num: u16) -> bool {
     if rule_port.is_empty() || rule_port.eq_ignore_ascii_case("anywhere") {
         return true;
     }

@@ -6,7 +6,7 @@
 
 use std::collections::HashMap;
 
-use super::models::{FirewallBackend, FirewallRule, FirewallStatusSummary, RuleAction, RuleDirection, RuleProtocol, ZoneScope};
+use super::models::{FirewallBackend, FirewallRule, FirewallStatusSummary, RuleAction, RuleDirection, RuleProtocol, ZoneEntry, ZoneScope};
 use crate::host::{Host, DEFAULT_TIMEOUT};
 
 /// One zone from `firewall-cmd --list-all-zones`.
@@ -156,7 +156,7 @@ pub fn parse_rich_rule(rule: &str) -> Option<RichRule> {
 pub fn zones_to_summary(zones: &[Zone], services: &HashMap<String, ServiceInfo>, raw: String, permanent_differs: bool) -> FirewallStatusSummary {
     let mut rules = Vec::new();
     let mut n = 0;
-    let mut push = |rules: &mut Vec<FirewallRule>, action: RuleAction, port: String, proto: &str, source: String, comment: String, zone: &ZoneScope, ipv6: bool| {
+    let mut push = |rules: &mut Vec<FirewallRule>, action: RuleAction, port: String, proto: &str, source: String, comment: String, zone: &ZoneScope, entry: ZoneEntry, ipv6: bool| {
         n += 1;
         rules.push(FirewallRule {
             id: format!("fwd-{n}"),
@@ -174,7 +174,7 @@ pub fn zones_to_summary(zones: &[Zone], services: &HashMap<String, ServiceInfo>,
             destination: "Anywhere".into(),
             comment: Some(comment),
             is_ipv6: ipv6,
-            zone: Some(zone.clone()),
+            zone: Some(ZoneScope { entry: Some(entry), ..zone.clone() }),
         });
     };
     let default_zone = zones.iter().find(|z| z.is_default);
@@ -187,39 +187,39 @@ pub fn zones_to_summary(zones: &[Zone], services: &HashMap<String, ServiceInfo>,
         // What a listening port is exposed through: the default zone (it
         // takes every unassigned interface) and zones bound to sources.
         // An interface-only zone like docker's covers that interface only.
-        let scope = ZoneScope { name: z.name.clone(), binding: binding.clone(), counts_for_exposure: z.is_default || !z.sources.is_empty() };
+        let scope = ZoneScope { name: z.name.clone(), binding: binding.clone(), counts_for_exposure: z.is_default || !z.sources.is_empty(), entry: None };
         let source = if z.sources.is_empty() { "Anywhere".to_string() } else { z.sources.join(", ") };
         if z.target == "ACCEPT" {
-            push(&mut rules, RuleAction::Allow, String::new(), "", source.clone(), format!("zone {} accepts all traffic ({binding})", z.name), &scope, false);
+            push(&mut rules, RuleAction::Allow, String::new(), "", source.clone(), format!("zone {} accepts all traffic ({binding})", z.name), &scope, ZoneEntry::Target, false);
         }
         for svc in &z.services {
             let ports = service_ports(svc, services, &mut Vec::new());
             if ports.is_empty() {
-                push(&mut rules, RuleAction::Allow, String::new(), "", source.clone(), format!("service {svc} (ports not known) · zone {}", z.name), &scope, false);
+                push(&mut rules, RuleAction::Allow, String::new(), "", source.clone(), format!("service {svc} (ports not known) · zone {}", z.name), &scope, ZoneEntry::Service(svc.clone()), false);
             }
             for (port, proto) in ports {
-                push(&mut rules, RuleAction::Allow, port, &proto, source.clone(), format!("service {svc} · zone {}", z.name), &scope, false);
+                push(&mut rules, RuleAction::Allow, port, &proto, source.clone(), format!("service {svc} · zone {}", z.name), &scope, ZoneEntry::Service(svc.clone()), false);
             }
         }
         for (port, proto) in &z.ports {
-            push(&mut rules, RuleAction::Allow, port.clone(), proto, source.clone(), format!("port · zone {}", z.name), &scope, false);
+            push(&mut rules, RuleAction::Allow, port.clone(), proto, source.clone(), format!("port · zone {}", z.name), &scope, ZoneEntry::Port(format!("{port}/{proto}")), false);
         }
         for raw_rule in &z.rich_rules {
             match parse_rich_rule(raw_rule) {
                 Some(r) => {
                     let src = r.source.clone().unwrap_or_else(|| source.clone());
                     match (&r.port, &r.service) {
-                        (Some((port, proto)), _) => push(&mut rules, r.action, port.clone(), proto, src, format!("rich rule · zone {}", z.name), &scope, r.ipv6),
+                        (Some((port, proto)), _) => push(&mut rules, r.action, port.clone(), proto, src, format!("rich rule · zone {}", z.name), &scope, ZoneEntry::RichRule(raw_rule.clone()), r.ipv6),
                         (None, Some(svc)) => {
                             for (port, proto) in service_ports(svc, services, &mut Vec::new()) {
-                                push(&mut rules, r.action, port, &proto, src.clone(), format!("rich rule, service {svc} · zone {}", z.name), &scope, r.ipv6);
+                                push(&mut rules, r.action, port, &proto, src.clone(), format!("rich rule, service {svc} · zone {}", z.name), &scope, ZoneEntry::RichRule(raw_rule.clone()), r.ipv6);
                             }
                         }
-                        (None, None) => push(&mut rules, r.action, String::new(), "", src, format!("rich rule · zone {}", z.name), &scope, r.ipv6),
+                        (None, None) => push(&mut rules, r.action, String::new(), "", src, format!("rich rule · zone {}", z.name), &scope, ZoneEntry::RichRule(raw_rule.clone()), r.ipv6),
                     }
                 }
                 // Shown, not interpreted: it doesn't take part in correlation.
-                None => push(&mut rules, RuleAction::Allow, String::new(), "", source.clone(), format!("rich rule (not interpreted): {raw_rule}"), &ZoneScope { counts_for_exposure: false, ..scope.clone() }, false),
+                None => push(&mut rules, RuleAction::Allow, String::new(), "", source.clone(), format!("rich rule (not interpreted): {raw_rule}"), &ZoneScope { counts_for_exposure: false, ..scope.clone() }, ZoneEntry::RichRule(raw_rule.clone()), false),
             }
         }
     }

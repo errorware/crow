@@ -430,7 +430,7 @@ fn to_summary(set: &Ruleset, backend: FirewallBackend, raw: String) -> FirewallS
                 destination: "Anywhere".into(),
                 comment: Some(notes.join(" · ")),
                 is_ipv6: c.ipv6_only || chain.family == Family::V6,
-                zone: Some(ZoneScope { name: chain.label.clone(), binding: c.describe().join(", "), counts_for_exposure: c.is_plain() }),
+                zone: Some(ZoneScope { name: chain.label.clone(), binding: c.describe().join(", "), counts_for_exposure: c.is_plain(), entry: None }),
             });
         }
     }

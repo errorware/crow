@@ -2,6 +2,7 @@ pub mod models;
 pub mod detector;
 pub mod firewalld;
 pub mod raw;
+pub mod lockout;
 pub mod non_operational;
 pub mod new_rule_modal;
 pub mod rules_format;
@@ -21,7 +22,7 @@ pub use non_operational::non_operational_view;
 pub use new_rule_modal::{new_rule_modal, NewRuleState};
 #[allow(unused_imports)]
 pub use rules_format::{generate_user_rules_content, parse_user_rules_content};
-pub use state::FirewallState;
+pub use state::{FirewallState, LockoutConfirm};
 
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
@@ -63,9 +64,10 @@ fn render_active_firewall(
     fw: &FirewallState,
     config_file_states: &HashMap<String, ConfigFileState>,
 ) -> impl IntoElement {
-    // Crow's firewall actions are ufw commands; other backends are shown
-    // read-only (ERR-76).
-    let writable = summary.backend == FirewallBackend::Ufw;
+    // Crow changes ufw and firewalld (ERR-77); raw nftables/iptables are
+    // shown read-only.
+    let writable = matches!(summary.backend, FirewallBackend::Ufw | FirewallBackend::Firewalld);
+    let is_ufw = summary.backend == FirewallBackend::Ufw;
     let app_new_rule = app.clone();
     let app_toggle_active = app.clone();
     let app_inspect_cfg = app.clone();
@@ -114,7 +116,7 @@ fn render_active_firewall(
     let limit_count = summary.rules.iter().filter(|r| r.action == RuleAction::Limit).count();
 
     let modal_element = if fw.show_new_rule_modal {
-        Some(new_rule_modal(&fw.new_rule, app.clone()).into_any_element())
+        Some(new_rule_modal(&fw.new_rule, summary.backend, app.clone()).into_any_element())
     } else {
         None
     };
@@ -304,7 +306,7 @@ fn render_active_firewall(
                                 .child("RELOAD ENGINE"),
                         ))
                         // View user.rules in Config Editor
-                        .when(writable, |d| d.child(
+                        .when(is_ufw, |d| d.child(
                             div()
                                 .id("btn-firewall-open-config")
                                 .px(px(10.0))
@@ -328,7 +330,7 @@ fn render_active_firewall(
                                 .child("INSPECT user.rules"),
                         ))
                         // Disable / Enable Toggle
-                        .when(writable, |d| d.child(
+                        .when(is_ufw, |d| d.child(
                             div()
                                 .id("btn-toggle-firewall-active")
                                 .px(px(10.0))
@@ -382,6 +384,12 @@ fn render_active_firewall(
             b => format!("READ-ONLY · Crow reads {} (the running config) but doesn't change it yet; use its own tools to edit.", b.label()),
         }, TEXT_SECONDARY)))
         .children(summary.notice.clone().map(|n| notice_strip(n, WARN)))
+        .children((summary.backend == FirewallBackend::Firewalld).then(|| notice_strip(
+            "Changes go to firewalld's running config and its saved (permanent) config together, so they apply now and survive a reload.".to_string(),
+            TEXT_SECONDARY,
+        )))
+        // A change the lock-out guard held back (ERR-77).
+        .children(fw.lockout.as_ref().map(|c| lockout_strip(c, app.clone())))
         // 2. Global Policy Strip & Quick Port Toggles
         .child(
             div()
@@ -871,6 +879,54 @@ fn render_rule_row(rule: &FirewallRule, writable: bool, app: Entity<CrowApp>) ->
 }
 
 /// One line across the firewall screen.
+/// Typed confirmation for a change that would cut off Crow's SSH port.
+fn lockout_strip(confirm: &LockoutConfirm, app: Entity<CrowApp>) -> impl IntoElement {
+    let (app_ok, app_cancel) = (app.clone(), app);
+    let button = |id: &'static str, label: &'static str, color: Rgba| {
+        div()
+            .id(id)
+            .px(px(10.0))
+            .py(px(4.0))
+            .border_1()
+            .border_color(color)
+            .rounded_sm()
+            .cursor_pointer()
+            .font_family(FONT_MONO)
+            .text_size(px(10.0))
+            .font_weight(FontWeight::BOLD)
+            .text_color(color)
+            .child(label)
+    };
+    div()
+        .flex_none()
+        .flex()
+        .flex_col()
+        .gap(px(6.0))
+        .px(px(16.0))
+        .py(px(10.0))
+        .bg(CRIT_BG)
+        .border_b_1()
+        .border_color(CRIT)
+        .child(div().font_family(FONT_MONO).text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child("THIS COULD LOCK YOU OUT"))
+        .child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_PRIMARY).child(confirm.reason.clone()))
+        .children(confirm.commands.iter().map(|c| div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_SECONDARY).child(format!("  {}", commands::describe(c)))))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.0))
+                .child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_TERTIARY).child("Type CONFIRM to apply it anyway:"))
+                .children(confirm.input.as_ref().map(|input| div().w(px(160.0)).child(gpui_kit::component::input::Input::new(input).font_family(FONT_MONO).text_size(px(11.0)))))
+                .child(button("btn-fw-lockout-confirm", "APPLY ANYWAY", CRIT).on_click(move |_ev, _window, cx| {
+                    app_ok.update(cx, |this, cx| this.confirm_firewall_lockout(cx));
+                }))
+                .child(button("btn-fw-lockout-cancel", "CANCEL", TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
+                    app_cancel.update(cx, |this, cx| this.cancel_firewall_lockout(cx));
+                })),
+        )
+        .children(confirm.error.clone().map(|e| div().font_family(FONT_MONO).text_size(px(10.0)).text_color(CRIT).child(e)))
+}
+
 fn notice_strip(text: String, color: Rgba) -> impl IntoElement {
     div()
         .flex_none()

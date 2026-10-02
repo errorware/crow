@@ -1,9 +1,14 @@
 use gpui_kit::*;
 
-use super::CrowApp;
+use gpui_kit::component::input::{InputEvent, InputState};
+
+use super::configs::RISK_CONFIRM_KEYWORD;
 use super::host_actions::HostCommand;
-use crate::views::firewall::commands;
-use crate::views::firewall::{detect_firewall_status, FirewallBackend, FirewallOperationalState, RuleAction, RuleProtocol};
+use super::CrowApp;
+use crate::host::{transport_kind, TransportKind};
+use crate::views::firewall::commands::{self, Argv};
+use crate::views::firewall::lockout;
+use crate::views::firewall::{detect_firewall_status, FirewallBackend, FirewallOperationalState, FirewallStatusSummary, LockoutConfirm, RuleAction, RuleDirection, RuleProtocol};
 
 // ==========================================
 // Firewall & Network Security Methods
@@ -61,6 +66,8 @@ impl CrowApp {
     /// the active server changed meanwhile.
     pub fn refresh_firewall_for_active_server(&mut self, cx: &mut Context<Self>) {
         let Some(srv) = self.fleet.active_server() else { return };
+        // A held-back change was for the server being left.
+        self.firewall.lockout = None;
         self.firewall.status = FirewallOperationalState::Unmanaged {
             detected_binaries: Vec::new(),
             reason: format!("Reading {}'s firewall…", srv.name),
@@ -84,24 +91,46 @@ impl CrowApp {
         .detach();
     }
 
-    /// Runs a ufw command on the active server, then shows its real state.
-    fn run_firewall_command(&mut self, argv: Vec<String>, closes_modal: bool, cx: &mut Context<Self>) {
-        // Every command here is a ufw command; other backends are read-only.
-        let backend = self.firewall.status.backend();
-        if backend != FirewallBackend::Ufw {
-            self.firewall.toast = Some(match backend {
-                FirewallBackend::NoneDetected => "Not applied: ufw isn't installed on this host.".to_string(),
-                b => format!("Not applied: Crow reads {} but doesn't change it yet.", b.label()),
-            });
-            cx.notify();
-            return;
+    /// The rules Crow read, when it read some it can play changes against.
+    fn firewall_summary(&self) -> Option<&FirewallStatusSummary> {
+        match &self.firewall.status {
+            FirewallOperationalState::Active(s) => Some(s),
+            _ => None,
         }
-        let target = argv.get(1..).map(|rest| rest.join(" ")).unwrap_or_default();
-        self.firewall.pending = Some(commands::describe(&argv));
+    }
+
+    /// Why `after` needs CONFIRM: it stops the SSH port Crow is connected
+    /// through from being allowed (ERR-77). Only SSH servers have one.
+    fn firewall_lockout_risk(&self, after: Option<&FirewallStatusSummary>) -> Option<String> {
+        let srv = self.fleet.active_server()?;
+        if transport_kind(&srv) != TransportKind::Ssh {
+            return None;
+        }
+        lockout::risk(self.firewall_summary(), after, srv.port)
+    }
+
+    /// Runs firewall commands on the active server, unless the lock-out
+    /// guard holds them back for CONFIRM. `after` is what the rules would be
+    /// (`Some(None)`: unknown); `None` means the change can't lock anyone out.
+    fn run_firewall_change(&mut self, commands: Vec<Argv>, after: Option<Option<FirewallStatusSummary>>, closes_modal: bool, cx: &mut Context<Self>) {
+        if let Some(after) = after {
+            if let Some(reason) = self.firewall_lockout_risk(after.as_ref()) {
+                self.firewall.lockout = Some(LockoutConfirm { commands, closes_modal, reason, input: None, error: None });
+                cx.notify();
+                return;
+            }
+        }
+        self.execute_firewall_commands(commands, closes_modal, cx);
+    }
+
+    /// Runs the commands, then shows the firewall's real state.
+    fn execute_firewall_commands(&mut self, commands: Vec<Argv>, closes_modal: bool, cx: &mut Context<Self>) {
+        let target = commands.first().and_then(|a| a.get(1..)).map(|rest| rest.join(" ")).unwrap_or_default();
+        self.firewall.pending = Some(commands.iter().map(|c| commands::describe(c)).collect::<Vec<_>>().join(" && "));
         self.run_host_action(
             "firewall",
             &target,
-            vec![HostCommand::new(argv)],
+            commands.into_iter().map(HostCommand::new).collect(),
             |srv| detect_firewall_status(srv),
             move |this, status, result, summary, cx| {
                 this.firewall.status = status;
@@ -120,47 +149,133 @@ impl CrowApp {
         );
     }
 
+    /// The typed CONFIRM for a change the guard held back.
+    pub fn ensure_firewall_lockout_input(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(confirm) = self.firewall.lockout.as_mut().filter(|c| c.input.is_none()) else { return };
+        let input = cx.new(|cx| InputState::new(window, cx).placeholder(RISK_CONFIRM_KEYWORD));
+        input.update(cx, |i, cx| i.focus(window, cx));
+        cx.subscribe(&input, |this, _, ev: &InputEvent, cx| {
+            if matches!(ev, InputEvent::PressEnter { .. }) {
+                this.confirm_firewall_lockout(cx);
+            }
+        })
+        .detach();
+        confirm.input = Some(input);
+    }
+
+    pub fn confirm_firewall_lockout(&mut self, cx: &mut Context<Self>) {
+        let Some(pending) = self.firewall.lockout.as_mut() else { return };
+        let typed = pending.input.as_ref().map(|i| i.read(cx).value().trim().to_string()).unwrap_or_default();
+        if typed != RISK_CONFIRM_KEYWORD {
+            pending.error = Some(format!("Type {RISK_CONFIRM_KEYWORD} exactly to apply this change."));
+            cx.notify();
+            return;
+        }
+        let pending = self.firewall.lockout.take().expect("checked above");
+        self.execute_firewall_commands(pending.commands, pending.closes_modal, cx);
+    }
+
+    pub fn cancel_firewall_lockout(&mut self, cx: &mut Context<Self>) {
+        self.firewall.lockout = None;
+        cx.notify();
+    }
+
+    /// ufw and firewalld are the backends Crow changes.
+    fn firewall_backend_or_toast(&mut self, cx: &mut Context<Self>) -> Option<FirewallBackend> {
+        match self.firewall.status.backend() {
+            b @ (FirewallBackend::Ufw | FirewallBackend::Firewalld) => Some(b),
+            b => {
+                self.firewall.toast = Some(match b {
+                    FirewallBackend::NoneDetected => "Not applied: no firewall Crow can change was found on this host.".to_string(),
+                    b => format!("Not applied: Crow reads {} but never writes it.", b.label()),
+                });
+                cx.notify();
+                None
+            }
+        }
+    }
+
+    fn firewall_toast(&mut self, msg: String, cx: &mut Context<Self>) {
+        self.firewall.toast = Some(msg);
+        cx.notify();
+    }
+
     pub fn toggle_firewall_active(&mut self, cx: &mut Context<Self>) {
-        let enabled = matches!(&self.firewall.status, FirewallOperationalState::Active(s) if s.is_active);
-        let argv = if enabled { commands::disable() } else { commands::enable() };
-        self.run_firewall_command(argv, false, cx);
+        if self.firewall_backend_or_toast(cx) != Some(FirewallBackend::Ufw) {
+            return;
+        }
+        let summary = self.firewall_summary().cloned();
+        let enabled = summary.as_ref().is_some_and(|s| s.is_active);
+        if enabled {
+            // Turning the firewall off can't lock anyone out.
+            self.run_firewall_change(vec![commands::disable()], None, false, cx);
+        } else {
+            // ufw's rules aren't read while it's off, so the outcome is unknown.
+            self.run_firewall_change(vec![commands::enable()], Some(summary.map(|s| FirewallStatusSummary { is_active: true, ..s })), false, cx);
+        }
     }
 
     pub fn reload_firewall(&mut self, cx: &mut Context<Self>) {
-        self.run_firewall_command(commands::reload(), false, cx);
+        match self.firewall_backend_or_toast(cx) {
+            Some(FirewallBackend::Ufw) => self.run_firewall_change(vec![commands::reload()], None, false, cx),
+            Some(_) => {
+                // A reload swaps the running rules for the saved ones; when
+                // they differ, Crow can't tell what SSH will get.
+                let differs = self.firewall_summary().is_some_and(|s| s.notice.is_some());
+                let after = if differs { Some(None) } else { None };
+                self.run_firewall_change(vec![commands::firewalld_reload()], after, false, cx);
+            }
+            None => {}
+        }
     }
 
     pub fn toggle_quick_port(&mut self, port: u16, proto: RuleProtocol, label: &str, cx: &mut Context<Self>) {
-        let summary = match &self.firewall.status {
-            FirewallOperationalState::Active(s) => Some(s),
-            _ => None,
+        let Some(backend) = self.firewall_backend_or_toast(cx) else { return };
+        let summary = self.firewall_summary().cloned();
+        let after = summary.as_ref().map(|s| match commands::quick_port_rule(Some(s), port) {
+            Some(rule) => lockout::without(s, rule),
+            None => lockout::with(s, vec![lockout::planned(RuleAction::Allow, &port.to_string(), proto, "")], false),
+        });
+        let cmds = if backend == FirewallBackend::Ufw {
+            Ok(vec![commands::toggle_port(summary.as_ref(), port, proto, label)])
+        } else {
+            commands::firewalld_toggle_port(summary.as_ref(), port, proto)
         };
-        let argv = commands::toggle_port(summary, port, proto, label);
-        self.run_firewall_command(argv, false, cx);
+        match cmds {
+            Ok(cmds) => self.run_firewall_change(cmds, Some(after), false, cx),
+            Err(e) => self.firewall_toast(format!("Not applied: {e}"), cx),
+        }
     }
 
     pub fn delete_firewall_rule(&mut self, rule_id: &str, cx: &mut Context<Self>) {
-        let number = match &self.firewall.status {
-            FirewallOperationalState::Active(s) => s.rules.iter().find(|r| r.id == rule_id).map(|r| r.number),
-            _ => None,
-        };
-        if let Some(n) = number {
-            self.run_firewall_command(commands::delete_numbered(n), false, cx);
+        let Some(backend) = self.firewall_backend_or_toast(cx) else { return };
+        let Some(summary) = self.firewall_summary().cloned() else { return };
+        let Some(rule) = summary.rules.iter().find(|r| r.id == rule_id).cloned() else { return };
+        let after = lockout::without(&summary, &rule);
+        let cmds = if backend == FirewallBackend::Ufw { Ok(vec![commands::delete_numbered(rule.number)]) } else { commands::firewalld_remove(&rule) };
+        match cmds {
+            Ok(cmds) => self.run_firewall_change(cmds, Some(Some(after)), false, cx),
+            Err(e) => self.firewall_toast(format!("Not applied: {e}"), cx),
         }
     }
 
     pub fn submit_new_firewall_rule(&mut self, cx: &mut Context<Self>) {
-        match commands::new_rule(&self.firewall.new_rule) {
-            Ok(argv) => self.run_firewall_command(argv, true, cx),
-            Err(e) => {
-                self.firewall.toast = Some(format!("Not applied: {e}"));
-                cx.notify();
-            }
+        let Some(backend) = self.firewall_backend_or_toast(cx) else { return };
+        let form = &self.firewall.new_rule;
+        let cmds = if backend == FirewallBackend::Ufw { commands::new_rule(form).map(|a| vec![a]) } else { commands::firewalld_new_rule(form) };
+        let source = if form.is_anywhere { String::new() } else { form.source_input.clone() };
+        let planned = lockout::planned(form.action, &form.port_input.trim().replace('-', ":"), form.protocol, &source);
+        let inbound = form.direction == RuleDirection::Inbound;
+        let after = self.firewall_summary().map(|s| if inbound { lockout::with(s, vec![planned], backend == FirewallBackend::Firewalld) } else { s.clone() });
+        match cmds {
+            Ok(cmds) => self.run_firewall_change(cmds, Some(after), true, cx),
+            Err(e) => self.firewall_toast(format!("Not applied: {e}"), cx),
         }
     }
 
     #[allow(dead_code)]
     pub fn flush_firewall_rules(&mut self, cx: &mut Context<Self>) {
-        self.run_firewall_command(commands::reset(), false, cx);
+        // `ufw reset` also turns ufw off, so nothing is blocked after it.
+        self.run_firewall_change(vec![commands::reset()], None, false, cx);
     }
 }
