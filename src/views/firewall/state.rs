@@ -1,4 +1,17 @@
+use gpui_kit::component::input::InputState;
+use gpui_kit::Entity;
+
 use super::{FirewallOperationalState, NewRuleState, RuleAction};
+
+/// A firewall change held back by the lock-out guard until CONFIRM is typed.
+pub struct LockoutConfirm {
+    pub commands: Vec<Vec<String>>,
+    pub closes_modal: bool,
+    pub reason: String,
+    /// Created on the next render (inputs need the window).
+    pub input: Option<Entity<InputState>>,
+    pub error: Option<String>,
+}
 #[cfg(test)]
 use super::default_active_ufw_state;
 
@@ -17,6 +30,7 @@ pub struct FirewallState {
     /// Read-only backends: the ruleset as the host printed it, in place of
     /// the rule table.
     pub show_raw: bool,
+    pub lockout: Option<LockoutConfirm>,
 }
 
 impl FirewallState {
@@ -31,6 +45,7 @@ impl FirewallState {
             show_audit_rail: true,
             pending: None,
             show_raw: false,
+            lockout: None,
         }
     }
 

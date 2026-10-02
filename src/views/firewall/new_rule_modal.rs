@@ -2,7 +2,7 @@ use gpui_kit::*;
 use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
-use super::models::{RuleAction, RuleDirection, RuleProtocol};
+use super::models::{FirewallBackend, RuleAction, RuleDirection, RuleProtocol};
 
 #[derive(Clone, Debug)]
 pub struct NewRuleState {
@@ -69,13 +69,22 @@ impl NewRuleState {
 
 pub fn new_rule_modal(
     state: &NewRuleState,
+    backend: FirewallBackend,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
     let app_close = app.clone();
     let app_backdrop = app.clone();
     let app_submit = app.clone();
 
-    let cmd_preview = state.generate_ufw_command();
+    // What will run: ufw's one directive, or firewall-cmd's pairs (ERR-77).
+    let (preview_title, cmd_preview): (&str, Vec<String>) = if backend == FirewallBackend::Firewalld {
+        match super::commands::firewalld_new_rule(state) {
+            Ok(cmds) => ("FIREWALL-CMD (RUNNING + SAVED CONFIG):", cmds.iter().map(super::commands::describe).collect()),
+            Err(e) => ("NOT VALID FOR FIREWALLD:", vec![e]),
+        }
+    } else {
+        ("GENERATED UFW DIRECTIVE:", vec![state.generate_ufw_command()])
+    };
 
     div()
         .id("new-rule-modal-backdrop")
@@ -439,15 +448,15 @@ pub fn new_rule_modal(
                                         .text_size(px(9.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(OK)
-                                        .child("GENERATED UFW DIRECTIVE:"),
+                                        .child(preview_title),
                                 )
-                                .child(
+                                .children(cmd_preview.into_iter().map(|line| {
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(px(11.0))
                                         .text_color(TEXT_PRIMARY)
-                                        .child(cmd_preview),
-                                ),
+                                        .child(line)
+                                })),
                         ),
                 )
                 // Modal Footer

@@ -44,7 +44,7 @@ Crow is **agentless**: it talks to your servers over plain SSH, reusing one conn
 - **Services, processes and sockets**: live search, filters, pagination, and actions with confirmation.
 - **Logs**: `journalctl` with unit, priority, time and PID filters, highlighted search matches, and an optional plain-English explanation from an AI provider you configure.
 - **Configs**: edit `sshd_config`, `/etc/hosts`, `pg_hba.conf` and ufw rules as structured, validated rows through [crow-config](https://github.com/errorware/crow-config). Edits are surgical, every change is a revision you can roll back, and values rated *never on prod* need a typed confirmation. Files are written atomically (temp file, then rename).
-- **Firewall**: ufw (read and edit), firewalld zones (read), bare nftables/iptables rulesets (read-only: the input chain by port and source, the raw ruleset one click away). **Users** (create, sudo, passwords over stdin), **files**.
+- **Firewall**: ufw and firewalld (read and edit: rules, ports, services, rich rules; firewalld changes go to the running and saved config together), bare nftables/iptables rulesets (read-only, the raw ruleset one click away). A lock-out guard asks for a typed CONFIRM before any change that would stop the SSH port Crow is connected through from being allowed. **Users** (create, sudo, passwords over stdin), **files**.
 - **Danger Zone**: destructive actions behind a typed keyword. For servers linked to a provider, **power off / reboot / boot and snapshots go through the provider**, so they work even when SSH is down.
 
 ### Settings
