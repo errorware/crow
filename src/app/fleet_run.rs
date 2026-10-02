@@ -169,6 +169,37 @@ impl CrowApp {
         self.open_fleet_run(FleetRun::new(format!("ROTATE HOST KEYS · {n} SERVER{}", if n == 1 { "" } else { "S" }), "ROTATE", steps, excluded), jobs, window, cx);
     }
 
+    /// Plans ending every other SSH login on every reachable SSH server,
+    /// keeping Crow's own (ERR-83).
+    pub fn plan_revoke_sessions(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        use crate::host::{transport_kind, TransportKind};
+        let (mut steps, mut jobs, mut excluded): (Vec<_>, Vec<RunJob>, Vec<_>) = (Vec::new(), Vec::new(), Vec::new());
+        for srv in self.fleet.servers.clone() {
+            match transport_kind(&srv) {
+                TransportKind::Local => excluded.push((srv.name.clone(), "the machine Crow runs on (your own logins)".to_string())),
+                TransportKind::Container => excluded.push((srv.name.clone(), "a lab container, reached without SSH".to_string())),
+                TransportKind::Ssh if !self.fleet.health(&srv).is_ok() => excluded.push((srv.name.clone(), "not reachable right now".to_string())),
+                TransportKind::Ssh => {
+                    let what = "end every SSH login but Crow's";
+                    steps.push(FleetRun::step(&srv.id, &srv.name, what));
+                    let db = self.vault.db();
+                    jobs.push(Box::new(move || {
+                        let host = host_for(&srv);
+                        let step: StepResult = crate::security::sessions::end_other_sessions(host.as_ref())
+                            .map(|ended| crate::views::fleet::run::StepOutcome::Done(crate::security::sessions::summary(&ended)));
+                        record_step(&db, &srv, "ssh.revoke_sessions", what, &step);
+                        step
+                    }));
+                }
+            }
+        }
+        if !steps.is_empty() {
+            excluded.push(("keys".into(), "no key is removed: anyone whose key still works can log back in (rotate or remove keys for that)".into()));
+        }
+        let n = steps.len();
+        self.open_fleet_run(FleetRun::new(format!("REVOKE SESSIONS · {n} SERVER{}", if n == 1 { "" } else { "S" }), "REVOKE", steps, excluded), jobs, window, cx);
+    }
+
     /// Plans switching every server attached to `key_id` (that doesn't use
     /// it yet) to that key: install, prove with a fresh login, switch. The
     /// servers' previous keys stay in authorized_keys: you may use them

@@ -47,6 +47,7 @@ You can switch either way from Settings → Vault & Security (going back to Open
 - Servers Crow logs into with a passphrase-free key file (its own `crow_ed25519`, for example) don't use your SSH agent at all (`IdentityAgent=none`), so agents that ask you to approve each use of a key (1Password, Secretive) can't stall Crow. Passphrase-protected keys and agent logins still use the agent; when that agent asks for approvals, the connection panel says so.
 - Crow reuses one connection per server (ControlMaster) and closes them when it locks.
 - Crow is agentless: it never installs anything on your servers.
+- Revoke all sessions (Fleet → Danger Zone) ends every SSH connection to each server except Crow's own, which it finds from inside the connection; if it can't, it ends nothing. Console logins and keys are untouched, so anyone whose key still works can log back in: rotate or remove keys for that.
 - Firewall changes (ufw, firewalld) are played against the rules Crow read before they run. If one would stop the SSH port Crow is connected through from being allowed, or Crow can't tell (enabling ufw, reloading a firewalld whose saved config differs), it waits for a typed CONFIRM. Raw nftables/iptables rulesets are only read, never written.
 
 ## Anything that weakens your stance is shown
