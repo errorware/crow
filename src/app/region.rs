@@ -27,8 +27,11 @@ impl FleetEnvFilter {
 }
 
 /// What a detection run found, for the Fleet page's status line.
-fn summarize(found: usize, unknown: usize, failed: usize) -> String {
+fn summarize(found: usize, by_geoip: usize, unknown: usize, failed: usize) -> String {
     let mut parts = vec![format!("{found} located")];
+    if by_geoip > 0 {
+        parts.push(format!("{by_geoip} by GeoIP"));
+    }
     if unknown > 0 {
         parts.push(format!("{unknown} without cloud metadata"));
     }
@@ -81,11 +84,15 @@ impl CrowApp {
         self.fleet.region_note = Some(format!("asking {} server(s)…", targets.len()));
         cx.notify();
         let db = self.vault.db();
+        let use_geoip = self.geoip_regions();
         cx.spawn(async move |entity, cx| {
             let note = cx
                 .background_executor()
                 .spawn(async move {
-                    let (mut found, mut unknown, mut failed) = (0, 0, 0);
+                    let (mut found, mut by_geoip, mut unknown, mut failed) = (0, 0, 0, 0);
+                    // Opened (and downloaded, monthly) only when it's on.
+                    let mut geoip_error = None;
+                    let geoip = use_geoip.then(|| crate::geoip::GeoIp::load().map_err(|e| geoip_error = Some(e)).ok()).flatten();
                     for mut srv in targets {
                         let out = match host_for(&srv).exec(&["sh", "-c", REGION_PROBE], DEFAULT_TIMEOUT) {
                             Ok(o) => o.stdout,
@@ -94,25 +101,51 @@ impl CrowApp {
                                 continue;
                             }
                         };
-                        match parse_region_probe(&out) {
-                            Some(r) => {
-                                if r.country.is_empty() { unknown += 1 } else { found += 1 }
+                        let detected = parse_region_probe(&out);
+                        match detected {
+                            Some(r) if !r.country.is_empty() => {
+                                found += 1;
                                 srv.region_country = r.country;
                                 srv.region_city = r.city;
                                 srv.region_provider = r.provider;
                                 srv.region_code = r.code;
                                 srv.region_source = "metadata".into();
                             }
-                            None => {
-                                unknown += 1;
-                                continue;
+                            other => {
+                                // No usable metadata: the public IP, looked up locally.
+                                let ip = geoip.as_ref().and_then(|_| crate::geoip::public_address(&srv.host, &crate::geoip::probe_addrs(&out)));
+                                match geoip.as_ref().zip(ip).and_then(|(g, ip)| g.country(ip)) {
+                                    Some(country) => {
+                                        found += 1;
+                                        by_geoip += 1;
+                                        srv.region_country = country;
+                                        srv.region_city = String::new();
+                                        srv.region_code = String::new();
+                                        srv.region_provider = other.map(|r| r.provider).unwrap_or_default();
+                                        srv.region_source = "geoip".into();
+                                    }
+                                    None => {
+                                        unknown += 1;
+                                        if let Some(r) = other {
+                                            srv.region_provider = r.provider;
+                                            srv.region_code = r.code;
+                                            srv.region_source = "metadata".into();
+                                        } else {
+                                            continue;
+                                        }
+                                    }
+                                }
                             }
                         }
                         if let Ok(db) = db.lock() {
                             let _ = db.upsert_server(&srv);
                         }
                     }
-                    summarize(found, unknown, failed)
+                    let note = summarize(found, by_geoip, unknown, failed);
+                    match geoip_error {
+                        Some(e) => format!("{note} · GeoIP unavailable: {e}"),
+                        None => note,
+                    }
                 })
                 .await;
             let _ = entity.update(cx, |this, cx| {
@@ -165,6 +198,7 @@ mod tests {
     fn env_filters_and_summary() {
         assert!(FleetEnvFilter::DevLab.matches("LAB") && FleetEnvFilter::DevLab.matches("DEV"));
         assert!(!FleetEnvFilter::Prod.matches("STAGE"));
-        assert_eq!(summarize(2, 1, 0), "2 located · 1 without cloud metadata");
+        assert_eq!(summarize(2, 0, 1, 0), "2 located · 1 without cloud metadata");
+        assert_eq!(summarize(3, 1, 0, 1), "3 located · 1 by GeoIP · 1 unreachable");
     }
 }

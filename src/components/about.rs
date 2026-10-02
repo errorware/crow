@@ -181,7 +181,8 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool) -> impl IntoElement
                                 .child(info_row("BUILD PROFILE", profile_str))
                                 .child(info_row("UI TOOLKIT", "GPUI Kit v0.6.1 · WGPU Native"))
                                 .child(info_row("SECURITY VAULT", "Argon2id · ChaCha20-Poly1305 · TOTP"))
-                                .child(info_row("CONFIG CORE", "crow-config-core · Schema IR")),
+                                .child(info_row("CONFIG CORE", "crow-config-core · Schema IR"))
+                                .child(info_row("GEOIP DATA", crate::geoip::ATTRIBUTION)),
                         )
                         // Author & Website metadata
                         .child(

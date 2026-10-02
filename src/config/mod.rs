@@ -33,6 +33,7 @@ pub const WIRED_SETTINGS: &[&str] = &[
     "appearance.fleet_background_opacity",
     "appearance.fleet_background_blur",
     "appearance.terminal_font_size",
+    "servers.geoip_regions",
 ];
 
 /// Adds `line` right after `[section]`'s header when the section exists but
@@ -126,6 +127,7 @@ impl CrowConfigManager {
         } else {
             format!("{}\n{}", text.trim_end(), plugin::SERVERS_DEFAULTS)
         };
+        let text = add_missing_key(&text, "servers", "geoip_regions", "geoip_regions = false");
         let cst = plugin.parse(&text).unwrap_or_else(|_| {
             plugin.parse(default_config_toml()).expect("Default config must parse")
         });

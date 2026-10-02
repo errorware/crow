@@ -215,3 +215,9 @@ required = false
 min = 9
 max = 24
 help = "Font size in server terminals, in points."
+
+[[fields]]
+name = "servers.geoip_regions"
+type = "bool"
+required = false
+help = "Find the country of servers without cloud metadata from their public IP, looked up on this machine in DB-IP's free country database (downloaded from db-ip.com about once a month; no server address is ever sent anywhere). IP geolocation by DB-IP (db-ip.com), CC BY 4.0."

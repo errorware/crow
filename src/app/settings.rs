@@ -67,6 +67,11 @@ impl CrowApp {
         self.config.saved_int("appearance.terminal_font_size").map_or(crate::views::terminal::DEFAULT_FONT_SIZE, |v| v.clamp(9, 24) as f32)
     }
 
+    /// Whether servers without cloud metadata are located by GeoIP (ERR-37).
+    pub fn geoip_regions(&self) -> bool {
+        self.config.saved_bool("servers.geoip_regions").unwrap_or(false)
+    }
+
     /// Seconds between live refreshes of the server on screen.
     pub fn refresh_interval_secs(&self) -> u64 {
         self.config.saved_int("general.refresh_interval").map_or(2, |v| v.clamp(1, 60) as u64)

@@ -4,9 +4,11 @@
 
 /// Read-only probe run on the server. Prints `vendor=` (from DMI, names the
 /// provider even when its metadata service is off) and, when a provider's
-/// metadata service answers, `provider=` and `region=`. Each request has a
+/// metadata service answers, `provider=` and `region=`; and `addr=` for each
+/// global interface address (for the GeoIP fallback). Each request has a
 /// 2-second timeout; providers that can't be the host are skipped.
 pub const REGION_PROBE: &str = r#"v=$(cat /sys/class/dmi/id/sys_vendor 2>/dev/null); echo "vendor=$v"
+ip -o addr show scope global 2>/dev/null | awk '{print "addr="$4}'
 if command -v curl >/dev/null 2>&1; then
   get() { curl -fsS -m 2 "$@" 2>/dev/null; }
   put() { curl -fsS -m 2 -X PUT "$@" 2>/dev/null; }

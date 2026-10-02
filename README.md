@@ -34,7 +34,7 @@ Crow is **agentless**: it talks to your servers over plain SSH, reusing one conn
 ## What it does
 
 ### Fleet
-- Every enrolled server with its health, environment (PROD / STAGE / DEV / LAB) and **region**, shown as a country flag. The region comes from the cloud provider, the machine's metadata service, or your own choice.
+- Every enrolled server with its health, environment (PROD / STAGE / DEV / LAB) and **region**, shown as a country flag. The region comes from the cloud provider, the machine's metadata service, or your own choice. Optionally (Settings → Servers, off by default), servers without cloud metadata are located by their public IP in a local copy of DB-IP's free country database: no server address is ever sent anywhere.
 - Filter by environment or region. Archive servers you no longer manage; their data is purged after a window you set.
 - **Add Server** checks the host key before trusting it, can bootstrap a password-only server onto Crow's own SSH key, and reads the machine's facts (distro, kernel, memory, disk, region).
 - **Import from providers**: list your Linode / UpCloud instances, link the servers already in the fleet by IP, and add the rest through Add Server.

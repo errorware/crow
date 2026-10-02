@@ -399,7 +399,8 @@ pub fn connection_banner(server: Option<&ServerRecord>, jump: JumpInfo, app: Ent
     )
 }
 
-/// "Frankfurt, Germany · Linode de-fra-2", "Germany (set by hand)", or an
+/// "Frankfurt, Germany · Linode de-fra-2", "Germany (set by hand)",
+/// "Germany (by IP)", or an
 /// invitation to set it.
 fn region_label(s: &ServerRecord) -> String {
     let place = match (crate::region::country_name(&s.region_country), s.region_city.as_str()) {
@@ -410,6 +411,7 @@ fn region_label(s: &ServerRecord) -> String {
     };
     match s.region_source.as_str() {
         "manual" => format!("{place} (set by hand) ▾"),
+        "geoip" => format!("{place} (by IP) ▾"),
         _ if !s.region_provider.is_empty() => format!("{place} · {} {} ▾", s.region_provider, s.region_code).replace("  ", " "),
         _ => format!("{place} ▾"),
     }
