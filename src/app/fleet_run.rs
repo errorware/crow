@@ -121,6 +121,54 @@ impl CrowApp {
         self.open_fleet_run(FleetRun::new(format!("ROLLING REBOOT · {n} SERVER{}", if n == 1 { "" } else { "S" }), "REBOOT", steps, excluded), jobs, window, cx);
     }
 
+    /// Plans rotating every reachable SSH server's host keys and re-pinning
+    /// them, one at a time (ERR-82).
+    pub fn plan_rotate_host_keys(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        use crate::host::{transport_kind, TransportKind};
+        use crate::security::host_keys;
+        let (mut steps, mut jobs, mut excluded): (Vec<_>, Vec<RunJob>, Vec<_>) = (Vec::new(), Vec::new(), Vec::new());
+        for srv in self.fleet.servers.clone() {
+            match transport_kind(&srv) {
+                TransportKind::Local => excluded.push((srv.name.clone(), "the machine Crow runs on".to_string())),
+                TransportKind::Container => excluded.push((srv.name.clone(), "a lab container, reached without SSH".to_string())),
+                TransportKind::Ssh if !self.fleet.health(&srv).is_ok() => {
+                    excluded.push((srv.name.clone(), "not reachable right now: the new keys are fetched over the current connection".to_string()))
+                }
+                TransportKind::Ssh => {
+                    let what = "new host keys, re-pin, verify a fresh login";
+                    steps.push(FleetRun::step(&srv.id, &srv.name, what));
+                    let db = self.vault.db();
+                    jobs.push(Box::new(move || {
+                        let host = host_for(&srv);
+                        let port = if srv.port == 0 { 22 } else { srv.port };
+                        let before = srv.host_key_fingerprint.clone().unwrap_or_default();
+                        let result = host_keys::rotate(host.as_ref(), &srv.host, port, &host_keys::UserKnownHosts, &|| crate::host::ssh::fresh_key_login(&srv));
+                        let step: StepResult = match result {
+                            Ok(r) => {
+                                if let Ok(db) = db.lock() {
+                                    let mut updated = srv.clone();
+                                    updated.host_key_fingerprint = Some(r.fingerprint.clone());
+                                    let _ = db.upsert_server(&updated);
+                                }
+                                // The held connection was made with the old key.
+                                crate::host::Host::close_connection(&crate::host::SshHost::for_server(&srv));
+                                Ok(crate::views::fleet::run::StepOutcome::Done(format!("pinned {} (was {})", r.keys.join(", "), if before.is_empty() { "not pinned" } else { &before })))
+                            }
+                            Err(e) => Err(e),
+                        };
+                        record_step(&db, &srv, "ssh.host_key_rotate", what, &step);
+                        step
+                    }));
+                }
+            }
+        }
+        let n = steps.len();
+        if n > 0 {
+            excluded.push(("other machines".into(), "anyone else who SSHes to these servers will see a changed host key and must re-verify it".into()));
+        }
+        self.open_fleet_run(FleetRun::new(format!("ROTATE HOST KEYS · {n} SERVER{}", if n == 1 { "" } else { "S" }), "ROTATE", steps, excluded), jobs, window, cx);
+    }
+
     /// Plans switching every server attached to `key_id` (that doesn't use
     /// it yet) to that key: install, prove with a fresh login, switch. The
     /// servers' previous keys stay in authorized_keys: you may use them

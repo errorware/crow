@@ -1215,6 +1215,10 @@ fn fleet_danger_page(app: Entity<CrowApp>) -> impl IntoElement {
         let app = app.clone();
         fleet_action_live("btn-fleet-push-baseline", "PUSH BASELINE TO ALL".into()).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_push_baselines(window, cx)))
     };
+    let rotate = {
+        let app = app.clone();
+        fleet_action_live("btn-fleet-rotate-keys", "ROTATE HOST KEYS".into()).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_rotate_host_keys(window, cx)))
+    };
     div()
         .id("fleet-danger-page")
         .flex_1()
@@ -1246,7 +1250,7 @@ fn fleet_danger_page(app: Entity<CrowApp>) -> impl IntoElement {
                 .max_w(px(920.0))
                 .child(action_row("Rolling reboot", "Reboots every reachable server in turn, each back from a fresh boot before the next.", vec![reboot.into_any_element()]))
                 .child(action_row("Push baseline", "Pushes each config baseline to every server whose copy drifted from it.", vec![baseline.into_any_element()]))
-                .child(action_row("Rotate all host keys", "Not built yet.", vec![fleet_action_stub("btn-fleet-rotate-keys", "NOT YET BUILT".into()).into_any_element()]))
+                .child(action_row("Rotate all host keys", "New SSH host keys on every server, re-pinned in known_hosts and proven with a fresh login; undone on any failure. Other machines will see a changed key.", vec![rotate.into_any_element()]))
                 .child(action_row("Revoke all sessions", "Not built yet.", vec![fleet_action_stub("btn-fleet-revoke-sessions", "NOT YET BUILT".into()).into_any_element()])),
         )
 }
