@@ -100,20 +100,62 @@ pub fn apply_edit(format: StructuredFormat, text: &str, op: &EditOp) -> Result<S
     Ok(doc.serialize())
 }
 
-/// The `Match` criteria scoping each row (`None` = global), by row id. In
-/// sshd_config every directive after a `Match` line belongs to that block.
-/// crow-config doesn't model scopes yet (ERR-12), so Crow derives them.
+/// The `Match` criteria scoping each row (`None` = global), by row id, as
+/// the sshd plugin reports them (ERR-12).
 pub fn sshd_match_scopes(ir: &ConfigDocumentIr) -> Vec<(String, Option<String>)> {
-    let mut scope: Option<String> = None;
-    ir.rows
-        .iter()
-        .map(|row| {
-            if let Some(m) = row.fields.iter().find(|f| f.name.eq_ignore_ascii_case("match")) {
-                scope = Some(m.value.as_str().unwrap_or_default().to_string());
+    ir.rows.iter().map(|row| (row.row_id.clone(), row.scope.clone())).collect()
+}
+
+/// A file pulled in by an sshd `Include`, as read from the server.
+#[derive(Clone, Debug)]
+pub struct SshdInclude {
+    /// The `Include` row it came from, in the main file.
+    pub from_row: String,
+    pub path: String,
+    pub ir: Option<ConfigDocumentIr>,
+    pub error: Option<String>,
+}
+
+/// Lists the files `globs` match on the host, in sshd's order (glob order,
+/// one Include argument after another). Relative paths are under /etc/ssh,
+/// as sshd reads them. The globs come from the server's own file; they're
+/// expanded by the shell as variables, never evaluated as code.
+const EXPAND_GLOBS: &str = r#"cd /etc/ssh 2>/dev/null; for g in "$@"; do for f in $g; do [ -f "$f" ] && printf '%s\n' "$f"; done; done; true"#;
+
+/// Reads the files the main sshd_config includes. The engine never does
+/// file I/O; the app fetches them through the server's transport.
+pub fn load_sshd_includes(host: &dyn crate::host::Host, ir: &ConfigDocumentIr) -> Vec<SshdInclude> {
+    use crate::host::DEFAULT_TIMEOUT;
+    let mut out = Vec::new();
+    for row in ir.rows.iter().filter(|r| r.scope.is_none()) {
+        let Some(globs) = &row.include else { continue };
+        let mut argv = vec!["sh", "-c", EXPAND_GLOBS, "crow-glob"];
+        argv.extend(globs.iter().map(String::as_str));
+        let listed = host.exec(&argv, DEFAULT_TIMEOUT).or_else(|_| host.exec_privileged(&argv, &[], DEFAULT_TIMEOUT));
+        let paths: Vec<String> = match listed {
+            Ok(o) => o.stdout.lines().map(str::trim).filter(|l| !l.is_empty()).map(|p| if p.starts_with('/') { p.to_string() } else { format!("/etc/ssh/{p}") }).collect(),
+            Err(e) => {
+                out.push(SshdInclude { from_row: row.row_id.clone(), path: globs.join(" "), ir: None, error: Some(format!("couldn't list it: {e}")) });
+                continue;
             }
-            (row.row_id.clone(), scope.clone())
-        })
-        .collect()
+        };
+        let refs: Vec<&str> = paths.iter().map(String::as_str).collect();
+        let mut read = host.read_files(&refs);
+        for path in paths {
+            // Drop-ins are often root-only; fall back to reading as root.
+            let content = match read.remove(path.as_str()) {
+                Some(Ok(c)) => Ok(c),
+                _ => host.exec_privileged(&["cat", "--", &path], &[], DEFAULT_TIMEOUT).map(|o| o.stdout).map_err(|e| e.to_string()),
+            };
+            let (ir, error) = match content.map(|c| to_ir(StructuredFormat::Sshd, &c)) {
+                Ok(Ok(ir)) => (Some(ir), None),
+                Ok(Err(e)) => (None, Some(format!("couldn't parse it: {e}"))),
+                Err(e) => (None, Some(format!("couldn't read it: {e}"))),
+            };
+            out.push(SshdInclude { from_row: row.row_id.clone(), path, ir, error });
+        }
+    }
+    out
 }
 
 /// One directive on the sshd settings sheet: a known one (from the plugin
@@ -130,6 +172,12 @@ pub struct SheetRow {
     pub line: Option<usize>,
     /// A later duplicate: sshd uses the first value, so this one is ignored.
     pub shadowed: bool,
+    /// The included file that sets this row (`None`: the main file). Rows
+    /// from included files are shown, not edited here.
+    pub source: Option<String>,
+    /// When shadowed: where the value sshd uses is set (`None`: earlier in
+    /// the main file).
+    pub shadowed_by: Option<String>,
 }
 
 impl SheetRow {
@@ -140,24 +188,27 @@ impl SheetRow {
 }
 
 /// sshd_config laid out for people: known directives grouped by what they
-/// do (unset ones shown at their OpenSSH default), then unknown directives,
-/// then Match blocks (read-only until ERR-12).
+/// do (the value sshd really uses, from the main file or an included one,
+/// else OpenSSH's default), then unknown directives and ignored duplicates,
+/// then Match blocks.
 #[derive(Clone, Debug, Default)]
 pub struct SshdSheet {
     pub sections: Vec<(String, Vec<SheetRow>)>,
     pub other: Vec<SheetRow>,
-    pub scoped: Vec<(String, Vec<SheetRow>)>,
+    /// Match blocks: (criteria, the file they're in when included, rows).
+    pub scoped: Vec<(String, Option<String>, Vec<SheetRow>)>,
     /// Where new global directives go: after the last line outside any
     /// Match block (appending after a Match would scope them to it).
     pub insert_after: Option<String>,
+    /// Included files Crow couldn't read or parse, in words.
+    pub include_notes: Vec<String>,
 }
 
-pub fn sshd_sheet(ir: &ConfigDocumentIr) -> SshdSheet {
+pub fn sshd_sheet(ir: &ConfigDocumentIr, includes: &[SshdInclude]) -> SshdSheet {
     use crow_config_core::ir::RowIr;
     let defs = plugin(StructuredFormat::Sshd).manifest().fields.clone();
-    let scopes = sshd_match_scopes(ir);
-    let scope_of = |row: &RowIr| scopes.iter().find(|(id, _)| *id == row.row_id).and_then(|(_, s)| s.clone());
-    let as_sheet_row = |row: &RowIr, def: Option<crow_config_core::schema::FieldDef>, shadowed: bool| {
+    let def_for = |row: &RowIr| defs.iter().find(|d| row.fields.first().is_some_and(|f| f.name.eq_ignore_ascii_case(&d.name))).cloned();
+    let as_sheet_row = |row: &RowIr, source: Option<&str>, def: Option<crow_config_core::schema::FieldDef>| {
         let f = row.fields.first();
         SheetRow {
             name: f.map(|f| f.name.clone()).unwrap_or_default(),
@@ -170,52 +221,77 @@ pub fn sshd_sheet(ir: &ConfigDocumentIr) -> SshdSheet {
                 other => other.to_string(),
             }),
             line: Some(row.source_span.start_line),
-            shadowed,
+            shadowed: false,
+            source: source.map(str::to_string),
+            shadowed_by: None,
         }
     };
 
     let mut sheet = SshdSheet::default();
-    let mut seen: Vec<String> = Vec::new();
-    let mut global_rows: Vec<&RowIr> = Vec::new();
+    for inc in includes.iter().filter(|i| i.error.is_some()) {
+        sheet.include_notes.push(format!("{}: {}", inc.path, inc.error.clone().unwrap_or_default()));
+    }
+    // Global directives in the order sshd reads them: an Include pulls its
+    // files' global lines in where it stands. Match blocks are collected
+    // per file as they come.
+    let mut global: Vec<(Option<&str>, &RowIr)> = Vec::new();
+    let collect_scoped = |sheet: &mut SshdSheet, row: &RowIr, source: Option<&str>| {
+        let Some(scope) = &row.scope else { return false };
+        if row.widget == "scope_row" {
+            sheet.scoped.push((scope.clone(), source.map(str::to_string), Vec::new()));
+        } else if let Some((_, _, rows)) = sheet.scoped.last_mut() {
+            rows.push(as_sheet_row(row, source, def_for(row)));
+        }
+        true
+    };
     for row in ir.rows.iter().filter(|r| !r.fields.is_empty()) {
-        match scope_of(row) {
-            Some(scope) => {
-                let is_match_line = row.fields.iter().any(|f| f.name.eq_ignore_ascii_case("match"));
-                if is_match_line {
-                    sheet.scoped.push((scope, Vec::new()));
-                } else if let Some((_, rows)) = sheet.scoped.last_mut() {
-                    let def = defs.iter().find(|d| row.fields.first().is_some_and(|f| f.name.eq_ignore_ascii_case(&d.name))).cloned();
-                    rows.push(as_sheet_row(row, def, false));
+        if collect_scoped(&mut sheet, row, None) {
+            continue;
+        }
+        sheet.insert_after = Some(row.row_id.clone());
+        global.push((None, row));
+        for inc in includes.iter().filter(|i| i.from_row == row.row_id) {
+            let Some(inc_ir) = &inc.ir else { continue };
+            for r in inc_ir.rows.iter().filter(|r| !r.fields.is_empty()) {
+                if !collect_scoped(&mut sheet, r, Some(&inc.path)) {
+                    global.push((Some(&inc.path), r));
                 }
-            }
-            None => {
-                global_rows.push(row);
-                sheet.insert_after = Some(row.row_id.clone());
             }
         }
     }
-    // Known directives, grouped in manifest order; the first setting wins.
+    let is_include = |r: &RowIr| r.include.is_some();
+
+    // Known directives, grouped in manifest order: the first setting wins.
+    let mut winners: Vec<(&str, Option<&str>, String)> = Vec::new(); // (name, source, row id)
     for def in &defs {
         let group = def.group.clone().unwrap_or_else(|| "Other settings".into());
-        let found = global_rows.iter().find(|r| r.fields.first().is_some_and(|f| f.name.eq_ignore_ascii_case(&def.name)));
+        let found = global.iter().find(|(_, r)| !is_include(r) && r.fields.first().is_some_and(|f| f.name.eq_ignore_ascii_case(&def.name)));
         let row = match found {
-            Some(r) => {
-                seen.push(r.row_id.clone());
-                as_sheet_row(r, Some(def.clone()), false)
+            Some((src, r)) => {
+                winners.push((def.name.as_str(), *src, r.row_id.clone()));
+                as_sheet_row(r, *src, Some(def.clone()))
             }
-            None => SheetRow { name: def.name.clone(), def: Some(def.clone()), row_id: None, field_name: None, value: None, line: None, shadowed: false },
+            None => SheetRow { name: def.name.clone(), def: Some(def.clone()), row_id: None, field_name: None, value: None, line: None, shadowed: false, source: None, shadowed_by: None },
         };
         match sheet.sections.iter_mut().find(|(g, _)| *g == group) {
             Some((_, rows)) => rows.push(row),
             None => sheet.sections.push((group, vec![row])),
         }
     }
-    // Everything else outside Match blocks: unknown directives and ignored
-    // duplicates of known ones.
-    for row in global_rows.into_iter().filter(|r| !seen.contains(&r.row_id)) {
-        let def = defs.iter().find(|d| row.fields.first().is_some_and(|f| f.name.eq_ignore_ascii_case(&d.name))).cloned();
-        let shadowed = def.is_some();
-        sheet.other.push(as_sheet_row(row, def, shadowed));
+    // Everything else: unknown directives, Include lines, and duplicates of
+    // known ones that sshd ignores (saying where the winning value is).
+    for (src, row) in global {
+        let won = winners.iter().any(|(_, s, id)| *s == src && *id == row.row_id);
+        if won {
+            continue;
+        }
+        let def = def_for(row);
+        let mut sr = as_sheet_row(row, src, def.clone());
+        if let Some(d) = &def {
+            sr.shadowed = true;
+            sr.shadowed_by = winners.iter().find(|(n, _, _)| n.eq_ignore_ascii_case(&d.name)).and_then(|(_, s, _)| s.map(str::to_string));
+        }
+        sheet.other.push(sr);
     }
     sheet
 }
@@ -334,7 +410,7 @@ mod tests {
     fn sshd_sheet_groups_directives_and_shows_defaults() {
         let text = "Include /etc/ssh/sshd_config.d/*.conf\nPort 2222\nPermitRootLogin no\nUsePAM yes\nPermitRootLogin yes\nMatch User deploy\n    PasswordAuthentication yes\n";
         let ir = to_ir(StructuredFormat::Sshd, text).unwrap();
-        let sheet = sshd_sheet(&ir);
+        let sheet = sshd_sheet(&ir, &[]);
         let find = |name: &str| sheet.sections.iter().flat_map(|(_, rows)| rows).find(|r| r.name.eq_ignore_ascii_case(name)).unwrap().clone();
         assert_eq!(find("Port").value.as_deref(), Some("2222"));
         assert_eq!(find("PermitRootLogin").value.as_deref(), Some("no"), "first value wins");
@@ -344,9 +420,67 @@ mod tests {
         let other: Vec<(&str, bool)> = sheet.other.iter().map(|r| (r.name.as_str(), r.shadowed)).collect();
         assert_eq!(other, [("Include", false), ("UsePAM", false), ("PermitRootLogin", true)]);
         assert_eq!(sheet.scoped.len(), 1);
-        assert_eq!(sheet.scoped[0].1[0].name, "PasswordAuthentication");
+        assert_eq!(sheet.scoped[0].2[0].name, "PasswordAuthentication");
         let pos = ir.rows.iter().position(|r| Some(&r.row_id) == sheet.insert_after.as_ref()).unwrap();
         assert!(ir.rows[pos].fields[0].name == "PermitRootLogin", "new directives go before the Match block");
+    }
+
+    fn include(from_row: &str, path: &str, text: &str) -> SshdInclude {
+        SshdInclude { from_row: from_row.into(), path: path.into(), ir: Some(to_ir(StructuredFormat::Sshd, text).unwrap()), error: None }
+    }
+
+    #[test]
+    fn a_drop_in_read_first_wins_over_the_main_file() {
+        // Ubuntu's layout, with cloud-init's drop-in turning passwords on.
+        let main = "Include /etc/ssh/sshd_config.d/*.conf\nPasswordAuthentication no\nPort 22\n";
+        let ir = to_ir(StructuredFormat::Sshd, main).unwrap();
+        let inc_row = ir.rows[0].row_id.clone();
+        let includes = [include(&inc_row, "/etc/ssh/sshd_config.d/50-cloud-init.conf", "PasswordAuthentication yes\n")];
+        let sheet = sshd_sheet(&ir, &includes);
+        let pw = sheet.sections.iter().flat_map(|(_, r)| r).find(|r| r.name == "PasswordAuthentication").unwrap();
+        assert_eq!(pw.effective(), Some("yes"), "what sshd really uses");
+        assert_eq!(pw.source.as_deref(), Some("/etc/ssh/sshd_config.d/50-cloud-init.conf"));
+        let ignored = sheet.other.iter().find(|r| r.name == "PasswordAuthentication").unwrap();
+        assert!(ignored.shadowed && ignored.source.is_none());
+        assert_eq!(ignored.shadowed_by.as_deref(), Some("/etc/ssh/sshd_config.d/50-cloud-init.conf"));
+        // Crow's own 00- drop-in, read before cloud-init's, wins in turn (ERR-34).
+        let both = [include(&inc_row, "/etc/ssh/sshd_config.d/00-crow-no-password.conf", "PasswordAuthentication no\n"), includes[0].clone()];
+        let sheet = sshd_sheet(&ir, &both);
+        let pw = sheet.sections.iter().flat_map(|(_, r)| r).find(|r| r.name == "PasswordAuthentication").unwrap();
+        assert_eq!((pw.effective(), pw.source.as_deref()), (Some("no"), Some("/etc/ssh/sshd_config.d/00-crow-no-password.conf")));
+    }
+
+    #[test]
+    fn match_blocks_in_drop_ins_are_labelled_and_unreadable_ones_noted() {
+        let ir = to_ir(StructuredFormat::Sshd, "Include /etc/ssh/sshd_config.d/*.conf\nPort 22\n").unwrap();
+        let inc_row = ir.rows[0].row_id.clone();
+        let includes = [
+            include(&inc_row, "/etc/ssh/sshd_config.d/10-sftp.conf", "Match Group sftp\n\tForceCommand internal-sftp\n"),
+            SshdInclude { from_row: inc_row.clone(), path: "/etc/ssh/sshd_config.d/99-secret.conf".into(), ir: None, error: Some("couldn't read it: permission denied".into()) },
+        ];
+        let sheet = sshd_sheet(&ir, &includes);
+        assert_eq!(sheet.scoped.len(), 1);
+        assert_eq!((sheet.scoped[0].0.as_str(), sheet.scoped[0].1.as_deref()), ("Group sftp", Some("/etc/ssh/sshd_config.d/10-sftp.conf")));
+        assert_eq!(sheet.scoped[0].2[0].source.as_deref(), Some("/etc/ssh/sshd_config.d/10-sftp.conf"), "read-only in the sheet");
+        assert_eq!(sheet.include_notes, ["/etc/ssh/sshd_config.d/99-secret.conf: couldn't read it: permission denied"]);
+    }
+
+    #[test]
+    fn includes_are_read_through_the_host_in_glob_order() {
+        use crate::host::LocalHost;
+        let dir = std::env::temp_dir().join(format!("crow-err12-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("50-cloud-init.conf"), "PasswordAuthentication yes\n").unwrap();
+        std::fs::write(dir.join("00-crow.conf"), "PasswordAuthentication no\n").unwrap();
+        std::fs::write(dir.join("notes.txt"), "not matched\n").unwrap();
+        let main = format!("Include {}/*.conf\nPort 22\n", dir.display());
+        let ir = to_ir(StructuredFormat::Sshd, &main).unwrap();
+        let includes = load_sshd_includes(&LocalHost, &ir);
+        let names: Vec<_> = includes.iter().map(|i| i.path.rsplit('/').next().unwrap().to_string()).collect();
+        assert_eq!(names, ["00-crow.conf", "50-cloud-init.conf"], "glob order, *.conf only");
+        assert!(includes.iter().all(|i| i.ir.is_some() && i.from_row == ir.rows[0].row_id));
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

@@ -9,6 +9,8 @@ use crate::os_detect::DistroFamily;
 /// cron job model the Cron screen renders into the crontab state.
 pub struct ConfigsState {
     pub files: Vec<DiscoveredConfigFile>,
+    /// Files sshd_config pulls in with Include, as read from the server (ERR-12).
+    pub sshd_includes: Vec<crate::config::plugins::SshdInclude>,
     /// Keyed by file name (e.g. "pg_hba.conf", "crontab", "user.rules").
     pub states: HashMap<String, ConfigFileState>,
     pub selected_file: String,
@@ -77,6 +79,7 @@ impl ConfigsState {
     ) -> Self {
         Self {
             files,
+            sshd_includes: Vec::new(),
             states,
             selected_file,
             search_query: String::new(),

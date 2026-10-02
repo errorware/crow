@@ -92,7 +92,14 @@ pub fn load_configs(server: Option<&ServerRecord>, firewall: &FirewallOperationa
     let files: Vec<_> = all.into_iter().filter(|f| editor_for(f.schema_kind).is_listed()).collect();
     let selected = files.first().map(|f| f.name.clone()).unwrap_or_else(|| "journald.conf".to_string());
 
+    // sshd's included drop-ins (ERR-12): read through the same transport.
+    let sshd_includes = states
+        .get("sshd_config")
+        .and_then(|st| plugins::to_ir(StructuredFormat::Sshd, &st.current_content).ok())
+        .map(|ir| plugins::load_sshd_includes(host.as_ref(), &ir))
+        .unwrap_or_default();
     let mut configs = ConfigsState::new(files, states, selected);
+    configs.sshd_includes = sshd_includes;
     configs.server_id = server.map(|s| s.id.clone());
     configs.family = family;
     if let Some(crontab) = configs.states.get("crontab").map(|st| st.current_content.clone()) {
@@ -325,7 +332,7 @@ impl CrowApp {
         let ir = plugins::to_ir(format, &state.current_content).ok();
         // sshd: after the last global line, never inside a trailing Match block.
         let last_row = match format {
-            StructuredFormat::Sshd => ir.as_ref().and_then(|ir| plugins::sshd_sheet(ir).insert_after),
+            StructuredFormat::Sshd => ir.as_ref().and_then(|ir| plugins::sshd_sheet(ir, &[]).insert_after),
             _ => ir.as_ref().and_then(|ir| ir.rows.last().map(|r| r.row_id.clone())),
         };
         let mut fields = HashMap::new();

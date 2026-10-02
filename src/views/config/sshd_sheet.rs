@@ -32,10 +32,26 @@ pub fn sshd_sheet_view(file: &str, sheet: &SshdSheet, read_only: bool, active_ed
         .collect();
 
     let app_pw = app.clone();
+    let include_notes = sheet.include_notes.clone();
     div()
         .flex()
         .flex_col()
         .pb(px(16.0))
+        .children((!include_notes.is_empty()).then(|| {
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(2.0))
+                .px(px(14.0))
+                .py(px(8.0))
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .font_family(FONT_MONO)
+                .text_size(px(10.0))
+                .text_color(WARN)
+                .child("Some files this config includes couldn't be read, so values below may not be what sshd uses:")
+                .children(include_notes.into_iter().map(|n| div().text_color(TEXT_SECONDARY).child(n)))
+        }))
         // Password login off, the safe way (ERR-34).
         .child(
             div()
@@ -85,10 +101,13 @@ pub fn sshd_sheet_view(file: &str, sheet: &SshdSheet, read_only: bool, active_ed
         .children((!sheet.other.is_empty()).then(|| {
             section("OTHER DIRECTIVES".into()).children(sheet.other.iter().enumerate().map(|(i, row)| directive_row(file, row, &format!("other-{i}"), read_only, active_edit, app.clone())))
         }))
-        .children(sheet.scoped.iter().enumerate().map(|(i, (scope, rows))| {
+        .children(sheet.scoped.iter().enumerate().map(|(i, (scope, source, rows))| {
             let app = app.clone();
-            section(format!("MATCH {scope} · READ-ONLY UNTIL CROW-CONFIG MODELS MATCH BLOCKS (ERR-12)"))
-                .children(rows.iter().enumerate().map(move |(j, row)| directive_row("", row, &format!("match-{i}-{j}"), true, None, app.clone())))
+            let title = match source {
+                Some(path) => format!("MATCH {scope} · IN {}", path.to_uppercase()),
+                None => format!("MATCH {scope} · APPLIES ONLY WHEN THIS MATCHES"),
+            };
+            section(title).children(rows.iter().enumerate().map(move |(j, row)| directive_row(file, row, &format!("match-{i}-{j}"), read_only, active_edit, app.clone())))
         }))
 }
 
@@ -134,6 +153,8 @@ fn posture_tile(row: &SheetRow) -> impl IntoElement {
 }
 
 fn directive_row(file: &str, row: &SheetRow, key: &str, read_only: bool, active_edit: Option<&ActiveFieldEdit>, app: Entity<CrowApp>) -> impl IntoElement {
+    // Rows from an included drop-in are shown where they apply, not edited here.
+    let read_only = read_only || row.source.is_some();
     let is_set = row.value.is_some();
     let effective = row.effective().map(str::to_string);
     let help = row.def.as_ref().and_then(|d| d.help.clone());
@@ -240,11 +261,19 @@ fn directive_row(file: &str, row: &SheetRow, key: &str, read_only: bool, active_
         .font_family(FONT_MONO)
         .text_size(px(9.0))
         .children(risk_label(risk.as_ref()).filter(|_| risk != Some(RiskLevel::Recommended)).map(|l| div().font_weight(FontWeight::BOLD).text_color(risk_color(risk.as_ref())).child(l)))
-        .child(div().text_color(TEXT_FAINTER).child(match (row.shadowed, row.line, is_set) {
-            (true, Some(l), _) => format!("L{l} · ignored, set earlier"),
-            (_, Some(l), _) => format!("L{l}"),
-            (_, None, false) if effective.is_some() => "default".into(),
-            _ => String::new(),
+        .child(div().text_color(TEXT_FAINTER).child({
+            let at = match (&row.source, row.line) {
+                (Some(src), Some(l)) => format!("{}:{l}", src.rsplit('/').next().unwrap_or(src)),
+                (None, Some(l)) => format!("L{l}"),
+                _ => String::new(),
+            };
+            match (row.shadowed, &row.shadowed_by, row.line, is_set) {
+                (true, Some(by), _, _) => format!("{at} · ignored: {} sets it first", by.rsplit('/').next().unwrap_or(by)),
+                (true, None, _, _) => format!("{at} · ignored, set earlier"),
+                (_, _, Some(_), _) => at,
+                (_, _, None, false) if effective.is_some() => "default".into(),
+                _ => String::new(),
+            }
         }))
         .children(row.row_id.clone().filter(|_| !read_only).map(|row_id| {
             let (app, file) = (app.clone(), file.to_string());
