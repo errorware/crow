@@ -362,8 +362,9 @@ impl Render for CrowApp {
                                                                 });
                                                                 // Then read the workspace beside the rename state.
                                                                 let server = self.fleet.active_server().map(|s| s.id).unwrap_or_default();
+                                                                let look = crate::views::terminal::Look { font_size: self.terminal_font_size(), blink_on: self.terminal_blink.0 };
                                                                 snapshot.zip(self.terminals.get(&server)).map(|((mut frames, focused), ws)| {
-                                                                    div().size_full().child(crate::views::terminal::workspace_view(ws, self.terminal_rename.as_ref(), &mut frames, focused, app))
+                                                                    div().size_full().child(crate::views::terminal::workspace_view(ws, self.terminal_rename.as_ref(), &mut frames, focused, look, app))
                                                                 })
                                                             } else if self.active_view == "history" {
                                                                 let hover = self.history_hover;

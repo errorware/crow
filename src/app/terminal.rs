@@ -6,7 +6,8 @@ use std::cell::Cell;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Duration;
+use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 
 use gpui_kit::*;
 
@@ -17,10 +18,53 @@ use crate::terminal::layout::{Axis, Node, PaneId};
 use crate::terminal::session::{GridSize, SelectBy, Session};
 use alacritty_terminal::term::TermMode;
 
+/// "Terminal opened on X" in the audit log while a session runs, completed
+/// with how long it was open when the session ends, however it ends (pane or
+/// tab closed, shell exited, vault locked). Keystrokes are never recorded.
+pub struct TerminalAudit {
+    db: Arc<Mutex<crate::vault::VaultDb>>,
+    id: String,
+    opened: Instant,
+}
+
+impl TerminalAudit {
+    fn open(db: Arc<Mutex<crate::vault::VaultDb>>, server: &crate::vault::ServerRecord, pane: PaneId) -> Self {
+        let id = format!("chg_term_{}_{pane:?}", chrono::Local::now().timestamp_micros());
+        if let Ok(d) = db.lock() {
+            let _ = d.insert_change_record(&crate::vault::ChangeRecord {
+                id: id.clone(),
+                server_id: server.id.clone(),
+                server_name: server.name.clone(),
+                action_kind: "ssh.terminal".into(),
+                target: "terminal".into(),
+                before_state: "terminal opened (what's typed isn't recorded)".into(),
+                after_state: None,
+                blast_radius: None,
+                outcome: "open".into(),
+                started_at: chrono::Utc::now().to_rfc3339(),
+                completed_at: None,
+            });
+        }
+        Self { db, id, opened: Instant::now() }
+    }
+}
+
+impl Drop for TerminalAudit {
+    fn drop(&mut self) {
+        let secs = self.opened.elapsed().as_secs();
+        let took = if secs >= 3600 { format!("{}h {}m", secs / 3600, secs % 3600 / 60) } else if secs >= 60 { format!("{}m {}s", secs / 60, secs % 60) } else { format!("{secs}s") };
+        if let Ok(d) = self.db.lock() {
+            let _ = d.update_change_record_outcome(&self.id, "closed", Some(&format!("terminal closed after {took}")), &chrono::Utc::now().to_rfc3339());
+        }
+    }
+}
+
 pub struct TerminalPane {
     pub id: PaneId,
     pub server_id: String,
     pub session: Option<Session>,
+    /// The audit record of the running session (ERR-96).
+    pub audit: Option<TerminalAudit>,
     /// Why there's no session (the server can't take one), if so.
     pub error: Option<String>,
     pub focus: FocusHandle,
@@ -98,7 +142,7 @@ fn next_pane_id() -> PaneId {
 
 impl CrowApp {
     fn new_pane(server_id: &str, cx: &mut Context<Self>) -> TerminalPane {
-        TerminalPane { id: next_pane_id(), server_id: server_id.into(), session: None, error: None, focus: cx.focus_handle(), target: Rc::new(Cell::new(None)), focus_pending: true, grid: Rc::new(Cell::new(None)), selecting: false, mouse_held: None }
+        TerminalPane { id: next_pane_id(), server_id: server_id.into(), session: None, audit: None, error: None, focus: cx.focus_handle(), target: Rc::new(Cell::new(None)), focus_pending: true, grid: Rc::new(Cell::new(None)), selecting: false, mouse_held: None }
     }
 
     /// The active server's workspace, created with one tab on first use.
@@ -269,24 +313,39 @@ impl CrowApp {
     /// output arrived. Returns whether there's anything left to pump.
     fn pump_terminals(&mut self, cx: &mut Context<Self>) -> bool {
         let mut dirty = false;
+        let mut blinking = false;
         let servers = self.fleet.servers.clone();
+        let db = self.vault.db();
         for pane in self.terminals.values_mut().flat_map(|ws| ws.panes.values_mut()) {
             let Some(size) = pane.target.get() else { continue };
             match pane.session.as_mut() {
                 Some(s) => {
                     s.resize(size);
                     dirty |= s.pump();
+                    if s.exited.is_some() {
+                        // Completes the audit record now, not when the pane closes.
+                        pane.audit = None;
+                    }
+                    blinking |= s.cursor_blinking();
                 }
                 None if pane.error.is_none() => {
                     let Some(srv) = servers.iter().find(|s| s.id == pane.server_id) else { continue };
                     match launch_for(srv).and_then(|l| Session::spawn(&l, size).map_err(|e| format!("couldn't start a terminal: {e}"))) {
-                        Ok(s) => pane.session = Some(s),
+                        Ok(s) => {
+                            pane.session = Some(s);
+                            pane.audit = Some(TerminalAudit::open(db.clone(), srv, pane.id));
+                        }
                         Err(e) => pane.error = Some(e),
                     }
                     dirty = true;
                 }
                 None => {}
             }
+        }
+        // A cursor the program asked to blink: flip it every 530ms.
+        if blinking && self.terminal_blink.1.elapsed() >= Duration::from_millis(530) {
+            self.terminal_blink = (!self.terminal_blink.0, Instant::now());
+            dirty = true;
         }
         if dirty {
             cx.notify();
@@ -301,6 +360,8 @@ impl CrowApp {
     /// A key pressed in the focused pane. Returns false for keys left to
     /// Crow (other ⌘ shortcuts and Ctrl+Shift chords).
     pub fn terminal_key(&mut self, ev: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        // Typing shows the cursor, as terminals do.
+        self.terminal_blink = (true, Instant::now());
         let m = &ev.keystroke.modifiers;
         let key = ev.keystroke.key.to_lowercase();
 
@@ -445,6 +506,15 @@ impl CrowApp {
     pub fn terminal_mouse_down(&mut self, id: PaneId, button: MouseButton, pos: Point<Pixels>, clicks: usize, m: Modifiers, cx: &mut Context<Self>) {
         self.terminal_focus_pane(id, cx);
         let Some(pane) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get_mut(&id)) else { return };
+        // Ctrl+click (⌘+click on macOS) opens the link under the pointer.
+        let link_mod = if cfg!(target_os = "macos") { m.platform } else { m.control };
+        if button == MouseButton::Left && link_mod {
+            let link = Self::cell_at(pane, pos).and_then(|(row, col, _)| pane.session.as_ref()?.link_at(row.max(0) as usize, col));
+            if let Some(url) = link {
+                open_url(&url);
+                return;
+            }
+        }
         let code = match button {
             MouseButton::Left => 0,
             MouseButton::Middle => 1,
@@ -540,4 +610,14 @@ impl CrowApp {
         #[cfg(not(any(target_os = "linux", target_os = "freebsd")))]
         let _ = (id, cx);
     }
+}
+
+/// Opens a web link in the default browser. The URL is one argument, never
+/// passed through a shell.
+fn open_url(url: &str) {
+    #[cfg(target_os = "macos")]
+    let opener = "open";
+    #[cfg(not(target_os = "macos"))]
+    let opener = "xdg-open";
+    let _ = std::process::Command::new(opener).arg(url).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn();
 }

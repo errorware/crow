@@ -32,7 +32,34 @@ pub const WIRED_SETTINGS: &[&str] = &[
     "appearance.fleet_background",
     "appearance.fleet_background_opacity",
     "appearance.fleet_background_blur",
+    "appearance.terminal_font_size",
 ];
+
+/// Adds `line` right after `[section]`'s header when the section exists but
+/// doesn't set `key` yet. Other text is kept as is.
+pub fn add_missing_key(text: &str, section: &str, key: &str, line: &str) -> String {
+    let header = format!("[{section}]");
+    let mut out = Vec::new();
+    let mut lines = text.lines().peekable();
+    let mut done = false;
+    while let Some(l) = lines.next() {
+        out.push(l.to_string());
+        if !done && l.trim() == header {
+            // Does the section already set it (before the next header)?
+            let rest: Vec<&str> = lines.clone().take_while(|n| !n.trim_start().starts_with('[')).collect();
+            let has = rest.iter().any(|n| n.split('=').next().is_some_and(|k| k.trim() == key));
+            if !has {
+                out.push(line.to_string());
+            }
+            done = true;
+        }
+    }
+    let mut joined = out.join("\n");
+    if text.ends_with('\n') {
+        joined.push('\n');
+    }
+    joined
+}
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum DiffKind {
@@ -91,6 +118,9 @@ impl CrowConfigManager {
         } else {
             format!("{}\n{}", text.trim_end(), plugin::APPEARANCE_DEFAULTS)
         };
+        // Keys added to an existing section later go inside it: a second
+        // [appearance] header would make the file invalid TOML.
+        let text = add_missing_key(&text, "appearance", "terminal_font_size", "terminal_font_size = 13");
         let text = if text.lines().any(|l| l.trim() == "[servers]") {
             text
         } else {
@@ -309,5 +339,15 @@ mod wired_tests {
         for key in WIRED_SETTINGS {
             assert!(manifest.contains(key), "{key} isn't in the settings manifest");
         }
+    }
+
+    #[test]
+    fn missing_keys_go_inside_their_existing_section() {
+        let old = "[general]\ntheme = \"x\"\n\n[appearance]\nfleet_background = \"\"\n\n[servers]\narchive_purge_days = \"90\"\n";
+        let new = add_missing_key(old, "appearance", "terminal_font_size", "terminal_font_size = 13");
+        assert_eq!(new, old.replace("[appearance]\n", "[appearance]\nterminal_font_size = 13\n"));
+        assert_eq!(new.matches("[appearance]").count(), 1, "still valid TOML");
+        assert_eq!(add_missing_key(&new, "appearance", "terminal_font_size", "terminal_font_size = 13"), new, "added once");
+        assert_eq!(add_missing_key("[general]\n", "appearance", "k", "k = 1"), "[general]\n", "no section, nothing added");
     }
 }

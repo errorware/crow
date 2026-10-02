@@ -247,6 +247,8 @@ pub struct CrowApp {
     pub terminals: std::collections::HashMap<String, terminal::TerminalWorkspace>,
     pub terminal_pump: Option<Task<()>>,
     pub terminal_rename: Option<terminal::TabRename>,
+    /// Blinking cursor phase (on?) and when it last flipped.
+    pub terminal_blink: (bool, std::time::Instant),
     /// Metrics history bookkeeping (ERR-84).
     pub history: HistoryClock,
     /// Servers whose last history sample was unreachable (ERR-85).
@@ -442,6 +444,7 @@ impl CrowApp {
             terminals: std::collections::HashMap::new(),
             terminal_pump: None,
             terminal_rename: None,
+            terminal_blink: (true, std::time::Instant::now()),
             history: HistoryClock { watch_started: chrono::Utc::now().timestamp(), ..Default::default() },
             history_down: Default::default(),
             history_range: crate::metrics::chart::Range::Day,

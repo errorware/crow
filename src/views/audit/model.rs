@@ -102,7 +102,7 @@ pub fn audit_items(records: &[ChangeRecord], servers: &[ServerRecord]) -> Vec<Au
 fn from_record(r: &ChangeRecord) -> Option<AuditItem> {
     let at = DateTime::parse_from_rfc3339(&r.started_at).ok()?.with_timezone(&Utc);
     let outcome = match r.outcome.as_str() {
-        "success" | "applied" => Outcome::Done,
+        "success" | "applied" | "closed" => Outcome::Done,
         "failed" => Outcome::Failed,
         _ => Outcome::Pending,
     };
@@ -116,6 +116,7 @@ fn from_record(r: &ChangeRecord) -> Option<AuditItem> {
         "sshd.password_login_off" => "turned off SSH password login".to_string(),
         "ssh.host_key" => format!("trusted a new host key for {}", r.target),
         "ssh.key_switch" => r.before_state.clone(),
+        "ssh.terminal" => "opened a terminal".to_string(),
         k if k.starts_with("service_") => format!("{} {}", k.trim_start_matches("service_"), r.target),
         k if k.starts_with("provider.") => format!("{} at the provider", k.trim_start_matches("provider.")),
         "fleet.reboot" => format!("rolling reboot: {}", r.before_state),
@@ -127,6 +128,8 @@ fn from_record(r: &ChangeRecord) -> Option<AuditItem> {
     // a failure's after_state is the error.
     let detail = match (outcome, &r.after_state) {
         (Outcome::Failed, Some(err)) => Some(format!("{} · {err}", r.before_state)),
+        // A terminal: "terminal closed after 12m 3s" once it ended.
+        (Outcome::Done, Some(closed)) if r.action_kind == "ssh.terminal" => Some(closed.clone()),
         _ if r.before_state.is_empty() => None,
         _ if group == KindGroup::Config => r.after_state.as_ref().map(|a| format!("{} → {}", short_hash(&r.before_state), short_hash(a))),
         _ => Some(r.before_state.clone()),
@@ -211,5 +214,13 @@ mod tests {
         assert_eq!(items.iter().filter(|i| f.matches(i)).count(), 1);
         let f = AuditFilter { server_id: Some("other".into()), group: None };
         assert_eq!(items.iter().filter(|i| f.matches(i)).count(), 0);
+    }
+
+    #[test]
+    fn terminals_show_as_opened_then_closed_with_how_long() {
+        let open = from_record(&rec("ssh.terminal", "terminal", "terminal opened (what's typed isn't recorded)", None, "open", "2026-10-02T10:00:00Z")).unwrap();
+        assert_eq!((open.text.as_str(), open.outcome, open.group), ("opened a terminal", Outcome::Pending, KindGroup::Ssh));
+        let closed = from_record(&rec("ssh.terminal", "terminal", "terminal opened (what's typed isn't recorded)", Some("terminal closed after 12m 3s"), "closed", "2026-10-02T10:00:00Z")).unwrap();
+        assert_eq!((closed.outcome, closed.detail.as_deref()), (Outcome::Done, Some("terminal closed after 12m 3s")));
     }
 }

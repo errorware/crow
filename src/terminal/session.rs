@@ -83,6 +83,8 @@ pub struct Frame {
     pub rows: Vec<Vec<Run>>,
     /// (row, col, shape); `None` when hidden or scrolled out of view.
     pub cursor: Option<(usize, usize, CursorShape)>,
+    /// The program asked for a blinking cursor.
+    pub cursor_blinking: bool,
     /// Lines scrolled back from the bottom.
     pub scrolled: usize,
     /// Selected cells per row: (row, first col, last col), inclusive.
@@ -236,6 +238,24 @@ impl Session {
         dirty
     }
 
+    /// Whether the program asked for a blinking cursor.
+    pub fn cursor_blinking(&self) -> bool {
+        self.term.lock().cursor_style().blinking
+    }
+
+    /// The link under a visible cell: an OSC 8 hyperlink the program set,
+    /// else an http(s) URL written in that line.
+    pub fn link_at(&self, row: usize, col: usize) -> Option<String> {
+        let term = self.term.lock();
+        let (p, _) = Self::point_at(&term, row, col, false);
+        let grid = term.grid();
+        if let Some(link) = grid[p].hyperlink() {
+            return Some(link.uri().to_string()).filter(|u| is_openable(u));
+        }
+        let line: String = (0..term.columns()).map(|c| grid[p.line][Column(c)].c).map(|c| if c == '\0' { ' ' } else { c }).collect();
+        url_at(&line, p.column.0)
+    }
+
     /// The visible screen as styled runs.
     pub fn frame(&self) -> Frame {
         let term = self.term.lock();
@@ -247,6 +267,32 @@ impl Drop for Session {
     fn drop(&mut self) {
         let _ = self.sender.send(Msg::Shutdown);
     }
+}
+
+/// Only web links are opened from a terminal: nothing that would run or
+/// open a local file.
+fn is_openable(url: &str) -> bool {
+    url.starts_with("https://") || url.starts_with("http://")
+}
+
+/// The http(s) URL covering character `col` of `line`, if any, without
+/// trailing punctuation that usually ends a sentence.
+pub fn url_at(line: &str, col: usize) -> Option<String> {
+    let chars: Vec<char> = line.chars().collect();
+    if col >= chars.len() || chars[col].is_whitespace() {
+        return None;
+    }
+    let is_break = |c: char| c.is_whitespace() || matches!(c, '"' | '\'' | '<' | '>' | '`' | '(' | ')' | '[' | ']' | '{' | '}');
+    let start = (0..=col).rev().take_while(|&i| !is_break(chars[i])).last()?;
+    let end = (col..chars.len()).take_while(|&i| !is_break(chars[i])).last()?;
+    let word: String = chars[start..=end].iter().collect();
+    let at = word.find("https://").or_else(|| word.find("http://"))?;
+    // The pointer must be on the URL part of the word, not before it.
+    if start + word[..at].chars().count() > col {
+        return None;
+    }
+    let url = word[at..].trim_end_matches(['.', ',', ';', ':', '!', '?']).to_string();
+    (is_openable(&url) && url.len() > "https://".len()).then_some(url)
 }
 
 fn frame_of<T: EventListener>(term: &Term<T>) -> Frame {
@@ -324,7 +370,7 @@ fn frame_of<T: EventListener>(term: &Term<T>) -> Frame {
             }
         }
     }
-    Frame { rows, cursor, scrolled: content.display_offset, selection }
+    Frame { rows, cursor, cursor_blinking: term.cursor_style().blinking, scrolled: content.display_offset, selection }
 }
 
 fn is_wide(c: char) -> bool {
@@ -407,5 +453,16 @@ mod tests {
         let mode = s.mode();
         assert!(mode.contains(TermMode::MOUSE_DRAG | TermMode::SGR_MOUSE | TermMode::ALT_SCREEN), "{mode:?}");
         assert!(mode.contains(TermMode::ALTERNATE_SCROLL), "the wheel sends arrows in full-screen programs by default");
+    }
+
+    #[test]
+    fn finds_the_url_under_the_pointer() {
+        let line = "see https://crow.rs/docs, or (http://example.com/a?b=1) now";
+        assert_eq!(url_at(line, 10).as_deref(), Some("https://crow.rs/docs"), "trailing comma dropped");
+        assert_eq!(url_at(line, 35).as_deref(), Some("http://example.com/a?b=1"), "parentheses aren't part of it");
+        assert_eq!(url_at(line, 0), None, "not on a link");
+        assert_eq!(url_at("file:///etc/passwd", 3), None, "only web links");
+        assert_eq!(url_at("x=https://a.io", 0), None, "pointer before the URL part");
+        assert_eq!(url_at("x=https://a.io", 4).as_deref(), Some("https://a.io"));
     }
 }

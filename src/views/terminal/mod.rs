@@ -18,7 +18,16 @@ use crate::terminal::palette;
 use crate::terminal::session::{Frame, GridSize};
 use crate::theme::*;
 
-const FONT_SIZE: f32 = 13.0;
+/// How terminals look right now: the font size (Personalisation) and
+/// whether a blinking cursor is in its "on" phase.
+#[derive(Clone, Copy, Debug)]
+pub struct Look {
+    pub font_size: f32,
+    pub blink_on: bool,
+}
+
+/// The terminal font size when none is set.
+pub const DEFAULT_FONT_SIZE: f32 = 13.0;
 const LINE_HEIGHT: f32 = 1.3;
 const PAD: f32 = 10.0;
 
@@ -27,7 +36,7 @@ fn color(c: u32) -> Hsla {
 }
 
 /// The server's terminals: a tab bar, then the active tab's panes.
-pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames: &mut HashMap<PaneId, Frame>, focused: Option<PaneId>, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames: &mut HashMap<PaneId, Frame>, focused: Option<PaneId>, look: Look, app: Entity<CrowApp>) -> impl IntoElement {
     let shortcut = |mac: &'static str, other: &'static str| if cfg!(target_os = "macos") { mac } else { other };
     // Toolbar buttons: icon and its shortcut, quiet until hovered.
     let tool = |id: &'static str, icon: TablerIcon, keys: &'static str| {
@@ -146,7 +155,7 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames
                 .flex_1()
                 .min_h(px(0.0))
                 .flex()
-                .children(ws.tabs.get(ws.active).map(|tab| node_view(&tab.root, ws, frames, focused, multi, app.clone())))
+                .children(ws.tabs.get(ws.active).map(|tab| node_view(&tab.root, ws, frames, focused, multi, look, app.clone())))
                 .children(ws.tabs.is_empty().then(|| {
                     div()
                         .p(px(16.0))
@@ -191,7 +200,7 @@ fn rename_panel(r: &TabRename, app: Entity<CrowApp>) -> impl IntoElement {
         .child(div().text_size(px(9.5)).text_color(TEXT_FAINT).child("Enter renames · Esc cancels · empty follows the shell"))
 }
 
-fn node_view(node: &Node, ws: &TerminalWorkspace, frames: &mut HashMap<PaneId, Frame>, focused: Option<PaneId>, multi: bool, app: Entity<CrowApp>) -> AnyElement {
+fn node_view(node: &Node, ws: &TerminalWorkspace, frames: &mut HashMap<PaneId, Frame>, focused: Option<PaneId>, multi: bool, look: Look, app: Entity<CrowApp>) -> AnyElement {
     match node {
         Node::Pane(id) => match ws.panes.get(id) {
             Some(pane) => div()
@@ -200,7 +209,7 @@ fn node_view(node: &Node, ws: &TerminalWorkspace, frames: &mut HashMap<PaneId, F
                 .min_h(px(0.0))
                 .border_1()
                 .border_color(if multi && focused == Some(*id) { BORDER_CONTROL_SEL } else { hex_rgba(0, 0.0) })
-                .child(terminal_view(pane, frames.remove(id), focused == Some(*id), app))
+                .child(terminal_view(pane, frames.remove(id), focused == Some(*id), look, app))
                 .into_any_element(),
             None => div().flex_1().into_any_element(),
         },
@@ -211,15 +220,15 @@ fn node_view(node: &Node, ws: &TerminalWorkspace, frames: &mut HashMap<PaneId, F
             };
             let base = div().flex_1().min_w(px(0.0)).min_h(px(0.0)).flex();
             let base = if *axis == Axis::Column { base.flex_col() } else { base };
-            base.child(node_view(first, ws, frames, focused, multi, app.clone()))
+            base.child(node_view(first, ws, frames, focused, multi, look, app.clone()))
                 .child(divider)
-                .child(node_view(second, ws, frames, focused, multi, app))
+                .child(node_view(second, ws, frames, focused, multi, look, app))
                 .into_any_element()
         }
     }
 }
 
-pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, look: Look, app: Entity<CrowApp>) -> impl IntoElement {
     let target = pane.target.clone();
     let status = match (&pane.error, pane.session.as_ref().and_then(|s| s.exited.clone())) {
         (Some(e), _) => Some((format!("{e}"), CRIT)),
@@ -253,7 +262,7 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, a
         .on_scroll_wheel(move |ev: &ScrollWheelEvent, _window, cx| {
             let dy = match ev.delta {
                 ScrollDelta::Lines(l) => l.y * 3.0,
-                ScrollDelta::Pixels(p) => p.y.as_f32() / (FONT_SIZE * LINE_HEIGHT),
+                ScrollDelta::Pixels(p) => p.y.as_f32() / (look.font_size * LINE_HEIGHT),
             };
             let lines = dy.round() as i32;
             if lines != 0 {
@@ -265,7 +274,7 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, a
         .on_mouse_down(MouseButton::Right, press(MouseButton::Right))
         .child(
             canvas(move |_b, _w, _cx| (), move |bounds, (), window, cx| {
-                paint_screen(bounds, frame.as_ref(), focused, &target, &grid, window, cx);
+                paint_screen(bounds, frame.as_ref(), focused, look, &target, &grid, window, cx);
                 // Drags carry on outside the pane, until released anywhere.
                 let (moved, released) = (app_drag.clone(), app_drag.clone());
                 window.on_mouse_event(move |ev: &MouseMoveEvent, phase, _window, cx| {
@@ -314,13 +323,13 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, a
         }))
 }
 
-fn paint_screen(bounds: Bounds<Pixels>, frame: Option<&Frame>, focused: bool, target: &Rc<Cell<Option<GridSize>>>, grid: &Rc<Cell<Option<(Point<Pixels>, Size<Pixels>)>>>, window: &mut Window, cx: &mut App) {
-    let size = px(FONT_SIZE);
+fn paint_screen(bounds: Bounds<Pixels>, frame: Option<&Frame>, focused: bool, look: Look, target: &Rc<Cell<Option<GridSize>>>, grid: &Rc<Cell<Option<(Point<Pixels>, Size<Pixels>)>>>, window: &mut Window, cx: &mut App) {
+    let size = px(look.font_size);
     let base = font(FONT_MONO);
     let ts = window.text_system().clone();
     let font_id = ts.resolve_font(&base);
-    let cell_w = ts.advance(font_id, size, 'm').map(|s| s.width).unwrap_or(px(FONT_SIZE * 0.6));
-    let cell_h = px((FONT_SIZE * LINE_HEIGHT).round());
+    let cell_w = ts.advance(font_id, size, 'm').map(|s| s.width).unwrap_or(px(look.font_size * 0.6));
+    let cell_h = px((look.font_size * LINE_HEIGHT).round());
 
     // Tell the session how many cells fit (applied by the pump).
     let cols = (((bounds.size.width - px(PAD * 2.0)) / cell_w).floor() as i32).max(2) as u16;
@@ -364,7 +373,9 @@ fn paint_screen(bounds: Bounds<Pixels>, frame: Option<&Frame>, focused: bool, ta
         let at = point(origin.x + cell_w * first as f32, origin.y + cell_h * row as f32);
         window.paint_quad(fill(Bounds::new(at, size_of(cell_w * (last - first + 1) as f32, cell_h)), color(palette::SELECTION).opacity(0.3)));
     }
-    if let Some((row, col, shape)) = frame.cursor {
+    // A blinking cursor (when the program asks for one) skips its off phase.
+    let cursor = frame.cursor.filter(|_| !(focused && frame.cursor_blinking && !look.blink_on));
+    if let Some((row, col, shape)) = cursor {
         let at = point(origin.x + cell_w * col as f32, origin.y + cell_h * row as f32);
         let c = color(palette::CURSOR);
         let quad = |o: Point<Pixels>, s: Size<Pixels>, w: &mut Window| w.paint_quad(fill(Bounds::new(o, s), c));
