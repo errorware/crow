@@ -44,6 +44,7 @@ You can switch either way from Settings → Vault & Security (going back to Open
 
 - Host keys are checked strictly and recorded when you add a server; a changed key is refused.
 - Agent and X11 forwarding are always off, whatever `~/.ssh/config` says.
+- Servers Crow logs into with a passphrase-free key file (its own `crow_ed25519`, for example) don't use your SSH agent at all (`IdentityAgent=none`), so agents that ask you to approve each use of a key (1Password, Secretive) can't stall Crow. Passphrase-protected keys and agent logins still use the agent; when that agent asks for approvals, the connection panel says so.
 - Crow reuses one connection per server (ControlMaster) and closes them when it locks.
 - Crow is agentless: it never installs anything on your servers.
 

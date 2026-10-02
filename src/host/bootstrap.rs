@@ -120,6 +120,8 @@ pub fn bootstrap_args(server: &ServerRecord, jump: Option<&str>, remote: &str) -
         "-o", "StrictHostKeyChecking=yes",
         "-o", "PreferredAuthentications=password,keyboard-interactive",
         "-o", "PubkeyAuthentication=no",
+        // Password login only: no agent, so none can prompt (ERR-87).
+        "-o", "IdentityAgent=none",
         "-o", "NumberOfPasswordPrompts=1",
         "-o", "ControlMaster=no",
         "-o", "ControlPath=none",

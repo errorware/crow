@@ -48,7 +48,24 @@ pub fn offered_methods(detail: &str) -> Vec<String> {
 
 /// `probe` is a fresh direct probe of the host; `None` when there's a jump
 /// host in the way (it can't be probed directly) or it hasn't run yet.
-pub fn diagnose(server: &ServerRecord, state: &ConnectionState, probe: Option<&ProbeResult>, key: &KeyTried, jump: Option<&str>) -> Diagnosis {
+/// [`diagnose_state`], plus what an agent that asks for approval (1Password,
+/// Secretive) means for it (ERR-87).
+pub fn diagnose(server: &ServerRecord, state: &ConnectionState, probe: Option<&ProbeResult>, key: &KeyTried, jump: Option<&str>, approval_agent: Option<&str>) -> Diagnosis {
+    let mut d = diagnose_state(server, state, probe, key, jump);
+    if let (Some(agent), false) = (approval_agent, matches!(state, ConnectionState::Connected)) {
+        d.facts.push(("agent".into(), format!("{agent} (asks to approve each use of a key)")));
+        d.steps.insert(
+            0,
+            format!(
+                "{agent} is the SSH agent here, and it asks you to approve each new connection. Crow connects in the background, so an approval nobody gives looks like a timeout or a refusal. Approve it when {agent} asks, or set {agent} to remember approvals for Crow."
+            ),
+        );
+        d.steps.push(format!("For no prompts at all, switch this server to Crow's own key (Keys → switch server to a key): Crow then leaves {agent} out of it."));
+    }
+    d
+}
+
+pub fn diagnose_state(server: &ServerRecord, state: &ConnectionState, probe: Option<&ProbeResult>, key: &KeyTried, jump: Option<&str>) -> Diagnosis {
     let detail = state.detail().unwrap_or_default().to_string();
     let addr = format!("{}@{}:{}", server.login_user, server.host, if server.port == 0 { 22 } else { server.port });
     let mut facts = vec![("ssh said".to_string(), if detail.is_empty() { "—".into() } else { detail.clone() })];
@@ -170,42 +187,55 @@ mod tests {
     #[test]
     fn login_refused_offers_the_password_route_only_when_accepted() {
         let key = KeyTried::File { path: "~/.ssh/id_ed25519".into(), exists: true };
-        let d = diagnose(&server(), &ConnectionState::AuthFailed("root@127.0.0.1: Permission denied (publickey,password).".into()), None, &key, None);
+        let d = diagnose_state(&server(), &ConnectionState::AuthFailed("root@127.0.0.1: Permission denied (publickey,password).".into()), None, &key, None);
         assert_eq!(d.title, "LOGIN REFUSED");
         assert_eq!(d.actions, vec![RecoveryAction::InstallKeyWithPassword, RecoveryAction::Retry]);
         assert!(d.facts.contains(&("server accepts".into(), "publickey, password".into())));
-        let d = diagnose(&server(), &ConnectionState::AuthFailed("Permission denied (publickey).".into()), None, &key, None);
+        let d = diagnose_state(&server(), &ConnectionState::AuthFailed("Permission denied (publickey).".into()), None, &key, None);
         assert_eq!(d.actions, vec![RecoveryAction::Retry]);
     }
 
     #[test]
     fn a_missing_key_file_is_named() {
         let key = KeyTried::File { path: "~/.ssh/crow_old".into(), exists: false };
-        let d = diagnose(&server(), &ConnectionState::AuthFailed("Permission denied (publickey).".into()), None, &key, None);
+        let d = diagnose_state(&server(), &ConnectionState::AuthFailed("Permission denied (publickey).".into()), None, &key, None);
         assert!(d.steps[0].contains("isn't on this machine"));
     }
 
     #[test]
     fn changed_host_key_shows_both_and_never_offers_trust_without_a_fetch() {
         let st = ConnectionState::HostKeyRejected("Host key verification failed.".into());
-        let d = diagnose(&server(), &st, Some(&probe(true, "SHA256:new (ED25519)")), &KeyTried::Agent, None);
+        let d = diagnose_state(&server(), &st, Some(&probe(true, "SHA256:new (ED25519)")), &KeyTried::Agent, None);
         assert_eq!(d.title, "HOST KEY CHANGED");
         assert!(d.facts.contains(&("pinned".into(), "SHA256:old (ED25519)".into())));
         assert!(d.facts.contains(&("presents now".into(), "SHA256:new (ED25519)".into())));
         assert_eq!(d.actions, vec![RecoveryAction::TrustNewHostKey, RecoveryAction::Retry]);
         // Behind a jump host: nothing fetched, nothing to trust from here.
-        let d = diagnose(&server(), &st, None, &KeyTried::Agent, Some("bastion"));
+        let d = diagnose_state(&server(), &st, None, &KeyTried::Agent, Some("bastion"));
         assert_eq!(d.actions, vec![RecoveryAction::Retry]);
     }
 
     #[test]
     fn unreachable_kinds_are_told_apart() {
-        let title = |detail: &str| diagnose(&server(), &ConnectionState::Unreachable(detail.into()), None, &KeyTried::Agent, None).title;
+        let title = |detail: &str| diagnose_state(&server(), &ConnectionState::Unreachable(detail.into()), None, &KeyTried::Agent, None).title;
         assert_eq!(title("ssh: connect to host 10.0.0.9 port 22: Connection refused"), "CONNECTION REFUSED");
         assert_eq!(title("ssh: connect to host 10.0.0.9 port 22: Connection timed out"), "TIMED OUT");
         assert_eq!(title("ssh: Could not resolve hostname db-1: Name or service not known"), "NAME NOT FOUND");
         assert_eq!(title("ssh: connect to host 10.9.9.9 port 22: No route to host"), "NO ROUTE");
-        let d = diagnose(&server(), &ConnectionState::Unreachable("kex_exchange_identification: Connection closed by remote host".into()), None, &KeyTried::Agent, Some("bastion"));
+        let d = diagnose_state(&server(), &ConnectionState::Unreachable("kex_exchange_identification: Connection closed by remote host".into()), None, &KeyTried::Agent, Some("bastion"));
         assert_eq!(d.title, "JUMP HOST FAILED");
+    }
+
+    #[test]
+    fn an_approving_agent_is_explained_first_and_switching_keys_offered() {
+        let st = ConnectionState::Unreachable("Connection timed out during banner exchange".into());
+        let d = diagnose(&server(), &st, None, &KeyTried::Agent, None, Some("1Password"));
+        assert!(d.steps[0].starts_with("1Password is the SSH agent here"));
+        assert!(d.steps.last().unwrap().contains("switch this server to Crow's own key"));
+        assert!(d.facts.iter().any(|(k, v)| k == "agent" && v.starts_with("1Password")));
+        let plain = diagnose(&server(), &st, None, &KeyTried::Agent, None, None);
+        assert!(!plain.steps.iter().any(|s| s.contains("approve")), "no agent, no mention");
+        let ok = diagnose(&server(), &ConnectionState::Connected, None, &KeyTried::Agent, None, Some("1Password"));
+        assert!(ok.steps.is_empty(), "nothing to explain when it works");
     }
 }

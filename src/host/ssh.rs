@@ -94,6 +94,59 @@ fn base_options(settings: &SshSettings) -> Vec<String> {
     fixed.into_iter().chain(configured).flat_map(|o| ["-o".to_string(), o]).collect()
 }
 
+/// Whether the private key at `path` works without an agent: an OpenSSH key
+/// with no passphrase. Encrypted, unreadable or unrecognised keys keep the
+/// agent (it may hold the unlocked key). Cached by path and mtime, since
+/// connections are set up every few seconds.
+fn key_usable_without_agent(path: &str) -> bool {
+    static CACHE: OnceLock<Mutex<HashMap<String, (std::time::SystemTime, bool)>>> = OnceLock::new();
+    let Ok(mtime) = std::fs::metadata(path).and_then(|m| m.modified()) else { return false };
+    let cache = CACHE.get_or_init(Default::default);
+    if let Some((t, ok)) = cache.lock().ok().and_then(|c| c.get(path).copied()) {
+        if t == mtime {
+            return ok;
+        }
+    }
+    let ok = std::fs::read_to_string(path).ok().is_some_and(|text| key_text_usable_without_agent(&text));
+    if let Ok(mut c) = cache.lock() {
+        c.insert(path.to_string(), (mtime, ok));
+    }
+    ok
+}
+
+fn key_text_usable_without_agent(text: &str) -> bool {
+    ssh_key::PrivateKey::from_openssh(text).is_ok_and(|k| !k.is_encrypted())
+}
+
+/// The agent behind `ssh -G` output (or `SSH_AUTH_SOCK` when the config sets
+/// none) if it's one that asks you to approve each use of a key.
+pub fn approval_agent_name(ssh_g: &str, auth_sock: Option<&str>) -> Option<&'static str> {
+    let configured = ssh_g.lines().find_map(|l| l.strip_prefix("identityagent ")).map(str::trim);
+    let socket = match configured {
+        Some("none") => return None,
+        Some("SSH_AUTH_SOCK") | None => auth_sock?,
+        Some(path) => path,
+    };
+    let s = socket.to_lowercase();
+    if s.contains("1password") || s.contains("2bua8c4s2c") {
+        Some("1Password")
+    } else if s.contains("secretive") {
+        Some("Secretive")
+    } else {
+        None
+    }
+}
+
+/// The approving agent ssh would use for `server` (`ssh -G` with Crow's own
+/// options), if any.
+pub fn approval_agent_for(server: &ServerRecord) -> Option<&'static str> {
+    let host = SshHost::for_server(server);
+    let mut argv: Vec<&str> = vec![host.program.as_str(), "-G"];
+    argv.extend(host.args.iter().map(String::as_str));
+    let out = run_command(&argv, &[], Duration::from_secs(5)).ok()?;
+    approval_agent_name(&out.stdout, std::env::var("SSH_AUTH_SOCK").ok().as_deref())
+}
+
 /// Turns connection args into ones for a brand-new login: no reused
 /// (ControlMaster) connection, keys only. ssh keeps the first value of each
 /// option, so the existing ones are replaced, not appended to.
@@ -228,7 +281,15 @@ impl SshHost {
                 unsupported = Some("This server is set to password login; Crow connects with keys, installed once with the password.".to_string());
             }
             "publickey" => match &key_path {
-                Some(path) => args.extend(["-i".into(), expand_home(path), "-o".into(), "IdentitiesOnly=yes".into()]),
+                Some(path) => {
+                    args.extend(["-i".into(), expand_home(path), "-o".into(), "IdentitiesOnly=yes".into()]);
+                    // A passphrase-free key file needs no agent. Keeping ssh
+                    // away from it stops agents that ask you to approve every
+                    // use (1Password, Secretive) from stalling Crow (ERR-87).
+                    if key_usable_without_agent(&expand_home(path)) {
+                        args.extend(["-o".into(), "IdentityAgent=none".into()]);
+                    }
+                }
                 None if server.key_id.is_some() => {
                     unsupported = Some("the enrolled key for this server has no private key file".to_string());
                 }
@@ -540,5 +601,42 @@ mod tests {
         assert!(!joined.contains("ControlMaster=auto"));
         let dashdash = args.iter().position(|a| a == "--").unwrap();
         assert_eq!(args[dashdash - 1], "PreferredAuthentications=publickey", "before the destination");
+    }
+
+    #[test]
+    fn passphrase_free_key_files_skip_the_agent_and_encrypted_ones_keep_it() {
+        let dir = std::env::temp_dir().join(format!("crow-err87-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let keygen = |name: &str, passphrase: &str| {
+            let path = dir.join(name);
+            let ok = std::process::Command::new("ssh-keygen").args(["-q", "-t", "ed25519", "-N", passphrase, "-f"]).arg(&path).status().is_ok_and(|s| s.success());
+            ok.then(|| path.to_string_lossy().into_owned())
+        };
+        let (Some(plain), Some(locked)) = (keygen("plain", ""), keygen("locked", "a passphrase")) else {
+            eprintln!("ssh-keygen not available; skipping");
+            return;
+        };
+        assert!(key_text_usable_without_agent(&std::fs::read_to_string(&plain).unwrap()));
+        assert!(!key_text_usable_without_agent(&std::fs::read_to_string(&locked).unwrap()), "an encrypted key may live unlocked in the agent");
+        assert!(!key_text_usable_without_agent("-----BEGIN RSA PRIVATE KEY-----\nnot openssh\n"), "unrecognised: keep the agent");
+
+        let srv = ServerRecord { id: "s".into(), host: "10.0.0.1".into(), login_user: "root".into(), auth_method: "publickey".into(), key_id: Some("k".into()), ..Default::default() };
+        let args = |key: &str| SshHost::new(&srv, Some(key.to_string()), None, dir.clone()).args.join(" ");
+        assert!(args(&plain).contains("IdentityAgent=none"), "Crow's kind of key: no agent, no prompts");
+        assert!(!args(&locked).contains("IdentityAgent"), "a passphrase key keeps the agent");
+        let agent = ServerRecord { auth_method: "agent".into(), key_id: None, ..srv.clone() };
+        assert!(!SshHost::new(&agent, None, None, dir.clone()).args.join(" ").contains("IdentityAgent"), "agent logins keep the agent");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn recognises_agents_that_ask_for_approval() {
+        let one = "identityagent /Users/me/Library/Group Containers/2BUA8C4S2C.com.1password/t/agent.sock\n";
+        assert_eq!(approval_agent_name(one, None), Some("1Password"));
+        assert_eq!(approval_agent_name("user root\n", Some("/home/me/.1password/agent.sock")), Some("1Password"), "from SSH_AUTH_SOCK");
+        assert_eq!(approval_agent_name("identityagent SSH_AUTH_SOCK\n", Some("/Users/me/Library/Containers/com.maxgoedjen.Secretive.SecretAgent/Data/socket.ssh")), Some("Secretive"));
+        assert_eq!(approval_agent_name("identityagent none\n", Some("/home/me/.1password/agent.sock")), None, "Crow turned the agent off");
+        assert_eq!(approval_agent_name("user root\n", Some("/run/user/1000/keyring/ssh")), None);
     }
 }

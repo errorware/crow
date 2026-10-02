@@ -55,6 +55,8 @@ impl CrowApp {
         let key = self.key_tried(&srv);
         cx.spawn(async move |entity, cx| {
             let target = srv.clone();
+            let for_agent = srv.clone();
+            let approval_agent = cx.background_executor().spawn(async move { crate::host::ssh::approval_agent_for(&for_agent) }).await;
             let probe = if jump.is_none() {
                 Some(cx.background_executor().spawn(async move { probe_host(&target.host, if target.port == 0 { 22 } else { target.port }).0 }).await)
             } else {
@@ -63,7 +65,7 @@ impl CrowApp {
             let _ = entity.update(cx, |this, cx| {
                 let Some(panel) = this.recovery.as_mut().filter(|p| p.server_id == srv.id) else { return };
                 let state = connection_state(&srv.id).unwrap_or(ConnectionState::Unreachable(String::new()));
-                panel.diagnosis = Some(diagnose(&srv, &state, probe.as_ref(), &key, jump.as_deref()));
+                panel.diagnosis = Some(diagnose(&srv, &state, probe.as_ref(), &key, jump.as_deref(), approval_agent));
                 panel.probe = probe;
                 panel.busy = None;
                 cx.notify();
