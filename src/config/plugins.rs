@@ -556,9 +556,12 @@ mod tests {
         let ir = to_ir(StructuredFormat::Sysctl, "net.ipv4.conf.all.accept_source_route = 0\nvm.swappiness = 10\n").unwrap();
         let cols = table_columns(&ir).unwrap();
         let key = cols.iter().find(|c| c.name == "key").unwrap().fixed_width().unwrap();
-        let value = cols.iter().find(|c| c.name == "value").unwrap().fixed_width().unwrap();
         assert!(key >= "net.ipv4.conf.all.accept_source_route".len() as f32 * 7.0, "key column {key}px");
-        assert!(value < 100.0, "short values stay narrow: {value}px");
+        assert_eq!(cols.last().unwrap().fixed_width(), None, "the last column takes what's left");
+        // Option meanings count: "ignores them" next to a switch isn't cut.
+        let pg = to_ir(StructuredFormat::PgHba, "local all postgres peer\n").unwrap();
+        let ty = table_columns(&pg).unwrap().into_iter().find(|c| c.name == "type").unwrap().fixed_width().unwrap();
+        assert!(ty > "hostnogssenc".len() as f32 * 7.0, "type column {ty}px fits its longest option");
     }
 
     #[test]
