@@ -1,5 +1,6 @@
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
+use crate::components::icon_button::icon_button;
 use crate::views::fleet::state::FleetPage;
 use gpui_kit::prelude::FluentBuilder as _;
 use crate::theme::*;
@@ -600,15 +601,11 @@ pub fn fleet_overview_view(
                                         .child(format!("{label} ({n})"))
                                         // An empty group can be deleted.
                                         .children(deletable.then(|| {
-                                            div()
-                                                .id(SharedString::from(format!("fleet-grp-delete-{delete_name}")))
-                                                .text_color(TEXT_FAINT)
-                                                .hover(|s| s.text_color(CRIT))
+                                            icon_button(SharedString::from(format!("fleet-grp-delete-{delete_name}")), TablerIcon::Trash, true)
                                                 .on_click(move |_ev, _window, cx| {
                                                     cx.stop_propagation();
                                                     app_delete.update(cx, |this, cx| this.delete_server_group(&delete_name, cx));
                                                 })
-                                                .child("×")
                                         }))
                                 }))
                                 .child(div().flex_1())

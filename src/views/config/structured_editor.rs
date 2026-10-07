@@ -498,14 +498,20 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
             }
         }
         let (app_del, f, r) = (app.clone(), file.to_string(), row_id.clone());
-        bar.child(small_button(ElementId::NamedInteger("row-del".into(), index as u64), "✕", CRIT).on_click(move |_ev, _window, cx| {
-            let (f, r) = (f.clone(), r.clone());
-            app_del.update(cx, |this, cx| this.delete_structured_row(&f, &r, cx));
-        }))
+        bar.child(
+            crate::components::icon_button::icon_button(ElementId::NamedInteger("row-del".into(), index as u64), crate::components::icons::TablerIcon::Trash, true)
+                .invisible()
+                .group_hover("structured-row", |s| s.visible())
+                .on_click(move |_ev, _window, cx| {
+                    let (f, r) = (f.clone(), r.clone());
+                    app_del.update(cx, |this, cx| this.delete_structured_row(&f, &r, cx));
+                }),
+        )
     });
 
     div()
         .id(ElementId::NamedInteger("structured-row".into(), index as u64))
+        .group("structured-row")
         .flex()
         .flex_col()
         .gap(px(3.0))

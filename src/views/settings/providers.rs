@@ -6,6 +6,7 @@ use gpui_kit::component::input::Input;
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
+use crate::components::icon_button::icon_button;
 
 use crow_config_core::FieldType;
 use crow_provider_core::ProviderFactory;
@@ -101,13 +102,8 @@ pub(crate) fn notice(text: String, color: Rgba, link: Option<Entity<CrowApp>>, d
         .text_size(px(10.5))
         .child(div().flex_1().min_w(px(0.0)).text_color(color).child(text))
         .children(dismiss.map(|app| {
-            div()
-                .id("secrets-notice-dismiss")
-                .cursor_pointer()
-                .text_color(TEXT_DIMMER)
-                .hover(|s| s.text_color(TEXT_PRIMARY))
+            icon_button("secrets-notice-dismiss", TablerIcon::X, false)
                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.dismiss_secrets_notice(cx)))
-                .child("✕")
         }))
         .children(link.map(|app| {
             div()

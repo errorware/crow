@@ -1,6 +1,7 @@
 use gpui_kit::component::scroll::ScrollableElement;
 use std::collections::HashSet;
 use gpui_kit::*;
+use crate::components::icon_button::icon_button;
 use crate::theme::*;
 use crate::app::CrowApp;
 use crate::journal::{JournalBootScope, JournalEntry, JournalPriority, JournalStorageMode, JournalTimeRange};
@@ -625,16 +626,12 @@ pub fn logs_explorer_view(
                                             .text_color(hex_rgb(0x8ab4ff))
                                             .child(format!("PID {}", fpid))
                                             .child(
-                                                div()
-                                                    .id("journal-pid-filter-clear")
-                                                    .cursor_pointer()
-                                                    .hover(|s| s.text_color(TEXT_PRIMARY))
+                                                icon_button("journal-pid-filter-clear", TablerIcon::X, false)
                                                     .on_click(move |_ev, _window, cx| {
                                                         app_clear_pid.update(cx, |this, cx| {
                                                             this.set_journal_pid_filter(None, cx);
                                                         });
-                                                    })
-                                                    .child("✕"),
+                                                    }),
                                             ),
                                     )
                                     .children(if confirming {
@@ -739,21 +736,14 @@ pub fn logs_explorer_view(
                         .children(if !journal.search.is_empty() {
                             let app_search_clear = app_clone.clone();
                             Some(
-                                div()
-                                    .id("journal-search-clear-btn")
-                                    .font_family(FONT_MONO)
-                                    .text_size(px(9.5))
-                                    .text_color(TEXT_DIM)
-                                    .hover(|s| s.text_color(TEXT_PRIMARY))
-                                    .cursor_pointer()
+                                icon_button("journal-search-clear-btn", TablerIcon::X, false)
                                     .on_click(move |_ev, _window, cx| {
                                         app_search_clear.update(cx, |this, cx| {
                                             this.journal.search.clear();
                                             this.logs_search = None; // rebuilt empty on the next render
                                             this.run_journal_query(cx);
                                         });
-                                    })
-                                    .child("✕"),
+                                    }),
                             )
                         } else {
                             None

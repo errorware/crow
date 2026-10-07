@@ -31,7 +31,7 @@ use crate::theme::*;
 use std::collections::HashMap;
 use crate::app::CrowApp;
 use crate::config::ConfigFileState;
-use crate::components::icons::{TablerIcon, tabler_icon, inherited_icon};
+use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::components::table_controls::{render_table_controls, Chip};
 use gpui_kit::component::input::InputState;
 
@@ -395,24 +395,13 @@ fn render_rule_row(rule: &FirewallRule, writable: bool, app: Entity<CrowApp>) ->
         .child(div().w(px(24.0)).flex_none().when(writable, |d| {
             // Shown on hover, so a table of rules isn't a column of trash cans.
             d.child(
-                div()
-                    .id(ElementId::NamedInteger(format!("del-rule-{}", rule.id).into(), rule.number as u64))
-                    // A fixed square, so the icon sits in the middle of the
-                    // hover background.
-                    .size(px(20.0))
-                    .flex()
-                    .items_center()
-                    .justify_center()
-                    .cursor_pointer()
+                crate::components::icon_button::icon_button(ElementId::NamedInteger(format!("del-rule-{}", rule.id).into(), rule.number as u64), TablerIcon::Trash, true)
                     .invisible()
                     .group_hover("fw-rule", |s| s.visible())
-                    .text_color(TEXT_DIM)
-                    .hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT))
                     .on_click(move |_ev, _window, cx| {
                         let target = r_id.clone();
                         app.update(cx, |this, cx| this.delete_firewall_rule(&target, cx));
-                    })
-                    .child(inherited_icon(TablerIcon::Trash, px(12.0)).size(px(12.0)).justify_center()),
+                    }),
             )
         }))
 }

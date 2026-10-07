@@ -1,5 +1,7 @@
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
+use crate::components::icon_button::icon_button;
+use crate::components::icons::TablerIcon;
 use crate::app::CrowApp;
 use crate::lab::{EngineStatus, LocalTestNode};
 use crate::theme::*;
@@ -75,23 +77,12 @@ pub fn local_lab_modal(
                                 ),
                         )
                         .child(
-                            div()
-                                .id("btn-close-lab-modal")
-                                .size(px(24.0))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .text_color(TEXT_MUTED)
-                                .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
-                                .cursor_pointer()
-                                .font_family(FONT_MONO)
-                                .text_size(px(14.0))
+                            icon_button("btn-close-lab-modal", TablerIcon::X, false)
                                 .on_click(move |_ev, _window, cx| {
                                     app_close_btn.update(cx, |this, cx| {
                                         this.toggle_local_lab_modal(cx);
                                     });
-                                })
-                                .child("✕"),
+                                }),
                         ),
                 )
                 // 2. Scrollable Body
