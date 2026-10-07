@@ -1471,6 +1471,7 @@ dependencies = [
  "flate2",
  "gpui-kit",
  "image",
+ "libc",
  "maxminddb",
  "rand 0.10.2",
  "rusqlite",

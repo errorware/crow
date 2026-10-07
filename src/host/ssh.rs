@@ -221,18 +221,48 @@ pub fn update_directory(servers: &[ServerRecord], keys: &[SshKeyRecord]) {
 
 /// Where ssh keeps its multiplexing sockets. Unix socket paths are short
 /// (~104 bytes), so this stays near the root and ssh hashes the rest (%C).
+/// Where ssh keeps Crow's ControlMaster sockets: a folder only this user
+/// can use (ERR-110). Without a runtime dir it would sit in the shared
+/// /tmp, where another user could create it first; the folder is per uid,
+/// made 0700, and refused if it exists with another owner, other modes or
+/// as a symlink (then the cache dir is tried).
 fn control_dir() -> PathBuf {
-    let base = dirs::runtime_dir().unwrap_or_else(std::env::temp_dir);
-    let dir = base.join("crow-ssh");
-    if !dir.exists() {
-        let _ = std::fs::create_dir_all(&dir);
-        #[cfg(unix)]
-        {
-            use std::os::unix::fs::PermissionsExt;
-            let _ = std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700));
+    #[cfg(unix)]
+    {
+        let uid = unsafe { libc::geteuid() };
+        let name = format!("crow-ssh-{uid}");
+        let candidates = [dirs::runtime_dir().unwrap_or_else(std::env::temp_dir), dirs::cache_dir().unwrap_or_else(std::env::temp_dir)];
+        for base in &candidates {
+            let dir = base.join(&name);
+            if private_dir(&dir, uid).is_ok() {
+                return dir;
+            }
         }
+        // Nothing private to be had: ssh refuses the socket with a clear error.
+        candidates[1].join(name)
     }
-    dir
+    #[cfg(not(unix))]
+    {
+        dirs::runtime_dir().unwrap_or_else(std::env::temp_dir).join("crow-ssh")
+    }
+}
+
+/// Makes `dir` (0700) if it's missing; if it exists, it must be a real
+/// directory owned by `uid` that no one else can enter.
+#[cfg(unix)]
+fn private_dir(dir: &std::path::Path, uid: u32) -> std::io::Result<()> {
+    use std::os::unix::fs::{DirBuilderExt, MetadataExt};
+    match std::fs::symlink_metadata(dir) {
+        Ok(m) if m.file_type().is_dir() && m.uid() == uid && m.mode() & 0o077 == 0 => Ok(()),
+        Ok(_) => Err(std::io::Error::other(format!("{} isn't a private folder of this user", dir.display()))),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
+            if let Some(parent) = dir.parent() {
+                std::fs::create_dir_all(parent)?;
+            }
+            std::fs::DirBuilder::new().mode(0o700).create(dir)
+        }
+        Err(e) => Err(e),
+    }
 }
 
 /// Quotes one argument for the remote POSIX shell ssh hands the command to.
@@ -638,5 +668,31 @@ mod tests {
         assert_eq!(approval_agent_name("identityagent SSH_AUTH_SOCK\n", Some("/Users/me/Library/Containers/com.maxgoedjen.Secretive.SecretAgent/Data/socket.ssh")), Some("Secretive"));
         assert_eq!(approval_agent_name("identityagent none\n", Some("/home/me/.1password/agent.sock")), None, "Crow turned the agent off");
         assert_eq!(approval_agent_name("user root\n", Some("/run/user/1000/keyring/ssh")), None);
+    }
+}
+
+#[cfg(all(test, unix))]
+mod control_dir_tests {
+    use super::private_dir;
+    use std::os::unix::fs::PermissionsExt;
+
+    #[test]
+    fn only_a_private_folder_of_this_user_is_used() {
+        let uid = unsafe { libc::geteuid() };
+        let base = std::env::temp_dir().join(format!("crow-ctl-test-{}", std::process::id()));
+        std::fs::create_dir_all(&base).unwrap();
+        let fresh = base.join("fresh");
+        assert!(private_dir(&fresh, uid).is_ok(), "a missing folder is made");
+        assert_eq!(std::fs::metadata(&fresh).unwrap().permissions().mode() & 0o777, 0o700);
+        assert!(private_dir(&fresh, uid).is_ok(), "and reused");
+        let open = base.join("open");
+        std::fs::create_dir(&open).unwrap();
+        std::fs::set_permissions(&open, std::fs::Permissions::from_mode(0o755)).unwrap();
+        assert!(private_dir(&open, uid).is_err(), "others can enter it");
+        let link = base.join("link");
+        std::os::unix::fs::symlink(&fresh, &link).unwrap();
+        assert!(private_dir(&link, uid).is_err(), "a symlink, even to a good folder");
+        assert!(private_dir(&fresh, uid + 1).is_err(), "someone else's");
+        std::fs::remove_dir_all(&base).unwrap();
     }
 }
