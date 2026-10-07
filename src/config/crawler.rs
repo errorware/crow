@@ -19,6 +19,9 @@ pub enum SchemaKind {
     Fstab,
     /// logrotate.conf and /etc/logrotate.d/*.
     Logrotate,
+    /// systemd units and drop-ins in /etc/systemd/system, and systemd's
+    /// own settings files (/etc/systemd/*.conf).
+    Systemd,
     Ufw,
     /// /etc/passwd and /etc/group, owned by the Users screen.
     Accounts,
@@ -37,6 +40,7 @@ impl SchemaKind {
             Self::Sudoers => "sudo",
             Self::Fstab => "util-linux",
             Self::Logrotate => "logrotate",
+            Self::Systemd => "systemd",
             Self::Ufw => "ufw firewall",
             Self::Accounts => "accounts",
             Self::Crow => "crow core",
@@ -54,6 +58,7 @@ impl SchemaKind {
             Self::Sudoers => "RULE TABLE UI",
             Self::Fstab => "RULE TABLE UI",
             Self::Logrotate => "DIRECTIVE UI",
+            Self::Systemd => "DIRECTIVE UI",
             Self::Ufw => "FIREWALL UI",
             Self::Accounts => "USERS UI",
             Self::Crow => "LOSSLESS TOML",
@@ -107,6 +112,9 @@ pub fn detect_schema_kind(name: &str, path: &Path) -> Option<SchemaKind> {
         Some(SchemaKind::Sshd)
     } else if lower_name == "hosts" && (path_str == "/etc" || path_str.ends_with("/etc/hosts") || path_str.ends_with("hosts")) {
         Some(SchemaKind::Hosts)
+    } else if path_str.starts_with("/etc/systemd/") && (is_unit_file(&lower_name) || lower_name.ends_with(".conf")) {
+        // journald.conf was matched above (its own editor).
+        Some(SchemaKind::Systemd)
     } else if lower_name == "logrotate.conf" || path_str.starts_with("/etc/logrotate.d/") {
         Some(SchemaKind::Logrotate)
     } else if lower_name == "fstab" && path_str == "/etc/fstab" {
@@ -159,6 +167,7 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
             "/etc/sysctl.d",
             "/etc/docker",
             "/etc/logrotate.d",
+            "/etc/systemd/system",
         ],
         DistroFamily::RedHat => vec![
             "/etc",
@@ -172,6 +181,7 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
             "/etc/docker",
             "/etc/cron.d",
             "/etc/logrotate.d",
+            "/etc/systemd/system",
         ],
         DistroFamily::Unknown => vec![
             "/etc",
@@ -179,36 +189,66 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
             "/etc/ssh",
             "/etc/sysctl.d",
             "/etc/logrotate.d",
+            "/etc/systemd/system",
         ],
     };
 
     // One round trip for every directory.
+    let mut push = |discovered: &mut Vec<DiscoveredConfigFile>, name: String, dir: &str, entry: &crate::host::DirEntry| {
+        let p = Path::new(dir).join(&entry.name);
+        if !seen_paths.insert(p.clone()) {
+            return;
+        }
+        let schema = detect_schema_kind(&entry.name, &p);
+        let is_mapped = editor_for(schema).is_crow_ui();
+        discovered.push(DiscoveredConfigFile {
+            name,
+            path_dir: dir.to_string(),
+            full_path: p,
+            schema_kind: schema,
+            is_schema_mapped: is_mapped,
+            size_bytes: entry.size_bytes,
+            is_readonly: entry.mode & 0o222 == 0,
+            pill: if is_mapped { "CROW UI".to_string() } else { "RAW TEXT".to_string() },
+            schema_pack: schema.map(|s| s.label()),
+        });
+    };
     let mut listings = host.list_dirs(&scan_dirs);
+    let mut drop_in_dirs: Vec<String> = Vec::new();
     for dir_str in &scan_dirs {
         let Some(entries) = listings.remove(*dir_str) else { continue };
         for entry in entries {
+            // /etc/systemd/system: the units written there (most entries are
+            // symlinks to the distro's own, which aren't edited here), and
+            // the drop-in folders beside them.
+            if *dir_str == "/etc/systemd/system" {
+                if entry.is_dir && entry.name.ends_with(".d") {
+                    drop_in_dirs.push(format!("{dir_str}/{}", entry.name));
+                } else if !entry.is_dir && !entry.is_symlink && is_unit_file(&entry.name) {
+                    push(&mut discovered, entry.name.clone(), dir_str, &entry);
+                }
+                continue;
+            }
             // logrotate.d files are named after their package, no extension.
             let in_logrotate_d = dir_str.ends_with("/logrotate.d") && !entry.name.starts_with('.') && !entry.name.ends_with(['~']) && !entry.name.contains(".dpkg-") && !entry.name.ends_with(".rpmsave") && !entry.name.ends_with(".rpmnew");
             if entry.is_dir || !(is_config_file(&entry.name, entry.size_bytes) || in_logrotate_d) {
                 continue;
             }
-            let p = Path::new(dir_str).join(&entry.name);
-            if !seen_paths.insert(p.clone()) {
-                continue;
+            push(&mut discovered, entry.name.clone(), dir_str, &entry);
+        }
+    }
+    // Drop-ins (foo.service.d/override.conf): named with their folder, since
+    // override.conf is everywhere.
+    if !drop_in_dirs.is_empty() {
+        let refs: Vec<&str> = drop_in_dirs.iter().map(String::as_str).collect();
+        let mut listed = host.list_dirs(&refs);
+        for dir in &drop_in_dirs {
+            let folder = dir.rsplit('/').next().unwrap_or_default().to_string();
+            for entry in listed.remove(dir.as_str()).unwrap_or_default() {
+                if !entry.is_dir && !entry.is_symlink && entry.name.ends_with(".conf") {
+                    push(&mut discovered, format!("{folder}/{}", entry.name), dir, &entry);
+                }
             }
-            let schema = detect_schema_kind(&entry.name, &p);
-            let is_mapped = editor_for(schema).is_crow_ui();
-            discovered.push(DiscoveredConfigFile {
-                name: entry.name.clone(),
-                path_dir: dir_str.to_string(),
-                full_path: p,
-                schema_kind: schema,
-                is_schema_mapped: is_mapped,
-                size_bytes: entry.size_bytes,
-                is_readonly: entry.mode & 0o222 == 0,
-                pill: if is_mapped { "CROW UI".to_string() } else { "RAW TEXT".to_string() },
-                schema_pack: schema.map(|s| s.label()),
-            });
         }
     }
 
@@ -261,6 +301,11 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
     discovered
 }
 
+/// A systemd unit file's name.
+fn is_unit_file(name: &str) -> bool {
+    [".service", ".socket", ".timer", ".path", ".mount", ".automount", ".target", ".swap", ".slice"].iter().any(|s| name.ends_with(s))
+}
+
 fn is_config_file(name: &str, size_bytes: u64) -> bool {
     let n = name.to_lowercase();
     let config_like = n.ends_with(".conf")
@@ -302,6 +347,10 @@ mod tests {
         assert_eq!(detect_schema_kind("sudoers", Path::new("/etc/sudoers")), Some(SchemaKind::Sudoers));
         assert_eq!(detect_schema_kind("fstab", Path::new("/etc/fstab")), Some(SchemaKind::Fstab));
         assert_eq!(detect_schema_kind("logrotate.conf", Path::new("/etc/logrotate.conf")), Some(SchemaKind::Logrotate));
+        assert_eq!(detect_schema_kind("app.service", Path::new("/etc/systemd/system/app.service")), Some(SchemaKind::Systemd));
+        assert_eq!(detect_schema_kind("override.conf", Path::new("/etc/systemd/system/app.service.d/override.conf")), Some(SchemaKind::Systemd));
+        assert_eq!(detect_schema_kind("logind.conf", Path::new("/etc/systemd/logind.conf")), Some(SchemaKind::Systemd));
+        assert_eq!(detect_schema_kind("journald.conf", Path::new("/etc/systemd/journald.conf")), Some(SchemaKind::Journald), "keeps its own editor");
         assert_eq!(detect_schema_kind("nginx", Path::new("/etc/logrotate.d/nginx")), Some(SchemaKind::Logrotate));
         assert_eq!(detect_schema_kind("90-cloud-init-users", Path::new("/etc/sudoers.d/90-cloud-init-users")), Some(SchemaKind::Sudoers));
     }

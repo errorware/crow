@@ -213,7 +213,7 @@ pub fn structured_editor(
         let is_match_line = row.fields.iter().any(|f| f.name.eq_ignore_ascii_case("match"));
         // logrotate: blocks read as a heading (their log paths) with their
         // directives indented under it; scripts are edited in the text view.
-        let block_format = format == StructuredFormat::Logrotate;
+        let block_format = matches!(format, StructuredFormat::Logrotate | StructuredFormat::Systemd);
         let nest = match (block_format, row.widget.as_str(), row.scope.is_some()) {
             (true, "scope_row", _) => Nest::Heading,
             (true, _, true) => Nest::Inside,
@@ -257,7 +257,9 @@ pub fn structured_editor(
             .children(cols.iter().map(|c| column_cell(c.width).child(c.name.to_uppercase())))
     });
 
-    let add_section = (!read_only).then(|| render_add_section(&file, format, ir, configs.adding_row, app.clone()));
+    // systemd: a new key belongs in a particular section, so keys are added
+    // in the text view for now.
+    let add_section = (!read_only && format != StructuredFormat::Systemd).then(|| render_add_section(&file, format, ir, configs.adding_row, app.clone()));
 
     div()
         .id("structured-config-editor")
@@ -596,9 +598,11 @@ fn render_field(ctx: FieldCtx) -> impl IntoElement {
     let id_base = format!("{row_id}:{}", field.name);
 
     // Two values, 0 and 1: an on/off switch rather than a picker.
-    let switch = field.options.as_ref().filter(|o| o.len() == 2 && o.iter().any(|v| v.value == "0") && o.iter().any(|v| v.value == "1"));
-    let value_el: AnyElement = if let (Some(opts), None) = (switch, editing) {
-        let on = text == "1";
+    // Also yes/no and false/true pairs (systemd's hardening keys).
+    let pair = |off: &str, on: &str| field.options.as_ref().filter(|o| o.len() == 2 && o.iter().any(|v| v.value == off) && o.iter().any(|v| v.value == on)).map(|o| (o, off.to_string(), on.to_string()));
+    let switch = pair("0", "1").or_else(|| pair("no", "yes")).or_else(|| pair("false", "true"));
+    let value_el: AnyElement = if let (Some((opts, off_value, on_value)), None) = (switch, editing) {
+        let on = text == on_value;
         let label = opts.iter().find(|o| o.value == text).map(|o| o.label.clone()).unwrap_or_else(|| text.clone());
         let (app_flip, f, r, n) = (app.clone(), file.to_string(), row_id.to_string(), field.name.clone());
         div()
@@ -609,8 +613,8 @@ fn render_field(ctx: FieldCtx) -> impl IntoElement {
             .when(!locked, |d| {
                 d.cursor_pointer().on_click(move |_ev, _window, cx| {
                     let (f, r, n) = (f.clone(), r.clone(), n.clone());
-                    let next = if on { "0" } else { "1" };
-                    app_flip.update(cx, |this, cx| this.set_structured_value(&f, &r, &n, serde_json::Value::String(next.into()), cx));
+                    let next = if on { off_value.clone() } else { on_value.clone() };
+                    app_flip.update(cx, |this, cx| this.set_structured_value(&f, &r, &n, serde_json::Value::String(next), cx));
                 })
             })
             .child(
