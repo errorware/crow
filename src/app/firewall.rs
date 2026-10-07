@@ -178,7 +178,9 @@ impl CrowApp {
         if transport_kind(&srv) != TransportKind::Ssh {
             return None;
         }
-        lockout::risk(self.firewall_summary(), after, srv.port)
+        // A stored 0 means sshd's default, as everywhere else (ERR-114).
+        let port = if srv.port == 0 { 22 } else { srv.port };
+        lockout::risk(self.firewall_summary(), after, port)
     }
 
     /// Runs firewall commands on the active server, unless the lock-out
