@@ -374,7 +374,7 @@ impl CrowApp {
             (StructuredFormat::Logrotate, None) => {
                 fields.insert("missingok".to_string(), serde_json::json!(crow_config_schemas::logrotate::FLAG_VALUE));
             }
-            (StructuredFormat::Sshd | StructuredFormat::Systemd, None) => return,
+            (StructuredFormat::Sshd | StructuredFormat::Systemd | StructuredFormat::Nginx, None) => return,
         }
         self.apply_structured_op(file, EditOp::InsertRow { after_row_id: last_row, fields }, cx);
     }
@@ -568,6 +568,13 @@ impl CrowApp {
             None => Arc::new(LocalHost),
         };
         let format = self.structured_format_of(file);
+        // nginx: installed, tested with nginx -t, put back if it fails.
+        if format == Some(StructuredFormat::Nginx) {
+            if let Some(reason) = &state.write_blocked {
+                return Err(reason.clone());
+            }
+            return crate::config::nginx::install_nginx(host.as_ref(), &state.path.to_string_lossy(), &state.current_content).map_err(|e| format!("{file}: {e}"));
+        }
         // sudoers: visudo and the keep-sudo guard run in the install itself.
         if format == Some(StructuredFormat::Sudoers) {
             if let Some(reason) = &state.write_blocked {

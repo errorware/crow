@@ -34,7 +34,9 @@ pub fn push_baseline(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKe
         Drift::Identical | Drift::Cosmetic => return Ok(StepOutcome::Skipped("already matches the baseline".into())),
         Drift::Differs(d) => d.len(),
     };
-    if format == Some(plugins::StructuredFormat::Sudoers) {
+    if format == Some(plugins::StructuredFormat::Nginx) {
+        super::nginx::install_nginx(host, t.path, t.baseline).map_err(|e| format!("not written: {e}"))?;
+    } else if format == Some(plugins::StructuredFormat::Sudoers) {
         // visudo and the keep-sudo guard run in the install itself.
         super::sudoers::install_sudoers(host, t.path, t.baseline, t.login_user).map_err(|e| format!("not written: {e}"))?;
     } else {

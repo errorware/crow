@@ -22,6 +22,8 @@ pub enum SchemaKind {
     /// systemd units and drop-ins in /etc/systemd/system, and systemd's
     /// own settings files (/etc/systemd/*.conf).
     Systemd,
+    /// nginx.conf, conf.d/*.conf and sites-available/*.
+    Nginx,
     Ufw,
     /// /etc/passwd and /etc/group, owned by the Users screen.
     Accounts,
@@ -41,6 +43,7 @@ impl SchemaKind {
             Self::Fstab => "util-linux",
             Self::Logrotate => "logrotate",
             Self::Systemd => "systemd",
+            Self::Nginx => "nginx",
             Self::Ufw => "ufw firewall",
             Self::Accounts => "accounts",
             Self::Crow => "crow core",
@@ -59,6 +62,7 @@ impl SchemaKind {
             Self::Fstab => "RULE TABLE UI",
             Self::Logrotate => "DIRECTIVE UI",
             Self::Systemd => "DIRECTIVE UI",
+            Self::Nginx => "DIRECTIVE UI",
             Self::Ufw => "FIREWALL UI",
             Self::Accounts => "USERS UI",
             Self::Crow => "LOSSLESS TOML",
@@ -112,6 +116,8 @@ pub fn detect_schema_kind(name: &str, path: &Path) -> Option<SchemaKind> {
         Some(SchemaKind::Sshd)
     } else if lower_name == "hosts" && (path_str == "/etc" || path_str.ends_with("/etc/hosts") || path_str.ends_with("hosts")) {
         Some(SchemaKind::Hosts)
+    } else if path_str.starts_with("/etc/nginx/") && (lower_name.ends_with(".conf") && !lower_name.ends_with("mime.types") || path_str.contains("/sites-available/") || path_str.contains("/sites-enabled/")) {
+        Some(SchemaKind::Nginx)
     } else if path_str.starts_with("/etc/systemd/") && (is_unit_file(&lower_name) || lower_name.ends_with(".conf")) {
         // journald.conf was matched above (its own editor).
         Some(SchemaKind::Systemd)
@@ -161,6 +167,7 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
             "/etc/nginx",
             "/etc/nginx/sites-available",
             "/etc/nginx/sites-enabled",
+            "/etc/nginx/conf.d",
             "/etc/postgresql",
             "/etc/ufw",
             "/etc/fail2ban",
@@ -190,6 +197,9 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
             "/etc/sysctl.d",
             "/etc/logrotate.d",
             "/etc/systemd/system",
+            "/etc/nginx",
+            "/etc/nginx/conf.d",
+            "/etc/nginx/sites-available",
         ],
     };
 
@@ -226,6 +236,15 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
                     drop_in_dirs.push(format!("{dir_str}/{}", entry.name));
                 } else if !entry.is_dir && !entry.is_symlink && is_unit_file(&entry.name) {
                     push(&mut discovered, entry.name.clone(), dir_str, &entry);
+                }
+                continue;
+            }
+            // nginx sites: sites-available holds the files (no extension);
+            // sites-enabled is symlinks to them, not edited twice.
+            if dir_str.ends_with("/nginx/sites-available") || dir_str.ends_with("/nginx/sites-enabled") {
+                if !entry.is_dir && !entry.is_symlink && !entry.name.starts_with('.') && !entry.name.ends_with('~') {
+                    let folder = dir_str.rsplit('/').next().unwrap_or_default();
+                    push(&mut discovered, format!("{folder}/{}", entry.name), dir_str, &entry);
                 }
                 continue;
             }
@@ -340,7 +359,7 @@ mod tests {
         assert_eq!(detect_schema_kind("sshd_config", Path::new("/etc/ssh/sshd_config")), Some(SchemaKind::Sshd));
         assert_eq!(detect_schema_kind("hosts", Path::new("/etc/hosts")), Some(SchemaKind::Hosts));
         assert_eq!(detect_schema_kind("user.rules", Path::new("/etc/ufw/user.rules")), Some(SchemaKind::Ufw));
-        assert_eq!(detect_schema_kind("nginx.conf", Path::new("/etc/nginx/nginx.conf")), None);
+        assert_eq!(detect_schema_kind("my.cnf", Path::new("/etc/mysql/my.cnf")), None, "no editor for it yet");
         assert_eq!(detect_schema_kind("sysctl.conf", Path::new("/etc/sysctl.conf")), Some(SchemaKind::Sysctl));
         assert_eq!(detect_schema_kind("99-hardening.conf", Path::new("/etc/sysctl.d/99-hardening.conf")), Some(SchemaKind::Sysctl));
         assert_eq!(detect_schema_kind("README", Path::new("/etc/sysctl.d/README")), None);
@@ -350,6 +369,9 @@ mod tests {
         assert_eq!(detect_schema_kind("app.service", Path::new("/etc/systemd/system/app.service")), Some(SchemaKind::Systemd));
         assert_eq!(detect_schema_kind("override.conf", Path::new("/etc/systemd/system/app.service.d/override.conf")), Some(SchemaKind::Systemd));
         assert_eq!(detect_schema_kind("logind.conf", Path::new("/etc/systemd/logind.conf")), Some(SchemaKind::Systemd));
+        assert_eq!(detect_schema_kind("nginx.conf", Path::new("/etc/nginx/nginx.conf")), Some(SchemaKind::Nginx));
+        assert_eq!(detect_schema_kind("default", Path::new("/etc/nginx/sites-available/default")), Some(SchemaKind::Nginx));
+        assert_eq!(detect_schema_kind("app.conf", Path::new("/etc/nginx/conf.d/app.conf")), Some(SchemaKind::Nginx));
         assert_eq!(detect_schema_kind("journald.conf", Path::new("/etc/systemd/journald.conf")), Some(SchemaKind::Journald), "keeps its own editor");
         assert_eq!(detect_schema_kind("nginx", Path::new("/etc/logrotate.d/nginx")), Some(SchemaKind::Logrotate));
         assert_eq!(detect_schema_kind("90-cloud-init-users", Path::new("/etc/sudoers.d/90-cloud-init-users")), Some(SchemaKind::Sudoers));
