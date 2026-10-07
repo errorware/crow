@@ -78,8 +78,16 @@ impl CrowApp {
     /// The provider to ask: the default one if it has a key, else the first
     /// that does.
     fn ai_provider(&self) -> Option<crate::vault::ClankerProviderConfig> {
+        self.ai_providers().map(|(p, _)| p)
+    }
+
+    /// The primary (or, with none chosen, the first with a key) and the
+    /// backup, if one with a key is chosen.
+    pub fn ai_providers(&self) -> Option<(crate::vault::ClankerProviderConfig, Option<crate::vault::ClankerProviderConfig>)> {
         let keyed = |p: &&crate::vault::ClankerProviderConfig| !p.api_key.trim().is_empty();
-        self.clankers.providers.iter().filter(keyed).find(|p| p.is_default).or_else(|| self.clankers.providers.iter().find(keyed)).cloned()
+        let primary = self.clankers.providers.iter().filter(keyed).find(|p| p.is_default).or_else(|| self.clankers.providers.iter().find(keyed)).cloned()?;
+        let backup = self.clankers.providers.iter().filter(keyed).find(|p| p.is_backup && p.id != primary.id).cloned();
+        Some((primary, backup))
     }
 
     pub fn ai_provider_name(&self) -> Option<String> {
@@ -89,7 +97,7 @@ impl CrowApp {
     /// Sends the lines on screen (most recent first to be kept, capped) to
     /// the AI provider and shows its plain-English reading in the panel.
     pub fn explain_logs_with_ai(&mut self, cx: &mut Context<Self>) {
-        let Some(provider) = self.ai_provider() else {
+        let Some((provider, backup)) = self.ai_providers() else {
             self.journal.ai.answer = Some(Err("No AI provider has an API key. Add one in Settings → Clankers.".into()));
             cx.notify();
             return;
@@ -125,16 +133,22 @@ impl CrowApp {
         let text = lines.join("\n");
         let db = self.vault.db();
         cx.spawn(async move |entity, cx| {
-            let provider_id = provider.id.clone();
-            let answer = cx.background_executor().spawn(async move { crate::ai::explain_logs(&provider, &context, &text) }).await;
-            if answer.is_ok() {
+            let answer = cx.background_executor().spawn(async move { crate::ai::explain_logs_with_fallback(&provider, backup.as_ref(), &context, &text) }).await;
+            if let Ok(a) = &answer {
                 if let Ok(db) = db.lock() {
-                    let _ = db.record_clanker_call(&provider_id);
+                    let _ = db.record_clanker_call(&a.provider_id);
                 }
             }
             let _ = entity.update(cx, |this, cx| {
                 this.journal.ai.loading = false;
-                this.journal.ai.answer = Some(answer);
+                this.journal.ai.answer = Some(answer.map(|a| {
+                    // Say when the backup answered, and why.
+                    this.journal.ai.provider = a.provider_label.clone();
+                    match a.primary_failed {
+                        Some(why) => format!("Answered by the backup, {}: the primary failed ({why}).\n\n{}", a.provider_label, a.text),
+                        None => a.text,
+                    }
+                }));
                 this.refresh_clankers(cx);
             });
         })

@@ -3,7 +3,6 @@ use gpui_kit::*;
 use gpui_kit::component::input::{InputEvent, InputState};
 
 use super::{ClankerEditModalState, ClankerInputs, CrowApp};
-use crate::vault::ClankerProviderConfig;
 use zeroize::Zeroize;
 
 // ==========================================
@@ -39,6 +38,7 @@ impl CrowApp {
                 error_message: None,
             });
             self.clanker_inputs = None;
+            self.clankers.models = None;
             cx.notify();
         }
     }
@@ -111,6 +111,14 @@ impl CrowApp {
                 Ok(()) => {
                     this.clankers.editing = None;
                     this.clanker_inputs = None;
+                    // The first key saved becomes the primary when no
+                    // provider with a key holds that role yet.
+                    let keyed_primary = this.clankers.providers.iter().any(|p| p.is_default && !p.api_key.trim().is_empty() && p.id != p_id);
+                    if !key_is_empty && !keyed_primary {
+                        if let Ok(db) = this.vault.db().lock() {
+                            let _ = db.set_default_clanker_provider(&p_id);
+                        }
+                    }
                 }
                 Err(e) => {
                     if let Some(ref mut st) = this.clankers.editing {
@@ -127,13 +135,67 @@ impl CrowApp {
         }
     }
 
+    /// Makes a provider the primary: asked first.
     pub fn set_default_clanker(&mut self, provider_id: &str, cx: &mut Context<Self>) {
         let db = self.vault.db();
         if let Ok(db_guard) = db.lock() {
             let _ = db_guard.set_default_clanker_provider(provider_id);
         }
-        self.keys.toast = Some(format!("Default Clanker set to {provider_id}"));
+        let name = self.clankers.providers.iter().find(|p| p.id == provider_id).map_or(provider_id.to_string(), |p| p.display_name.clone());
+        self.keys.toast = Some(format!("{name} is the primary clanker"));
         self.refresh_clankers(cx);
+    }
+
+    /// Makes a provider the backup (asked when the primary fails), or, with
+    /// `None`, removes the backup.
+    pub fn set_backup_clanker(&mut self, provider_id: Option<&str>, cx: &mut Context<Self>) {
+        let db = self.vault.db();
+        if let Ok(db_guard) = db.lock() {
+            let _ = db_guard.set_backup_clanker_provider(provider_id);
+        }
+        self.keys.toast = Some(match provider_id.and_then(|id| self.clankers.providers.iter().find(|p| p.id == id)) {
+            Some(p) => format!("{} is the backup clanker", p.display_name),
+            None => "No backup clanker".into(),
+        });
+        self.refresh_clankers(cx);
+    }
+
+    /// Lists the models the open dialog's provider offers, with the key
+    /// typed there (or the stored one). Free: nothing is generated.
+    pub fn load_clanker_models(&mut self, cx: &mut Context<Self>) {
+        let Some(st) = self.clankers.editing.clone() else { return };
+        let Some(mut provider) = self.clankers.providers.iter().find(|p| p.id == st.provider_id).cloned() else { return };
+        if let Some(inputs) = &self.clanker_inputs {
+            let typed = inputs.key.read(cx).value().trim().to_string();
+            if !typed.is_empty() {
+                provider.api_key = typed;
+            }
+            let base = inputs.base_url.read(cx).value().trim().to_string();
+            if !base.is_empty() {
+                provider.base_url = base;
+            }
+        }
+        self.clankers.models_loading = true;
+        self.clankers.models = None;
+        cx.notify();
+        cx.spawn(async move |entity, cx| {
+            let found = cx.background_executor().spawn(async move { crate::ai::list_models(&provider) }).await;
+            let _ = entity.update(cx, |this, cx| {
+                this.clankers.models_loading = false;
+                this.clankers.models = Some(found);
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// Puts a listed model into the dialog's model field.
+    pub fn pick_clanker_model(&mut self, model: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(inputs) = &self.clanker_inputs {
+            let field = inputs.model.clone();
+            field.update(cx, |i, cx| i.set_value(model.to_string(), window, cx));
+        }
+        cx.notify();
     }
 
     pub fn reset_clanker_stats(&mut self, provider_id: &str, cx: &mut Context<Self>) {
@@ -145,7 +207,7 @@ impl CrowApp {
         self.refresh_clankers(cx);
     }
 
-    /// Checks a provider's key with a real, minimal request (a few tokens).
+    /// Checks a provider's key and model by listing its models (no tokens).
     pub fn test_clanker_key(&mut self, provider_id: &str, cx: &mut Context<Self>) {
         let Some(provider) = self.clankers.providers.iter().find(|p| p.id == provider_id).cloned() else { return };
         if !self.clankers.key_checking.insert(provider.id.clone()) {
@@ -153,30 +215,23 @@ impl CrowApp {
         }
         self.clankers.key_checks.remove(&provider.id);
         cx.notify();
-        let db = self.vault.db();
         cx.spawn(async move |entity, cx| {
             let id = provider.id.clone();
+            // Listing models generates nothing, so it isn't counted as a call.
             let result = cx.background_executor().spawn(async move { crate::ai::check_key(&provider) }).await;
-            if result.is_ok() {
-                if let Ok(db) = db.lock() {
-                    let _ = db.record_clanker_call(&id);
-                }
-            }
             let _ = entity.update(cx, |this, cx| {
                 this.clankers.key_checking.remove(&id);
-                this.clankers.key_checks.insert(id, result.map(|_| "key works".to_string()));
+                this.clankers.key_checks.insert(id, result);
                 this.refresh_clankers(cx);
             });
         })
         .detach();
     }
 
-    /// Sends the sandbox's log line to the default provider (or the first
-    /// with a key) and shows its real answer.
+    /// Sends the sandbox's log line to the primary (the backup if it fails)
+    /// and shows the real answer and who gave it.
     pub fn run_clanker_eli5(&mut self, cx: &mut Context<Self>) {
-        let keyed = |p: &&ClankerProviderConfig| !p.api_key.trim().is_empty();
-        let provider = self.clankers.providers.iter().filter(keyed).find(|p| p.is_default).or_else(|| self.clankers.providers.iter().find(keyed)).cloned();
-        let Some(provider) = provider else {
+        let Some((provider, backup)) = self.ai_providers() else {
             self.clankers.demo_output = Some(Err("No AI provider has an API key yet. Add one above with ⚙ Edit Key.".into()));
             cx.notify();
             return;
@@ -190,20 +245,21 @@ impl CrowApp {
         cx.notify();
         let db = self.vault.db();
         cx.spawn(async move |entity, cx| {
-            let id = provider.id.clone();
-            let label = format!("{} · {}", provider.display_name, provider.model);
             let answer = cx
                 .background_executor()
-                .spawn(async move { crate::ai::explain_logs(&provider, "A single journal line pasted into Crow's ELI5 sandbox.", &log) })
+                .spawn(async move { crate::ai::explain_logs_with_fallback(&provider, backup.as_ref(), "A single journal line pasted into Crow's ELI5 sandbox.", &log) })
                 .await;
-            if answer.is_ok() {
+            if let Ok(a) = &answer {
                 if let Ok(db) = db.lock() {
-                    let _ = db.record_clanker_call(&id);
+                    let _ = db.record_clanker_call(&a.provider_id);
                 }
             }
             let _ = entity.update(cx, |this, cx| {
                 this.clankers.demo_loading = false;
-                this.clankers.demo_output = Some(answer.map(|a| format!("via {label}\n\n{a}")));
+                this.clankers.demo_output = Some(answer.map(|a| match a.primary_failed {
+                    Some(why) => format!("via the backup, {} (the primary failed: {why})\n\n{}", a.provider_label, a.text),
+                    None => format!("via {}\n\n{}", a.provider_label, a.text),
+                }));
                 this.refresh_clankers(cx);
             });
         })

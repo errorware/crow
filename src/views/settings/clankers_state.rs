@@ -13,6 +13,9 @@ pub struct ClankersState {
     /// Provider id → result of its last key check, and checks running.
     pub key_checks: std::collections::HashMap<String, Result<String, String>>,
     pub key_checking: std::collections::HashSet<String>,
+    /// The edit dialog's LOAD MODELS result, and whether it's running.
+    pub models: Option<Result<Vec<String>, String>>,
+    pub models_loading: bool,
 }
 
 impl ClankersState {
@@ -25,6 +28,8 @@ impl ClankersState {
             demo_loading: false,
             key_checks: Default::default(),
             key_checking: Default::default(),
+            models: None,
+            models_loading: false,
         }
     }
 }

@@ -13,7 +13,11 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
     let providers = &clankers.providers;
     let total_calls_30d: u64 = providers.iter().map(|p| p.calls_30d).sum();
     let configured_count = providers.iter().filter(|p| !p.api_key.trim().is_empty()).count();
-    let default_provider = providers.iter().find(|p| p.is_default).cloned();
+    // What would really be asked: the keyed primary (or the first keyed
+    // provider), and a keyed backup that isn't it.
+    let keyed = |p: &&ClankerProviderConfig| !p.api_key.trim().is_empty();
+    let default_provider = providers.iter().filter(keyed).find(|p| p.is_default).or_else(|| providers.iter().find(keyed)).cloned();
+    let backup_provider = providers.iter().filter(keyed).find(|p| p.is_backup && Some(&p.id) != default_provider.as_ref().map(|d| &d.id)).cloned();
 
     let demo_log = &clankers.demo_log;
     let demo_output = clankers.demo_output.as_ref().map(|r| r.as_ref().map(String::as_str).map_err(String::as_str));
@@ -104,7 +108,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.5))
                                         .text_color(TEXT_DIM)
-                                        .child("Active Default:"),
+                                        .child("Primary · backup:"),
                                 )
                                 .child(
                                     div()
@@ -112,7 +116,11 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                         .text_size(px(10.5))
                                         .font_weight(FontWeight::SEMIBOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child(default_provider.map(|p| p.display_name).unwrap_or_else(|| "None".into())),
+                                        .child(format!(
+                                            "{} · {}",
+                                            default_provider.map(|p| p.display_name).unwrap_or_else(|| "none".into()),
+                                            backup_provider.map(|p| p.display_name).unwrap_or_else(|| "no backup".into())
+                                        )),
                                 ),
                         ),
                 ),
@@ -225,7 +233,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
         .p(px(12.0))
         .bg(BG_PANEL)
         .border_1()
-        .border_color(if prov.is_default { OK } else { BORDER_DEFAULT })
+        .border_color(if prov.is_default && is_configured { OK } else if prov.is_backup && is_configured { hex_rgb(0x8ab4ff) } else { BORDER_DEFAULT })
         .flex()
         .flex_col()
         .gap(px(10.0))
@@ -248,7 +256,8 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                 .text_color(TEXT_MAX)
                                 .child(prov.display_name.clone()),
                         )
-                        .children(if prov.is_default {
+                        // A role means something only with a key to answer with.
+                        .children(if prov.is_default && is_configured {
                             Some(
                                 div()
                                     .px(px(6.0))
@@ -260,11 +269,24 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                     .text_size(px(9.0))
                                     .font_weight(FontWeight::BOLD)
                                     .text_color(OK)
-                                    .child("★ ACTIVE DEFAULT"),
+                                    .child("★ PRIMARY"),
                             )
                         } else {
                             None
-                        }),
+                        })
+                        .children((prov.is_backup && is_configured).then(|| {
+                            div()
+                                .px(px(6.0))
+                                .py(px(1.5))
+                                .bg(hex_rgba(0x8ab4ff, 0.10))
+                                .border_1()
+                                .border_color(hex_rgb(0x8ab4ff))
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.0))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(hex_rgb(0x8ab4ff))
+                                .child("↺ BACKUP")
+                        })),
                 )
                 .child(
                     div()
@@ -508,8 +530,30 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                         } else {
                             None
                         })
-                        // Set as default
-                        .children(if !prov.is_default {
+                        // Backup: asked when the primary fails.
+                        .children((is_configured && !prov.is_default).then(|| {
+                            let (app_backup, id, on) = (app.clone(), p_id.clone(), prov.is_backup);
+                            div()
+                                .id(ElementId::NamedInteger("btn-backup-clanker".into(), prov.daily_history.len() as u64 + prov.calls_30d))
+                                .px(px(8.0))
+                                .py(px(4.0))
+                                .bg(BG_KEY)
+                                .border_1()
+                                .border_color(BORDER_DEFAULT)
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(hex_rgb(0x8ab4ff))
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .on_click(move |_ev, _window, cx| {
+                                    let id = id.clone();
+                                    app_backup.update(cx, |this, cx| this.set_backup_clanker(if on { None } else { Some(&id) }, cx));
+                                })
+                                .child(if on { "Remove backup" } else { "Make backup" })
+                        }))
+                        // Primary: asked first.
+                        .children(if !prov.is_default && is_configured {
                             Some(
                                 div()
                                     .id(ElementId::NamedInteger("btn-default-clanker".into(), prov.daily_history.len() as u64 + prov.calls_30d))
@@ -530,7 +574,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                             this.set_default_clanker(&id, cx);
                                         });
                                     })
-                                    .child("Set Default"),
+                                    .child("Make primary"),
                             )
                         } else {
                             None
@@ -751,6 +795,75 @@ fn render_eli5_sandbox(
         })
 }
 
+/// LOAD MODELS and, once loaded, the provider's models as chips that fill
+/// the Model field. Listing models generates nothing, so it costs nothing.
+fn models_picker(clankers: &ClankersState, app: Entity<CrowApp>) -> impl IntoElement {
+    let app_load = app.clone();
+    let status = match (&clankers.models, clankers.models_loading) {
+        (_, true) => Some(("asking the provider…".to_string(), TEXT_DIM)),
+        (Some(Ok(m)), _) => Some((format!("{} models offered for this key", m.len()), TEXT_DIM)),
+        (Some(Err(e)), _) => Some((e.clone(), CRIT)),
+        (None, false) => None,
+    };
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(6.0))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.0))
+                .child(
+                    div()
+                        .id("btn-load-clanker-models")
+                        .px(px(8.0))
+                        .py(px(3.0))
+                        .bg(BG_KEY)
+                        .border_1()
+                        .border_color(BORDER_DEFAULT)
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.0))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(TEXT_SECONDARY)
+                        .cursor_pointer()
+                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .on_click(move |_ev, _window, cx| app_load.update(cx, |this, cx| this.load_clanker_models(cx)))
+                        .child("LOAD MODELS"),
+                )
+                .children(status.map(|(t, c)| div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(px(9.5)).text_color(c).child(t))),
+        )
+        .children(clankers.models.as_ref().and_then(|m| m.as_ref().ok()).map(|models| {
+            div()
+                .id("clanker-models")
+                .max_h(px(120.0))
+                .overflow_y_scrollbar()
+                .flex()
+                .flex_wrap()
+                .gap(px(4.0))
+                .children(models.iter().enumerate().map(|(i, m)| {
+                    let (app, m2) = (app.clone(), m.clone());
+                    div()
+                        .id(ElementId::NamedInteger("clanker-model".into(), i as u64))
+                        .px(px(6.0))
+                        .py(px(2.0))
+                        .bg(BG_CONTROL)
+                        .border_1()
+                        .border_color(BORDER_DEFAULT)
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.0))
+                        .text_color(TEXT_SECONDARY)
+                        .cursor_pointer()
+                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                        .on_click(move |_ev, window, cx| {
+                            let m = m2.clone();
+                            app.update(cx, |this, cx| this.pick_clanker_model(&m, window, cx))
+                        })
+                        .child(m.clone())
+                }))
+        }))
+}
+
 pub fn render_clanker_modals(app: Entity<CrowApp>, clankers: &ClankersState, inputs: Option<&ClankerInputs>) -> Option<impl IntoElement> {
     let state = clankers.editing.as_ref()?;
     let inputs = inputs.filter(|i| i.provider_id == state.provider_id);
@@ -840,7 +953,8 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, clankers: &ClankersState, inp
                             ),
                     )
                     .child(field("API Key (stored encrypted in Crow's vault; never shown again):", inputs.map(|i| &i.key)))
-                    .child(field("Default Model:", inputs.map(|i| &i.model)))
+                    .child(field("Model:", inputs.map(|i| &i.model)))
+                    .child(models_picker(clankers, app.clone()))
                     .child(field("Custom API Endpoint / Proxy (optional):", inputs.map(|i| &i.base_url)))
                     // Error message
                     .children(if let Some(ref e) = err {

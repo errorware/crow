@@ -53,13 +53,13 @@ fn chat_config(p: &ClankerProviderConfig, system: &str, user: &str, max_tokens: 
     let (url, headers, body) = if is_anthropic(p) {
         (
             format!("{base}/messages"),
-            vec![Zeroizing::new(format!("x-api-key: {}", p.api_key)), Zeroizing::new("anthropic-version: 2023-06-01".to_string())],
+            auth_headers(p),
             json!({"model": p.model, "max_tokens": max_tokens, "system": system, "messages": [{"role": "user", "content": user}]}),
         )
     } else {
         (
             format!("{base}/chat/completions"),
-            vec![Zeroizing::new(format!("Authorization: Bearer {}", p.api_key))],
+            auth_headers(p),
             json!({"model": p.model, "max_tokens": max_tokens, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}]}),
         )
     };
@@ -72,12 +72,22 @@ fn chat_config(p: &ClankerProviderConfig, system: &str, user: &str, max_tokens: 
     cfg
 }
 
+/// A provider's error, in the shapes they use: `{"error": {"message"}}`
+/// (OpenAI, DeepSeek, Anthropic), `{"error": "…"}`, Mistral's
+/// `{"detail": "…"}` and a bare `{"message": "…"}`.
+fn provider_error(v: &Value) -> Option<String> {
+    let msg = match v.get("error") {
+        Some(err) => err["message"].as_str().or_else(|| err.as_str()).unwrap_or("unknown error").to_string(),
+        None => v["detail"].as_str().or_else(|| v["detail"][0]["msg"].as_str()).or_else(|| v["message"].as_str().filter(|_| v.get("data").is_none() && v.get("choices").is_none()))?.to_string(),
+    };
+    Some(format!("the provider said: {msg}"))
+}
+
 /// The model's text from an Anthropic or OpenAI-style response, or the
 /// provider's error message.
 pub fn parse_response(v: &Value) -> Result<String, String> {
-    if let Some(err) = v.get("error") {
-        let msg = err["message"].as_str().or_else(|| err.as_str()).unwrap_or("unknown error");
-        return Err(format!("the provider said: {msg}"));
+    if let Some(e) = provider_error(v) {
+        return Err(e);
     }
     let text = v["content"]
         .as_array()
@@ -87,10 +97,83 @@ pub fn parse_response(v: &Value) -> Result<String, String> {
     text.ok_or_else(|| "the provider's answer had no text".into())
 }
 
-/// Checks that `provider`'s key and model work with the smallest possible
-/// request (a few tokens). Returns the model's reply.
+/// The headers that carry `p`'s key (Anthropic's own, or Bearer).
+fn auth_headers(p: &ClankerProviderConfig) -> Vec<Zeroizing<String>> {
+    if is_anthropic(p) {
+        vec![Zeroizing::new(format!("x-api-key: {}", p.api_key)), Zeroizing::new("anthropic-version: 2023-06-01".to_string())]
+    } else {
+        vec![Zeroizing::new(format!("Authorization: Bearer {}", p.api_key))]
+    }
+}
+
+/// The curl config for `GET {base}/models`: free, no tokens spent.
+fn models_config(p: &ClankerProviderConfig) -> Zeroizing<String> {
+    let mut cfg = Zeroizing::new(format!("url = {}\n", curl_config_quote(&format!("{}/models", p.base_url.trim_end_matches('/')))));
+    for h in auth_headers(p) {
+        cfg.push_str(&Zeroizing::new(format!("header = {}\n", curl_config_quote(&h))));
+    }
+    cfg.push_str("silent\nshow-error\nmax-time = 30\n");
+    cfg
+}
+
+/// The model ids in a `/models` answer (`{"data": [{"id": …}, …]}`, the
+/// shape OpenAI, Mistral, DeepSeek, Qwen and Anthropic all use).
+pub fn parse_models(v: &Value) -> Result<Vec<String>, String> {
+    if let Some(e) = provider_error(v) {
+        return Err(e);
+    }
+    let mut ids: Vec<String> = v["data"].as_array().ok_or("the provider's model list had no data")?.iter().filter_map(|m| m["id"].as_str().map(str::to_string)).collect();
+    ids.sort();
+    Ok(ids)
+}
+
+/// The models `provider`'s key can use, as the provider lists them.
+pub fn list_models(provider: &ClankerProviderConfig) -> Result<Vec<String>, String> {
+    let v = fetch(provider, &models_config(provider))?;
+    parse_models(&v)
+}
+
+/// Checks `provider`'s key and model without spending tokens: lists its
+/// models and looks for the configured one.
 pub fn check_key(provider: &ClankerProviderConfig) -> Result<String, String> {
-    send(provider, &chat_config(provider, "You are a connectivity check.", "Reply with exactly: OK", 5))
+    let models = list_models(provider)?;
+    if models.iter().any(|m| m == &provider.model) {
+        Ok(format!("key works · {} is available", provider.model))
+    } else {
+        Err(format!("the key works, but {} isn't one of its {} models: pick one with LOAD MODELS", provider.model, models.len()))
+    }
+}
+
+/// An answer, with who gave it and, when the backup did, why the primary didn't.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Answer {
+    pub text: String,
+    pub provider_id: String,
+    /// "Mistral AI · mistral-small-2603".
+    pub provider_label: String,
+    pub primary_failed: Option<String>,
+}
+
+fn label(p: &ClankerProviderConfig) -> String {
+    format!("{} · {}", p.display_name, p.model)
+}
+
+/// Asks the primary; if it fails, the backup. `ask` makes the request.
+pub fn with_fallback(primary: &ClankerProviderConfig, backup: Option<&ClankerProviderConfig>, ask: impl Fn(&ClankerProviderConfig) -> Result<String, String>) -> Result<Answer, String> {
+    match ask(primary) {
+        Ok(text) => Ok(Answer { text, provider_id: primary.id.clone(), provider_label: label(primary), primary_failed: None }),
+        Err(first) => match backup {
+            Some(b) => ask(b)
+                .map(|text| Answer { text, provider_id: b.id.clone(), provider_label: label(b), primary_failed: Some(format!("{}: {first}", primary.display_name)) })
+                .map_err(|second| format!("{first}; the backup failed too: {second}")),
+            None => Err(first),
+        },
+    }
+}
+
+/// `explain_logs` on the primary, falling back to the backup.
+pub fn explain_logs_with_fallback(primary: &ClankerProviderConfig, backup: Option<&ClankerProviderConfig>, context: &str, logs: &str) -> Result<Answer, String> {
+    with_fallback(primary, backup, |p| explain_logs(p, context, logs))
 }
 
 /// Asks `provider` to explain `logs` (already capped by the caller).
@@ -100,14 +183,18 @@ pub fn explain_logs(provider: &ClankerProviderConfig, context: &str, logs: &str)
 }
 
 fn send(provider: &ClankerProviderConfig, cfg: &str) -> Result<String, String> {
+    parse_response(&fetch(provider, cfg)?)
+}
+
+/// Runs curl with `cfg` (on stdin: it holds the key) and reads the JSON.
+fn fetch(provider: &ClankerProviderConfig, cfg: &str) -> Result<Value, String> {
     if provider.api_key.trim().is_empty() {
         return Err(format!("{} has no API key; add one in Settings → Clankers", provider.display_name));
     }
     let out = LocalHost
         .exec_stdin(&["curl", "--config", "-"], cfg.as_bytes(), Duration::from_secs(100))
         .map_err(|e| format!("request to {} failed: {e}", provider.display_name))?;
-    let v: Value = serde_json::from_str(&out.stdout).map_err(|_| format!("{} answered with something unexpected: {}", provider.display_name, out.stdout.chars().take(200).collect::<String>()))?;
-    parse_response(&v)
+    serde_json::from_str(&out.stdout).map_err(|_| format!("{} answered with something unexpected: {}", provider.display_name, out.stdout.chars().take(200).collect::<String>()))
 }
 
 #[cfg(test)]
@@ -122,6 +209,7 @@ mod tests {
             model: "m".into(),
             base_url: base.into(),
             is_default: true,
+            is_backup: false,
             total_calls: 0,
             calls_30d: 0,
             last_used_at: None,
@@ -187,5 +275,54 @@ mod tests {
         assert!(request.contains("x-api-key: sk-test\"key"), "header with a quote arrives intact");
         let body: Value = serde_json::from_str(request.split("\r\n\r\n").nth(1).unwrap()).unwrap();
         assert!(body["messages"][0]["content"].as_str().unwrap().ends_with(logs), "log text arrives byte for byte");
+    }
+
+    #[test]
+    fn model_lists_parse_as_the_providers_document_them() {
+        // DeepSeek's documented /models example (api-docs.deepseek.com, 2026-10).
+        let v: Value = serde_json::from_str(r#"{"object":"list","data":[{"id":"deepseek-v4-pro","object":"model","owned_by":"deepseek"},{"id":"deepseek-flash","object":"model","owned_by":"deepseek","name":"DeepSeek-V4.1-Flash"}]}"#).unwrap();
+        assert_eq!(parse_models(&v).unwrap(), ["deepseek-flash", "deepseek-v4-pro"]);
+        // Real 401 bodies, 2026-10-07: DeepSeek's and Mistral's (a different shape).
+        let deepseek: Value = serde_json::from_str(r#"{"error":{"message":"Authentication Fails, Your api key: ****heck is invalid","type":"authentication_error","param":null,"code":"invalid_request_error"}}"#).unwrap();
+        assert!(parse_models(&deepseek).unwrap_err().contains("Authentication Fails"));
+        let mistral: Value = serde_json::from_str(r#"{"detail":"Invalid API Key"}"#).unwrap();
+        assert_eq!(parse_models(&mistral).unwrap_err(), "the provider said: Invalid API Key");
+        assert_eq!(parse_response(&mistral).unwrap_err(), "the provider said: Invalid API Key");
+    }
+
+    #[test]
+    fn the_backup_answers_only_when_the_primary_fails() {
+        let (mistral, deepseek) = (provider("mistral", "x"), provider("deepseek", "y"));
+        let ok = with_fallback(&mistral, Some(&deepseek), |p| Ok(format!("from {}", p.id))).unwrap();
+        assert_eq!((ok.provider_id.as_str(), ok.primary_failed), ("mistral", None));
+        let fell = with_fallback(&mistral, Some(&deepseek), |p| if p.id == "mistral" { Err("429 rate limited".into()) } else { Ok("fine".into()) }).unwrap();
+        assert_eq!(fell.provider_id, "deepseek");
+        assert_eq!(fell.primary_failed.as_deref(), Some("mistral: 429 rate limited"));
+        let both = with_fallback(&mistral, Some(&deepseek), |p| Err(format!("{} down", p.id))).unwrap_err();
+        assert!(both.contains("mistral down") && both.contains("backup failed too: deepseek down"));
+        assert_eq!(with_fallback(&mistral, None, |_| Err("down".into())).unwrap_err(), "down");
+    }
+
+    /// The model list is a plain GET to {base}/models with the key, and no body.
+    #[test]
+    fn listing_models_is_a_get_with_the_key_and_no_body() {
+        use std::io::{Read, Write};
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = std::thread::spawn(move || {
+            let (mut s, _) = listener.accept().unwrap();
+            let mut buf = vec![0u8; 8192];
+            let n = s.read(&mut buf).unwrap();
+            let reply = r#"{"object":"list","data":[{"id":"mistral-small-2603"},{"id":"mistral-medium-2604"}]}"#;
+            write!(s, "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\n\r\n{}", reply.len(), reply).unwrap();
+            String::from_utf8_lossy(&buf[..n]).to_string()
+        });
+        let mut p = provider("mistral", &format!("http://127.0.0.1:{port}/v1/"));
+        p.model = "mistral-small-2603".into();
+        assert_eq!(check_key(&p).unwrap(), "key works · mistral-small-2603 is available");
+        let request = server.join().unwrap();
+        assert!(request.starts_with("GET /v1/models HTTP/1.1"), "{request}");
+        assert!(request.contains("Authorization: Bearer sk-test\"key"));
+        assert!(!request.to_lowercase().contains("content-length"), "no body, nothing billed");
     }
 }

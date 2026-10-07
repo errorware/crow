@@ -185,11 +185,36 @@ pub struct ClankerProviderConfig {
     pub api_key: String,
     pub model: String,
     pub base_url: String,
+    /// The primary provider: asked first.
     pub is_default: bool,
+    /// Asked when the primary fails.
+    pub is_backup: bool,
     pub total_calls: u64,
+    /// Successful calls in the last 30 days (today included), from `daily_counts`.
     pub calls_30d: u64,
     pub last_used_at: Option<String>,
+    /// Calls per day for the last 30 days, oldest first (the sparkline).
     pub daily_history: Vec<f32>,
+}
+
+/// Calls in the 30 days ending `today` (inclusive) from per-day counts
+/// (`YYYY-MM-DD` → calls), and the per-day series, oldest first.
+pub fn usage_window(counts: &std::collections::BTreeMap<String, u64>, today: chrono::NaiveDate) -> (u64, Vec<f32>) {
+    let series: Vec<f32> = (0..30i64)
+        .rev()
+        .map(|back| {
+            let day = (today - chrono::Duration::days(back)).format("%Y-%m-%d").to_string();
+            counts.get(&day).copied().unwrap_or(0) as f32
+        })
+        .collect();
+    (series.iter().map(|c| *c as u64).sum(), series)
+}
+
+/// Per-day counts from the stored JSON. Older vaults stored a bare array
+/// with no dates (and never rolled it over), which can't be placed in time:
+/// it reads as no history.
+pub fn parse_daily_counts(json: &str) -> std::collections::BTreeMap<String, u64> {
+    serde_json::from_str(json).unwrap_or_default()
 }
 
 /// A configured account at a provider plugin (Linode, UpCloud, ...). Plain
@@ -580,9 +605,9 @@ impl VaultDb {
             let default_clankers = [
                 ("openai", "OpenAI", "gpt-4o-mini", "https://api.openai.com/v1", true, 0, 0, zero),
                 ("anthropic", "Anthropic", "claude-haiku-4-5-20251001", "https://api.anthropic.com/v1", false, 0, 0, zero),
-                ("mistral", "Mistral AI", "mistral-small-latest", "https://api.mistral.ai/v1", false, 0, 0, zero),
-                ("deepseek", "DeepSeek", "deepseek-chat", "https://api.deepseek.com/v1", false, 0, 0, zero),
-                ("qwen", "Qwen (Alibaba)", "qwen-2.5-coder-32b", "https://dashscope.aliyuncs.com/compatible-mode/v1", false, 0, 0, zero),
+                ("mistral", "Mistral AI", "mistral-small-2603", "https://api.mistral.ai/v1", false, 0, 0, zero),
+                ("deepseek", "DeepSeek", "deepseek-flash", "https://api.deepseek.com", false, 0, 0, zero),
+                ("qwen", "Qwen (Alibaba)", "qwen-plus", "https://dashscope-intl.aliyuncs.com/compatible-mode/v1", false, 0, 0, zero),
             ];
 
             for (id, display_name, model, base_url, is_def, total_calls, calls_30d, daily_hist) in default_clankers {
@@ -617,6 +642,15 @@ impl VaultDb {
         let _ = self.conn.execute("ALTER TABLE servers ADD COLUMN purged_at TEXT", []);
         // ERR-36: where each server lives.
         let _ = self.conn.execute("ALTER TABLE servers ADD COLUMN host_key_mtime INTEGER", []);
+        // Clankers: the backup provider, and usage by date (the old
+        // daily_history array was never dated, so 30-day numbers were wrong).
+        let _ = self.conn.execute("ALTER TABLE clanker_providers ADD COLUMN is_backup INTEGER NOT NULL DEFAULT 0", []);
+        let _ = self.conn.execute("ALTER TABLE clanker_providers ADD COLUMN daily_counts TEXT NOT NULL DEFAULT '{}'", []);
+        // Presets from the providers' docs (2026-10): only where the user
+        // never changed or used them.
+        let _ = self.conn.execute("UPDATE clanker_providers SET model = 'deepseek-flash', base_url = 'https://api.deepseek.com' WHERE id = 'deepseek' AND model = 'deepseek-chat' AND api_key = ''", []);
+        let _ = self.conn.execute("UPDATE clanker_providers SET model = 'mistral-small-2603' WHERE id = 'mistral' AND model = 'mistral-small-latest' AND api_key = ''", []);
+        let _ = self.conn.execute("UPDATE clanker_providers SET model = 'qwen-plus' WHERE id = 'qwen' AND model = 'qwen-2.5-coder-32b' AND api_key = ''", []);
         for col in ["region_country", "region_city", "region_provider", "region_code", "region_source", "provider_account", "provider_instance"] {
             let _ = self.conn.execute(&format!("ALTER TABLE servers ADD COLUMN {col} TEXT NOT NULL DEFAULT ''"), []);
         }
@@ -636,17 +670,18 @@ impl VaultDb {
         Ok(())
     }
 
-    /// Counts one real request to a provider (today's bucket is the last).
+    /// Counts one successful request to a provider, under today's date
+    /// (UTC). Days older than 60 are dropped.
     pub fn record_clanker_call(&self, id: &str) -> Result<(), VaultError> {
-        let hist: String = self.conn.query_row("SELECT daily_history FROM clanker_providers WHERE id = ?1", params![id], |r| r.get(0))?;
-        let mut days: Vec<f32> = serde_json::from_str(&hist).unwrap_or_default();
-        match days.last_mut() {
-            Some(today) => *today += 1.0,
-            None => days.push(1.0),
-        }
+        let json: String = self.conn.query_row("SELECT daily_counts FROM clanker_providers WHERE id = ?1", params![id], |r| r.get(0))?;
+        let mut counts = parse_daily_counts(&json);
+        let today = Utc::now().date_naive();
+        *counts.entry(today.format("%Y-%m-%d").to_string()).or_default() += 1;
+        let oldest = (today - chrono::Duration::days(60)).format("%Y-%m-%d").to_string();
+        counts.retain(|day, _| *day >= oldest);
         self.conn.execute(
-            "UPDATE clanker_providers SET total_calls = total_calls + 1, calls_30d = calls_30d + 1, last_used_at = ?2, daily_history = ?3 WHERE id = ?1",
-            params![id, chrono::Utc::now().to_rfc3339(), serde_json::to_string(&days).unwrap_or_default()],
+            "UPDATE clanker_providers SET total_calls = total_calls + 1, last_used_at = ?2, daily_counts = ?3 WHERE id = ?1",
+            params![id, Utc::now().to_rfc3339(), serde_json::to_string(&counts).unwrap_or_else(|_| "{}".into())],
         )?;
         Ok(())
     }
@@ -1666,7 +1701,7 @@ impl VaultDb {
 
     pub fn list_clanker_providers(&self) -> Result<Vec<ClankerProviderConfig>, VaultError> {
         let mut stmt = self.conn.prepare(
-            "SELECT id, display_name, api_key, model, base_url, is_default, total_calls, calls_30d, last_used_at, daily_history
+            "SELECT id, display_name, api_key, model, base_url, is_default, total_calls, is_backup, last_used_at, daily_counts
              FROM clanker_providers ORDER BY CASE id
                 WHEN 'openai' THEN 1
                 WHEN 'anthropic' THEN 2
@@ -1680,9 +1715,9 @@ impl VaultDb {
         let rows = stmt.query_map([], |r| {
             let is_def_int: i64 = r.get(5)?;
             let total_calls: i64 = r.get(6)?;
-            let calls_30d: i64 = r.get(7)?;
-            let hist_json: String = r.get(9)?;
-            let daily_history: Vec<f32> = serde_json::from_str(&hist_json).unwrap_or_default();
+            let is_backup: i64 = r.get(7)?;
+            let counts_json: String = r.get(9)?;
+            let (calls_30d, daily_history) = usage_window(&parse_daily_counts(&counts_json), Utc::now().date_naive());
 
             Ok(ClankerProviderConfig {
                 id: r.get(0)?,
@@ -1691,8 +1726,9 @@ impl VaultDb {
                 model: r.get(3)?,
                 base_url: r.get(4)?,
                 is_default: is_def_int > 0,
+                is_backup: is_backup > 0,
                 total_calls: total_calls.max(0) as u64,
-                calls_30d: calls_30d.max(0) as u64,
+                calls_30d,
                 last_used_at: r.get(8)?,
                 daily_history,
             })
@@ -1707,15 +1743,15 @@ impl VaultDb {
 
     pub fn get_clanker_provider(&self, id: &str) -> Result<Option<ClankerProviderConfig>, VaultError> {
         let res = self.conn.query_row(
-            "SELECT id, display_name, api_key, model, base_url, is_default, total_calls, calls_30d, last_used_at, daily_history
+            "SELECT id, display_name, api_key, model, base_url, is_default, total_calls, is_backup, last_used_at, daily_counts
              FROM clanker_providers WHERE id = ?1",
             params![id],
             |r| {
                 let is_def_int: i64 = r.get(5)?;
                 let total_calls: i64 = r.get(6)?;
-                let calls_30d: i64 = r.get(7)?;
-                let hist_json: String = r.get(9)?;
-                let daily_history: Vec<f32> = serde_json::from_str(&hist_json).unwrap_or_default();
+                let is_backup: i64 = r.get(7)?;
+                let counts_json: String = r.get(9)?;
+                let (calls_30d, daily_history) = usage_window(&parse_daily_counts(&counts_json), Utc::now().date_naive());
 
                 Ok(ClankerProviderConfig {
                     id: r.get(0)?,
@@ -1724,8 +1760,9 @@ impl VaultDb {
                     model: r.get(3)?,
                     base_url: r.get(4)?,
                     is_default: is_def_int > 0,
+                    is_backup: is_backup > 0,
                     total_calls: total_calls.max(0) as u64,
-                    calls_30d: calls_30d.max(0) as u64,
+                    calls_30d,
                     last_used_at: r.get(8)?,
                     daily_history,
                 })
@@ -1766,34 +1803,27 @@ impl VaultDb {
         Ok(())
     }
 
+    /// Makes `provider_id` the primary; it can't also be the backup.
     pub fn set_default_clanker_provider(&self, provider_id: &str) -> Result<(), VaultError> {
         self.conn.execute("UPDATE clanker_providers SET is_default = 0", [])?;
-        self.conn.execute("UPDATE clanker_providers SET is_default = 1 WHERE id = ?1", params![provider_id])?;
+        self.conn.execute("UPDATE clanker_providers SET is_default = 1, is_backup = 0 WHERE id = ?1", params![provider_id])?;
         Ok(())
     }
 
-    pub fn record_clanker_usage(&self, provider_id: &str) -> Result<(), VaultError> {
-        let now = Utc::now().to_rfc3339();
-        if let Some(mut current) = self.get_clanker_provider(provider_id)? {
-            current.total_calls += 1;
-            current.calls_30d += 1;
-            current.last_used_at = Some(now);
-            if current.daily_history.is_empty() {
-                current.daily_history = vec![0.0; 29];
-                current.daily_history.push(1.0);
-            } else {
-                let last_idx = current.daily_history.len() - 1;
-                current.daily_history[last_idx] += 1.0;
-            }
-            self.upsert_clanker_provider(&current)?;
+    /// Makes `provider_id` the backup (`None`: no backup). The primary can't
+    /// be its own backup.
+    pub fn set_backup_clanker_provider(&self, provider_id: Option<&str>) -> Result<(), VaultError> {
+        self.conn.execute("UPDATE clanker_providers SET is_backup = 0", [])?;
+        if let Some(id) = provider_id {
+            self.conn.execute("UPDATE clanker_providers SET is_backup = 1 WHERE id = ?1 AND is_default = 0", params![id])?;
         }
         Ok(())
     }
 
     pub fn reset_clanker_usage(&self, provider_id: &str) -> Result<(), VaultError> {
         self.conn.execute(
-            "UPDATE clanker_providers SET total_calls = 0, calls_30d = 0, last_used_at = NULL, daily_history = ?1 WHERE id = ?2",
-            params!["[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]", provider_id],
+            "UPDATE clanker_providers SET total_calls = 0, calls_30d = 0, last_used_at = NULL, daily_counts = '{}' WHERE id = ?1",
+            params![provider_id],
         )?;
         Ok(())
     }
@@ -2582,6 +2612,39 @@ mod tests {
     }
 
     #[test]
+    fn clanker_usage_counts_only_the_last_30_days() {
+        let today = chrono::NaiveDate::from_ymd_opt(2026, 10, 7).unwrap();
+        let mut counts = std::collections::BTreeMap::new();
+        counts.insert("2026-10-07".to_string(), 3u64);
+        counts.insert("2026-09-08".to_string(), 2); // 29 days back: in
+        counts.insert("2026-09-07".to_string(), 5); // 30 days back: out
+        let (total, series) = usage_window(&counts, today);
+        assert_eq!(total, 5);
+        assert_eq!(series.len(), 30);
+        assert_eq!((series[0], series[29]), (2.0, 3.0), "oldest first, today last");
+        assert!(parse_daily_counts("[0,0,1]").is_empty(), "the old undated array means no history");
+    }
+
+    #[test]
+    fn clanker_calls_land_on_today_and_backup_is_never_the_primary() {
+        let db = VaultDb::open_in_memory().unwrap();
+        db.record_clanker_call("mistral").unwrap();
+        db.record_clanker_call("mistral").unwrap();
+        let m = db.get_clanker_provider("mistral").unwrap().unwrap();
+        assert_eq!((m.total_calls, m.calls_30d, *m.daily_history.last().unwrap()), (2, 2, 2.0));
+        db.set_default_clanker_provider("mistral").unwrap();
+        db.set_backup_clanker_provider(Some("mistral")).unwrap();
+        assert!(!db.get_clanker_provider("mistral").unwrap().unwrap().is_backup, "the primary can't back itself up");
+        db.set_backup_clanker_provider(Some("deepseek")).unwrap();
+        assert!(db.get_clanker_provider("deepseek").unwrap().unwrap().is_backup);
+        db.set_default_clanker_provider("deepseek").unwrap();
+        let d = db.get_clanker_provider("deepseek").unwrap().unwrap();
+        assert!(d.is_default && !d.is_backup, "promoting the backup clears its backup role");
+        db.reset_clanker_usage("mistral").unwrap();
+        assert_eq!(db.get_clanker_provider("mistral").unwrap().unwrap().calls_30d, 0);
+    }
+
+    #[test]
     fn test_clanker_providers_seeding_and_crud() {
         let db = VaultDb::open_in_memory().unwrap();
         let providers = db.list_clanker_providers().unwrap();
@@ -2610,7 +2673,7 @@ mod tests {
 
         // Record usage
         let before_calls = deepseek.calls_30d;
-        db.record_clanker_usage("deepseek").unwrap();
+        db.record_clanker_call("deepseek").unwrap();
         let deepseek_after = db.get_clanker_provider("deepseek").unwrap().unwrap();
         assert_eq!(deepseek_after.calls_30d, before_calls + 1);
         assert!(deepseek_after.last_used_at.is_some());
