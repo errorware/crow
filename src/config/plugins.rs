@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 use crow_config_core::edit::{ConfigDocument, ConfigPlugin, EditOp};
 use crow_config_core::ir::ConfigDocumentIr;
 use crow_config_core::schema::RiskLevel;
-use crow_config_schemas::{FstabPlugin, HostsPlugin, PgHbaPlugin, SshdPlugin, SudoersPlugin, SysctlPlugin};
+use crow_config_schemas::{FstabPlugin, HostsPlugin, LogrotatePlugin, PgHbaPlugin, SshdPlugin, SudoersPlugin, SysctlPlugin};
 
 use super::SchemaKind;
 use crate::host::{Host, HostError, DEFAULT_TIMEOUT};
@@ -24,6 +24,7 @@ pub enum StructuredFormat {
     Sysctl,
     Sudoers,
     Fstab,
+    Logrotate,
 }
 
 /// A Crow screen that owns a config file better than a file editor would.
@@ -70,6 +71,7 @@ pub fn editor_for(kind: Option<SchemaKind>) -> ConfigEditor {
         Some(SchemaKind::Sysctl) => ConfigEditor::Structured(StructuredFormat::Sysctl),
         Some(SchemaKind::Sudoers) => ConfigEditor::Structured(StructuredFormat::Sudoers),
         Some(SchemaKind::Fstab) => ConfigEditor::Structured(StructuredFormat::Fstab),
+        Some(SchemaKind::Logrotate) => ConfigEditor::Structured(StructuredFormat::Logrotate),
         Some(SchemaKind::Journald) => ConfigEditor::Journald,
         Some(SchemaKind::Cron) => ConfigEditor::Screen(DedicatedScreen::Cron),
         Some(SchemaKind::Ufw) => ConfigEditor::Screen(DedicatedScreen::Firewall),
@@ -88,6 +90,7 @@ pub fn plugin(format: StructuredFormat) -> &'static dyn ConfigPlugin {
     static SYSCTL: OnceLock<SysctlPlugin> = OnceLock::new();
     static SUDOERS: OnceLock<SudoersPlugin> = OnceLock::new();
     static FSTAB: OnceLock<FstabPlugin> = OnceLock::new();
+    static LOGROTATE: OnceLock<LogrotatePlugin> = OnceLock::new();
     match format {
         StructuredFormat::Hosts => HOSTS.get_or_init(HostsPlugin::new),
         StructuredFormat::Sshd => SSHD.get_or_init(SshdPlugin::new),
@@ -95,6 +98,7 @@ pub fn plugin(format: StructuredFormat) -> &'static dyn ConfigPlugin {
         StructuredFormat::Sysctl => SYSCTL.get_or_init(SysctlPlugin::new),
         StructuredFormat::Sudoers => SUDOERS.get_or_init(SudoersPlugin::new),
         StructuredFormat::Fstab => FSTAB.get_or_init(FstabPlugin::new),
+        StructuredFormat::Logrotate => LOGROTATE.get_or_init(LogrotatePlugin::new),
     }
 }
 

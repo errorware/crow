@@ -370,6 +370,10 @@ impl CrowApp {
                 fields.insert("type".to_string(), serde_json::json!("ext4"));
                 fields.insert("options".to_string(), serde_json::json!("defaults,nofail"));
             }
+            // A harmless flag, added where the last row is (inside its block).
+            (StructuredFormat::Logrotate, None) => {
+                fields.insert("missingok".to_string(), serde_json::json!(crow_config_schemas::logrotate::FLAG_VALUE));
+            }
             (StructuredFormat::Sshd, None) => return,
         }
         self.apply_structured_op(file, EditOp::InsertRow { after_row_id: last_row, fields }, cx);

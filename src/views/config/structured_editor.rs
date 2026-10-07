@@ -211,8 +211,17 @@ pub fn structured_editor(
     let rows = ir.rows.iter().enumerate().map(|(idx, row)| {
         let scope = scope_of(&row.row_id);
         let is_match_line = row.fields.iter().any(|f| f.name.eq_ignore_ascii_case("match"));
-        let row_locked = read_only || scope.is_some() || is_match_line;
+        // logrotate: blocks read as a heading (their log paths) with their
+        // directives indented under it; scripts are edited in the text view.
+        let block_format = format == StructuredFormat::Logrotate;
+        let nest = match (block_format, row.widget.as_str(), row.scope.is_some()) {
+            (true, "scope_row", _) => Nest::Heading,
+            (true, _, true) => Nest::Inside,
+            _ => Nest::Flat,
+        };
+        let row_locked = read_only || scope.is_some() || is_match_line || (block_format && row.widget == "script_row");
         render_row(RowCtx {
+            nest,
             file: &file,
             row,
             index: idx,
@@ -399,7 +408,18 @@ fn column_cell(width: ColWidth) -> Div {
     }
 }
 
+/// Where a row sits in a block-structured file.
+#[derive(Clone, Copy, PartialEq)]
+enum Nest {
+    Flat,
+    /// A block's opening line.
+    Heading,
+    /// A line inside a block.
+    Inside,
+}
+
 struct RowCtx<'a> {
+    nest: Nest,
     file: &'a str,
     row: &'a RowIr,
     index: usize,
@@ -418,7 +438,7 @@ struct RowCtx<'a> {
 }
 
 fn render_row(ctx: RowCtx) -> impl IntoElement {
-    let RowCtx { file, row, index, prev_id, next_id, is_table, locked, scope, open_enum, active_edit, columns, canonical_first, note, app } = ctx;
+    let RowCtx { nest, file, row, index, prev_id, next_id, is_table, locked, scope, open_enum, active_edit, columns, canonical_first, note, app } = ctx;
     let row_id = row.row_id.clone();
     // Help text under key/value rows (e.g. what an sshd directive does). Table
     // rows share one schema, so repeating it on every row would only be noise.
@@ -485,9 +505,11 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
         .flex()
         .flex_col()
         .gap(px(3.0))
-        .px(px(14.0))
+        .pr(px(14.0))
+        .pl(px(if nest == Nest::Inside { 34.0 } else { 14.0 }))
         .py(px(7.0))
-        .when(index % 2 == 1, |d| d.bg(hex_rgba(0xffffff, 0.018)))
+        .when(index % 2 == 1 && nest != Nest::Heading, |d| d.bg(hex_rgba(0xffffff, 0.018)))
+        .when(nest == Nest::Heading, |d| d.bg(BG_SUBHEAD).mt(px(6.0)).border_t_1().border_color(BORDER_PANEL))
         .border_b_1()
         .border_color(BORDER_ROW)
         .hover(|s| s.bg(BG_ROW_HOVER))

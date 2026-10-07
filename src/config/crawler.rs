@@ -17,6 +17,8 @@ pub enum SchemaKind {
     Sudoers,
     /// /etc/fstab.
     Fstab,
+    /// logrotate.conf and /etc/logrotate.d/*.
+    Logrotate,
     Ufw,
     /// /etc/passwd and /etc/group, owned by the Users screen.
     Accounts,
@@ -34,6 +36,7 @@ impl SchemaKind {
             Self::Sysctl => "procps",
             Self::Sudoers => "sudo",
             Self::Fstab => "util-linux",
+            Self::Logrotate => "logrotate",
             Self::Ufw => "ufw firewall",
             Self::Accounts => "accounts",
             Self::Crow => "crow core",
@@ -50,6 +53,7 @@ impl SchemaKind {
             Self::Sysctl => "KEY-VALUE UI",
             Self::Sudoers => "RULE TABLE UI",
             Self::Fstab => "RULE TABLE UI",
+            Self::Logrotate => "DIRECTIVE UI",
             Self::Ufw => "FIREWALL UI",
             Self::Accounts => "USERS UI",
             Self::Crow => "LOSSLESS TOML",
@@ -103,6 +107,8 @@ pub fn detect_schema_kind(name: &str, path: &Path) -> Option<SchemaKind> {
         Some(SchemaKind::Sshd)
     } else if lower_name == "hosts" && (path_str == "/etc" || path_str.ends_with("/etc/hosts") || path_str.ends_with("hosts")) {
         Some(SchemaKind::Hosts)
+    } else if lower_name == "logrotate.conf" || path_str.starts_with("/etc/logrotate.d/") {
+        Some(SchemaKind::Logrotate)
     } else if lower_name == "fstab" && path_str == "/etc/fstab" {
         Some(SchemaKind::Fstab)
     } else if (lower_name == "sudoers" && path_str.starts_with("/etc/")) || path_str.starts_with("/etc/sudoers.d/") {
@@ -152,6 +158,7 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
             "/etc/fail2ban",
             "/etc/sysctl.d",
             "/etc/docker",
+            "/etc/logrotate.d",
         ],
         DistroFamily::RedHat => vec![
             "/etc",
@@ -164,12 +171,14 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
             "/etc/sysctl.d",
             "/etc/docker",
             "/etc/cron.d",
+            "/etc/logrotate.d",
         ],
         DistroFamily::Unknown => vec![
             "/etc",
             "/etc/systemd",
             "/etc/ssh",
             "/etc/sysctl.d",
+            "/etc/logrotate.d",
         ],
     };
 
@@ -178,7 +187,9 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
     for dir_str in &scan_dirs {
         let Some(entries) = listings.remove(*dir_str) else { continue };
         for entry in entries {
-            if entry.is_dir || !is_config_file(&entry.name, entry.size_bytes) {
+            // logrotate.d files are named after their package, no extension.
+            let in_logrotate_d = dir_str.ends_with("/logrotate.d") && !entry.name.starts_with('.') && !entry.name.ends_with(['~']) && !entry.name.contains(".dpkg-") && !entry.name.ends_with(".rpmsave") && !entry.name.ends_with(".rpmnew");
+            if entry.is_dir || !(is_config_file(&entry.name, entry.size_bytes) || in_logrotate_d) {
                 continue;
             }
             let p = Path::new(dir_str).join(&entry.name);
@@ -290,6 +301,8 @@ mod tests {
         assert_eq!(detect_schema_kind("README", Path::new("/etc/sysctl.d/README")), None);
         assert_eq!(detect_schema_kind("sudoers", Path::new("/etc/sudoers")), Some(SchemaKind::Sudoers));
         assert_eq!(detect_schema_kind("fstab", Path::new("/etc/fstab")), Some(SchemaKind::Fstab));
+        assert_eq!(detect_schema_kind("logrotate.conf", Path::new("/etc/logrotate.conf")), Some(SchemaKind::Logrotate));
+        assert_eq!(detect_schema_kind("nginx", Path::new("/etc/logrotate.d/nginx")), Some(SchemaKind::Logrotate));
         assert_eq!(detect_schema_kind("90-cloud-init-users", Path::new("/etc/sudoers.d/90-cloud-init-users")), Some(SchemaKind::Sudoers));
     }
 
