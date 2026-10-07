@@ -10,5 +10,6 @@ pub mod onboard;
 pub mod overview;
 pub mod settings;
 pub mod terminal;
+pub mod topology;
 pub mod users;
 

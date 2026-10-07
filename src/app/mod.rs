@@ -53,6 +53,7 @@ pub mod region;
 mod journal;
 mod clankers;
 pub mod providers;
+pub mod topology;
 mod secrets;
 pub mod password_login;
 pub mod vault_manage;
@@ -227,6 +228,8 @@ pub struct CrowApp {
     pub structured_field_edit: Option<configs::StructuredFieldEdit>,
     /// A never-on-prod change awaiting typed confirmation.
     pub risk_confirm: Option<configs::RiskConfirm>,
+    /// The fleet map (ERR-120).
+    pub topology: crate::views::topology::state::TopologyState,
     /// The add-a-key form under a structured editor heading (ERR-103).
     pub section_add: Option<configs::SectionAdd>,
     pub files: FilesState,
@@ -419,6 +422,7 @@ impl CrowApp {
             structured_field_edit: None,
             risk_confirm: None,
             section_add: None,
+            topology: Default::default(),
             palette_open: false,
             sidebar_collapsed: false,
             keys,

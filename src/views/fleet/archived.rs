@@ -41,6 +41,10 @@ pub fn fleet_view_tabs(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEle
         .font_family(FONT_MONO)
         .child(tab_chip("fleet-tab-active", &format!("ACTIVE FLEET ({active_n})"), page == FleetPage::Active, set(FleetPage::Active)))
         .child(tab_chip("fleet-tab-archived", &format!("ARCHIVED ({archived_n})"), page == FleetPage::Archived, set(FleetPage::Archived)))
+        .child(tab_chip("fleet-tab-map", "MAP", page == FleetPage::Map, {
+            let app = app.clone();
+            move |cx: &mut App| app.update(cx, |this, cx| this.open_topology(cx))
+        }))
         .child(danger_chip(page == FleetPage::Danger, set(FleetPage::Danger)))
         .child(div().flex_1())
         .children(fleet.notice.as_ref().map(|notice| {

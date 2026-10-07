@@ -11,7 +11,7 @@ use super::history::HistoryRow;
 pub const DISK_WARN: f32 = 90.0;
 pub const DISK_CRIT: f32 = 95.0;
 
-#[derive(Clone, Debug, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
 pub struct Alert {
     pub id: String,
     pub server_id: String,

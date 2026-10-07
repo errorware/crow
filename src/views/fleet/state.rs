@@ -240,4 +240,6 @@ pub enum FleetPage {
     Active,
     Archived,
     Danger,
+    /// The fleet map (ERR-120).
+    Map,
 }
