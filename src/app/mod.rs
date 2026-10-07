@@ -56,6 +56,7 @@ mod secrets;
 pub mod password_login;
 pub mod vault_manage;
 mod lab;
+pub mod groups;
 
 use crate::views::fleet::lab_state::LocalLabState;
 use crate::views::fleet::FleetState;
@@ -470,6 +471,7 @@ impl CrowApp {
         };
         app.refresh_providers();
         app.apply_settings();
+        app.reload_server_groups();
         app.load_keyring_key(cx);
         // A remote first server's configs and firewall weren't read above, so
         // the window didn't wait on SSH; read them now, in the background.
