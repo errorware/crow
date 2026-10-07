@@ -213,10 +213,12 @@ pub fn structured_editor(
         let is_match_line = row.fields.iter().any(|f| f.name.eq_ignore_ascii_case("match"));
         // logrotate: blocks read as a heading (their log paths) with their
         // directives indented under it; scripts are edited in the text view.
-        let block_format = matches!(format, StructuredFormat::Logrotate | StructuredFormat::Systemd);
+        let block_format = matches!(format, StructuredFormat::Logrotate | StructuredFormat::Systemd | StructuredFormat::Nginx);
+        // nginx nests: depth is how many blocks the row is in.
+        let depth = if format == StructuredFormat::Nginx { row.scope.as_deref().map_or(0, |s| s.split(crow_config_schemas::nginx::SCOPE_SEP).count()) } else { usize::from(row.scope.is_some()) };
         let nest = match (block_format, row.widget.as_str(), row.scope.is_some()) {
-            (true, "scope_row", _) => Nest::Heading,
-            (true, _, true) => Nest::Inside,
+            (true, "scope_row", _) => Nest::Heading(depth.saturating_sub(1)),
+            (true, _, true) => Nest::Inside(depth),
             _ => Nest::Flat,
         };
         let row_locked = read_only || scope.is_some() || is_match_line || (block_format && row.widget == "script_row");
@@ -259,7 +261,7 @@ pub fn structured_editor(
 
     // systemd: a new key belongs in a particular section, so keys are added
     // in the text view for now.
-    let add_section = (!read_only && format != StructuredFormat::Systemd).then(|| render_add_section(&file, format, ir, configs.adding_row, app.clone()));
+    let add_section = (!read_only && !matches!(format, StructuredFormat::Systemd | StructuredFormat::Nginx)).then(|| render_add_section(&file, format, ir, configs.adding_row, app.clone()));
 
     div()
         .id("structured-config-editor")
@@ -414,10 +416,10 @@ fn column_cell(width: ColWidth) -> Div {
 #[derive(Clone, Copy, PartialEq)]
 enum Nest {
     Flat,
-    /// A block's opening line.
-    Heading,
-    /// A line inside a block.
-    Inside,
+    /// A block's opening line, inside this many blocks.
+    Heading(usize),
+    /// A line inside this many blocks.
+    Inside(usize),
 }
 
 struct RowCtx<'a> {
@@ -508,10 +510,10 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
         .flex_col()
         .gap(px(3.0))
         .pr(px(14.0))
-        .pl(px(if nest == Nest::Inside { 34.0 } else { 14.0 }))
+        .pl(px(14.0 + 20.0 * match nest { Nest::Flat => 0, Nest::Heading(d) | Nest::Inside(d) => d } as f32))
         .py(px(7.0))
-        .when(index % 2 == 1 && nest != Nest::Heading, |d| d.bg(hex_rgba(0xffffff, 0.018)))
-        .when(nest == Nest::Heading, |d| d.bg(BG_SUBHEAD).mt(px(6.0)).border_t_1().border_color(BORDER_PANEL))
+        .when(index % 2 == 1 && !matches!(nest, Nest::Heading(_)), |d| d.bg(hex_rgba(0xffffff, 0.018)))
+        .when(matches!(nest, Nest::Heading(_)), |d| d.bg(BG_SUBHEAD).mt(px(6.0)).border_t_1().border_color(BORDER_PANEL))
         .border_b_1()
         .border_color(BORDER_ROW)
         .hover(|s| s.bg(BG_ROW_HOVER))

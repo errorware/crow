@@ -8,6 +8,7 @@ pub mod drift;
 pub mod push;
 pub mod syntax;
 pub mod fstab;
+pub mod nginx;
 pub mod sudoers;
 pub mod sysctl_live;
 
