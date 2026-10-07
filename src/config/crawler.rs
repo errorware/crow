@@ -24,6 +24,8 @@ pub enum SchemaKind {
     Systemd,
     /// nginx.conf, conf.d/*.conf and sites-available/*.
     Nginx,
+    /// INI files: MySQL/MariaDB (*.cnf) and Samba (smb.conf).
+    Ini,
     Ufw,
     /// /etc/passwd and /etc/group, owned by the Users screen.
     Accounts,
@@ -44,6 +46,7 @@ impl SchemaKind {
             Self::Logrotate => "logrotate",
             Self::Systemd => "systemd",
             Self::Nginx => "nginx",
+            Self::Ini => "ini",
             Self::Ufw => "ufw firewall",
             Self::Accounts => "accounts",
             Self::Crow => "crow core",
@@ -63,6 +66,7 @@ impl SchemaKind {
             Self::Logrotate => "DIRECTIVE UI",
             Self::Systemd => "DIRECTIVE UI",
             Self::Nginx => "DIRECTIVE UI",
+            Self::Ini => "DIRECTIVE UI",
             Self::Ufw => "FIREWALL UI",
             Self::Accounts => "USERS UI",
             Self::Crow => "LOSSLESS TOML",
@@ -116,6 +120,8 @@ pub fn detect_schema_kind(name: &str, path: &Path) -> Option<SchemaKind> {
         Some(SchemaKind::Sshd)
     } else if lower_name == "hosts" && (path_str == "/etc" || path_str.ends_with("/etc/hosts") || path_str.ends_with("hosts")) {
         Some(SchemaKind::Hosts)
+    } else if (lower_name.ends_with(".cnf") && (path_str.starts_with("/etc/mysql/") || path_str.starts_with("/etc/my.cnf"))) || (lower_name == "smb.conf" && path_str.starts_with("/etc/samba/")) {
+        Some(SchemaKind::Ini)
     } else if path_str.starts_with("/etc/nginx/") && (lower_name.ends_with(".conf") && !lower_name.ends_with("mime.types") || path_str.contains("/sites-available/") || path_str.contains("/sites-enabled/")) {
         Some(SchemaKind::Nginx)
     } else if path_str.starts_with("/etc/systemd/") && (is_unit_file(&lower_name) || lower_name.ends_with(".conf")) {
@@ -175,6 +181,11 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
             "/etc/docker",
             "/etc/logrotate.d",
             "/etc/systemd/system",
+            "/etc/mysql",
+            "/etc/mysql/conf.d",
+            "/etc/mysql/mariadb.conf.d",
+            "/etc/my.cnf.d",
+            "/etc/samba",
         ],
         DistroFamily::RedHat => vec![
             "/etc",
@@ -189,6 +200,11 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
             "/etc/cron.d",
             "/etc/logrotate.d",
             "/etc/systemd/system",
+            "/etc/mysql",
+            "/etc/mysql/conf.d",
+            "/etc/mysql/mariadb.conf.d",
+            "/etc/my.cnf.d",
+            "/etc/samba",
         ],
         DistroFamily::Unknown => vec![
             "/etc",
@@ -197,6 +213,11 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
             "/etc/sysctl.d",
             "/etc/logrotate.d",
             "/etc/systemd/system",
+            "/etc/mysql",
+            "/etc/mysql/conf.d",
+            "/etc/mysql/mariadb.conf.d",
+            "/etc/my.cnf.d",
+            "/etc/samba",
             "/etc/nginx",
             "/etc/nginx/conf.d",
             "/etc/nginx/sites-available",
@@ -328,6 +349,7 @@ fn is_unit_file(name: &str) -> bool {
 fn is_config_file(name: &str, size_bytes: u64) -> bool {
     let n = name.to_lowercase();
     let config_like = n.ends_with(".conf")
+        || n.ends_with(".cnf")
         || n.ends_with(".toml")
         || n.ends_with(".yaml")
         || n.ends_with(".yml")
@@ -359,7 +381,11 @@ mod tests {
         assert_eq!(detect_schema_kind("sshd_config", Path::new("/etc/ssh/sshd_config")), Some(SchemaKind::Sshd));
         assert_eq!(detect_schema_kind("hosts", Path::new("/etc/hosts")), Some(SchemaKind::Hosts));
         assert_eq!(detect_schema_kind("user.rules", Path::new("/etc/ufw/user.rules")), Some(SchemaKind::Ufw));
-        assert_eq!(detect_schema_kind("my.cnf", Path::new("/etc/mysql/my.cnf")), None, "no editor for it yet");
+        assert_eq!(detect_schema_kind("my.cnf", Path::new("/etc/mysql/my.cnf")), Some(SchemaKind::Ini));
+        assert_eq!(detect_schema_kind("50-server.cnf", Path::new("/etc/mysql/mariadb.conf.d/50-server.cnf")), Some(SchemaKind::Ini));
+        assert_eq!(detect_schema_kind("my.cnf", Path::new("/etc/my.cnf")), Some(SchemaKind::Ini));
+        assert_eq!(detect_schema_kind("smb.conf", Path::new("/etc/samba/smb.conf")), Some(SchemaKind::Ini));
+        assert_eq!(detect_schema_kind("resolv.conf", Path::new("/etc/resolv.conf")), None, "no editor for it yet");
         assert_eq!(detect_schema_kind("sysctl.conf", Path::new("/etc/sysctl.conf")), Some(SchemaKind::Sysctl));
         assert_eq!(detect_schema_kind("99-hardening.conf", Path::new("/etc/sysctl.d/99-hardening.conf")), Some(SchemaKind::Sysctl));
         assert_eq!(detect_schema_kind("README", Path::new("/etc/sysctl.d/README")), None);
