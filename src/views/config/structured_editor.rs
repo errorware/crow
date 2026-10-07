@@ -91,6 +91,22 @@ pub fn structured_editor(
     let scope_of = |row_id: &str| scopes.iter().find(|(id, _)| id == row_id).and_then(|(_, s)| s.clone());
     let row_ids: Vec<String> = ir.rows.iter().map(|r| r.row_id.clone()).collect();
     let columns = table_columns(ir);
+    // sysctl: where the file and the running kernel disagree (ERR-22).
+    let sysctl_notes: Vec<Option<(String, bool)>> = if format == StructuredFormat::Sysctl {
+        let kv = |r: &crow_config_core::ir::RowIr, n: &str| r.get_field(n).and_then(|f| f.value.as_str()).unwrap_or_default().to_string();
+        ir.rows
+            .iter()
+            .enumerate()
+            .map(|(i, row)| {
+                let key = kv(row, "key");
+                let later = ir.rows[i + 1..].iter().rev().find(|r| kv(r, "key") == key).map(|r| r.source_span.start_line);
+                crate::config::sysctl_live::row_note(&kv(row, "value"), configs.sysctl_live.get(&key), later)
+            })
+            .collect()
+    } else {
+        Vec::new()
+    };
+    let not_running = sysctl_notes.iter().flatten().filter(|(_, warn)| *warn).count();
 
     let header = {
         let (app_text, app_hist, app_revert, app_stage) = (app.clone(), app.clone(), app.clone(), app.clone());
@@ -166,6 +182,10 @@ pub fn structured_editor(
                 0x8ab4ff,
             )
         }))
+        .children((not_running > 0).then(|| {
+            let what = if not_running == 1 { "1 value here isn't".to_string() } else { format!("{not_running} values here aren't") };
+            notice(format!("NOT RUNNING YET · {what} what the kernel runs now; they apply at boot or with sysctl --system"), WARN, 0xf59e0b)
+        }))
         .children(state.write_blocked.as_ref().map(|r| notice(format!("READ-ONLY · {r}"), WARN, 0xf59e0b)))
         .children(configs.edit_error.as_ref().map(|e| notice(format!("EDIT REJECTED · {e}"), CRIT, 0xef4444)));
 
@@ -186,6 +206,7 @@ pub fn structured_editor(
             active_edit: active_edit.as_ref().filter(|e| e.row_id == row.row_id),
             columns: columns.as_deref(),
             canonical_first: format == StructuredFormat::Hosts,
+            note: sysctl_notes.get(idx).cloned().flatten(),
             app: app.clone(),
         })
     });
@@ -336,11 +357,13 @@ struct RowCtx<'a> {
     active_edit: Option<&'a ActiveFieldEdit<'a>>,
     columns: Option<&'a [Column]>,
     canonical_first: bool,
+    /// A line under the row: (text, whether it's a warning).
+    note: Option<(String, bool)>,
     app: Entity<CrowApp>,
 }
 
 fn render_row(ctx: RowCtx) -> impl IntoElement {
-    let RowCtx { file, row, index, prev_id, next_id, is_table, locked, scope, open_enum, active_edit, columns, canonical_first, app } = ctx;
+    let RowCtx { file, row, index, prev_id, next_id, is_table, locked, scope, open_enum, active_edit, columns, canonical_first, note, app } = ctx;
     let row_id = row.row_id.clone();
     // Help text under key/value rows (e.g. what an sshd directive does). Table
     // rows share one schema, so repeating it on every row would only be noise.
@@ -438,6 +461,7 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
                 .text_color(WARN)
                 .child(format!("Scoped to Match {s} — read-only until crow-config models Match blocks (ERR-12)"))
         }))
+        .children(note.map(|(text, warn)| div().pl(px(48.0)).font_family(FONT_MONO).text_size(px(9.5)).text_color(if warn { WARN } else { TEXT_DIM }).child(text)))
         .children((help.is_some() || docs.is_some()).then(|| {
             div()
                 .pl(px(48.0))

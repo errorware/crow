@@ -348,6 +348,11 @@ impl CrowApp {
                 fields.insert("type".to_string(), serde_json::json!("host"));
                 fields.insert("address".to_string(), serde_json::json!("127.0.0.1/32"));
             }
+            // The kernel's default, so a new row changes nothing until edited.
+            (StructuredFormat::Sysctl, None) => {
+                fields.insert("key".to_string(), serde_json::json!("vm.swappiness"));
+                fields.insert("value".to_string(), serde_json::json!("60"));
+            }
             (StructuredFormat::Sshd, None) => return,
         }
         self.apply_structured_op(file, EditOp::InsertRow { after_row_id: last_row, fields }, cx);
@@ -371,6 +376,11 @@ impl CrowApp {
                 return journald_editor(&self.journal.retention, &self.journal.telemetry, &self.configs, app).into_any_element();
             }
             ConfigEditor::Structured(format) if !self.configs.text_mode.contains(&selected) => {
+                if format == StructuredFormat::Sysctl {
+                    if let Some(ir) = self.configs.states.get(&selected).and_then(|st| plugins::to_ir(format, &st.current_content).ok()) {
+                        self.ensure_sysctl_live(&ir, cx);
+                    }
+                }
                 if let Some(st) = self.configs.states.get(&selected) {
                     match plugins::to_ir(format, &st.current_content) {
                         Ok(ir) => {
@@ -477,6 +487,46 @@ impl CrowApp {
                     this.sync_config_history(cx);
                     cx.notify();
                 }
+            });
+        })
+        .detach();
+    }
+
+    /// Reads, in the background, the running value of each key in a sysctl
+    /// file that hasn't been read yet on this server.
+    fn ensure_sysctl_live(&mut self, ir: &crow_config_core::ir::ConfigDocumentIr, cx: &mut Context<Self>) {
+        if self.configs.sysctl_live_loading {
+            return;
+        }
+        let keys: Vec<String> = ir
+            .rows
+            .iter()
+            .filter_map(|r| r.get_field("key")?.value.as_str().map(str::to_string))
+            .filter(|k| !k.is_empty() && !self.configs.sysctl_live.contains_key(k))
+            .collect();
+        if keys.is_empty() {
+            return;
+        }
+        let host: Arc<dyn Host> = match self.configs_server() {
+            Some(srv) => host_for(&srv),
+            None => Arc::new(LocalHost),
+        };
+        let server = self.configs.server_id.clone();
+        self.configs.sysctl_live_loading = true;
+        cx.spawn(async move |entity, cx| {
+            let asked = keys.clone();
+            let live = cx.background_executor().spawn(async move { crate::config::sysctl_live::read_live(host.as_ref(), &keys) }).await;
+            let _ = entity.update(cx, |this, cx| {
+                this.configs.sysctl_live_loading = false;
+                // The server changed meanwhile: these values aren't its.
+                if this.configs.server_id != server {
+                    return;
+                }
+                for key in asked {
+                    let value = live.get(&key).cloned().unwrap_or(crate::config::sysctl_live::LiveValue::Unreadable);
+                    this.configs.sysctl_live.insert(key, value);
+                }
+                cx.notify();
             });
         })
         .detach();
