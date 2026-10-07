@@ -213,7 +213,7 @@ pub fn structured_editor(
         let is_match_line = row.fields.iter().any(|f| f.name.eq_ignore_ascii_case("match"));
         // logrotate: blocks read as a heading (their log paths) with their
         // directives indented under it; scripts are edited in the text view.
-        let block_format = matches!(format, StructuredFormat::Logrotate | StructuredFormat::Systemd | StructuredFormat::Nginx);
+        let block_format = matches!(format, StructuredFormat::Logrotate | StructuredFormat::Systemd | StructuredFormat::Nginx | StructuredFormat::Ini);
         // nginx nests: depth is how many blocks the row is in.
         let depth = if format == StructuredFormat::Nginx { row.scope.as_deref().map_or(0, |s| s.split(crow_config_schemas::nginx::SCOPE_SEP).count()) } else { usize::from(row.scope.is_some()) };
         let nest = match (block_format, row.widget.as_str(), row.scope.is_some()) {
@@ -261,7 +261,7 @@ pub fn structured_editor(
 
     // systemd: a new key belongs in a particular section, so keys are added
     // in the text view for now.
-    let add_section = (!read_only && !matches!(format, StructuredFormat::Systemd | StructuredFormat::Nginx)).then(|| render_add_section(&file, format, ir, configs.adding_row, app.clone()));
+    let add_section = (!read_only && !matches!(format, StructuredFormat::Systemd | StructuredFormat::Nginx | StructuredFormat::Ini)).then(|| render_add_section(&file, format, ir, configs.adding_row, app.clone()));
 
     div()
         .id("structured-config-editor")

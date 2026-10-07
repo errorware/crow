@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 use crow_config_core::edit::{ConfigDocument, ConfigPlugin, EditOp};
 use crow_config_core::ir::ConfigDocumentIr;
 use crow_config_core::schema::RiskLevel;
-use crow_config_schemas::{FstabPlugin, HostsPlugin, LogrotatePlugin, NginxPlugin, SystemdPlugin, PgHbaPlugin, SshdPlugin, SudoersPlugin, SysctlPlugin};
+use crow_config_schemas::{FstabPlugin, HostsPlugin, IniPlugin, LogrotatePlugin, NginxPlugin, SystemdPlugin, PgHbaPlugin, SshdPlugin, SudoersPlugin, SysctlPlugin};
 
 use super::SchemaKind;
 use crate::host::{Host, HostError, DEFAULT_TIMEOUT};
@@ -27,6 +27,7 @@ pub enum StructuredFormat {
     Logrotate,
     Systemd,
     Nginx,
+    Ini,
 }
 
 /// A Crow screen that owns a config file better than a file editor would.
@@ -76,6 +77,7 @@ pub fn editor_for(kind: Option<SchemaKind>) -> ConfigEditor {
         Some(SchemaKind::Logrotate) => ConfigEditor::Structured(StructuredFormat::Logrotate),
         Some(SchemaKind::Systemd) => ConfigEditor::Structured(StructuredFormat::Systemd),
         Some(SchemaKind::Nginx) => ConfigEditor::Structured(StructuredFormat::Nginx),
+        Some(SchemaKind::Ini) => ConfigEditor::Structured(StructuredFormat::Ini),
         Some(SchemaKind::Journald) => ConfigEditor::Journald,
         Some(SchemaKind::Cron) => ConfigEditor::Screen(DedicatedScreen::Cron),
         Some(SchemaKind::Ufw) => ConfigEditor::Screen(DedicatedScreen::Firewall),
@@ -97,6 +99,7 @@ pub fn plugin(format: StructuredFormat) -> &'static dyn ConfigPlugin {
     static LOGROTATE: OnceLock<LogrotatePlugin> = OnceLock::new();
     static SYSTEMD: OnceLock<SystemdPlugin> = OnceLock::new();
     static NGINX: OnceLock<NginxPlugin> = OnceLock::new();
+    static INI: OnceLock<IniPlugin> = OnceLock::new();
     match format {
         StructuredFormat::Hosts => HOSTS.get_or_init(HostsPlugin::new),
         StructuredFormat::Sshd => SSHD.get_or_init(SshdPlugin::new),
@@ -107,6 +110,7 @@ pub fn plugin(format: StructuredFormat) -> &'static dyn ConfigPlugin {
         StructuredFormat::Logrotate => LOGROTATE.get_or_init(LogrotatePlugin::new),
         StructuredFormat::Systemd => SYSTEMD.get_or_init(SystemdPlugin::new),
         StructuredFormat::Nginx => NGINX.get_or_init(NginxPlugin::new),
+        StructuredFormat::Ini => INI.get_or_init(IniPlugin::new),
     }
 }
 

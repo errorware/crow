@@ -374,7 +374,7 @@ impl CrowApp {
             (StructuredFormat::Logrotate, None) => {
                 fields.insert("missingok".to_string(), serde_json::json!(crow_config_schemas::logrotate::FLAG_VALUE));
             }
-            (StructuredFormat::Sshd | StructuredFormat::Systemd | StructuredFormat::Nginx, None) => return,
+            (StructuredFormat::Sshd | StructuredFormat::Systemd | StructuredFormat::Nginx | StructuredFormat::Ini, None) => return,
         }
         self.apply_structured_op(file, EditOp::InsertRow { after_row_id: last_row, fields }, cx);
     }
