@@ -43,6 +43,7 @@ argon2 = "0.6.0"
 chacha20poly1305 = "0.11.0"
 # Config history hashes (already in the tree via ssh-key).
 sha2 = "0.10"
+libc = "0.2"
 # The terminal's screen and PTY (ERR-92): Zed's fork of alacritty_terminal,
 # Apache-2.0, pinned to a commit. Crow draws the screen itself.
 alacritty_terminal = { git = "https://github.com/zed-industries/alacritty", rev = "4c129667ce56611becdc82de6e28218c80e2e88f", default-features = false }
