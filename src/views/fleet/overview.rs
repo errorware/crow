@@ -443,23 +443,6 @@ pub fn fleet_overview_view(
                                         })
                                         .child("⚡ LOCAL LAB & VMS")
                                 })
-                                .child({
-                                    let app_import = app.clone();
-                                    div()
-                                        .id("btn-fleet-import")
-                                        .px(px(8.0))
-                                        .py(px(2.0))
-                                        .border_1()
-                                        .border_color(BORDER_DEFAULT)
-                                        .text_color(TEXT_SECONDARY)
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
-                                        .cursor_pointer()
-                                        .font_family(FONT_MONO)
-                                        .font_weight(FontWeight::BOLD)
-                                        .text_size(px(10.0))
-                                        .on_click(move |_ev, _window, cx| app_import.update(cx, |this, cx| this.open_import(cx)))
-                                        .child("☁ IMPORT FROM PROVIDERS")
-                                })
                                 .child(div().flex_1())
                                 .child(
                                     div()

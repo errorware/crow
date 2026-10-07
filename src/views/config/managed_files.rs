@@ -146,7 +146,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                     div()
                         .flex_1()
                         .child(if let Some(input) = search_input {
-                            div().child(Input::new(input))
+                            div().child(Input::new(input).appearance(false).font_family(FONT_MONO).text_size(px(11.0)))
                         } else {
                             div()
                         })

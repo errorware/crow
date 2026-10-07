@@ -1,4 +1,4 @@
-//! Fleet → IMPORT FROM PROVIDERS (ERR-46): every instance the configured
+//! Settings → Providers → IMPORT INSTANCES (ERR-46): every instance the configured
 //! provider accounts list, which ones are already in the fleet, and IMPORT
 //! for the rest (through Add Server, so host keys and logins are checked).
 

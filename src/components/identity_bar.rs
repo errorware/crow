@@ -253,11 +253,14 @@ fn fact(label: &'static str, value: String) -> impl IntoElement {
 }
 
 fn header_button(id: &'static str, label: &'static str) -> Stateful<Div> {
+    // As tall as the Search box beside it.
     div()
         .id(id)
+        .h(px(26.0))
+        .flex()
+        .items_center()
         .mr(px(8.0))
         .px(px(9.0))
-        .py(px(4.0))
         .border_1()
         .border_color(BORDER_DEFAULT)
         .cursor_pointer()

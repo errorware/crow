@@ -7,8 +7,10 @@ use gpui_kit::prelude::FluentBuilder as _;
 use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::views::config::state::ConfigsState;
 
-pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl IntoElement {
-    let sel_file = &configs.selected_file;
+/// The pending diff, history and apply plan for `file` (the Config page's
+/// selected file, or `crontab` on the Cron page).
+pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp>) -> impl IntoElement {
+    let sel_file = &file.to_string();
     let file_state = configs.states.get(sel_file);
     let app_revert = app.clone();
     let app_apply = app.clone();
@@ -46,7 +48,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
         None if is_modified => ("PENDING DIFF".to_string(), format!("+{} −{}", add_count, del_count), WARN),
         None => ("PENDING DIFF".to_string(), "clean".to_string(), OK),
     };
-    let plan = apply_plan(configs, file_state);
+    let plan = apply_plan(configs, sel_file, file_state);
     let baseline_rev_id = file_state.and_then(|st| configs.baselines.get(st.path.to_string_lossy().as_ref())).map(|b| b.baseline.revision_id.clone());
 
     div()
@@ -216,7 +218,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, app: Entity<CrowApp>) -> impl I
                                 .child(div().flex_1().min_w(px(0.0)).text_color(if ok { TEXT_SECONDARY } else { WARN }).child(text))
                         })),
                 )
-                .children(file_state.filter(|st| st.read_from_host).map(|st| baseline_section(configs, st, app.clone())))
+                .children(file_state.filter(|st| st.read_from_host).map(|st| baseline_section(configs, sel_file, st, app.clone())))
                 // Revision History / Version Audit Log Section
                 .child(
                     div()
@@ -501,10 +503,10 @@ fn diff_block(old: String, new: String, lines: Vec<crate::config::ConfigDiffLine
 
 /// What saving the selected file actually does, as (reassuring, text) lines:
 /// how it's written, what checks it, and what history keeps.
-fn apply_plan(configs: &ConfigsState, st: Option<&crate::config::ConfigFileState>) -> Vec<(bool, String)> {
+fn apply_plan(configs: &ConfigsState, file: &str, st: Option<&crate::config::ConfigFileState>) -> Vec<(bool, String)> {
     let Some(st) = st else { return Vec::new() };
     let mut plan = vec![(true, "Written atomically: temp file, then rename".to_string())];
-    match configs.structured_format(&configs.selected_file) {
+    match configs.structured_format(file) {
         Some(format) => {
             plan.push((true, "Structured edits keep comments and layout".to_string()));
             let checks = crate::config::plugins::file_validators(format);
@@ -527,7 +529,7 @@ fn apply_plan(configs: &ConfigsState, st: Option<&crate::config::ConfigFileState
 }
 
 /// This server's copy against the baseline in force for it, if any (ERR-74).
-fn baseline_section(configs: &ConfigsState, st: &crate::config::ConfigFileState, app: Entity<CrowApp>) -> impl IntoElement {
+fn baseline_section(configs: &ConfigsState, file: &str, st: &crate::config::ConfigFileState, app: Entity<CrowApp>) -> impl IntoElement {
     use crate::app::configs::scope_label;
     use crate::config::drift::Drift;
     let path = st.path.to_string_lossy().into_owned();
@@ -586,7 +588,7 @@ fn baseline_section(configs: &ConfigsState, st: &crate::config::ConfigFileState,
                         .gap(px(6.0))
                         .children((!ok && b.content.is_some()).then(|| {
                             let app = app.clone();
-                            let file = configs.selected_file.clone();
+                            let file = file.to_string();
                             button("btn-load-baseline", "LOAD BASELINE INTO EDITOR")
                                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.load_baseline_into_editor(&file, cx)))
                         }))

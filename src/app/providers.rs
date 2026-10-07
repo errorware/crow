@@ -257,7 +257,7 @@ impl CrowApp {
     }
 }
 
-/// Fleet → IMPORT FROM PROVIDERS (ERR-46).
+/// Settings → Providers → IMPORT INSTANCES (ERR-46).
 #[derive(Default)]
 pub struct ImportState {
     pub open: bool,

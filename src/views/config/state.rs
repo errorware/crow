@@ -228,24 +228,6 @@ impl ConfigsState {
         }
     }
 
-    pub fn move_cron_job_up(&mut self, job_id: &str) {
-        if let Some(idx) = self.cron_jobs.iter().position(|j| j.id == job_id) {
-            if idx > 0 {
-                self.cron_jobs.swap(idx, idx - 1);
-                self.sync_cron();
-            }
-        }
-    }
-
-    pub fn move_cron_job_down(&mut self, job_id: &str) {
-        if let Some(idx) = self.cron_jobs.iter().position(|j| j.id == job_id) {
-            if idx + 1 < self.cron_jobs.len() {
-                self.cron_jobs.swap(idx, idx + 1);
-                self.sync_cron();
-            }
-        }
-    }
-
     pub fn delete_cron_job(&mut self, job_id: &str) {
         self.cron_jobs.retain(|j| j.id != job_id);
         self.sync_cron();
@@ -311,16 +293,6 @@ mod tests {
         st.block_writes("crontab", "sample model".into());
         st.block_writes("crontab", "second reason is ignored".into());
         assert_eq!(st.states["crontab"].write_blocked.as_deref(), Some("sample model"));
-    }
-
-    #[test]
-    fn cron_reorder_respects_bounds() {
-        let mut st = with_crontab();
-        let first = st.cron_jobs[0].id.clone();
-        st.move_cron_job_up(&first);
-        assert_eq!(st.cron_jobs[0].id, first);
-        st.move_cron_job_down(&first);
-        assert_eq!(st.cron_jobs[1].id, first);
     }
 
     #[test]

@@ -223,7 +223,7 @@ pub fn services_table(
         .children(if active_tab == "sockets" && overview.sockets_subview == SocketsViewMode::Map {
             None
         } else {
-            Some(render_column_header(active_tab))
+            Some(render_column_header(active_tab, socket_col_widths(&overview.sockets)))
         })
         // 3. Table Body (tables only)
         .children(if active_tab == "sockets" && overview.sockets_subview == SocketsViewMode::Map {
@@ -481,7 +481,20 @@ fn render_counts_cluster(
 // Column Headers
 // ---------------------------------------------------------------------------
 
-fn render_column_header(active_tab: &str) -> impl IntoElement {
+/// LOCAL ENDPOINT and PEER ENDPOINT, as wide as their longest content, so a
+/// long address (IPv6, a link-local scope) never runs under the next column.
+fn socket_col_widths(sockets: &[SocketUnit]) -> (f32, f32) {
+    // JetBrains Mono advances 0.6em: 6.6px at the rows' 11px.
+    const CH: f32 = 6.6;
+    // The widest firewall pill ("FW ALLOW (DEFAULT)" at 8.5px) with its padding and margin.
+    const PILL: f32 = 110.0;
+    let chars = |a: &str, p: &str| (a.chars().count() + 1 + p.chars().count()) as f32 * CH;
+    let local = sockets.iter().map(|s| chars(&s.local_addr, &s.local_port) + if super::summary::is_listening(s) { PILL } else { 0.0 }).fold(0.0, f32::max);
+    let peer = sockets.iter().map(|s| chars(&s.peer_addr, &s.peer_port)).fold(0.0, f32::max);
+    ((local + 12.0).max(230.0), (peer + 12.0).max(150.0))
+}
+
+fn render_column_header(active_tab: &str, (local_w, peer_w): (f32, f32)) -> impl IntoElement {
     let header_box = div()
         .h(px(26.0))
         .flex_none()
@@ -508,8 +521,8 @@ fn render_column_header(active_tab: &str) -> impl IntoElement {
             .child(div().w(px(78.0)).text_right().pr(px(12.0)).child("ACTIONS")),
         "sockets" => header_box
             .child(div().w(px(64.0)).pl(px(12.0)).child("PROTO"))
-            .child(div().w(px(230.0)).child("LOCAL ENDPOINT / FIREWALL"))
-            .child(div().w(px(150.0)).child("PEER ENDPOINT"))
+            .child(div().w(px(local_w)).flex_none().child("LOCAL ENDPOINT / FIREWALL"))
+            .child(div().w(px(peer_w)).flex_none().child("PEER ENDPOINT"))
             .child(div().w(px(90.0)).child("STATE"))
             .child(div().flex_1().min_w(px(0.0)).child("PROCESS / SERVICE"))
             .child(div().w(px(74.0)).text_right().pr(px(12.0)).child("PID")),
@@ -1201,6 +1214,7 @@ fn render_sockets_rows(
     if sockets.is_empty() {
         return vec![empty_state("No open network sockets detected on active host")];
     }
+    let (local_w, peer_w) = socket_col_widths(sockets);
 
     sockets.iter().enumerate().map(|(idx, sock)| {
         let is_focus = sock.is_focused;
@@ -1306,7 +1320,8 @@ fn render_sockets_rows(
                         };
 
                         div()
-                            .w(px(230.0))
+                            .w(px(local_w))
+                            .flex_none()
                             .flex()
                             .items_center()
                             .gap(px(2.0))
@@ -1318,7 +1333,8 @@ fn render_sockets_rows(
                     // Col 3: PEER ENDPOINT
                     .child(
                         div()
-                            .w(px(150.0))
+                            .w(px(peer_w))
+                            .flex_none()
                             .text_color(TEXT_MUTED)
                             .child(format!("{}:{}", sock.peer_addr, sock.peer_port)),
                     )
@@ -1355,4 +1371,19 @@ fn render_sockets_rows(
             )
             .into_any_element()
     }).collect::<Vec<_>>()
+}
+
+#[cfg(test)]
+mod socket_width_tests {
+    // Not `super::*`: that brings in gpui's own `test` attribute.
+    use super::{socket_col_widths, SocketUnit};
+
+    #[test]
+    fn endpoint_columns_grow_to_the_longest_address() {
+        let sock = |addr: &str, port: &str, state: &str| SocketUnit { local_addr: addr.into(), local_port: port.into(), peer_addr: "0.0.0.0".into(), peer_port: "*".into(), state: state.into(), ..Default::default() };
+        assert_eq!(socket_col_widths(&[sock("127.0.0.1", "22", "ESTAB")]), (230.0, 150.0), "short ones keep the usual widths");
+        let long = sock("fe80::a00:27ff:fe4e:66a1%enp0s3", "51820", "ESTAB");
+        let (local, _) = socket_col_widths(&[long]);
+        assert!(local >= 37.0 * 6.6, "{local}");
+    }
 }

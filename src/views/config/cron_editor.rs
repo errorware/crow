@@ -1,5 +1,6 @@
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
+use gpui_kit::prelude::FluentBuilder as _;
 use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
@@ -317,17 +318,11 @@ pub fn cron_editor(
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
                                 .text_color(TEXT_TERTIARY)
-                                .child("cron.service active · Tasks run with system user permissions"),
+                                .child("Each job runs as its USER · cron rereads /etc/crontab by itself after a save"),
                         ),
                 )
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(9.5))
-                        .text_color(TEXT_DIMMER)
-                        .child("Format: MIN HOUR DOM MON DOW USER COMMAND"),
-                ),
         )
+        .children((!jobs.is_empty()).then(render_cron_header))
         // 3. Scrollable List of Visual Cron Job Cards
         .child(
             div()
@@ -335,301 +330,148 @@ pub fn cron_editor(
                 .flex_1()
                 .min_h(px(0.0))
                 .overflow_y_scrollbar()
-                .p(px(16.0))
                 .flex()
                 .flex_col()
-                .gap(px(12.0))
+                .children(jobs.is_empty().then(|| {
+                    div().p(px(16.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child("No jobs in /etc/crontab. + NEW CRON JOB adds one.")
+                }))
                 .children(jobs.iter().enumerate().map(|(idx, job)| {
-                    render_cron_job_card(job, idx, jobs.len(), app.clone())
+                    render_cron_job_card(job, idx, app.clone())
                 })),
         )
 }
 
+/// Column widths, shared by the header and the rows.
+const COL_ON: f32 = 46.0;
+const COL_SCHEDULE: f32 = 230.0;
+const COL_USER: f32 = 96.0;
+const COL_ACTIONS: f32 = 56.0;
+
+fn render_cron_header() -> impl IntoElement {
+    div()
+        .h(px(28.0))
+        .flex_none()
+        .flex()
+        .items_center()
+        .px(px(16.0))
+        .gap(px(12.0))
+        .bg(BG_SUBHEAD)
+        .border_b_1()
+        .border_color(BORDER_PANEL)
+        .font_family(FONT_MONO)
+        .text_size(px(9.0))
+        .font_weight(FontWeight::BOLD)
+        .text_color(TEXT_FAINT)
+        .child(div().w(px(COL_ON)).flex_none().child("ON"))
+        .child(div().w(px(COL_SCHEDULE)).flex_none().child("SCHEDULE"))
+        .child(div().w(px(COL_USER)).flex_none().child("USER"))
+        .child(div().flex_1().min_w(px(0.0)).child("COMMAND"))
+        .child(div().w(px(COL_ACTIONS)).flex_none())
+}
+
+/// One job as a table row (the Firewall page's style): on/off, when it
+/// runs in words with its expression under it, who runs it, what it runs;
+/// delete on hover, edit always. Editing opens the builder under it. (Line
+/// order doesn't change when cron runs a job, so there's no reordering.)
 fn render_cron_job_card(
     job: &CronJobDef,
     idx: usize,
-    total_jobs: usize,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
-    let job_id = job.id.clone();
-    let is_expanded = job.is_expanded;
-    let is_enabled = job.enabled;
-
-    let app_toggle = app.clone();
-    let app_expand = app.clone();
-    let app_del = app.clone();
-    let app_up = app.clone();
-    let app_down = app.clone();
-    let jid_toggle = job_id.clone();
-    let jid_expand = job_id.clone();
-    let jid_del = job_id.clone();
-    let jid_up = job_id.clone();
-    let jid_down = job_id.clone();
-
-    div()
-        .id(ElementId::NamedInteger("cron-card".into(), idx as u64))
-        .bg(if is_enabled { BG_PANEL } else { hex_rgba(0x101116, 0.5) })
-        .border_1()
-        .border_color(if is_expanded { hex_rgb(0x38bdf8) } else if is_enabled { BORDER_DEFAULT } else { BORDER_PANEL })
-        .rounded_sm()
-        .flex()
-        .flex_col()
-        .child(
-            // Top Row: Status, Human Schedule, Expression Pills, and Actions
-            div()
-                .p(px(12.0))
-                .flex()
-                .items_center()
-                .gap(px(12.0))
-                .child(
-                    // Enabled toggle switch
-                    div()
-                        .id(ElementId::NamedInteger("btn-toggle-cron".into(), idx as u64))
-                        .cursor_pointer()
-                        .px(px(6.0))
-                        .py(px(3.0))
-                        .rounded_sm()
-                        .bg(if is_enabled { OK_BG } else { hex_rgba(0xffffff, 0.05) })
-                        .border_1()
-                        .border_color(if is_enabled { OK } else { BORDER_DEFAULT })
-                        .on_click(move |_ev, _window, cx| {
-                            let id = jid_toggle.clone();
-                            app_toggle.update(cx, |this, cx| {
-                                this.configs.toggle_cron_job_enabled(&id); cx.notify();
-                            });
-                        })
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(9.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(if is_enabled { OK } else { TEXT_MUTED })
-                                .child(if is_enabled { "ACTIVE" } else { "DISABLED" }),
-                        ),
-                )
-                // Human Readable Schedule in Bold
-                .child(
-                    div()
-                        .flex_1()
-                        .flex()
-                        .flex_col()
-                        .gap(px(1.0))
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(11.5))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(if is_enabled { TEXT_MAX } else { TEXT_MUTED })
-                                .child(job.human_schedule()),
-                        )
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .text_color(TEXT_FAINT)
-                                .child(job.comment.clone().unwrap_or_else(|| "No description".to_string())),
-                        ),
-                )
-                // 5 Expression Badges
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(3.0))
-                        .child(render_cron_pill("m", &job.minute, hex_rgb(0x67e8f9)))
-                        .child(render_cron_pill("h", &job.hour, hex_rgb(0xc084fc)))
-                        .child(render_cron_pill("dom", &job.day_of_month, hex_rgb(0x38bdf8)))
-                        .child(render_cron_pill("mon", &job.month, hex_rgb(0xfba060)))
-                        .child(render_cron_pill("dow", &job.day_of_week, hex_rgb(0xf472b6))),
-                )
-                // User pill
-                .child(
-                    div()
-                        .px(px(6.0))
-                        .py(px(2.0))
-                        .bg(BG_CONTROL)
-                        .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .rounded_sm()
-                        .flex()
-                        .items_center()
-                        .gap(px(4.0))
-                        .child(tabler_icon(TablerIcon::Users).size(px(10.0)).text_color(TEXT_MUTED))
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(9.5))
-                                .text_color(TEXT_SECONDARY)
-                                .child(job.user.clone()),
-                        ),
-                )
-                // Action Buttons: Up, Down, Delete, Expand
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(4.0))
-                        .children(if idx > 0 {
-                            Some(
-                                div()
-                                    .id(ElementId::NamedInteger("btn-cron-up".into(), idx as u64))
-                                    .p(px(4.0))
-                                    .rounded_sm()
-                                    .hover(|s| s.bg(BG_ROW_HOVER))
-                                    .cursor_pointer()
-                                    .on_click(move |_ev, _window, cx| {
-                                        let id = jid_up.clone();
-                                        app_up.update(cx, |this, cx| {
-                                            this.configs.move_cron_job_up(&id); cx.notify();
-                                        });
-                                    })
-                                    .child(
-                                        div()
-                                            .font_family(FONT_MONO)
-                                            .text_size(px(10.0))
-                                            .font_weight(FontWeight::BOLD)
-                                            .text_color(TEXT_MUTED)
-                                            .child("▲"),
-                                    )
-                                    .into_any_element()
-                            )
-                        } else {
-                            None
-                        })
-                        .children(if idx + 1 < total_jobs {
-                            Some(
-                                div()
-                                    .id(ElementId::NamedInteger("btn-cron-down".into(), idx as u64))
-                                    .p(px(4.0))
-                                    .rounded_sm()
-                                    .hover(|s| s.bg(BG_ROW_HOVER))
-                                    .cursor_pointer()
-                                    .on_click(move |_ev, _window, cx| {
-                                        let id = jid_down.clone();
-                                        app_down.update(cx, |this, cx| {
-                                            this.configs.move_cron_job_down(&id); cx.notify();
-                                        });
-                                    })
-                                    .child(
-                                        div()
-                                            .font_family(FONT_MONO)
-                                            .text_size(px(10.0))
-                                            .font_weight(FontWeight::BOLD)
-                                            .text_color(TEXT_MUTED)
-                                            .child("▼"),
-                                    )
-                                    .into_any_element()
-                            )
-                        } else {
-                            None
-                        })
-                        .child(
-                            div()
-                                .id(ElementId::NamedInteger("btn-cron-del".into(), idx as u64))
-                                .p(px(4.0))
-                                .rounded_sm()
-                                .hover(|s| s.bg(hex_rgba(0xef4444, 0.2)))
-                                .cursor_pointer()
-                                .on_click(move |_ev, _window, cx| {
-                                    let id = jid_del.clone();
-                                    app_del.update(cx, |this, cx| {
-                                        this.configs.delete_cron_job(&id); cx.notify();
-                                    });
-                                })
-                                .child(tabler_icon(TablerIcon::Trash).size(px(12.0)).text_color(TEXT_MUTED)),
-                        )
-                        .child(
-                            div()
-                                .id(ElementId::NamedInteger("btn-cron-expand".into(), idx as u64))
-                                .px(px(6.0))
-                                .py(px(3.0))
-                                .bg(if is_expanded { hex_rgba(0x38bdf8, 0.2) } else { BG_CONTROL })
-                                .border_1()
-                                .border_color(if is_expanded { hex_rgb(0x38bdf8) } else { BORDER_DEFAULT })
-                                .rounded_sm()
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .on_click(move |_ev, _window, cx| {
-                                    let id = jid_expand.clone();
-                                    app_expand.update(cx, |this, cx| {
-                                        this.configs.toggle_cron_job_expanded(&id); cx.notify();
-                                    });
-                                })
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(9.5))
-                                        .font_weight(FontWeight::BOLD)
-                                        .text_color(if is_expanded { hex_rgb(0x38bdf8) } else { TEXT_SECONDARY })
-                                        .child(if is_expanded { "COLLAPSE ▲" } else { "BUILDER ▼" }),
-                                ),
-                        ),
-                ),
-        )
-        // Command Preview Bar
-        .child(
-            div()
-                .mx(px(12.0))
-                .mb(px(12.0))
-                .p(px(8.0))
-                .px(px(10.0))
-                .bg(hex_rgb(0x060709))
-                .border_1()
-                .border_color(BORDER_PANEL)
-                .rounded_sm()
-                .flex()
-                .items_center()
-                .gap(px(8.0))
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .text_color(TEXT_FAINT)
-                        .child("$"),
-                )
-                .child(
-                    div()
-                        .flex_1()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.5))
-                        .text_color(if is_enabled { hex_rgb(0x86efac) } else { TEXT_DIMMER })
-                        .child(job.command.clone()),
-                ),
-        )
-        // Expanded Visual Schedule Builder
-        .children(if is_expanded {
-            Some(render_cron_builder(job, idx, app.clone()))
-        } else {
-            None
+    use crate::components::icon_button::icon_button;
+    let (on, open) = (job.enabled, job.is_expanded);
+    let action = |name: &'static str, n: u64, icon: TablerIcon, danger: bool, f: fn(&mut ConfigsState, &str)| {
+        let (app, id) = (app.clone(), job.id.clone());
+        icon_button(ElementId::NamedInteger(name.into(), idx as u64 * 10 + n), icon, danger).on_click(move |_ev, _window, cx| {
+            let id = id.clone();
+            app.update(cx, |this, cx| {
+                f(&mut this.configs, &id);
+                cx.notify();
+            });
         })
-}
-
-fn render_cron_pill(label: &'static str, val: &str, color: Rgba) -> impl IntoElement {
-    div()
-        .px(px(5.0))
-        .py(px(1.5))
-        .bg(hex_rgba(0xffffff, 0.04))
-        .border_1()
-        .border_color(BORDER_DEFAULT)
-        .rounded_sm()
+    };
+    let (app_toggle, jid_toggle) = (app.clone(), job.id.clone());
+    let expr = format!("{} {} {} {} {}", job.minute, job.hour, job.day_of_month, job.month, job.day_of_week);
+    let row = div()
+        .id(ElementId::NamedInteger("cron-row".into(), idx as u64))
+        .group("cron-row")
+        .min_h(px(44.0))
         .flex()
         .items_center()
-        .gap(px(2.0))
+        .gap(px(12.0))
+        .px(px(16.0))
+        .py(px(6.0))
+        .border_b_1()
+        .border_color(BORDER_ROW)
+        .bg(if open { BG_ROW_SELECTED } else if idx % 2 == 1 { hex_rgba(0xffffff, 0.018) } else { hex_rgba(0, 0.0) })
+        .hover(|s| s.bg(BG_ROW_HOVER))
         .child(
             div()
-                .font_family(FONT_MONO)
-                .text_size(px(8.5))
-                .text_color(TEXT_FAINT)
-                .child(label),
+                .id(ElementId::NamedInteger("cron-switch".into(), idx as u64))
+                .w(px(COL_ON))
+                .flex_none()
+                .cursor_pointer()
+                .on_click(move |_ev, _window, cx| {
+                    let id = jid_toggle.clone();
+                    app_toggle.update(cx, |this, cx| {
+                        this.configs.toggle_cron_job_enabled(&id);
+                        cx.notify();
+                    });
+                })
+                .child(
+                    div()
+                        .w(px(30.0))
+                        .h(px(16.0))
+                        .rounded_full()
+                        .p(px(2.0))
+                        .flex()
+                        .when(on, |d| d.justify_end())
+                        .bg(if on { OK_BG } else { BG_CONTROL })
+                        .border_1()
+                        .border_color(if on { OK } else { BORDER_STRONG })
+                        .child(div().size(px(10.0)).rounded_full().bg(if on { OK } else { TEXT_DIM })),
+                ),
         )
         .child(
             div()
-                .font_family(FONT_MONO)
-                .text_size(px(9.5))
-                .font_weight(FontWeight::BOLD)
-                .text_color(color)
-                .child(val.to_string()),
+                .w(px(COL_SCHEDULE))
+                .flex_none()
+                .flex()
+                .flex_col()
+                .gap(px(2.0))
+                .child(div().font_family(FONT_MONO).text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(if on { TEXT_PRIMARY } else { TEXT_DIM }).child(job.human_schedule()))
+                .child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).child(expr)),
         )
+        .child(div().w(px(COL_USER)).flex_none().overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(px(10.5)).text_color(if on { TEXT_SECONDARY } else { TEXT_DIM }).child(job.user.clone()))
+        .child(
+            div()
+                .flex_1()
+                .min_w(px(0.0))
+                .flex()
+                .flex_col()
+                .gap(px(2.0))
+                .child(div().overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(px(10.5)).text_color(if on { hex_rgb(0x86efac) } else { TEXT_DIMMER }).child(job.command.clone()))
+                .children(job.comment.clone().filter(|c| !c.trim().is_empty()).map(|c| div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).child(format!("# {c}")))),
+        )
+        .child(
+            div()
+                .w(px(COL_ACTIONS))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_end()
+                .gap(px(2.0))
+                .child(
+                    div()
+                        .flex()
+                        .gap(px(2.0))
+                        .invisible()
+                        .group_hover("cron-row", |s| s.visible())
+                        .child(action("cron-del", 3, TablerIcon::Trash, true, ConfigsState::delete_cron_job)),
+                )
+                .child(action("cron-edit", 4, if open { TablerIcon::X } else { TablerIcon::Pencil }, false, ConfigsState::toggle_cron_job_expanded)),
+        );
+    div().flex().flex_col().child(row).children(open.then(|| render_cron_builder(job, idx, app.clone())))
 }
 
 fn render_cron_builder(

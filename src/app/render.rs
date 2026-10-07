@@ -339,7 +339,7 @@ impl Render for CrowApp {
                                                                         .flex()
                                                                         .child(managed_files_rail(&self.configs.selected_file, self.config_search.as_ref().map(|s| &s.input), &self.fleet, &self.configs, app_view.clone()))
                                                                         .child(editor_view)
-                                                                        .child(pending_diff_rail(&self.configs, app_view.clone()))
+                                                                        .child(pending_diff_rail(&self.configs, &self.configs.selected_file, app_view.clone()))
                                                                 )
                                                             } else if self.active_view == "logs" {
                                                                 Some(
@@ -396,7 +396,7 @@ impl Render for CrowApp {
                                                                         .size_full()
                                                                         .flex()
                                                                         .child(cron_editor(&self.configs.cron_jobs, &self.configs, app_view.clone()))
-                                                                        .child(pending_diff_rail(&self.configs, app_view.clone()))
+                                                                        .child(pending_diff_rail(&self.configs, "crontab", app_view.clone()))
                                                                 )
                                                             } else if self.active_view == "users" {
                                                                 Some(
@@ -425,7 +425,7 @@ impl Render for CrowApp {
                                                                                 .child(firewall_view(app_view.clone(), &self.firewall, &self.configs.states, self.firewall_search.as_ref().map(|s| &s.input), self.firewall_rule_inputs.as_ref()))
                                                                         )
                                                                         .children(if self.firewall.show_audit_rail {
-                                                                            Some(pending_diff_rail(&self.configs, app_view.clone()))
+                                                                            Some(pending_diff_rail(&self.configs, &self.configs.selected_file, app_view.clone()))
                                                                         } else {
                                                                             None
                                                                         })

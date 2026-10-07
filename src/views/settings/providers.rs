@@ -48,7 +48,29 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                         .text_size(px(9.5))
                         .text_color(TEXT_SECONDARY)
                         .child(format!("{configured}/{} SET UP", factories.len())),
-                ),
+                )
+                .child(div().flex_1())
+                // The fleet's import from these accounts (ERR-46) lives here, with them.
+                .children((configured > 0).then(|| {
+                    let app = app.clone();
+                    div()
+                        .id("btn-providers-import")
+                        .flex()
+                        .items_center()
+                        .gap(px(6.0))
+                        .h(px(26.0))
+                        .px(px(10.0))
+                        .border_1()
+                        .border_color(BORDER_DEFAULT)
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.5))
+                        .text_color(TEXT_SECONDARY)
+                        .cursor_pointer()
+                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.open_import(cx)))
+                        .child(inherited_icon(TablerIcon::Download, px(12.0)))
+                        .child("IMPORT INSTANCES")
+                })),
         )
         .child(
             div()

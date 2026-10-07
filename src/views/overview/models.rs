@@ -82,7 +82,7 @@ impl ProcessUnit {
     }
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct SocketUnit {
     pub protocol: String, // "TCP", "UDP", "TCP6", "UDP6"
     pub state: String,    // "LISTEN", "ESTAB", "UNCONN", "TIME-WAIT", etc.

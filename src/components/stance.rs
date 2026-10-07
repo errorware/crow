@@ -16,10 +16,16 @@ fn stance_color(stance: Stance) -> Rgba {
     }
 }
 
-/// "OPEN" / "LOCKED", with how many things weaken it.
+/// The stance at a glance: (!) 2FA while Crow has no password and 2FA
+/// (Open), a lock and 2FA once it has (Locked), and how many things weaken
+/// it. Clicking explains it.
 pub fn stance_badge(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoElement {
     let color = stance_color(report.stance);
     let weak = report.findings.len();
+    let icon = match report.stance {
+        Stance::Open => crate::components::icons::TablerIcon::AlertCircle,
+        Stance::Locked => crate::components::icons::TablerIcon::Lock,
+    };
     div()
         .id("stance-badge")
         .flex()
@@ -34,8 +40,9 @@ pub fn stance_badge(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
         .hover(|s| s.bg(color.opacity(0.16)))
         .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // not a window drag
         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.toggle_stance_panel(cx)))
-        .child(div().font_weight(FontWeight::BOLD).text_color(color).child(report.stance.label()))
-        .children((weak > 0).then(|| div().font_weight(FontWeight::BOLD).text_color(CRIT).child(format!("· {weak} weak"))))
+        .child(div().text_color(color).child(crate::components::icons::inherited_icon(icon, px(12.0))))
+        .child(div().font_weight(FontWeight::BOLD).text_color(color).child("2FA"))
+        .children((weak > 0).then(|| div().font_weight(FontWeight::BOLD).text_color(CRIT).child(format!("· {weak} issue{}", if weak == 1 { "" } else { "s" }))))
 }
 
 fn list(title: &'static str, color: Rgba, items: impl IntoIterator<Item = String>) -> impl IntoElement {
