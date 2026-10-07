@@ -90,7 +90,7 @@ pub struct SshKeyGroup {
     pub created_at: String,
 }
 
-#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq, Eq)]
 pub struct SshKeyRecord {
     pub id: String,
     pub name: String,

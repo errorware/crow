@@ -360,7 +360,7 @@ impl SshHost {
     }
 
     #[cfg(test)]
-    fn with_program(mut self, program: &str) -> Self {
+    pub(crate) fn with_program(mut self, program: &str) -> Self {
         self.program = program.to_string();
         self
     }

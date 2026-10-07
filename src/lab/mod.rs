@@ -1,3 +1,5 @@
+pub mod multipass;
+
 use serde::{Deserialize, Serialize};
 use std::process::Command;
 use crate::vault::{ServerRecord, VaultDb};
