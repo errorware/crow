@@ -18,7 +18,7 @@ pub fn launch_for(server: &ServerRecord) -> Result<Launch, String> {
             let engine = if server.tags.iter().any(|t| t == "docker") { "docker" } else { "podman" };
             Ok(Launch {
                 program: engine.into(),
-                args: ["exec", "-it", "-e", "TERM=xterm-256color", &server.name, "sh", "-c", SHELL].iter().map(|s| s.to_string()).collect(),
+                args: ["exec", "-it", "-e", "TERM=xterm-256color", "--", &server.name, "sh", "-c", SHELL].iter().map(|s| s.to_string()).collect(),
             })
         }
         TransportKind::Local => {
