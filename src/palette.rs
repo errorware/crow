@@ -16,6 +16,10 @@ pub enum Target {
     Action(Action),
     /// The Keys page, with this key's name in mind.
     Key(String),
+    /// A service of the server that's open now (its Services page, focused).
+    Service(String),
+    /// A process of the server that's open now, by PID.
+    Process(u32),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -36,6 +40,10 @@ pub enum Action {
     Reconnect,
     LockVault,
     About,
+    /// The current server's Danger Zone, where its provider takes snapshots.
+    Snapshot,
+    /// The security stance (2FA) panel.
+    Stance,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -106,6 +114,76 @@ pub fn fuzzy_score(query: &str, text: &str) -> Option<i32> {
     Some(best + if prefix { 20 } else { 0 })
 }
 
+/// Where `query` matches in `text` (char indices), the same alignment
+/// `fuzzy_score` rates best, for highlighting. Empty when it doesn't match.
+pub fn match_positions(query: &str, text: &str) -> Vec<usize> {
+    let q: Vec<char> = query.chars().filter(|c| !c.is_whitespace()).flat_map(char::to_lowercase).collect();
+    let t: Vec<char> = text.chars().collect();
+    if q.is_empty() || t.is_empty() {
+        return Vec::new();
+    }
+    let lower: Vec<char> = t.iter().map(|c| c.to_lowercase().next().unwrap_or(*c)).collect();
+    const NONE: i32 = i32::MIN / 4;
+    // score[qi][i] and, for qi > 0, the text index of the previous match.
+    let mut score = vec![vec![NONE; t.len()]; q.len()];
+    let mut from = vec![vec![usize::MAX; t.len()]; q.len()];
+    for (qi, qc) in q.iter().enumerate() {
+        let (mut skipped, mut skipped_at) = (NONE, usize::MAX);
+        for i in 0..t.len() {
+            if qi > 0 && i >= 2 {
+                let cand = score[qi - 1][i - 2] - 1;
+                if cand >= skipped - 1 {
+                    (skipped, skipped_at) = (cand, i - 2);
+                } else {
+                    skipped -= 1;
+                }
+            }
+            if lower[i] != *qc {
+                continue;
+            }
+            let bonus = if is_boundary(i.checked_sub(1).map(|j| t[j]), t[i]) { 10 } else { 0 };
+            if qi == 0 {
+                score[0][i] = 16 + bonus - (i as i32).min(12);
+                continue;
+            }
+            let run = if i >= 1 && score[qi - 1][i - 1] > NONE / 2 { score[qi - 1][i - 1] + 16 } else { NONE };
+            let jump = if skipped > NONE / 2 { skipped + 4 + bonus } else { NONE };
+            if run >= jump && run > NONE / 2 {
+                (score[qi][i], from[qi][i]) = (run, i - 1);
+            } else if jump > NONE / 2 {
+                (score[qi][i], from[qi][i]) = (jump, skipped_at);
+            }
+        }
+    }
+    let last = q.len() - 1;
+    let Some(mut i) = (0..t.len()).filter(|&i| score[last][i] > NONE / 2).max_by_key(|&i| score[last][i]) else { return Vec::new() };
+    let mut out = vec![i];
+    for qi in (1..q.len()).rev() {
+        i = from[qi][i];
+        if i == usize::MAX {
+            return Vec::new();
+        }
+        out.push(i);
+    }
+    out.reverse();
+    out
+}
+
+/// `match_positions` as byte ranges of `text`, adjacent ones merged.
+pub fn match_ranges(query: &str, text: &str) -> Vec<std::ops::Range<usize>> {
+    let starts: Vec<(usize, char)> = text.char_indices().collect();
+    let mut out: Vec<std::ops::Range<usize>> = Vec::new();
+    for ci in match_positions(query, text) {
+        let Some(&(b, c)) = starts.get(ci) else { continue };
+        let r = b..b + c.len_utf8();
+        match out.last_mut() {
+            Some(last) if last.end == r.start => last.end = r.end,
+            _ => out.push(r),
+        }
+    }
+    out
+}
+
 /// The entries matching `query`, best first. With an empty query: recently
 /// used first (most recent first), then the rest in their given order.
 pub fn rank<'a>(entries: &'a [Entry], query: &str, recent: &[String]) -> Vec<&'a Entry> {
@@ -174,5 +252,13 @@ mod tests {
         let recent = vec![entries[2].key(), entries[1].key()];
         let order: Vec<&str> = rank(&entries, "", &recent).iter().map(|e| e.label.as_str()).collect();
         assert_eq!(order, ["Users", "Logs", "Overview"]);
+    }
+
+    #[test]
+    fn highlights_follow_the_best_match() {
+        assert_eq!(match_ranges("dbp", "db-prod"), vec![0..2, 3..4]);
+        assert_eq!(match_ranges("hba", "pg_hba.conf"), vec![3..6], "the word start, not the first h");
+        assert!(match_ranges("zzz", "db-prod").is_empty());
+        assert_eq!(match_ranges("é", "café"), vec![3..5], "byte ranges, not chars");
     }
 }

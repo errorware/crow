@@ -552,7 +552,7 @@ impl Render for CrowApp {
                                 .find(|s| s.id == self.fleet.active_tab_id || s.name == self.fleet.active_tab_id)
                                 .map(|s| s.name.as_str())
                                 .unwrap_or("Fleet");
-                            Some(palette_overlay(app_view.clone(), scope, self.palette.input.as_ref(), &palette_results, self.palette.selected, &self.palette.query))
+                            Some(palette_overlay(app_view.clone(), scope, self.palette_scope_name(), self.palette.input.as_ref(), &palette_results, self.palette.selected, &self.palette.query))
                         } else {
                             None
                         })

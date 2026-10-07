@@ -13,6 +13,9 @@ pub struct PaletteState {
     _events: Option<Subscription>,
     pub query: String,
     pub selected: usize,
+    /// Tab on a server narrows the search to it (Backspace on an empty
+    /// query widens it again).
+    pub scope: Option<String>,
     /// Entry keys, most recent first.
     pub recent: Vec<String>,
 }
@@ -23,23 +26,32 @@ pub const MAX_RESULTS: usize = 12;
 impl CrowApp {
     /// Everything the palette can find, built from what Crow has in memory.
     pub fn palette_entries(&self) -> Vec<Entry> {
+        if let Some(scope) = &self.palette.scope {
+            return self.palette_scoped_entries(scope);
+        }
         let mut out = Vec::new();
         let current = self.fleet.servers.iter().find(|s| s.id == self.fleet.active_tab_id);
         // The current server's pages first: the likeliest jump.
-        if let Some(cur) = current {
+        if current.is_some() {
             for item in nav_items() {
+                // "this server", not its name: typing a server's name should
+                // find the server, not every page of the open one.
                 if let Some(view) = item.view_id {
-                    out.push(Entry { category: "PAGE", label: item.label.to_string(), hint: cur.name.clone(), keywords: view.into(), target: Target::Page(view) });
+                    out.push(Entry { category: "PAGE", label: item.label.to_string(), hint: "this server".into(), keywords: view.into(), target: Target::Page(view) });
                 }
             }
-            out.push(Entry { category: "PAGE", label: "Danger Zone".into(), hint: cur.name.clone(), keywords: "danger reboot snapshot".into(), target: Target::Page("danger") });
-            for f in &self.configs.files {
-                out.push(Entry { category: "CONFIG", label: f.name.clone(), hint: f.full_path.display().to_string(), keywords: f.schema_pack.unwrap_or_default().to_string(), target: Target::ConfigFile(f.name.clone()) });
-            }
+            out.push(Entry { category: "PAGE", label: "Danger Zone".into(), hint: "this server".into(), keywords: "danger reboot snapshot".into(), target: Target::Page("danger") });
+            out.extend(self.current_server_entries());
         }
         for s in &self.fleet.servers {
             let addr = if s.login_user.is_empty() { format!("{}:{}", s.host, s.port) } else { format!("{}@{}:{}", s.login_user, s.host, s.port) };
-            let keywords = format!("{} {} {}", s.env, s.group_name, s.tags.join(" "));
+            // Also found by how it's doing and where it lives.
+            let health = match self.fleet.health(s) {
+                crate::views::fleet::state::FleetHealth::Ok => "online",
+                crate::views::fleet::state::FleetHealth::Down { .. } => "offline unreachable down",
+                crate::views::fleet::state::FleetHealth::Checking => "",
+            };
+            let keywords = format!("{} {} {} {health} {} {} {}", s.env, s.group_name, s.tags.join(" "), s.provider_account, s.region_city, s.region_provider);
             out.push(Entry { category: "SERVER", label: s.name.clone(), hint: addr.clone(), keywords: keywords.clone(), target: Target::Server { id: s.id.clone(), view: "overview" } });
             out.push(Entry { category: "TERMINAL", label: format!("Terminal on {}", s.name), hint: addr, keywords, target: Target::Server { id: s.id.clone(), view: "terminal" } });
         }
@@ -58,11 +70,76 @@ impl CrowApp {
             out.push(action("Reconnect to this server", "ssh connection", Action::Reconnect));
         }
         out.push(action("Lock the vault", "lock secure", Action::LockVault));
+        if current.is_some() && self.active_provider_actions().is_some_and(|p| p.snapshots) {
+            out.push(action("Take a snapshot", "backup provider image danger", Action::Snapshot));
+        }
+        out.push(action("Security stance (2FA)", "2fa password lock open locked vault", Action::Stance));
         out.push(action("About Crow", "version update", Action::About));
         for k in &self.keys.enrolled {
             out.push(Entry { category: "KEY", label: k.name.clone(), hint: k.fingerprint.clone(), keywords: format!("{} {}", k.algorithm, k.comment.clone().unwrap_or_default()), target: Target::Key(k.name.clone()) });
         }
         out
+    }
+
+    /// The open server's config files, services and processes.
+    fn current_server_entries(&self) -> Vec<Entry> {
+        let mut out = Vec::new();
+        for f in &self.configs.files {
+            out.push(Entry { category: "CONFIG", label: f.name.clone(), hint: f.full_path.display().to_string(), keywords: f.schema_pack.unwrap_or_default().to_string(), target: Target::ConfigFile(f.name.clone()) });
+        }
+        for svc in &self.overview.services {
+            out.push(Entry { category: "SERVICE", label: svc.name.clone(), hint: svc.description.clone(), keywords: svc.status.to_lowercase(), target: Target::Service(svc.name.clone()) });
+        }
+        for p in self.overview.processes.iter().filter(|p| !p.is_kernel) {
+            let cmd: String = p.command.chars().take(80).collect();
+            out.push(Entry { category: "PROCESS", label: cmd, hint: format!("pid {} · {}", p.pid, p.user), keywords: p.pid.to_string(), target: Target::Process(p.pid) });
+        }
+        out
+    }
+
+    /// Inside a server (Tab): its pages, a terminal, and, when it's the open
+    /// server, its config files, services and processes.
+    fn palette_scoped_entries(&self, id: &str) -> Vec<Entry> {
+        let Some(srv) = self.fleet.servers.iter().find(|s| s.id == id) else { return Vec::new() };
+        let mut out: Vec<Entry> = nav_items()
+            .iter()
+            .filter_map(|item| item.view_id.map(|view| Entry { category: "PAGE", label: item.label.to_string(), hint: srv.name.clone(), keywords: view.into(), target: Target::Server { id: srv.id.clone(), view } }))
+            .collect();
+        out.push(Entry { category: "PAGE", label: "Danger Zone".into(), hint: srv.name.clone(), keywords: "danger reboot snapshot".into(), target: Target::Server { id: srv.id.clone(), view: "danger" } });
+        if srv.id == self.fleet.active_tab_id {
+            out.extend(self.current_server_entries());
+        }
+        out
+    }
+
+    /// Tab: narrows the search to the selected server.
+    pub fn palette_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let results = self.palette_results();
+        let Some(Target::Server { id, .. }) = results.get(self.palette.selected).map(|e| e.target.clone()) else { return };
+        self.palette.scope = Some(id);
+        self.palette.selected = 0;
+        self.palette.query.clear();
+        if let Some(input) = self.palette.input.clone() {
+            input.update(cx, |i, cx| i.set_value("", window, cx));
+        }
+        cx.notify();
+    }
+
+    /// Backspace on an empty query: back out of a server's scope. True when
+    /// it did (the key is used up).
+    pub fn palette_unscope(&mut self, cx: &mut Context<Self>) -> bool {
+        if self.palette.query.is_empty() && self.palette.scope.take().is_some() {
+            self.palette.selected = 0;
+            cx.notify();
+            return true;
+        }
+        false
+    }
+
+    /// The name of the server the search is narrowed to.
+    pub fn palette_scope_name(&self) -> Option<String> {
+        let id = self.palette.scope.as_ref()?;
+        self.fleet.servers.iter().find(|s| &s.id == id).map(|s| s.name.clone())
     }
 
     /// The results for the current query, as the palette lists them.
@@ -152,6 +229,21 @@ impl CrowApp {
             Target::Action(Action::Reconnect) => self.reconnect_active_server(cx),
             Target::Action(Action::LockVault) => self.lock(cx),
             Target::Action(Action::About) => self.open_about_modal(cx),
+            Target::Action(Action::Snapshot) => {
+                self.set_screen(Screen::Server, cx);
+                self.set_view("danger", cx);
+            }
+            Target::Action(Action::Stance) => self.toggle_stance_panel(cx),
+            Target::Service(name) => {
+                self.set_screen(Screen::Server, cx);
+                self.set_view("services", cx);
+                self.focus_service(&name, cx);
+            }
+            Target::Process(pid) => {
+                self.set_screen(Screen::Server, cx);
+                self.set_view("processes", cx);
+                self.focus_process(pid, cx);
+            }
         }
         cx.notify();
     }

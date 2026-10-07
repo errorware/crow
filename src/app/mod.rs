@@ -545,6 +545,7 @@ impl CrowApp {
         self.palette.input = None;
         self.palette.query.clear();
         self.palette.selected = 0;
+        self.palette.scope = None;
         cx.notify();
     }
 
@@ -554,6 +555,7 @@ impl CrowApp {
         self.palette.input = None;
         self.palette.query.clear();
         self.palette.selected = 0;
+        self.palette.scope = None;
         cx.notify();
     }
 
