@@ -6,6 +6,7 @@ use std::collections::{HashMap, HashSet};
 
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
+use crate::components::icon_button::icon_button;
 
 use crate::app::CrowApp;
 use crate::components::icons::{tabler_icon, TablerIcon};
@@ -266,14 +267,10 @@ fn render_map_filter_toolbar(
                 .text_color(hex_rgb(0x38bdf8))
                 .child(format!("FOCUS: {}", p_name))
                 .child(
-                    div()
-                        .id("btn-clear-proc-focus")
-                        .cursor_pointer()
-                        .hover(|s| s.text_color(TEXT_MAX))
+                    icon_button("btn-clear-proc-focus", TablerIcon::X, false)
                         .on_click(move |_ev, _window, cx| {
                             app_clear_proc.update(cx, |this, cx| this.set_map_process_focus(None, cx));
-                        })
-                        .child("✕"),
+                        }),
                 )
         }))
         .child(div().flex_1())

@@ -6,6 +6,7 @@ pub use state::FilesState;
 
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
+use crate::components::icon_button::icon_button;
 use gpui_kit::component::input::Input;
 use crate::theme::*;
 use crate::app::CrowApp;
@@ -140,18 +141,13 @@ pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState) -> impl IntoE
                 .text_color(CRIT_INK)
                 .child(msg.clone())
                 .child(
-                    div()
-                        .id("btn-files-error-dismiss")
-                        .cursor_pointer()
-                        .text_color(TEXT_DIMMER)
-                        .hover(|s| s.text_color(TEXT_PRIMARY))
+                    icon_button("btn-files-error-dismiss", TablerIcon::X, false)
                         .on_click(move |_ev, _window, cx| {
                             app_dismiss.update(cx, |this, cx| {
                                 this.files.error = None;
                                 cx.notify();
                             });
-                        })
-                        .child("✕"),
+                        }),
                 )
         }))
         // 4. New folder inline prompt

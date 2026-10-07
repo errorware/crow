@@ -2,6 +2,8 @@
 //! (ERR-47). A plain centred box: providers keep only a handful.
 
 use gpui_kit::*;
+use crate::components::icon_button::icon_button;
+use crate::components::icons::TablerIcon;
 
 use crate::app::danger::SnapshotsPanel;
 use crate::app::CrowApp;
@@ -69,13 +71,8 @@ pub fn snapshots_panel(panel: &SnapshotsPanel, app: Entity<CrowApp>) -> impl Int
                         .child(div().text_color(TEXT_DIMMER).child(format!("at {}", panel.provider)))
                         .child(div().flex_1())
                         .child(
-                            div()
-                                .id("snapshots-close")
-                                .cursor_pointer()
-                                .text_color(TEXT_DIMMER)
-                                .hover(|s| s.text_color(TEXT_PRIMARY))
-                                .on_click(move |_ev, _window, cx| a_close.update(cx, |this, cx| this.close_snapshots_panel(cx)))
-                                .child("✕"),
+                            icon_button("snapshots-close", TablerIcon::X, false)
+                                .on_click(move |_ev, _window, cx| a_close.update(cx, |this, cx| this.close_snapshots_panel(cx))),
                         ),
                 )
                 .child(body)

@@ -10,7 +10,7 @@ use gpui_kit::*;
 
 use crow_config_core::schema::{FieldType, RiskLevel};
 
-use super::structured_editor::{risk_color, risk_label, small_button, ActiveFieldEdit};
+use super::structured_editor::{risk_color, risk_label, ActiveFieldEdit};
 use crate::app::configs::NEW_DIRECTIVE_PREFIX;
 use crate::app::CrowApp;
 use crate::config::plugins::{SheetRow, SshdSheet};
@@ -277,13 +277,19 @@ fn directive_row(file: &str, row: &SheetRow, key: &str, read_only: bool, active_
         }))
         .children(row.row_id.clone().filter(|_| !read_only).map(|row_id| {
             let (app, file) = (app.clone(), file.to_string());
-            let label = if row.def.as_ref().is_some_and(|d| d.default.is_some()) && !row.shadowed { "↺" } else { "✕" };
-            small_button(SharedString::from(format!("sshd-reset-{key}")), label, TEXT_DIMMER).on_click(move |_ev, _window, cx| {
-                app.update(cx, |this, cx| this.delete_structured_row(&file, &row_id, cx));
-            })
+            // Removing a line sshd has a default for resets it; otherwise it deletes.
+            let resets = row.def.as_ref().is_some_and(|d| d.default.is_some()) && !row.shadowed;
+            let icon = if resets { crate::components::icons::TablerIcon::Refresh } else { crate::components::icons::TablerIcon::Trash };
+            crate::components::icon_button::icon_button(SharedString::from(format!("sshd-reset-{key}")), icon, !resets)
+                .invisible()
+                .group_hover("sshd-row", |s| s.visible())
+                .on_click(move |_ev, _window, cx| {
+                    app.update(cx, |this, cx| this.delete_structured_row(&file, &row_id, cx));
+                })
         }));
 
     div()
+        .group("sshd-row")
         .flex()
         .items_center()
         .gap(px(16.0))

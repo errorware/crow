@@ -4,6 +4,8 @@
 
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
+use crate::components::icon_button::icon_button;
+use crate::components::icons::TablerIcon;
 
 use crow_provider_core::hosts::InstanceStatus;
 
@@ -71,13 +73,8 @@ pub fn import_panel(state: &ImportState, app: Entity<CrowApp>) -> impl IntoEleme
                         }))
                         .child(div().flex_1())
                         .child(
-                            div()
-                                .id("import-close")
-                                .cursor_pointer()
-                                .text_color(TEXT_DIMMER)
-                                .hover(|s| s.text_color(TEXT_PRIMARY))
-                                .on_click(move |_ev, _window, cx| a_close.update(cx, |this, cx| this.close_import(cx)))
-                                .child("✕"),
+                            icon_button("import-close", TablerIcon::X, false)
+                                .on_click(move |_ev, _window, cx| a_close.update(cx, |this, cx| this.close_import(cx))),
                         ),
                 )
                 .child(div().text_color(TEXT_MUTED).line_height(px(15.0)).child("Instances already in the fleet are matched by IP and linked, so their region comes from the provider. IMPORT opens Add Server filled in: the host key and login are checked as usual."))

@@ -2,6 +2,8 @@
 //! alerts, Crow's latest notice, and Crow's version.
 
 use gpui_kit::*;
+use crate::components::icon_button::icon_button;
+use crate::components::icons::TablerIcon;
 
 use crate::app::{CrowApp, Screen};
 use crate::theme::*;
@@ -68,19 +70,13 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
                         .min_w(px(0.0))
                         .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(TEXT_SECONDARY).child(n.to_string()))
                         .child(
-                            div()
-                                .id("status-notice-dismiss")
-                                .flex_none()
-                                .text_color(TEXT_FAINT)
-                                .cursor_pointer()
-                                .hover(|s| s.text_color(TEXT_PRIMARY))
+                            icon_button("status-notice-dismiss", TablerIcon::X, false)
                                 .on_click(move |_ev, _window, cx| {
                                     app.update(cx, |this, cx| {
                                         this.fleet.notice = None;
                                         cx.notify();
                                     })
-                                })
-                                .child("×"),
+                                }),
                         )
                 })),
         )

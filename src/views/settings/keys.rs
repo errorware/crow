@@ -1,5 +1,6 @@
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
+use crate::components::icon_button::icon_button;
 use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
@@ -960,6 +961,7 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                     let is_default = p.path.contains(".ssh");
 
                     div()
+                        .group("key-scan-row")
                         .flex()
                         .items_center()
                         .justify_between()
@@ -979,17 +981,12 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                         )
                         .children(if !is_default {
                             Some(
-                                div()
-                                    .id(ElementId::NamedInteger("del-scan-path".into(), pid as u64))
-                                    .cursor_pointer()
-                                    .text_color(TEXT_FAINTER)
-                                    .hover(|s| s.text_color(CRIT))
+                                icon_button(ElementId::NamedInteger("del-scan-path".into(), pid as u64), TablerIcon::Trash, true).invisible().group_hover("key-scan-row", |s| s.visible())
                                     .on_click(move |_ev, _window, cx| {
                                         app_del_path.update(cx, |this, cx| {
                                             this.remove_scan_path(pid, cx);
                                         });
-                                    })
-                                    .child("✕"),
+                                    }),
                             )
                         } else {
                             Some(
@@ -1068,6 +1065,7 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
 
                     div()
                         .id(ElementId::Name(format!("grp-taxo-{}", gid).into()))
+                        .group("key-group-row")
                         .flex()
                         .items_center()
                         .justify_between()
@@ -1115,18 +1113,14 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                                     let app_del_grp = app.clone();
                                     let del_gid = g.id.clone();
                                     Some(
-                                        div()
-                                            .id(ElementId::Name(format!("del-grp-{}", del_gid).into()))
-                                            .cursor_pointer()
-                                            .text_color(TEXT_FAINTER)
-                                            .hover(|s| s.text_color(CRIT))
+                                        icon_button(ElementId::Name(format!("del-grp-{}", del_gid).into()), TablerIcon::Trash, true).invisible().group_hover("key-group-row", |s| s.visible())
                                             .on_click(move |_ev, _window, cx| {
+                                                cx.stop_propagation();
                                                 let dgid = del_gid.clone();
                                                 app_del_grp.update(cx, |this, cx| {
                                                     this.delete_key_group(&dgid, cx);
                                                 });
-                                            })
-                                            .child("✕"),
+                                            }),
                                     )
                                 } else {
                                     None

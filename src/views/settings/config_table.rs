@@ -4,6 +4,7 @@
 use gpui_kit::component::input::{Input, InputState};
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
+use crate::components::icon_button::icon_button;
 
 use crow_config_core::ir::FieldIr;
 use crow_config_core::schema::FieldType;
@@ -794,25 +795,13 @@ pub fn render_config_section(
                                                 .child("APPLY"),
                                         )
                                         .child(
-                                            div()
-                                                .id("btn-cancel-custom-value")
-                                                .px(px(8.0))
-                                                .py(px(4.0))
-                                                .bg(BG_CONTROL)
-                                                .border_1()
-                                                .border_color(BORDER_DEFAULT)
-                                                .text_color(TEXT_FAINT)
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(9.5))
-                                                .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                            icon_button("btn-cancel-custom-value", TablerIcon::X, false)
                                                 .on_click(move |_ev, _window, cx| {
                                                     let _ = &row_id_close;
                                                     app_custom_close.update(cx, |this, cx| {
                                                         this.close_settings_dropdown(cx);
                                                     });
-                                                })
-                                                .child("✕"),
+                                                }),
                                         )
                                 }))
                         }))
