@@ -320,6 +320,20 @@ pub(crate) struct Column {
     width: ColWidth,
 }
 
+impl Column {
+    /// Its width in pixels, unless it takes the remaining space.
+    #[cfg(test)]
+    pub(crate) fn fixed_width(&self) -> Option<f32> {
+        match self.width {
+            ColWidth::Fixed(w) => Some(w),
+            ColWidth::Grow => None,
+        }
+    }
+}
+
+/// Width of one character of a field value (JetBrains Mono at 11.5px).
+const CHAR_W: f32 = 7.0;
+
 fn width_for(name: &str, field_type: &FieldType) -> ColWidth {
     match field_type {
         _ if name == "comment" => ColWidth::Grow,
@@ -348,6 +362,12 @@ pub(crate) fn table_columns(ir: &ConfigDocumentIr) -> Option<Vec<Column>> {
             cols.push(Column { name: field.name.clone(), width: width_for(&field.name, &field.field_type) });
         }
     }
+    // Each column is as wide as its longest value (or its header), so a
+    // long key never runs under the next column; very long ones are clipped.
+    for col in cols.iter_mut().filter(|c| matches!(c.width, ColWidth::Fixed(_))) {
+        let longest = ir.rows.iter().filter_map(|r| r.get_field(&col.name)).map(|f| value_text(&f.value).chars().count()).chain([col.name.len()]).max().unwrap_or(0);
+        col.width = ColWidth::Fixed((longest as f32 * CHAR_W + 24.0).clamp(56.0, 460.0));
+    }
     // The comment always trails.
     if let Some(i) = cols.iter().position(|c| c.name == "comment") {
         let c = cols.remove(i);
@@ -358,7 +378,7 @@ pub(crate) fn table_columns(ir: &ConfigDocumentIr) -> Option<Vec<Column>> {
 
 fn column_cell(width: ColWidth) -> Div {
     match width {
-        ColWidth::Fixed(w) => div().w(px(w)).flex_none().min_w(px(0.0)),
+        ColWidth::Fixed(w) => div().w(px(w)).flex_none().min_w(px(0.0)).overflow_hidden(),
         ColWidth::Grow => div().flex_1().min_w(px(0.0)),
     }
 }
@@ -537,7 +557,41 @@ fn render_field(ctx: FieldCtx) -> impl IntoElement {
     let color = if field.valid == Some(false) { CRIT } else { risk_color(current_risk.as_ref()) };
     let id_base = format!("{row_id}:{}", field.name);
 
-    let value_el: AnyElement = if let Some(input) = editing {
+    // Two values, 0 and 1: an on/off switch rather than a picker.
+    let switch = field.options.as_ref().filter(|o| o.len() == 2 && o.iter().any(|v| v.value == "0") && o.iter().any(|v| v.value == "1"));
+    let value_el: AnyElement = if let (Some(opts), None) = (switch, editing) {
+        let on = text == "1";
+        let label = opts.iter().find(|o| o.value == text).map(|o| o.label.clone()).unwrap_or_else(|| text.clone());
+        let (app_flip, f, r, n) = (app.clone(), file.to_string(), row_id.to_string(), field.name.clone());
+        div()
+            .id(SharedString::from(format!("switch-{id_base}")))
+            .flex()
+            .items_center()
+            .gap(px(8.0))
+            .when(!locked, |d| {
+                d.cursor_pointer().on_click(move |_ev, _window, cx| {
+                    let (f, r, n) = (f.clone(), r.clone(), n.clone());
+                    let next = if on { "0" } else { "1" };
+                    app_flip.update(cx, |this, cx| this.set_structured_value(&f, &r, &n, serde_json::Value::String(next.into()), cx));
+                })
+            })
+            .child(
+                div()
+                    .w(px(30.0))
+                    .h(px(16.0))
+                    .flex_none()
+                    .rounded_full()
+                    .p(px(2.0))
+                    .flex()
+                    .when(on, |d| d.justify_end())
+                    .bg(if on { OK_BG } else { BG_CONTROL })
+                    .border_1()
+                    .border_color(if on { OK } else { BORDER_STRONG })
+                    .child(div().size(px(10.0)).rounded_full().bg(if on { OK } else { TEXT_DIM })),
+            )
+            .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(color).child(label))
+            .into_any_element()
+    } else if let Some(input) = editing {
         div().min_w(px(180.0)).child(Input::new(input).font_family(FONT_MONO).text_size(px(11.0))).into_any_element()
     } else {
         let (app_click, f, r, name, is_enum) = (app.clone(), file.to_string(), row_id.to_string(), field.name.clone(), field.options.is_some());
