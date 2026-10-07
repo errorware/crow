@@ -7,6 +7,7 @@ use crate::views::overview::{ProcessUnit, ServiceUnit, SocketUnit};
 pub mod collector;
 pub mod history;
 pub mod alerts;
+pub mod certs;
 pub mod chart;
 
 pub const MAX_HISTORY_POINTS: usize = 20;
