@@ -17,10 +17,10 @@ pub enum LiveValue {
 }
 
 /// Prints `key<TAB>=value`, `key<TAB>!` (no such key) or `key<TAB>?`
-/// (unreadable) per key. Keys are the script's arguments, never code; a
-/// `.` in a key is a `/` in /proc/sys and a `/` is a `.`, as sysctl reads
-/// them.
-const READ_LIVE: &str = r#"for k; do p=$(printf '%s' "$k" | tr ./ /.); f="/proc/sys/$p"; if [ ! -e "$f" ]; then printf '%s\t!\n' "$k"; elif v=$(tr '\n\t' '  ' < "$f" 2>/dev/null); then printf '%s\t=%s\n' "$k" "$v"; else printf '%s\t?\n' "$k"; fi; done"#;
+/// (unreadable) per key. Keys are the script's arguments, never code. As
+/// sysctl reads them: a key whose first separator is `/` is a path as is;
+/// otherwise a `.` is a `/` in /proc/sys and a `/` is a `.`.
+const READ_LIVE: &str = r#"for k; do s=${k%%[./]*}; case "${k#"$s"}" in /*) p="$k" ;; *) p=$(printf '%s' "$k" | tr ./ /.) ;; esac; f="/proc/sys/$p"; if [ ! -e "$f" ]; then printf '%s\t!\n' "$k"; elif v=$(tr '\n\t' '  ' < "$f" 2>/dev/null); then printf '%s\t=%s\n' "$k" "$v"; else printf '%s\t?\n' "$k"; fi; done"#;
 
 /// Reads the running value of each key. Keys with a glob are skipped.
 pub fn read_live(host: &dyn Host, keys: &[String]) -> HashMap<String, LiveValue> {

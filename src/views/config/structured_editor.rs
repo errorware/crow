@@ -365,13 +365,29 @@ pub(crate) fn table_columns(ir: &ConfigDocumentIr) -> Option<Vec<Column>> {
     // Each column is as wide as its longest value (or its header), so a
     // long key never runs under the next column; very long ones are clipped.
     for col in cols.iter_mut().filter(|c| matches!(c.width, ColWidth::Fixed(_))) {
-        let longest = ir.rows.iter().filter_map(|r| r.get_field(&col.name)).map(|f| value_text(&f.value).chars().count()).chain([col.name.len()]).max().unwrap_or(0);
+        // A field with options shows its option's meaning too (a switch
+        // and "ignores them"), so those count.
+        let longest = ir
+            .rows
+            .iter()
+            .filter_map(|r| r.get_field(&col.name))
+            .flat_map(|f| {
+                let labels = f.options.iter().flatten().map(|o| o.value.chars().count() + o.label.chars().count() + 6);
+                std::iter::once(value_text(&f.value).chars().count()).chain(labels)
+            })
+            .chain([col.name.len()])
+            .max()
+            .unwrap_or(0);
         col.width = ColWidth::Fixed((longest as f32 * CHAR_W + 24.0).clamp(56.0, 460.0));
     }
     // The comment always trails.
     if let Some(i) = cols.iter().position(|c| c.name == "comment") {
         let c = cols.remove(i);
         cols.push(c);
+    }
+    // The last column takes what's left, so nothing in it is ever cut.
+    if let Some(last) = cols.last_mut() {
+        last.width = ColWidth::Grow;
     }
     Some(cols)
 }
