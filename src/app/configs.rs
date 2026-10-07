@@ -87,8 +87,13 @@ pub fn load_configs(server: Option<&ServerRecord>, firewall: &FirewallOperationa
     let family = detect_os_release(host.as_ref()).map(|d| classify_distro_family(&d)).unwrap_or(DistroFamily::Unknown);
     // States for every file (the Cron screen edits crontab's); the list
     // only shows files the Config screen edits itself.
-    let all = crawl_all_configs(host.as_ref(), family);
-    let states = load_config_file_states(host.as_ref(), &all);
+    let mut all = crawl_all_configs(host.as_ref(), family);
+    let mut states = load_config_file_states(host.as_ref(), &all);
+    // sudoers is root-only: read apart, as root (ERR-22).
+    for (file, state) in crate::config::sudoers::load_sudoers(host.as_ref()) {
+        states.insert(file.name.clone(), state);
+        all.push(file);
+    }
     let files: Vec<_> = all.into_iter().filter(|f| editor_for(f.schema_kind).is_listed()).collect();
     let selected = files.first().map(|f| f.name.clone()).unwrap_or_else(|| "journald.conf".to_string());
 
@@ -353,6 +358,11 @@ impl CrowApp {
                 fields.insert("key".to_string(), serde_json::json!("vm.swappiness"));
                 fields.insert("value".to_string(), serde_json::json!("60"));
             }
+            // A rule that grants nothing until it's edited.
+            (StructuredFormat::Sudoers, None) => {
+                fields.insert("who".to_string(), serde_json::json!("nobody"));
+                fields.insert("rule".to_string(), serde_json::json!("ALL=(root) /usr/bin/true"));
+            }
             (StructuredFormat::Sshd, None) => return,
         }
         self.apply_structured_op(file, EditOp::InsertRow { after_row_id: last_row, fields }, cx);
@@ -545,8 +555,18 @@ impl CrowApp {
             Some(srv) => host_for(&srv),
             None => Arc::new(LocalHost),
         };
+        let format = self.structured_format_of(file);
+        // sudoers: visudo and the keep-sudo guard run in the install itself.
+        if format == Some(StructuredFormat::Sudoers) {
+            if let Some(reason) = &state.write_blocked {
+                return Err(reason.clone());
+            }
+            // Who Crow is there: the server's login, or this machine's user.
+            let login = self.configs_server().map(|s| s.login_user.clone()).unwrap_or_else(|| std::env::var("USER").unwrap_or_default());
+            return crate::config::sudoers::install_sudoers(host.as_ref(), &state.path.to_string_lossy(), &state.current_content, &login).map_err(|e| format!("{file}: {e}"));
+        }
         if state.write_blocked.is_none() {
-            if let Some(format) = self.structured_format_of(file) {
+            if let Some(format) = format {
                 plugins::validate_on_host(host.as_ref(), format, &state.current_content).map_err(|e| format!("{file}: {e}"))?;
             }
         }

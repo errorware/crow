@@ -51,7 +51,7 @@ impl CrowApp {
                 let (db, key, author, path) = (Arc::clone(&db), key.clone(), author.clone(), e.path.clone());
                 jobs.push(Box::new(move || {
                     let host = host_for(&srv);
-                    let target = push::PushTarget { server_id: &srv.id, server_name: &srv.name, path: &path, baseline: &baseline, author: &author };
+                    let target = push::PushTarget { server_id: &srv.id, server_name: &srv.name, path: &path, baseline: &baseline, author: &author, login_user: &srv.login_user };
                     push::push_baseline(host.as_ref(), &db, key.as_ref(), &target)
                 }));
             }
