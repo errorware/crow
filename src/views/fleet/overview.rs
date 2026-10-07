@@ -48,6 +48,7 @@ pub fn fleet_stat_strip(
     avg_load: Option<f32>,
     total_vcpu: usize,
     drift: Option<&[crate::config::drift::DriftEntry]>,
+    key_policy_days: Option<i64>,
 ) -> impl IntoElement {
     let server_count = servers.len();
     let groups: std::collections::BTreeSet<&str> = servers.iter().map(|s| s.group_name.as_str()).filter(|g| !g.is_empty()).collect();
@@ -74,8 +75,17 @@ pub fn fleet_stat_strip(
         None => ("—".to_string(), "".to_string(), "not read yet".to_string(), TEXT_MUTED),
         Some((days, name)) => {
             let (val, unit) = if *days >= 365 { (format!("{:.1}", *days as f64 / 365.25), "y") } else { (days.to_string(), "d") };
-            let note = if ages.unknown > 0 { format!("{name} · {} not read yet", ages.unknown) } else { name.clone() };
-            (val, unit.to_string(), note, TEXT_PRIMARY)
+            // Past the rotation policy (ERR-98): how many, in amber.
+            let now = chrono::Utc::now().timestamp();
+            let overdue = key_policy_days.map_or(0, |max| servers.iter().filter(|s| s.host_key_mtime.is_some_and(|t| (now - t) / 86_400 > max)).count());
+            let mut note = name.clone();
+            if overdue > 0 {
+                note = format!("{overdue} past the rotation policy · {note}");
+            }
+            if ages.unknown > 0 {
+                note = format!("{note} · {} not read yet", ages.unknown);
+            }
+            (val, unit.to_string(), note, if overdue > 0 { WARN } else { TEXT_PRIMARY })
         }
     };
     // Files that mean something other than their baseline, as of each
@@ -340,6 +350,7 @@ pub fn fleet_overview_view(
             avg_load,
             total_vcpu,
             fleet.drift.as_deref(),
+            fleet.host_key_policy_days,
         ))
         // 2. Active fleet / Archived switch
         .child(fleet_view_tabs(fleet, app.clone()))

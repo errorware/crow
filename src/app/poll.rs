@@ -389,6 +389,10 @@ impl CrowApp {
         let (changes, down_now) = crate::metrics::alerts::evaluate(&open, rows, &self.history_down, now);
         self.history_down = down_now;
         let _ = db.apply_alert_changes(&changes, now);
+        // Host keys past the rotation policy (ERR-98).
+        let keys: Vec<(String, Option<i64>)> = self.fleet.servers.iter().map(|s| (s.id.clone(), s.host_key_mtime)).collect();
+        let policy = crate::app::archive::host_key_max_age_days(&self.config);
+        let _ = db.apply_alert_changes(&crate::metrics::alerts::key_age_changes(&open, &keys, policy, now), now);
     }
 
     /// One history row per server from its newest sample, the watch session

@@ -72,6 +72,7 @@ impl Render for CrowApp {
         // own purge audit trail (ERR-32).
         let fleet_purge_days = self.archive_purge_days();
         let fleet_purge_audit = self.recent_purge_audit();
+        self.fleet.host_key_policy_days = crate::app::archive::host_key_max_age_days(&self.config);
         let (alert_lines, watch_gap) = if matches!(self.screen, Screen::Fleet | Screen::Server) { self.fleet_alert_panel() } else { (Vec::new(), None) };
         let audit = match self.screen {
             Screen::Fleet => self.audit_items(30),
