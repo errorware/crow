@@ -386,11 +386,16 @@ pub type RiskFinding = (String, String, String);
 pub fn never_on_prod_values(format: StructuredFormat, text: &str) -> Vec<RiskFinding> {
     let Ok(ir) = to_ir(format, text) else { return Vec::new() };
     let mut out = Vec::new();
-    for field in ir.rows.iter().flat_map(|r| r.fields.iter()) {
-        let Some(value) = field.value.as_str() else { continue };
-        let risky = field.options.iter().flatten().find(|o| o.value == value && o.risk == Some(RiskLevel::NeverOnProd));
-        if let Some(opt) = risky {
-            out.push((field.name.clone(), value.to_string(), opt.label.clone()));
+    for row in &ir.rows {
+        // Key/value formats (sysctl) name the finding by the row's key.
+        let key = row.get_field("key").and_then(|f| f.value.as_str());
+        for field in &row.fields {
+            let Some(value) = field.value.as_str() else { continue };
+            let risky = field.options.iter().flatten().find(|o| o.value == value && o.risk == Some(RiskLevel::NeverOnProd));
+            if let Some(opt) = risky {
+                let name = if field.name == "value" { key.unwrap_or("value") } else { &field.name };
+                out.push((name.to_string(), value.to_string(), opt.label.clone()));
+            }
         }
     }
     out
@@ -417,6 +422,15 @@ mod tests {
     use super::*;
     use crate::config::detect_schema_kind;
     use std::path::Path;
+
+    #[test]
+    fn turning_aslr_off_needs_the_typed_confirmation_and_names_the_key() {
+        let before = "kernel.randomize_va_space = 2\nvm.swappiness = 10\n";
+        let after = "kernel.randomize_va_space = 0\nvm.swappiness = 10\n";
+        assert!(new_never_on_prod_values(StructuredFormat::Sysctl, before, before).is_empty());
+        let found = new_never_on_prod_values(StructuredFormat::Sysctl, before, after);
+        assert_eq!(found, vec![("kernel.randomize_va_space".to_string(), "0".to_string(), "off".to_string())]);
+    }
 
     #[test]
     fn sshd_sheet_groups_directives_and_shows_defaults() {
