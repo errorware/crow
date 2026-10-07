@@ -34,6 +34,11 @@ pub struct OverviewState {
     pub map_hide_loopback: bool,
     pub map_process_focus: Option<String>,
     pub selected_connection_id: Option<String>,
+    /// Reverse DNS names of public peers, by address (ERR-100); `None`
+    /// when the address has no name. Names are public, so one cache serves
+    /// every server.
+    pub peer_names: std::collections::HashMap<String, Option<String>>,
+    pub peer_names_pending: bool,
     /// Overview's Updates & Security card.
     pub security: SecurityState,
     /// Height of the log panel under the Processes table (drag to resize).
@@ -104,6 +109,8 @@ impl OverviewState {
             map_hide_loopback: false,
             map_process_focus: None,
             selected_connection_id: None,
+            peer_names: std::collections::HashMap::new(),
+            peer_names_pending: false,
             security: SecurityState::default(),
             process_log_height: 240.0,
         }

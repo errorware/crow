@@ -183,6 +183,7 @@ impl CrowApp {
                     if entity.update(cx, |this, cx| {
                         this.apply_poll_result(res);
                         this.maybe_check_certs(cx);
+                        this.resolve_peer_names(cx);
                         // Overview on screen: keep the updates/CVE check current
                         // (a no-op while it's fresh; also covers startup).
                         if this.screen == super::Screen::Server && this.active_view == "overview" {
@@ -378,6 +379,41 @@ impl CrowApp {
         if history_tick {
             self.record_history(now_secs as i64);
         }
+    }
+
+    /// Names the public peers on the connection map that haven't been looked
+    /// up yet, through the active server's resolver, in the background
+    /// (ERR-100). A batch at a time; each address is asked once per run.
+    fn resolve_peer_names(&mut self, cx: &mut Context<Self>) {
+        use crate::views::overview::collector::{bare_peer_addr, categorize_peer, reverse_names};
+        use crate::views::overview::models::PeerCategory;
+        if self.overview.peer_names_pending || self.screen != Screen::Server || self.active_view != "sockets" {
+            return;
+        }
+        let mut wanted: Vec<String> = self
+            .overview
+            .sockets
+            .iter()
+            .map(|s| bare_peer_addr(&s.peer_addr).to_string())
+            .filter(|a| categorize_peer(a) == PeerCategory::Public && !self.overview.peer_names.contains_key(a))
+            .collect();
+        wanted.sort();
+        wanted.dedup();
+        wanted.truncate(32);
+        let Some(srv) = self.fleet.active_server() else { return };
+        if wanted.is_empty() {
+            return;
+        }
+        self.overview.peer_names_pending = true;
+        cx.spawn(async move |entity, cx| {
+            let names = cx.background_executor().spawn(async move { reverse_names(crate::host::host_for(&srv).as_ref(), &wanted) }).await;
+            let _ = entity.update(cx, |this, cx| {
+                this.overview.peer_names_pending = false;
+                this.overview.peer_names.extend(names);
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     /// Every few hours, reads every reachable server's TLS certificates in
