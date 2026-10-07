@@ -225,7 +225,34 @@ impl CrowApp {
     }
 
     /// First click arms DELETE for this account; the second deletes it.
+    /// The account Crow itself logs in as on the active server: the SSH
+    /// login, this machine's user, or root in a lab container.
+    fn crow_login_user(&self) -> Option<String> {
+        use crate::host::{transport_kind, TransportKind};
+        let srv = self.fleet.active_server()?;
+        Some(match transport_kind(&srv) {
+            TransportKind::Ssh => srv.login_user.clone(),
+            TransportKind::Local => std::env::var("USER").ok()?,
+            TransportKind::Container => "root".to_string(),
+        })
+    }
+
+    /// The key blob Crow logs in to the active server with, if it uses one
+    /// of its enrolled keys.
+    fn crow_login_key_blob(&self) -> Option<String> {
+        let srv = self.fleet.active_server()?;
+        let key = self.keys.enrolled.iter().find(|k| Some(&k.id) == srv.key_id.as_ref())?;
+        crate::keys::deploy::key_blob(&key.public_key)
+    }
+
     pub fn user_delete_clicked(&mut self, user: &str, cx: &mut Context<Self>) {
+        // Deleting the account Crow logs in as locks Crow out (ERR-111).
+        if self.crow_login_user().as_deref() == Some(user) {
+            self.users.confirm_delete = None;
+            self.users.toast = Some(format!("Not applied: Crow logs in to this server as {user}; deleting it would lock Crow (and you, through Crow) out. Switch the server to another account first."));
+            cx.notify();
+            return;
+        }
         if self.users.confirm_delete.as_deref() == Some(user) {
             self.users.confirm_delete = None;
             self.user_delete(user, cx);
@@ -249,6 +276,14 @@ impl CrowApp {
     pub fn user_revoke_key(&mut self, user: &str, key_id: &str, cx: &mut Context<Self>) {
         let Some(u) = self.users.find(user) else { return };
         let Some(line) = u.authorized_keys.iter().find(|k| k.id == key_id).map(|k| k.key_preview.clone()) else { return };
+        // Revoking the key Crow logs in with locks Crow out (ERR-112).
+        let is_crow_key = self.crow_login_user().as_deref() == Some(user)
+            && self.crow_login_key_blob().is_some_and(|blob| line.split_whitespace().any(|w| w == blob.as_str()));
+        if is_crow_key {
+            self.users.toast = Some("Not applied: that's the key Crow logs in to this server with; revoking it would lock Crow out. Switch the server to another key first (Keys → switch), then revoke this one.".into());
+            cx.notify();
+            return;
+        }
         let cmd = host_data::revoke_key(user, &u.home_dir, &line);
         self.run_user_action(user, cmd.map(|c| vec![HostCommand::new(c)]), false, cx);
     }
