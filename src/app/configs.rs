@@ -374,7 +374,7 @@ impl CrowApp {
             (StructuredFormat::Logrotate, None) => {
                 fields.insert("missingok".to_string(), serde_json::json!(crow_config_schemas::logrotate::FLAG_VALUE));
             }
-            (StructuredFormat::Sshd, None) => return,
+            (StructuredFormat::Sshd | StructuredFormat::Systemd, None) => return,
         }
         self.apply_structured_op(file, EditOp::InsertRow { after_row_id: last_row, fields }, cx);
     }
@@ -579,7 +579,8 @@ impl CrowApp {
         }
         if state.write_blocked.is_none() {
             if let Some(format) = format {
-                plugins::validate_on_host(host.as_ref(), format, &state.current_content).map_err(|e| format!("{file}: {e}"))?;
+                let name = state.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+                plugins::validate_on_host(host.as_ref(), format, &name, &state.current_content).map_err(|e| format!("{file}: {e}"))?;
             }
         }
         // fstab: checked against the file on the host now (ERR-22).

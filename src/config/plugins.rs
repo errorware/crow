@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 use crow_config_core::edit::{ConfigDocument, ConfigPlugin, EditOp};
 use crow_config_core::ir::ConfigDocumentIr;
 use crow_config_core::schema::RiskLevel;
-use crow_config_schemas::{FstabPlugin, HostsPlugin, LogrotatePlugin, PgHbaPlugin, SshdPlugin, SudoersPlugin, SysctlPlugin};
+use crow_config_schemas::{FstabPlugin, HostsPlugin, LogrotatePlugin, SystemdPlugin, PgHbaPlugin, SshdPlugin, SudoersPlugin, SysctlPlugin};
 
 use super::SchemaKind;
 use crate::host::{Host, HostError, DEFAULT_TIMEOUT};
@@ -25,6 +25,7 @@ pub enum StructuredFormat {
     Sudoers,
     Fstab,
     Logrotate,
+    Systemd,
 }
 
 /// A Crow screen that owns a config file better than a file editor would.
@@ -72,6 +73,7 @@ pub fn editor_for(kind: Option<SchemaKind>) -> ConfigEditor {
         Some(SchemaKind::Sudoers) => ConfigEditor::Structured(StructuredFormat::Sudoers),
         Some(SchemaKind::Fstab) => ConfigEditor::Structured(StructuredFormat::Fstab),
         Some(SchemaKind::Logrotate) => ConfigEditor::Structured(StructuredFormat::Logrotate),
+        Some(SchemaKind::Systemd) => ConfigEditor::Structured(StructuredFormat::Systemd),
         Some(SchemaKind::Journald) => ConfigEditor::Journald,
         Some(SchemaKind::Cron) => ConfigEditor::Screen(DedicatedScreen::Cron),
         Some(SchemaKind::Ufw) => ConfigEditor::Screen(DedicatedScreen::Firewall),
@@ -91,6 +93,7 @@ pub fn plugin(format: StructuredFormat) -> &'static dyn ConfigPlugin {
     static SUDOERS: OnceLock<SudoersPlugin> = OnceLock::new();
     static FSTAB: OnceLock<FstabPlugin> = OnceLock::new();
     static LOGROTATE: OnceLock<LogrotatePlugin> = OnceLock::new();
+    static SYSTEMD: OnceLock<SystemdPlugin> = OnceLock::new();
     match format {
         StructuredFormat::Hosts => HOSTS.get_or_init(HostsPlugin::new),
         StructuredFormat::Sshd => SSHD.get_or_init(SshdPlugin::new),
@@ -99,6 +102,7 @@ pub fn plugin(format: StructuredFormat) -> &'static dyn ConfigPlugin {
         StructuredFormat::Sudoers => SUDOERS.get_or_init(SudoersPlugin::new),
         StructuredFormat::Fstab => FSTAB.get_or_init(FstabPlugin::new),
         StructuredFormat::Logrotate => LOGROTATE.get_or_init(LogrotatePlugin::new),
+        StructuredFormat::Systemd => SYSTEMD.get_or_init(SystemdPlugin::new),
     }
 }
 
@@ -337,7 +341,9 @@ pub fn file_validators(format: StructuredFormat) -> Vec<String> {
         .collect()
 }
 
-pub fn validate_on_host(host: &dyn Host, format: StructuredFormat, content: &str) -> Result<Validation, String> {
+/// `name` is the file's own name, for validators that need it (`{name}`:
+/// systemd-analyze tells unit types apart by suffix).
+pub fn validate_on_host(host: &dyn Host, format: StructuredFormat, name: &str, content: &str) -> Result<Validation, String> {
     let validators = file_validators(format);
     if validators.is_empty() {
         return Ok(Validation::Skipped("no file validator for this format".into()));
@@ -361,7 +367,7 @@ pub fn validate_on_host(host: &dyn Host, format: StructuredFormat, content: &str
                 skipped.push(template.replace("{file}", "<file>"));
                 continue;
             }
-            let command = format!("PATH=\"$PATH:/usr/sbin:/sbin\"; {}", template.replace("{file}", &shell_quote(&tmp)));
+            let command = format!("PATH=\"$PATH:/usr/sbin:/sbin\"; {}", template.replace("{file}", &shell_quote(&tmp)).replace("{name}", &shell_quote(name)));
             // Validators often need root (e.g. `sshd -t` reads the host keys).
             match host.exec_privileged(&["sh", "-c", &command], &[], DEFAULT_TIMEOUT) {
                 Ok(_) => {}
@@ -595,11 +601,11 @@ mod tests {
     fn validation_skips_formats_without_file_validators_and_missing_tools() {
         use crate::host::LocalHost;
         // hosts only declares a per-address validator, not a file one.
-        assert!(matches!(validate_on_host(&LocalHost, StructuredFormat::Hosts, "127.0.0.1 localhost\n"), Ok(Validation::Skipped(_))));
+        assert!(matches!(validate_on_host(&LocalHost, StructuredFormat::Hosts, "hosts", "127.0.0.1 localhost\n"), Ok(Validation::Skipped(_))));
         // sshd declares `sshd -t -f {file}`. Garbage must be rejected where sshd
         // exists, and a missing sshd must be reported as skipped — never passed.
         let sshd_installed = ["/usr/sbin/sshd", "/usr/bin/sshd", "/sbin/sshd"].iter().any(|p| std::path::Path::new(p).exists());
-        let result = validate_on_host(&LocalHost, StructuredFormat::Sshd, "ThisIsNotADirective yes\n");
+        let result = validate_on_host(&LocalHost, StructuredFormat::Sshd, "sshd_config", "ThisIsNotADirective yes\n");
         if sshd_installed {
             assert!(result.is_err(), "sshd -t must reject an unknown directive: {result:?}");
         } else {
