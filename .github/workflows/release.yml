@@ -121,9 +121,12 @@ jobs:
       base64-subjects: "${{ needs.hash.outputs.hashes }}"
       upload-assets: ${{ github.event_name == 'release' }} # Attach the .intoto.jsonl to the release.
 
+  # The binaries go on the release whenever they built, even if the
+  # provenance generator's final check fails (it has reported failure with
+  # every sub-job green, which left 0.1.0 and 0.2.0-beta.1 with no binaries).
   release-assets:
-    needs: [provenance]
-    if: github.event_name == 'release'
+    needs: [build, provenance]
+    if: always() && github.event_name == 'release' && needs.build.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
