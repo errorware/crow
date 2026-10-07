@@ -26,6 +26,7 @@ use crate::views::overview::{
 };
 
 pub mod danger;
+pub mod server_facts;
 pub mod fleet_run;
 pub mod recovery;
 pub mod terminal;
@@ -202,6 +203,8 @@ pub struct CrowApp {
     pub processes_search: Option<overview::TableSearch>,
     pub users_search: Option<overview::TableSearch>,
     pub firewall_search: Option<overview::TableSearch>,
+    /// Servers whose distro/kernel Crow has tried to read this run.
+    pub server_facts_tried: std::collections::HashSet<String>,
     /// The add-rule dialog's text fields, while it's open.
     pub firewall_rule_inputs: Option<firewall::FirewallRuleInputs>,
     pub logs_search: Option<overview::TableSearch>,
@@ -423,6 +426,7 @@ impl CrowApp {
             processes_search: None,
             users_search: None,
             firewall_search: None,
+            server_facts_tried: std::collections::HashSet::new(),
             firewall_rule_inputs: None,
             logs_search: None,
             new_user_inputs: None,

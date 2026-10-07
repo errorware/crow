@@ -475,6 +475,7 @@ impl CrowApp {
     /// from. The result is dropped if the active server or edits changed while
     /// it loaded.
     pub fn reload_configs_for_active_server(&mut self, cx: &mut Context<Self>) {
+        self.backfill_server_facts(cx);
         let server = self.fleet.active_server();
         let target = server.as_ref().map(|s| s.id.clone());
         if self.configs.has_unsaved_changes() || target == self.configs.server_id {
