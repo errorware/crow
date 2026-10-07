@@ -549,6 +549,18 @@ mod tests {
         assert!(table_columns(&sshd).is_none());
     }
 
+    /// A long sysctl key used to run under the value column (130px for all).
+    #[test]
+    fn columns_are_as_wide_as_their_longest_value() {
+        use crate::views::config::structured_editor::table_columns;
+        let ir = to_ir(StructuredFormat::Sysctl, "net.ipv4.conf.all.accept_source_route = 0\nvm.swappiness = 10\n").unwrap();
+        let cols = table_columns(&ir).unwrap();
+        let key = cols.iter().find(|c| c.name == "key").unwrap().fixed_width().unwrap();
+        let value = cols.iter().find(|c| c.name == "value").unwrap().fixed_width().unwrap();
+        assert!(key >= "net.ipv4.conf.all.accept_source_route".len() as f32 * 7.0, "key column {key}px");
+        assert!(value < 100.0, "short values stay narrow: {value}px");
+    }
+
     #[test]
     fn structured_edit_changes_only_the_edited_value() {
         let text = "# local names\n127.0.0.1  localhost\n10.0.4.12  db-01  # primary\n";
