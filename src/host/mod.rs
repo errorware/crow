@@ -86,7 +86,27 @@ pub struct DirEntry {
 /// Writes stdin to "$1" atomically: temp file beside it, keep the original
 /// mode (and owner, when root), then rename over it. Uses `stat -c`, which
 /// GNU coreutils and BusyBox both support (BusyBox has no `chmod --reference`).
-const ATOMIC_WRITE_SCRIPT: &str = r#"set -e; t=$(mktemp "$1.crow.XXXXXX"); cat > "$t"; if [ -e "$1" ]; then chmod "$(stat -c %a "$1")" "$t"; chown "$(stat -c %u:%g "$1")" "$t" 2>/dev/null || true; fi; mv -f "$t" "$1""#;
+///
+/// A symlink is written through, to the file it points at. As root, the write
+/// is refused unless every directory from that file up to `/` is root's and
+/// not group- or world-writable: otherwise another account (say postgres, for
+/// a `pg_hba.conf` in its data directory) could swap the temp file or a
+/// directory while root writes (ERR-118).
+const ATOMIC_WRITE_SCRIPT: &str = r#"set -e
+if [ -L "$1" ]; then r=$(readlink -f -- "$1") || { echo "can't resolve the link $1" >&2; exit 3; }
+else d=$(cd -P -- "$(dirname -- "$1")" && pwd -P) || exit 3; r=${d%/}/$(basename -- "$1"); fi
+if [ "$(id -u)" = 0 ]; then
+  d=$(dirname -- "$r")
+  while :; do
+    s=$(stat -c '%u %a' -- "$d") || exit 3
+    if [ "${s%% *}" != 0 ] || [ $(( 0${s#* } & 022 )) != 0 ]; then echo "not written as root: $d can be changed by an account other than root, so $r has to be edited as that account" >&2; exit 3; fi
+    [ "$d" = / ] && break
+    d=$(dirname -- "$d")
+  done
+fi
+t=$(mktemp "$r.crow.XXXXXX"); cat > "$t"
+if [ -e "$r" ]; then chmod "$(stat -c %a "$r")" "$t"; chown "$(stat -c %u:%g "$r")" "$t" 2>/dev/null || true; fi
+mv -f "$t" "$r""#;
 
 /// Lists "$1" one entry per line as `type|mode|uid|gid|size|mtime|path`, with
 /// `stat -c` (GNU and BusyBox alike; `find -printf` is GNU-only). The globs
