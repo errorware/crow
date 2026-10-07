@@ -135,6 +135,21 @@ pub fn set_private_key_permissions(path: &Path) -> std::io::Result<()> {
     std::fs::set_permissions(path, std::fs::Permissions::from_mode(0o600))
 }
 
+/// Creates `path` with `content` and `mode`, failing if it exists.
+fn write_new_file(path: &Path, content: &[u8], mode: u32) -> std::io::Result<()> {
+    use std::io::Write;
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(mode);
+    }
+    #[cfg(not(unix))]
+    let _ = mode;
+    opts.open(path)?.write_all(content)
+}
+
 #[cfg(not(unix))]
 pub fn set_private_key_permissions(_path: &Path) -> std::io::Result<()> {
     Ok(())
@@ -308,7 +323,12 @@ pub fn generate_keypair(
         .map_err(|e| format!("Failed to format private key: {}", e))?;
 
     let base_name = if let Some(custom) = filename_override.filter(|s| !s.trim().is_empty()) {
-        custom.trim().to_string()
+        // A file name, not a path: nothing outside the folder (ERR-115).
+        let custom = custom.trim();
+        if custom.contains(['/', '\\']) || custom == "." || custom == ".." {
+            return Err("The key's file name can't contain / or be . or ..".to_string());
+        }
+        custom.to_string()
     } else {
         let slug = name.to_lowercase().replace(' ', "-").replace('_', "-");
         match algo {
@@ -320,23 +340,18 @@ pub fn generate_keypair(
     let priv_path = target_dir.join(&base_name);
     let pub_path = target_dir.join(format!("{}.pub", base_name));
 
-    // Ensure we don't accidentally overwrite existing keys
-    if priv_path.exists() {
-        return Err(format!("Private key file already exists at '{}'", priv_path.display()));
-    }
     if pub_path.exists() {
         return Err(format!("Public key file already exists at '{}'", pub_path.display()));
     }
 
-    // Write private key file
-    std::fs::write(&priv_path, priv_key_openssh.as_bytes())
-        .map_err(|e| format!("Failed to write private key to '{}': {}", priv_path.display(), e))?;
-    set_private_key_permissions(&priv_path)
-        .map_err(|e| format!("Failed to set permissions (0600) on private key: {}", e))?;
-
-    // Write public key file
-    std::fs::write(&pub_path, pub_key_openssh.as_bytes())
-        .map_err(|e| format!("Failed to write public key to '{}': {}", pub_path.display(), e))?;
+    // The private key is created 0600 in one step, and never over an
+    // existing file (ERR-108): it's not readable by anyone else even for a
+    // moment, and an existing key isn't replaced.
+    write_new_file(&priv_path, priv_key_openssh.as_bytes(), 0o600).map_err(|e| match e.kind() {
+        std::io::ErrorKind::AlreadyExists => format!("Private key file already exists at '{}'", priv_path.display()),
+        _ => format!("Failed to write private key to '{}': {}", priv_path.display(), e),
+    })?;
+    write_new_file(&pub_path, pub_key_openssh.as_bytes(), 0o644).map_err(|e| format!("Failed to write public key to '{}': {}", pub_path.display(), e))?;
 
     let record = SshKeyRecord {
         id: format!("key-{}", &fingerprint.replace("SHA256:", "").chars().take(12).collect::<String>()),
@@ -361,6 +376,31 @@ pub fn generate_keypair(
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// ERR-108 / ERR-115: 0600 from the start, never over an existing key,
+    /// and a file name can't leave the folder.
+    #[test]
+    fn private_keys_are_private_new_files_inside_the_folder() {
+        let dir = std::env::temp_dir().join(format!("crow_test_keyperms_{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let gen = |name: &str| generate_keypair("K", KeyAlgorithm::Ed25519, None, "fleet", &dir, Some(name));
+        let (_, _, priv_path, pub_path) = gen("id_perm").unwrap();
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(&priv_path).unwrap().permissions().mode() & 0o777, 0o600);
+            assert_eq!(std::fs::metadata(&pub_path).unwrap().permissions().mode() & 0o022, 0, "public key not group/other-writable");
+        }
+        let before = std::fs::read(&priv_path).unwrap();
+        assert!(gen("id_perm").unwrap_err().contains("already exists"));
+        assert_eq!(std::fs::read(&priv_path).unwrap(), before, "the existing key is untouched");
+        for bad in ["../escape", "sub/key", "..", "."] {
+            assert!(gen(bad).is_err(), "{bad}");
+        }
+        assert!(!dir.parent().unwrap().join("escape").exists());
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     #[test]
     fn test_ed25519_generation_and_fingerprint() {

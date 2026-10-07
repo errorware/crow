@@ -60,8 +60,17 @@ impl Host for LocalHost {
         let target = Path::new(path);
         let dir = target.parent().ok_or_else(|| HostError::Io(format!("{path} has no parent directory")))?;
         let file_name = target.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
-        let tmp = dir.join(format!(".{file_name}.crow-{}", std::process::id()));
-        std::fs::write(&tmp, content)?;
+        // A random name, created new (never through an existing file or
+        // symlink) (ERR-109).
+        let tmp = dir.join(format!(".{file_name}.crow-{:016x}", rand::random::<u64>()));
+        {
+            use std::io::Write;
+            let mut f = std::fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
+            if let Err(e) = f.write_all(content.as_bytes()) {
+                let _ = std::fs::remove_file(&tmp);
+                return Err(e.into());
+            }
+        }
         if let Ok(meta) = std::fs::metadata(target) {
             let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(meta.mode() & 0o7777));
         }
