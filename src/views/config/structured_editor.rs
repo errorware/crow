@@ -103,10 +103,19 @@ pub fn structured_editor(
                 crate::config::sysctl_live::row_note(&kv(row, "value"), configs.sysctl_live.get(&key), later)
             })
             .collect()
+    } else if format == StructuredFormat::Sudoers {
+        // What a passwordless rule lets its users do (ERR-22).
+        ir.rows
+            .iter()
+            .map(|row| {
+                let field = |n: &str| row.get_field(n).and_then(|f| f.value.as_str()).unwrap_or_default();
+                (field("kind") == "rule").then(|| crow_config_schemas::sudoers_rule_risk(field("rule"))).flatten().map(|risk| (format!("lets {} run {risk}", field("who")), true))
+            })
+            .collect()
     } else {
         Vec::new()
     };
-    let not_running = sysctl_notes.iter().flatten().filter(|(_, warn)| *warn).count();
+    let not_running = if format == StructuredFormat::Sysctl { sysctl_notes.iter().flatten().filter(|(_, warn)| *warn).count() } else { 0 };
 
     let header = {
         let (app_text, app_hist, app_revert, app_stage) = (app.clone(), app.clone(), app.clone(), app.clone());

@@ -16,6 +16,8 @@ pub struct PushTarget<'a> {
     pub path: &'a str,
     pub baseline: &'a str,
     pub author: &'a str,
+    /// Who Crow logs in as there: a sudoers push must leave them sudo.
+    pub login_user: &'a str,
 }
 
 /// Re-reads `path` on the host (it may have changed since Crow last looked),
@@ -32,10 +34,15 @@ pub fn push_baseline(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKe
         Drift::Identical | Drift::Cosmetic => return Ok(StepOutcome::Skipped("already matches the baseline".into())),
         Drift::Differs(d) => d.len(),
     };
-    if let Some(f) = format {
-        plugins::validate_on_host(host, f, t.baseline).map_err(|e| format!("not written: the host's validator refused the baseline: {e}"))?;
+    if format == Some(plugins::StructuredFormat::Sudoers) {
+        // visudo and the keep-sudo guard run in the install itself.
+        super::sudoers::install_sudoers(host, t.path, t.baseline, t.login_user).map_err(|e| format!("not written: {e}"))?;
+    } else {
+        if let Some(f) = format {
+            plugins::validate_on_host(host, f, t.baseline).map_err(|e| format!("not written: the host's validator refused the baseline: {e}"))?;
+        }
+        host.write_file_privileged(t.path, t.baseline).map_err(|e| format!("not written: {e}"))?;
     }
-    host.write_file_privileged(t.path, t.baseline).map_err(|e| format!("not written: {e}"))?;
 
     // Written. Recording can still fail; say so without calling the push a failure.
     let recorded = db.lock().map_err(|_| "the vault is busy".to_string()).and_then(|db| {
@@ -69,7 +76,7 @@ mod tests {
     use crate::host::LocalHost;
 
     fn target<'a>(path: &'a str, baseline: &'a str) -> PushTarget<'a> {
-        PushTarget { server_id: "s1", server_name: "web-1", path, baseline, author: "me@box" }
+        PushTarget { server_id: "s1", server_name: "web-1", path, baseline, author: "me@box", login_user: "deploy" }
     }
 
     #[test]

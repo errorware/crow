@@ -7,6 +7,7 @@ pub mod history;
 pub mod drift;
 pub mod push;
 pub mod syntax;
+pub mod sudoers;
 pub mod sysctl_live;
 
 pub use plugin::{default_config_toml, CrowConfigPlugin, APPEARANCE_DEFAULTS, SERVERS_DEFAULTS, CROW_CONFIG_MANIFEST};
