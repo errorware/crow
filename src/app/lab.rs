@@ -80,8 +80,15 @@ impl CrowApp {
     }
 
     /// Runs `job` (blocking) in the background with Crow's key, then saves
-    /// the server it returns into the fleet and opens it.
-    fn run_vm_enrollment(&mut self, label: String, job: impl FnOnce(&crate::vault::SshKeyRecord) -> Result<ServerRecord, String> + Send + 'static, cx: &mut Context<Self>) {
+    /// the server it returns into the fleet and opens it. The lab closes
+    /// right away; `busy` (shown in the status bar) follows the job's
+    /// progress, so it's clear it's working.
+    fn run_vm_enrollment(
+        &mut self,
+        label: String,
+        job: impl FnOnce(&crate::vault::SshKeyRecord, &(dyn Fn(String) + Sync)) -> Result<ServerRecord, String> + Send + 'static,
+        cx: &mut Context<Self>,
+    ) {
         if self.local_lab.busy.is_some() {
             return;
         }
@@ -93,16 +100,52 @@ impl CrowApp {
                 return;
             }
         };
-        self.local_lab.busy = Some(label);
+        self.local_lab.busy = Some(label.clone());
         self.local_lab.vm_error = None;
+        self.local_lab.show_modal = false;
         cx.notify();
+        let progress = std::sync::Arc::new(std::sync::Mutex::new(String::new()));
+        let done = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
+        // Copies the job's latest step into the status bar while it runs.
+        let (ticker_progress, ticker_done) = (progress.clone(), done.clone());
         cx.spawn(async move |entity, cx| {
-            let result = cx.background_executor().spawn(async move { job(&key) }).await;
+            while !ticker_done.load(std::sync::atomic::Ordering::Relaxed) {
+                cx.background_executor().timer(std::time::Duration::from_millis(400)).await;
+                let step = ticker_progress.lock().map(|p| p.clone()).unwrap_or_default();
+                let alive = entity.update(cx, |this, cx| {
+                    if this.local_lab.busy.is_some() && !step.is_empty() {
+                        this.local_lab.busy = Some(format!("{label} · {step}"));
+                        cx.notify();
+                    }
+                });
+                if alive.is_err() {
+                    break;
+                }
+            }
+        })
+        .detach();
+        cx.spawn(async move |entity, cx| {
+            let job_progress = progress.clone();
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    let report = move |line: String| {
+                        if let Ok(mut p) = job_progress.lock() {
+                            *p = line;
+                        }
+                    };
+                    job(&key, &report)
+                })
+                .await;
+            done.store(true, std::sync::atomic::Ordering::Relaxed);
             let _ = entity.update(cx, |this, cx| {
                 this.local_lab.busy = None;
                 match result {
                     Ok(record) => this.save_vm_server(record, cx),
-                    Err(e) => this.local_lab.vm_error = Some(e),
+                    Err(e) => {
+                        this.keys.toast = Some(format!("Multipass: {e}"));
+                        this.local_lab.vm_error = Some(e);
+                    }
                 }
                 this.refresh_multipass(cx);
                 cx.notify();
@@ -136,15 +179,15 @@ impl CrowApp {
             cx.notify();
             return;
         }
-        let label = format!("Launching {}: the first launch downloads the Ubuntu image, a few minutes", spec.name);
-        self.run_vm_enrollment(label, move |key| multipass::launch_and_enroll(&spec, key), cx);
+        let label = format!("Launching {}", spec.name);
+        self.run_vm_enrollment(label, move |key, progress| multipass::launch_and_enroll(&spec, key, progress), cx);
         self.reroll_vm_name(cx);
     }
 
     /// Adds Crow's key to a VM Crow didn't make and enrolls it.
     pub fn import_multipass_vm(&mut self, name: &str, cx: &mut Context<Self>) {
         let name = name.to_string();
-        self.run_vm_enrollment(format!("Importing {name}…"), move |key| multipass::import(&name, key), cx);
+        self.run_vm_enrollment(format!("Importing {name}"), move |key, progress| multipass::import(&name, key, progress), cx);
     }
 
     /// Start, stop, restart, suspend; delete for good only after

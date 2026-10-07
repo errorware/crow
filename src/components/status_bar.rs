@@ -9,7 +9,10 @@ use crate::app::{CrowApp, Screen};
 use crate::theme::*;
 use crate::views::fleet::alert_lines::AlertLine;
 
-pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<String>, app: Entity<CrowApp>) -> impl IntoElement {
+/// `job`: a background job's live step (a Multipass VM launching), shown
+/// with a pulsing dot; clicking it opens the lab.
+pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<String>, job: Option<&str>, app: Entity<CrowApp>) -> impl IntoElement {
+    let app_job = app.clone();
     let app_update = app.clone();
     let open: Vec<&AlertLine> = alerts.iter().filter(|a| !a.resolved && !a.acknowledged).collect();
     let crit = open.iter().any(|a| a.level == "CRIT");
@@ -61,6 +64,25 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
                 .items_center()
                 .gap(px(8.0))
                 .px(px(12.0))
+                .children(job.map(|j| {
+                    div()
+                        .id("status-job")
+                        .flex()
+                        .items_center()
+                        .gap(px(7.0))
+                        .min_w(px(0.0))
+                        .cursor_pointer()
+                        .on_click(move |_ev, _window, cx| app_job.update(cx, |this, cx| this.toggle_local_lab_modal(cx)))
+                        .child(
+                            div()
+                                .size(px(6.0))
+                                .flex_none()
+                                .rounded_full()
+                                .bg(hex_rgb(0x8ab4ff))
+                                .with_animation("status-job-pulse", Animation::new(std::time::Duration::from_millis(1200)).repeat().with_easing(pulsating_between(0.25, 1.0)), |d, t| d.opacity(t)),
+                        )
+                        .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(hex_rgb(0x8ab4ff)).child(j.to_string()))
+                }))
                 .children(notice.map(|n| {
                     let app = app.clone();
                     div()

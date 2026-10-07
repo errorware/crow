@@ -263,6 +263,95 @@ pub fn launch(spec: &LaunchSpec, public_key: &str) -> Result<(), String> {
     LocalHost.exec_stdin(&argv, user_data.as_bytes(), LAUNCH).map(|_| ()).map_err(cli_error)
 }
 
+/// The last thing `multipass launch` said on its progress line: its
+/// output redraws one line with `\r` and terminal escapes, and spins
+/// `/-\|` while it waits. `None` when `chunk` holds nothing readable.
+pub fn progress_line(chunk: &str) -> Option<String> {
+    let mut plain = String::with_capacity(chunk.len());
+    let mut chars = chunk.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' {
+            // CSI: ESC [ parameters, ending at a letter.
+            if chars.peek() == Some(&'[') {
+                chars.next();
+                for c in chars.by_ref() {
+                    if c.is_ascii_alphabetic() {
+                        break;
+                    }
+                }
+            }
+            continue;
+        }
+        plain.push(c);
+    }
+    plain
+        .split(['\r', '\n'])
+        .map(|l| l.trim_end_matches(['/', '-', '\\', '|', ' ']).trim())
+        // Only words count: what's left of a redraw can be stray control
+        // characters (the ESC-[ sequences are gone already).
+        .filter(|l| l.chars().any(char::is_alphanumeric))
+        .map(|l| l.trim_matches(|c: char| c.is_control()))
+        .last()
+        .map(str::to_string)
+}
+
+/// `launch`, reporting Multipass's progress line as it changes.
+pub fn launch_with_progress(spec: &LaunchSpec, public_key: &str, progress: &(dyn Fn(String) + Sync)) -> Result<(), String> {
+    use std::io::{Read, Write};
+    use std::process::{Command, Stdio};
+    spec.check()?;
+    let user_data = cloud_init(public_key)?;
+    let argv = spec.argv();
+    let mut child = Command::new(&argv[0])
+        .args(&argv[1..])
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("couldn't run multipass: {e}"))?;
+    child.stdin.take().map(|mut i| i.write_all(user_data.as_bytes())).transpose().map_err(|e| format!("couldn't pass the cloud-init: {e}"))?;
+    let (mut out, mut err) = (child.stdout.take().expect("piped"), child.stderr.take().expect("piped"));
+    let last_error = std::sync::Mutex::new(String::new());
+    let started = std::time::Instant::now();
+    let read = |pipe: &mut dyn Read, is_err: bool| {
+        let mut buf = [0u8; 4096];
+        while let Ok(n) = pipe.read(&mut buf) {
+            if n == 0 {
+                break;
+            }
+            if let Some(line) = progress_line(&String::from_utf8_lossy(&buf[..n])) {
+                if is_err || line.contains("failed") || line.contains("error") {
+                    *last_error.lock().unwrap() = line.clone();
+                }
+                progress(line);
+            }
+        }
+    };
+    let read = &read;
+    let status = std::thread::scope(|scope| {
+        scope.spawn(move || read(&mut out, false));
+        scope.spawn(move || read(&mut err, true));
+        loop {
+            match child.try_wait() {
+                Ok(Some(status)) => break Ok(status),
+                Ok(None) if started.elapsed() > LAUNCH => {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    break Err(format!("multipass launch didn't finish in {} minutes", LAUNCH.as_secs() / 60));
+                }
+                Ok(None) => std::thread::sleep(Duration::from_millis(200)),
+                Err(e) => break Err(e.to_string()),
+            }
+        }
+    })?;
+    if status.success() {
+        Ok(())
+    } else {
+        let e = last_error.into_inner().unwrap_or_default();
+        Err(if e.is_empty() { format!("multipass launch failed ({status})") } else { e })
+    }
+}
+
 /// A Multipass error, as one line (its progress spinner and blank lines dropped).
 fn cli_error(e: HostError) -> String {
     match e {
@@ -513,11 +602,19 @@ pub fn pin_host_keys(lines: &[String]) -> Result<(), String> {
 /// logs in with Crow's key and reads its facts. Blocking; run it off the
 /// UI thread.
 pub fn enroll(name: &str, key: &SshKeyRecord) -> Result<ServerRecord, String> {
+    enroll_with_progress(name, key, &|_| {})
+}
+
+pub fn enroll_with_progress(name: &str, key: &SshKeyRecord, progress: &(dyn Fn(String) + Sync)) -> Result<ServerRecord, String> {
+    progress("Waiting for an address and host keys".into());
     let (inst, host_keys) = wait_until_up(name, Duration::from_secs(180))?;
+    progress(format!("Pinning host keys for {}", inst.address().unwrap_or_default()));
     pin_host_keys(&host_keys)?;
     let mut record = server_record(&inst, &host_keys, key);
     let host = crate::host::host_for(&record);
+    progress("Logging in as ubuntu with Crow's key".into());
     host.exec(&["true"], QUICK).map_err(|e| format!("Crow's key doesn't log in to {name} as ubuntu: {e}"))?;
+    progress("Reading its facts".into());
     let (facts, _) = crate::views::onboard::probe::gather_facts(host.as_ref());
     let known = |v: &str| (v != "—").then(|| v.to_string());
     record.os_distro = known(&facts.distro).unwrap_or(record.os_distro);
@@ -529,20 +626,31 @@ pub fn enroll(name: &str, key: &SshKeyRecord) -> Result<ServerRecord, String> {
 }
 
 /// Launches a VM with Crow's key and enrolls it.
-pub fn launch_and_enroll(spec: &LaunchSpec, key: &SshKeyRecord) -> Result<ServerRecord, String> {
-    launch(spec, &key.public_key)?;
-    enroll(&spec.name, key)
+pub fn launch_and_enroll(spec: &LaunchSpec, key: &SshKeyRecord, progress: &(dyn Fn(String) + Sync)) -> Result<ServerRecord, String> {
+    launch_with_progress(spec, &key.public_key, progress)?;
+    enroll_with_progress(&spec.name, key, progress)
 }
 
 /// Adds Crow's key to a VM Crow didn't make, then enrolls it.
-pub fn import(name: &str, key: &SshKeyRecord) -> Result<ServerRecord, String> {
+pub fn import(name: &str, key: &SshKeyRecord, progress: &(dyn Fn(String) + Sync)) -> Result<ServerRecord, String> {
+    progress(format!("Adding Crow's key to {name}"));
     authorize_key(name, &key.public_key)?;
-    enroll(name, key)
+    enroll_with_progress(name, key, progress)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn progress_is_the_last_readable_bit_of_the_redrawn_line() {
+        // Captured from a real launch.
+        let chunk = "Retrieving image: 98%\u{1b}[2K\u{1b}[0A\u{1b}[0E\nRetrieving image: 99%\u{1b}[2K\u{1b}[0A\u{1b}[0E";
+        assert_eq!(progress_line(chunk).as_deref(), Some("Retrieving image: 99%"));
+        assert_eq!(progress_line("\u{1b}[2K\u{1b}[0A\u{1b}[0EStarting crow-probe  /-\\|/-\\|/- ").as_deref(), Some("Starting crow-probe"));
+        assert_eq!(progress_line("\u{1b}[2K\u{1b}[0A\u{1b}[0E"), None);
+        assert_eq!(progress_line("\u{8}\u{8} \r"), None, "stray control characters aren't a step");
+    }
 
     #[test]
     fn a_vm_becomes_an_ssh_server_marked_as_multipass() {
@@ -668,7 +776,16 @@ mod tests {
         };
 
         let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            launch(&spec, &public_key).expect("launch");
+            let seen = std::sync::Mutex::new(Vec::<String>::new());
+            launch_with_progress(&spec, &public_key, &|line| {
+                let mut seen = seen.lock().unwrap();
+                if seen.last() != Some(&line) {
+                    eprintln!("progress: {line}");
+                    seen.push(line);
+                }
+            })
+            .expect("launch");
+            assert!(seen.lock().unwrap().iter().any(|l| l.starts_with("Starting") || l.starts_with("Launching") || l.contains("image")), "progress came through");
             let (inst, host_keys) = wait_until_up(&name, Duration::from_secs(180)).expect("up");
             eprintln!("{name} up at {:?}, {} host keys", inst.address(), host_keys.len());
             let known_hosts = dir.join("known_hosts");
