@@ -15,7 +15,7 @@ pub const DISK_CRIT: f32 = 95.0;
 pub struct Alert {
     pub id: String,
     pub server_id: String,
-    /// "unreachable", "disk", or "service:<unit>".
+    /// "unreachable", "disk", "service:<unit>", or "host_key_age".
     pub kind: String,
     /// "WARN" or "CRIT".
     pub level: String,
@@ -103,6 +103,43 @@ pub fn evaluate(open: &[Alert], rows: &[HistoryRow], down_before: &HashSet<Strin
     (changes, down_now)
 }
 
+/// The host-key policy (ERR-98): a server whose host key is older than
+/// `max_days` holds a WARN alert, resolved once its key is younger (it was
+/// rotated) or the policy is off (`None`). `servers` are (id, the key
+/// file's time); a key Crow hasn't read leaves its alert as it is.
+pub fn key_age_changes(open: &[Alert], servers: &[(String, Option<i64>)], max_days: Option<i64>, now: i64) -> AlertChanges {
+    const KIND: &str = "host_key_age";
+    let mut changes = AlertChanges::default();
+    for (server, mtime) in servers {
+        let existing = open.iter().find(|a| a.server_id == *server && a.kind == KIND && a.resolved_at.is_none());
+        let overdue = match (max_days, mtime) {
+            (None, _) => None,
+            (Some(_), None) => continue,
+            (Some(max), Some(t)) => {
+                let days = (now - t) / 86_400;
+                (days > max).then(|| format!("host key {days} days old; the policy is {max}"))
+            }
+        };
+        match (overdue, existing) {
+            (Some(detail), Some(a)) => changes.updated.push((a.id.clone(), "WARN".into(), detail, now)),
+            (Some(detail), None) => changes.opened.push(Alert {
+                id: format!("alert-{server}-{KIND}-{now}"),
+                server_id: server.clone(),
+                kind: KIND.into(),
+                level: "WARN".into(),
+                detail,
+                opened_at: now,
+                last_seen: now,
+                resolved_at: None,
+                acknowledged_at: None,
+            }),
+            (None, Some(a)) => changes.resolved.push(a.id.clone()),
+            (None, None) => {}
+        }
+    }
+    changes
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -169,5 +206,25 @@ mod tests {
         // systemd unreadable this time: nothing resolves.
         let (c, _) = evaluate(&open, &[row("a", true, None, None)], &HashSet::new(), 180);
         assert!(c.resolved.is_empty());
+    }
+
+    #[test]
+    fn host_keys_past_the_policy_warn_until_rotated() {
+        let day = 86_400;
+        let now = 1_000 * day;
+        let servers = vec![("old".to_string(), Some(now - 400 * day)), ("new".to_string(), Some(now - 10 * day)), ("unread".to_string(), None)];
+        let c = key_age_changes(&[], &servers, Some(365), now);
+        assert_eq!(c.opened.len(), 1);
+        assert_eq!((c.opened[0].server_id.as_str(), c.opened[0].level.as_str()), ("old", "WARN"));
+        assert_eq!(c.opened[0].detail, "host key 400 days old; the policy is 365");
+        // Still overdue a day later: updated, not opened again.
+        let c2 = key_age_changes(&c.opened, &servers, Some(365), now + day);
+        assert!(c2.opened.is_empty() && c2.updated.len() == 1);
+        // Rotated: the key file is new, the alert resolves.
+        let rotated = vec![("old".to_string(), Some(now))];
+        assert_eq!(key_age_changes(&c.opened, &rotated, Some(365), now + day).resolved, vec![c.opened[0].id.clone()]);
+        // Policy off: resolves too; an unread key changes nothing.
+        assert_eq!(key_age_changes(&c.opened, &servers, None, now).resolved.len(), 1);
+        assert_eq!(key_age_changes(&c.opened, &[("old".to_string(), None)], Some(365), now), AlertChanges::default());
     }
 }

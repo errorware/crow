@@ -56,6 +56,7 @@ zeroize_on_drop = true
 [servers]
 archive_purge_days = "90"
 geoip_regions = false
+host_key_max_age_days = "365"
 
 [appearance]
 fleet_background = ""
@@ -71,7 +72,7 @@ pub const APPEARANCE_DEFAULTS: &str = "\n[appearance]\nfleet_background = \"\"\n
 
 /// The [servers] section with defaults, appended to config files written
 /// before archiving existed (ERR-32).
-pub const SERVERS_DEFAULTS: &str = "\n[servers]\narchive_purge_days = \"90\"\ngeoip_regions = false\n";
+pub const SERVERS_DEFAULTS: &str = "\n[servers]\narchive_purge_days = \"90\"\ngeoip_regions = false\nhost_key_max_age_days = \"365\"\n";
 
 /// Lossless parser and schema plugin for Crow's config.toml
 #[derive(Debug, Clone)]

@@ -217,6 +217,18 @@ max = 24
 help = "Font size in server terminals, in points."
 
 [[fields]]
+name = "servers.host_key_max_age_days"
+type = "enum"
+required = false
+help = "How old a server's SSH host key can get before FLEET ALERTS says it's due for rotation (Fleet → Danger Zone → Rotate all host keys)."
+options = [
+  { value = "180", label = "180 days", risk = "recommended" },
+  { value = "365", label = "1 year · default", risk = "recommended" },
+  { value = "730", label = "2 years", risk = "caution" },
+  { value = "never", label = "Never warn", risk = "caution" }
+]
+
+[[fields]]
 name = "servers.geoip_regions"
 type = "bool"
 required = false

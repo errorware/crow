@@ -70,6 +70,15 @@ pub fn purge_due_text(window_days: Option<i64>) -> String {
     }
 }
 
+/// The host-key rotation policy in days (ERR-98); `None` when it's off.
+pub fn host_key_max_age_days(config: &crate::config::CrowConfigManager) -> Option<i64> {
+    let raw = config.get_field("servers.host_key_max_age_days").and_then(|f| f.value.as_str().map(|v| v.trim().to_string())).unwrap_or_default();
+    if raw == "never" {
+        return None;
+    }
+    Some(raw.parse::<i64>().ok().filter(|d| *d > 0).unwrap_or(365))
+}
+
 impl CrowApp {
     pub fn archive_purge_days(&self) -> Option<i64> {
         purge_window_days(&self.config)

@@ -46,6 +46,8 @@ pub struct FleetState {
     pub new_group_input: Option<Entity<InputState>>,
     pub group_assign_modal_server: Option<String>,
     pub groups: Vec<String>,
+    /// The host-key rotation policy in days, for the stat (ERR-98).
+    pub host_key_policy_days: Option<i64>,
     /// Every server's last-read copy of each baselined file against its
     /// baseline (ERR-74); `None` until computed.
     pub drift: Option<Vec<crate::config::drift::DriftEntry>>,
@@ -78,6 +80,7 @@ impl FleetState {
             new_group_input: None,
             group_assign_modal_server: None,
             groups: Vec::new(),
+            host_key_policy_days: Some(365),
             drift: None,
             archived: Vec::new(),
             page: FleetPage::Active,

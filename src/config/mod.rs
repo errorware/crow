@@ -32,6 +32,7 @@ pub const WIRED_SETTINGS: &[&str] = &[
     "connection.control_master",
     "security.auto_lock_minutes",
     "servers.archive_purge_days",
+    "servers.host_key_max_age_days",
     "appearance.fleet_background",
     "appearance.fleet_background_opacity",
     "appearance.fleet_background_blur",
@@ -134,6 +135,7 @@ impl CrowConfigManager {
             format!("{}\n{}", text.trim_end(), plugin::SERVERS_DEFAULTS)
         };
         let text = add_missing_key(&text, "servers", "geoip_regions", "geoip_regions = false");
+        let text = add_missing_key(&text, "servers", "host_key_max_age_days", "host_key_max_age_days = \"365\"");
         let text = add_missing_key(&text, "general", "update_check", "update_check = true");
         let text = add_missing_key(&text, "general", "update_prereleases", "update_prereleases = false");
         let text = add_missing_key(&text, "general", "update_auto_install", "update_auto_install = false");
