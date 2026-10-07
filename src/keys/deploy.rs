@@ -56,18 +56,21 @@ pub fn deploy_and_switch(
     switched.auth_method = "publickey".into();
     if let Err(e) = verify(&switched) {
         // Leave the server as it was.
-        let undo = revoke_key_blob(&home, &new_blob);
-        let undo: Vec<&str> = undo.iter().map(String::as_str).collect();
-        let _ = host.exec_privileged(&undo, &[], DEFAULT_TIMEOUT);
+        if let Ok(undo) = revoke_key_blob(user, &home, &new_blob) {
+            let undo: Vec<&str> = undo.iter().map(String::as_str).collect();
+            let _ = host.exec_privileged(&undo, &[], DEFAULT_TIMEOUT);
+        }
         return Err(format!("the new key didn't log in ({e}); it was removed again and nothing switched"));
     }
 
     let removed_old = match old_blob.filter(|b| *b != new_blob) {
-        Some(blob) => {
-            let argv = revoke_key_blob(&home, blob);
-            let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
-            host.exec_privileged(&argv, &[], DEFAULT_TIMEOUT).is_ok()
-        }
+        Some(blob) => match revoke_key_blob(user, &home, blob) {
+            Ok(argv) => {
+                let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
+                host.exec_privileged(&argv, &[], DEFAULT_TIMEOUT).is_ok()
+            }
+            Err(_) => false,
+        },
         None => false,
     };
     Ok(Switched { server: switched, removed_old })
