@@ -363,6 +363,13 @@ impl CrowApp {
                 fields.insert("who".to_string(), serde_json::json!("nobody"));
                 fields.insert("rule".to_string(), serde_json::json!("ALL=(root) /usr/bin/true"));
             }
+            // nofail, so a mount that isn't set up yet can't stop a boot.
+            (StructuredFormat::Fstab, None) => {
+                fields.insert("device".to_string(), serde_json::json!("LABEL=data"));
+                fields.insert("mountpoint".to_string(), serde_json::json!("/mnt/data"));
+                fields.insert("type".to_string(), serde_json::json!("ext4"));
+                fields.insert("options".to_string(), serde_json::json!("defaults,nofail"));
+            }
             (StructuredFormat::Sshd, None) => return,
         }
         self.apply_structured_op(file, EditOp::InsertRow { after_row_id: last_row, fields }, cx);
@@ -570,7 +577,18 @@ impl CrowApp {
                 plugins::validate_on_host(host.as_ref(), format, &state.current_content).map_err(|e| format!("{file}: {e}"))?;
             }
         }
-        state.save_to(host.as_ref()).map_err(|e| format!("{file}: {e}"))
+        // fstab: checked against the file on the host now (ERR-22).
+        let fstab = format == Some(StructuredFormat::Fstab) && state.write_blocked.is_none();
+        if fstab {
+            let path = state.path.to_string_lossy();
+            let on_host = host.read_file(&path).map_err(|e| format!("{file}: couldn't re-read it: {e}"))?;
+            crate::config::fstab::check(host.as_ref(), &on_host, &state.current_content).map_err(|e| format!("{file}: not saved: {e}"))?;
+        }
+        state.save_to(host.as_ref()).map_err(|e| format!("{file}: {e}"))?;
+        if fstab {
+            crate::config::fstab::reload_systemd(host.as_ref());
+        }
+        Ok(())
     }
 
     pub fn ensure_config_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {

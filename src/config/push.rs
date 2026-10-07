@@ -41,7 +41,13 @@ pub fn push_baseline(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKe
         if let Some(f) = format {
             plugins::validate_on_host(host, f, t.baseline).map_err(|e| format!("not written: the host's validator refused the baseline: {e}"))?;
         }
+        if format == Some(plugins::StructuredFormat::Fstab) {
+            super::fstab::check(host, &current, t.baseline).map_err(|e| format!("not written: {e}"))?;
+        }
         host.write_file_privileged(t.path, t.baseline).map_err(|e| format!("not written: {e}"))?;
+        if format == Some(plugins::StructuredFormat::Fstab) {
+            super::fstab::reload_systemd(host);
+        }
     }
 
     // Written. Recording can still fail; say so without calling the push a failure.
