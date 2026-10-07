@@ -1,4 +1,5 @@
 use gpui_kit::*;
+use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::component::scroll::ScrollableElement;
 use crate::theme::*;
 use crate::app::CrowApp;
@@ -11,7 +12,7 @@ use crate::os_detect::{classify_distro_family, DistroFamily};
 /// down right now (ERR-91).
 pub type JumpInfo = Option<(String, bool)>;
 
-pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker_open: bool, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker_open: bool, snapshots: bool, app: Entity<CrowApp>) -> impl IntoElement {
     let app_clone = app.clone();
 
     let server_name = server.map(|s| s.name.as_str()).unwrap_or("localhost");
@@ -34,40 +35,14 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker
         },
     };
 
-    let distro_str = server
-        .map(|s| {
-            if s.os_distro.is_empty() {
-                "LINUX".to_string()
-            } else {
-                s.os_distro.to_uppercase()
-            }
-        })
-        .unwrap_or_else(|| "LINUX".to_string());
-    let distro_family = server
-        .map(|s| classify_distro_family(&s.os_distro))
-        .unwrap_or(DistroFamily::Unknown);
-
-    let env_str = server.map(|s| s.env.as_str()).unwrap_or("LOCAL");
-    let (env_bg, env_fg) = match env_str {
-        "PROD" => (CRIT, hex_rgb(0x0a0a0c)),
-        "STAGE" => (WARN, hex_rgb(0x0a0a0c)),
-        "DEV" => (OK, hex_rgb(0x0a0a0c)),
-        _ => (BG_CHIP, TEXT_SECONDARY),
-    };
-
-    let role_str = server
-        .map(|s| s.role.to_uppercase())
-        .unwrap_or_else(|| "SYSTEM".to_string());
-
-    let kernel_str = server
-        .map(|s| {
-            if s.os_kernel.is_empty() {
-                String::new()
-            } else {
-                format!("KERNEL {}", s.os_kernel)
-            }
-        })
-        .unwrap_or_default();
+    // Facts Crow has; placeholders ("-", "—") count as not known (enrolled before they were read, or imported).
+    use crate::app::server_facts::unknown_fact;
+    let known = |v: &str| (!unknown_fact(v)).then(|| v.trim().to_string());
+    let distro = server.and_then(|s| known(&s.os_distro));
+    let distro_family = distro.as_deref().map(classify_distro_family).unwrap_or(DistroFamily::Unknown);
+    let kernel = server.and_then(|s| known(&s.os_kernel));
+    let role = server.and_then(|s| known(&s.role));
+    let env_str = server.and_then(|s| known(&s.env)).unwrap_or_else(|| "local".to_string());
 
     div()
         .h(px(52.0))
@@ -114,7 +89,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker
                         .gap(px(8.0))
                         .font_family("JetBrains Mono")
                         .text_size(px(9.5))
-                        .child(div().text_color(hex_rgb(0x22d3ee)).child(endpoint_str))
+                        .child(div().text_color(TEXT_DIM).child(endpoint_str))
                         .children(jump.map(|(name, down)| {
                             div()
                                 .text_color(if down { CRIT } else { TEXT_DIM })
@@ -133,151 +108,86 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker
                 )
                 .children(server.filter(|_| region_picker_open).map(|s| deferred(region_picker(s, app.clone())).with_priority(1))),
         )
-        // 2. Connection state
+        // 2. Connection state: the dot carries the color.
         .child(
             div()
                 .flex()
                 .items_center()
-                .gap(px(8.0))
+                .gap(px(7.0))
                 .pr(px(16.0))
                 .h_full()
                 .border_r_1()
                 .border_color(BORDER_PANEL)
+                .child(div().size(px(6.0)).rounded_full().bg(status_color).flex_none())
                 .child(
                     div()
-                        .size(px(7.0))
-                        .rounded_full()
-                        .bg(status_color)
-                        .flex_none(),
-                )
-                .child(
-                    div()
-                        .font_family("JetBrains Mono")
+                        .font_family(FONT_MONO)
                         .text_size(px(10.5))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(status_color)
-                        .child(status_text),
+                        .text_color(if status_color == CRIT { CRIT } else { TEXT_SECONDARY })
+                        .child(status_text.to_lowercase()),
                 )
-                .children(status_detail.map(|d| {
-                    div()
-                        .max_w(px(320.0))
-                        .overflow_hidden()
-                        .font_family("JetBrains Mono")
-                        .text_size(px(9.5))
-                        .text_color(TEXT_FAINT)
-                        .child(d)
-                })),
+                .children(status_detail.map(|d| div().max_w(px(320.0)).overflow_hidden().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).child(d))),
         )
-        // 3. Badge cluster
+        // 3. What the server is, in one line. Only the environment has color
+        //    (outlined, for prod and staging); facts Crow doesn't have yet
+        //    are left out rather than shown as "-".
         .child(
             div()
                 .flex()
                 .items_center()
-                .gap(px(6.0))
+                .gap(px(12.0))
                 .px(px(16.0))
                 .h_full()
+                .min_w(px(0.0))
+                .overflow_hidden()
                 .border_r_1()
                 .border_color(BORDER_PANEL)
-                .child(
+                .font_family(FONT_MONO)
+                .text_size(px(10.5))
+                .child({
+                    let (fg, outlined) = match env_str.to_uppercase().as_str() {
+                        "PROD" => (CRIT, true),
+                        "STAGE" | "STAGING" => (WARN, true),
+                        _ => (TEXT_DIM, false),
+                    };
                     div()
-                        .bg(BG_CHIP)
-                        .text_color(TEXT_SECONDARY)
-                        .font_family("JetBrains Mono")
-                        .text_size(px(10.0))
+                        .flex_none()
+                        .px(px(5.0))
+                        .py(px(1.0))
+                        .when(outlined, |d| d.border_1().border_color(fg))
+                        .text_size(px(9.5))
                         .font_weight(FontWeight::BOLD)
-                        .px(px(6.0))
-                        .py(px(3.0))
-                        .child(distro_str),
-                )
-                .children(if !distro_family.is_supported() {
-                    Some(
-                        div()
-                            .bg(hex_rgba(0xfbbf24, 0.12))
-                            .border_1()
-                            .border_color(WARN)
-                            .text_color(WARN)
-                            .font_family("JetBrains Mono")
-                            .text_size(px(9.5))
-                            .font_weight(FontWeight::BOLD)
-                            .px(px(6.0))
-                            .py(px(2.5))
-                            .child("⚠ UNVERIFIED DISTRO"),
-                    )
-                } else {
-                    None
+                        .text_color(fg)
+                        .child(env_str.to_uppercase())
                 })
-                .child(
+                .children(distro.map(|d| {
                     div()
-                        .bg(env_bg)
-                        .text_color(env_fg)
-                        .font_family("JetBrains Mono")
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .px(px(6.0))
-                        .py(px(3.0))
-                        .child(env_str.to_string()),
-                )
-                .child(
-                    div()
-                        .bg(BG_CHIP)
-                        .text_color(TEXT_SECONDARY)
-                        .font_family("JetBrains Mono")
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .px(px(6.0))
-                        .py(px(3.0))
-                        .child(role_str),
-                )
+                        .flex()
+                        .flex_none()
+                        .items_center()
+                        .gap(px(6.0))
+                        .child(div().text_color(TEXT_SECONDARY).child(d))
+                        .when(!distro_family.is_supported(), |el| el.child(div().text_size(px(9.5)).text_color(WARN).child("unverified")))
+                }))
+                .children(kernel.map(|k| fact("kernel", k)))
+                .children(role.map(|r| fact("role", r)))
                 .children(server.map(|s| {
                     let app = app.clone();
                     let s_id = s.id.clone();
-                    let grp_display = if s.group_name.is_empty() || s.group_name == "default" {
-                        "NO GROUP".to_string()
-                    } else {
-                        s.group_name.to_uppercase()
-                    };
+                    let none = crate::app::groups::is_ungrouped(&s.group_name);
                     div()
                         .id("identity-group-chip")
-                        .bg(BG_CHIP)
-                        .text_color(if s.group_name.is_empty() || s.group_name == "default" { TEXT_DIM } else { hex_rgb(0x38bdf8) })
-                        .font_family("JetBrains Mono")
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .px(px(6.0))
-                        .py(px(3.0))
+                        .flex()
+                        .flex_none()
+                        .items_center()
+                        .gap(px(5.0))
                         .cursor_pointer()
-                        .hover(|h| h.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                        .hover(|h| h.text_color(TEXT_PRIMARY))
+                        .text_color(if none { TEXT_DIM } else { TEXT_SECONDARY })
                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_group_assign_target(Some(s_id.clone()), cx)))
-                        .child(format!("{grp_display} ▾"))
-                }))
-                .children(if !kernel_str.is_empty() {
-                    Some(
-                        div()
-                            .bg(BG_CHIP)
-                            .text_color(TEXT_TERTIARY)
-                            .font_family("JetBrains Mono")
-                            .text_size(px(10.0))
-                            .font_weight(FontWeight::BOLD)
-                            .px(px(6.0))
-                            .py(px(3.0))
-                            .child(kernel_str),
-                    )
-                } else {
-                    None
-                })
-                .child(
-                    div()
-                        .bg(hex_rgb(0x14161b))
-                        .border_1()
-                        .border_color(hex_rgb(0x27272a))
-                        .text_color(OK)
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .px(px(6.0))
-                        .py(px(2.5))
-                        .child("TURBO (-24s LAG)"),
-                ),
+                        .child(div().text_color(TEXT_FAINT).child("group"))
+                        .child(if none { "none ▾".to_string() } else { format!("{} ▾", s.group_name.trim()) })
+                })),
         )
         // 4. Spacer
         .child(div().flex_1())
@@ -290,72 +200,54 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker
                 .gap(px(7.0))
                 .h(px(26.0))
                 .px(px(8.0))
-                .mr(px(12.0))
+                .mr(px(8.0))
                 .border_1()
                 .border_color(BORDER_DEFAULT)
-                .bg(hex_rgb(0x0e0f13))
+                .bg(BG_APP)
                 .cursor_pointer()
                 .hover(|s| s.border_color(BORDER_STRONG))
-                .on_click(move |_ev, _window, cx| {
-                    app_clone.update(cx, |this, cx| {
-                        this.toggle_palette(cx);
-                    });
+                .on_click(move |_ev, _window, cx| app_clone.update(cx, |this, cx| this.toggle_palette(cx)))
+                .child(tabler_icon(TablerIcon::Search).size(px(13.0)).text_color(TEXT_FAINT))
+                .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child("Search"))
+                .child(div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_MUTED).bg(BG_KEY).border_1().border_color(BORDER_KEY).px(px(5.0)).py(px(1.0)).child("⌘K")),
+        )
+        // 6. Actions that do something: a provider snapshot, a fresh SSH
+        //    connection. Left out where they don't apply.
+        .children(snapshots.then(|| {
+            let app = app.clone();
+            header_button("btn-identity-snapshot", "SNAPSHOT").on_click(move |_ev, window, cx| {
+                app.update(cx, |this, cx| {
+                    this.set_view("danger", cx);
+                    this.arm_danger_zone_action("snapshot", window, cx);
                 })
-                .child(
-                    tabler_icon(TablerIcon::Search)
-                        .size(px(13.0))
-                        .text_color(TEXT_FAINT),
-                )
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(11.0))
-                        .text_color(TEXT_FAINT)
-                        .child("Search"),
-                )
-                .child(
-                    div()
-                        .font_family("JetBrains Mono")
-                        .text_size(px(10.0))
-                        .text_color(TEXT_MUTED)
-                        .bg(BG_KEY)
-                        .border_1()
-                        .border_color(BORDER_KEY)
-                        .px(px(5.0))
-                        .py(px(1.0))
-                        .child("⌘K"),
-                ),
-        )
-        // 6. Action group
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .mr(px(12.0))
-                .border_1()
-                .border_color(BORDER_DEFAULT)
-                .child(
-                    div()
-                        .px(px(10.0))
-                        .py(px(5.0))
-                        .font_family("JetBrains Mono")
-                        .text_size(px(10.5))
-                        .text_color(TEXT_SECONDARY)
-                        .bg(BG_CONTROL)
-                        .border_r_1()
-                        .border_color(BORDER_DEFAULT)
-                        .child("SNAPSHOT"),
-                )
-                .child(
-                    div()
-                        .px(px(10.0))
-                        .py(px(5.0))
-                        .font_family("JetBrains Mono")
-                        .text_size(px(10.5))
-                        .text_color(TEXT_TERTIARY)
-                        .child("RECONNECT"),
-                ),
-        )
+            })
+        }))
+        .children(server.filter(|s| transport_kind(s) == TransportKind::Ssh).map(|_| {
+            let app = app.clone();
+            header_button("btn-identity-reconnect", "RECONNECT").on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.reconnect_active_server(cx)))
+        }))
+        .child(div().w(px(4.0)))
+}
+
+/// "kernel 6.8.0", label dimmer than the value.
+fn fact(label: &'static str, value: String) -> impl IntoElement {
+    div().flex().flex_none().items_center().gap(px(5.0)).child(div().text_color(TEXT_FAINT).child(label)).child(div().text_color(TEXT_SECONDARY).child(value))
+}
+
+fn header_button(id: &'static str, label: &'static str) -> Stateful<Div> {
+    div()
+        .id(id)
+        .mr(px(8.0))
+        .px(px(9.0))
+        .py(px(4.0))
+        .border_1()
+        .border_color(BORDER_DEFAULT)
+        .cursor_pointer()
+        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .font_family(FONT_MONO)
+        .text_size(px(10.5))
+        .text_color(TEXT_SECONDARY)
+        .child(label)
 }
 
 /// A strip under the identity bar while an SSH server can't be reached, so
