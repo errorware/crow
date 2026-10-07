@@ -1,14 +1,17 @@
 use std::collections::BTreeMap;
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
+use gpui_kit::prelude::FluentBuilder as _;
 use crate::theme::*;
 use crate::app::{CrowApp, Screen};
 use crate::views::fleet::FleetState;
 use crate::components::icons::{TablerIcon, tabler_icon};
 
 /// Fleet groups, tag taxonomy, and host key lifecycle policies.
-pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoElement {
+/// `map`: the FLEET MAP tab's content, built only while that tab shows.
+pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity<CrowApp>) -> impl IntoElement {
     let app_close = app.clone();
+    let on_map = map.is_some();
     let servers = &fleet.servers;
     let total_servers = servers.len();
 
@@ -73,7 +76,7 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                                 .font_family(FONT_MONO)
                                 .text_size(px(11.5))
                                 .text_color(TEXT_DIM)
-                                .child("groups, tag taxonomy, and host key lifecycle"),
+                                .child("groups, tag taxonomy, host key lifecycle, and the fleet map"),
                         ),
                 )
                 .child(div().flex_1())
@@ -97,8 +100,10 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                         .child("CLOSE esc"),
                 ),
         )
+        .child(setup_tabs(fleet.setup_page, app.clone()))
+        .children(map)
         // 2. Metrics / KPI Strip
-        .child(
+        .when(!on_map, |d| d.child(
             div()
                 .h(px(46.0))
                 .flex_none()
@@ -152,9 +157,9 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                                 }),
                         ),
                 ),
-        )
+        ))
         // 3. Main 2-Column Content Area
-        .child(
+        .when(!on_map, |d| d.child(
             div()
                 .flex_1()
                 .min_h(px(0.0))
@@ -525,7 +530,7 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                                 ),
                         ),
                 ),
-        )
+        ))
 }
 
 fn render_policy_row(label: &'static str, count: usize, color: Rgba) -> impl IntoElement {
@@ -550,4 +555,39 @@ fn render_policy_row(label: &'static str, count: usize, color: Rgba) -> impl Int
                 .text_color(if count > 0 { color } else { TEXT_MUTED })
                 .child(format!("{count} server{}", if count == 1 { "" } else { "s" })),
         )
+}
+
+/// GROUPS & POLICIES / FLEET MAP.
+fn setup_tabs(page: crate::views::fleet::state::SetupPage, app: Entity<CrowApp>) -> impl IntoElement {
+    use crate::views::fleet::state::SetupPage;
+    let tab = |id: &'static str, label: &'static str, to: SetupPage| {
+        let (app, on) = (app.clone(), page == to);
+        div()
+            .id(id)
+            .h_full()
+            .flex()
+            .items_center()
+            .px(px(12.0))
+            .border_b_2()
+            .border_color(if on { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
+            .font_family(FONT_MONO)
+            .text_size(px(10.5))
+            .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
+            .text_color(if on { TEXT_PRIMARY } else { TEXT_TERTIARY })
+            .cursor_pointer()
+            .hover(|s| s.text_color(TEXT_PRIMARY))
+            .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_setup_page(to, cx)))
+            .child(label)
+    };
+    div()
+        .h(px(34.0))
+        .flex_none()
+        .flex()
+        .items_end()
+        .px(px(8.0))
+        .bg(BG_PANEL)
+        .border_b_1()
+        .border_color(BORDER_PANEL)
+        .child(tab("setup-tab-policies", "GROUPS & POLICIES", SetupPage::Policies))
+        .child(tab("setup-tab-map", "FLEET MAP", SetupPage::Map))
 }

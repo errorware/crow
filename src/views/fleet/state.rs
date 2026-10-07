@@ -27,6 +27,7 @@ pub struct FleetState {
     /// Which Fleet tab is showing: the active fleet or the archive.
     /// Which page of the Fleet screen is showing.
     pub page: FleetPage,
+    pub setup_page: SetupPage,
     /// One-line feedback after an archive, restore or purge.
     pub notice: Option<String>,
     /// Server awaiting archive confirmation.
@@ -84,6 +85,7 @@ impl FleetState {
             drift: None,
             archived: Vec::new(),
             page: FleetPage::Active,
+            setup_page: SetupPage::Policies,
             notice: None,
             pending_archive: None,
         }
@@ -240,6 +242,13 @@ pub enum FleetPage {
     Active,
     Archived,
     Danger,
+}
+
+/// Fleet Setup & Policies' tabs.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum SetupPage {
+    #[default]
+    Policies,
     /// The fleet map (ERR-120).
     Map,
 }

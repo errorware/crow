@@ -88,7 +88,7 @@ impl Render for CrowApp {
         let screen = self.screen;
         let app_view = cx.entity();
         // The fleet map is built only while it's showing (ERR-120).
-        let map_page = (self.screen == Screen::Fleet && self.fleet.page == crate::views::fleet::state::FleetPage::Map)
+        let map_page = (self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Map)
             .then(|| crate::views::topology::topology_page(self, app_view.clone()).into_any_element());
         let vault_status = self.vault.status();
         let stance = self.stance_report();
@@ -480,7 +480,7 @@ impl Render for CrowApp {
                                         div()
                                             .size_full()
                                             .relative()
-                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab, self.fleet_background.rendered.clone().filter(|_| self.fleet_background_source().is_some()).map(|p| (p, self.fleet_background_opacity())), fleet_purge_days, &fleet_purge_audit, &audit, &alert_lines, watch_gap, map_page))
+                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab, self.fleet_background.rendered.clone().filter(|_| self.fleet_background_source().is_some()).map(|p| (p, self.fleet_background_opacity())), fleet_purge_days, &fleet_purge_audit, &audit, &alert_lines, watch_gap))
 
                                     ),
                                     Screen::Settings => Some(
@@ -519,7 +519,7 @@ impl Render for CrowApp {
                                     Screen::FleetSetup => Some(
                                         div()
                                             .size_full()
-                                            .child(fleet_setup_view(&self.fleet, app_view.clone())),
+                                            .child(fleet_setup_view(&self.fleet, map_page, app_view.clone())),
                                     ),
                                     Screen::VaultSetup => Some(
                                         div()

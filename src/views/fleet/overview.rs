@@ -183,7 +183,6 @@ pub fn fleet_overview_view(
     activity: &[crate::views::audit::model::AuditItem],
     alert_lines: &[crate::views::fleet::alert_lines::AlertLine],
     watch_gap: Option<(i64, i64)>,
-    map: Option<AnyElement>,
 ) -> impl IntoElement {
     let purge_due = crate::app::archive::purge_due_text(purge_days);
     let health: HashMap<String, FleetHealth> = fleet.servers.iter().map(|s| (s.id.clone(), fleet.health(s))).collect();
@@ -1133,7 +1132,6 @@ pub fn fleet_overview_view(
         .children(match fleet.page {
             FleetPage::Archived => Some(archived_panel(fleet, purge_days, purge_audit, app.clone()).into_any_element()),
             FleetPage::Danger => Some(fleet_danger_page(app.clone()).into_any_element()),
-            FleetPage::Map => map,
             FleetPage::Active => None,
         })
         // 4. Fleet Notice Banner (feedback after fleet action, archive, restore, etc.)

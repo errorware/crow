@@ -4,7 +4,7 @@ use gpui_kit::*;
 
 use super::CrowApp;
 use crate::topology::{self, posture, Graph, Health};
-use crate::views::fleet::state::{FleetHealth, FleetPage};
+use crate::views::fleet::state::{FleetHealth, SetupPage};
 use crate::views::topology::state::zoom_around;
 
 // ==========================================
@@ -37,8 +37,10 @@ impl CrowApp {
         })
     }
 
+    /// Fleet Setup & Policies, on its FLEET MAP tab.
     pub fn open_topology(&mut self, cx: &mut Context<Self>) {
-        self.fleet.page = FleetPage::Map;
+        self.set_screen(super::Screen::FleetSetup, cx);
+        self.fleet.setup_page = SetupPage::Map;
         self.reload_topology_alerts();
         if chrono::Utc::now().timestamp() - self.topology.posture_checked_at >= posture::POSTURE_EVERY_SECS {
             self.check_posture(cx);
@@ -82,6 +84,14 @@ impl CrowApp {
             });
         })
         .detach();
+    }
+
+    pub fn set_setup_page(&mut self, page: SetupPage, cx: &mut Context<Self>) {
+        if page == SetupPage::Map {
+            return self.open_topology(cx);
+        }
+        self.fleet.setup_page = page;
+        cx.notify();
     }
 
     pub fn topology_select(&mut self, id: Option<String>, cx: &mut Context<Self>) {
