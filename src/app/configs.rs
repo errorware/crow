@@ -319,8 +319,8 @@ impl CrowApp {
             self.cancel_section_add(cx);
             return;
         }
-        let nginx = self.structured_format_of(file) == Some(StructuredFormat::Nginx);
-        let key = cx.new(|cx| InputState::new(window, cx).placeholder(if nginx { "directive" } else { "key" }));
+        let spaced = self.structured_format_of(file).is_some_and(|f| f == StructuredFormat::Nginx || plugins::is_flat_directives(f));
+        let key = cx.new(|cx| InputState::new(window, cx).placeholder(if spaced { "directive" } else { "key" }));
         let value = cx.new(|cx| InputState::new(window, cx).placeholder("value"));
         key.update(cx, |i, cx| i.focus(window, cx));
         let to_value = value.clone();
@@ -380,13 +380,18 @@ impl CrowApp {
             cx.notify();
             return;
         }
-        let after = self.configs.states.get(&file).and_then(|st| plugins::to_ir(format, &st.current_content).ok()).and_then(|ir| plugins::section_insert_after(format, &ir, &heading));
-        let Some(after) = after else {
-            self.cancel_section_add(cx);
-            return;
+        // No heading: a file without sections, where the line goes at the end.
+        let ir = self.configs.states.get(&file).and_then(|st| plugins::to_ir(format, &st.current_content).ok());
+        let after = match (&ir, heading.is_empty()) {
+            (Some(ir), true) => ir.rows.last().map(|r| r.row_id.clone()),
+            (Some(ir), false) => match plugins::section_insert_after(format, ir, &heading) {
+                Some(id) => Some(id),
+                None => return self.cancel_section_add(cx),
+            },
+            (None, _) => return self.cancel_section_add(cx),
         };
         let fields = HashMap::from([(key, serde_json::Value::String(value))]);
-        self.apply_structured_op(&file, EditOp::InsertRow { after_row_id: Some(after), fields }, cx);
+        self.apply_structured_op(&file, EditOp::InsertRow { after_row_id: after, fields }, cx);
     }
 
     pub fn commit_structured_field_edit(&mut self, cx: &mut Context<Self>) {
@@ -462,7 +467,7 @@ impl CrowApp {
             (StructuredFormat::Logrotate, None) => {
                 fields.insert("missingok".to_string(), serde_json::json!(crow_config_schemas::logrotate::FLAG_VALUE));
             }
-            (StructuredFormat::Sshd | StructuredFormat::Systemd | StructuredFormat::Nginx | StructuredFormat::Ini, None) => return,
+            (StructuredFormat::Sshd | StructuredFormat::Systemd | StructuredFormat::Nginx | StructuredFormat::Ini | StructuredFormat::Fail2ban | StructuredFormat::Chrony | StructuredFormat::Ntp | StructuredFormat::Resolv, None) => return,
         }
         self.apply_structured_op(file, EditOp::InsertRow { after_row_id: last_row, fields }, cx);
     }
@@ -681,8 +686,7 @@ impl CrowApp {
         }
         if state.write_blocked.is_none() {
             if let Some(format) = format {
-                let name = state.path.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-                plugins::validate_on_host(host.as_ref(), format, &name, &state.current_content).map_err(|e| format!("{file}: {e}"))?;
+                plugins::validate_on_host(host.as_ref(), format, &state.path.to_string_lossy(), &state.current_content).map_err(|e| format!("{file}: {e}"))?;
             }
         }
         // fstab: checked against the file on the host now (ERR-22).

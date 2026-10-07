@@ -41,7 +41,7 @@ pub fn push_baseline(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKe
         super::sudoers::install_sudoers(host, t.path, t.baseline, t.login_user).map_err(|e| format!("not written: {e}"))?;
     } else {
         if let Some(f) = format {
-            plugins::validate_on_host(host, f, t.path.rsplit('/').next().unwrap_or(t.path), t.baseline).map_err(|e| format!("not written: the host's validator refused the baseline: {e}"))?;
+            plugins::validate_on_host(host, f, t.path, t.baseline).map_err(|e| format!("not written: the host's validator refused the baseline: {e}"))?;
         }
         if format == Some(plugins::StructuredFormat::Fstab) {
             super::fstab::check(host, &current, t.baseline).map_err(|e| format!("not written: {e}"))?;

@@ -10,7 +10,7 @@ use std::sync::OnceLock;
 use crow_config_core::edit::{ConfigDocument, ConfigPlugin, EditOp};
 use crow_config_core::ir::{ConfigDocumentIr, RowIr};
 use crow_config_core::schema::RiskLevel;
-use crow_config_schemas::{FstabPlugin, HostsPlugin, IniPlugin, LogrotatePlugin, NginxPlugin, SystemdPlugin, PgHbaPlugin, SshdPlugin, SudoersPlugin, SysctlPlugin};
+use crow_config_schemas::{DirectivesPlugin, Fail2banPlugin, FstabPlugin, HostsPlugin, IniPlugin, LogrotatePlugin, NginxPlugin, SystemdPlugin, PgHbaPlugin, SshdPlugin, SudoersPlugin, SysctlPlugin};
 
 use super::SchemaKind;
 use crate::host::{Host, HostError, DEFAULT_TIMEOUT};
@@ -28,6 +28,10 @@ pub enum StructuredFormat {
     Systemd,
     Nginx,
     Ini,
+    Fail2ban,
+    Chrony,
+    Ntp,
+    Resolv,
 }
 
 /// A Crow screen that owns a config file better than a file editor would.
@@ -78,6 +82,10 @@ pub fn editor_for(kind: Option<SchemaKind>) -> ConfigEditor {
         Some(SchemaKind::Systemd) => ConfigEditor::Structured(StructuredFormat::Systemd),
         Some(SchemaKind::Nginx) => ConfigEditor::Structured(StructuredFormat::Nginx),
         Some(SchemaKind::Ini) => ConfigEditor::Structured(StructuredFormat::Ini),
+        Some(SchemaKind::Fail2ban) => ConfigEditor::Structured(StructuredFormat::Fail2ban),
+        Some(SchemaKind::Chrony) => ConfigEditor::Structured(StructuredFormat::Chrony),
+        Some(SchemaKind::Ntp) => ConfigEditor::Structured(StructuredFormat::Ntp),
+        Some(SchemaKind::Resolv) => ConfigEditor::Structured(StructuredFormat::Resolv),
         Some(SchemaKind::Journald) => ConfigEditor::Journald,
         Some(SchemaKind::Cron) => ConfigEditor::Screen(DedicatedScreen::Cron),
         Some(SchemaKind::Ufw) => ConfigEditor::Screen(DedicatedScreen::Firewall),
@@ -100,6 +108,10 @@ pub fn plugin(format: StructuredFormat) -> &'static dyn ConfigPlugin {
     static SYSTEMD: OnceLock<SystemdPlugin> = OnceLock::new();
     static NGINX: OnceLock<NginxPlugin> = OnceLock::new();
     static INI: OnceLock<IniPlugin> = OnceLock::new();
+    static FAIL2BAN: OnceLock<Fail2banPlugin> = OnceLock::new();
+    static CHRONY: OnceLock<DirectivesPlugin> = OnceLock::new();
+    static NTP: OnceLock<DirectivesPlugin> = OnceLock::new();
+    static RESOLV: OnceLock<DirectivesPlugin> = OnceLock::new();
     match format {
         StructuredFormat::Hosts => HOSTS.get_or_init(HostsPlugin::new),
         StructuredFormat::Sshd => SSHD.get_or_init(SshdPlugin::new),
@@ -111,6 +123,10 @@ pub fn plugin(format: StructuredFormat) -> &'static dyn ConfigPlugin {
         StructuredFormat::Systemd => SYSTEMD.get_or_init(SystemdPlugin::new),
         StructuredFormat::Nginx => NGINX.get_or_init(NginxPlugin::new),
         StructuredFormat::Ini => INI.get_or_init(IniPlugin::new),
+        StructuredFormat::Fail2ban => FAIL2BAN.get_or_init(Fail2banPlugin::new),
+        StructuredFormat::Chrony => CHRONY.get_or_init(DirectivesPlugin::chrony),
+        StructuredFormat::Ntp => NTP.get_or_init(DirectivesPlugin::ntp),
+        StructuredFormat::Resolv => RESOLV.get_or_init(DirectivesPlugin::resolv),
     }
 }
 
@@ -154,14 +170,45 @@ pub fn section_insert_after(format: StructuredFormat, ir: &ConfigDocumentIr, hea
     Some(last.unwrap_or(&ir.rows[at]).row_id.clone())
 }
 
-/// Keys to suggest under a heading row: (key, what it does, a starting
-/// value). systemd by section, nginx by block; INI files have none.
-pub fn section_suggestions(format: StructuredFormat, heading: &RowIr) -> Vec<(&'static str, &'static str, &'static str)> {
-    let first = heading.fields.first();
+/// Keys to suggest for a new line: (key, what it does, a starting value).
+/// Under a heading row, systemd and fail2ban by section and nginx by block
+/// (INI files have none); with no heading, the file's own directives
+/// (chrony, ntp, resolv.conf).
+pub fn section_suggestions(format: StructuredFormat, heading: Option<&RowIr>) -> Vec<(&'static str, &'static str, &'static str)> {
+    let first = heading.and_then(|h| h.fields.first());
+    let section = first.and_then(|f| f.value.as_str()).unwrap_or_default();
     match format {
-        StructuredFormat::Systemd => crow_config_schemas::systemd::suggested_keys(first.and_then(|f| f.value.as_str()).unwrap_or_default()),
+        StructuredFormat::Systemd => crow_config_schemas::systemd::suggested_keys(section),
+        StructuredFormat::Fail2ban => crow_config_schemas::fail2ban::suggested_keys(section),
         StructuredFormat::Nginx => crow_config_schemas::nginx::suggested_directives(first.map_or("", |f| f.name.as_str())).into_iter().map(|(n, h)| (n, h, "")).collect(),
+        StructuredFormat::Chrony => directives_of(&crow_config_schemas::CHRONY_MANIFEST),
+        StructuredFormat::Ntp => directives_of(&crow_config_schemas::NTP_MANIFEST),
+        StructuredFormat::Resolv => directives_of(&crow_config_schemas::RESOLV_MANIFEST),
         _ => Vec::new(),
+    }
+}
+
+fn directives_of(m: &'static crow_config_core::schema::PluginManifest) -> Vec<(&'static str, &'static str, &'static str)> {
+    m.fields.iter().map(|f| (f.name.as_str(), f.help.as_deref().unwrap_or_default(), "")).collect()
+}
+
+/// Formats edited line by line with no sections: a new line goes at the end.
+pub fn is_flat_directives(format: StructuredFormat) -> bool {
+    matches!(format, StructuredFormat::Chrony | StructuredFormat::Ntp | StructuredFormat::Resolv)
+}
+
+/// What rewrites resolv.conf behind the editor's back, from the marker the
+/// tool writes at its top: systemd-resolved, NetworkManager or resolvconf.
+pub fn resolv_manager(content: &str) -> Option<&'static str> {
+    let head: String = content.lines().take(12).collect::<Vec<_>>().join("\n");
+    if head.contains("systemd-resolved") {
+        Some("systemd-resolved")
+    } else if head.contains("NetworkManager") {
+        Some("NetworkManager")
+    } else if head.contains("resolvconf") {
+        Some("resolvconf")
+    } else {
+        None
     }
 }
 
@@ -382,7 +429,8 @@ pub fn file_validators(format: StructuredFormat) -> Vec<String> {
 
 /// `name` is the file's own name, for validators that need it (`{name}`:
 /// systemd-analyze tells unit types apart by suffix).
-pub fn validate_on_host(host: &dyn Host, format: StructuredFormat, name: &str, content: &str) -> Result<Validation, String> {
+pub fn validate_on_host(host: &dyn Host, format: StructuredFormat, path: &str, content: &str) -> Result<Validation, String> {
+    let name = path.rsplit('/').next().unwrap_or(path);
     let validators = file_validators(format);
     if validators.is_empty() {
         return Ok(Validation::Skipped("no file validator for this format".into()));
@@ -406,7 +454,7 @@ pub fn validate_on_host(host: &dyn Host, format: StructuredFormat, name: &str, c
                 skipped.push(template.replace("{file}", "<file>"));
                 continue;
             }
-            let command = format!("PATH=\"$PATH:/usr/sbin:/sbin\"; {}", template.replace("{file}", &shell_quote(&tmp)).replace("{name}", &shell_quote(name)));
+            let command = format!("PATH=\"$PATH:/usr/sbin:/sbin\"; {}", template.replace("{file}", &shell_quote(&tmp)).replace("{name}", &shell_quote(name)).replace("{path}", &shell_quote(path)));
             // Validators often need root (e.g. `sshd -t` reads the host keys).
             match host.exec_privileged(&["sh", "-c", &command], &[], DEFAULT_TIMEOUT) {
                 Ok(_) => {}
@@ -500,9 +548,13 @@ mod tests {
     #[test]
     fn suggestions_follow_the_section() {
         let ir = to_ir(StructuredFormat::Systemd, "[Install]\nWantedBy=x\n").unwrap();
-        assert_eq!(section_suggestions(StructuredFormat::Systemd, &ir.rows[0]).first().map(|s| s.0), Some("WantedBy"));
+        assert_eq!(section_suggestions(StructuredFormat::Systemd, Some(&ir.rows[0])).first().map(|s| s.0), Some("WantedBy"));
         let ir = to_ir(StructuredFormat::Nginx, "server {\n}\n").unwrap();
-        assert_eq!(section_suggestions(StructuredFormat::Nginx, &ir.rows[0]).first().map(|s| s.0), Some("listen"));
+        assert_eq!(section_suggestions(StructuredFormat::Nginx, Some(&ir.rows[0])).first().map(|s| s.0), Some("listen"));
+        assert_eq!(section_suggestions(StructuredFormat::Resolv, None).first().map(|s| s.0), Some("nameserver"));
+        assert_eq!(resolv_manager("# This is /run/systemd/resolve/stub-resolv.conf managed by man:systemd-resolved(8).\nnameserver 127.0.0.53\n"), Some("systemd-resolved"));
+        assert_eq!(resolv_manager("# Generated by NetworkManager\nnameserver 1.1.1.1\n"), Some("NetworkManager"));
+        assert_eq!(resolv_manager("nameserver 1.1.1.1\n"), None);
     }
 
     #[test]
@@ -606,7 +658,9 @@ mod tests {
             // Not the main crontab: no structured editor, so plain text.
             ("anacrontab", "/etc/anacrontab", false),
             ("e2scrub_all", "/etc/cron.d/e2scrub_all", false),
-            ("resolv.conf", "/etc/resolv.conf", false),
+            ("resolv.conf", "/etc/resolv.conf", true),
+            ("jail.local", "/etc/fail2ban/jail.local", true),
+            ("chrony.conf", "/etc/chrony/chrony.conf", true),
         ];
         for (name, path, crow_ui) in cases {
             let editor = editor_for(detect_schema_kind(name, Path::new(path)));

@@ -215,6 +215,9 @@ pub fn structured_editor(
             let what = if not_running == 1 { "1 value here isn't".to_string() } else { format!("{not_running} values here aren't") };
             notice(format!("NOT RUNNING YET · {what} what the kernel runs now; they apply at boot or with sysctl --system"), WARN, 0xf59e0b)
         }))
+        .children((format == StructuredFormat::Resolv).then(|| crate::config::plugins::resolv_manager(&state.current_content)).flatten().map(|m| {
+            notice(format!("MANAGED BY {} · it rewrites this file, so edits here get overwritten; change the DNS settings in {m} instead", m.to_uppercase()), WARN, 0xf59e0b)
+        }))
         .children(state.write_blocked.as_ref().map(|r| notice(format!("READ-ONLY · {r}"), WARN, 0xf59e0b)))
         .children(configs.edit_error.as_ref().map(|e| notice(format!("EDIT REJECTED · {e}"), CRIT, 0xef4444)));
 
@@ -223,7 +226,7 @@ pub fn structured_editor(
         let is_match_line = row.fields.iter().any(|f| f.name.eq_ignore_ascii_case("match"));
         // logrotate: blocks read as a heading (their log paths) with their
         // directives indented under it; scripts are edited in the text view.
-        let block_format = matches!(format, StructuredFormat::Logrotate | StructuredFormat::Systemd | StructuredFormat::Nginx | StructuredFormat::Ini);
+        let block_format = matches!(format, StructuredFormat::Logrotate | StructuredFormat::Systemd | StructuredFormat::Nginx | StructuredFormat::Ini | StructuredFormat::Fail2ban);
         // nginx nests: depth is how many blocks the row is in.
         let depth = if format == StructuredFormat::Nginx { row.scope.as_deref().map_or(0, |s| s.split(crow_config_schemas::nginx::SCOPE_SEP).count()) } else { usize::from(row.scope.is_some()) };
         let nest = match (block_format, row.widget.as_str(), row.scope.is_some()) {
@@ -234,10 +237,10 @@ pub fn structured_editor(
         let row_locked = read_only || scope.is_some() || is_match_line || (block_format && row.widget == "script_row");
         // systemd sections, INI sections and nginx blocks take new keys from
         // their heading; new sections and blocks are typed in the text view.
-        let can_add = !read_only && row.widget == "scope_row" && matches!(format, StructuredFormat::Systemd | StructuredFormat::Nginx | StructuredFormat::Ini);
+        let can_add = !read_only && row.widget == "scope_row" && matches!(format, StructuredFormat::Systemd | StructuredFormat::Nginx | StructuredFormat::Ini | StructuredFormat::Fail2ban);
         let form = adding.as_ref().filter(|a| a.heading == row.row_id).map(|a| {
             let d = match nest { Nest::Heading(d) | Nest::Inside(d) => d, Nest::Flat => 0 };
-            render_section_add(format, row, 14.0 + 20.0 * (d + 1) as f32 + 48.0, a, app.clone())
+            render_section_add(format, crate::config::plugins::section_suggestions(format, Some(row)), 14.0 + 20.0 * (d + 1) as f32 + 48.0, a, app.clone())
         });
         let row_el = render_row(RowCtx {
             nest,
@@ -280,7 +283,22 @@ pub fn structured_editor(
 
     // systemd, nginx, INI: a new key belongs in a particular section, so
     // it's added from that section's heading (the + on it).
-    let add_section = (!read_only && !matches!(format, StructuredFormat::Systemd | StructuredFormat::Nginx | StructuredFormat::Ini)).then(|| render_add_section(&file, format, ir, configs.adding_row, app.clone()));
+    // chrony, ntp, resolv.conf: no sections, so the same form adds at the end.
+    let flat = crate::config::plugins::is_flat_directives(format);
+    let add_section = (!read_only && !flat && !matches!(format, StructuredFormat::Systemd | StructuredFormat::Nginx | StructuredFormat::Ini | StructuredFormat::Fail2ban))
+        .then(|| render_add_section(&file, format, ir, configs.adding_row, app.clone()));
+    let flat_add = (!read_only && flat).then(|| {
+        let (app_open, f) = (app.clone(), file.clone());
+        let form = adding.as_ref().filter(|a| a.heading.is_empty()).map(|a| render_section_add(format, crate::config::plugins::section_suggestions(format, None), 14.0, a, app.clone()));
+        div()
+            .flex()
+            .flex_col()
+            .child(div().flex().px(px(14.0)).py(px(8.0)).child(small_button("btn-flat-add", "+ ADD DIRECTIVE", OK).on_click(move |_ev, window, cx| {
+                let f = f.clone();
+                app_open.update(cx, |this, cx| this.begin_section_add(&f, "", window, cx));
+            })))
+            .children(form)
+    });
 
     div()
         .id("structured-config-editor")
@@ -312,6 +330,7 @@ pub fn structured_editor(
                         .when(format == StructuredFormat::Sshd, |d| d.hidden())
                         .children(rows)
                         .children(add_section)
+                        .children(flat_add)
                         .children(ir.rows.is_empty().then(|| {
                             div()
                                 .px(px(14.0))
@@ -834,8 +853,7 @@ fn render_add_section(file: &str, format: StructuredFormat, ir: &ConfigDocumentI
 
 /// The add form under a heading: key and value inputs, the help for the
 /// typed key, and the section's known keys that match what's typed.
-fn render_section_add(format: StructuredFormat, heading: &RowIr, pad: f32, add: &SectionAddView, app: Entity<CrowApp>) -> Div {
-    let suggestions = crate::config::plugins::section_suggestions(format, heading);
+fn render_section_add(format: StructuredFormat, suggestions: Vec<(&'static str, &'static str, &'static str)>, pad: f32, add: &SectionAddView, app: Entity<CrowApp>) -> Div {
     let typed = add.typed.to_lowercase();
     let help = suggestions.iter().find(|s| s.0.eq_ignore_ascii_case(&add.typed)).map(|s| s.1);
     let shown: Vec<_> = suggestions.iter().filter(|s| !s.0.eq_ignore_ascii_case(&add.typed) && (typed.is_empty() || s.0.to_lowercase().contains(&typed))).take(8).copied().collect();
@@ -856,7 +874,7 @@ fn render_section_add(format: StructuredFormat, heading: &RowIr, pad: f32, add: 
                 .items_center()
                 .gap(px(8.0))
                 .child(div().w(px(200.0)).flex_none().child(Input::new(add.key).font_family(FONT_MONO).text_size(px(11.0))))
-                .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child(if format == StructuredFormat::Nginx { "" } else { "=" }))
+                .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child(if format == StructuredFormat::Nginx || crate::config::plugins::is_flat_directives(format) { "" } else { "=" }))
                 .child(div().flex_1().min_w(px(0.0)).child(Input::new(add.value).font_family(FONT_MONO).text_size(px(11.0))))
                 .child(small_button("btn-section-add", "ADD", OK).on_click(move |_ev, _window, cx| {
                     app_ok.update(cx, |this, cx| this.commit_section_add(cx));
@@ -886,6 +904,8 @@ fn render_section_add(format: StructuredFormat, heading: &RowIr, pad: f32, add: 
         }))
         .child(div().font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINTER).child(if format == StructuredFormat::Nginx {
             "Added at the end of this block. New blocks are typed in the text view."
+        } else if crate::config::plugins::is_flat_directives(format) {
+            "Added at the end of the file."
         } else {
             "Added at the end of this section. New sections are typed in the text view."
         }))

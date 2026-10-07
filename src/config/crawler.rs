@@ -26,6 +26,14 @@ pub enum SchemaKind {
     Nginx,
     /// INI files: MySQL/MariaDB (*.cnf) and Samba (smb.conf).
     Ini,
+    /// fail2ban's jail.local and jail.d/*.
+    Fail2ban,
+    /// chrony.conf.
+    Chrony,
+    /// ntp.conf.
+    Ntp,
+    /// /etc/resolv.conf.
+    Resolv,
     Ufw,
     /// /etc/passwd and /etc/group, owned by the Users screen.
     Accounts,
@@ -47,6 +55,10 @@ impl SchemaKind {
             Self::Systemd => "systemd",
             Self::Nginx => "nginx",
             Self::Ini => "ini",
+            Self::Fail2ban => "fail2ban",
+            Self::Chrony => "chrony",
+            Self::Ntp => "ntp",
+            Self::Resolv => "resolver",
             Self::Ufw => "ufw firewall",
             Self::Accounts => "accounts",
             Self::Crow => "crow core",
@@ -67,6 +79,10 @@ impl SchemaKind {
             Self::Systemd => "DIRECTIVE UI",
             Self::Nginx => "DIRECTIVE UI",
             Self::Ini => "DIRECTIVE UI",
+            Self::Fail2ban => "DIRECTIVE UI",
+            Self::Chrony => "DIRECTIVE UI",
+            Self::Ntp => "DIRECTIVE UI",
+            Self::Resolv => "DIRECTIVE UI",
             Self::Ufw => "FIREWALL UI",
             Self::Accounts => "USERS UI",
             Self::Crow => "LOSSLESS TOML",
@@ -122,6 +138,14 @@ pub fn detect_schema_kind(name: &str, path: &Path) -> Option<SchemaKind> {
         Some(SchemaKind::Hosts)
     } else if (lower_name.ends_with(".cnf") && (path_str.starts_with("/etc/mysql/") || path_str.starts_with("/etc/my.cnf"))) || (lower_name == "smb.conf" && path_str.starts_with("/etc/samba/")) {
         Some(SchemaKind::Ini)
+    } else if path_str.starts_with("/etc/fail2ban/") && (lower_name == "jail.local" || (path_str.starts_with("/etc/fail2ban/jail.d/") && (lower_name.ends_with(".local") || lower_name.ends_with(".conf")))) {
+        Some(SchemaKind::Fail2ban)
+    } else if lower_name == "chrony.conf" && path_str.starts_with("/etc/") {
+        Some(SchemaKind::Chrony)
+    } else if lower_name == "ntp.conf" && path_str.starts_with("/etc/") {
+        Some(SchemaKind::Ntp)
+    } else if path_str == "/etc/resolv.conf" {
+        Some(SchemaKind::Resolv)
     } else if path_str.starts_with("/etc/nginx/") && (lower_name.ends_with(".conf") && !lower_name.ends_with("mime.types") || path_str.contains("/sites-available/") || path_str.contains("/sites-enabled/")) {
         Some(SchemaKind::Nginx)
     } else if path_str.starts_with("/etc/systemd/") && (is_unit_file(&lower_name) || lower_name.ends_with(".conf")) {
@@ -177,6 +201,9 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
             "/etc/postgresql",
             "/etc/ufw",
             "/etc/fail2ban",
+            "/etc/fail2ban/jail.d",
+            "/etc/chrony",
+            "/etc/ntpsec",
             "/etc/sysctl.d",
             "/etc/docker",
             "/etc/logrotate.d",
@@ -195,6 +222,8 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
             "/etc/nginx/conf.d",
             "/etc/firewalld",
             "/etc/fail2ban",
+            "/etc/fail2ban/jail.d",
+            "/etc/chrony",
             "/etc/sysctl.d",
             "/etc/docker",
             "/etc/cron.d",
@@ -210,6 +239,10 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
             "/etc",
             "/etc/systemd",
             "/etc/ssh",
+            "/etc/fail2ban",
+            "/etc/fail2ban/jail.d",
+            "/etc/chrony",
+            "/etc/ntpsec",
             "/etc/sysctl.d",
             "/etc/logrotate.d",
             "/etc/systemd/system",
@@ -266,6 +299,13 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
                 if !entry.is_dir && !entry.is_symlink && !entry.name.starts_with('.') && !entry.name.ends_with('~') {
                     let folder = dir_str.rsplit('/').next().unwrap_or_default();
                     push(&mut discovered, format!("{folder}/{}", entry.name), dir_str, &entry);
+                }
+                continue;
+            }
+            // jail.d files are named with their folder, as fail2ban's docs do.
+            if dir_str.ends_with("/fail2ban/jail.d") {
+                if !entry.is_dir && (entry.name.ends_with(".local") || entry.name.ends_with(".conf")) && !entry.name.starts_with('.') {
+                    push(&mut discovered, format!("jail.d/{}", entry.name), dir_str, &entry);
                 }
                 continue;
             }
@@ -385,7 +425,13 @@ mod tests {
         assert_eq!(detect_schema_kind("50-server.cnf", Path::new("/etc/mysql/mariadb.conf.d/50-server.cnf")), Some(SchemaKind::Ini));
         assert_eq!(detect_schema_kind("my.cnf", Path::new("/etc/my.cnf")), Some(SchemaKind::Ini));
         assert_eq!(detect_schema_kind("smb.conf", Path::new("/etc/samba/smb.conf")), Some(SchemaKind::Ini));
-        assert_eq!(detect_schema_kind("resolv.conf", Path::new("/etc/resolv.conf")), None, "no editor for it yet");
+        assert_eq!(detect_schema_kind("jail.local", Path::new("/etc/fail2ban/jail.local")), Some(SchemaKind::Fail2ban));
+        assert_eq!(detect_schema_kind("sshd.local", Path::new("/etc/fail2ban/jail.d/sshd.local")), Some(SchemaKind::Fail2ban));
+        assert_eq!(detect_schema_kind("jail.conf", Path::new("/etc/fail2ban/jail.conf")), None, "the distro's own: overridden in jail.local, not edited");
+        assert_eq!(detect_schema_kind("chrony.conf", Path::new("/etc/chrony/chrony.conf")), Some(SchemaKind::Chrony));
+        assert_eq!(detect_schema_kind("chrony.conf", Path::new("/etc/chrony.conf")), Some(SchemaKind::Chrony));
+        assert_eq!(detect_schema_kind("ntp.conf", Path::new("/etc/ntpsec/ntp.conf")), Some(SchemaKind::Ntp));
+        assert_eq!(detect_schema_kind("resolv.conf", Path::new("/etc/resolv.conf")), Some(SchemaKind::Resolv));
         assert_eq!(detect_schema_kind("sysctl.conf", Path::new("/etc/sysctl.conf")), Some(SchemaKind::Sysctl));
         assert_eq!(detect_schema_kind("99-hardening.conf", Path::new("/etc/sysctl.d/99-hardening.conf")), Some(SchemaKind::Sysctl));
         assert_eq!(detect_schema_kind("README", Path::new("/etc/sysctl.d/README")), None);
