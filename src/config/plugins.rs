@@ -8,7 +8,7 @@
 use std::sync::OnceLock;
 
 use crow_config_core::edit::{ConfigDocument, ConfigPlugin, EditOp};
-use crow_config_core::ir::ConfigDocumentIr;
+use crow_config_core::ir::{ConfigDocumentIr, RowIr};
 use crow_config_core::schema::RiskLevel;
 use crow_config_schemas::{FstabPlugin, HostsPlugin, IniPlugin, LogrotatePlugin, NginxPlugin, SystemdPlugin, PgHbaPlugin, SshdPlugin, SudoersPlugin, SysctlPlugin};
 
@@ -132,6 +132,37 @@ pub fn apply_edit(format: StructuredFormat, text: &str, op: &EditOp) -> Result<S
 /// the sshd plugin reports them (ERR-12).
 pub fn sshd_match_scopes(ir: &ConfigDocumentIr) -> Vec<(String, Option<String>)> {
     ir.rows.iter().map(|row| (row.row_id.clone(), row.scope.clone())).collect()
+}
+
+/// Where a new line for the section or block headed by row `heading` goes:
+/// after the section's last line (ERR-103). nginx: after the block's last
+/// directive of its own, never inside a nested block; right after the
+/// block's opening line when it has none.
+pub fn section_insert_after(format: StructuredFormat, ir: &ConfigDocumentIr, heading: &str) -> Option<String> {
+    let at = ir.rows.iter().position(|r| r.row_id == heading)?;
+    let rest = &ir.rows[at + 1..];
+    let last = if format == StructuredFormat::Nginx {
+        let depth = |r: &RowIr| r.scope.as_deref().map_or(0, |s| s.split(crow_config_schemas::nginx::SCOPE_SEP).count());
+        // A block's opening line counts itself in its path, so its own
+        // lines share its depth; the next opening at that depth or less is
+        // a sibling (or an outer block's) and ends it.
+        let d = depth(&ir.rows[at]);
+        rest.iter().take_while(|r| depth(r) >= d && !(r.widget == "scope_row" && depth(r) <= d)).filter(|r| depth(r) == d && r.widget != "scope_row").last()
+    } else {
+        rest.iter().take_while(|r| r.widget != "scope_row").last()
+    };
+    Some(last.unwrap_or(&ir.rows[at]).row_id.clone())
+}
+
+/// Keys to suggest under a heading row: (key, what it does, a starting
+/// value). systemd by section, nginx by block; INI files have none.
+pub fn section_suggestions(format: StructuredFormat, heading: &RowIr) -> Vec<(&'static str, &'static str, &'static str)> {
+    let first = heading.fields.first();
+    match format {
+        StructuredFormat::Systemd => crow_config_schemas::systemd::suggested_keys(first.and_then(|f| f.value.as_str()).unwrap_or_default()),
+        StructuredFormat::Nginx => crow_config_schemas::nginx::suggested_directives(first.map_or("", |f| f.name.as_str())).into_iter().map(|(n, h)| (n, h, "")).collect(),
+        _ => Vec::new(),
+    }
 }
 
 /// A file pulled in by an sshd `Include`, as read from the server.
@@ -440,6 +471,39 @@ mod tests {
     use super::*;
     use crate::config::detect_schema_kind;
     use std::path::Path;
+
+    fn add_to(format: StructuredFormat, text: &str, heading_line: usize, key: &str, value: &str) -> String {
+        let ir = to_ir(format, text).unwrap();
+        let after = section_insert_after(format, &ir, &format!("line-{heading_line}")).unwrap();
+        let fields = [(key.to_string(), serde_json::json!(value))].into_iter().collect();
+        apply_edit(format, text, &EditOp::InsertRow { after_row_id: Some(after), fields }).unwrap()
+    }
+
+    #[test]
+    fn a_new_key_lands_at_the_end_of_its_section() {
+        let unit = "[Unit]\nDescription=x\n\n[Service]\nExecStart=/bin/true\n\n[Install]\nWantedBy=multi-user.target\n";
+        assert_eq!(add_to(StructuredFormat::Systemd, unit, 4, "Restart", "on-failure"), "[Unit]\nDescription=x\n\n[Service]\nExecStart=/bin/true\nRestart=on-failure\n\n[Install]\nWantedBy=multi-user.target\n");
+        assert_eq!(add_to(StructuredFormat::Systemd, "[Service]\n[Install]\n", 1, "Type", "simple"), "[Service]\nType=simple\n[Install]\n");
+        assert_eq!(add_to(StructuredFormat::Ini, "[mysqld]\nport=3306\n[client]\nuser=a\n", 1, "bind-address", "127.0.0.1"), "[mysqld]\nport=3306\nbind-address=127.0.0.1\n[client]\nuser=a\n");
+    }
+
+    #[test]
+    fn a_new_nginx_directive_stays_in_its_own_block() {
+        let two = "server {\n    listen 80;\n}\nserver {\n    listen 81;\n}\n";
+        assert_eq!(add_to(StructuredFormat::Nginx, two, 1, "root", "/a"), "server {\n    listen 80;\n    root /a;\n}\nserver {\n    listen 81;\n}\n");
+        let conf = "http {\n    server {\n        listen 80;\n        location / {\n            root /srv;\n        }\n    }\n}\n";
+        assert_eq!(add_to(StructuredFormat::Nginx, conf, 2, "server_name", "a.example"), "http {\n    server {\n        listen 80;\n        server_name a.example;\n        location / {\n            root /srv;\n        }\n    }\n}\n");
+        assert_eq!(add_to(StructuredFormat::Nginx, conf, 4, "index", "index.html"), "http {\n    server {\n        listen 80;\n        location / {\n            root /srv;\n            index index.html;\n        }\n    }\n}\n");
+        assert_eq!(add_to(StructuredFormat::Nginx, conf, 1, "gzip", "on"), "http {\n    gzip on;\n    server {\n        listen 80;\n        location / {\n            root /srv;\n        }\n    }\n}\n");
+    }
+
+    #[test]
+    fn suggestions_follow_the_section() {
+        let ir = to_ir(StructuredFormat::Systemd, "[Install]\nWantedBy=x\n").unwrap();
+        assert_eq!(section_suggestions(StructuredFormat::Systemd, &ir.rows[0]).first().map(|s| s.0), Some("WantedBy"));
+        let ir = to_ir(StructuredFormat::Nginx, "server {\n}\n").unwrap();
+        assert_eq!(section_suggestions(StructuredFormat::Nginx, &ir.rows[0]).first().map(|s| s.0), Some("listen"));
+    }
 
     #[test]
     fn turning_aslr_off_needs_the_typed_confirmation_and_names_the_key() {

@@ -13,7 +13,7 @@ use crate::config::plugins::{self, apply_edit as apply_structured_edit, editor_f
 use crate::theme::{FONT_MONO, TEXT_FAINT};
 use crate::views::config::journald_editor::journald_editor;
 use crate::views::config::raw_config_editor;
-use crate::views::config::structured_editor::{structured_editor, ActiveFieldEdit};
+use crate::views::config::structured_editor::{structured_editor, ActiveFieldEdit, SectionAddView};
 use gpui_kit::component::input::{EditorState, InputEvent};
 use crate::views::config::text_editor::{highlighter_factory, CONFIG_LANGUAGE};
 use std::sync::Arc;
@@ -141,6 +141,16 @@ pub struct StructuredFieldEdit {
     _events: Subscription,
 }
 
+/// The "+" form under a section or block heading (ERR-103): a key and its
+/// value, added at the end of that section.
+pub struct SectionAdd {
+    pub file: String,
+    pub heading: String,
+    pub key: Entity<InputState>,
+    pub value: Entity<InputState>,
+    _events: Vec<Subscription>,
+}
+
 /// A staged change waiting for typed confirmation because it introduces
 /// never-on-prod values.
 pub struct RiskConfirm {
@@ -244,6 +254,8 @@ impl CrowApp {
             Ok(text) => {
                 state.update_content(text);
                 self.configs.edit_error = None;
+                // Row ids are line numbers: after any edit the form's heading may have moved.
+                self.section_add = None;
             }
             Err(e) => self.configs.edit_error = Some(e),
         }
@@ -299,6 +311,82 @@ impl CrowApp {
     /// Enter adds it with the typed value (nothing is added if left empty).
     pub fn begin_new_directive(&mut self, file: &str, name: &str, window: &mut Window, cx: &mut Context<Self>) {
         self.begin_structured_field_edit(file, &format!("{NEW_DIRECTIVE_PREFIX}{name}"), name, "", false, window, cx);
+    }
+
+    /// Opens (or closes) the add form under the heading row `heading`.
+    pub fn begin_section_add(&mut self, file: &str, heading: &str, window: &mut Window, cx: &mut Context<Self>) {
+        if self.section_add.as_ref().is_some_and(|a| a.file == file && a.heading == heading) {
+            self.cancel_section_add(cx);
+            return;
+        }
+        let nginx = self.structured_format_of(file) == Some(StructuredFormat::Nginx);
+        let key = cx.new(|cx| InputState::new(window, cx).placeholder(if nginx { "directive" } else { "key" }));
+        let value = cx.new(|cx| InputState::new(window, cx).placeholder("value"));
+        key.update(cx, |i, cx| i.focus(window, cx));
+        let to_value = value.clone();
+        let events = vec![
+            cx.subscribe_in(&key, window, move |_this, _input, ev: &InputEvent, window, cx| match ev {
+                InputEvent::Change => cx.notify(),
+                InputEvent::PressEnter { .. } => to_value.update(cx, |i, cx| i.focus(window, cx)),
+                _ => {}
+            }),
+            cx.subscribe(&value, |this, _input, ev: &InputEvent, cx| {
+                if matches!(ev, InputEvent::PressEnter { .. }) {
+                    this.commit_section_add(cx);
+                }
+            }),
+        ];
+        self.structured_field_edit = None;
+        self.configs.open_enum = None;
+        self.configs.edit_error = None;
+        self.section_add = Some(SectionAdd { file: file.to_string(), heading: heading.to_string(), key, value, _events: events });
+        cx.notify();
+    }
+
+    /// Fills the add form from a suggestion and moves on to its value.
+    pub fn pick_section_key(&mut self, key: &str, value: &str, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(add) = &self.section_add else { return };
+        let (k, v) = (add.key.clone(), add.value.clone());
+        k.update(cx, |i, cx| i.set_value(key.to_string(), window, cx));
+        v.update(cx, |i, cx| {
+            i.set_value(value.to_string(), window, cx);
+            i.focus(window, cx);
+        });
+        cx.notify();
+    }
+
+    pub fn cancel_section_add(&mut self, cx: &mut Context<Self>) {
+        self.section_add = None;
+        cx.notify();
+    }
+
+    /// Adds the typed key at the end of the form's section; the form stays
+    /// open with the reason when the plugin refuses it.
+    pub fn commit_section_add(&mut self, cx: &mut Context<Self>) {
+        let Some(add) = &self.section_add else { return };
+        let key = add.key.read(cx).value().trim().to_string();
+        let value = add.value.read(cx).value().trim().to_string();
+        let (file, heading) = (add.file.clone(), add.heading.clone());
+        let Some(format) = self.structured_format_of(&file) else { return };
+        let refuse = if key.is_empty() {
+            Some("type a key, or pick one from the list")
+        } else if format == StructuredFormat::Nginx && value.is_empty() {
+            Some("a directive needs its arguments")
+        } else {
+            None
+        };
+        if let Some(why) = refuse {
+            self.configs.edit_error = Some(why.to_string());
+            cx.notify();
+            return;
+        }
+        let after = self.configs.states.get(&file).and_then(|st| plugins::to_ir(format, &st.current_content).ok()).and_then(|ir| plugins::section_insert_after(format, &ir, &heading));
+        let Some(after) = after else {
+            self.cancel_section_add(cx);
+            return;
+        };
+        let fields = HashMap::from([(key, serde_json::Value::String(value))]);
+        self.apply_structured_op(&file, EditOp::InsertRow { after_row_id: Some(after), fields }, cx);
     }
 
     pub fn commit_structured_field_edit(&mut self, cx: &mut Context<Self>) {
@@ -411,7 +499,13 @@ impl CrowApp {
                                 input: &e.input,
                             });
                             let confirm = self.risk_confirm.as_ref().filter(|c| c.file == selected);
-                            return structured_editor(st, format, &ir, &self.configs, active, confirm, app).into_any_element();
+                            let adding = self.section_add.as_ref().filter(|a| a.file == selected).map(|a| SectionAddView {
+                                heading: &a.heading,
+                                key: &a.key,
+                                value: &a.value,
+                                typed: a.key.read(cx).value().trim().to_string(),
+                            });
+                            return structured_editor(st, format, &ir, &self.configs, active, confirm, adding, app).into_any_element();
                         }
                         // Unparseable: fall through to the text editor.
                         Err(e) => self.configs.edit_error = Some(format!("{selected} could not be parsed: {e}")),
@@ -446,6 +540,7 @@ impl CrowApp {
         self.configs.adding_row = false;
         self.configs.edit_error = None;
         self.structured_field_edit = None;
+        self.section_add = None;
         cx.notify();
     }
 

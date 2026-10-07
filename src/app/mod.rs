@@ -227,6 +227,8 @@ pub struct CrowApp {
     pub structured_field_edit: Option<configs::StructuredFieldEdit>,
     /// A never-on-prod change awaiting typed confirmation.
     pub risk_confirm: Option<configs::RiskConfirm>,
+    /// The add-a-key form under a structured editor heading (ERR-103).
+    pub section_add: Option<configs::SectionAdd>,
     pub files: FilesState,
     pub danger: DangerZoneState,
     pub users: UsersState,
@@ -416,6 +418,7 @@ impl CrowApp {
             config_text_editor: None,
             structured_field_edit: None,
             risk_confirm: None,
+            section_add: None,
             palette_open: false,
             sidebar_collapsed: false,
             keys,

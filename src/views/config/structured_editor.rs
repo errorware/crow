@@ -18,6 +18,15 @@ use crate::theme::*;
 
 use super::state::ConfigsState;
 
+/// The open add form under a heading, if it is in this file (ERR-103).
+pub struct SectionAddView<'a> {
+    pub heading: &'a str,
+    pub key: &'a Entity<InputState>,
+    pub value: &'a Entity<InputState>,
+    /// What's typed in the key input so far, to filter the suggestions.
+    pub typed: String,
+}
+
 /// The field being edited inline, if it is in this file.
 pub struct ActiveFieldEdit<'a> {
     pub row_id: &'a str,
@@ -79,6 +88,7 @@ pub fn structured_editor(
     configs: &ConfigsState,
     active_edit: Option<ActiveFieldEdit>,
     risk_confirm: Option<&RiskConfirm>,
+    adding: Option<SectionAddView>,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
     let file = state.filename.clone();
@@ -222,7 +232,14 @@ pub fn structured_editor(
             _ => Nest::Flat,
         };
         let row_locked = read_only || scope.is_some() || is_match_line || (block_format && row.widget == "script_row");
-        render_row(RowCtx {
+        // systemd sections, INI sections and nginx blocks take new keys from
+        // their heading; new sections and blocks are typed in the text view.
+        let can_add = !read_only && row.widget == "scope_row" && matches!(format, StructuredFormat::Systemd | StructuredFormat::Nginx | StructuredFormat::Ini);
+        let form = adding.as_ref().filter(|a| a.heading == row.row_id).map(|a| {
+            let d = match nest { Nest::Heading(d) | Nest::Inside(d) => d, Nest::Flat => 0 };
+            render_section_add(format, row, 14.0 + 20.0 * (d + 1) as f32 + 48.0, a, app.clone())
+        });
+        let row_el = render_row(RowCtx {
             nest,
             file: &file,
             row,
@@ -237,8 +254,10 @@ pub fn structured_editor(
             columns: columns.as_deref(),
             canonical_first: format == StructuredFormat::Hosts,
             note: sysctl_notes.get(idx).cloned().flatten(),
+            can_add,
             app: app.clone(),
-        })
+        });
+        div().flex().flex_col().child(row_el).children(form)
     });
     let column_header = columns.as_ref().filter(|_| !ir.rows.is_empty()).map(|cols| {
         div()
@@ -259,8 +278,8 @@ pub fn structured_editor(
             .children(cols.iter().map(|c| column_cell(c.width).child(c.name.to_uppercase())))
     });
 
-    // systemd: a new key belongs in a particular section, so keys are added
-    // in the text view for now.
+    // systemd, nginx, INI: a new key belongs in a particular section, so
+    // it's added from that section's heading (the + on it).
     let add_section = (!read_only && !matches!(format, StructuredFormat::Systemd | StructuredFormat::Nginx | StructuredFormat::Ini)).then(|| render_add_section(&file, format, ir, configs.adding_row, app.clone()));
 
     div()
@@ -438,11 +457,13 @@ struct RowCtx<'a> {
     canonical_first: bool,
     /// A line under the row: (text, whether it's a warning).
     note: Option<(String, bool)>,
+    /// A heading that takes new keys: shows the + that opens the add form.
+    can_add: bool,
     app: Entity<CrowApp>,
 }
 
 fn render_row(ctx: RowCtx) -> impl IntoElement {
-    let RowCtx { nest, file, row, index, prev_id, next_id, is_table, locked, scope, open_enum, active_edit, columns, canonical_first, note, app } = ctx;
+    let RowCtx { nest, file, row, index, prev_id, next_id, is_table, locked, scope, open_enum, active_edit, columns, canonical_first, note, can_add, app } = ctx;
     let row_id = row.row_id.clone();
     // Help text under key/value rows (e.g. what an sshd directive does). Table
     // rows share one schema, so repeating it on every row would only be noise.
@@ -496,6 +517,15 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
                     app_down.update(cx, |this, cx| this.move_structured_row(&f, &r, Some(n), None, cx));
                 }));
             }
+        }
+        if can_add {
+            let (app_add, f, r) = (app.clone(), file.to_string(), row_id.clone());
+            bar = bar.child(crate::components::icon_button::icon_button(ElementId::NamedInteger("row-add".into(), index as u64), crate::components::icons::TablerIcon::Plus, false).on_click(
+                move |_ev, window, cx| {
+                    let (f, r) = (f.clone(), r.clone());
+                    app_add.update(cx, |this, cx| this.begin_section_add(&f, &r, window, cx));
+                },
+            ));
         }
         let (app_del, f, r) = (app.clone(), file.to_string(), row_id.clone());
         bar.child(
@@ -799,6 +829,65 @@ fn render_add_section(file: &str, format: StructuredFormat, ir: &ConfigDocumentI
                 })
                 .child(div().w(px(200.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_PRIMARY).child(name))
                 .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(risk_color(risk.as_ref())).child(value))
+        }))
+}
+
+/// The add form under a heading: key and value inputs, the help for the
+/// typed key, and the section's known keys that match what's typed.
+fn render_section_add(format: StructuredFormat, heading: &RowIr, pad: f32, add: &SectionAddView, app: Entity<CrowApp>) -> Div {
+    let suggestions = crate::config::plugins::section_suggestions(format, heading);
+    let typed = add.typed.to_lowercase();
+    let help = suggestions.iter().find(|s| s.0.eq_ignore_ascii_case(&add.typed)).map(|s| s.1);
+    let shown: Vec<_> = suggestions.iter().filter(|s| !s.0.eq_ignore_ascii_case(&add.typed) && (typed.is_empty() || s.0.to_lowercase().contains(&typed))).take(8).copied().collect();
+    let (app_ok, app_cancel) = (app.clone(), app.clone());
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(4.0))
+        .pl(px(pad))
+        .pr(px(14.0))
+        .py(px(8.0))
+        .bg(BG_PANEL)
+        .border_b_1()
+        .border_color(BORDER_ROW)
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.0))
+                .child(div().w(px(200.0)).flex_none().child(Input::new(add.key).font_family(FONT_MONO).text_size(px(11.0))))
+                .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child(if format == StructuredFormat::Nginx { "" } else { "=" }))
+                .child(div().flex_1().min_w(px(0.0)).child(Input::new(add.value).font_family(FONT_MONO).text_size(px(11.0))))
+                .child(small_button("btn-section-add", "ADD", OK).on_click(move |_ev, _window, cx| {
+                    app_ok.update(cx, |this, cx| this.commit_section_add(cx));
+                }))
+                .child(crate::components::icon_button::icon_button("btn-section-add-cancel", crate::components::icons::TablerIcon::X, false).on_click(move |_ev, _window, cx| {
+                    app_cancel.update(cx, |this, cx| this.cancel_section_add(cx));
+                })),
+        )
+        .children(help.map(|h| div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_TERTIARY).child(h)))
+        .children(shown.into_iter().enumerate().map(|(i, (key, help, start))| {
+            let app_pick = app.clone();
+            div()
+                .id(ElementId::NamedInteger("section-add-suggestion".into(), i as u64))
+                .flex()
+                .items_center()
+                .gap(px(10.0))
+                .px(px(6.0))
+                .py(px(2.0))
+                .rounded_sm()
+                .cursor_pointer()
+                .hover(|s| s.bg(BG_ROW_HOVER))
+                .on_click(move |_ev, window, cx| {
+                    app_pick.update(cx, |this, cx| this.pick_section_key(key, start, window, cx));
+                })
+                .child(div().w(px(190.0)).flex_none().font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_PRIMARY).child(key))
+                .child(div().flex_1().min_w(px(0.0)).truncate().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_TERTIARY).child(help))
+        }))
+        .child(div().font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINTER).child(if format == StructuredFormat::Nginx {
+            "Added at the end of this block. New blocks are typed in the text view."
+        } else {
+            "Added at the end of this section. New sections are typed in the text view."
         }))
 }
 
