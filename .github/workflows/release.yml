@@ -1,8 +1,9 @@
-# Builds Crow release binaries for Linux (x86_64) and macOS (Apple Silicon),
-# generates SLSA Build Level 3 provenance covering all of them with the OpenSSF
-# generic generator (https://github.com/slsa-framework/slsa-github-generator),
-# and attaches everything to the GitHub release.
-# Verify downloads with https://github.com/slsa-framework/slsa-verifier
+# Builds Crow release binaries for Linux (x86_64) and macOS (Apple Silicon)
+# and attaches them, with SHA256SUMS, to the GitHub release. When the
+# repository is public it also generates SLSA Build Level 3 provenance with
+# the OpenSSF generic generator
+# (https://github.com/slsa-framework/slsa-github-generator); verify those
+# downloads with https://github.com/slsa-framework/slsa-verifier
 #
 # Run it manually (workflow_dispatch) to dry-run the builds without a release.
 
@@ -109,8 +110,13 @@ jobs:
           set -euo pipefail
           echo "hashes=$(sha256sum *.tar.gz | base64 -w0)" >> "${GITHUB_OUTPUT}"
 
+  # SLSA provenance goes into Sigstore's public transparency log, which
+  # names the repository, so the generator refuses private repositories
+  # (ERR-101). It runs once the repository is public; until then releases
+  # carry SHA256SUMS (below) instead.
   provenance:
     needs: [hash]
+    if: ${{ !github.event.repository.private }}
     permissions:
       actions: read    # To read the workflow path.
       id-token: write  # To sign the provenance.
@@ -121,9 +127,8 @@ jobs:
       base64-subjects: "${{ needs.hash.outputs.hashes }}"
       upload-assets: ${{ github.event_name == 'release' }} # Attach the .intoto.jsonl to the release.
 
-  # The binaries go on the release whenever they built, even if the
-  # provenance generator's final check fails (it has reported failure with
-  # every sub-job green, which left 0.1.0 and 0.2.0-beta.1 with no binaries).
+  # The binaries go on the release whenever they built, whatever happens to
+  # provenance (skipped while the repository is private, see above).
   release-assets:
     needs: [build, provenance]
     if: always() && github.event_name == 'release' && needs.build.result == 'success'
@@ -136,7 +141,11 @@ jobs:
           path: dist
           merge-multiple: true
 
+      - name: Checksums
+        working-directory: dist
+        run: sha256sum *.tar.gz > SHA256SUMS
+
       - name: Attach binaries to release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/*.tar.gz --repo "${{ github.repository }}"
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/*.tar.gz dist/SHA256SUMS --repo "${{ github.repository }}"
