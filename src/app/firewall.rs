@@ -14,9 +14,81 @@ use crate::views::firewall::{detect_firewall_status, FirewallBackend, FirewallOp
 // Firewall & Network Security Methods
 // ==========================================
 
+/// The add-rule dialog's text fields; they live while it's open.
+pub struct FirewallRuleInputs {
+    pub port: Entity<InputState>,
+    pub source: Entity<InputState>,
+    pub comment: Entity<InputState>,
+    _events: Vec<Subscription>,
+}
+
+/// One of the add-rule dialog's text fields.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum RuleField {
+    Port,
+    Source,
+    Comment,
+}
+
 impl CrowApp {
-    pub fn set_firewall_search(&mut self, query: &str, cx: &mut Context<Self>) {
-        self.firewall.search_query = query.to_string();
+    /// Creates the add-rule dialog's inputs when it opens (they need the
+    /// window), and drops them when it closes. Typing updates the form;
+    /// Enter adds the rule.
+    pub fn ensure_firewall_rule_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.firewall.show_new_rule_modal {
+            self.firewall_rule_inputs = None;
+            return;
+        }
+        if self.firewall_rule_inputs.is_some() {
+            return;
+        }
+        let form = &self.firewall.new_rule;
+        let source_now = if form.is_anywhere { String::new() } else { form.source_input.clone() };
+        let make = |placeholder: &str, value: String, window: &mut Window, cx: &mut Context<Self>| cx.new(|cx| InputState::new(window, cx).placeholder(placeholder.to_string()).default_value(value));
+        let port = make("8080, or a range 8000:8100", form.port_input.clone(), window, cx);
+        let source = make("anywhere, or an address / CIDR", source_now, window, cx);
+        let comment = make("why this rule exists", form.comment_input.clone(), window, cx);
+        let events = [(&port, RuleField::Port), (&source, RuleField::Source), (&comment, RuleField::Comment)]
+            .into_iter()
+            .map(|(input, field)| {
+                cx.subscribe(input, move |this, input, ev: &InputEvent, cx| match ev {
+                    InputEvent::Change => {
+                        let value = input.read(cx).value().to_string();
+                        this.set_firewall_rule_text(field, value);
+                        cx.notify();
+                    }
+                    InputEvent::PressEnter { .. } => this.submit_new_firewall_rule(cx),
+                    _ => {}
+                })
+            })
+            .collect();
+        port.update(cx, |i, cx| i.focus(window, cx));
+        self.firewall_rule_inputs = Some(FirewallRuleInputs { port, source, comment, _events: events });
+    }
+
+    fn set_firewall_rule_text(&mut self, field: RuleField, value: String) {
+        let form = &mut self.firewall.new_rule;
+        match field {
+            RuleField::Port => form.port_input = value,
+            RuleField::Source => {
+                form.is_anywhere = value.trim().is_empty() || value.trim().eq_ignore_ascii_case("anywhere");
+                form.source_input = value;
+            }
+            RuleField::Comment => form.comment_input = value,
+        }
+    }
+
+    /// A preset in the add-rule dialog: fills the field as if typed.
+    pub fn set_firewall_rule_field(&mut self, field: RuleField, value: &str, window: &mut Window, cx: &mut Context<Self>) {
+        self.set_firewall_rule_text(field, value.to_string());
+        if let Some(inputs) = &self.firewall_rule_inputs {
+            let input = match field {
+                RuleField::Port => &inputs.port,
+                RuleField::Source => &inputs.source,
+                RuleField::Comment => &inputs.comment,
+            };
+            input.update(cx, |i, cx| i.set_value(value.to_string(), window, cx));
+        }
         cx.notify();
     }
 

@@ -31,7 +31,7 @@ pub mod recovery;
 pub mod terminal;
 pub mod history_view;
 mod files;
-mod firewall;
+pub mod firewall;
 mod updates;
 pub use updates::UpdateState;
 mod users;
@@ -201,6 +201,9 @@ pub struct CrowApp {
     pub services_search: Option<overview::TableSearch>,
     pub processes_search: Option<overview::TableSearch>,
     pub users_search: Option<overview::TableSearch>,
+    pub firewall_search: Option<overview::TableSearch>,
+    /// The add-rule dialog's text fields, while it's open.
+    pub firewall_rule_inputs: Option<firewall::FirewallRuleInputs>,
     pub logs_search: Option<overview::TableSearch>,
     /// New User dialog's text inputs (created while it's open).
     pub new_user_inputs: Option<crate::views::users::NewUserInputs>,
@@ -419,6 +422,8 @@ impl CrowApp {
             services_search: None,
             processes_search: None,
             users_search: None,
+            firewall_search: None,
+            firewall_rule_inputs: None,
             logs_search: None,
             new_user_inputs: None,
             password_inputs: None,
