@@ -142,6 +142,9 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
     let failed_banner = overview.last_change_outcome.as_ref()
         .filter(|(unit, succeeded)| unit == &svc.name && !succeeded);
     let recent = crate::app::overview::recent_change_records(vault, fleet, &svc.name, 5);
+    let eli5_key = format!("{}/{}", fleet.servers.iter().find(|s| s.id == fleet.active_tab_id).map_or("local", |s| s.id.as_str()), svc.name);
+    let eli5_open = overview.service_eli5_open.as_deref() == Some(eli5_key.as_str());
+    let eli5_panel = eli5_open.then(|| render_eli5(overview.service_eli5_loading.contains(&eli5_key), overview.service_eli5.get(&eli5_key)));
 
     div()
         .id("service-inspector-scroll")
@@ -160,11 +163,36 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                 .gap(px(6.0))
                 .child(
                     div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(14.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
-                        .child(svc.name.clone()),
+                        .flex()
+                        .items_center()
+                        .gap(px(6.0))
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(px(14.0))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(TEXT_PRIMARY)
+                                .child(svc.name.clone()),
+                        )
+                        // The wand: what is this, and how risky is touching it?
+                        .child({
+                            let (app_wand, unit) = (app.clone(), svc.name.clone());
+                            div()
+                                .id("btn-service-eli5")
+                                .size(px(22.0))
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .text_color(if eli5_open { WAND } else { TEXT_DIM })
+                                .bg(if eli5_open { WAND.opacity(0.14) } else { hex_rgba(0, 0.0) })
+                                .cursor_pointer()
+                                .hover(|s| s.bg(WAND.opacity(0.14)).text_color(WAND))
+                                .on_click(move |_ev, _window, cx| {
+                                    let unit = unit.clone();
+                                    app_wand.update(cx, |this, cx| this.toggle_service_eli5(&unit, cx));
+                                })
+                                .child(crate::components::icons::inherited_icon(crate::components::icons::TablerIcon::Wand, px(14.0)))
+                        }),
                 )
                 .child(
                     div()
@@ -190,6 +218,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                         ),
                 ),
         )
+        .children(eli5_panel)
         // Info grid
         .child(
             div()
@@ -610,4 +639,52 @@ fn render_pending_confirm(unit_name: &str, action: &str, overview: &OverviewStat
                         .child(format!("{} ⏎", verb)),
                 ),
         )
+}
+
+/// The wand's colour.
+const WAND: Rgba = Rgba { r: 0.733, g: 0.604, b: 0.969, a: 1.0 };
+
+/// The plain-words explanation under the service's name: how risky
+/// stopping or restarting it is, what it is, and what each action does.
+fn render_eli5(loading: bool, result: Option<&Result<crate::views::overview::state::ServiceEli5, String>>) -> impl IntoElement {
+    use crate::ai::Severity;
+    let body = div().flex().flex_col().gap(px(8.0)).p(px(12.0)).bg(WAND.opacity(0.05)).border_1().border_color(WAND.opacity(0.35));
+    match (loading, result) {
+        (true, _) | (false, None) => body.child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(WAND).child("Asking the clanker what this service is…")),
+        (false, Some(Err(e))) => body.child(div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(CRIT).child(e.clone())),
+        (false, Some(Ok(e))) => body
+            .children(e.severity.as_ref().map(|(level, reason)| {
+                let (label, color) = match level {
+                    Severity::Low => ("LOW RISK", OK),
+                    Severity::Medium => ("MEDIUM RISK", WARN),
+                    Severity::High => ("HIGH RISK", hex_rgb(0xf97316)),
+                    Severity::Critical => ("CRITICAL", CRIT),
+                };
+                div()
+                    .flex()
+                    .items_start()
+                    .gap(px(8.0))
+                    .child(div().flex_none().px(px(5.0)).py(px(1.5)).bg(color.opacity(0.15)).border_1().border_color(color).font_family(FONT_MONO).text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(color).child(label))
+                    .child(div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(TEXT_SECONDARY).child(format!("to stop or restart: {reason}")))
+            }))
+            // One line per point, its label ("If you stop it:") bold.
+            .children(e.body.lines().map(str::trim).filter(|l| !l.is_empty()).map(|line| {
+                let line = line.trim_start_matches(['-', '*', ' ']).replace("**", "");
+                let (label, rest) = match line.split_once(':') {
+                    Some((l, r)) if l.len() <= 24 && !l.contains('`') => (Some(format!("{l}:")), r.trim().to_string()),
+                    _ => (None, line.clone()),
+                };
+                div()
+                    .font_family(FONT_MONO)
+                    .text_size(px(11.0))
+                    .line_height(px(16.0))
+                    .text_color(TEXT_PRIMARY)
+                    .children(label.map(|l| div().font_weight(FontWeight::BOLD).text_color(WAND).child(l)))
+                    .child(rest)
+            }))
+            .child(div().font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINT).child(match &e.primary_failed {
+                Some(why) => format!("via the backup, {} · the primary failed: {why}", e.via),
+                None => format!("via {} · an AI's reading: check before acting on it", e.via),
+            })),
+    }
 }

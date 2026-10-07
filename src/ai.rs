@@ -144,6 +144,53 @@ pub fn check_key(provider: &ClankerProviderConfig) -> Result<String, String> {
     }
 }
 
+const SERVICE_PROMPT: &str = "You explain systemd services to an operator who is not a Linux expert, like a patient senior SRE would. You are given one service's unit name, description, current state and the server's distribution. Answer in this exact shape:\nSEVERITY: <LOW|MEDIUM|HIGH|CRITICAL> - <one short reason>\n\nWhat it is: <one or two sentences, plain words>\nWhat it does here: <one or two sentences>\nIf you stop it: <what breaks or keeps working>\nIf you restart it: <what users would notice>\nIf you disable it: <what changes at the next boot>\n\nSEVERITY rates stopping or restarting it: LOW when nothing users rely on breaks, MEDIUM when a feature degrades, HIGH when a service users rely on goes down, CRITICAL when it can cut off access to the server (SSH, networking, firewall, storage, the init system). If you don't recognize the service, say so and rate from the description. Don't invent what isn't given.";
+
+/// What Crow sends about a service: no host name, address or anything
+/// else that identifies the server.
+pub struct ServiceFacts<'a> {
+    pub unit: &'a str,
+    pub description: &'a str,
+    pub state: &'a str,
+    pub distro: &'a str,
+}
+
+/// How risky stopping or restarting a service is, as the model rated it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Severity {
+    Low,
+    Medium,
+    High,
+    Critical,
+}
+
+/// The rating line (`SEVERITY: HIGH - reason`) split from the rest; no
+/// rating when the model didn't give one in that shape.
+pub fn split_severity(answer: &str) -> (Option<(Severity, String)>, String) {
+    let trimmed = answer.trim_start();
+    let (first, rest) = trimmed.split_once('\n').unwrap_or((trimmed, ""));
+    let Some(after) = first.trim().trim_start_matches(['*', '#', ' ']).strip_prefix("SEVERITY:").or_else(|| first.trim().trim_start_matches(['*', '#', ' ']).strip_prefix("Severity:")) else {
+        return (None, answer.trim().to_string());
+    };
+    let after = after.trim().trim_matches('*').trim();
+    let (word, reason) = after.split_once(['-', '—', ':']).map(|(w, r)| (w.trim(), r.trim())).unwrap_or((after, ""));
+    let level = match word.to_uppercase().as_str() {
+        "LOW" => Severity::Low,
+        "MEDIUM" => Severity::Medium,
+        "HIGH" => Severity::High,
+        "CRITICAL" => Severity::Critical,
+        _ => return (None, answer.trim().to_string()),
+    };
+    (Some((level, reason.trim_matches('*').trim().to_string())), rest.trim().to_string())
+}
+
+/// Asks for a plain-words explanation of a service and how risky
+/// stopping or restarting it is (primary, then the backup).
+pub fn explain_service(primary: &ClankerProviderConfig, backup: Option<&ClankerProviderConfig>, f: &ServiceFacts) -> Result<Answer, String> {
+    let user = format!("Unit: {}\nDescription: {}\nState: {}\nDistribution: {}", f.unit, f.description, f.state, if f.distro.is_empty() { "unknown" } else { f.distro });
+    with_fallback(primary, backup, |p| send(p, &chat_config(p, SERVICE_PROMPT, &user, 700)))
+}
+
 /// An answer, with who gave it and, when the backup did, why the primary didn't.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Answer {
@@ -324,5 +371,16 @@ mod tests {
         assert!(request.starts_with("GET /v1/models HTTP/1.1"), "{request}");
         assert!(request.contains("Authorization: Bearer sk-test\"key"));
         assert!(!request.to_lowercase().contains("content-length"), "no body, nothing billed");
+    }
+
+    #[test]
+    fn the_severity_line_is_split_from_the_explanation() {
+        let (sev, body) = split_severity("SEVERITY: CRITICAL - it's how you log in\n\nWhat it is: the SSH server.");
+        assert_eq!(sev, Some((Severity::Critical, "it's how you log in".into())));
+        assert_eq!(body, "What it is: the SSH server.");
+        let (sev, _) = split_severity("**SEVERITY: low — nothing depends on it**\nWhat it is: …");
+        assert_eq!(sev.map(|s| s.0), Some(Severity::Low), "markdown bold and an em dash are fine");
+        let (sev, body) = split_severity("I don't know this service.");
+        assert_eq!((sev, body.as_str()), (None, "I don't know this service."));
     }
 }

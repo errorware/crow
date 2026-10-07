@@ -43,6 +43,7 @@ pub enum TablerIcon {
     Trash,
     Copy,
     Search,
+    Wand,
     Filter,
     Dots,
     DotsVertical,
@@ -95,6 +96,7 @@ impl TablerIcon {
             Self::InfoCircle => include_bytes!("../../assets/icons/info-circle.svg"),
 
             Self::Refresh => include_bytes!("../../assets/icons/refresh.svg"),
+            Self::Wand => include_bytes!("../../assets/icons/wand.svg"),
             Self::PlayerPlay => include_bytes!("../../assets/icons/player-play.svg"),
             Self::PlayerStop => include_bytes!("../../assets/icons/player-stop.svg"),
             Self::PlayerPause => include_bytes!("../../assets/icons/player-pause.svg"),

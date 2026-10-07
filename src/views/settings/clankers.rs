@@ -183,6 +183,9 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                 )
                 .children(secrets_notice.map(|n| crate::views::settings::providers::notice(n.to_string(), TEXT_SECONDARY, None, Some(app.clone()))))
                 .children(secrets_blocker.map(|why| crate::views::settings::providers::notice(format!("Keys can't be saved right now: {why}."), WARN, Some(app.clone()), None)))
+                // The sandbox first: its answer grows the box, and at the
+                // bottom of the page that happened out of view.
+                .child(render_eli5_sandbox(app.clone(), demo_log, demo_output, demo_loading))
                 // Providers Grid
                 .child(
                     div()
@@ -200,9 +203,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                         .children(providers.iter().map(|prov| {
                             render_provider_card(app.clone(), prov, clankers.key_checking.contains(&prov.id), clankers.key_checks.get(&prov.id))
                         })),
-                )
-                // Interactive AI Usability Sandbox ("WTF is this log trying to say?")
-                .child(render_eli5_sandbox(app.clone(), demo_log, demo_output, demo_loading)),
+                ),
         )
 }
 
@@ -495,13 +496,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                 .child(if checking { "testing…" } else { "⚡ Test Key" }),
                         ),
                 )
-                .children(check.map(|r| {
-                    let (text, color) = match r {
-                        Ok(t) => (format!("✓ {t}"), OK),
-                        Err(e) => (format!("✕ {e}"), CRIT),
-                    };
-                    div().font_family(FONT_MONO).text_size(px(9.5)).text_color(color).child(text)
-                }))
+
                 .child(
                     div()
                         .flex()
@@ -581,6 +576,15 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                         }),
                 ),
         )
+        // The last key check, on its own line and wrapped to the card
+        // (it cleared itself after a few seconds).
+        .children(check.map(|r| {
+            let (text, color) = match r {
+                Ok(t) => (format!("✓ {t}"), OK),
+                Err(e) => (format!("✕ {e}"), CRIT),
+            };
+            div().w_full().font_family(FONT_MONO).text_size(px(9.5)).line_height(px(14.0)).text_color(color).child(text)
+        }))
 }
 
 fn render_eli5_sandbox(

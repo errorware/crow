@@ -650,4 +650,57 @@ impl CrowApp {
         self.overview.map_process_focus = proc_name;
         cx.notify();
     }
+
+    /// The wand: opens (or closes) the plain-words explanation of a service
+    /// in the drawer, asking the AI the first time. Only the unit, its
+    /// description and state, and the distro are sent.
+    pub fn toggle_service_eli5(&mut self, unit: &str, cx: &mut Context<Self>) {
+        let server = self.fleet.servers.iter().find(|s| s.id == self.fleet.active_tab_id).cloned();
+        let key = format!("{}/{unit}", server.as_ref().map_or("local", |s| s.id.as_str()));
+        if self.overview.service_eli5_open.as_deref() == Some(key.as_str()) {
+            self.overview.service_eli5_open = None;
+            cx.notify();
+            return;
+        }
+        self.overview.service_eli5_open = Some(key.clone());
+        let cached_ok = matches!(self.overview.service_eli5.get(&key), Some(Ok(_)));
+        if cached_ok || self.overview.service_eli5_loading.contains(&key) {
+            cx.notify();
+            return;
+        }
+        let Some((primary, backup)) = self.ai_providers() else {
+            self.overview.service_eli5.insert(key, Err("No AI provider has a key yet. Add one in Settings → Clankers (AI).".into()));
+            cx.notify();
+            return;
+        };
+        let svc = self.overview.services.iter().find(|s| s.name == unit);
+        let (description, state) = svc.map(|s| (s.description.clone(), s.status.clone())).unwrap_or_default();
+        let distro = server.map(|s| s.os_distro).unwrap_or_default();
+        let unit = unit.to_string();
+        self.overview.service_eli5.remove(&key);
+        self.overview.service_eli5_loading.insert(key.clone());
+        cx.notify();
+        let db = self.vault.db();
+        cx.spawn(async move |entity, cx| {
+            let answer = cx
+                .background_executor()
+                .spawn(async move { crate::ai::explain_service(&primary, backup.as_ref(), &crate::ai::ServiceFacts { unit: &unit, description: &description, state: &state, distro: &distro }) })
+                .await;
+            if let Ok(a) = &answer {
+                if let Ok(db) = db.lock() {
+                    let _ = db.record_clanker_call(&a.provider_id);
+                }
+            }
+            let _ = entity.update(cx, |this, cx| {
+                this.overview.service_eli5_loading.remove(&key);
+                let result = answer.map(|a| {
+                    let (severity, body) = crate::ai::split_severity(&a.text);
+                    crate::views::overview::state::ServiceEli5 { severity, body, via: a.provider_label, primary_failed: a.primary_failed }
+                });
+                this.overview.service_eli5.insert(key, result);
+                this.refresh_clankers(cx);
+            });
+        })
+        .detach();
+    }
 }

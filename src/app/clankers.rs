@@ -219,10 +219,19 @@ impl CrowApp {
             let id = provider.id.clone();
             // Listing models generates nothing, so it isn't counted as a call.
             let result = cx.background_executor().spawn(async move { crate::ai::check_key(&provider) }).await;
+            let shown = result.clone();
             let _ = entity.update(cx, |this, cx| {
                 this.clankers.key_checking.remove(&id);
-                this.clankers.key_checks.insert(id, result);
+                this.clankers.key_checks.insert(id.clone(), result);
                 this.refresh_clankers(cx);
+            });
+            // The result has said its piece after 10 s; a newer check stays.
+            cx.background_executor().timer(std::time::Duration::from_secs(10)).await;
+            let _ = entity.update(cx, |this, cx| {
+                if this.clankers.key_checks.get(&id) == Some(&shown) {
+                    this.clankers.key_checks.remove(&id);
+                    cx.notify();
+                }
             });
         })
         .detach();

@@ -16,6 +16,11 @@ pub struct OverviewState {
     pub collapsed_process_groups: HashSet<String>,
     pub service_panel_pending_action: Option<String>,
     pub blast_radius: Option<BlastRadiusInfo>,
+    /// The wand's plain-words explanations, by "server id/unit", for the
+    /// session; which one is open; which are being asked.
+    pub service_eli5: std::collections::HashMap<String, Result<ServiceEli5, String>>,
+    pub service_eli5_open: Option<String>,
+    pub service_eli5_loading: std::collections::HashSet<String>,
     /// (unit name, succeeded) — most recent failure banner.
     pub last_change_outcome: Option<(String, bool)>,
     pub socket_drawer_open: bool,
@@ -95,6 +100,9 @@ impl OverviewState {
             collapsed_process_groups: HashSet::new(),
             service_panel_pending_action: None,
             blast_radius: None,
+            service_eli5: Default::default(),
+            service_eli5_open: None,
+            service_eli5_loading: Default::default(),
             last_change_outcome: None,
             socket_drawer_open: false,
             socket_drawer_filter_this_socket: false,
@@ -304,4 +312,16 @@ mod tests {
         let empty: Vec<usize> = Vec::new();
         assert_eq!(page_of(&empty, 3).2, 1);
     }
+}
+
+/// A service explained in plain words (the wand in the Services drawer).
+#[derive(Clone, Debug, PartialEq)]
+pub struct ServiceEli5 {
+    /// How risky stopping or restarting it is, and why.
+    pub severity: Option<(crate::ai::Severity, String)>,
+    pub body: String,
+    /// "Mistral AI · mistral-small-2603".
+    pub via: String,
+    /// When the backup answered: why the primary didn't.
+    pub primary_failed: Option<String>,
 }
