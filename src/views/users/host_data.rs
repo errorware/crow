@@ -49,7 +49,9 @@ pub fn read_users(host: &dyn Host) -> Result<Vec<SystemUserRecord>, String> {
 
     let homes: Vec<String> = users.iter().filter(|u| has_login_shell(u)).map(|u| u.home_dir.clone()).collect();
     if !homes.is_empty() {
-        let script = format!(r#"for h in "$@"; do echo "{HOME_MARKER}$h"; cat "$h/.ssh/authorized_keys" 2>/dev/null; done; true"#);
+        // Read as root, so a symlinked ~/.ssh or authorized_keys (which could
+        // point at any file) is skipped rather than followed.
+        let script = format!(r#"for h in "$@"; do echo "{HOME_MARKER}$h"; [ -L "$h/.ssh" ] || [ -L "$h/.ssh/authorized_keys" ] || cat "$h/.ssh/authorized_keys" 2>/dev/null; done; true"#);
         let mut argv = vec!["sh".to_string(), "-c".to_string(), script, "crow-keys".to_string()];
         argv.extend(homes);
         let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
@@ -271,28 +273,44 @@ pub fn delete_user(user: &str) -> Result<Argv, String> {
     Ok(argv(&["userdel", user]))
 }
 
+/// Runs `script` as `user`, never as root (ERR-117): the user's ~/.ssh is
+/// theirs to fill with symlinks, so anything root wrote there could be
+/// redirected anywhere. As the user, the kernel only lets the script touch
+/// what the user could touch anyway. Uses runuser, else su; when Crow is
+/// already that user, runs it directly. `args` become $1, $2, …
+fn as_user(user: &str, script: &str, args: &[&str]) -> Argv {
+    const SWITCH: &str = r#"u="$1"; s="$2"; shift 2
+if [ "$(id -u)" = "$(id -u "$u" 2>/dev/null)" ]; then exec sh -c "$s" crow-as-user "$@"; fi
+if command -v runuser >/dev/null 2>&1; then exec runuser -u "$u" -- sh -c "$s" crow-as-user "$@"; fi
+exec su -s /bin/sh "$u" -c "$s" crow-as-user "$@""#;
+    let mut argv: Argv = vec!["sh".into(), "-c".into(), SWITCH.into(), "crow-as-user".into(), user.into(), script.into()];
+    argv.extend(args.iter().map(|a| a.to_string()));
+    argv
+}
+
 /// Appends `key` to the user's authorized_keys (creating ~/.ssh with the
-/// right owner and modes) unless it's already there.
+/// right modes) unless it's already there, as the user (see `as_user`).
 pub fn authorize_key(user: &str, home: &str, key: &str) -> Result<Argv, String> {
     check_name("user", user)?;
     let key = key.trim();
     PublicKey::from_openssh(key).map_err(|_| "not a valid OpenSSH public key".to_string())?;
-    let script = r#"set -e; d="$1/.ssh"; f="$d/authorized_keys"; mkdir -p "$d"; touch "$f"; grep -qxF -- "$3" "$f" || printf '%s\n' "$3" >> "$f"; chmod 700 "$d"; chmod 600 "$f"; chown -R "$2" "$d""#;
-    Ok(vec!["sh".into(), "-c".into(), script.into(), "crow-authorize".into(), home.into(), user.into(), key.into()])
+    let script = r#"set -e; umask 077; d="$1/.ssh"; f="$d/authorized_keys"; mkdir -p "$d"; chmod 700 "$d"; [ -e "$f" ] || : > "$f"; chmod 600 "$f"; grep -qxF -- "$2" "$f" || printf '%s\n' "$2" >> "$f""#;
+    Ok(as_user(user, script, &[home, key]))
 }
 
-/// Removes the exact `line` from the user's authorized_keys, keeping the
-/// file's owner and mode.
-pub fn revoke_key(home: &str, line: &str) -> Argv {
-    let script = r#"f="$1/.ssh/authorized_keys"; [ -f "$f" ] || exit 0; grep -vxF -- "$2" "$f" > "$f.crow" || true; cat "$f.crow" > "$f"; rm -f "$f.crow""#;
-    vec!["sh".into(), "-c".into(), script.into(), "crow-revoke".into(), home.into(), line.into()]
+/// Removes the exact `line` from the user's authorized_keys, as the user.
+pub fn revoke_key(user: &str, home: &str, line: &str) -> Result<Argv, String> {
+    check_name("user", user)?;
+    let script = r#"f="$1/.ssh/authorized_keys"; [ -f "$f" ] || exit 0; t=$(mktemp "$1/.ssh/.crow-ak.XXXXXX") || exit 1; grep -vxF -- "$2" "$f" > "$t"; cat "$t" > "$f"; r=$?; rm -f "$t"; exit $r"#;
+    Ok(as_user(user, script, &[home, line]))
 }
 
 /// Removes every authorized_keys line carrying the key `blob` (the base64
-/// part), whatever its options or comment, keeping the file's owner and mode.
-pub fn revoke_key_blob(home: &str, blob: &str) -> Argv {
-    let script = r#"f="$1/.ssh/authorized_keys"; [ -f "$f" ] || exit 0; awk -v b="$2" '{k=1; for(i=1;i<=NF;i++) if($i==b) k=0} k' "$f" > "$f.crow"; cat "$f.crow" > "$f"; rm -f "$f.crow""#;
-    vec!["sh".into(), "-c".into(), script.into(), "crow-revoke".into(), home.into(), blob.into()]
+/// part), whatever its options or comment, as the user.
+pub fn revoke_key_blob(user: &str, home: &str, blob: &str) -> Result<Argv, String> {
+    check_name("user", user)?;
+    let script = r#"f="$1/.ssh/authorized_keys"; [ -f "$f" ] || exit 0; t=$(mktemp "$1/.ssh/.crow-ak.XXXXXX") || exit 1; awk -v b="$2" '{k=1; for(i=1;i<=NF;i++) if($i==b) k=0} k' "$f" > "$t" || { rm -f "$t"; exit 1; }; cat "$t" > "$f"; r=$?; rm -f "$t"; exit $r"#;
+    Ok(as_user(user, script, &[home, blob]))
 }
 
 #[cfg(test)]
@@ -389,7 +407,7 @@ mod tests {
         run(authorize_key(&me, h, KEY).unwrap()); // idempotent
         let f = home.join(".ssh/authorized_keys");
         assert_eq!(std::fs::read_to_string(&f).unwrap(), format!("{KEY}\n"));
-        run(revoke_key(h, KEY));
+        run(revoke_key(&me, h, KEY).unwrap());
         assert_eq!(std::fs::read_to_string(&f).unwrap(), "");
         std::fs::remove_dir_all(&home).unwrap();
     }

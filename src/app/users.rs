@@ -249,7 +249,7 @@ impl CrowApp {
     pub fn user_revoke_key(&mut self, user: &str, key_id: &str, cx: &mut Context<Self>) {
         let Some(u) = self.users.find(user) else { return };
         let Some(line) = u.authorized_keys.iter().find(|k| k.id == key_id).map(|k| k.key_preview.clone()) else { return };
-        let cmd = host_data::revoke_key(&u.home_dir, &line);
-        self.run_user_action(user, Ok(vec![HostCommand::new(cmd)]), false, cx);
+        let cmd = host_data::revoke_key(user, &u.home_dir, &line);
+        self.run_user_action(user, cmd.map(|c| vec![HostCommand::new(c)]), false, cx);
     }
 }
