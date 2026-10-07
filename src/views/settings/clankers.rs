@@ -453,7 +453,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                         // Edit Key & Model Button
                         .child(
                             div()
-                                .id(ElementId::NamedInteger("btn-edit-clanker".into(), prov.daily_history.len() as u64 + prov.calls_30d))
+                                .id(ElementId::Name(format!("btn-edit-clanker-{}", prov.id).into()))
                                 .px(px(8.0))
                                 .py(px(4.0))
                                 .bg(BG_CONTROL)
@@ -475,7 +475,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                         // Test Call Button
                         .child(
                             div()
-                                .id(ElementId::NamedInteger("btn-test-clanker".into(), prov.daily_history.len() as u64 + prov.calls_30d))
+                                .id(ElementId::Name(format!("btn-test-clanker-{}", prov.id).into()))
                                 .px(px(8.0))
                                 .py(px(4.0))
                                 .bg(BG_CONTROL)
@@ -511,7 +511,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                         .children(if prov.total_calls > 0 {
                             Some(
                                 div()
-                                    .id(ElementId::NamedInteger("btn-reset-clanker".into(), prov.daily_history.len() as u64 + prov.calls_30d))
+                                    .id(ElementId::Name(format!("btn-reset-clanker-{}", prov.id).into()))
                                     .px(px(6.0))
                                     .py(px(4.0))
                                     .font_family(FONT_MONO)
@@ -534,7 +534,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                         .children((is_configured && !prov.is_default).then(|| {
                             let (app_backup, id, on) = (app.clone(), p_id.clone(), prov.is_backup);
                             div()
-                                .id(ElementId::NamedInteger("btn-backup-clanker".into(), prov.daily_history.len() as u64 + prov.calls_30d))
+                                .id(ElementId::Name(format!("btn-backup-clanker-{}", prov.id).into()))
                                 .px(px(8.0))
                                 .py(px(4.0))
                                 .bg(BG_KEY)
@@ -556,7 +556,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                         .children(if !prov.is_default && is_configured {
                             Some(
                                 div()
-                                    .id(ElementId::NamedInteger("btn-default-clanker".into(), prov.daily_history.len() as u64 + prov.calls_30d))
+                                    .id(ElementId::Name(format!("btn-default-clanker-{}", prov.id).into()))
                                     .px(px(8.0))
                                     .py(px(4.0))
                                     .bg(BG_KEY)
@@ -1001,4 +1001,16 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, clankers: &ClankersState, inp
                     ),
             ),
     )
+}
+
+#[cfg(test)]
+mod id_guard {
+    /// Each provider card's buttons need ids unique to the provider: ids
+    /// built from numbers every card shares (history length, call counts)
+    /// made every Edit Key the same button, and only the last card's worked.
+    #[test]
+    fn card_button_ids_name_their_provider() {
+        let src = include_str!("clankers.rs");
+        assert!(!src.contains(concat!("daily_history.len() as u64 + prov.", "calls_30d")), "build card ids from prov.id");
+    }
 }
