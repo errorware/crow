@@ -116,10 +116,10 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, app: Enti
                 row
             }
         }))
-        // Danger Zone: last, apart, and red whether active or not.
-        .child(div().h(px(1.0)).mx(px(12.0)).my(px(4.0)).bg(BORDER_DANGER))
-        .child(danger_nav(active_view == "danger", collapsed, app.clone()))
+        // Spacer: pushes Danger Zone all the way down, separated from functional navigation
         .child(div().flex_1())
+        // Danger Zone: flushed to the bottom, red whether active or not.
+        .child(danger_nav(active_view == "danger", collapsed, app.clone()))
         // Footer
         .child(
             div()

@@ -15,3 +15,5 @@ pub mod run_panel;
 pub use lab_modal::local_lab_modal;
 pub use overview::fleet_overview_view;
 pub use setup::fleet_setup_view;
+pub mod group_modal;
+pub use group_modal::group_assign_modal;

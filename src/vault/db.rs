@@ -520,6 +520,11 @@ impl VaultDb {
                 set_by TEXT NOT NULL,
                 set_at TEXT NOT NULL,
                 PRIMARY KEY (path, scope)
+            );
+
+            CREATE TABLE IF NOT EXISTS server_groups (
+                name TEXT PRIMARY KEY,
+                created_at TEXT NOT NULL
             );",
         )?;
 
@@ -1496,6 +1501,65 @@ impl VaultDb {
                 srv.provider_account, srv.provider_instance
             ],
         )?;
+        Ok(())
+    }
+
+    /// Assigns a server to a group. Automatically registers the group if new.
+    pub fn update_server_group(&self, id: &str, group: &str) -> Result<(), VaultError> {
+        let group_clean = group.trim();
+        self.conn.execute(
+            "UPDATE servers SET group_name = ?1 WHERE id = ?2",
+            params![group_clean, id],
+        )?;
+        if !group_clean.is_empty() && group_clean != "default" {
+            let _ = self.conn.execute(
+                "INSERT OR IGNORE INTO server_groups (name, created_at) VALUES (?1, ?2)",
+                params![group_clean, Utc::now().to_rfc3339()],
+            );
+        }
+        Ok(())
+    }
+
+    /// Lists all unique server groups, combining explicit groups and groups used by servers.
+    pub fn list_server_groups(&self) -> Result<Vec<String>, VaultError> {
+        let mut set = std::collections::BTreeSet::new();
+        let mut stmt = self.conn.prepare("SELECT name FROM server_groups")?;
+        let rows = stmt.query_map([], |row| row.get::<_, String>(0))?;
+        for r in rows.flatten() {
+            let trimmed = r.trim();
+            if !trimmed.is_empty() && trimmed != "default" {
+                set.insert(trimmed.to_string());
+            }
+        }
+        let mut stmt2 = self.conn.prepare("SELECT DISTINCT group_name FROM servers WHERE archived_at IS NULL")?;
+        let rows2 = stmt2.query_map([], |row| row.get::<_, String>(0))?;
+        for r in rows2.flatten() {
+            let trimmed = r.trim();
+            if !trimmed.is_empty() && trimmed != "default" {
+                set.insert(trimmed.to_string());
+            }
+        }
+        Ok(set.into_iter().collect())
+    }
+
+    /// Registers a new group if it doesn't already exist.
+    pub fn create_server_group(&self, name: &str) -> Result<(), VaultError> {
+        let trimmed = name.trim();
+        if trimmed.is_empty() || trimmed == "default" {
+            return Ok(());
+        }
+        self.conn.execute(
+            "INSERT OR IGNORE INTO server_groups (name, created_at) VALUES (?1, ?2)",
+            params![trimmed, Utc::now().to_rfc3339()],
+        )?;
+        Ok(())
+    }
+
+    /// Deletes a group from the registry and sets any servers in that group to 'default'.
+    pub fn delete_server_group(&self, name: &str) -> Result<(), VaultError> {
+        let trimmed = name.trim();
+        self.conn.execute("DELETE FROM server_groups WHERE name = ?1", params![trimmed])?;
+        self.conn.execute("UPDATE servers SET group_name = 'default' WHERE group_name = ?1", params![trimmed])?;
         Ok(())
     }
 
@@ -2569,5 +2633,47 @@ mod tests {
         assert_eq!(deepseek_reset.calls_30d, 0);
         assert!(deepseek_reset.last_used_at.is_none());
     }
+
+    #[test]
+    fn test_server_groups_crud_and_assignment() {
+        let db = VaultDb::open_in_memory().unwrap();
+
+        // Initially no custom groups
+        assert!(db.list_server_groups().unwrap().is_empty());
+
+        // Create groups
+        db.create_server_group("workers").unwrap();
+        db.create_server_group("edge").unwrap();
+        assert_eq!(db.list_server_groups().unwrap(), vec!["edge".to_string(), "workers".to_string()]);
+
+        // Enroll a server and assign to group
+        let srv = ServerRecord {
+            id: "s1".into(),
+            name: "worker-1".into(),
+            host: "10.0.0.1".into(),
+            port: 22,
+            login_user: "root".into(),
+            group_name: "default".into(),
+            ..Default::default()
+        };
+        db.upsert_server(&srv).unwrap();
+
+        db.update_server_group("s1", "workers").unwrap();
+        let fetched = db.get_server("s1").unwrap().unwrap();
+        assert_eq!(fetched.group_name, "workers");
+
+        // Assign to a new group directly
+        db.update_server_group("s1", "database").unwrap();
+        let fetched2 = db.get_server("s1").unwrap().unwrap();
+        assert_eq!(fetched2.group_name, "database");
+        let groups = db.list_server_groups().unwrap();
+        assert!(groups.contains(&"database".to_string()));
+
+        // Delete group resets server to 'default'
+        db.delete_server_group("database").unwrap();
+        let fetched3 = db.get_server("s1").unwrap().unwrap();
+        assert_eq!(fetched3.group_name, "default");
+    }
 }
+
 

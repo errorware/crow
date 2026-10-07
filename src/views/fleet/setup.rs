@@ -171,11 +171,40 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                         .gap(px(12.0))
                         .child(
                             div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(11.5))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_PRIMARY)
-                                .child("FLEET TOPOLOGY & GROUP ASSIGNMENTS"),
+                                .flex()
+                                .items_center()
+                                .justify_between()
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(11.5))
+                                        .font_weight(FontWeight::BOLD)
+                                        .text_color(TEXT_PRIMARY)
+                                        .child("FLEET TOPOLOGY & GROUP ASSIGNMENTS"),
+                                )
+                                .child({
+                                    let app_btn = app.clone();
+                                    div()
+                                        .id("btn-setup-manage-groups")
+                                        .px(px(8.0))
+                                        .py(px(2.0))
+                                        .border_1()
+                                        .border_color(hex_rgb(0x38bdf8))
+                                        .text_color(hex_rgb(0x38bdf8))
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(10.0))
+                                        .font_weight(FontWeight::BOLD)
+                                        .cursor_pointer()
+                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .on_click(move |_ev, _window, cx| {
+                                            app_btn.update(cx, |this, cx| {
+                                                this.fleet.group_bar_open = true;
+                                                this.reload_server_groups();
+                                                this.set_screen(Screen::Fleet, cx);
+                                            });
+                                        })
+                                        .child("+ MANAGE / NEW GROUP")
+                                }),
                         )
                         .children(if group_map.is_empty() {
                             vec![
@@ -303,7 +332,7 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                                                         div()
                                                             .flex()
                                                             .items_center()
-                                                            .gap(px(4.0))
+                                                            .gap(px(6.0))
                                                             .children(srv.tags.iter().map(|t| {
                                                                 div()
                                                                     .px(px(5.0))
@@ -315,7 +344,31 @@ pub fn fleet_setup_view(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEl
                                                                     .text_size(px(8.5))
                                                                     .rounded_xs()
                                                                     .child(t.clone())
-                                                            })),
+                                                            }))
+                                                            .child({
+                                                                let app_grp = app.clone();
+                                                                let sid = srv.id.clone();
+                                                                div()
+                                                                    .id(SharedString::from(format!("btn-change-group-{}", sid)))
+                                                                    .px(px(6.0))
+                                                                    .py(px(1.5))
+                                                                    .bg(BG_CONTROL)
+                                                                    .border_1()
+                                                                    .border_color(BORDER_DEFAULT)
+                                                                    .rounded_xs()
+                                                                    .text_size(px(9.0))
+                                                                    .text_color(TEXT_SECONDARY)
+                                                                    .cursor_pointer()
+                                                                    .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_MAX).border_color(BORDER_STRONG))
+                                                                    .on_click(move |_ev, _window, cx| {
+                                                                        cx.stop_propagation();
+                                                                        let sid = sid.clone();
+                                                                        app_grp.update(cx, |this, cx| {
+                                                                            this.set_group_assign_target(Some(sid), cx);
+                                                                        });
+                                                                    })
+                                                                    .child("CHANGE GROUP ▾")
+                                                            }),
                                                     )
                                             })),
                                     )

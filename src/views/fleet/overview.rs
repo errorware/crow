@@ -7,7 +7,8 @@ use crate::app::region::FleetEnvFilter;
 use crate::app::{CrowApp, Screen};
 use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::metrics::ServerMetrics;
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
+use gpui_kit::component::input::Input;
 use crate::vault::{ChangeRecord, ServerRecord};
 use crate::views::fleet::state::{FleetHealth, FleetState};
 use crate::components::resize::{bottom_panel_height, resize_handle, BottomPanelResize};
@@ -17,6 +18,7 @@ use crate::views::fleet::lab_state::LocalLabState;
 pub struct FleetHost {
     pub id: String,
     pub name: String,
+    pub group: String,
     pub ip: String,
     pub role: String,
     pub env: String,
@@ -202,6 +204,7 @@ pub fn fleet_overview_view(
             FleetHost {
                 id: s.id.clone(),
                 name: s.name.clone(),
+                group: s.group_name.clone(),
                 ip: s.host.clone(),
                 role: s.role.clone(),
                 env: s.env.clone(),
@@ -239,10 +242,38 @@ pub fn fleet_overview_view(
         }
     }
     region_counts.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.is_empty().cmp(&b.0.is_empty())).then_with(|| a.0.cmp(&b.0)));
+
+    let mut group_counts: Vec<(String, usize)> = Vec::new();
+    for h in &hosts {
+        let g = if h.group.trim().is_empty() || h.group.trim() == "default" {
+            "default".to_string()
+        } else {
+            h.group.trim().to_string()
+        };
+        match group_counts.iter_mut().find(|(grp, _)| *grp == g) {
+            Some((_, n)) => *n += 1,
+            None => group_counts.push((g, 1)),
+        }
+    }
+    for g in &fleet.groups {
+        let trimmed = g.trim().to_string();
+        if !trimmed.is_empty() && trimmed != "default" && !group_counts.iter().any(|(grp, _)| grp == &trimmed) {
+            group_counts.push((trimmed, 0));
+        }
+    }
+    group_counts.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+
     let hosts: Vec<FleetHost> = hosts
         .into_iter()
         .filter(|h| fleet.env_filter.matches(&h.env))
         .filter(|h| fleet.region_filter.as_ref().is_none_or(|c| *c == h.country))
+        .filter(|h| fleet.group_filter.as_ref().is_none_or(|g| {
+            if g == "default" {
+                h.group.trim().is_empty() || h.group.trim() == "default"
+            } else {
+                h.group.trim() == g.trim()
+            }
+        }))
         .collect();
     let visible_count = hosts.len();
     // Servers Crow can talk to right now: local and lab transports, or SSH
@@ -373,6 +404,12 @@ pub fn fleet_overview_view(
                                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.toggle_fleet_region_bar(cx)))
                                 })
                                 .child({
+                                    let app = app.clone();
+                                    let groups_count = group_counts.iter().filter(|(g, _)| g != "default").count();
+                                    fleet_tab("fleet-by-group".into(), if groups_count > 0 { format!("BY GROUP ({groups_count})") } else { "BY GROUP".into() }, fleet.group_bar_open)
+                                        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.toggle_fleet_group_bar(cx)))
+                                })
+                                .child({
                                     let app_lab = app.clone();
                                     div()
                                         .id("btn-fleet-local-lab")
@@ -476,6 +513,161 @@ pub fn fleet_overview_view(
                                         })
                                         .child(if fleet.region_detecting { "DETECTING…" } else { "DETECT REGIONS ↻" }),
                                 )
+                        }))
+                        // Expandable group filter strip
+                        .children(fleet.group_bar_open.then(|| {
+                            let app_new = app.clone();
+                            let app_create = app.clone();
+                            let app_cancel = app.clone();
+                            div()
+                                .id("fleet-groups-bar")
+                                .h(px(28.0))
+                                .flex_none()
+                                .flex()
+                                .items_center()
+                                .px(px(12.0))
+                                .gap(px(6.0))
+                                .bg(BG_SUBHEAD)
+                                .border_b_1()
+                                .border_color(BORDER_PANEL)
+                                .font_family(FONT_MONO)
+                                .text_size(px(10.0))
+                                .child(
+                                    div()
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(4.0))
+                                        .text_color(TEXT_DIMMER)
+                                        .child(tabler_icon(TablerIcon::Folder).size(px(12.0)).text_color(TEXT_DIMMER))
+                                        .child("GROUP:"),
+                                )
+                                .child({
+                                    let app = app.clone();
+                                    let on = fleet.group_filter.is_none();
+                                    let total_count: usize = group_counts.iter().map(|(_, n)| *n).sum();
+                                    div()
+                                        .id("fleet-grp-all")
+                                        .px(px(6.0))
+                                        .py(px(2.0))
+                                        .border_1()
+                                        .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
+                                        .bg(if on { BG_ROW_SELECTED } else { BG_PANEL })
+                                        .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+                                        .cursor_pointer()
+                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .on_click(move |_ev, _window, cx| {
+                                            app.update(cx, |this, cx| this.set_fleet_group_filter(None, cx));
+                                        })
+                                        .child(format!("ALL ({total_count})"))
+                                })
+                                .children(group_counts.iter().map(|(grp, n)| {
+                                    let app = app.clone();
+                                    let target = Some(grp.clone());
+                                    let on = fleet.group_filter.as_ref() == Some(grp);
+                                    let grp_name = grp.clone();
+                                    let label = if grp == "default" { "NO GROUP" } else { grp };
+                                    let deletable = *n == 0 && grp != "default";
+                                    let app_delete = app.clone();
+                                    let delete_name = grp.clone();
+                                    div()
+                                        .id(SharedString::from(format!("fleet-grp-{}", grp_name)))
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(4.0))
+                                        .px(px(6.0))
+                                        .py(px(2.0))
+                                        .border_1()
+                                        .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
+                                        .bg(if on { BG_ROW_SELECTED } else { BG_PANEL })
+                                        .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+                                        .cursor_pointer()
+                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .on_click(move |_ev, _window, cx| {
+                                            let target = target.clone();
+                                            app.update(cx, |this, cx| this.set_fleet_group_filter(target, cx));
+                                        })
+                                        .child(format!("{label} ({n})"))
+                                        // An empty group can be deleted.
+                                        .children(deletable.then(|| {
+                                            div()
+                                                .id(SharedString::from(format!("fleet-grp-delete-{delete_name}")))
+                                                .text_color(TEXT_FAINT)
+                                                .hover(|s| s.text_color(CRIT))
+                                                .on_click(move |_ev, _window, cx| {
+                                                    cx.stop_propagation();
+                                                    app_delete.update(cx, |this, cx| this.delete_server_group(&delete_name, cx));
+                                                })
+                                                .child("×")
+                                        }))
+                                }))
+                                .child(div().flex_1())
+                                .children(if fleet.new_group_input.is_some() {
+                                    if let Some(input_state) = fleet.new_group_input.as_ref() {
+                                        Some(
+                                            div()
+                                                .id("fleet-new-group-strip")
+                                                .flex()
+                                                .items_center()
+                                                .gap(px(6.0))
+                                                .child(
+                                                    div()
+                                                        .w(px(200.0))
+                                                        .child(Input::new(input_state).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0))),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .id("btn-fleet-create-group")
+                                                        .px(px(8.0))
+                                                        .py(px(2.0))
+                                                        .bg(OK_BG)
+                                                        .border_1()
+                                                        .border_color(OK)
+                                                        .text_color(OK)
+                                                        .font_weight(FontWeight::BOLD)
+                                                        .cursor_pointer()
+                                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                                        .on_click(move |_ev, _window, cx| {
+                                                            app_create.update(cx, |this, cx| this.create_new_group(cx));
+                                                        })
+                                                        .child("CREATE"),
+                                                )
+                                                .child(
+                                                    div()
+                                                        .id("btn-fleet-cancel-group")
+                                                        .px(px(8.0))
+                                                        .py(px(2.0))
+                                                        .border_1()
+                                                        .border_color(BORDER_DEFAULT)
+                                                        .text_color(TEXT_DIM)
+                                                        .cursor_pointer()
+                                                        .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
+                                                        .on_click(move |_ev, window, cx| {
+                                                            app_cancel.update(cx, |this, cx| this.toggle_new_group_prompt(window, cx));
+                                                        })
+                                                        .child("CANCEL"),
+                                                ),
+                                        )
+                                    } else {
+                                        None
+                                    }
+                                } else {
+                                    Some(
+                                        div()
+                                            .id("fleet-btn-new-group")
+                                            .px(px(8.0))
+                                            .py(px(2.0))
+                                            .border_1()
+                                            .border_color(hex_rgb(0x38bdf8))
+                                            .text_color(hex_rgb(0x38bdf8))
+                                            .font_weight(FontWeight::BOLD)
+                                            .cursor_pointer()
+                                            .hover(|s| s.bg(BG_ROW_HOVER))
+                                            .on_click(move |_ev, window, cx| {
+                                                app_new.update(cx, |this, cx| this.toggle_new_group_prompt(window, cx));
+                                            })
+                                            .child("+ NEW GROUP"),
+                                    )
+                                })
                         }))
                         // Table Column Headers
                         .child(
@@ -613,280 +805,68 @@ pub fn fleet_overview_view(
                                                             .child("+ ADD REMOTE SERVER (SSH)"),
                                                     ),
                                             )
-                                    ).into_iter().collect::<Vec<_>>()
-                                } else {
-                                    hosts.into_iter().enumerate().map(|(idx, host)| {
-                                        let app_host = app.clone();
-                                        let host_id = host.id.clone();
-                                        let app_terminal = app.clone();
-                                        let terminal_id = host.id.clone();
-                                        let is_even = idx % 2 == 0;
+                                    ).into_iter().map(|e| e.into_any_element()).collect::<Vec<AnyElement>>()
+                                } else if fleet.group_bar_open {
+                                    let mut grouped_hosts: BTreeMap<String, Vec<FleetHost>> = BTreeMap::new();
+                                    for host in hosts {
+                                        let grp = if host.group.trim().is_empty() || host.group.trim() == "default" {
+                                            "default".to_string()
+                                        } else {
+                                            host.group.trim().to_string()
+                                        };
+                                        grouped_hosts.entry(grp).or_default().push(host);
+                                    }
 
-                                        div()
-                                            .id(ElementId::NamedInteger("fleet-row".into(), idx as u64))
-                                            .relative()
-                                            .h(px(32.0))
-                                            .flex_none()
-                                            .flex()
-                                            .items_center()
-                                            .px(px(12.0))
-                                            .bg(if host.is_selected {
-                                                BG_ROW_SELECTED
-                                            } else if is_even {
-                                                BG_APP
-                                            } else {
-                                                BG_ROW_ALT
-                                            })
-                                            .border_b_1()
-                                            .border_color(BORDER_ROW)
-                                            .children(if host.is_selected {
-                                                Some(left_indicator(TEXT_PRIMARY))
-                                            } else if host.is_critical_border {
-                                                Some(left_indicator(CRIT))
-                                            } else {
-                                                None
-                                            })
-                                            .hover(|s| s.bg(BG_ROW_HOVER))
-                                            .cursor_pointer()
-                                            .on_click(move |_ev, _window, cx| {
-                                                let hid = host_id.clone();
-                                                app_host.update(cx, |this, cx| {
-                                                    this.switch_tab(&hid, cx);
-                                                    this.set_screen(Screen::Server, cx);
-                                                });
-                                            })
-                                            .font_family(FONT_MONO)
-                                            .text_size(px(11.5))
-                                            // Status dot / glyph
-                                            .child(
-                                                div()
-                                                    .w(px(22.0))
-                                                    .flex_none()
-                                                    .flex()
-                                                    .items_center()
-                                                    .justify_center()
-                                                    .child(
-                                                        div()
-                                                            .size(px(6.0))
-                                                            .rounded_full()
-                                                            .bg(host.status_color),
-                                                    ),
-                                            )
-                                            // Host name + pill
-                                            .child(
-                                                div()
-                                                    .flex_grow(3.0)
-                                                    .flex_basis(px(0.0))
-                                                    .min_w(px(140.0))
-                                                    .flex()
-                                                    .items_center()
-                                                    .gap(px(6.0))
-                                                    .child(crate::components::flag::flag(&host.country, 11.0))
-                                                    .child(
-                                                        div()
-                                                            .font_weight(if host.is_selected {
-                                                                FontWeight::BOLD
-                                                            } else {
-                                                                FontWeight::NORMAL
-                                                            })
-                                                            .text_color(if host.is_selected {
-                                                                TEXT_MAX
-                                                            } else {
-                                                                TEXT_PRIMARY
-                                                            })
-                                                            .child(host.name),
-                                                    )
-                                                    .child(
-                                                        div()
-                                                            .px(px(4.0))
-                                                            .py(px(1.5))
-                                                            .rounded_sm()
-                                                            .bg(if host.is_critical_border { CRIT_BG } else if host.status_color == OK { OK_BG } else { BG_CHIP })
-                                                            .text_color(if host.status_color == TEXT_FAINTER { TEXT_DIM } else { host.status_color })
-                                                            .text_size(px(8.5))
-                                                            .font_weight(FontWeight::BOLD)
-                                                            .child(host.pill),
-                                                    ),
-                                            )
-                                            // Address
-                                            .child(
-                                                div()
-                                                    .flex_grow(2.0)
-                                                    .flex_basis(px(0.0))
-                                                    .min_w(px(110.0))
-                                                    .overflow_hidden()
-                                                    .text_color(TEXT_DIM)
-                                                    .child(host.ip),
-                                            )
-                                            // Role
-                                            .child(
-                                                div()
-                                                    .flex_grow(2.0)
-                                                    .flex_basis(px(0.0))
-                                                    .min_w(px(90.0))
-                                                    .pr(px(14.0))
-                                                    .overflow_hidden()
-                                                    .text_align(TextAlign::Right)
-                                                    .text_size(px(11.0))
-                                                    .text_color(TEXT_TERTIARY)
-                                                    .child(host.role),
-                                            )
-                                            // Env
-                                            .child(
-                                                div()
-                                                    .w(px(64.0))
-                                                    .flex_none()
-                                                    .flex()
-                                                    .items_center()
-                                                    .child(
-                                                        // Hugs its text, like the other badges.
-                                                        div()
-                                                            .flex_none()
-                                                            .rounded_sm()
-                                                            .px(px(5.0))
-                                                            .py(px(1.5))
-                                                            .bg(host.env_bg)
-                                                            .text_color(host.env_fg)
-                                                            .text_size(px(8.5))
-                                                            .font_weight(FontWeight::BOLD)
-                                                            .child(host.env),
-                                                    ),
-                                            )
-                                            // CPU mini meter
-                                            .child(
-                                                div()
-                                                    .w(px(95.0))
-                                                    .flex_none()
-                                                    .flex()
-                                                    .items_center()
-                                                    .gap(px(6.0))
-                                                    .child(
-                                                        div()
-                                                            .w(px(34.0))
-                                                            .h(px(3.0))
-                                                            .bg(hex_rgb(0x1a1b21))
-                                                            .flex_none()
-                                                            .child(
-                                                                div()
-                                                                    .w(px(34.0 * (host.cpu_pct as f32 / 100.0)))
-                                                                    .h(px(3.0))
-                                                                    .bg(if host.cpu_pct > 85 {
-                                                                        CRIT
-                                                                    } else if host.cpu_pct > 60 {
-                                                                        WARN
-                                                                    } else {
-                                                                        OK
-                                                                    }),
-                                                            ),
-                                                    )
-                                                    .child(
-                                                        div()
-                                                            .text_size(px(10.5))
-                                                            .text_color(TEXT_SECONDARY)
-                                                            .child(host.cpu_label),
-                                                    ),
-                                            )
-                                            // MEM mini meter
-                                            .child(
-                                                div()
-                                                    .w(px(95.0))
-                                                    .flex_none()
-                                                    .flex()
-                                                    .items_center()
-                                                    .gap(px(6.0))
-                                                    .child(
-                                                        div()
-                                                            .w(px(34.0))
-                                                            .h(px(3.0))
-                                                            .bg(hex_rgb(0x1a1b21))
-                                                            .flex_none()
-                                                            .child(
-                                                                div()
-                                                                    .w(px(34.0 * (host.mem_pct as f32 / 100.0)))
-                                                                    .h(px(3.0))
-                                                                    .bg(if host.mem_pct > 85 {
-                                                                        CRIT
-                                                                    } else if host.mem_pct > 60 {
-                                                                        WARN
-                                                                    } else {
-                                                                        OK
-                                                                    }),
-                                                            ),
-                                                    )
-                                                    .child(
-                                                        div()
-                                                            .text_size(px(10.5))
-                                                            .text_color(TEXT_SECONDARY)
-                                                            .child(host.mem_label),
-                                                    ),
-                                            )
-                                            // Disk
-                                            .child(
-                                                div()
-                                                    .w(px(55.0))
-                                                    .flex_none()
-                                                    .text_align(TextAlign::Right)
-                                                    .text_color(if host.disk.starts_with("7") || host.disk.starts_with("8") {
-                                                        WARN
-                                                    } else {
-                                                        TEXT_PRIMARY
-                                                    })
-                                                    .child(host.disk),
-                                            )
-                                            // Uptime
-                                            .child(
-                                                div()
-                                                    .w(px(80.0))
-                                                    .flex_none()
-                                                    .text_align(TextAlign::Right)
-                                                    .text_color(TEXT_DIM)
-                                                    .child(host.uptime),
-                                            )
-                                            // Alerts
-                                            .child(
-                                                div()
-                                                    .w(px(65.0))
-                                                    .flex_none()
-                                                    .text_align(TextAlign::Right)
-                                                    .font_weight(if host.alerts == "0" {
-                                                        FontWeight::NORMAL
-                                                    } else {
-                                                        FontWeight::BOLD
-                                                    })
-                                                    .text_color(host.alert_color)
-                                                    .child(host.alerts),
-                                            )
-                                            // Straight to the server's terminal (ERR-93). Archiving
-                                            // stays a deliberate step: the server's Danger Zone, or
-                                            // Settings → Servers & Archives.
-                                            .child(
-                                                div()
-                                                    .w(px(78.0))
-                                                    .flex_none()
-                                                    .flex()
-                                                    .justify_end()
-                                                    .child(
-                                                        div()
-                                                            .id(SharedString::from(format!("fleet-terminal-{terminal_id}")))
-                                                            .px(px(7.0))
-                                                            .py(px(2.0))
-                                                            .border_1()
-                                                            .border_color(BORDER_DEFAULT)
-                                                            .text_color(TEXT_DIM)
-                                                            .cursor_pointer()
-                                                            .hover(|s| s.bg(BG_CONTROL).text_color(TEXT_PRIMARY).border_color(TEXT_DIM))
-                                                            .on_click(move |_ev, _window, cx| {
-                                                                let id = terminal_id.clone();
-                                                                cx.stop_propagation();
-                                                                app_terminal.update(cx, |this, cx| {
-                                                                    this.switch_tab(&id, cx);
-                                                                    this.set_view("terminal", cx);
-                                                                });
-                                                            })
-                                                            .child(crate::components::icons::inherited_icon(TablerIcon::Terminal2, px(13.0))),
-                                                    ),
-                                            )
-                                    }).collect::<Vec<_>>()
+                                    let mut elements: Vec<AnyElement> = Vec::new();
+                                    let mut row_idx = 0;
+                                    // Servers in no group come last.
+                                    let ungrouped = grouped_hosts.remove("default");
+                                    for (grp_name, group_list) in grouped_hosts.into_iter().chain(ungrouped.map(|l| ("default".to_string(), l))) {
+                                        let display_name = if grp_name == "default" {
+                                            "NO GROUP".to_string()
+                                        } else {
+                                            grp_name.to_uppercase()
+                                        };
+                                        let host_count = group_list.len();
+
+                                        elements.push(
+                                            div()
+                                                .h(px(26.0))
+                                                .flex_none()
+                                                .flex()
+                                                .items_center()
+                                                .px(px(12.0))
+                                                .bg(BG_SUBHEAD)
+                                                .border_b_1()
+                                                .border_color(BORDER_PANEL)
+                                                .font_family(FONT_MONO)
+                                                .text_size(px(10.0))
+                                                .font_weight(FontWeight::BOLD)
+                                                .text_color(TEXT_SECONDARY)
+                                                .child(tabler_icon(TablerIcon::Folder).size(px(12.0)).text_color(hex_rgb(0x38bdf8)))
+                                                .child(div().ml(px(6.0)).child(display_name))
+                                                .child(
+                                                    div()
+                                                        .ml(px(8.0))
+                                                        .text_size(px(9.0))
+                                                        .text_color(TEXT_DIMMER)
+                                                        .child(format!("· {host_count} {}", if host_count == 1 { "HOST" } else { "HOSTS" })),
+                                                )
+                                                .into_any_element(),
+                                        );
+
+                                        for host in group_list {
+                                            elements.push(render_fleet_host_row(&host, row_idx, &app).into_any_element());
+                                            row_idx += 1;
+                                        }
+                                    }
+                                    elements
+                                } else {
+                                    hosts
+                                        .into_iter()
+                                        .enumerate()
+                                        .map(|(idx, host)| render_fleet_host_row(&host, idx, &app).into_any_element())
+                                        .collect::<Vec<_>>()
                                 }),
                         ),
                 )
@@ -1289,4 +1269,315 @@ fn fleet_tab(id: SharedString, label: String, selected: bool) -> Stateful<Div> {
         .cursor_pointer()
         .hover(|s| s.text_color(TEXT_PRIMARY))
         .child(label)
+}
+
+fn render_fleet_host_row(
+    host: &FleetHost,
+    idx: usize,
+    app: &Entity<CrowApp>,
+) -> impl IntoElement {
+    let app_host = app.clone();
+    let host_id = host.id.clone();
+    let app_terminal = app.clone();
+    let terminal_id = host.id.clone();
+    let app_grp = app.clone();
+    let grp_server_id = host.id.clone();
+    let is_even = idx % 2 == 0;
+
+    let grp_display = if host.group.trim().is_empty() || host.group.trim() == "default" {
+        "NO GROUP".to_string()
+    } else {
+        host.group.trim().to_uppercase()
+    };
+
+    div()
+        .id(ElementId::NamedInteger("fleet-row".into(), idx as u64))
+        .relative()
+        .h(px(32.0))
+        .flex_none()
+        .flex()
+        .items_center()
+        .px(px(12.0))
+        .bg(if host.is_selected {
+            BG_ROW_SELECTED
+        } else if is_even {
+            BG_APP
+        } else {
+            BG_ROW_ALT
+        })
+        .border_b_1()
+        .border_color(BORDER_ROW)
+        .children(if host.is_selected {
+            Some(left_indicator(TEXT_PRIMARY))
+        } else if host.is_critical_border {
+            Some(left_indicator(CRIT))
+        } else {
+            None
+        })
+        .hover(|s| s.bg(BG_ROW_HOVER))
+        .cursor_pointer()
+        .on_click(move |_ev, _window, cx| {
+            let hid = host_id.clone();
+            app_host.update(cx, |this, cx| {
+                this.switch_tab(&hid, cx);
+                this.set_screen(Screen::Server, cx);
+            });
+        })
+        .font_family(FONT_MONO)
+        .text_size(px(11.5))
+        // Status dot / glyph
+        .child(
+            div()
+                .w(px(22.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .child(
+                    div()
+                        .size(px(6.0))
+                        .rounded_full()
+                        .bg(host.status_color),
+                ),
+        )
+        // Host name + pill + group badge
+        .child(
+            div()
+                .flex_grow(3.0)
+                .flex_basis(px(0.0))
+                .min_w(px(140.0))
+                .flex()
+                .items_center()
+                .gap(px(6.0))
+                .child(if !host.country.is_empty() {
+                    crate::components::flag::flag(&host.country, 11.0)
+                } else {
+                    tabler_icon(TablerIcon::Server)
+                        .size(px(12.0))
+                        .text_color(TEXT_DIMMER)
+                        .into_any_element()
+                })
+                .child(
+                    div()
+                        .font_weight(if host.is_selected {
+                            FontWeight::BOLD
+                        } else {
+                            FontWeight::NORMAL
+                        })
+                        .text_color(if host.is_selected {
+                            TEXT_MAX
+                        } else {
+                            TEXT_PRIMARY
+                        })
+                        .child(host.name.clone()),
+                )
+                .child(
+                    div()
+                        .px(px(4.0))
+                        .py(px(1.5))
+                        .rounded_sm()
+                        .bg(if host.is_critical_border { CRIT_BG } else if host.status_color == OK { OK_BG } else { BG_CHIP })
+                        .text_color(if host.status_color == TEXT_FAINTER { TEXT_DIM } else { host.status_color })
+                        .text_size(px(8.5))
+                        .font_weight(FontWeight::BOLD)
+                        .child(host.pill.clone()),
+                )
+                .child(
+                    div()
+                        .id(SharedString::from(format!("fleet-grp-pill-{}", host.id)))
+                        .px(px(4.0))
+                        .py(px(1.5))
+                        .rounded_sm()
+                        .border_1()
+                        .border_color(BORDER_DEFAULT)
+                        .text_color(if grp_display == "NO GROUP" { TEXT_DIMMER } else { hex_rgb(0x38bdf8) })
+                        .text_size(px(8.5))
+                        .font_weight(FontWeight::BOLD)
+                        .cursor_pointer()
+                        .hover(|s| s.bg(BG_ROW_HOVER).border_color(BORDER_STRONG))
+                        .on_click(move |_ev, _window, cx| {
+                            cx.stop_propagation();
+                            let sid = grp_server_id.clone();
+                            app_grp.update(cx, |this, cx| {
+                                this.set_group_assign_target(Some(sid), cx);
+                            });
+                        })
+                        .child(format!("{grp_display} ▾")),
+                ),
+        )
+        // Address
+        .child(
+            div()
+                .flex_grow(2.0)
+                .flex_basis(px(0.0))
+                .min_w(px(110.0))
+                .overflow_hidden()
+                .text_color(TEXT_DIM)
+                .child(host.ip.clone()),
+        )
+        // Role
+        .child(
+            div()
+                .flex_grow(2.0)
+                .flex_basis(px(0.0))
+                .min_w(px(90.0))
+                .pr(px(14.0))
+                .overflow_hidden()
+                .text_align(TextAlign::Right)
+                .text_size(px(11.0))
+                .text_color(TEXT_TERTIARY)
+                .child(host.role.clone()),
+        )
+        // Env
+        .child(
+            div()
+                .w(px(64.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .child(
+                    div()
+                        .flex_none()
+                        .rounded_sm()
+                        .px(px(5.0))
+                        .py(px(1.5))
+                        .bg(host.env_bg)
+                        .text_color(host.env_fg)
+                        .text_size(px(8.5))
+                        .font_weight(FontWeight::BOLD)
+                        .child(host.env.clone()),
+                ),
+        )
+        // CPU mini meter
+        .child(
+            div()
+                .w(px(95.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap(px(6.0))
+                .child(
+                    div()
+                        .w(px(34.0))
+                        .h(px(3.0))
+                        .bg(hex_rgb(0x1a1b21))
+                        .flex_none()
+                        .child(
+                            div()
+                                .w(px(34.0 * (host.cpu_pct as f32 / 100.0)))
+                                .h(px(3.0))
+                                .bg(if host.cpu_pct > 85 {
+                                    CRIT
+                                } else if host.cpu_pct > 60 {
+                                    WARN
+                                } else {
+                                    OK
+                                }),
+                        ),
+                )
+                .child(
+                    div()
+                        .text_size(px(10.5))
+                        .text_color(TEXT_SECONDARY)
+                        .child(host.cpu_label.clone()),
+                ),
+        )
+        // MEM mini meter
+        .child(
+            div()
+                .w(px(95.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap(px(6.0))
+                .child(
+                    div()
+                        .w(px(34.0))
+                        .h(px(3.0))
+                        .bg(hex_rgb(0x1a1b21))
+                        .flex_none()
+                        .child(
+                            div()
+                                .w(px(34.0 * (host.mem_pct as f32 / 100.0)))
+                                .h(px(3.0))
+                                .bg(if host.mem_pct > 85 {
+                                    CRIT
+                                } else if host.mem_pct > 60 {
+                                    WARN
+                                } else {
+                                    OK
+                                }),
+                        ),
+                )
+                .child(
+                    div()
+                        .text_size(px(10.5))
+                        .text_color(TEXT_SECONDARY)
+                        .child(host.mem_label.clone()),
+                ),
+        )
+        // Disk
+        .child(
+            div()
+                .w(px(55.0))
+                .flex_none()
+                .text_align(TextAlign::Right)
+                .text_color(if host.disk.starts_with("7") || host.disk.starts_with("8") {
+                    WARN
+                } else {
+                    TEXT_PRIMARY
+                })
+                .child(host.disk.clone()),
+        )
+        // Uptime
+        .child(
+            div()
+                .w(px(80.0))
+                .flex_none()
+                .text_align(TextAlign::Right)
+                .text_color(TEXT_DIM)
+                .child(host.uptime.clone()),
+        )
+        // Alerts
+        .child(
+            div()
+                .w(px(65.0))
+                .flex_none()
+                .text_align(TextAlign::Right)
+                .font_weight(if host.alerts == "0" {
+                    FontWeight::NORMAL
+                } else {
+                    FontWeight::BOLD
+                })
+                .text_color(host.alert_color)
+                .child(host.alerts.clone()),
+        )
+        // Terminal button
+        .child(
+            div()
+                .w(px(78.0))
+                .flex_none()
+                .flex()
+                .justify_end()
+                .child(
+                    div()
+                        .id(SharedString::from(format!("fleet-terminal-{terminal_id}")))
+                        .px(px(7.0))
+                        .py(px(2.0))
+                        .border_1()
+                        .border_color(BORDER_DEFAULT)
+                        .text_color(TEXT_DIM)
+                        .cursor_pointer()
+                        .hover(|s| s.bg(BG_CONTROL).text_color(TEXT_PRIMARY).border_color(TEXT_DIM))
+                        .on_click(move |_ev, _window, cx| {
+                            let id = terminal_id.clone();
+                            cx.stop_propagation();
+                            app_terminal.update(cx, |this, cx| {
+                                this.switch_tab(&id, cx);
+                                this.set_view("terminal", cx);
+                            });
+                        })
+                        .child(crate::components::icons::inherited_icon(TablerIcon::Terminal2, px(13.0))),
+                ),
+        )
 }

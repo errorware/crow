@@ -1,5 +1,8 @@
 use std::collections::HashMap;
 
+use gpui_kit::component::input::InputState;
+use gpui_kit::Entity;
+
 use crate::components::titlebar::ServerTab;
 use crate::host::{connection_state, transport_kind, ConnectionState, TransportKind};
 use crate::metrics::{ServerMetrics, ServerTimeSeriesBuffer, SurgeAlert};
@@ -36,6 +39,13 @@ pub struct FleetState {
     /// A region detection run is in progress / its result.
     pub region_detecting: bool,
     pub region_note: Option<String>,
+    /// Server groups (ERR-97): the BY GROUP bar, its filter, the new-group
+    /// box, the server whose group is being changed, and the known groups.
+    pub group_bar_open: bool,
+    pub group_filter: Option<String>,
+    pub new_group_input: Option<Entity<InputState>>,
+    pub group_assign_modal_server: Option<String>,
+    pub groups: Vec<String>,
     /// Every server's last-read copy of each baselined file against its
     /// baseline (ERR-74); `None` until computed.
     pub drift: Option<Vec<crate::config::drift::DriftEntry>>,
@@ -63,6 +73,11 @@ impl FleetState {
             region_filter: None,
             region_detecting: false,
             region_note: None,
+            group_bar_open: false,
+            group_filter: None,
+            new_group_input: None,
+            group_assign_modal_server: None,
+            groups: Vec::new(),
             drift: None,
             archived: Vec::new(),
             page: FleetPage::Active,

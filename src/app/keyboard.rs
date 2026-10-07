@@ -150,6 +150,18 @@ impl CrowApp {
             return true;
         }
 
+        if self.fleet.group_assign_modal_server.is_some() {
+            if ev.keystroke.key == "escape" {
+                self.set_group_assign_target(None, cx);
+            }
+            return true;
+        }
+        if self.fleet.new_group_input.is_some() && ev.keystroke.key == "escape" {
+            self.fleet.new_group_input = None;
+            cx.notify();
+            return true;
+        }
+
         if self.keys.new_group_modal.is_some() {
             if ev.keystroke.key == "escape" {
                 self.close_new_group_modal(cx);

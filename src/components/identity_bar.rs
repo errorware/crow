@@ -90,7 +90,14 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker
                         .flex()
                         .items_center()
                         .gap(px(8.0))
-                        .children(server.map(|s| crate::components::flag::flag(&s.region_country, 12.0)))
+                        .child(if let Some(s) = server.filter(|s| !s.region_country.is_empty()) {
+                            crate::components::flag::flag(&s.region_country, 12.0)
+                        } else {
+                            tabler_icon(TablerIcon::Server)
+                                .size(px(14.0))
+                                .text_color(TEXT_DIM)
+                                .into_any_element()
+                        })
                         .child(
                             div()
                                 .font_family(FONT_MONO)
@@ -221,6 +228,28 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker
                         .py(px(3.0))
                         .child(role_str),
                 )
+                .children(server.map(|s| {
+                    let app = app.clone();
+                    let s_id = s.id.clone();
+                    let grp_display = if s.group_name.is_empty() || s.group_name == "default" {
+                        "NO GROUP".to_string()
+                    } else {
+                        s.group_name.to_uppercase()
+                    };
+                    div()
+                        .id("identity-group-chip")
+                        .bg(BG_CHIP)
+                        .text_color(if s.group_name.is_empty() || s.group_name == "default" { TEXT_DIM } else { hex_rgb(0x38bdf8) })
+                        .font_family("JetBrains Mono")
+                        .text_size(px(10.0))
+                        .font_weight(FontWeight::BOLD)
+                        .px(px(6.0))
+                        .py(px(3.0))
+                        .cursor_pointer()
+                        .hover(|h| h.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_group_assign_target(Some(s_id.clone()), cx)))
+                        .child(format!("{grp_display} ▾"))
+                }))
                 .children(if !kernel_str.is_empty() {
                     Some(
                         div()

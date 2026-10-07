@@ -564,6 +564,10 @@ impl Render for CrowApp {
                         .children(self.stance_panel_open.then(|| crate::components::stance::stance_panel(&stance, app_view.clone())))
                         // First secret while Open: choose a stance on purpose (ERR-60)
                         .children(self.pending_secret.is_some().then(|| crate::components::stance::stance_choice_modal(self.stance_choice_ack, app_view.clone())))
+                        // Assign server group modal
+                        .children(self.fleet.group_assign_modal_server.as_ref().map(|srv_id| {
+                            crate::views::fleet::group_assign_modal(srv_id, &self.fleet, app_view.clone())
+                        }))
                         // 5. About Crow Modal
                         .children(if self.show_about_modal {
                             Some(crate::components::about::about_modal(app_view.clone(), self.about_copied_toast, &self.update, self.update_auto_install()))
