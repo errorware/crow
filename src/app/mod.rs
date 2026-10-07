@@ -54,6 +54,7 @@ mod journal;
 mod clankers;
 pub mod providers;
 pub mod topology;
+pub mod palette;
 mod secrets;
 pub mod password_login;
 pub mod vault_manage;
@@ -180,6 +181,7 @@ pub struct CrowApp {
     /// Audit log screen filters (ERR-75).
     pub audit_filter: crate::views::audit::model::AuditFilter,
     pub palette_open: bool,
+    pub palette: palette::PaletteState,
     pub sidebar_collapsed: bool,
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
@@ -424,6 +426,7 @@ impl CrowApp {
             section_add: None,
             topology: Default::default(),
             palette_open: false,
+            palette: Default::default(),
             sidebar_collapsed: false,
             keys,
             files: FilesState::default(),
@@ -534,15 +537,23 @@ impl CrowApp {
     }
 
     pub fn toggle_palette(&mut self, cx: &mut Context<Self>) {
-        self.palette_open = !self.palette_open;
         if self.palette_open {
-            self.menu_open = false;
+            return self.close_palette(cx);
         }
+        self.palette_open = true;
+        self.menu_open = false;
+        self.palette.input = None;
+        self.palette.query.clear();
+        self.palette.selected = 0;
         cx.notify();
     }
 
+    /// Closes the palette; the next open starts with an empty query.
     pub fn close_palette(&mut self, cx: &mut Context<Self>) {
         self.palette_open = false;
+        self.palette.input = None;
+        self.palette.query.clear();
+        self.palette.selected = 0;
         cx.notify();
     }
 

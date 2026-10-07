@@ -1,29 +1,26 @@
+use gpui_kit::component::input::{Input, InputState};
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
-use crate::theme::*;
+
 use crate::app::CrowApp;
+use crate::palette::Entry;
+use crate::theme::*;
 
-pub struct PaletteActionDef {
-    pub cat: &'static str,
-    pub label: &'static str,
-    pub key: &'static str,
-    pub is_selected: bool,
+fn category_color(category: &str) -> Rgba {
+    match category {
+        "SERVER" | "TERMINAL" => hex_rgb(0x8ab4ff),
+        "CONFIG" => OK,
+        "ACTION" => WARN,
+        "KEY" => hex_rgb(0xd6a24a),
+        _ => TEXT_DIM,
+    }
 }
 
-pub fn palette_actions() -> &'static [PaletteActionDef] {
-    &[
-        PaletteActionDef { cat: "CONFIG", label: "Edit pg_hba.conf (graphical)", key: "⏎", is_selected: true },
-        PaletteActionDef { cat: "CONFIG", label: "Diff pg_hba.conf against fleet baseline", key: "d", is_selected: false },
-        PaletteActionDef { cat: "CONFIG", label: "Open postgresql.conf", key: "o", is_selected: false },
-        PaletteActionDef { cat: "CONFIG", label: "Harden sshd_config — disable PasswordAuthentication", key: "h", is_selected: false },
-        PaletteActionDef { cat: "CONFIG", label: "Reload postgres config (pg_reload_conf)", key: "r", is_selected: false },
-        PaletteActionDef { cat: "DANGER", label: "Restore pg_hba.conf from 03:12Z backup", key: "⇧b", is_selected: false },
-    ]
-}
-
-pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str) -> impl IntoElement {
-    let app_close1 = app.clone();
-    let app_close2 = app.clone();
-    let scope_text = format!("{} · 6 results", scope_label);
+/// The command palette (⌘K, ERR-135): a real search over Crow's servers,
+/// pages, config files, actions and keys. ↑/↓ move, Enter runs, Esc closes.
+pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str, input: Option<&Entity<InputState>>, results: &[Entry], selected: usize, query: &str) -> impl IntoElement {
+    let (app_close1, app_close2, app_keys) = (app.clone(), app.clone(), app.clone());
+    let count = if query.trim().is_empty() { format!("{scope_label} · recent first") } else { format!("{scope_label} · {} result{}", results.len(), if results.len() == 1 { "" } else { "s" }) };
 
     div()
         .id("palette-scrim")
@@ -34,130 +31,85 @@ pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str) -> impl IntoElem
         .flex()
         .items_start()
         .justify_center()
-        .pt(px(140.0))
-        .on_click(move |_ev, _window, cx| {
-            app_close1.update(cx, |this, cx| {
-                this.close_palette(cx);
-            });
-        })
+        .pt(px(120.0))
+        .on_click(move |_ev, _window, cx| app_close1.update(cx, |this, cx| this.close_palette(cx)))
         .child(
             div()
                 .id("palette-panel")
                 .occlude()
-                .w(px(620.0))
-                .max_h(px(480.0))
+                .w(px(640.0))
+                .max_h(px(520.0))
                 .flex()
                 .flex_col()
                 .overflow_hidden()
                 .bg(BG_OVERLAY_PANEL)
                 .border_1()
                 .border_color(BORDER_STRONG)
-                .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // keep clicks inside from reaching the backdrop (which closes)
-                // Input row
+                .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
+                // Before the input sees them: arrows move the selection, Esc closes.
+                .capture_key_down(move |ev: &KeyDownEvent, _window, cx| {
+                    let step = match ev.keystroke.key.as_str() {
+                        "up" => -1,
+                        "down" => 1,
+                        "escape" => {
+                            cx.stop_propagation();
+                            app_keys.update(cx, |this, cx| this.close_palette(cx));
+                            return;
+                        }
+                        _ => return,
+                    };
+                    cx.stop_propagation();
+                    app_keys.update(cx, |this, cx| this.palette_move(step, cx));
+                })
                 .child(
                     div()
                         .flex()
                         .items_center()
                         .gap(px(10.0))
-                        .h(px(42.0))
+                        .h(px(44.0))
                         .px(px(14.0))
                         .border_b_1()
                         .border_color(BORDER_DEFAULT)
-                        .child(
-                            div()
-                                .font_family("JetBrains Mono")
-                                .text_size(px(12.0))
-                                .text_color(TEXT_FAINTER)
-                                .child("›"),
-                        )
-                        .child(
-                            div()
-                                .font_family("JetBrains Mono")
-                                .text_size(px(13.0))
-                                .text_color(TEXT_PRIMARY)
-                                .child("hba conf"),
-                        )
-                        .child(
-                            div()
-                                .w(px(7.0))
-                                .h(px(15.0))
-                                .bg(TEXT_PRIMARY),
-                        )
-                        .child(div().flex_1())
-                        .child(
-                            div()
-                                .font_family("JetBrains Mono")
-                                .text_size(px(10.0))
-                                .text_color(TEXT_DIMMER)
-                                .child(scope_text),
-                        ),
+                        .child(div().font_family(FONT_MONO).text_size(px(13.0)).text_color(TEXT_FAINTER).child("›"))
+                        .child(div().flex_1().min_w(px(0.0)).children(input.map(|i| Input::new(i).appearance(false).font_family(FONT_MONO).text_size(px(13.0)))))
+                        .child(div().flex_none().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_DIMMER).child(count)),
                 )
-                // Result rows
-                .children(palette_actions().iter().enumerate().map(|(idx, item)| {
-                    let is_sel = item.is_selected;
-                    let label = item.label;
-                    let cat_color = match item.cat {
-                        "DANGER" => CRIT,
-                        "FIREWALL" | "KEYS" => WARN,
-                        _ => TEXT_DIM,
-                    };
-                    let app_action = app.clone();
-
+                .child(
                     div()
-                        .id(ElementId::NamedInteger("palette-action".into(), idx as u64))
-                        .relative()
+                        .id("palette-results")
                         .flex()
-                        .items_center()
-                        .gap(px(10.0))
-                        .h(px(32.0))
-                        .px(px(14.0))
-                        .bg(if is_sel { BG_KEY } else { hex_rgba(0, 0.0) })
-                        .children(if is_sel {
-                            Some(left_indicator(TEXT_PRIMARY))
-                        } else {
-                            None
-                        })
-                        .cursor_pointer()
-                        .on_click(move |_ev, _window, cx| {
-                            app_action.update(cx, |this, cx| {
-                                if label.contains("pg_hba.conf") {
-                                    this.set_view("config", cx);
-                                }
-                                this.close_palette(cx);
-                            });
-                        })
-                        .child(
+                        .flex_col()
+                        .overflow_y_scrollbar()
+                        .children(results.is_empty().then(|| {
+                            div().px(px(14.0)).py(px(14.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child("Nothing matches. Try a server name, a page (logs, firewall), a config file, or an action.")
+                        }))
+                        .children(results.iter().enumerate().map(|(idx, item)| {
+                            let is_sel = idx == selected;
+                            let (app_run, entry) = (app.clone(), item.clone());
                             div()
-                                .w(px(60.0))
-                                .flex_none()
-                                .font_family("JetBrains Mono")
-                                .text_size(px(10.0))
-                                .text_color(cat_color)
-                                .child(item.cat),
-                        )
-                        .child(
-                            div()
-                                .flex_1()
-                                .font_family(FONT_MONO)
-                                .text_size(px(12.0))
-                                .text_color(if is_sel { TEXT_MAX } else { TEXT_SECONDARY })
-                                .child(item.label),
-                        )
-                        .child(
-                            div()
-                                .flex_none()
-                                .font_family("JetBrains Mono")
-                                .text_size(px(10.0))
-                                .text_color(TEXT_MUTED)
-                                .bg(BG_KEY)
-                                .border_1()
-                                .border_color(BORDER_KEY)
-                                .px(px(5.0))
-                                .py(px(1.0))
-                                .child(item.key),
-                        )
-                }))
-                // Footer
+                                .id(ElementId::NamedInteger("palette-result".into(), idx as u64))
+                                .relative()
+                                .flex()
+                                .items_center()
+                                .gap(px(10.0))
+                                .h(px(32.0))
+                                .px(px(14.0))
+                                .bg(if is_sel { BG_KEY } else { hex_rgba(0, 0.0) })
+                                .children(is_sel.then(|| left_indicator(TEXT_PRIMARY)))
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .on_click(move |_ev, _window, cx| {
+                                    let e = entry.clone();
+                                    app_run.update(cx, |this, cx| this.palette_run(e, cx));
+                                })
+                                .child(div().w(px(68.0)).flex_none().font_family(FONT_MONO).text_size(px(9.5)).text_color(category_color(item.category)).child(item.category))
+                                .child(div().flex_none().max_w(px(300.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(px(12.0)).text_color(if is_sel { TEXT_MAX } else { TEXT_SECONDARY }).child(item.label.clone()))
+                                .child(div().flex_1().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_FAINT).child(item.hint.clone()))
+                                .children(is_sel.then(|| {
+                                    div().flex_none().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_MUTED).bg(BG_KEY).border_1().border_color(BORDER_KEY).px(px(5.0)).py(px(1.0)).child("⏎")
+                                }))
+                        })),
+                )
                 .child(
                     div()
                         .flex()
@@ -168,25 +120,23 @@ pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str) -> impl IntoElem
                         .border_t_1()
                         .border_color(BORDER_DEFAULT)
                         .bg(BG_PANEL)
-                        .font_family("JetBrains Mono")
+                        .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_DIMMER)
                         .child("↑↓ navigate")
-                        .child("⏎ run")
-                        .child("⇥ complete")
-                        .child("⌘⏎ run on all tabs")
+                        .child("⏎ open")
                         .child(div().flex_1())
                         .child(
                             div()
                                 .id("palette-esc-dismiss")
                                 .cursor_pointer()
-                                .on_click(move |_ev, _window, cx| {
-                                    app_close2.update(cx, |this, cx| {
-                                        this.close_palette(cx);
-                                    });
-                                })
-                                .child("esc dismiss"),
+                                .on_click(move |_ev, _window, cx| app_close2.update(cx, |this, cx| this.close_palette(cx)))
+                                .child("esc close"),
                         ),
                 ),
         )
+}
+
+fn left_indicator(color: Rgba) -> impl IntoElement {
+    div().absolute().left_0().top_0().bottom_0().w(px(2.0)).bg(color)
 }

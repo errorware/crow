@@ -6,6 +6,7 @@ pub mod appearance;
 mod app;
 mod components;
 mod theme;
+pub mod palette;
 pub mod topology;
 pub mod config;
 pub mod geoip;

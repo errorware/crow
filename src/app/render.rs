@@ -84,6 +84,10 @@ impl Render for CrowApp {
         let is_table_page = super::is_table_page(&self.active_view);
         let is_config = self.active_view == "config";
         let palette_open = self.palette_open;
+        if palette_open {
+            self.ensure_palette_input(window, cx);
+        }
+        let palette_results = if palette_open { self.palette_results() } else { Vec::new() };
         let menu_open = self.menu_open;
         let screen = self.screen;
         let app_view = cx.entity();
@@ -548,7 +552,7 @@ impl Render for CrowApp {
                                 .find(|s| s.id == self.fleet.active_tab_id || s.name == self.fleet.active_tab_id)
                                 .map(|s| s.name.as_str())
                                 .unwrap_or("Fleet");
-                            Some(palette_overlay(app_view.clone(), scope))
+                            Some(palette_overlay(app_view.clone(), scope, self.palette.input.as_ref(), &palette_results, self.palette.selected, &self.palette.query))
                         } else {
                             None
                         })
