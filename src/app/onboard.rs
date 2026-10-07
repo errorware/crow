@@ -301,7 +301,7 @@ impl CrowApp {
 
     /// Crow's own key for servers enrolled with a password
     /// (`~/.ssh/crow_ed25519`): created once, recorded in the vault, reused.
-    fn ensure_crow_key(&mut self, cx: &mut Context<Self>) -> Result<SshKeyRecord, String> {
+    pub(crate) fn ensure_crow_key(&mut self, cx: &mut Context<Self>) -> Result<SshKeyRecord, String> {
         let exists = |k: &SshKeyRecord| k.name == CROW_KEY_NAME && k.private_key_path.as_deref().is_some_and(|p| crate::keys::expand_tilde(p).exists());
         if let Some(k) = self.keys.enrolled.iter().find(|k| exists(k)) {
             return Ok(k.clone());

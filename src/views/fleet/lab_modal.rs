@@ -3,7 +3,10 @@ use gpui_kit::*;
 use crate::components::icon_button::icon_button;
 use crate::components::icons::TablerIcon;
 use crate::app::CrowApp;
+use crate::lab::multipass::{vm_of, InstallStep, Instance, Lifecycle, MultipassStatus};
 use crate::lab::{EngineStatus, LocalTestNode};
+use crate::vault::ServerRecord;
+use gpui_kit::prelude::FluentBuilder as _;
 use crate::theme::*;
 use crate::views::fleet::lab_state::LocalLabState;
 
@@ -12,6 +15,7 @@ pub fn local_lab_modal(
     nodes: &[LocalTestNode],
     app: Entity<CrowApp>,
     local_lab: &LocalLabState,
+    servers: &[ServerRecord],
 ) -> impl IntoElement {
     let app_close_scrim = app.clone();
     let app_close_btn = app.clone();
@@ -35,8 +39,11 @@ pub fn local_lab_modal(
             // Modal Card (prevent clicks from bubbling to scrim)
             div()
                 .id("local-lab-modal-card")
-                .w(px(700.0))
-                .max_h(px(720.0))
+                .w(px(760.0))
+                // A height to fill: with only a max, the scrolling body
+                // (flex_1) had nothing to grow into and showed empty.
+                .h(px(720.0))
+                .max_h(relative(0.9))
                 .bg(BG_PANEL)
                 .border_1()
                 .border_color(BORDER_PANEL)
@@ -73,7 +80,7 @@ pub fn local_lab_modal(
                                         .font_family(FONT_MONO)
                                         .text_size(px(9.5))
                                         .text_color(TEXT_TERTIARY)
-                                        .child("Discover, launch, and enroll Distrobox & Podman environments into Crow"),
+                                        .child("Discover, launch, and enroll Multipass VMs and Podman/Distrobox environments into Crow"),
                                 ),
                         )
                         .child(
@@ -120,7 +127,9 @@ pub fn local_lab_modal(
                                         }))
                                 )
                         )
-                        // B. Discovered Local Nodes Table
+                        // B. Multipass VMs (ERR-119)
+                        .child(multipass_section(local_lab, servers, app.clone()))
+                        // C. Discovered Local Nodes Table
                         .child(
                             div()
                                 .flex()
@@ -564,6 +573,280 @@ fn render_node_row(node: &LocalTestNode, idx: usize, app: Entity<CrowApp>) -> im
                             })
                             .child("+ ENROLL IN CROW")
                     }
+                ),
+        )
+}
+
+// ==========================================
+// Multipass VMs (ERR-119)
+// ==========================================
+
+fn section_title(text: &'static str) -> Div {
+    div().font_family(FONT_MONO).text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(text)
+}
+
+fn pill(text: String, fg: Rgba, bg: Rgba) -> Div {
+    div().px(px(5.0)).py(px(1.0)).bg(bg).font_family(FONT_MONO).text_size(px(8.5)).font_weight(FontWeight::BOLD).text_color(fg).child(text)
+}
+
+/// A small text button whose label is built at render time.
+fn text_button(id: impl Into<ElementId>, label: String, color: Rgba) -> Stateful<Div> {
+    div()
+        .id(id)
+        .px(px(7.0))
+        .py(px(2.0))
+        .rounded_sm()
+        .border_1()
+        .border_color(BORDER_DEFAULT)
+        .bg(BG_CONTROL)
+        .font_family(FONT_MONO)
+        .text_size(px(9.5))
+        .text_color(color)
+        .cursor_pointer()
+        .hover(|s| s.bg(BG_ROW_HOVER))
+        .child(label)
+}
+
+/// Status, setup steps, the VMs Multipass has (with import and lifecycle
+/// actions) and the launch form.
+pub fn multipass_section(lab: &LocalLabState, servers: &[ServerRecord], app: Entity<CrowApp>) -> impl IntoElement {
+    let (status_text, status_fg, status_bg, steps): (String, Rgba, Rgba, &[InstallStep]) = match &lab.multipass {
+        None => ("CHECKING…".into(), TEXT_DIMMER, BG_CHIP, &[]),
+        Some(MultipassStatus::Missing { steps }) => ("NOT INSTALLED".into(), TEXT_DIMMER, BG_CHIP, steps),
+        Some(MultipassStatus::DaemonDown { steps, .. }) => ("DAEMON NOT RUNNING".into(), WARN, hex_rgba(0xf59e0b, 0.12), steps),
+        Some(MultipassStatus::Ready { daemon, fixes, .. }) if !fixes.is_empty() => (format!("{daemon} · NEEDS A FIX"), WARN, hex_rgba(0xf59e0b, 0.12), fixes),
+        Some(MultipassStatus::Ready { daemon, .. }) => (format!("READY · {daemon}"), OK, OK_BG, &[]),
+    };
+    let ready = lab.multipass.as_ref().is_some_and(|s| s.is_ready());
+    let detail = match &lab.multipass {
+        Some(MultipassStatus::DaemonDown { detail, .. }) => Some(detail.clone()),
+        _ => None,
+    };
+    let app_refresh = app.clone();
+
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(8.0))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .justify_between()
+                .child(div().flex().items_center().gap(px(8.0)).child(section_title("MULTIPASS VMS")).child(pill(status_text, status_fg, status_bg)))
+                .child(icon_button("btn-refresh-multipass", TablerIcon::Refresh, false).on_click(move |_ev, _window, cx| {
+                    app_refresh.update(cx, |this, cx| this.refresh_multipass(cx));
+                })),
+        )
+        .child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_TERTIARY).child(
+            "Ubuntu VMs on this machine. Crow launches them with its own key, pins their host keys through Multipass, and adds them to the fleet as SSH servers.",
+        ))
+        .children(detail.map(|d| div().font_family(FONT_MONO).text_size(px(9.5)).text_color(WARN).child(d)))
+        .children(steps.iter().enumerate().map(|(i, s)| setup_step(i, s, app.clone())))
+        .children(lab.busy.clone().map(|b| div().font_family(FONT_MONO).text_size(px(10.0)).text_color(hex_rgb(0x8ab4ff)).child(format!("● {b}"))))
+        .children(lab.vm_error.clone().map(|e| div().font_family(FONT_MONO).text_size(px(10.0)).text_color(CRIT).child(e)))
+        .children(ready.then(|| {
+            div()
+                .bg(BG_APP)
+                .border_1()
+                .border_color(BORDER_PANEL)
+                .flex()
+                .flex_col()
+                .children(lab.vms.is_empty().then(|| div().p(px(14.0)).font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_FAINT).child("No VMs yet: launch one below.")))
+                .children(lab.vms.iter().enumerate().map(|(i, vm)| vm_row(i, vm, servers, lab, app.clone())))
+        }))
+        .children(ready.then(|| launch_form(lab, app.clone())))
+}
+
+fn setup_step(i: usize, s: &InstallStep, app: Entity<CrowApp>) -> impl IntoElement {
+    let command = s.command.clone();
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(3.0))
+        .p(px(8.0))
+        .bg(BG_CONTROL)
+        .border_1()
+        .border_color(BORDER_PANEL)
+        .child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_SECONDARY).child(format!("{}. {}", i + 1, s.why)))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.0))
+                .child(div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_PRIMARY).child(s.command.clone()))
+                .child(text_button(ElementId::NamedInteger("mp-copy-step".into(), i as u64), "COPY".into(), TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
+                    let c = command.clone();
+                    app.update(cx, |this, cx| this.copy_text_with_toast(&c, "Command copied", cx));
+                })),
+        )
+}
+
+fn vm_row(i: usize, vm: &Instance, servers: &[ServerRecord], lab: &LocalLabState, app: Entity<CrowApp>) -> impl IntoElement {
+    let in_fleet = servers.iter().any(|s| vm_of(s) == Some(vm.name.as_str()));
+    let running = vm.is_running();
+    let idle = lab.busy.is_none();
+    let confirming = lab.confirm_purge.as_deref() == Some(vm.name.as_str());
+    let action = |n: u64, label: &str, color: Rgba, act: Lifecycle| {
+        let (app, name) = (app.clone(), vm.name.clone());
+        text_button(ElementId::NamedInteger(format!("mp-{label}").into(), i as u64 * 10 + n), label.to_string(), color).on_click(move |_ev, _window, cx| {
+            let name = name.clone();
+            app.update(cx, |this, cx| this.run_vm_lifecycle(act, &name, cx));
+        })
+    };
+    let mut actions = div().flex().items_center().gap(px(6.0));
+    if idle {
+        if in_fleet {
+            actions = actions.child(pill("IN FLEET".into(), OK, OK_BG));
+        } else if running {
+            let (app_i, name) = (app.clone(), vm.name.clone());
+            actions = actions.child(text_button(ElementId::NamedInteger("mp-import".into(), i as u64), "IMPORT TO CROW".into(), TEXT_PRIMARY).on_click(move |_ev, _window, cx| {
+                let name = name.clone();
+                app_i.update(cx, |this, cx| this.import_multipass_vm(&name, cx));
+            }));
+        }
+        actions = if running {
+            actions.child(action(1, "STOP", TEXT_SECONDARY, Lifecycle::Stop)).child(action(2, "SUSPEND", TEXT_SECONDARY, Lifecycle::Suspend)).child(action(3, "RESTART", TEXT_SECONDARY, Lifecycle::Restart))
+        } else {
+            actions.child(action(4, "START", OK, Lifecycle::Start))
+        };
+        let (app_p, name) = (app.clone(), vm.name.clone());
+        actions = actions.child(icon_button(ElementId::NamedInteger("mp-purge".into(), i as u64), TablerIcon::Trash, true).on_click(move |_ev, _window, cx| {
+            let name = name.clone();
+            app_p.update(cx, |this, cx| this.run_vm_lifecycle(Lifecycle::Purge, &name, cx));
+        }));
+    }
+    let (app_yes, app_no, name_yes) = (app.clone(), app.clone(), vm.name.clone());
+    div()
+        .flex()
+        .flex_col()
+        .border_b_1()
+        .border_color(BORDER_ROW)
+        .child(
+            div()
+                .p(px(10.0))
+                .flex()
+                .items_center()
+                .justify_between()
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(10.0))
+                        .child(div().size(px(8.0)).rounded_full().bg(if running { OK } else { TEXT_DIMMER }))
+                        .child(
+                            div()
+                                .flex()
+                                .flex_col()
+                                .gap(px(2.0))
+                                .child(div().font_family(FONT_MONO).text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(vm.name.clone()))
+                                .child(div().font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_MUTED).child(format!(
+                                    "{} · {} · {}",
+                                    vm.state,
+                                    vm.address().unwrap_or("no address"),
+                                    if vm.release.is_empty() { "—" } else { vm.release.as_str() }
+                                ))),
+                        ),
+                )
+                .child(actions),
+        )
+        .children(confirming.then(|| {
+            div()
+                .px(px(10.0))
+                .pb(px(10.0))
+                .flex()
+                .items_center()
+                .gap(px(8.0))
+                .child(div().flex_1().font_family(FONT_MONO).text_size(px(10.0)).text_color(CRIT).child(format!(
+                    "Delete {} and its disk for good?{}",
+                    vm.name,
+                    if in_fleet { " Its fleet entry goes to the archive." } else { "" }
+                )))
+                .child(text_button(ElementId::NamedInteger("mp-purge-yes".into(), i as u64), "DELETE FOR GOOD".into(), CRIT).on_click(move |_ev, _window, cx| {
+                    let name = name_yes.clone();
+                    app_yes.update(cx, |this, cx| this.run_vm_lifecycle(Lifecycle::Purge, &name, cx));
+                }))
+                .child(text_button(ElementId::NamedInteger("mp-purge-no".into(), i as u64), "CANCEL".into(), TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
+                    app_no.update(cx, |this, cx| this.cancel_vm_purge(cx));
+                }))
+        }))
+}
+
+/// `label  [−] value [+]`.
+fn stepper(id: &'static str, label: &'static str, value: String, down: impl Fn(&mut CrowApp, &mut Context<CrowApp>) + 'static, up: impl Fn(&mut CrowApp, &mut Context<CrowApp>) + 'static, app: Entity<CrowApp>) -> impl IntoElement {
+    let app_up = app.clone();
+    div()
+        .flex()
+        .items_center()
+        .gap(px(4.0))
+        .child(div().font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_TERTIARY).child(label))
+        .child(icon_button(ElementId::Name(format!("{id}-down").into()), TablerIcon::Minus, false).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| down(this, cx))))
+        .child(div().min_w(px(34.0)).flex().justify_center().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_PRIMARY).child(value))
+        .child(icon_button(ElementId::Name(format!("{id}-up").into()), TablerIcon::Plus, false).on_click(move |_ev, _window, cx| app_up.update(cx, |this, cx| up(this, cx))))
+}
+
+fn launch_form(lab: &LocalLabState, app: Entity<CrowApp>) -> impl IntoElement {
+    let l = lab.launch.clone();
+    let idle = lab.busy.is_none();
+    let (app_name, app_go) = (app.clone(), app.clone());
+    let (c, m, d) = (l.cpus, l.memory_gb, l.disk_gb);
+    div()
+        .p(px(12.0))
+        .bg(BG_CONTROL)
+        .border_1()
+        .border_color(BORDER_DEFAULT)
+        .flex()
+        .flex_col()
+        .gap(px(10.0))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .justify_between()
+                .child(section_title("LAUNCH A VM"))
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(6.0))
+                        .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_PRIMARY).child(l.name.clone()))
+                        .child(icon_button("btn-reroll-vm-name", TablerIcon::Refresh, false).on_click(move |_ev, _window, cx| app_name.update(cx, |this, cx| this.reroll_vm_name(cx)))),
+                ),
+        )
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(16.0))
+                .child(stepper("vm-cpu", "CPU", c.to_string(), move |a, cx| a.set_vm_size(c.saturating_sub(1), m, d, cx), move |a, cx| a.set_vm_size(c + 1, m, d, cx), app.clone()))
+                .child(stepper("vm-mem", "MEMORY", format!("{m} GB"), move |a, cx| a.set_vm_size(c, m.saturating_sub(1), d, cx), move |a, cx| a.set_vm_size(c, m + 1, d, cx), app.clone()))
+                .child(stepper("vm-disk", "DISK", format!("{d} GB"), move |a, cx| a.set_vm_size(c, m, d.saturating_sub(5), cx), move |a, cx| a.set_vm_size(c, m, d + 5, cx), app.clone())),
+        )
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .justify_between()
+                .child(div().flex().items_center().gap(px(6.0)).children([("lts", "Newest LTS"), ("24.04", "24.04"), ("22.04", "22.04")].into_iter().enumerate().map(|(i, (image, label))| {
+                    let selected = l.image == image;
+                    let app_img = app.clone();
+                    text_button(ElementId::NamedInteger("vm-image".into(), i as u64), label.to_string(), if selected { TEXT_PRIMARY } else { TEXT_TERTIARY })
+                        .when(selected, |b| b.border_color(TEXT_PRIMARY).bg(BG_NAV_ACTIVE))
+                        .on_click(move |_ev, _window, cx| app_img.update(cx, |this, cx| this.set_vm_image(image, cx)))
+                })))
+                .child(
+                    div()
+                        .id("btn-launch-vm")
+                        .px(px(14.0))
+                        .py(px(6.0))
+                        .bg(if idle { TEXT_PRIMARY } else { BG_CHIP })
+                        .text_color(if idle { rgb(0x0a0a0c) } else { TEXT_DIMMER })
+                        .font_weight(FontWeight::BOLD)
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.5))
+                        .when(idle, |b| b.cursor_pointer().hover(|s| s.bg(hex_rgb(0xffffff))))
+                        .on_click(move |_ev, _window, cx| app_go.update(cx, |this, cx| this.launch_multipass_vm(cx)))
+                        .child("LAUNCH & ADD TO FLEET"),
                 ),
         )
 }

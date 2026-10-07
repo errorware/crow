@@ -1181,7 +1181,7 @@ pub fn fleet_overview_view(
                 )
         }))
         .children(if local_lab.show_modal {
-            Some(crate::views::fleet::lab_modal::local_lab_modal(&local_lab.engines, &local_lab.nodes, app.clone(), local_lab))
+            Some(crate::views::fleet::lab_modal::local_lab_modal(&local_lab.engines, &local_lab.nodes, app.clone(), local_lab, &fleet.servers))
         } else {
             None
         })

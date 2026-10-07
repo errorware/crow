@@ -12,7 +12,8 @@ use crate::os_detect::{classify_distro_family, DistroFamily};
 /// down right now (ERR-91).
 pub type JumpInfo = Option<(String, bool)>;
 
-pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker_open: bool, snapshots: bool, app: Entity<CrowApp>) -> impl IntoElement {
+/// `vm_busy`: a Multipass action is running, so the VM buttons wait.
+pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker_open: bool, snapshots: bool, vm_busy: bool, app: Entity<CrowApp>) -> impl IntoElement {
     let app_clone = app.clone();
 
     let server_name = server.map(|s| s.name.as_str()).unwrap_or("localhost");
@@ -225,6 +226,23 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker
         .children(server.filter(|s| transport_kind(s) == TransportKind::Ssh).map(|_| {
             let app = app.clone();
             header_button("btn-identity-reconnect", "RECONNECT").on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.reconnect_active_server(cx)))
+        }))
+        // A Multipass VM: power it from here (deleting it is in the lab).
+        .children(server.and_then(crate::lab::multipass::vm_of).filter(|_| !vm_busy).map(|vm| {
+            use crate::lab::multipass::Lifecycle;
+            let button = |id: &'static str, label: &'static str, action: Lifecycle| {
+                let (app, vm) = (app.clone(), vm.to_string());
+                header_button(id, label).on_click(move |_ev, _window, cx| {
+                    let vm = vm.clone();
+                    app.update(cx, |this, cx| this.run_vm_lifecycle(action, &vm, cx))
+                })
+            };
+            div()
+                .flex()
+                .items_center()
+                .child(button("btn-vm-start", "START VM", Lifecycle::Start))
+                .child(button("btn-vm-stop", "STOP VM", Lifecycle::Stop))
+                .child(button("btn-vm-restart", "RESTART VM", Lifecycle::Restart))
         }))
         .child(div().w(px(4.0)))
 }

@@ -2,6 +2,7 @@ use gpui_kit::*;
 
 use super::{CrowApp, Screen};
 use crate::components::titlebar::ServerTab;
+use crate::lab::multipass::{self, Lifecycle};
 use crate::lab::{
     detect_local_engines,
     enroll_local_node_into_db,
@@ -29,7 +30,168 @@ impl CrowApp {
         if self.local_lab.show_modal {
             self.local_lab.engines = detect_local_engines();
             self.local_lab.nodes = scan_local_test_nodes(&self.fleet.servers);
+            self.refresh_multipass(cx);
         }
+        cx.notify();
+    }
+
+    // ==========================================
+    // Multipass VMs (ERR-119)
+    // ==========================================
+
+    /// Re-checks Multipass and lists its VMs, off the UI thread.
+    pub fn refresh_multipass(&mut self, cx: &mut Context<Self>) {
+        cx.spawn(async move |entity, cx| {
+            let (status, vms) = cx
+                .background_executor()
+                .spawn(async move {
+                    let status = multipass::detect();
+                    let vms = if status.is_ready() { multipass::list() } else { Ok(Vec::new()) };
+                    (status, vms)
+                })
+                .await;
+            let _ = entity.update(cx, |this, cx| {
+                this.local_lab.multipass = Some(status);
+                match vms {
+                    Ok(vms) => this.local_lab.vms = vms,
+                    Err(e) => this.local_lab.vm_error = Some(e),
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    pub fn set_vm_size(&mut self, cpus: u8, memory_gb: u16, disk_gb: u16, cx: &mut Context<Self>) {
+        let l = &mut self.local_lab.launch;
+        (l.cpus, l.memory_gb, l.disk_gb) = (cpus.clamp(1, 16), memory_gb.clamp(1, 64), disk_gb.clamp(5, 500));
+        cx.notify();
+    }
+
+    pub fn set_vm_image(&mut self, image: &str, cx: &mut Context<Self>) {
+        self.local_lab.launch.image = image.to_string();
+        cx.notify();
+    }
+
+    pub fn reroll_vm_name(&mut self, cx: &mut Context<Self>) {
+        let taken: Vec<String> = self.local_lab.vms.iter().map(|v| v.name.clone()).collect();
+        self.local_lab.launch.name = crate::views::fleet::lab_state::friendly_vm_name(rand::random(), &taken);
+        cx.notify();
+    }
+
+    /// Runs `job` (blocking) in the background with Crow's key, then saves
+    /// the server it returns into the fleet and opens it.
+    fn run_vm_enrollment(&mut self, label: String, job: impl FnOnce(&crate::vault::SshKeyRecord) -> Result<ServerRecord, String> + Send + 'static, cx: &mut Context<Self>) {
+        if self.local_lab.busy.is_some() {
+            return;
+        }
+        let key = match self.ensure_crow_key(cx) {
+            Ok(k) => k,
+            Err(e) => {
+                self.local_lab.vm_error = Some(format!("Crow's key: {e}"));
+                cx.notify();
+                return;
+            }
+        };
+        self.local_lab.busy = Some(label);
+        self.local_lab.vm_error = None;
+        cx.notify();
+        cx.spawn(async move |entity, cx| {
+            let result = cx.background_executor().spawn(async move { job(&key) }).await;
+            let _ = entity.update(cx, |this, cx| {
+                this.local_lab.busy = None;
+                match result {
+                    Ok(record) => this.save_vm_server(record, cx),
+                    Err(e) => this.local_lab.vm_error = Some(e),
+                }
+                this.refresh_multipass(cx);
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn save_vm_server(&mut self, record: ServerRecord, cx: &mut Context<Self>) {
+        if let Ok(db) = self.vault.db().lock() {
+            if let Err(e) = db.upsert_server(&record) {
+                self.local_lab.vm_error = Some(format!("couldn't save {} in the vault: {e}", record.name));
+                return;
+            }
+            if let Some(kid) = &record.key_id {
+                let _ = db.attach_server_to_key(kid, &record.name);
+            }
+        }
+        self.refresh_keys(cx);
+        self.keys.toast = Some(format!("{} is in the fleet ({})", record.name, record.host));
+        self.fleet.servers.retain(|s| s.id != record.id);
+        self.local_lab.show_modal = false;
+        self.open_enrolled_server(record);
+    }
+
+    /// Launches a VM with Crow's key in its cloud-init and enrolls it.
+    pub fn launch_multipass_vm(&mut self, cx: &mut Context<Self>) {
+        let spec = self.local_lab.launch.clone();
+        if let Err(e) = spec.check() {
+            self.local_lab.vm_error = Some(e);
+            cx.notify();
+            return;
+        }
+        let label = format!("Launching {}: the first launch downloads the Ubuntu image, a few minutes", spec.name);
+        self.run_vm_enrollment(label, move |key| multipass::launch_and_enroll(&spec, key), cx);
+        self.reroll_vm_name(cx);
+    }
+
+    /// Adds Crow's key to a VM Crow didn't make and enrolls it.
+    pub fn import_multipass_vm(&mut self, name: &str, cx: &mut Context<Self>) {
+        let name = name.to_string();
+        self.run_vm_enrollment(format!("Importing {name}…"), move |key| multipass::import(&name, key), cx);
+    }
+
+    /// Start, stop, restart, suspend; delete for good only after
+    /// `confirm_purge` names this VM (the second click).
+    pub fn run_vm_lifecycle(&mut self, action: Lifecycle, name: &str, cx: &mut Context<Self>) {
+        if self.local_lab.busy.is_some() {
+            return;
+        }
+        if action == Lifecycle::Purge && self.local_lab.confirm_purge.as_deref() != Some(name) {
+            self.local_lab.confirm_purge = Some(name.to_string());
+            cx.notify();
+            return;
+        }
+        self.local_lab.confirm_purge = None;
+        self.local_lab.busy = Some(crate::views::fleet::lab_state::busy_label(action, name));
+        self.local_lab.vm_error = None;
+        cx.notify();
+        let vm = name.to_string();
+        cx.spawn(async move |entity, cx| {
+            let job_vm = vm.clone();
+            let result = cx.background_executor().spawn(async move { multipass::run(action, &job_vm) }).await;
+            let _ = entity.update(cx, |this, cx| {
+                this.local_lab.busy = None;
+                match result {
+                    Ok(()) if action == Lifecycle::Purge => {
+                        // The VM is gone: its fleet entry goes to the archive.
+                        if let Some(id) = this.fleet.servers.iter().find(|s| multipass::vm_of(s) == Some(vm.as_str())).map(|s| s.id.clone()) {
+                            this.archive_server(&id, cx);
+                        }
+                        this.keys.toast = Some(format!("{vm} deleted"));
+                    }
+                    Ok(()) => this.keys.toast = Some(format!("{vm}: {} done", action.label().to_lowercase())),
+                    Err(e) => {
+                        let msg = format!("{} {vm}: {e}", action.label());
+                        this.keys.toast = Some(msg.clone());
+                        this.local_lab.vm_error = Some(msg);
+                    }
+                }
+                this.refresh_multipass(cx);
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    pub fn cancel_vm_purge(&mut self, cx: &mut Context<Self>) {
+        self.local_lab.confirm_purge = None;
         cx.notify();
     }
 
