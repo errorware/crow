@@ -36,26 +36,30 @@ for k; do
   cat "$k.crow-new.pub"
 done"#;
 
-/// `$1` backup dir, then the keys: back up, swap in, check, reload. A key
-/// sshd rejects puts the old ones straight back.
+/// Reloads sshd under whatever service manager the host has.
+const RELOAD_SSHD: &str = r#"reload_sshd() { systemctl reload ssh 2>/dev/null || systemctl reload sshd 2>/dev/null || rc-service sshd reload 2>/dev/null || service ssh reload 2>/dev/null || service sshd reload 2>/dev/null; }"#;
+
+/// `$1` backup dir, then the keys: back up, swap in, check, reload. Once
+/// the backup is complete, any failure (sshd -t rejecting the keys, sshd
+/// not reloading, a partial move) puts the old keys back before exiting
+/// (ERR-107): the disk never ends up with keys sshd isn't serving.
 const SWAP: &str = r#"set -e
 b=$1; shift
 mkdir -p -m 700 "$b"
 for k; do cp -p "$k" "$k.pub" "$b/"; done
+ok=0
+trap '[ "$ok" = 1 ] || for k; do n=$(basename "$k"); cp -p "$b/$n" "$k"; cp -p "$b/$n.pub" "$k.pub"; done' EXIT
 for k; do mv -f "$k.crow-new" "$k"; mv -f "$k.crow-new.pub" "$k.pub"; done
 command -v restorecon >/dev/null 2>&1 && restorecon "$@" 2>/dev/null || true
-if ! sshd -t; then
-  for k; do n=$(basename "$k"); cp -p "$b/$n" "$k"; cp -p "$b/$n.pub" "$k.pub"; done
-  echo "sshd -t rejected the new keys; the old ones are back" >&2
-  exit 4
-fi
-systemctl reload ssh 2>/dev/null || systemctl reload sshd"#;
+if ! sshd -t; then echo "sshd -t rejected the new keys; the old ones are back" >&2; exit 4; fi
+if ! reload_sshd; then echo "sshd couldn't be reloaded (no systemctl, rc-service or service that knows it); the old keys are back" >&2; exit 5; fi
+ok=1"#;
 
 /// `$1` backup dir, then the keys: put the old keys back and reload.
 const RESTORE: &str = r#"b=$1; shift
 for k; do n=$(basename "$k"); cp -p "$b/$n" "$k" && cp -p "$b/$n.pub" "$k.pub" || exit 1; done
 command -v restorecon >/dev/null 2>&1 && restorecon "$@" 2>/dev/null
-systemctl reload ssh 2>/dev/null || systemctl reload sshd"#;
+reload_sshd"#;
 
 /// The local side: known_hosts entries for one `host`/`[host]:port`.
 pub trait KnownHosts {
@@ -164,7 +168,8 @@ pub fn rotate(host: &dyn Host, address: &str, port: u16, known: &dyn KnownHosts,
 
     let backup = format!("/etc/ssh/crow-hostkeys-{}", chrono::Utc::now().format("%Y%m%dT%H%M%S"));
     let with_keys = |script: &'static str| {
-        let mut argv = vec!["sh", "-c", script, "crow-hostkeys", backup.as_str()];
+        let script = format!("{RELOAD_SSHD}\n{script}");
+        let mut argv = vec!["sh", "-c", script.as_str(), "crow-hostkeys", backup.as_str()];
         argv.extend(paths.iter().copied());
         root(host, &argv)
     };
