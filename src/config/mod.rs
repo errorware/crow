@@ -7,6 +7,7 @@ pub mod history;
 pub mod drift;
 pub mod push;
 pub mod syntax;
+pub mod sysctl_live;
 
 pub use plugin::{default_config_toml, CrowConfigPlugin, APPEARANCE_DEFAULTS, SERVERS_DEFAULTS, CROW_CONFIG_MANIFEST};
 pub use crawler::{crawl_all_configs, crawl_configs, detect_schema_kind, load_config_file_states, DiscoveredConfigFile, SchemaKind};

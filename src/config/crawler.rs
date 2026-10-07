@@ -11,6 +11,8 @@ pub enum SchemaKind {
     Cron,
     Sshd,
     Hosts,
+    /// sysctl.conf and /etc/sysctl.d/*.conf.
+    Sysctl,
     Ufw,
     /// /etc/passwd and /etc/group, owned by the Users screen.
     Accounts,
@@ -25,6 +27,7 @@ impl SchemaKind {
             Self::Cron => "vixie-cron",
             Self::Sshd => "openssh 9.6",
             Self::Hosts => "linux-net",
+            Self::Sysctl => "procps",
             Self::Ufw => "ufw firewall",
             Self::Accounts => "accounts",
             Self::Crow => "crow core",
@@ -38,6 +41,7 @@ impl SchemaKind {
             Self::Cron => "SCHEDULE UI",
             Self::Sshd => "DIRECTIVE UI",
             Self::Hosts => "KEY-VALUE UI",
+            Self::Sysctl => "KEY-VALUE UI",
             Self::Ufw => "FIREWALL UI",
             Self::Accounts => "USERS UI",
             Self::Crow => "LOSSLESS TOML",
@@ -91,6 +95,8 @@ pub fn detect_schema_kind(name: &str, path: &Path) -> Option<SchemaKind> {
         Some(SchemaKind::Sshd)
     } else if lower_name == "hosts" && (path_str == "/etc" || path_str.ends_with("/etc/hosts") || path_str.ends_with("hosts")) {
         Some(SchemaKind::Hosts)
+    } else if lower_name == "sysctl.conf" || (path_str.contains("/sysctl.d/") && lower_name.ends_with(".conf")) {
+        Some(SchemaKind::Sysctl)
     } else if lower_name == "user.rules" || lower_name == "user6.rules" {
         // ufw's own rule store, managed by the Firewall screen. before/after
         // *.rules are raw iptables-restore files: plain text.
@@ -267,6 +273,9 @@ mod tests {
         assert_eq!(detect_schema_kind("hosts", Path::new("/etc/hosts")), Some(SchemaKind::Hosts));
         assert_eq!(detect_schema_kind("user.rules", Path::new("/etc/ufw/user.rules")), Some(SchemaKind::Ufw));
         assert_eq!(detect_schema_kind("nginx.conf", Path::new("/etc/nginx/nginx.conf")), None);
+        assert_eq!(detect_schema_kind("sysctl.conf", Path::new("/etc/sysctl.conf")), Some(SchemaKind::Sysctl));
+        assert_eq!(detect_schema_kind("99-hardening.conf", Path::new("/etc/sysctl.d/99-hardening.conf")), Some(SchemaKind::Sysctl));
+        assert_eq!(detect_schema_kind("README", Path::new("/etc/sysctl.d/README")), None);
     }
 
     #[test]

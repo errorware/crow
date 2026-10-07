@@ -44,6 +44,10 @@ pub struct ConfigsState {
     pub open_enum: Option<(String, String)>,
     pub adding_row: bool,
     pub edit_error: Option<String>,
+    /// What the server's kernel runs now, per sysctl key (read from
+    /// /proc/sys), and whether a read is under way.
+    pub sysctl_live: HashMap<String, crate::config::sysctl_live::LiveValue>,
+    pub sysctl_live_loading: bool,
 }
 
 /// A baseline in force for one of this server's files.
@@ -99,6 +103,8 @@ impl ConfigsState {
             open_enum: None,
             adding_row: false,
             edit_error: None,
+            sysctl_live: HashMap::new(),
+            sysctl_live_loading: false,
         }
     }
 
