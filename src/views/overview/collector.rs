@@ -210,6 +210,38 @@ fn parse_bytes_metric(line: &str, prefix: &str) -> Option<u64> {
     num_str.parse::<u64>().ok()
 }
 
+/// A peer address without brackets or a zone (`[fe80::1%eth0]` → `fe80::1`).
+pub fn bare_peer_addr(addr: &str) -> &str {
+    let clean = addr.trim_start_matches('[').trim_end_matches(']');
+    clean.split('%').next().unwrap_or(clean)
+}
+
+/// Reverse DNS for `addrs`, asked of the server's own resolver (`getent
+/// hosts`, one call). Addresses are arguments, never code.
+pub fn reverse_names(host: &dyn crate::host::Host, addrs: &[String]) -> std::collections::HashMap<String, Option<String>> {
+    // getent exits 2 when an address has no name; what it printed counts.
+    let mut argv = vec!["sh", "-c", "getent hosts \"$@\" 2>/dev/null; true", "crow-rdns"];
+    argv.extend(addrs.iter().map(String::as_str));
+    let printed = host.exec(&argv, crate::host::DEFAULT_TIMEOUT).map(|o| o.stdout).unwrap_or_default();
+    parse_getent_hosts(&printed, addrs)
+}
+
+/// `getent hosts` lines ("8.8.8.8  dns.google") as a name per asked address;
+/// an address with no line, or named as itself, has none.
+fn parse_getent_hosts(printed: &str, addrs: &[String]) -> std::collections::HashMap<String, Option<String>> {
+    let mut out: std::collections::HashMap<String, Option<String>> = addrs.iter().map(|a| (a.clone(), None)).collect();
+    for line in printed.lines() {
+        let mut words = line.split_whitespace();
+        let (Some(addr), Some(name)) = (words.next(), words.next()) else { continue };
+        if let Some(slot) = out.get_mut(addr) {
+            if name != addr {
+                *slot = Some(name.trim_end_matches('.').to_string());
+            }
+        }
+    }
+    out
+}
+
 pub fn categorize_peer(addr: &str) -> super::models::PeerCategory {
     let clean = addr.trim_start_matches('[').trim_end_matches(']');
     let ip_str = clean.split('%').next().unwrap_or(clean);
@@ -535,4 +567,15 @@ tcp   ESTAB  0      0        10.0.0.15:58920   1.1.1.1:443    users:((\"curl\",p
         assert_eq!(items[1].peer_category, super::super::models::PeerCategory::Public);
         assert_eq!(items[1].socket.peer_addr, "1.1.1.1");
     }
+
+    #[test]
+    fn reverse_names_from_getent() {
+        let asked = vec!["8.8.8.8".to_string(), "203.0.113.9".to_string(), "2001:4860:4860::8888".to_string()];
+        let names = super::parse_getent_hosts("8.8.8.8         dns.google\n2001:4860:4860::8888 dns.google.\n", &asked);
+        assert_eq!(names["8.8.8.8"].as_deref(), Some("dns.google"));
+        assert_eq!(names["2001:4860:4860::8888"].as_deref(), Some("dns.google"), "trailing dot dropped");
+        assert_eq!(names["203.0.113.9"], None, "no line: no name");
+        assert_eq!(super::bare_peer_addr("[fe80::1%eth0]"), "fe80::1");
+    }
 }
+

@@ -413,11 +413,14 @@ fn render_peer_card(
                 .justify_between()
                 .child(
                     div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(11.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
-                        .child(addr.to_string()),
+                        .min_w(px(0.0))
+                        .flex()
+                        .flex_col()
+                        .child(div().font_family(FONT_MONO).text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(addr.to_string()))
+                        // Its reverse DNS name, when it has one (ERR-100).
+                        .children(overview.peer_names.get(crate::views::overview::collector::bare_peer_addr(addr)).cloned().flatten().map(|name| {
+                            div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_DIM).overflow_hidden().whitespace_nowrap().text_ellipsis().child(name)
+                        })),
                 )
                 .child(
                     div()
