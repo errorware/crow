@@ -112,6 +112,16 @@ pub fn structured_editor(
                 (field("kind") == "rule").then(|| crow_config_schemas::sudoers_rule_risk(field("rule"))).flatten().map(|risk| (format!("lets {} run {risk}", field("who")), true))
             })
             .collect()
+    } else if format == StructuredFormat::Fstab {
+        // Mounts that can stop a boot (ERR-22).
+        let all = crow_config_schemas::fstab_mounts(&state.current_content);
+        ir.rows
+            .iter()
+            .map(|row| {
+                let mp = row.get_field("mountpoint").and_then(|f| f.value.as_str()).unwrap_or_default();
+                all.iter().find(|m| m.mountpoint == mp).and_then(|m| crow_config_schemas::fstab_boot_risk(m, &all)).map(|r| (r.to_string(), true))
+            })
+            .collect()
     } else {
         Vec::new()
     };
