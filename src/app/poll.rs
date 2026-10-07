@@ -182,6 +182,7 @@ impl CrowApp {
         
                     if entity.update(cx, |this, cx| {
                         this.apply_poll_result(res);
+                        this.maybe_check_certs(cx);
                         // Overview on screen: keep the updates/CVE check current
                         // (a no-op while it's fresh; also covers startup).
                         if this.screen == super::Screen::Server && this.active_view == "overview" {
@@ -377,6 +378,41 @@ impl CrowApp {
         if history_tick {
             self.record_history(now_secs as i64);
         }
+    }
+
+    /// Every few hours, reads every reachable server's TLS certificates in
+    /// the background and turns what's about to expire into alerts (ERR-99).
+    fn maybe_check_certs(&mut self, cx: &mut Context<Self>) {
+        use crate::metrics::certs::{cert_changes, read_certs, CERT_CHECK_EVERY_SECS};
+        use crate::views::fleet::state::FleetHealth;
+        let now = chrono::Utc::now().timestamp();
+        if now - self.cert_last_check < CERT_CHECK_EVERY_SECS || self.vault.status() == crate::vault::VaultStatus::Locked {
+            return;
+        }
+        let servers: Vec<_> = self.fleet.servers.iter().filter(|s| self.fleet.health(s) == FleetHealth::Ok).cloned().collect();
+        if servers.is_empty() {
+            return;
+        }
+        self.cert_last_check = now;
+        cx.spawn(async move |entity, cx| {
+            let found = cx
+                .background_executor()
+                .spawn(async move { servers.iter().map(|s| (s.id.clone(), read_certs(crate::host::host_for(s).as_ref()))).collect::<Vec<_>>() })
+                .await;
+            let _ = entity.update(cx, |this, cx| {
+                let now = chrono::Utc::now().timestamp();
+                let db = this.vault.db();
+                let Ok(db) = db.lock() else { return };
+                for (server, certs) in found {
+                    // Couldn't read: leave its alerts as they are.
+                    let Some(certs) = certs else { continue };
+                    let open: Vec<_> = db.list_alerts(i64::MAX).unwrap_or_default();
+                    let _ = db.apply_alert_changes(&cert_changes(&open, &server, &certs, now), now);
+                }
+                cx.notify();
+            });
+        })
+        .detach();
     }
 
     /// Applies the alert rules to a round of history rows and stores the

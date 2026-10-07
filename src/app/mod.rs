@@ -262,6 +262,8 @@ pub struct CrowApp {
     pub history: HistoryClock,
     /// Servers whose last history sample was unreachable (ERR-85).
     pub history_down: std::collections::HashSet<String>,
+    /// When servers' TLS certificates were last read (ERR-99).
+    pub cert_last_check: i64,
     /// History view (ERR-86): range, pointer position (0..=1), cached data.
     pub history_range: crate::metrics::chart::Range,
     pub history_hover: Option<f32>,
@@ -463,6 +465,7 @@ impl CrowApp {
             terminal_blink: (true, std::time::Instant::now()),
             history: HistoryClock { watch_started: chrono::Utc::now().timestamp(), ..Default::default() },
             history_down: Default::default(),
+            cert_last_check: 0,
             history_range: crate::metrics::chart::Range::Day,
             history_hover: None,
             history_view: None,
