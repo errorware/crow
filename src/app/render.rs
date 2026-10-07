@@ -55,6 +55,7 @@ impl Render for CrowApp {
         if self.screen == Screen::VaultSetup && self.setup_state.step == crate::views::lock::SetupStep::ConfigureCredentials {
             self.ensure_setup_inputs(window, cx);
         }
+        self.ensure_firewall_rule_inputs(window, cx);
         if self.users.password_for.is_some() && self.active_view == "users" {
             self.ensure_password_inputs(window, cx);
         }
@@ -413,7 +414,7 @@ impl Render for CrowApp {
                                                                                 .flex_1()
                                                                                 .min_w(px(0.0))
                                                                                 .h_full()
-                                                                                .child(firewall_view(app_view.clone(), &self.firewall, &self.configs.states))
+                                                                                .child(firewall_view(app_view.clone(), &self.firewall, &self.configs.states, self.firewall_search.as_ref().map(|s| &s.input), self.firewall_rule_inputs.as_ref()))
                                                                         )
                                                                         .children(if self.firewall.show_audit_rail {
                                                                             Some(pending_diff_rail(&self.configs, app_view.clone()))

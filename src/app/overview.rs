@@ -31,6 +31,7 @@ pub enum TablePage {
     Processes,
     Users,
     Logs,
+    Firewall,
 }
 
 impl TablePage {
@@ -40,6 +41,7 @@ impl TablePage {
             "processes" => Some(TablePage::Processes),
             "users" => Some(TablePage::Users),
             "logs" => Some(TablePage::Logs),
+            "firewall" => Some(TablePage::Firewall),
             _ => None,
         }
     }
@@ -52,6 +54,7 @@ impl CrowApp {
             TablePage::Processes => &mut self.processes_search,
             TablePage::Users => &mut self.users_search,
             TablePage::Logs => &mut self.logs_search,
+            TablePage::Firewall => &mut self.firewall_search,
         }
     }
 
@@ -64,6 +67,7 @@ impl CrowApp {
                 TablePage::Processes => ("search command, user, pid…  ( / )", self.overview.process_query.clone()),
                 TablePage::Users => ("search name, group, shell…  ( / )", self.users.search_query.clone()),
                 TablePage::Logs => ("grep the journal (regex; lowercase ignores case)…  ( / )", self.journal.search.clone()),
+                TablePage::Firewall => ("search port, address, comment…  ( / )", self.firewall.search_query.clone()),
             };
             let input = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder).default_value(query));
             let events = cx.subscribe(&input, move |this, input, ev: &InputEvent, cx| {
@@ -73,6 +77,7 @@ impl CrowApp {
                         TablePage::Services => (this.overview.service_query, this.overview.service_page) = (value, 0),
                         TablePage::Processes => (this.overview.process_query, this.overview.process_page) = (value, 0),
                         TablePage::Users => this.users.search_query = value,
+                        TablePage::Firewall => this.firewall.search_query = value,
                         TablePage::Logs => {
                             this.journal.search = value;
                             this.schedule_journal_search(cx);
@@ -107,7 +112,7 @@ impl CrowApp {
         match table {
             TablePage::Services => self.overview.service_page = page,
             TablePage::Processes => self.overview.process_page = page,
-            TablePage::Users | TablePage::Logs => {}
+            TablePage::Users | TablePage::Logs | TablePage::Firewall => {}
         }
         cx.notify();
     }

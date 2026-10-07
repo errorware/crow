@@ -32,18 +32,22 @@ use std::collections::HashMap;
 use crate::app::CrowApp;
 use crate::config::ConfigFileState;
 use crate::components::icons::{TablerIcon, tabler_icon, inherited_icon};
+use crate::components::table_controls::{render_table_controls, Chip};
+use gpui_kit::component::input::InputState;
 
 pub fn firewall_view(
     app: Entity<CrowApp>,
     fw: &FirewallState,
     config_file_states: &HashMap<String, ConfigFileState>,
+    search: Option<&Entity<InputState>>,
+    rule_inputs: Option<&crate::app::firewall::FirewallRuleInputs>,
 ) -> AnyElement {
     let state = &fw.status;
 
     // Check operational status
     match state {
         FirewallOperationalState::Active(summary) if summary.is_active => {
-            render_active_firewall(summary, app, fw, config_file_states).into_any_element()
+            render_active_firewall(summary, app, fw, config_file_states, search, rule_inputs).into_any_element()
         }
         FirewallOperationalState::Inactive { backend, reason, detected_binaries, .. } => {
             non_operational_view(*backend, reason, detected_binaries, app).into_any_element()
@@ -58,68 +62,257 @@ pub fn firewall_view(
     }
 }
 
+/// A quiet header button: text, a hairline border, brighter on hover.
+fn tool_button(id: &'static str, label: impl Into<SharedString>, color: Rgba) -> Stateful<Div> {
+    div()
+        .id(id)
+        .px(px(9.0))
+        .py(px(3.5))
+        .border_1()
+        .border_color(BORDER_DEFAULT)
+        .cursor_pointer()
+        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .font_family(FONT_MONO)
+        .text_size(px(10.5))
+        .text_color(color)
+        .child(label.into())
+}
+
+/// How an action reads in the table: its word, in the color that says it.
+fn action_color(action: RuleAction) -> Rgba {
+    match action {
+        RuleAction::Allow => OK,
+        RuleAction::Deny | RuleAction::Reject => CRIT,
+        RuleAction::Limit => WARN,
+    }
+}
+
 fn render_active_firewall(
     summary: &FirewallStatusSummary,
     app: Entity<CrowApp>,
     fw: &FirewallState,
     config_file_states: &HashMap<String, ConfigFileState>,
+    search: Option<&Entity<InputState>>,
+    rule_inputs: Option<&crate::app::firewall::FirewallRuleInputs>,
 ) -> impl IntoElement {
     // Crow changes ufw and firewalld (ERR-77); raw nftables/iptables are
     // shown read-only.
     let writable = matches!(summary.backend, FirewallBackend::Ufw | FirewallBackend::Firewalld);
     let is_ufw = summary.backend == FirewallBackend::Ufw;
-    let app_new_rule = app.clone();
-    let app_toggle_active = app.clone();
-    let app_inspect_cfg = app.clone();
-    let app_reload = app.clone();
-    let app_stage = app.clone();
-    let app_toggle_audit = app.clone();
-    let app_raw = app.clone();
     let show_raw = fw.show_raw && !writable;
 
     let file_state = config_file_states.get("user.rules");
-    let (is_modified, add_count, del_count, active_rev) = if let Some(st) = file_state {
-        let (a, d) = st.diff_stats();
-        (st.is_modified(), a, d, st.active_revision)
-    } else {
-        (false, 0, 0, 1)
+    let (is_modified, add_count, del_count) = match file_state {
+        Some(st) => {
+            let (a, d) = st.diff_stats();
+            (st.is_modified(), a, d)
+        }
+        None => (false, 0, 0),
     };
 
     let query = fw.search_query.to_lowercase();
-    let action_filter = fw.action_filter;
-
     let filtered_rules: Vec<&FirewallRule> = summary
         .rules
         .iter()
+        .filter(|r| fw.action_filter.is_none_or(|a| r.action == a))
         .filter(|r| {
-            if let Some(target_act) = action_filter {
-                r.action == target_act
-            } else {
-                true
-            }
-        })
-        .filter(|r| {
-            if query.is_empty() {
-                return true;
-            }
-            r.port.to_lowercase().contains(&query)
+            query.is_empty()
+                || r.port.to_lowercase().contains(&query)
                 || r.source.to_lowercase().contains(&query)
                 || r.destination.to_lowercase().contains(&query)
                 || r.comment.as_deref().unwrap_or("").to_lowercase().contains(&query)
                 || r.action.label().to_lowercase().contains(&query)
         })
         .collect();
-
     let total_rules = summary.rules.len();
-    let allow_count = summary.rules.iter().filter(|r| r.action == RuleAction::Allow).count();
-    let deny_count = summary.rules.iter().filter(|r| r.action == RuleAction::Deny).count();
-    let limit_count = summary.rules.iter().filter(|r| r.action == RuleAction::Limit).count();
 
-    let modal_element = if fw.show_new_rule_modal {
-        Some(new_rule_modal(&fw.new_rule, summary.backend, app.clone()).into_any_element())
-    } else {
-        None
+    let chips: Vec<Chip> = [(None, "ALL"), (Some(RuleAction::Allow), "ALLOW"), (Some(RuleAction::Deny), "DENY"), (Some(RuleAction::Limit), "LIMIT")]
+        .into_iter()
+        .map(|(act, label)| {
+            let app = app.clone();
+            Chip {
+                id: format!("fw-filter-{label}"),
+                label,
+                count: summary.rules.iter().filter(|r| act.is_none_or(|a| r.action == a)).count(),
+                is_on: fw.action_filter == act,
+                alarming: false,
+                on_click: Box::new(move |cx| app.update(cx, |this, cx| this.set_firewall_action_filter(act, cx))),
+            }
+        })
+        .collect();
+
+    // Header: title and state, search and filters, then the tools. Only the
+    // primary action (+ ADD RULE) and a pending stage carry color.
+    let header = {
+        let (app_stage, app_audit, app_raw, app_reload, app_cfg, app_toggle, app_new) = (app.clone(), app.clone(), app.clone(), app.clone(), app.clone(), app.clone(), app.clone());
+        div()
+            .h(px(40.0))
+            .flex_none()
+            .flex()
+            .items_center()
+            .bg(BG_PANEL)
+            .border_b_1()
+            .border_color(BORDER_PANEL)
+            .child(
+                div()
+                    .px(px(14.0))
+                    .h_full()
+                    .flex()
+                    .items_center()
+                    .gap(px(10.0))
+                    .border_r_1()
+                    .border_color(BORDER_PANEL)
+                    .font_family(FONT_MONO)
+                    .child(div().text_size(px(11.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child("FIREWALL"))
+                    .child(div().flex().items_center().gap(px(6.0)).child(div().size(px(6.0)).rounded_full().bg(OK)).child(
+                        div().text_size(px(10.5)).text_color(TEXT_DIM).child(format!("{} · on · {} rule{}", summary.backend.short_name().to_lowercase(), total_rules, if total_rules == 1 { "" } else { "s" })),
+                    )),
+            )
+            .child(render_table_controls(search, chips))
+            .child(div().flex_1())
+            .child(
+                div()
+                    .flex()
+                    .items_center()
+                    .gap(px(6.0))
+                    .px(px(12.0))
+                    .when(is_modified, |d| {
+                        d.child(tool_button("btn-stage-firewall-rules", format!("STAGE +{add_count} −{del_count}"), WARN).border_color(WARN).on_click(move |_ev, _window, cx| {
+                            app_stage.update(cx, |this, cx| this.stage_firewall_rules("Staged firewall rule changes", cx));
+                        }))
+                    })
+                    .child(
+                        tool_button("btn-toggle-firewall-audit-rail", "AUDIT", if fw.show_audit_rail { TEXT_PRIMARY } else { TEXT_DIM })
+                            .when(fw.show_audit_rail, |d| d.bg(BG_CONTROL).border_color(BORDER_STRONG))
+                            .on_click(move |_ev, _window, cx| app_audit.update(cx, |this, cx| this.toggle_firewall_audit_rail(cx))),
+                    )
+                    .when(!writable, |d| {
+                        d.child(tool_button("btn-firewall-raw", if show_raw { "RULE TABLE" } else { "RAW RULESET" }, TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
+                            app_raw.update(cx, |this, cx| this.toggle_firewall_raw(cx));
+                        }))
+                    })
+                    .when(writable, |d| {
+                        d.child(tool_button("btn-reload-firewall", "RELOAD", TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
+                            app_reload.update(cx, |this, cx| this.reload_firewall(cx));
+                        }))
+                    })
+                    .when(is_ufw, |d| {
+                        d.child(tool_button("btn-firewall-open-config", "user.rules", TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
+                            app_cfg.update(cx, |this, cx| {
+                                this.select_managed_file("user.rules", cx);
+                                this.set_view("config", cx);
+                            });
+                        }))
+                    })
+                    .when(is_ufw, |d| {
+                        d.child(
+                            tool_button("btn-toggle-firewall-active", "DISABLE", CRIT_INK_DIM)
+                                .hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT).border_color(BORDER_DANGER_BTN))
+                                .on_click(move |_ev, _window, cx| app_toggle.update(cx, |this, cx| this.toggle_firewall_active(cx))),
+                        )
+                    })
+                    .when(writable, |d| {
+                        d.child(
+                            tool_button("btn-open-new-rule-modal", "+ ADD RULE", OK)
+                                .border_color(OK)
+                                .font_weight(FontWeight::BOLD)
+                                .hover(|s| s.bg(OK_BG).text_color(OK))
+                                .on_click(move |_ev, _window, cx| app_new.update(cx, |this, cx| this.open_new_firewall_rule_modal(cx))),
+                        )
+                    }),
+            )
     };
+
+    // Defaults and quick ports on one quiet line. An incoming policy that
+    // lets everything in is the one thing here worth a color.
+    let policy = |label: &'static str, value: String, warn: bool| {
+        div()
+            .flex()
+            .items_center()
+            .gap(px(5.0))
+            .child(div().text_color(TEXT_FAINT).child(label))
+            .child(div().text_color(if warn { WARN } else { TEXT_SECONDARY }).child(value.to_lowercase()))
+    };
+    let incoming_open = summary.default_incoming.label().eq_ignore_ascii_case("allow");
+    let defaults_line = div()
+        .flex_none()
+        .flex()
+        .flex_wrap()
+        .items_center()
+        .gap_x(px(16.0))
+        .gap_y(px(6.0))
+        .px(px(14.0))
+        .py(px(7.0))
+        .bg(BG_SUBHEAD)
+        .border_b_1()
+        .border_color(BORDER_PANEL)
+        .font_family(FONT_MONO)
+        .text_size(px(10.5))
+        .child(div().text_size(px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child("DEFAULTS"))
+        .child(policy("incoming", summary.default_incoming.label().to_string(), incoming_open))
+        .child(policy("outgoing", summary.default_outgoing.label().to_string(), false))
+        .child(policy("routed", summary.default_forward.label().to_string(), false))
+        .when(writable, |d| {
+            d.child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_DEFAULT)).child(div().text_size(px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child("QUICK OPEN")).children(
+                common_quick_ports().iter().map(|qp| {
+                    let open = summary.rules.iter().any(|r| r.action == RuleAction::Allow && r.port == qp.port.to_string());
+                    let (port, proto, name, app) = (qp.port, qp.protocol, qp.name, app.clone());
+                    div()
+                        .id(ElementId::NamedInteger(format!("qp-toggle-{port}").into(), 0))
+                        .flex()
+                        .items_center()
+                        .gap(px(5.0))
+                        .px(px(6.0))
+                        .py(px(1.5))
+                        .cursor_pointer()
+                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.toggle_quick_port(port, proto, name, cx)))
+                        .child(div().size(px(6.0)).rounded_full().when(open, |d| d.bg(OK)).when(!open, |d| d.border_1().border_color(TEXT_FAINT)))
+                        .child(div().text_color(if open { TEXT_PRIMARY } else { TEXT_DIM }).child(qp.name))
+                        .child(div().text_color(TEXT_FAINT).child(format!(":{port}")))
+                }),
+            )
+        });
+
+    let column_header = div()
+        .h(px(28.0))
+        .flex_none()
+        .flex()
+        .items_center()
+        .gap(px(12.0))
+        .px(px(14.0))
+        .bg(BG_SUBHEAD)
+        .border_b_1()
+        .border_color(BORDER_PANEL)
+        .font_family(FONT_MONO)
+        .text_size(px(9.5))
+        .font_weight(FontWeight::SEMIBOLD)
+        .text_color(TEXT_DIMMER)
+        .child(div().w(px(28.0)).flex_none().child("#"))
+        .child(div().w(px(64.0)).flex_none().child("ACTION"))
+        .child(div().w(px(44.0)).flex_none().child("DIR"))
+        .child(div().w(px(120.0)).flex_none().child("PORT"))
+        .child(div().flex_grow(1.0).flex_basis(px(0.0)).min_w(px(130.0)).child("FROM"))
+        .child(div().flex_grow(1.0).flex_basis(px(0.0)).min_w(px(110.0)).child("TO"))
+        .child(div().flex_grow(1.5).flex_basis(px(0.0)).min_w(px(120.0)).child("COMMENT"))
+        .child(div().w(px(24.0)).flex_none());
+
+    let body: Vec<AnyElement> = if show_raw {
+        vec![div()
+            .p(px(14.0))
+            .flex()
+            .flex_col()
+            .children(summary.raw_output.lines().map(|line| div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_SECONDARY).child(if line.is_empty() { " ".to_string() } else { line.to_string() })))
+            .into_any_element()]
+    } else if filtered_rules.is_empty() {
+        let text = if total_rules == 0 { "No rules yet: everything follows the defaults above" } else { "No rules match: try ALL, or clear the search" };
+        vec![div().px(px(14.0)).py(px(18.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child(text).into_any_element()]
+    } else {
+        filtered_rules.iter().map(|rule| render_rule_row(rule, writable, app.clone()).into_any_element()).collect()
+    };
+
+    let modal_element = fw.show_new_rule_modal.then(|| new_rule_modal(&fw.new_rule, summary.backend, rule_inputs, app.clone()).into_any_element());
+    let toast = fw.pending.as_ref().map(|p| format!("Running: {p} …")).or_else(|| fw.toast.clone());
 
     div()
         .id("firewall-management-view")
@@ -128,754 +321,95 @@ fn render_active_firewall(
         .flex()
         .flex_col()
         .bg(BG_APP)
-        // 1. Header Toolbar
-        .child(
-            div()
-                .h(px(44.0))
-                .flex_none()
-                .flex()
-                .items_center()
-                .justify_between()
-                .px(px(16.0))
-                .bg(BG_PANEL)
-                .border_b_1()
-                .border_color(BORDER_PANEL)
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(10.0))
-                        .child(tabler_icon(TablerIcon::ShieldCheck).size(px(18.0)).text_color(OK))
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(12.5))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MAX)
-                                .child("FIREWALL & NETWORK SECURITY"),
-                        )
-                        .child(
-                            div()
-                                .bg(OK_BG)
-                                .border_1()
-                                .border_color(OK)
-                                .text_color(OK)
-                                .font_family(FONT_MONO)
-                                .text_size(px(9.0))
-                                .font_weight(FontWeight::BOLD)
-                                .px(px(6.0))
-                                .py(px(2.0))
-                                .rounded_sm()
-                                .child(format!("{} · ONLINE", summary.backend.short_name())),
-                        )
-                        .child(
-                            div()
-                                .bg(hex_rgba(0x8ab4ff, 0.12))
-                                .text_color(hex_rgb(0x8ab4ff))
-                                .font_family(FONT_MONO)
-                                .text_size(px(9.0))
-                                .font_weight(FontWeight::BOLD)
-                                .px(px(6.0))
-                                .py(px(2.0))
-                                .rounded_sm()
-                                .child(format!("{} ACTIVE RULES", total_rules)),
-                        )
-                        .when(file_state.is_some(), |d| d.child(if is_modified {
-                            div()
-                                .bg(hex_rgba(0xf59e0b, 0.15))
-                                .border_1()
-                                .border_color(hex_rgba(0xf59e0b, 0.5))
-                                .text_color(WARN)
-                                .font_family(FONT_MONO)
-                                .text_size(px(9.0))
-                                .font_weight(FontWeight::BOLD)
-                                .px(px(6.0))
-                                .py(px(2.0))
-                                .rounded_sm()
-                                .child(format!("DIFF: +{} −{}", add_count, del_count))
-                        } else {
-                            div()
-                                .bg(hex_rgba(0x3ecf6e, 0.1))
-                                .border_1()
-                                .border_color(hex_rgba(0x3ecf6e, 0.3))
-                                .text_color(OK)
-                                .font_family(FONT_MONO)
-                                .text_size(px(9.0))
-                                .font_weight(FontWeight::BOLD)
-                                .px(px(6.0))
-                                .py(px(2.0))
-                                .rounded_sm()
-                                .child(format!("v{} · AUDITED", active_rev))
-                        })),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(8.0))
-                        // STAGE AUDIT COMMIT (if modified)
-                        .children(if is_modified {
-                            Some(
-                                div()
-                                    .id("btn-stage-firewall-rules")
-                                    .px(px(10.0))
-                                    .py(px(4.5))
-                                    .bg(OK)
-                                    .rounded_sm()
-                                    .cursor_pointer()
-                                    .hover(|s| s.bg(hex_rgb(0x34d399)))
-                                    .font_family(FONT_MONO)
-                                    .text_size(px(10.0))
-                                    .font_weight(FontWeight::BOLD)
-                                    .text_color(rgb(0x0a0a0c))
-                                    .on_click(move |_ev, _window, cx| {
-                                        app_stage.update(cx, |this, cx| {
-                                            this.stage_firewall_rules("Staged firewall rule changes", cx);
-                                        });
-                                    })
-                                    .child(format!("STAGE AUDIT (+{} −{})", add_count, del_count)),
-                            )
-                        } else {
-                            None
-                        })
-                        // AUDIT RAIL TOGGLE
-                        .child(
-                            div()
-                                .id("btn-toggle-firewall-audit-rail")
-                                .px(px(10.0))
-                                .py(px(4.5))
-                                .bg(if fw.show_audit_rail { hex_rgba(0x8ab4ff, 0.15) } else { BG_CONTROL })
-                                .border_1()
-                                .border_color(if fw.show_audit_rail { hex_rgba(0x8ab4ff, 0.4) } else { BORDER_DEFAULT })
-                                .rounded_sm()
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(if fw.show_audit_rail { hex_rgb(0x8ab4ff) } else { TEXT_SECONDARY })
-                                .on_click(move |_ev, _window, cx| {
-                                    app_toggle_audit.update(cx, |this, cx| {
-                                        this.toggle_firewall_audit_rail(cx);
-                                    });
-                                })
-                                .child(if fw.show_audit_rail { "AUDIT RAIL [ON]" } else { "AUDIT RAIL [OFF]" }),
-                        )
-                        // The ruleset as the host printed it (read-only backends).
-                        .when(!writable, |d| d.child(
-                            div()
-                                .id("btn-firewall-raw")
-                                .px(px(10.0))
-                                .py(px(4.5))
-                                .bg(if show_raw { hex_rgba(0x8ab4ff, 0.15) } else { BG_CONTROL })
-                                .border_1()
-                                .border_color(if show_raw { hex_rgba(0x8ab4ff, 0.4) } else { BORDER_DEFAULT })
-                                .rounded_sm()
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(if show_raw { hex_rgb(0x8ab4ff) } else { TEXT_SECONDARY })
-                                .on_click(move |_ev, _window, cx| {
-                                    app_raw.update(cx, |this, cx| this.toggle_firewall_raw(cx));
-                                })
-                                .child(if show_raw { "RULE TABLE" } else { "RAW RULESET" }),
-                        ))
-                        // Reload Firewall Button
-                        .when(writable, |d| d.child(
-                            div()
-                                .id("btn-reload-firewall")
-                                .px(px(10.0))
-                                .py(px(4.5))
-                                .bg(BG_CONTROL)
-                                .border_1()
-                                .border_color(BORDER_DEFAULT)
-                                .rounded_sm()
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_SECONDARY)
-                                .on_click(move |_ev, _window, cx| {
-                                    app_reload.update(cx, |this, cx| {
-                                        this.reload_firewall(cx);
-                                    });
-                                })
-                                .child("RELOAD ENGINE"),
-                        ))
-                        // View user.rules in Config Editor
-                        .when(is_ufw, |d| d.child(
-                            div()
-                                .id("btn-firewall-open-config")
-                                .px(px(10.0))
-                                .py(px(4.5))
-                                .bg(BG_CONTROL)
-                                .border_1()
-                                .border_color(BORDER_DEFAULT)
-                                .rounded_sm()
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_SECONDARY)
-                                .on_click(move |_ev, _window, cx| {
-                                    app_inspect_cfg.update(cx, |this, cx| {
-                                        this.select_managed_file("user.rules", cx);
-                                        this.set_view("config", cx);
-                                    });
-                                })
-                                .child("INSPECT user.rules"),
-                        ))
-                        // Disable / Enable Toggle
-                        .when(is_ufw, |d| d.child(
-                            div()
-                                .id("btn-toggle-firewall-active")
-                                .px(px(10.0))
-                                .py(px(4.5))
-                                .bg(CRIT_BG)
-                                .border_1()
-                                .border_color(CRIT)
-                                .rounded_sm()
-                                .cursor_pointer()
-                                .hover(|s| s.bg(hex_rgba(0xf87171, 0.25)))
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(CRIT)
-                                .on_click(move |_ev, _window, cx| {
-                                    app_toggle_active.update(cx, |this, cx| {
-                                        this.toggle_firewall_active(cx);
-                                    });
-                                })
-                                .child("DISABLE FIREWALL"),
-                        ))
-                        // + ADD RULE Button
-                        .when(writable, |d| d.child(
-                            div()
-                                .id("btn-open-new-rule-modal")
-                                .px(px(12.0))
-                                .py(px(4.5))
-                                .bg(OK)
-                                .rounded_sm()
-                                .cursor_pointer()
-                                .hover(|s| s.bg(hex_rgb(0x34d399)))
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(rgb(0x0a0a0c))
-                                .on_click(move |_ev, _window, cx| {
-                                    app_new_rule.update(cx, |this, cx| {
-                                        this.open_new_firewall_rule_modal(cx);
-                                    });
-                                })
-                                .child("+ ADD RULE"),
-                        )),
-                ),
-        )
+        .child(header)
         // Read-only backends, and anything the reader flagged (ERR-76).
         .children((!writable).then(|| notice_strip(match summary.backend {
             FirewallBackend::Nftables | FirewallBackend::Iptables => format!(
-                "READ-ONLY · Crow reads the {} ruleset (the input chain and what it jumps to) but never writes raw rulesets.",
+                "Read-only: Crow reads the {} ruleset (the input chain and what it jumps to) but never writes raw rulesets.",
                 summary.backend.label()
             ),
-            b => format!("READ-ONLY · Crow reads {} (the running config) but doesn't change it yet; use its own tools to edit.", b.label()),
+            b => format!("Read-only: Crow reads {} (the running config) but doesn't change it yet; use its own tools to edit.", b.label()),
         }, TEXT_SECONDARY)))
         .children(summary.notice.clone().map(|n| notice_strip(n, WARN)))
         .children((summary.backend == FirewallBackend::Firewalld).then(|| notice_strip(
             "Changes go to firewalld's running config and its saved (permanent) config together, so they apply now and survive a reload.".to_string(),
-            TEXT_SECONDARY,
+            TEXT_DIM,
         )))
         // A change the lock-out guard held back (ERR-77).
         .children(fw.lockout.as_ref().map(|c| lockout_strip(c, app.clone())))
-        // 2. Global Policy Strip & Quick Port Toggles
-        .child(
+        .child(defaults_line)
+        .when(!show_raw, |d| d.child(column_header))
+        .child(div().id("firewall-rules-table").flex_1().min_h(px(0.0)).overflow_y_scrollbar().flex().flex_col().children(body))
+        .children(toast.map(|msg| {
             div()
-                .p(px(12.0))
-                .px(px(16.0))
-                .bg(hex_rgba(0x000000, 0.25))
-                .border_b_1()
-                .border_color(BORDER_ROW)
-                .flex()
-                .flex_col()
-                .gap(px(10.0))
-                // Row 1: Global Policies summary & Filter Pills
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .child(
-                            // Global Policies Badges
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(px(8.0))
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
-                                        .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_MUTED)
-                                        .child("DEFAULT POLICIES:"),
-                                )
-                                .child(
-                                    div()
-                                        .px(px(7.0))
-                                        .py(px(2.5))
-                                        .bg(CRIT_BG)
-                                        .border_1()
-                                        .border_color(CRIT)
-                                        .rounded_sm()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(9.5))
-                                        .font_weight(FontWeight::BOLD)
-                                        .text_color(CRIT)
-                                        .child(format!("INCOMING: {}", summary.default_incoming.label())),
-                                )
-                                .child(
-                                    div()
-                                        .px(px(7.0))
-                                        .py(px(2.5))
-                                        .bg(OK_BG)
-                                        .border_1()
-                                        .border_color(OK)
-                                        .rounded_sm()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(9.5))
-                                        .font_weight(FontWeight::BOLD)
-                                        .text_color(OK)
-                                        .child(format!("OUTGOING: {}", summary.default_outgoing.label())),
-                                )
-                                .child(
-                                    div()
-                                        .px(px(7.0))
-                                        .py(px(2.5))
-                                        .bg(BG_CONTROL)
-                                        .border_1()
-                                        .border_color(BORDER_DEFAULT)
-                                        .rounded_sm()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(9.5))
-                                        .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_SECONDARY)
-                                        .child(format!("ROUTED: {}", summary.default_forward.label())),
-                                ),
-                        )
-                        // Filter Pills
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(px(4.0))
-                                .children([
-                                    (None, "All Rules", total_rules),
-                                    (Some(RuleAction::Allow), "Allow", allow_count),
-                                    (Some(RuleAction::Deny), "Deny", deny_count),
-                                    (Some(RuleAction::Limit), "Limit", limit_count),
-                                ].iter().map(|(act, label, count)| {
-                                    let is_sel = action_filter == *act;
-                                    let a = *act;
-                                    let app_flt = app.clone();
-                                    div()
-                                        .id(ElementId::NamedInteger(format!("flt-act-{:?}", a).into(), 0))
-                                        .px(px(8.0))
-                                        .py(px(3.0))
-                                        .rounded_sm()
-                                        .border_1()
-                                        .border_color(if is_sel { hex_rgba(0x8ab4ff, 0.4) } else { hex_rgba(0, 0.0) })
-                                        .bg(if is_sel { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
-                                        .cursor_pointer()
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
-                                        .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                        .text_color(if is_sel { TEXT_MAX } else { TEXT_MUTED })
-                                        .on_click(move |_ev, _window, cx| {
-                                            app_flt.update(cx, |this, cx| {
-                                                this.set_firewall_action_filter(a, cx);
-                                            });
-                                        })
-                                        .child(format!("{} ({})", label, count))
-                                })),
-                        ),
-                )
-                // Row 2: Service Quick Port Toggles
-                .when(writable, |d| d.child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(8.0))
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MUTED)
-                                .child("ONE-CLICK PORT TOGGLES:"),
-                        )
-                        .child(
-                            div()
-                                .flex()
-                                .flex_wrap()
-                                .gap(px(6.0))
-                                .children(common_quick_ports().iter().map(|qp| {
-                                    let is_allowed = summary.rules.iter().any(|r| {
-                                        r.action == RuleAction::Allow && r.port == qp.port.to_string()
-                                    });
-                                    let port_num = qp.port;
-                                    let proto = qp.protocol;
-                                    let label = qp.name;
-                                    let app_qp = app.clone();
-
-                                    div()
-                                        .id(ElementId::NamedInteger(format!("qp-toggle-{}", port_num).into(), 0))
-                                        .px(px(8.0))
-                                        .py(px(3.5))
-                                        .bg(if is_allowed { OK_BG } else { BG_CONTROL })
-                                        .border_1()
-                                        .border_color(if is_allowed { OK } else { BORDER_DEFAULT })
-                                        .rounded_sm()
-                                        .cursor_pointer()
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
-                                        .on_click(move |_ev, _window, cx| {
-                                            app_qp.update(cx, |this, cx| {
-                                                this.toggle_quick_port(port_num, proto, label, cx);
-                                            });
-                                        })
-                                        .flex()
-                                        .items_center()
-                                        .gap(px(5.0))
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(10.0))
-                                                .font_weight(FontWeight::BOLD)
-                                                .text_color(if is_allowed { OK } else { TEXT_SECONDARY })
-                                                .child(if is_allowed { format!("✓ {}", qp.name) } else { format!("+ {}", qp.name) }),
-                                        )
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(9.0))
-                                                .text_color(if is_allowed { OK } else { TEXT_FAINT })
-                                                .child(format!(":{}", qp.port)),
-                                        )
-                                })),
-                        ),
-                )),
-        )
-        // 3. Rules Table Header & Search Filter
-        .child(
-            div()
-                .h(px(36.0))
-                .flex_none()
+                .absolute()
+                .bottom(px(16.0))
+                .right(px(16.0))
+                .px(px(14.0))
+                .py(px(8.0))
+                .bg(BG_PANEL)
+                .border_1()
+                .border_color(BORDER_STRONG)
+                .shadow_lg()
                 .flex()
                 .items_center()
-                .justify_between()
-                .px(px(16.0))
-                .bg(BG_PANEL)
-                .border_b_1()
-                .border_color(BORDER_ROW)
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(10.0))
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.5))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MUTED)
-                                .child("ACTIVE FILTERING DIRECTIVES"),
-                        )
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(9.5))
-                                .text_color(TEXT_FAINT)
-                                .child(format!("Showing {} of {} rules", filtered_rules.len(), total_rules)),
-                        ),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(6.0))
-                        .px(px(8.0))
-                        .py(px(3.0))
-                        .bg(BG_APP)
-                        .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .rounded_sm()
-                        .child(tabler_icon(TablerIcon::Search).size(px(11.0)).text_color(TEXT_MUTED))
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(9.5))
-                                .text_color(if fw.search_query.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY })
-                                .child(if fw.search_query.is_empty() {
-                                    "Filter rules by port, IP, comment...".to_string()
-                                } else {
-                                    fw.search_query.clone()
-                                }),
-                        )
-                        .children(if !fw.search_query.is_empty() {
-                            let app_clr = app.clone();
-                            Some(
-                                div()
-                                    .id("btn-clear-fw-search")
-                                    .p(px(2.0))
-                                    .cursor_pointer()
-                                    .on_click(move |_ev, _window, cx| {
-                                        app_clr.update(cx, |this, cx| {
-                                            this.set_firewall_search("", cx);
-                                        });
-                                    })
-                                    .child(tabler_icon(TablerIcon::X).size(px(10.0)).text_color(TEXT_MUTED))
-                            )
-                        } else {
-                            None
-                        }),
-                ),
-        )
-        // 4. Scrollable Rule Matrix
-        .child(
-            div()
-                .id("firewall-rules-table")
-                .flex_1()
-                .overflow_y_scrollbar()
-                .p(px(16.0))
-                .flex()
-                .flex_col()
-                .gap(px(6.0))
-                .when(show_raw, |d| d.children(summary.raw_output.lines().map(|line| {
-                    div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_SECONDARY).child(if line.is_empty() { " ".to_string() } else { line.to_string() })
-                })))
-                .when(!show_raw, |d| d
-                // Column Headers
-                .child(
-                    div()
-                        .h(px(26.0))
-                        .flex_none()
-                        .flex()
-                        .items_center()
-                        .px(px(12.0))
-                        .bg(hex_rgba(0x000000, 0.3))
-                        .border_b_1()
-                        .border_color(BORDER_ROW)
-                        .child(div().w(px(36.0)).font_family(FONT_MONO).text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MUTED).child("#"))
-                        .child(div().w(px(80.0)).font_family(FONT_MONO).text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MUTED).child("ACTION"))
-                        .child(div().w(px(60.0)).font_family(FONT_MONO).text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MUTED).child("DIR"))
-                        .child(div().w(px(110.0)).font_family(FONT_MONO).text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MUTED).child("PORT / PROTO"))
-                        .child(div().w(px(160.0)).font_family(FONT_MONO).text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MUTED).child("SOURCE"))
-                        .child(div().w(px(120.0)).font_family(FONT_MONO).text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MUTED).child("DESTINATION"))
-                        .child(div().flex_1().font_family(FONT_MONO).text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MUTED).child("COMMENT"))
-                        .child(div().w(px(60.0)).font_family(FONT_MONO).text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MUTED).child("MANAGE")),
-                )
-                // Rule Rows
-                .children(if filtered_rules.is_empty() {
-                    vec![
-                        div()
-                            .p(px(24.0))
-                            .flex()
-                            .flex_col()
-                            .items_center()
-                            .justify_center()
-                            .gap(px(6.0))
-                            .child(
-                                div()
-                                    .font_family(FONT_MONO)
-                                    .text_size(px(11.0))
-                                    .text_color(TEXT_FAINT)
-                                    .child("No firewall rules match your filter"),
-                            )
-                            .into_any_element(),
-                    ]
-                } else {
-                    filtered_rules.iter().map(|rule| {
-                        render_rule_row(rule, writable, app.clone()).into_any_element()
-                    }).collect()
-                })),
-        )
-        // Toast Notification Overlay
-        .children(if let Some(msg) = fw.pending.as_ref().map(|p| format!("Running: {p} …")).as_ref().or(fw.toast.as_ref()) {
-            Some(
-                div()
-                    .absolute()
-                    .bottom(px(16.0))
-                    .right(px(16.0))
-                    .px(px(14.0))
-                    .py(px(8.0))
-                    .bg(BG_PANEL)
-                    .border_1()
-                    .border_color(BORDER_STRONG)
-                    .rounded_md()
-                    .shadow_lg()
-                    .flex()
-                    .items_center()
-                    .gap(px(8.0))
-                    .child(tabler_icon(TablerIcon::Check).size(px(14.0)).text_color(OK))
-                    .child(
-                        div()
-                            .font_family(FONT_MONO)
-                            .text_size(px(11.0))
-                            .text_color(TEXT_PRIMARY)
-                            .child(msg.clone()),
-                    ),
-            )
-        } else {
-            None
-        })
-        // New Rule Modal
+                .gap(px(8.0))
+                .child(tabler_icon(TablerIcon::Check).size(px(14.0)).text_color(OK))
+                .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_PRIMARY).child(msg))
+        }))
         .children(modal_element)
 }
 
 fn render_rule_row(rule: &FirewallRule, writable: bool, app: Entity<CrowApp>) -> impl IntoElement {
     let r_id = rule.id.clone();
-    let app_del = app.clone();
-
-    let (act_col, act_bg) = match rule.action {
-        RuleAction::Allow => (OK, OK_BG),
-        RuleAction::Deny => (CRIT, CRIT_BG),
-        RuleAction::Reject => (hex_rgb(0xf43f5e), hex_rgba(0xf43f5e, 0.15)),
-        RuleAction::Limit => (WARN, WARN_BG),
-    };
-
+    let anywhere = |s: &str| s.contains("Anywhere") || s.is_empty();
     div()
         .id(ElementId::NamedInteger(format!("rule-row-{}", rule.id).into(), rule.number as u64))
-        .h(px(34.0))
-        .flex_none()
+        .group("fw-rule")
         .flex()
         .items_center()
-        .px(px(12.0))
-        .bg(BG_PANEL)
-        .border_1()
+        .gap(px(12.0))
+        .px(px(14.0))
+        .py(px(7.0))
+        .border_b_1()
         .border_color(BORDER_ROW)
-        .rounded_sm()
-        .hover(|s| s.bg(BG_ROW_HOVER).border_color(BORDER_DEFAULT))
-        // 1. Number
-        .child(
-            div()
-                .w(px(36.0))
-                .font_family(FONT_MONO)
-                .text_size(px(10.0))
-                .text_color(TEXT_FAINT)
-                .child(format!("[{:2}]", rule.number)),
-        )
-        // 2. Action Pill
-        .child(
-            div()
-                .w(px(80.0))
-                .child(
-                    div()
-                        .w(px(60.0))
-                        .py(px(1.5))
-                        .bg(act_bg)
-                        .border_1()
-                        .border_color(act_col)
-                        .rounded_sm()
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .font_family(FONT_MONO)
-                        .text_size(px(9.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(act_col)
-                        .child(rule.action.label()),
-                ),
-        )
-        // 3. Direction
-        .child(
-            div()
-                .w(px(60.0))
-                .font_family(FONT_MONO)
-                .text_size(px(10.0))
-                .text_color(TEXT_SECONDARY)
-                .child(rule.direction.label()),
-        )
-        // 4. Port / Proto
-        .child(
-            div()
-                .w(px(110.0))
-                .flex()
-                .items_center()
-                .gap(px(4.0))
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.5))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(hex_rgb(0x38bdf8))
-                        .child(rule.display_port_proto()),
-                )
-                .children(if rule.is_ipv6 {
-                    Some(
-                        div()
-                            .px(px(3.0))
-                            .py(px(1.0))
-                            .bg(BG_CONTROL)
-                            .rounded_xs()
-                            .font_family(FONT_MONO)
-                            .text_size(px(8.0))
-                            .text_color(TEXT_FAINT)
-                            .child("v6")
-                    )
-                } else {
-                    None
-                }),
-        )
-        // 5. Source
-        .child(
-            div()
-                .w(px(160.0))
-                .font_family(FONT_MONO)
-                .text_size(px(10.0))
-                .text_color(if rule.source.contains("Anywhere") { TEXT_SECONDARY } else { hex_rgb(0xfacc15) })
-                .child(rule.source.clone()),
-        )
-        // 6. Destination
+        .hover(|s| s.bg(BG_ROW_HOVER))
+        .font_family(FONT_MONO)
+        .text_size(px(11.0))
+        .child(div().w(px(28.0)).flex_none().text_color(TEXT_FAINT).child(rule.number.to_string()))
+        .child(div().w(px(64.0)).flex_none().font_weight(FontWeight::SEMIBOLD).text_color(action_color(rule.action)).child(rule.action.label().to_string()))
+        .child(div().w(px(44.0)).flex_none().text_color(TEXT_DIM).child(rule.direction.label().to_lowercase()))
         .child(
             div()
                 .w(px(120.0))
-                .font_family(FONT_MONO)
-                .text_size(px(10.0))
-                .text_color(TEXT_MUTED)
-                .child(rule.destination.clone()),
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap(px(6.0))
+                .child(div().text_color(TEXT_PRIMARY).child(rule.display_port_proto()))
+                .when(rule.is_ipv6, |d| d.child(div().text_size(px(9.0)).text_color(TEXT_FAINT).child("v6"))),
         )
-        // 7. Comment
-        .child(
-            div()
-                .flex_1()
-                .font_family(FONT_MONO)
-                .text_size(px(10.0))
-                .text_color(if rule.comment.is_some() { TEXT_PRIMARY } else { TEXT_FAINTER })
-                .child(rule.comment.as_deref().unwrap_or("—").to_string()),
-        )
-        // 8. Actions (Delete rule)
-        .when(writable, |d| d.child(
-            div()
-                .w(px(60.0))
-                .child(
-                    div()
-                        .id(ElementId::NamedInteger(format!("del-rule-{}", rule.id).into(), rule.number as u64))
-                        .p(px(3.0))
-                        .rounded_sm()
-                        .cursor_pointer()
-                        .hover(|s| s.bg(CRIT_BG).text_color(CRIT))
-                        .text_color(TEXT_MUTED)
-                        .on_click(move |_ev, _window, cx| {
-                            let target = r_id.clone();
-                            app_del.update(cx, |this, cx| {
-                                this.delete_firewall_rule(&target, cx);
-                            });
-                        })
-                        .child(inherited_icon(TablerIcon::Trash, px(12.0))),
-                ),
-        ))
+        .child(div().flex_grow(1.0).flex_basis(px(0.0)).min_w(px(130.0)).overflow_hidden().text_color(if anywhere(&rule.source) { TEXT_DIM } else { TEXT_PRIMARY }).child(rule.source.clone()))
+        .child(div().flex_grow(1.0).flex_basis(px(0.0)).min_w(px(110.0)).overflow_hidden().text_color(if anywhere(&rule.destination) { TEXT_DIM } else { TEXT_PRIMARY }).child(rule.destination.clone()))
+        .child(div().flex_grow(1.5).flex_basis(px(0.0)).min_w(px(120.0)).overflow_hidden().text_color(if rule.comment.is_some() { TEXT_SECONDARY } else { TEXT_FAINTER }).child(rule.comment.clone().unwrap_or_else(|| "—".into())))
+        .child(div().w(px(24.0)).flex_none().when(writable, |d| {
+            // Shown on hover, so a table of rules isn't a column of trash cans.
+            d.child(
+                div()
+                    .id(ElementId::NamedInteger(format!("del-rule-{}", rule.id).into(), rule.number as u64))
+                    .p(px(3.0))
+                    .cursor_pointer()
+                    .invisible()
+                    .group_hover("fw-rule", |s| s.visible())
+                    .text_color(TEXT_DIM)
+                    .hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT))
+                    .on_click(move |_ev, _window, cx| {
+                        let target = r_id.clone();
+                        app.update(cx, |this, cx| this.delete_firewall_rule(&target, cx));
+                    })
+                    .child(inherited_icon(TablerIcon::Trash, px(12.0))),
+            )
+        }))
 }
 
 /// One line across the firewall screen.
@@ -889,7 +423,6 @@ fn lockout_strip(confirm: &LockoutConfirm, app: Entity<CrowApp>) -> impl IntoEle
             .py(px(4.0))
             .border_1()
             .border_color(color)
-            .rounded_sm()
             .cursor_pointer()
             .font_family(FONT_MONO)
             .text_size(px(10.0))

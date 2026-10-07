@@ -35,8 +35,7 @@ pub fn non_operational_view(
                 .bg(BG_PANEL)
                 .border_1()
                 .border_color(BORDER_PANEL)
-                .rounded_lg()
-                .p(px(24.0))
+                .p(px(22.0))
                 .flex()
                 .flex_col()
                 .gap(px(18.0))
@@ -46,18 +45,7 @@ pub fn non_operational_view(
                         .flex()
                         .items_start()
                         .gap(px(14.0))
-                        .child(
-                            div()
-                                .size(px(42.0))
-                                .rounded_md()
-                                .bg(WARN_BG)
-                                .border_1()
-                                .border_color(WARN)
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .child(tabler_icon(TablerIcon::AlertTriangle).size(px(22.0)).text_color(WARN)),
-                        )
+                        .child(div().pt(px(2.0)).child(tabler_icon(TablerIcon::AlertTriangle).size(px(16.0)).text_color(WARN)))
                         .child(
                             div()
                                 .flex_1()
@@ -67,17 +55,17 @@ pub fn non_operational_view(
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(14.0))
-                                        .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_MAX)
-                                        .child("FIREWALL ENGINE NOT OPERATIONAL"),
+                                        .text_size(px(12.0))
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .text_color(TEXT_PRIMARY)
+                                        .child("NO FIREWALL RUNNING"),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(px(11.0))
-                                        .text_color(TEXT_MUTED)
-                                        .child(format!("Target system: {}", backend.label())),
+                                        .text_color(TEXT_DIM)
+                                        .child(backend.label().to_string()),
                                 ),
                         ),
                 )
@@ -85,10 +73,9 @@ pub fn non_operational_view(
                 .child(
                     div()
                         .p(px(14.0))
-                        .bg(hex_rgba(0x000000, 0.45))
+                        .bg(BG_APP)
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .rounded_sm()
+                        .border_color(BORDER_PANEL)
                         .flex()
                         .flex_col()
                         .gap(px(6.0))
@@ -96,9 +83,9 @@ pub fn non_operational_view(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.5))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_SECONDARY)
-                                .child("DIAGNOSTIC STATUS:"),
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(TEXT_DIMMER)
+                                .child("WHY"),
                         )
                         .child(
                             div()
@@ -118,9 +105,9 @@ pub fn non_operational_view(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MUTED)
-                                .child("DETECTED NETFILTER TOOLS ON HOST:"),
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(TEXT_DIMMER)
+                                .child("FIREWALL TOOLS ON THE HOST"),
                         )
                         .child(
                             div()
@@ -141,14 +128,12 @@ pub fn non_operational_view(
                                         div()
                                             .px(px(8.0))
                                             .py(px(3.0))
-                                            .bg(BG_CONTROL)
                                             .border_1()
                                             .border_color(BORDER_DEFAULT)
-                                            .rounded_sm()
                                             .font_family(FONT_MONO)
                                             .text_size(px(10.0))
                                             .text_color(TEXT_SECONDARY)
-                                            .child(format!("✓ {}", b))
+                                            .child(b.clone())
                                             .into_any_element()
                                     }).collect()
                                 }),
@@ -158,10 +143,9 @@ pub fn non_operational_view(
                 .child(
                     div()
                         .p(px(12.0))
-                        .bg(BG_CONTROL)
+                        .bg(BG_APP)
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .rounded_sm()
+                        .border_color(BORDER_PANEL)
                         .flex()
                         .flex_col()
                         .gap(px(6.0))
@@ -169,15 +153,15 @@ pub fn non_operational_view(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(hex_rgb(0x38bdf8))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(TEXT_DIMMER)
                                 .child(if ufw || backend == FirewallBackend::Firewalld { "TO TURN IT ON:" } else { "TO SET ONE UP (ufw):" }),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(11.0))
-                                .text_color(TEXT_MAX)
+                                .text_color(TEXT_SECONDARY)
                                 .child(recommended),
                         ),
                 )
@@ -194,17 +178,14 @@ pub fn non_operational_view(
                                 .flex()
                                 .items_center()
                                 .gap(px(6.0))
-                                .px(px(12.0))
-                                .py(px(6.0))
-                                .bg(BG_CONTROL)
+                                .px(px(10.0))
+                                .py(px(4.0))
                                 .border_1()
                                 .border_color(BORDER_DEFAULT)
-                                .rounded_sm()
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                                 .font_family(FONT_MONO)
-                                .text_size(px(11.0))
-                                .font_weight(FontWeight::BOLD)
+                                .text_size(px(10.5))
                                 .text_color(TEXT_SECONDARY)
                                 .on_click(move |_ev, _window, cx| {
                                     app_config.update(cx, |this, cx| {
@@ -214,8 +195,7 @@ pub fn non_operational_view(
                                         this.select_managed_file("user.rules", cx);
                                     });
                                 })
-                                .child(tabler_icon(TablerIcon::FileText).size(px(13.0)).text_color(TEXT_SECONDARY))
-                                .child("INSPECT /etc/ufw/user.rules"),
+                                .child("user.rules"),
                         )
                         .child(
                             div()
@@ -223,23 +203,22 @@ pub fn non_operational_view(
                                 .flex()
                                 .items_center()
                                 .gap(px(6.0))
-                                .px(px(14.0))
-                                .py(px(6.0))
-                                .bg(OK)
-                                .rounded_sm()
+                                .px(px(10.0))
+                                .py(px(4.0))
+                                .border_1()
+                                .border_color(OK)
                                 .cursor_pointer()
-                                .hover(|s| s.bg(hex_rgb(0x34d399)))
+                                .hover(|s| s.bg(OK_BG))
                                 .font_family(FONT_MONO)
-                                .text_size(px(11.0))
+                                .text_size(px(10.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(rgb(0x0a0a0c))
+                                .text_color(OK)
                                 .on_click(move |_ev, _window, cx| {
                                     app_enable.update(cx, |this, cx| {
                                         this.toggle_firewall_active(cx);
                                     });
                                 })
-                                .child(tabler_icon(TablerIcon::ShieldCheck).size(px(14.0)).text_color(rgb(0x0a0a0c)))
-                                .child("ACTIVATE FIREWALL IN CROW"),
+                                .child("TURN THE FIREWALL ON"),
                         ),
                 )),
         )
