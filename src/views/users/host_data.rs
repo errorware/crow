@@ -50,8 +50,10 @@ pub fn read_users(host: &dyn Host) -> Result<Vec<SystemUserRecord>, String> {
     let homes: Vec<String> = users.iter().filter(|u| has_login_shell(u)).map(|u| u.home_dir.clone()).collect();
     if !homes.is_empty() {
         // Read as root, so a symlinked ~/.ssh or authorized_keys (which could
-        // point at any file) is skipped rather than followed.
-        let script = format!(r#"for h in "$@"; do echo "{HOME_MARKER}$h"; [ -L "$h/.ssh" ] || [ -L "$h/.ssh/authorized_keys" ] || cat "$h/.ssh/authorized_keys" 2>/dev/null; done; true"#);
+        // point at any file) is skipped rather than followed. Only a regular
+        // file is read, each capped at 5s: a FIFO there would otherwise hang
+        // the read and hide every user's keys (ERR-118).
+        let script = format!(r#"t=; command -v timeout >/dev/null 2>&1 && t="timeout 5"; for h in "$@"; do echo "{HOME_MARKER}$h"; f="$h/.ssh/authorized_keys"; [ -L "$h/.ssh" ] || [ -L "$f" ] || {{ [ -f "$f" ] && $t cat "$f" 2>/dev/null; }}; done; true"#);
         let mut argv = vec!["sh".to_string(), "-c".to_string(), script, "crow-keys".to_string()];
         argv.extend(homes);
         let argv: Vec<&str> = argv.iter().map(String::as_str).collect();

@@ -20,7 +20,7 @@ if command -v dpkg-query >/dev/null 2>&1 && command -v apt >/dev/null 2>&1; then
   echo "$m upgradable"; apt list --upgradable 2>/dev/null | grep -v '^Listing'
   echo "$m reboot"; [ -f /var/run/reboot-required ] && echo yes
   echo "$m packages"; dpkg-query -W -f='${Package}\t${source:Package}\t${Version}\t${source:Version}\n' 2>/dev/null
-  echo "$m running"; for e in /proc/[0-9]*/exe; do readlink "$e" 2>/dev/null; done | sed 's/ (deleted)$//' | sort -u | xargs -r dpkg -S 2>/dev/null
+  echo "$m running"; for e in /proc/[0-9]*/exe; do readlink "$e" 2>/dev/null; done | sed 's/ (deleted)$//' | grep '^/' | sort -u | xargs -r -d '\n' dpkg -S 2>/dev/null
   echo "$m kernel-running"; dpkg-query -W -f='${source:Package}\t${source:Version}\n' "linux-image-$(uname -r)" 2>/dev/null
   k=$(ls /boot/vmlinuz-* 2>/dev/null | sort -V | tail -1); k=${k#/boot/vmlinuz-}
   echo "$m kernel-newest"; [ -n "$k" ] && dpkg-query -W -f='${source:Package}\t${source:Version}\n' "linux-image-$k" 2>/dev/null
