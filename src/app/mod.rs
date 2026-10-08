@@ -59,6 +59,7 @@ pub mod notify;
 pub mod containers;
 pub mod bastions;
 pub mod patching;
+pub mod rollouts;
 mod secrets;
 pub mod password_login;
 pub mod vault_manage;
@@ -198,6 +199,9 @@ pub struct CrowApp {
     pub containers: containers::ContainersState,
     /// Fleet Setup → PATCHING (ERR-141).
     pub patching: patching::PatchingState,
+    /// Fleet Setup → ROLLOUTS (ERR-142).
+    pub rollouts: rollouts::RolloutState,
+    pub rollout_inputs: Option<rollouts::RolloutInputs>,
     pub sidebar_collapsed: bool,
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
@@ -449,6 +453,8 @@ impl CrowApp {
             email_inputs: None,
             containers: Default::default(),
             patching: Default::default(),
+            rollouts: Default::default(),
+            rollout_inputs: None,
             sidebar_collapsed: false,
             keys,
             files: FilesState::default(),

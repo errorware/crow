@@ -18,6 +18,9 @@ pub struct PushTarget<'a> {
     pub author: &'a str,
     /// Who Crow logs in as there: a sudoers push must leave them sudo.
     pub login_user: &'a str,
+    /// The revision's message, and what the change record says it was part of.
+    pub message: &'a str,
+    pub context: &'a str,
 }
 
 /// Re-reads `path` on the host (it may have changed since Crow last looked),
@@ -25,10 +28,48 @@ pub struct PushTarget<'a> {
 /// baseline with the format's host validator, writes it atomically, and
 /// records the revision and a change record.
 pub fn push_baseline(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKey>, t: &PushTarget) -> StepResult {
-    let current = host
-        .read_file(t.path)
-        .or_else(|_| host.exec_privileged(&["cat", "--", t.path], &[], DEFAULT_TIMEOUT).map(|o| o.stdout))
-        .map_err(|e| format!("couldn't read {}: {e}", t.path))?;
+    push_inner(host, db, key, t, false, &mut None)
+}
+
+/// What a file was before a push replaced it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum Before {
+    /// It didn't exist: the push created it.
+    Missing,
+    Content(String),
+}
+
+/// [`push_baseline`] that may also create the file, returning what was
+/// there before when it wrote (for a rollback).
+pub fn push_file(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKey>, t: &PushTarget) -> (StepResult, Option<Before>) {
+    let mut previous = None;
+    let result = push_inner(host, db, key, t, true, &mut previous);
+    (result, previous)
+}
+
+/// Puts a file back as it was: its old content, or gone if it was created.
+pub fn restore(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKey>, t: &PushTarget, before: &Before) -> StepResult {
+    match before {
+        Before::Content(_) => push_baseline(host, db, key, t),
+        Before::Missing => {
+            let argv = ["rm", "-f", "--", t.path];
+            host.exec(&argv, DEFAULT_TIMEOUT).or_else(|_| host.exec_privileged(&argv, &[], DEFAULT_TIMEOUT)).map_err(|e| format!("couldn't remove {}: {e}", t.path))?;
+            Ok(StepOutcome::Done("removed (it didn't exist before)".into()))
+        }
+    }
+}
+
+fn exists(host: &dyn Host, path: &str) -> bool {
+    host.exec(&["test", "-e", path], DEFAULT_TIMEOUT).is_ok() || host.exec_privileged(&["test", "-e", path], &[], DEFAULT_TIMEOUT).is_ok()
+}
+
+fn push_inner(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKey>, t: &PushTarget, may_create: bool, previous: &mut Option<Before>) -> StepResult {
+    let read = host.read_file(t.path).or_else(|_| host.exec_privileged(&["cat", "--", t.path], &[], DEFAULT_TIMEOUT).map(|o| o.stdout));
+    let (current, before) = match read {
+        Ok(c) => (c.clone(), Before::Content(c)),
+        Err(_) if may_create && !exists(host, t.path) => (String::new(), Before::Missing),
+        Err(e) => return Err(format!("couldn't read {}: {e}", t.path)),
+    };
     let format = format_for_path(t.path);
     let differences = match compare(format, t.baseline, &current) {
         Drift::Identical | Drift::Cosmetic => return Ok(StepOutcome::Skipped("already matches the baseline".into())),
@@ -52,9 +93,10 @@ pub fn push_baseline(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKe
         }
     }
 
+    *previous = Some(before);
     // Written. Recording can still fail; say so without calling the push a failure.
     let recorded = db.lock().map_err(|_| "the vault is busy".to_string()).and_then(|db| {
-        let rev = history::record(&db, key, t.server_id, t.path, t.baseline, t.author, "Pushed the baseline", SOURCE_CROW).map_err(|e| e.to_string())?;
+        let rev = history::record(&db, key, t.server_id, t.path, t.baseline, t.author, t.message, SOURCE_CROW).map_err(|e| e.to_string())?;
         let now = chrono::Utc::now().to_rfc3339();
         db.insert_change_record(&ChangeRecord {
             id: format!("chg-{}", rev.id.trim_start_matches("cfgrev-")),
@@ -64,7 +106,7 @@ pub fn push_baseline(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKe
             target: t.path.into(),
             before_state: format!("sha256:{}", history::sha256_hex(&current)),
             after_state: Some(format!("sha256:{}", rev.sha256)),
-            blast_radius: Some("fleet run: push baseline".into()),
+            blast_radius: Some(t.context.into()),
             outcome: "applied".into(),
             started_at: now.clone(),
             completed_at: Some(now),
@@ -84,7 +126,7 @@ mod tests {
     use crate::host::LocalHost;
 
     fn target<'a>(path: &'a str, baseline: &'a str) -> PushTarget<'a> {
-        PushTarget { server_id: "s1", server_name: "web-1", path, baseline, author: "me@box", login_user: "deploy" }
+        PushTarget { server_id: "s1", server_name: "web-1", path, baseline, author: "me@box", login_user: "deploy", message: "Pushed the baseline", context: "fleet run: push baseline" }
     }
 
     #[test]
@@ -106,6 +148,19 @@ mod tests {
         assert_eq!(db_.list_change_records("s1", 5).unwrap()[0].action_kind, "config.write");
         drop(db_);
 
+        // The previous content comes back for a rollback.
+        std::fs::write(&file, "workers = 3\n").unwrap();
+        let (r, previous) = push_file(&LocalHost, &db, Some(&key), &target(path, "workers = 8\n"));
+        assert!(r.is_ok());
+        assert_eq!(previous, Some(Before::Content("workers = 3\n".into())));
+        // A file that isn't there is created, and restoring removes it again.
+        let fresh = dir.join("new.conf");
+        let fresh_path = fresh.to_str().unwrap();
+        let (r, previous) = push_file(&LocalHost, &db, Some(&key), &target(fresh_path, "x = 1\n"));
+        assert!(r.is_ok() && previous == Some(Before::Missing), "{r:?}");
+        assert_eq!(std::fs::read_to_string(&fresh).unwrap(), "x = 1\n");
+        assert!(restore(&LocalHost, &db, Some(&key), &target(fresh_path, ""), &Before::Missing).is_ok());
+        assert!(!fresh.exists());
         // Trailing whitespace only: nothing to do, nothing written.
         std::fs::write(&file, "workers = 8   \n").unwrap();
         let r = push_baseline(&LocalHost, &db, Some(&key), &target(path, "workers = 8\n"));

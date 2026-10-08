@@ -39,6 +39,8 @@ pub enum RunPhase {
     /// The plan is shown; nothing has run.
     Confirming,
     Running,
+    /// Stopped after a stage (the canary) until CONTINUE (ERR-142).
+    Paused,
     Finished,
 }
 
@@ -55,11 +57,57 @@ pub struct FleetRun {
     pub stop: Arc<AtomicBool>,
     /// Shown under the plan, e.g. a wrong keyword.
     pub error: Option<String>,
+    /// Which stage each step runs in: steps of one stage run at the same
+    /// time, stages one after another. Empty: each step its own stage.
+    pub stages: Vec<usize>,
+    /// Wait for CONTINUE after this stage (the canary).
+    pub pause_after: Option<usize>,
 }
 
 impl FleetRun {
     pub fn new(title: impl Into<String>, keyword: &'static str, steps: Vec<RunStep>, excluded: Vec<(String, String)>) -> Self {
-        Self { title: title.into(), keyword, steps, excluded, phase: RunPhase::Confirming, stop: Arc::new(AtomicBool::new(false)), error: None }
+        Self { title: title.into(), keyword, steps, excluded, phase: RunPhase::Confirming, stop: Arc::new(AtomicBool::new(false)), error: None, stages: Vec::new(), pause_after: None }
+    }
+
+    /// Runs steps in stages: `stages[i]` is step i's stage, and the run
+    /// waits for CONTINUE after stage `pause_after`.
+    pub fn staged(mut self, stages: Vec<usize>, pause_after: Option<usize>) -> Self {
+        self.stages = stages;
+        self.pause_after = pause_after;
+        self
+    }
+
+    /// The steps, grouped by stage, in order (no stages given: one step each).
+    pub fn stage_groups(&self) -> Vec<Vec<usize>> {
+        let stage = |i: usize| if self.stages.is_empty() { i } else { self.stages.get(i).copied().unwrap_or(usize::MAX) };
+        let mut groups: Vec<Vec<usize>> = Vec::new();
+        for i in 0..self.steps.len() {
+            match groups.last_mut() {
+                Some(g) if stage(g[0]) == stage(i) => g.push(i),
+                _ => groups.push(vec![i]),
+            }
+        }
+        groups
+    }
+
+    /// Records a whole stage's results; any failure ends the run. Returns
+    /// whether the run may continue.
+    pub fn record_stage(&mut self, results: Vec<(usize, StepResult)>) -> bool {
+        let failed = results.iter().any(|(_, r)| r.is_err());
+        for (i, result) in results {
+            if let Some(s) = self.steps.get_mut(i) {
+                s.status = match result {
+                    Ok(StepOutcome::Done(m)) => StepStatus::Done(m),
+                    Ok(StepOutcome::Skipped(m)) => StepStatus::Skipped(m),
+                    Err(e) => StepStatus::Failed(e),
+                };
+            }
+        }
+        if failed || self.stop_requested() || !self.steps.iter().any(|s| s.status == StepStatus::Waiting) {
+            self.finish();
+            return false;
+        }
+        true
     }
 
     pub fn step(server_id: &str, server: &str, what: impl Into<String>) -> RunStep {
@@ -81,22 +129,10 @@ impl FleetRun {
         }
     }
 
-    /// Records step `i`'s result. A failure ends the run: every step still
-    /// waiting is marked not run. Returns whether the run may continue.
+    /// Records one step's result (a stage of one).
+    #[cfg(test)]
     pub fn record(&mut self, i: usize, result: StepResult) -> bool {
-        let failed = result.is_err();
-        if let Some(s) = self.steps.get_mut(i) {
-            s.status = match result {
-                Ok(StepOutcome::Done(m)) => StepStatus::Done(m),
-                Ok(StepOutcome::Skipped(m)) => StepStatus::Skipped(m),
-                Err(e) => StepStatus::Failed(e),
-            };
-        }
-        if failed || self.stop_requested() || !self.steps.iter().any(|s| s.status == StepStatus::Waiting) {
-            self.finish();
-            return false;
-        }
-        true
+        self.record_stage(vec![(i, result)])
     }
 
     /// Ends the run: anything that hadn't started is marked not run.
@@ -117,8 +153,9 @@ impl FleetRun {
         if skipped > 0 {
             parts.push(format!("{skipped} already fine"));
         }
-        if let Some(f) = self.steps.iter().find(|s| matches!(s.status, StepStatus::Failed(_))) {
-            parts.push(format!("stopped at {}", f.server));
+        let failed: Vec<&str> = self.steps.iter().filter(|s| matches!(s.status, StepStatus::Failed(_))).map(|s| s.server.as_str()).collect();
+        if !failed.is_empty() {
+            parts.push(format!("stopped at {}", failed.join(", ")));
         } else if self.stop_requested() && self.phase == RunPhase::Finished {
             parts.push("stopped on request".into());
         }
@@ -170,5 +207,17 @@ mod tests {
         }
         assert_eq!(r.phase, RunPhase::Finished);
         assert_eq!(r.summary(), "3 done");
+    }
+
+    #[test]
+    fn stages_run_together_and_a_failure_in_one_stops_the_rest() {
+        let steps = ["canary", "b", "c", "d", "e"].iter().map(|n| FleetRun::step(n, n, "x")).collect();
+        let mut r = FleetRun::new("T", "GO", steps, vec![]).staged(vec![0, 1, 1, 2, 2], Some(0));
+        assert_eq!(r.stage_groups(), vec![vec![0], vec![1, 2], vec![3, 4]]);
+        assert!(r.record_stage(vec![(0, Ok(StepOutcome::Done("ok".into())))]));
+        assert!(!r.record_stage(vec![(1, Ok(StepOutcome::Done("ok".into()))), (2, Err("boom".into()))]));
+        assert_eq!(r.steps[1].status, StepStatus::Done("ok".into()), "the batch-mate that finished keeps its result");
+        assert_eq!((r.steps[3].status.clone(), r.phase), (StepStatus::NotRun, RunPhase::Finished));
+        assert_eq!(FleetRun::new("T", "GO", vec![FleetRun::step("a", "a", "x"), FleetRun::step("b", "b", "x")], vec![]).stage_groups(), vec![vec![0], vec![1]]);
     }
 }

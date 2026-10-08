@@ -22,6 +22,7 @@ pub mod metrics;
 pub mod notify;
 pub mod os_detect;
 pub mod providers;
+pub mod rollout;
 pub mod region;
 pub mod secret_string;
 pub mod security;

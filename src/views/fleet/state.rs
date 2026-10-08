@@ -253,4 +253,6 @@ pub enum SetupPage {
     Map,
     /// Updates, windows and patch runs (ERR-141).
     Patching,
+    /// A command or config file across a group (ERR-142).
+    Rollouts,
 }

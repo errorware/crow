@@ -16,10 +16,15 @@ pub type RunJob = Box<dyn FnOnce() -> StepResult + Send>;
 
 /// The run on screen, the jobs behind its steps (until it starts), and the
 /// keyword box.
+/// Something to offer once a run has finished (a rollout's ROLL BACK).
+pub type AfterRun = Box<dyn FnOnce(&mut CrowApp, &mut Window, &mut Context<CrowApp>)>;
+
 pub struct FleetRunner {
     pub run: FleetRun,
     jobs: Vec<RunJob>,
     pub input: Entity<InputState>,
+    /// (button label, what it does), offered when the run is finished.
+    pub after: Option<(String, AfterRun)>,
 }
 
 impl CrowApp {
@@ -51,7 +56,7 @@ impl CrowApp {
                 let (db, key, author, path) = (Arc::clone(&db), key.clone(), author.clone(), e.path.clone());
                 jobs.push(Box::new(move || {
                     let host = host_for(&srv);
-                    let target = push::PushTarget { server_id: &srv.id, server_name: &srv.name, path: &path, baseline: &baseline, author: &author, login_user: &srv.login_user };
+                    let target = push::PushTarget { server_id: &srv.id, server_name: &srv.name, path: &path, baseline: &baseline, author: &author, login_user: &srv.login_user, message: "Pushed the baseline", context: "fleet run: push baseline" };
                     push::push_baseline(host.as_ref(), &db, key.as_ref(), &target)
                 }));
             }
@@ -322,7 +327,7 @@ impl CrowApp {
     pub(crate) fn open_fleet_run(&mut self, run: FleetRun, jobs: Vec<RunJob>, window: &mut Window, cx: &mut Context<Self>) {
         let keyword = run.keyword;
         let input = cx.new(|cx| InputState::new(window, cx).placeholder(keyword));
-        self.fleet_runner = Some(FleetRunner { run, jobs, input });
+        self.fleet_runner = Some(FleetRunner { run, jobs, input, after: None });
         cx.notify();
     }
 
@@ -340,10 +345,12 @@ impl CrowApp {
         }
         runner.run.error = None;
         runner.run.phase = RunPhase::Running;
-        let jobs = std::mem::take(&mut runner.jobs);
+        let mut jobs: Vec<Option<RunJob>> = std::mem::take(&mut runner.jobs).into_iter().map(Some).collect();
+        let groups = runner.run.stage_groups();
+        let pause_after = runner.run.pause_after;
         cx.notify();
         cx.spawn(async move |entity, cx| {
-            for (i, job) in jobs.into_iter().enumerate() {
+            for (stage, group) in groups.into_iter().enumerate() {
                 let go = entity
                     .update(cx, |this, cx| {
                         let run = &mut this.fleet_runner.as_mut()?.run;
@@ -352,7 +359,9 @@ impl CrowApp {
                             cx.notify();
                             return None;
                         }
-                        run.start(i);
+                        for &i in &group {
+                            run.start(i);
+                        }
                         cx.notify();
                         Some(())
                     })
@@ -361,16 +370,37 @@ impl CrowApp {
                 if go.is_none() {
                     break;
                 }
-                let result = cx.background_executor().spawn(async move { job() }).await;
+                // A stage's hosts run at the same time.
+                let tasks: Vec<_> = group
+                    .iter()
+                    .filter_map(|&i| jobs.get_mut(i).and_then(Option::take).map(|job| (i, cx.background_executor().spawn(async move { job() }))))
+                    .collect();
+                let mut results = Vec::new();
+                for (i, task) in tasks {
+                    results.push((i, task.await));
+                }
                 let more = entity
                     .update(cx, |this, cx| {
-                        let more = this.fleet_runner.as_mut().is_some_and(|r| r.run.record(i, result));
+                        let more = this.fleet_runner.as_mut().is_some_and(|r| r.run.record_stage(results));
+                        if more && pause_after == Some(stage) {
+                            if let Some(r) = this.fleet_runner.as_mut() {
+                                r.run.phase = RunPhase::Paused;
+                            }
+                        }
                         cx.notify();
                         more
                     })
                     .unwrap_or(false);
                 if !more {
                     break;
+                }
+                // Paused after the canary: wait for CONTINUE (or STOP).
+                loop {
+                    let phase = entity.update(cx, |this, _| this.fleet_runner.as_ref().map(|r| (r.run.phase, r.run.stop_requested()))).ok().flatten();
+                    match phase {
+                        Some((RunPhase::Paused, false)) => cx.background_executor().timer(std::time::Duration::from_millis(250)).await,
+                        _ => break,
+                    }
                 }
             }
             let _ = entity.update(cx, |this, cx| {
@@ -401,15 +431,34 @@ impl CrowApp {
 
     /// Lets the host that's running finish, then stops.
     pub fn stop_fleet_run(&mut self, cx: &mut Context<Self>) {
-        if let Some(r) = &self.fleet_runner {
+        if let Some(r) = self.fleet_runner.as_mut() {
             r.run.request_stop();
+            // Paused: nothing is running, so it's over now.
+            if r.run.phase == RunPhase::Paused {
+                r.run.finish();
+            }
+        }
+        cx.notify();
+    }
+
+    /// The finished run's follow-up (e.g. ROLL BACK).
+    pub fn run_fleet_after(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some((_, action)) = self.fleet_runner.as_mut().filter(|r| r.run.phase == RunPhase::Finished).and_then(|r| r.after.take()) {
+            action(self, window, cx);
+        }
+    }
+
+    /// After the canary: go on with the rest.
+    pub fn continue_fleet_run(&mut self, cx: &mut Context<Self>) {
+        if let Some(r) = self.fleet_runner.as_mut().filter(|r| r.run.phase == RunPhase::Paused) {
+            r.run.phase = RunPhase::Running;
         }
         cx.notify();
     }
 
     /// Closes the panel; a running run can't be closed, only stopped.
     pub fn close_fleet_run(&mut self, cx: &mut Context<Self>) {
-        if self.fleet_runner.as_ref().is_some_and(|r| r.run.phase == RunPhase::Running) {
+        if self.fleet_runner.as_ref().is_some_and(|r| matches!(r.run.phase, RunPhase::Running | RunPhase::Paused)) {
             return;
         }
         self.fleet_runner = None;

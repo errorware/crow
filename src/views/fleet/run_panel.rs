@@ -27,7 +27,12 @@ pub fn fleet_run_panel(runner: &FleetRunner, app: Entity<CrowApp>) -> impl IntoE
     };
     let status_line = match run.phase {
         RunPhase::Confirming if run.steps.is_empty() => "Nothing to run.".to_string(),
+        RunPhase::Confirming if !run.stages.is_empty() => {
+            let groups = run.stage_groups();
+            format!("{} step{} in {} stage{}{}; the first failure stops the run.", run.steps.len(), if run.steps.len() == 1 { "" } else { "s" }, groups.len(), if groups.len() == 1 { "" } else { "s" }, if run.pause_after.is_some() { ", pausing after the canary" } else { "" })
+        }
         RunPhase::Confirming => format!("{} step{}, one host at a time; the first failure stops the run.", run.steps.len(), if run.steps.len() == 1 { "" } else { "s" }),
+        RunPhase::Paused => "The canary is done. Check it, then CONTINUE with the rest, or STOP here.".to_string(),
         RunPhase::Running if run.stop_requested() => "Stopping after the current host…".to_string(),
         RunPhase::Running => "Running…".to_string(),
         RunPhase::Finished => run.summary(),
@@ -131,13 +136,25 @@ pub fn fleet_run_panel(runner: &FleetRunner, app: Entity<CrowApp>) -> impl IntoE
                             button("btn-fleet-run-start", format!("TYPE {} TO START", run.keyword), CRIT)
                                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.confirm_fleet_run(cx)))
                         }))
+                        .children((run.phase == RunPhase::Paused).then(|| {
+                            let app = app.clone();
+                            button("btn-fleet-run-continue", "CONTINUE WITH THE REST".into(), OK).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.continue_fleet_run(cx)))
+                        }))
+                        .children((run.phase == RunPhase::Paused).then(|| {
+                            let app = app.clone();
+                            button("btn-fleet-run-stop-here", "STOP HERE".into(), WARN).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.stop_fleet_run(cx)))
+                        }))
+                        .children(runner.after.as_ref().filter(|_| run.phase == RunPhase::Finished).map(|(label, _)| {
+                            let app = app.clone();
+                            button("btn-fleet-run-after", label.clone(), WARN).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.run_fleet_after(window, cx)))
+                        }))
                         .children((run.phase == RunPhase::Running && !run.stop_requested()).then(|| {
                             let app = app.clone();
                             button("btn-fleet-run-stop", "STOP AFTER THIS HOST".into(), WARN)
                                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.stop_fleet_run(cx)))
                         }))
                         .child(div().flex_1())
-                        .children((run.phase != RunPhase::Running).then(|| {
+                        .children((!matches!(run.phase, RunPhase::Running | RunPhase::Paused)).then(|| {
                             let app = app.clone();
                             button("btn-fleet-run-close", if run.phase == RunPhase::Finished { "CLOSE".into() } else { "CANCEL".into() }, TEXT_SECONDARY)
                                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.close_fleet_run(cx)))

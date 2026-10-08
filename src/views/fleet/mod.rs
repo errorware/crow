@@ -7,6 +7,7 @@ pub mod import;
 pub mod lab_modal;
 pub mod overview;
 pub mod patching;
+pub mod rollouts;
 pub mod setup;
 pub mod run;
 pub mod alert_lines;
