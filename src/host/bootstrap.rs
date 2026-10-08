@@ -111,7 +111,7 @@ pub fn askpass_main(sock: &str, prompt: &str) -> i32 {
 }
 
 /// The ssh arguments for one password login to `server` running `remote`.
-pub fn bootstrap_args(server: &ServerRecord, jump: Option<&str>, remote: &str) -> Result<Vec<String>, BootstrapError> {
+pub fn bootstrap_args(server: &ServerRecord, proxy: Option<&str>, remote: &str) -> Result<Vec<String>, BootstrapError> {
     if server.host.is_empty() || server.host.starts_with('-') {
         return Err(BootstrapError::Failed(format!("{:?} is not a valid host", server.host)));
     }
@@ -134,8 +134,9 @@ pub fn bootstrap_args(server: &ServerRecord, jump: Option<&str>, remote: &str) -
     if !server.login_user.is_empty() {
         args.extend(["-l".into(), server.login_user.clone()]);
     }
-    if let Some(j) = jump {
-        args.extend(["-J".into(), j.to_string()]);
+    // Behind a bastion: its ProxyCommand (ERR-152), each hop with its own key.
+    if let Some(proxy) = proxy {
+        args.extend(["-o".into(), format!("ProxyCommand={proxy}")]);
     }
     args.extend(["--".into(), server.host.clone(), remote.to_string()]);
     Ok(args)
@@ -143,14 +144,14 @@ pub fn bootstrap_args(server: &ServerRecord, jump: Option<&str>, remote: &str) -
 
 /// Logs in to `server` with `password` once and appends `public_key` (an
 /// OpenSSH public key line) to the login user's authorized_keys.
-pub fn install_key_with_password(server: &ServerRecord, jump: Option<&str>, password: Zeroizing<String>, public_key: &str) -> Result<(), BootstrapError> {
+pub fn install_key_with_password(server: &ServerRecord, proxy: Option<&str>, password: Zeroizing<String>, public_key: &str) -> Result<(), BootstrapError> {
     let exe = std::env::current_exe().map_err(|e| BootstrapError::Failed(format!("can't locate the Crow binary for askpass: {e}")))?;
-    install_key_via("ssh", &exe.to_string_lossy(), server, jump, password, public_key)
+    install_key_via("ssh", &exe.to_string_lossy(), server, proxy, password, public_key)
 }
 
 /// `install_key_with_password` with the ssh client and askpass program given
 /// (tests point them at a known_hosts wrapper and the built crow binary).
-fn install_key_via(ssh: &str, askpass_program: &str, server: &ServerRecord, jump: Option<&str>, password: Zeroizing<String>, public_key: &str) -> Result<(), BootstrapError> {
+fn install_key_via(ssh: &str, askpass_program: &str, server: &ServerRecord, proxy: Option<&str>, password: Zeroizing<String>, public_key: &str) -> Result<(), BootstrapError> {
     let version = run_command_env(&[ssh, "-V"], &[], Duration::from_secs(5), &[])
         .map(|o| format!("{}{}", o.stdout, o.stderr))
         .unwrap_or_default();
@@ -161,7 +162,7 @@ fn install_key_via(ssh: &str, askpass_program: &str, server: &ServerRecord, jump
     }
 
     let remote = format!("sh -c {}", shell_quote(INSTALL_KEY_SCRIPT));
-    let args = bootstrap_args(server, jump, &remote)?;
+    let args = bootstrap_args(server, proxy, &remote)?;
     let askpass = AskpassServer::start(password).map_err(|e| BootstrapError::Failed(format!("askpass socket: {e}")))?;
     let sock = askpass.sock.to_string_lossy().into_owned();
 

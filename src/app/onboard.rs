@@ -332,9 +332,7 @@ impl CrowApp {
             return Err("enter the server's password on step 2 (Credentials)".into());
         }
         let key = self.ensure_crow_key(cx)?;
-        let jump = self.onboard_state.jump_host_id.as_ref().and_then(|id| self.fleet.servers.iter().find(|s| &s.id == id)).map(|j| {
-            if j.login_user.is_empty() { format!("{}:{}", j.host, j.port) } else { format!("{}@{}:{}", j.login_user, j.host, j.port) }
-        });
+        let jump = crate::host::ssh::proxy_for(&self.onboard_candidate())?;
         Ok(Some(Bootstrap { password: Zeroizing::new(self.onboard_state.password.to_string()), key, jump }))
     }
 
@@ -348,12 +346,31 @@ impl CrowApp {
         self.onboard_state.probe_logs.clear();
         self.onboard_state.facts = DetectedFacts::default();
         let bootstrap = self.password_bootstrap_inputs(cx);
+        // Behind a bastion: probe through it (ERR-152).
+        let via = match crate::host::ssh::proxy_for(&candidate) {
+            Ok(Some(proxy)) => {
+                let name = crate::host::ssh::chain_of(&candidate).ok().and_then(|c| c.last().map(|h| h.name.clone())).unwrap_or_else(|| "the bastion".into());
+                Some(Ok((proxy, name)))
+            }
+            Ok(None) => None,
+            Err(e) => Some(Err(e)),
+        };
         cx.notify();
         cx.spawn(async move |entity, cx| {
             let (result, mut logs, facts, installed) = cx
                 .background_executor()
                 .spawn(async move {
-                    let (result, mut logs) = probe_host(&candidate.host, candidate.port);
+                    let (result, mut logs) = match via {
+                        None => probe_host(&candidate.host, candidate.port),
+                        Some(Ok((proxy, name))) => crate::views::onboard::probe::probe_via_bastion(&candidate.host, candidate.port, &candidate.login_user, &proxy, &name),
+                        Some(Err(e)) => {
+                            let mut logs = Vec::new();
+                            probe_log(&mut logs, "✕", CRIT, format!("can't go through the bastion: {e}"), String::new());
+                            let mut r = crate::views::onboard::probe::ProbeResult::empty();
+                            r.error = Some(e);
+                            (r, logs)
+                        }
+                    };
                     let (facts, installed) = if result.is_known_host {
                         connect_and_read(candidate, bootstrap, &mut logs)
                     } else {

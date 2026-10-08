@@ -22,6 +22,11 @@ use crate::vault::ServerRecord;
 
 pub use container::ContainerHost;
 pub use local::LocalHost;
+
+/// Runs a program on this machine (no shell), for callers outside `host`.
+pub fn run_local(argv: &[&str], stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {
+    local::run_command(argv, stdin, timeout)
+}
 pub use ssh::{connection_state, update_directory, ConnectionState, SshHost};
 
 /// Default budget for a single command; long enough for `journalctl` on a busy

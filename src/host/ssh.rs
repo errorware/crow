@@ -273,9 +273,147 @@ pub fn shell_quote(arg: &str) -> String {
     format!("'{}'", arg.replace('\'', "'\\''"))
 }
 
+/// One bastion on the way to a server (ERR-152), with its own identity:
+/// the jump connection logs in as the bastion, with the bastion's key.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Hop {
+    pub name: String,
+    pub host: String,
+    pub port: u16,
+    pub user: String,
+    pub key_path: Option<String>,
+}
+
+/// How many bastions deep a server may sit.
+pub const MAX_HOPS: usize = 8;
+
+/// The bastions between Crow and `server`, nearest to Crow first, from
+/// each server's `jump_host_id`. A loop, a bastion that's gone, or one Crow
+/// can't log in to with a key is an error naming it.
+pub fn chain_for(server: &ServerRecord, servers: &HashMap<String, ServerRecord>, key_paths: &HashMap<String, String>) -> Result<Vec<Hop>, String> {
+    let mut chain = Vec::new();
+    let mut seen = vec![server.id.clone()];
+    let mut next = server.jump_host_id.clone().filter(|j| !j.is_empty());
+    while let Some(id) = next {
+        if seen.contains(&id) {
+            return Err(format!("the bastions loop back to {id}: fix one of them in its settings"));
+        }
+        if chain.len() >= MAX_HOPS {
+            return Err(format!("more than {MAX_HOPS} bastions deep"));
+        }
+        let b = servers.get(&id).ok_or_else(|| format!("its bastion ({id}) is no longer in the fleet"))?;
+        if b.host.trim().is_empty() || b.host.starts_with('-') {
+            return Err(format!("bastion {} has an invalid address", b.name));
+        }
+        let key_path = match b.auth_method.as_str() {
+            "password" => return Err(format!("bastion {} logs in with a password; Crow goes through bastions with keys", b.name)),
+            "publickey" => match b.key_id.as_ref() {
+                Some(k) => Some(key_paths.get(k).cloned().ok_or_else(|| format!("bastion {}'s key has no private key file", b.name))?),
+                None => None,
+            },
+            _ => None,
+        };
+        chain.push(Hop { name: b.name.clone(), host: b.host.clone(), port: if b.port == 0 { 22 } else { b.port }, user: b.login_user.clone(), key_path });
+        seen.push(id);
+        next = b.jump_host_id.clone().filter(|j| !j.is_empty());
+    }
+    chain.reverse();
+    Ok(chain)
+}
+
+/// `host:port` for `ssh -W`, bracketing an IPv6 address.
+fn forward_target(host: &str, port: u16) -> String {
+    if host.contains(':') && !host.starts_with('[') {
+        format!("[{host}]:{port}")
+    } else {
+        format!("{host}:{port}")
+    }
+}
+
+/// The `ProxyCommand` that reaches `host:port` through `chain` (nearest
+/// first): an ssh to the last bastion that forwards stdio (`-W`), itself
+/// going through the bastions before it. Every hop gets Crow's fixed
+/// security options and its own user and key; ssh's `-J` would use only
+/// what ~/.ssh/config says. No `%` anywhere: ssh would expand it.
+pub fn proxy_command(program: &str, settings: &SshSettings, chain: &[Hop], host: &str, port: u16) -> Result<String, String> {
+    let Some((last, before)) = chain.split_last() else { return Err("no bastion".into()) };
+    let mut argv: Vec<String> = vec![program.to_string()];
+    for a in base_options(settings) {
+        argv.push(match a.as_str() {
+            a if a.starts_with("ControlMaster=") => "ControlMaster=no".into(),
+            a if a.starts_with("ControlPersist=") => "ControlPersist=no".into(),
+            _ => a,
+        });
+    }
+    argv.extend(["-o".into(), "ControlPath=none".into(), "-p".into(), last.port.to_string()]);
+    if !last.user.is_empty() {
+        argv.extend(["-l".into(), last.user.clone()]);
+    }
+    if let Some(key) = &last.key_path {
+        let key = expand_home(key);
+        argv.extend(["-i".into(), key.clone(), "-o".into(), "IdentitiesOnly=yes".into()]);
+        if key_usable_without_agent(&key) {
+            argv.extend(["-o".into(), "IdentityAgent=none".into()]);
+        }
+    }
+    if !before.is_empty() {
+        argv.extend(["-o".into(), format!("ProxyCommand={}", proxy_command(program, settings, before, &last.host, last.port)?)]);
+    }
+    argv.extend(["-W".into(), forward_target(host, port), "--".into(), last.host.clone()]);
+    if let Some(bad) = argv.iter().find(|a| a.contains('%') && !a.starts_with("ProxyCommand=")) {
+        return Err(format!("{bad:?} holds a '%', which ssh would read as a token"));
+    }
+    Ok(argv.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" "))
+}
+
+/// The bastions on the way to `server`, from what the app has synced.
+pub fn chain_of(server: &ServerRecord) -> Result<Vec<Hop>, String> {
+    let dir = directory().read().map_err(|_| "the server directory is busy".to_string())?;
+    chain_for(server, &dir.servers, &dir.key_paths)
+}
+
+/// The `ProxyCommand` option value for `server`, if it sits behind a bastion.
+pub fn proxy_for(server: &ServerRecord) -> Result<Option<String>, String> {
+    let chain = chain_of(server)?;
+    if chain.is_empty() {
+        return Ok(None);
+    }
+    let settings = ssh_settings().read().map(|s| *s).unwrap_or_default();
+    proxy_command("ssh", &settings, &chain, &server.host, if server.port == 0 { 22 } else { server.port }).map(Some)
+}
+
+/// Says which hop failed: a bastion that can't be reached, refused Crow,
+/// or can't reach the server behind it. `None` when it's about the server.
+pub fn classify_hop_failure(stderr: &str, chain: &[Hop], target: &str) -> Option<ConnectionState> {
+    let last_line = |pred: &dyn Fn(&str) -> bool| stderr.lines().rev().find(|l| pred(l)).map(|l| l.trim().to_string());
+    if let Some(line) = last_line(&|l: &str| l.contains("open failed")).or_else(|| last_line(&|l: &str| l.contains("stdio forwarding failed"))) {
+        let via = chain.last().map(|h| h.name.as_str()).unwrap_or("the bastion");
+        let why = line.rsplit(": ").next().unwrap_or(&line).trim().to_string();
+        return Some(ConnectionState::Unreachable(format!("bastion {via} can't reach {target}: {why}")));
+    }
+    for hop in chain {
+        let mentions = |l: &str| l.contains(&format!("host {} ", hop.host)) || l.contains(&format!("@{}:", hop.host)) || l.contains(&format!(" {} port", hop.host)) || l.starts_with(&format!("{}:", hop.host));
+        if let Some(line) = last_line(&|l: &str| mentions(l)) {
+            let lower = line.to_lowercase();
+            return Some(if lower.contains("permission denied") {
+                ConnectionState::AuthFailed(format!("bastion {} refused Crow's key: {line}", hop.name))
+            } else if lower.contains("host key") {
+                ConnectionState::HostKeyRejected(format!("bastion {}: {line}", hop.name))
+            } else {
+                ConnectionState::Unreachable(format!("bastion {}: {line}", hop.name))
+            });
+        }
+    }
+    None
+}
+
 pub struct SshHost {
     server_id: String,
+    /// The bastions on the way, nearest first (ERR-152).
+    chain: Vec<Hop>,
     label: String,
+    /// The server's address and port (the `-W` target of the last hop).
+    dest: (String, u16),
     /// ssh arguments up to and including the destination.
     args: Vec<String>,
     /// Why this server can't be used at all (e.g. password auth), if so.
@@ -287,15 +425,19 @@ impl SshHost {
     pub fn for_server(server: &ServerRecord) -> Self {
         let dir = directory().read().ok();
         let key_path = server.key_id.as_ref().and_then(|id| dir.as_ref()?.key_paths.get(id).cloned());
-        let jump = server
-            .jump_host_id
-            .as_ref()
-            .and_then(|id| dir.as_ref()?.servers.get(id).cloned())
-            .map(|j| format!("{}@{}:{}", j.login_user, j.host, if j.port == 0 { 22 } else { j.port }));
-        Self::new(server, key_path, jump, control_dir())
+        let chain = match dir.as_ref() {
+            Some(d) => chain_for(server, &d.servers, &d.key_paths),
+            None => Ok(Vec::new()),
+        };
+        drop(dir);
+        let mut host = Self::new(server, key_path, chain.clone().unwrap_or_default(), control_dir());
+        if let Err(why) = chain {
+            host.unsupported = Some(why);
+        }
+        host
     }
 
-    pub(crate) fn new(server: &ServerRecord, key_path: Option<String>, jump: Option<String>, control_dir: PathBuf) -> Self {
+    pub(crate) fn new(server: &ServerRecord, key_path: Option<String>, chain: Vec<Hop>, control_dir: PathBuf) -> Self {
         let port = if server.port == 0 { 22 } else { server.port };
         let settings = ssh_settings().read().map(|s| *s).unwrap_or_default();
         let mut args = base_options(&settings);
@@ -327,23 +469,93 @@ impl SshHost {
             },
             _ => {} // "agent": ssh uses the agent and ~/.ssh/config by default
         }
-        if let Some(jump) = jump {
-            args.extend(["-J".into(), jump]);
-        }
+        // The ProxyCommand (bastions) is added in `rebuild`, with the program.
         // The destination comes from the vault; a value starting with '-' would
         // be read by ssh as an option (e.g. -oProxyCommand=...). Refuse it, and
         // end option parsing before the destination regardless.
         if server.host.starts_with('-') || server.host.trim().is_empty() {
             unsupported = Some(format!("invalid host address {:?}", server.host));
         }
-        args.push("--".into());
-        args.push(server.host.clone());
-        Self {
+        let via = chain.last().map(|h| format!(" via {}", h.name)).unwrap_or_default();
+        let mut host = Self {
             server_id: server.id.clone(),
-            label: format!("ssh:{}@{}", server.login_user, server.host),
+            chain,
+            dest: (server.host.clone(), port),
+            label: format!("ssh:{}@{}{via}", server.login_user, server.host),
             args,
             unsupported,
             program: "ssh".into(),
+        };
+        host.finish_args();
+        host
+    }
+
+    /// Ends the arguments with the bastions' ProxyCommand (built with this
+    /// host's ssh program, so every hop runs the same client) and `-- host`.
+    fn finish_args(&mut self) {
+        if let Some(at) = self.args.iter().position(|a| a == "--") {
+            self.args.truncate(at);
+            // The ProxyCommand pair sits right before `--`.
+            if self.args.len() >= 2 && self.args[self.args.len() - 1].starts_with("ProxyCommand=") {
+                self.args.truncate(self.args.len() - 2);
+            }
+        }
+        if !self.chain.is_empty() {
+            let settings = ssh_settings().read().map(|s| *s).unwrap_or_default();
+            match proxy_command(&self.program, &settings, &self.chain, &self.dest.0, self.dest.1) {
+                Ok(cmd) => self.args.extend(["-o".into(), format!("ProxyCommand={cmd}")]),
+                Err(e) => self.unsupported = Some(e),
+            }
+        }
+        self.args.push("--".into());
+        self.args.push(self.dest.0.clone());
+    }
+
+    /// The bastions on the way to this server, nearest first.
+    pub fn chain(&self) -> &[Hop] {
+        &self.chain
+    }
+
+    /// After a failure through bastions that ssh didn't explain (a shared
+    /// connection hides the hops' own errors): logs in to each bastion in
+    /// turn, fresh, and names the first one that fails.
+    fn diagnose_chain(&self) -> Option<ConnectionState> {
+        for (i, hop) in self.chain.iter().enumerate() {
+            let record = ServerRecord {
+                id: format!("{}#hop", self.server_id),
+                name: hop.name.clone(),
+                host: hop.host.clone(),
+                port: hop.port,
+                login_user: hop.user.clone(),
+                auth_method: if hop.key_path.is_some() { "publickey".into() } else { "agent".into() },
+                ..ServerRecord::default()
+            };
+            let mut probe = SshHost::new(&record, hop.key_path.clone(), self.chain[..i].to_vec(), PathBuf::from("/nonexistent"));
+            probe.program = self.program.clone();
+            probe.args = fresh_login_args(probe.args);
+            probe.finish_args();
+            let mut argv: Vec<&str> = vec![probe.program.as_str()];
+            argv.extend(probe.args.iter().map(String::as_str));
+            argv.push("true");
+            if let Err(HostError::Failed { status: 255, stderr }) = run_command(&argv, &[], Duration::from_secs(20)) {
+                let state = classify_hop_failure(&stderr, &self.chain[..i], &hop.host).unwrap_or_else(|| classify_ssh_failure(&stderr));
+                let prefix = format!("bastion {}: ", hop.name);
+                return Some(match state {
+                    ConnectionState::AuthFailed(d) => ConnectionState::AuthFailed(format!("bastion {} refused Crow's key: {d}", hop.name)),
+                    ConnectionState::HostKeyRejected(d) if !d.starts_with("bastion ") => ConnectionState::HostKeyRejected(prefix + &d),
+                    ConnectionState::Unreachable(d) if !d.starts_with("bastion ") => ConnectionState::Unreachable(prefix + &d),
+                    other => other,
+                });
+            }
+        }
+        // Every bastion lets Crow in: try the server itself, fresh.
+        let mut argv: Vec<String> = vec![self.program.clone()];
+        argv.extend(fresh_login_args(self.args.clone()));
+        argv.push("true".into());
+        let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
+        match run_command(&argv, &[], Duration::from_secs(20)) {
+            Err(HostError::Failed { status: 255, stderr }) => classify_hop_failure(&stderr, &self.chain, &self.dest.0),
+            _ => None,
         }
     }
 
@@ -362,6 +574,7 @@ impl SshHost {
     #[cfg(test)]
     pub(crate) fn with_program(mut self, program: &str) -> Self {
         self.program = program.to_string();
+        self.finish_args();
         self
     }
 }
@@ -413,7 +626,9 @@ impl Host for SshHost {
         match run_command(&full, stdin, timeout) {
             // ssh exits 255 for its own failures; anything else is the remote command's status.
             Err(HostError::Failed { status: 255, stderr }) => {
-                let state = classify_ssh_failure(&stderr);
+                let state = classify_hop_failure(&stderr, &self.chain, &self.dest.0)
+                    .or_else(|| (!self.chain.is_empty() && stderr.contains("Connection closed by UNKNOWN")).then(|| self.diagnose_chain()).flatten())
+                    .unwrap_or_else(|| classify_ssh_failure(&stderr));
                 let message = format!("{}: {}", state.label().to_lowercase(), state.detail().unwrap_or_default());
                 record_state(&self.server_id, state);
                 Err(HostError::Unreachable(message))
@@ -450,15 +665,75 @@ mod tests {
 
     #[test]
     fn builds_batch_multiplexed_args_with_key_and_jump() {
-        let h = SshHost::new(&server("publickey", Some("k1")), Some("/keys/id".into()), Some("root@bastion:22".into()), "/run/crow".into());
+        let hop = Hop { name: "bastion".into(), host: "bastion.lan".into(), port: 22, user: "root".into(), key_path: Some("/keys/bastion".into()) };
+        let h = SshHost::new(&server("publickey", Some("k1")), Some("/keys/id".into()), vec![hop], "/run/crow".into());
         let a = h.args.join(" ");
         assert!(a.contains("BatchMode=yes") && a.contains("StrictHostKeyChecking=yes"));
         assert!(a.contains("ControlMaster=auto") && a.contains("ControlPath=/run/crow/%C"));
         assert!(a.contains("-p 2222") && a.contains("-l ops"));
         assert!(a.contains("-i /keys/id -o IdentitiesOnly=yes"));
-        assert!(a.contains("-J root@bastion:22"));
+        let proxy = h.args.iter().find(|a| a.starts_with("ProxyCommand=")).expect("a bastion means a ProxyCommand");
+        assert!(proxy.contains("-l root") && proxy.contains("-i /keys/bastion") && proxy.contains("-W 10.0.4.12:2222 -- bastion.lan"), "{proxy}");
+        assert!(proxy.contains("BatchMode=yes") && proxy.contains("StrictHostKeyChecking=yes") && proxy.contains("ControlPath=none"), "the hop keeps Crow's security options: {proxy}");
+        assert!(!a.contains(" -J "), "no -J: it would drop the hop's options");
+        assert!(h.label().ends_with("via bastion"));
         assert_eq!(&h.args[h.args.len() - 2..], ["--", "10.0.4.12"]);
         assert!(h.unsupported.is_none());
+    }
+
+    fn rec(id: &str, host: &str, jump: Option<&str>, auth: &str, key: Option<&str>) -> ServerRecord {
+        ServerRecord { id: id.into(), name: id.into(), host: host.into(), port: 22, login_user: "ops".into(), auth_method: auth.into(), key_id: key.map(Into::into), jump_host_id: jump.map(Into::into), ..ServerRecord::default() }
+    }
+
+    #[test]
+    fn bastions_chain_nearest_first_and_nest() {
+        let servers: HashMap<String, ServerRecord> = [
+            rec("b1", "1.1.1.1", None, "publickey", Some("k1")),
+            rec("b2", "10.0.0.2", Some("b1"), "publickey", Some("k1")),
+            rec("app", "10.1.0.3", Some("b2"), "publickey", Some("k1")),
+        ]
+        .into_iter()
+        .map(|s| (s.id.clone(), s))
+        .collect();
+        let keys: HashMap<String, String> = [("k1".to_string(), "/keys/crow".to_string())].into();
+        let chain = chain_for(&servers["app"], &servers, &keys).unwrap();
+        assert_eq!(chain.iter().map(|h| h.name.as_str()).collect::<Vec<_>>(), ["b1", "b2"]);
+        let cmd = proxy_command("ssh", &SshSettings::default(), &chain, "10.1.0.3", 22).unwrap();
+        // The outer hop (b2) forwards to the server; inside it, b1 forwards to b2.
+        assert!(cmd.ends_with("-W 10.1.0.3:22 -- 10.0.0.2"), "{cmd}");
+        assert!(cmd.contains("-W 10.0.0.2:22 -- 1.1.1.1"), "{cmd}");
+        assert!(!cmd.contains('%'));
+        // Through a shell, as ssh runs it: the quoting holds.
+        let out = std::process::Command::new("sh").arg("-c").arg(format!("set -- {cmd}; printf '%s\\n' \"$@\"")).output().unwrap();
+        let words = String::from_utf8(out.stdout).unwrap();
+        let inner = words.lines().find(|l| l.starts_with("ProxyCommand=")).unwrap();
+        assert!(inner.ends_with("-W 10.0.0.2:22 -- 1.1.1.1"), "{inner}");
+        assert_eq!(forward_target("fe80::1", 22), "[fe80::1]:22");
+    }
+
+    #[test]
+    fn a_bastion_crow_cant_use_is_refused_by_name() {
+        let keys = HashMap::new();
+        let looped: HashMap<String, ServerRecord> = [rec("a", "1.1.1.1", Some("b"), "agent", None), rec("b", "2.2.2.2", Some("a"), "agent", None)].into_iter().map(|s| (s.id.clone(), s)).collect();
+        assert!(chain_for(&looped["a"], &looped, &keys).unwrap_err().contains("loop"));
+        let pw: HashMap<String, ServerRecord> = [rec("b", "1.1.1.1", None, "password", None), rec("t", "2.2.2.2", Some("b"), "agent", None)].into_iter().map(|s| (s.id.clone(), s)).collect();
+        assert!(chain_for(&pw["t"], &pw, &keys).unwrap_err().contains("bastion b logs in with a password"));
+        let gone: HashMap<String, ServerRecord> = [rec("t", "2.2.2.2", Some("ghost"), "agent", None)].into_iter().map(|s| (s.id.clone(), s)).collect();
+        assert!(chain_for(&gone["t"], &gone, &keys).unwrap_err().contains("no longer in the fleet"));
+        let nokey: HashMap<String, ServerRecord> = [rec("b", "1.1.1.1", None, "publickey", Some("k9")), rec("t", "2.2.2.2", Some("b"), "agent", None)].into_iter().map(|s| (s.id.clone(), s)).collect();
+        assert!(chain_for(&nokey["t"], &nokey, &keys).unwrap_err().contains("no private key file"));
+    }
+
+    #[test]
+    fn a_failure_names_the_hop_it_happened_at() {
+        let chain = vec![Hop { name: "edge".into(), host: "1.1.1.1".into(), port: 22, user: "ops".into(), key_path: None }];
+        let down = classify_hop_failure("ssh: connect to host 1.1.1.1 port 22: Connection refused\nConnection closed by UNKNOWN port 65535\n", &chain, "10.0.0.5");
+        assert!(matches!(down, Some(ConnectionState::Unreachable(m)) if m.starts_with("bastion edge:")));
+        let denied = classify_hop_failure("ops@1.1.1.1: Permission denied (publickey).\n", &chain, "10.0.0.5");
+        assert!(matches!(denied, Some(ConnectionState::AuthFailed(m)) if m.contains("bastion edge refused")));
+        let behind = classify_hop_failure("channel 0: open failed: connect failed: No route to host\nstdio forwarding failed\n", &chain, "10.0.0.5");
+        assert!(matches!(&behind, Some(ConnectionState::Unreachable(m)) if m.contains("edge can't reach 10.0.0.5")), "{behind:?}");
+        assert_eq!(classify_hop_failure("ops@10.0.0.5: Permission denied (publickey).\n", &chain, "10.0.0.5"), None, "the server's own refusal");
     }
 
     #[test]
@@ -466,7 +741,7 @@ mod tests {
         let mut srv = server("agent", None);
         srv.id = "srv-evil".into();
         srv.host = "-oProxyCommand=touch /tmp/crow-pwned".into();
-        let h = SshHost::new(&srv, None, None, "/run/crow".into());
+        let h = SshHost::new(&srv, None, Vec::new(), "/run/crow".into());
         assert!(h.unsupported.as_deref().unwrap().contains("invalid host"));
         assert!(h.exec(&["true"], Duration::from_secs(1)).is_err());
         assert!(!std::path::Path::new("/tmp/crow-pwned").exists());
@@ -474,7 +749,7 @@ mod tests {
 
     #[test]
     fn password_auth_is_reported_not_attempted() {
-        let h = SshHost::new(&server("password", None), None, None, "/run/crow".into());
+        let h = SshHost::new(&server("password", None), None, Vec::new(), "/run/crow".into());
         let err = h.exec(&["true"], Duration::from_secs(1)).unwrap_err();
         assert!(matches!(err, HostError::Unreachable(m) if m.contains("password")));
         assert!(matches!(connection_state("srv-1"), Some(ConnectionState::AuthFailed(_))));
@@ -511,7 +786,7 @@ mod tests {
         }
         let mut srv = server("agent", None);
         srv.id = "srv-fake".into();
-        let h = SshHost::new(&srv, None, None, dir.clone()).with_program(fake.to_str().unwrap());
+        let h = SshHost::new(&srv, None, Vec::new(), dir.clone()).with_program(fake.to_str().unwrap());
 
         // Executing a just-written script can hit ETXTBSY when a parallel test
         // forks while the file is still open for writing; retry briefly.
@@ -572,7 +847,7 @@ mod tests {
             key_id: Some("k".into()),
             ..ServerRecord::default()
         };
-        let h = SshHost::new(&srv, Some(parts[3].into()), None, dir.clone()).with_program(&wrapper(&known_hosts));
+        let h = SshHost::new(&srv, Some(parts[3].into()), Vec::new(), dir.clone()).with_program(&wrapper(&known_hosts));
 
         let out = h.exec(&["uname", "-s"], Duration::from_secs(20)).unwrap();
         assert_eq!(out.stdout.trim(), "Linux");
@@ -596,7 +871,7 @@ mod tests {
         std::fs::write(&empty_kh, "").unwrap();
         let mut strict = srv.clone();
         strict.id = "live-strict".into();
-        let h2 = SshHost::new(&strict, Some(parts[3].into()), None, dir.join("sub")).with_program(&wrapper(empty_kh.to_str().unwrap()));
+        let h2 = SshHost::new(&strict, Some(parts[3].into()), Vec::new(), dir.join("sub")).with_program(&wrapper(empty_kh.to_str().unwrap()));
         std::fs::create_dir_all(dir.join("sub")).unwrap();
         assert!(h2.exec(&["true"], Duration::from_secs(20)).is_err());
         assert!(matches!(connection_state("live-strict"), Some(ConnectionState::HostKeyRejected(_))));
@@ -605,7 +880,7 @@ mod tests {
         let mut closed = srv.clone();
         closed.id = "live-closed".into();
         closed.port = 1;
-        let h3 = SshHost::new(&closed, Some(parts[3].into()), None, dir.join("sub")).with_program(&wrapper(&known_hosts));
+        let h3 = SshHost::new(&closed, Some(parts[3].into()), Vec::new(), dir.join("sub")).with_program(&wrapper(&known_hosts));
         assert!(h3.exec(&["true"], Duration::from_secs(20)).is_err());
         assert!(matches!(connection_state("live-closed"), Some(ConnectionState::Unreachable(_))));
         let _ = std::fs::remove_dir_all(&dir);
@@ -652,11 +927,11 @@ mod tests {
         assert!(!key_text_usable_without_agent("-----BEGIN RSA PRIVATE KEY-----\nnot openssh\n"), "unrecognised: keep the agent");
 
         let srv = ServerRecord { id: "s".into(), host: "10.0.0.1".into(), login_user: "root".into(), auth_method: "publickey".into(), key_id: Some("k".into()), ..Default::default() };
-        let args = |key: &str| SshHost::new(&srv, Some(key.to_string()), None, dir.clone()).args.join(" ");
+        let args = |key: &str| SshHost::new(&srv, Some(key.to_string()), Vec::new(), dir.clone()).args.join(" ");
         assert!(args(&plain).contains("IdentityAgent=none"), "Crow's kind of key: no agent, no prompts");
         assert!(!args(&locked).contains("IdentityAgent"), "a passphrase key keeps the agent");
         let agent = ServerRecord { auth_method: "agent".into(), key_id: None, ..srv.clone() };
-        assert!(!SshHost::new(&agent, None, None, dir.clone()).args.join(" ").contains("IdentityAgent"), "agent logins keep the agent");
+        assert!(!SshHost::new(&agent, None, Vec::new(), dir.clone()).args.join(" ").contains("IdentityAgent"), "agent logins keep the agent");
         let _ = std::fs::remove_dir_all(&dir);
     }
 
@@ -668,6 +943,76 @@ mod tests {
         assert_eq!(approval_agent_name("identityagent SSH_AUTH_SOCK\n", Some("/Users/me/Library/Containers/com.maxgoedjen.Secretive.SecretAgent/Data/socket.ssh")), Some("Secretive"));
         assert_eq!(approval_agent_name("identityagent none\n", Some("/home/me/.1password/agent.sock")), None, "Crow turned the agent off");
         assert_eq!(approval_agent_name("user root\n", Some("/run/user/1000/keyring/ssh")), None);
+    }
+    /// Real sshd containers: a bastion on 127.0.0.1:22301, a second one only
+    /// it can reach, and a server behind each (see the ERR-152 notes):
+    ///   CROW_BASTION_LAB=/path/with/key+known_hosts cargo test live_bastion_chain -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn live_bastion_chain() {
+        let lab = std::path::PathBuf::from(std::env::var("CROW_BASTION_LAB").expect("set CROW_BASTION_LAB"));
+        let key = lab.join("key").display().to_string();
+        let wrapper = |kh: &std::path::Path, name: &str| {
+            let path = lab.join(name);
+            std::fs::write(&path, format!("#!/bin/sh\nexec ssh -F /dev/null -o UserKnownHostsFile={} \"$@\"\n", kh.display())).unwrap();
+            use std::os::unix::fs::PermissionsExt;
+            std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).unwrap();
+            path.display().to_string()
+        };
+        let ssh = wrapper(&lab.join("known_hosts"), "ssh-wrap");
+        let mut b1 = rec("b1", "127.0.0.1", None, "publickey", Some("k"));
+        b1.port = 22301;
+        b1.login_user = "root".into();
+        let servers: HashMap<String, ServerRecord> = [
+            b1,
+            ServerRecord { login_user: "root".into(), ..rec("b2", "crow-b2", Some("b1"), "publickey", Some("k")) },
+            ServerRecord { login_user: "root".into(), ..rec("t1", "crow-t1", Some("b1"), "publickey", Some("k")) },
+            ServerRecord { login_user: "root".into(), ..rec("t2", "crow-t2", Some("b2"), "publickey", Some("k")) },
+        ]
+        .into_iter()
+        .map(|s| (s.id.clone(), s))
+        .collect();
+        let keys: HashMap<String, String> = [("k".to_string(), key.clone())].into();
+        let control = std::env::temp_dir().join(format!("crow-bl-{}", std::process::id()));
+        let _ = std::fs::create_dir_all(&control);
+        let host = |id: &str, program: &str, keys: &HashMap<String, String>| {
+            let chain = chain_for(&servers[id], &servers, keys).unwrap();
+            SshHost::new(&servers[id], Some(key.clone()), chain, control.clone()).with_program(program)
+        };
+        for (id, expect) in [("t1", "crow-t1"), ("t2", "crow-t2"), ("b2", "crow-b2")] {
+            let h = host(id, &ssh, &keys);
+            let out = h.exec(&["hostname"], Duration::from_secs(30)).unwrap_or_else(|e| panic!("{id}: {e}"));
+            eprintln!("{id}: {} via {:?}", out.stdout.trim(), h.chain().iter().map(|c| &c.name).collect::<Vec<_>>());
+            assert!(!out.stdout.trim().is_empty() && expect.starts_with("crow-"));
+            h.close_connection();
+        }
+        // The hop really uses the bastion's own key: give b1 a key the bastion doesn't know.
+        let other = lab.join("other_key");
+        if !other.exists() {
+            std::process::Command::new("ssh-keygen").args(["-q", "-t", "ed25519", "-N", "", "-f", other.to_str().unwrap()]).status().unwrap();
+        }
+        let mut bad_servers = servers.clone();
+        bad_servers.get_mut("b1").unwrap().key_id = Some("other".into());
+        let bad_keys: HashMap<String, String> = [("k".to_string(), key.clone()), ("other".to_string(), other.display().to_string())].into();
+        let chain = chain_for(&bad_servers["t1"], &bad_servers, &bad_keys).unwrap();
+        let h = SshHost::new(&bad_servers["t1"], Some(key.clone()), chain, control.clone()).with_program(&ssh);
+        let err = h.exec(&["true"], Duration::from_secs(30)).unwrap_err().to_string();
+        eprintln!("wrong bastion key: {err}");
+        assert!(err.contains("bastion b1 refused"), "{err}");
+        // A server whose host key isn't pinned is refused, through the bastion too.
+        let partial = lab.join("known_hosts_no_t1");
+        std::fs::write(&partial, std::fs::read_to_string(lab.join("known_hosts")).unwrap().lines().filter(|l| !l.starts_with("crow-t1")).collect::<Vec<_>>().join("\n") + "\n").unwrap();
+        let strict = wrapper(&partial, "ssh-wrap-strict");
+        let err = host("t1", &strict, &keys).exec(&["true"], Duration::from_secs(30)).unwrap_err().to_string();
+        eprintln!("unpinned server: {err}");
+        assert!(err.contains("host key"), "{err}");
+        // A server the bastion can't reach says so.
+        let mut lost = servers.clone();
+        lost.get_mut("t1").unwrap().host = "crow-nowhere".into();
+        let chain = chain_for(&lost["t1"], &lost, &keys).unwrap();
+        let err = SshHost::new(&lost["t1"], Some(key.clone()), chain, control.clone()).with_program(&ssh).exec(&["true"], Duration::from_secs(30)).unwrap_err().to_string();
+        eprintln!("unreachable behind the bastion: {err}");
+        assert!(err.contains("b1 can't reach crow-nowhere"), "{err}");
     }
 }
 
@@ -695,4 +1040,5 @@ mod control_dir_tests {
         assert!(private_dir(&fresh, uid + 1).is_err(), "someone else's");
         std::fs::remove_dir_all(&base).unwrap();
     }
+
 }

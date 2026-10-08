@@ -367,7 +367,7 @@ mod live {
         let srv = crate::vault::ServerRecord { id: "live-region".into(), host: host.into(), port, login_user: user.into(), auth_method: "publickey".into(), key_id: Some("k".into()), ..Default::default() };
         let dir = std::env::temp_dir().join(format!("crow-live-region-{}", std::process::id()));
         std::fs::create_dir_all(&dir).unwrap();
-        let h = SshHost::new(&srv, Some(key), None, dir);
+        let h = SshHost::new(&srv, Some(key), Vec::new(), dir);
         let out = h.exec(&["sh", "-c", super::REGION_PROBE], DEFAULT_TIMEOUT).expect("probe ran");
         println!("{}", out.stdout);
         let r = super::parse_region_probe(&out.stdout).expect("a cloud server");

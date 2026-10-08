@@ -796,7 +796,7 @@ mod tests {
             std::fs::set_permissions(&wrapper, std::fs::Permissions::from_mode(0o755)).unwrap();
             let login = |record: &ServerRecord, key_path: &str, sub: &str| {
                 std::fs::create_dir_all(dir.join(sub)).unwrap();
-                crate::host::SshHost::new(record, Some(key_path.into()), None, dir.join(sub)).with_program(&wrapper.display().to_string())
+                crate::host::SshHost::new(record, Some(key_path.into()), Vec::new(), dir.join(sub)).with_program(&wrapper.display().to_string())
             };
 
             let record = server_record(&inst, &host_keys, &key);

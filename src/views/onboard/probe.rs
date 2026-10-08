@@ -34,6 +34,13 @@ pub struct ProbeResult {
     pub error: Option<String>,
 }
 
+impl ProbeResult {
+    /// Nothing reached, nothing read.
+    pub fn empty() -> Self {
+        Self { is_reachable: false, latency_ms: None, ssh_banner: None, host_key_fingerprint: String::new(), is_known_host: false, host_key_mismatch: false, scanned_keys: Vec::new(), error: None }
+    }
+}
+
 #[derive(Clone, Debug)]
 pub struct DetectedFacts {
     pub distro: String,
@@ -147,18 +154,99 @@ pub fn probe_host(host: &str, port: u16) -> (ProbeResult, Vec<ProbeLog>) {
     }
 
     // 4. Compare with known_hosts (ssh-keygen -F handles hashed entries)
+    compare_with_known_hosts(&mut result, &mut logs, host, port);
+    (result, logs)
+}
+
+/// Probes a server behind bastions (ERR-152) the way Crow will reach it:
+/// ssh through the bastions' ProxyCommand, with every login method off and
+/// a throwaway known_hosts, so it records the key the server presents and
+/// stops before logging in. Nothing is trusted here; the key is compared
+/// with ~/.ssh/known_hosts like a direct probe's.
+pub fn probe_via_bastion(host: &str, port: u16, user: &str, proxy: &str, via: &str) -> (ProbeResult, Vec<ProbeLog>) {
+    let mut logs = Vec::new();
+    let mut result = ProbeResult::empty();
+    if host.is_empty() || host.starts_with('-') {
+        result.error = Some(format!("{host:?} is not a valid host"));
+        log(&mut logs, "✕", CRIT, format!("{host:?} is not a valid host"), String::new());
+        return (result, logs);
+    }
+    let scratch = std::env::temp_dir().join(format!("crow-probe-{}-{}", std::process::id(), Instant::now().elapsed().as_nanos()));
+    let kh = scratch.join("known_hosts");
+    if let Err(e) = std::fs::create_dir_all(&scratch).and_then(|_| std::fs::write(&kh, "")) {
+        log(&mut logs, "✕", CRIT, format!("couldn't make a scratch known_hosts: {e}"), String::new());
+        return (result, logs);
+    }
+    let port_s = port.to_string();
+    let kh_opt = format!("UserKnownHostsFile={}", kh.display());
+    let proxy_opt = format!("ProxyCommand={proxy}");
+    let mut argv: Vec<&str> = vec!["ssh", "-v", "-o", "BatchMode=yes", "-o", &kh_opt, "-o", "GlobalKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", "-o", "HashKnownHosts=no", "-o", "UpdateHostKeys=no"];
+    for off in ["PubkeyAuthentication=no", "PasswordAuthentication=no", "KbdInteractiveAuthentication=no", "GSSAPIAuthentication=no", "HostbasedAuthentication=no", "ControlMaster=no", "ControlPath=none", "ConnectTimeout=10"] {
+        argv.extend(["-o", off]);
+    }
+    argv.extend(["-o", &proxy_opt, "-p", &port_s]);
+    if !user.is_empty() {
+        argv.extend(["-l", user]);
+    }
+    argv.extend(["--", host, "true"]);
+    let start = Instant::now();
+    let out = crate::host::run_local(&argv, &[], Duration::from_secs(40));
+    let elapsed = start.elapsed().as_millis() as u64;
+    let stderr = match &out {
+        Ok(o) => o.stderr.clone(),
+        Err(crate::host::HostError::Failed { stderr, .. }) => stderr.clone(),
+        Err(e) => e.to_string(),
+    };
+    let lines: Vec<String> = std::fs::read_to_string(&kh).unwrap_or_default().lines().filter(|l| !l.trim().is_empty() && !l.starts_with('#')).map(str::to_string).collect();
+    let _ = std::fs::remove_dir_all(&scratch);
+    if let Some(v) = stderr.lines().find_map(|l| l.split("remote software version ").nth(1)) {
+        result.ssh_banner = Some(format!("SSH-2.0-{}", v.trim()));
+    }
+    if lines.is_empty() {
+        let why = stderr
+            .lines()
+            .rev()
+            .find(|l| !l.starts_with("debug") && !l.trim().is_empty() && !l.starts_with("OpenSSH_"))
+            .unwrap_or("no answer")
+            .trim()
+            .to_string();
+        let why = match crate::host::ssh::classify_hop_failure(&stderr, &[], host) {
+            Some(crate::host::ssh::ConnectionState::Unreachable(m)) => m.replacen("the bastion", via, 1),
+            _ if why.contains("Connection closed by UNKNOWN") => format!("{via} let Crow in but couldn't reach {host}:{port}, or {via} refused Crow"),
+            _ => why,
+        };
+        result.error = Some(why.clone());
+        log(&mut logs, "✕", CRIT, format!("through {via}: {why}"), format!("{elapsed}ms"));
+        return (result, logs);
+    }
+    result.is_reachable = true;
+    result.latency_ms = Some(elapsed);
+    log(&mut logs, "✓", OK, format!("reached {host}:{port} through {via}"), format!("{elapsed}ms"));
+    if let Some(b) = &result.ssh_banner {
+        log(&mut logs, "✓", OK, format!("ssh banner {b}"), String::new());
+    }
+    result.scanned_keys = lines;
+    let fingerprints: Vec<(String, String)> = result.scanned_keys.iter().filter_map(|l| key_fingerprint(l)).collect();
+    if let Some((alg, fp)) = fingerprints.first() {
+        result.host_key_fingerprint = format!("{fp} ({})", alg.trim_start_matches("ssh-").to_uppercase());
+        log(&mut logs, "✓", OK, format!("host key {}", result.host_key_fingerprint), format!("through {via}"));
+    }
+    compare_with_known_hosts(&mut result, &mut logs, host, port);
+    (result, logs)
+}
+
+fn compare_with_known_hosts(result: &mut ProbeResult, logs: &mut Vec<ProbeLog>, host: &str, port: u16) {
     let known = known_host_keys(host, port);
     let scanned_blobs: Vec<&str> = result.scanned_keys.iter().filter_map(|l| l.split_whitespace().nth(2)).collect();
     result.is_known_host = known.iter().any(|k| scanned_blobs.contains(&k.as_str()));
     result.host_key_mismatch = !known.is_empty() && !result.is_known_host && !scanned_blobs.is_empty();
     if result.is_known_host {
-        log(&mut logs, "✓", OK, "host key matches ~/.ssh/known_hosts".into(), String::new());
+        log(logs, "✓", OK, "host key matches ~/.ssh/known_hosts".into(), String::new());
     } else if result.host_key_mismatch {
-        log(&mut logs, "✕", CRIT, "HOST KEY CHANGED: known_hosts has a different key for this host — possible man-in-the-middle; not trusting it".into(), String::new());
+        log(logs, "✕", CRIT, "HOST KEY CHANGED: known_hosts has a different key for this host — possible man-in-the-middle; not trusting it".into(), String::new());
     } else {
-        log(&mut logs, "▲", WARN, "host key not in known_hosts — verify the fingerprint, then accept".into(), String::new());
+        log(logs, "▲", WARN, "host key not in known_hosts — verify the fingerprint, then accept".into(), String::new());
     }
-    (result, logs)
 }
 
 /// (key type, SHA256 fingerprint) of a known_hosts / ssh-keyscan line.
@@ -316,4 +404,28 @@ mod live {
         println!("{result:?}");
         assert!(result.is_reachable && !result.scanned_keys.is_empty());
     }
+}
+
+/// Probes servers behind a real bastion (the ERR-152 container lab):
+///   CROW_BASTION_LAB=/path/with/key+known_hosts+ssh-wrap cargo test live_probe_via_bastion -- --ignored --nocapture
+#[cfg(test)]
+#[test]
+#[ignore]
+fn live_probe_via_bastion() {
+    use crate::host::ssh::{proxy_command, Hop, SshSettings};
+    let lab = std::path::PathBuf::from(std::env::var("CROW_BASTION_LAB").expect("set CROW_BASTION_LAB"));
+    let hop = Hop { name: "b1".into(), host: "127.0.0.1".into(), port: 22301, user: "root".into(), key_path: Some(lab.join("key").display().to_string()) };
+    let wrap = lab.join("ssh-wrap").display().to_string();
+    let proxy = proxy_command(&wrap, &SshSettings::default(), &[hop], "crow-t1", 22).unwrap();
+    let (r, logs) = probe_via_bastion("crow-t1", 22, "root", &proxy, "b1");
+    for l in &logs {
+        eprintln!("{} {} {}", l.glyph, l.message, l.note);
+    }
+    assert!(r.is_reachable && r.ssh_banner.as_deref().is_some_and(|b| b.starts_with("SSH-2.0-OpenSSH")));
+    let t1 = std::fs::read_to_string(lab.join("known_hosts")).unwrap().lines().find(|l| l.starts_with("crow-t1")).unwrap().split_whitespace().nth(2).unwrap().to_string();
+    assert!(r.scanned_keys.iter().any(|l| l.starts_with("crow-t1 ") && l.contains(&t1)), "the key t1 really has: {:?}", r.scanned_keys);
+    let proxy = proxy_command(&wrap, &SshSettings::default(), &[Hop { name: "b1".into(), host: "127.0.0.1".into(), port: 22301, user: "root".into(), key_path: Some(lab.join("key").display().to_string()) }], "crow-nowhere", 22).unwrap();
+    let (r, logs) = probe_via_bastion("crow-nowhere", 22, "root", &proxy, "b1");
+    eprintln!("{}", logs.last().unwrap().message);
+    assert!(!r.is_reachable && r.error.as_deref().is_some_and(|e| e.contains("b1")));
 }
