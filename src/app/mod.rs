@@ -57,6 +57,7 @@ pub mod palette;
 pub mod plugins;
 pub mod notify;
 pub mod containers;
+pub mod bastions;
 mod secrets;
 pub mod password_login;
 pub mod vault_manage;

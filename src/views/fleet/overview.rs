@@ -227,7 +227,11 @@ pub fn fleet_overview_view(
                 id: s.id.clone(),
                 name: s.name.clone(),
                 group: s.group_name.clone(),
-                ip: s.host.clone(),
+                // Behind a bastion: say which (ERR-152).
+                ip: match s.jump_host_id.as_deref().and_then(|j| fleet.servers.iter().find(|o| o.id == j)) {
+                    Some(b) => format!("{} via {}", s.host, b.name),
+                    None => s.host.clone(),
+                },
                 role: s.role.clone(),
                 env: s.env.clone(),
                 env_bg,

@@ -13,7 +13,7 @@ use crate::os_detect::{classify_distro_family, DistroFamily};
 pub type JumpInfo = Option<(String, bool)>;
 
 /// `vm_busy`: a Multipass action is running, so the VM buttons wait.
-pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker_open: bool, snapshots: bool, vm_busy: bool, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: bool, region_picker_open: bool, snapshots: bool, vm_busy: bool, app: Entity<CrowApp>) -> impl IntoElement {
     let app_clone = app.clone();
 
     let server_name = server.map(|s| s.name.as_str()).unwrap_or("localhost");
@@ -174,6 +174,21 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker
                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_group_assign_target(Some(s_id.clone()), cx)))
                         .child(div().text_color(TEXT_FAINT).child("group"))
                         .child(if none { "none ▾".to_string() } else { format!("{} ▾", s.group_name.trim()) })
+                }))
+                // A bastion others can be reached through (ERR-152): click to switch.
+                .children(server.filter(|s| transport_kind(s) == TransportKind::Ssh).map(|s| {
+                    let (app, id) = (app.clone(), s.id.clone());
+                    div()
+                        .id("identity-bastion-chip")
+                        .flex()
+                        .flex_none()
+                        .items_center()
+                        .gap(px(5.0))
+                        .cursor_pointer()
+                        .hover(|h| h.text_color(TEXT_PRIMARY))
+                        .text_color(if is_bastion { hex_rgb(0x60a5fa) } else { TEXT_FAINT })
+                        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_bastion(&id, !is_bastion, cx)))
+                        .child(if is_bastion { "bastion ✓" } else { "bastion: no" })
                 }))
                 // The environment closes the details.
                 .child({

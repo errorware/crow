@@ -1,13 +1,20 @@
-use gpui_kit::component::scroll::ScrollableElement;
-use gpui_kit::*;
-use crate::theme::*;
-use crate::app::{CrowApp, Screen};
-use crate::os_detect::classify_distro_family;
-use crate::app::onboard::OnboardInputs;
+//! Add Server (ERR-153): three steps. Connect (where it is, how Crow gets
+//! there and logs in), Verify (the real host key, then a login that reads
+//! the server's facts), Name (how it shows in the fleet). Nothing is shown
+//! before it's read.
+
 use gpui_kit::component::input::Input;
+use gpui_kit::component::scroll::ScrollableElement;
+use gpui_kit::prelude::FluentBuilder as _;
+use gpui_kit::*;
+
+use crate::app::onboard::OnboardInputs;
+use crate::app::CrowApp;
+use crate::os_detect::classify_distro_family;
+use crate::theme::*;
+use crate::views::fleet::lab_state::LocalLabState;
 use crate::views::fleet::FleetState;
 use crate::views::settings::keys_state::KeysState;
-use crate::views::fleet::lab_state::LocalLabState;
 
 pub mod probe;
 #[allow(unused_imports)]
@@ -15,21 +22,19 @@ pub use probe::{gather_facts, log as probe_log, probe_host, trust_host_keys, Det
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OnboardStep {
-    Address = 1,
-    Credentials = 2,
-    VerifyHost = 3,
-    Classify = 4,
-    Finish = 5,
+    Connect = 1,
+    Verify = 2,
+    Name = 3,
 }
 
 impl OnboardStep {
+    pub const ALL: [OnboardStep; 3] = [OnboardStep::Connect, OnboardStep::Verify, OnboardStep::Name];
+
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Address => "Address",
-            Self::Credentials => "Credentials",
-            Self::VerifyHost => "Verify Host",
-            Self::Classify => "Classify",
-            Self::Finish => "Review",
+            Self::Connect => "Connect",
+            Self::Verify => "Verify",
+            Self::Name => "Name",
         }
     }
 
@@ -53,26 +58,27 @@ pub enum OnboardFieldFocus {
 pub struct OnboardState {
     pub step: OnboardStep,
     pub max_reached_step: OnboardStep,
-    // Step 1: Address
+    // Connect
     pub host: String,
     pub port: String,
-    // Step 2: Credentials
     pub user: String,
     pub auth_method: String, // "publickey", "agent", "password"
     pub selected_key_id: Option<String>,
     pub jump_host_id: Option<String>,
     pub password: crate::secret_string::SecretString,
-    // Step 3: Probe
+    // Verify
     pub probe_result: Option<ProbeResult>,
     pub probe_logs: Vec<ProbeLog>,
     pub host_key_accepted: bool,
     pub is_probing: bool,
-    // Step 4: Classify
+    // Name
     pub label: String,
-    pub env: String, // "PROD", "STAGE", "DEV", "LAB"
-    pub role: String, // "web · nginx", "postgres 16", "cache · queue", "sidekiq", "ssh jump", "custom"
-    pub group: String, // "workers", "edge", "data", "staging"
+    pub env: String,
+    pub role: String,
+    pub group: String,
     pub tags: String,
+    /// Other servers can be reached through this one (ERR-152).
+    pub make_bastion: bool,
     pub facts: DetectedFacts,
     /// Set when the server was imported from a provider (ERR-46).
     pub provider: Option<ProviderLink>,
@@ -92,1659 +98,557 @@ pub struct ProviderLink {
 }
 
 impl OnboardState {
+    /// Empty, but for sensible defaults: port 22, root, and key login with
+    /// Crow's key (or the first one) when there's a key, else a one-time
+    /// password that installs Crow's key.
     pub fn new(enrolled_keys: &[crate::vault::SshKeyRecord]) -> Self {
-        let default_key = enrolled_keys.first().map(|k| k.id.clone());
+        let key = enrolled_keys.iter().find(|k| k.name == "crow").or(enrolled_keys.first()).map(|k| k.id.clone());
         Self {
-            step: OnboardStep::Address,
-            max_reached_step: OnboardStep::Address,
-            host: "10.0.4.32".into(),
+            step: OnboardStep::Connect,
+            max_reached_step: OnboardStep::Connect,
+            host: String::new(),
             port: "22".into(),
             user: "root".into(),
-            auth_method: "publickey".into(),
-            selected_key_id: default_key,
+            auth_method: if key.is_some() { "publickey".into() } else { "password".into() },
+            selected_key_id: key,
             jump_host_id: None,
             password: Default::default(),
             probe_result: None,
             probe_logs: Vec::new(),
             host_key_accepted: false,
             is_probing: false,
-            label: "worker-05".into(),
-            env: "PROD".into(),
-            role: "sidekiq".into(),
-            group: "workers".into(),
-            tags: "queue, ruby, eu-west".into(),
+            label: String::new(),
+            env: String::new(),
+            role: String::new(),
+            group: String::new(),
+            tags: String::new(),
+            make_bastion: false,
             facts: DetectedFacts::default(),
             provider: None,
             focus: OnboardFieldFocus::Host,
             error_message: None,
         }
     }
+
+    /// The facts were read: a login worked (only a login reads the kernel).
+    pub fn logged_in(&self) -> bool {
+        self.facts.kernel != "—"
+    }
+
+    pub fn endpoint(&self) -> String {
+        let port = if self.port.trim().is_empty() { "22" } else { self.port.trim() };
+        format!("{}@{}:{port}", self.user.trim(), self.host.trim())
+    }
 }
 
-pub fn onboard_view(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &FleetState, onboard_state: &OnboardState, keys: &KeysState, local_lab: &LocalLabState) -> impl IntoElement {
-    let state = &onboard_state;
+const BASTION_BLUE: Rgba = Rgba { r: 0.376, g: 0.647, b: 0.98, a: 1.0 };
 
-    let steps = [
-        OnboardStep::Address,
-        OnboardStep::Credentials,
-        OnboardStep::VerifyHost,
-        OnboardStep::Classify,
-        OnboardStep::Finish,
-    ];
+fn mono(size: f32, color: Rgba) -> Div {
+    div().font_family(FONT_MONO).text_size(px(size)).text_color(color)
+}
 
-    let app_cancel = app.clone();
-    let app_prev = app.clone();
-    let app_next = app.clone();
+fn label(text: &'static str) -> Div {
+    mono(10.0, TEXT_DIM).font_weight(FontWeight::BOLD).child(text)
+}
 
+fn hint(text: impl Into<SharedString>) -> Div {
+    mono(10.0, TEXT_FAINT).line_height(px(14.0)).child(text.into())
+}
+
+/// A wizard text field: gpui-component's input, styled like the app's other
+/// inputs (sharp corners, mono font).
+fn field(inputs: Option<&OnboardInputs>, which: OnboardFieldFocus) -> Div {
+    div().w_full().children(inputs.and_then(|i| i.get(which)).map(|state| Input::new(state).font_family(FONT_MONO).text_size(px(12.0)).bg(BG_APP).rounded(px(2.0))))
+}
+
+fn labeled(text: &'static str, body: impl IntoElement) -> Div {
+    div().flex().flex_col().gap(px(5.0)).child(label(text)).child(body)
+}
+
+/// One choice in a row of them: outlined when picked.
+fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, selected: bool, accent: Rgba) -> Stateful<Div> {
+    div()
+        .id(ElementId::Name(id.into()))
+        .flex()
+        .items_center()
+        .gap(px(6.0))
+        .px(px(10.0))
+        .py(px(5.0))
+        .border_1()
+        .border_color(if selected { accent } else { BORDER_DEFAULT })
+        .bg(if selected { BG_CONTROL_ALT } else { BG_CONTROL })
+        .font_family(FONT_MONO)
+        .text_size(px(10.5))
+        .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
+        .text_color(if selected { TEXT_PRIMARY } else { TEXT_DIM })
+        .cursor_pointer()
+        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .child(text.into())
+}
+
+/// A login method: a title and what it means, as a selectable card.
+fn method_card(id: &'static str, title: &'static str, about: &'static str, selected: bool) -> Stateful<Div> {
+    div()
+        .id(id)
+        .flex_1()
+        .min_w(px(0.0))
+        .flex()
+        .flex_col()
+        .gap(px(4.0))
+        .p(px(10.0))
+        .border_1()
+        .border_color(if selected { OK } else { BORDER_DEFAULT })
+        .bg(if selected { OK.opacity(0.06) } else { BG_CONTROL })
+        .cursor_pointer()
+        .hover(|s| s.bg(BG_ROW_HOVER))
+        .child(div().flex().items_center().gap(px(6.0)).child(div().size(px(8.0)).rounded_full().border_1().border_color(if selected { OK } else { TEXT_FAINT }).when(selected, |d| d.bg(OK))).child(mono(11.0, if selected { TEXT_PRIMARY } else { TEXT_SECONDARY }).font_weight(FontWeight::BOLD).child(title)))
+        .child(mono(9.5, TEXT_DIM).line_height(px(13.0)).child(about))
+}
+
+fn button(id: &'static str, text: impl Into<SharedString>, primary: bool, enabled: bool) -> Stateful<Div> {
+    let color = if !enabled { TEXT_GHOST } else if primary { BG_WINDOW } else { TEXT_SECONDARY };
+    div()
+        .id(id)
+        .flex()
+        .items_center()
+        .h(px(30.0))
+        .px(px(14.0))
+        .border_1()
+        .border_color(if primary && enabled { OK } else { BORDER_DEFAULT })
+        .bg(if primary && enabled { OK } else { BG_CONTROL })
+        .font_family(FONT_MONO)
+        .text_size(px(11.0))
+        .font_weight(FontWeight::BOLD)
+        .text_color(color)
+        .when(enabled, |d| d.cursor_pointer().hover(move |s| if primary { s.bg(hex_rgb(0x32b55e)) } else { s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY) }))
+        .child(text.into())
+}
+
+pub fn onboard_view(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &FleetState, state: &OnboardState, keys: &KeysState, local_lab: &LocalLabState) -> impl IntoElement {
+    let (app_cancel, app_back, app_next) = (app.clone(), app.clone(), app.clone());
+    let (primary_text, primary_enabled) = match state.step {
+        OnboardStep::Connect => ("CHECK CONNECTION →".to_string(), true),
+        OnboardStep::Verify => ("NEXT: NAME IT →".to_string(), state.host_key_accepted && !state.is_probing),
+        OnboardStep::Name => ("ADD SERVER ⏎".to_string(), true),
+    };
     div()
         .size_full()
         .flex()
         .flex_col()
         .bg(BG_APP)
-        // 1. Top Header
+        // Title and steps
         .child(
             div()
-                .h(px(52.0))
                 .flex_none()
                 .flex()
                 .items_center()
-                .px(px(16.0))
+                .gap(px(18.0))
+                .h(px(52.0))
+                .px(px(20.0))
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(
+                .child(mono(15.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child("ADD SERVER"))
+                .child(div().flex().items_center().gap(px(4.0)).children(OnboardStep::ALL.iter().map(|step| {
+                    let (active, done) = (state.step == *step, step.num() < state.max_reached_step.num() || (step.num() <= state.max_reached_step.num() && state.step != *step));
+                    let reachable = step.num() <= state.max_reached_step.num();
+                    let app = app.clone();
+                    let step = *step;
                     div()
-                        .flex()
-                        .items_baseline()
-                        .gap(px(10.0))
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(16.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MAX)
-                                .child("ADD SERVER"),
-                        )
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(11.5))
-                                .text_color(TEXT_DIM)
-                                .child("enroll a new host into fleet"),
-                        ),
-                )
-                .child(div().flex_1())
-                .child(
-                    div()
-                        .id("btn-cancel-onboard")
-                        .px(px(10.0))
-                        .py(px(5.0))
-                        .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.5))
-                        .text_color(TEXT_TERTIARY)
-                        .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
-                        .on_click(move |_ev, _window, cx| {
-                            app_cancel.update(cx, |this, cx| {
-                                this.set_screen(Screen::Fleet, cx);
-                            });
-                        })
-                        .child("CANCEL esc"),
-                ),
-        )
-        // 2. 5-Step Stepper Strip
-        .child(
-            div()
-                .h(px(36.0))
-                .flex_none()
-                .flex()
-                .items_stretch()
-                .bg(BG_PANEL)
-                .border_b_1()
-                .border_color(BORDER_PANEL)
-                .children(steps.iter().enumerate().map(|(idx, step)| {
-                    let is_active = state.step == *step;
-                    let is_done = state.step.num() > step.num();
-                    let is_clickable = step.num() <= state.max_reached_step.num();
-
-                    let app_step = app.clone();
-                    let target_step = *step;
-
-                    // One border colour per element in GPUI, so the divider is the
-                    // only border; the active step gets the app's 2px green
-                    // accent bar (as on the titlebar tabs) drawn over its bottom edge.
-                    let mut tab = div()
-                        .id(ElementId::NamedInteger("onboard-step-tab".into(), idx as u64))
-                        .relative()
+                        .id(ElementId::NamedInteger("onboard-step".into(), step.num() as u64))
                         .flex()
                         .items_center()
-                        .gap(px(8.0))
-                        .px(px(16.0))
-                        .border_r_1()
-                        .border_color(BORDER_PANEL)
-                        .bg(if is_active { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
-                        .children(is_active.then(|| div().absolute().bottom_0().left_0().right_0().h(px(2.0)).bg(OK)));
-                    if is_clickable {
-                        tab = tab.cursor_pointer().hover(|h| h.bg(BG_ROW_HOVER));
-                    }
-                    tab.on_click(move |_ev, _window, cx| {
-                        if is_clickable {
-                            app_step.update(cx, |this, cx| {
-                                this.onboard_set_step(target_step, cx);
-                            });
-                        }
-                    })
-                        .child(
-                            div()
-                                .size(px(18.0))
-                                .rounded_full()
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .font_weight(FontWeight::BOLD)
-                                .bg(if is_done { OK_BG } else if is_active { BG_CONTROL_ALT } else { hex_rgba(0, 0.0) })
-                                .text_color(if is_done { OK } else if is_active { TEXT_MAX } else { TEXT_FAINT })
-                                .child(if is_done { "✓".to_string() } else { step.num().to_string() }),
-                        )
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(11.5))
-                                .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                                .text_color(if is_active { TEXT_MAX } else if is_done { TEXT_PRIMARY } else { TEXT_DIMMER })
-                                .child(step.label()),
-                        )
-                }))
-                .child(div().flex_1()),
+                        .gap(px(6.0))
+                        .px(px(10.0))
+                        .py(px(4.0))
+                        .border_b_2()
+                        .border_color(if active { OK } else { hex_rgba(0, 0.0) })
+                        .when(reachable && !active, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)))
+                        .on_click(move |_ev, _window, cx| {
+                            if reachable {
+                                app.update(cx, |this, cx| this.onboard_set_step(step, cx));
+                            }
+                        })
+                        .child(mono(10.0, if active { OK } else if done { OK.opacity(0.7) } else { TEXT_FAINT }).child(if done && !active { "✓".to_string() } else { step.num().to_string() }))
+                        .child(mono(11.0, if active { TEXT_PRIMARY } else if reachable { TEXT_SECONDARY } else { TEXT_FAINT }).font_weight(if active { FontWeight::BOLD } else { FontWeight::NORMAL }).child(step.label()))
+                })))
+                .child(div().flex_1())
+                .child(button("btn-onboard-cancel", "CANCEL esc", false, true).on_click(move |_ev, _window, cx| app_cancel.update(cx, |this, cx| this.set_screen(crate::app::Screen::Fleet, cx)))),
         )
-        // 3. Main Split: Target Form (flex-1) | Facts & Probe Rail (560px)
+        // The step
+        .child(
+            div().id("onboard-scroll").flex_1().min_h(px(0.0)).overflow_y_scrollbar().child(
+                div()
+                    .max_w(px(820.0))
+                    .px(px(28.0))
+                    .py(px(22.0))
+                    .flex()
+                    .flex_col()
+                    .gap(px(18.0))
+                    .child(match state.step {
+                        OnboardStep::Connect => step_connect(app.clone(), inputs, fleet, state, keys, local_lab).into_any_element(),
+                        OnboardStep::Verify => step_verify(app.clone(), state, fleet).into_any_element(),
+                        OnboardStep::Name => step_name(app.clone(), inputs, fleet, state).into_any_element(),
+                    })
+                    .children(state.error_message.clone().map(|e| div().p(px(10.0)).bg(CRIT.opacity(0.08)).border_1().border_color(CRIT.opacity(0.5)).child(mono(11.0, CRIT).line_height(px(16.0)).child(e)))),
+            ),
+        )
+        // Back and forward
         .child(
             div()
-                .flex_1()
-                .min_h(px(0.0))
+                .flex_none()
                 .flex()
-                // Left Column: Interactive Step Form
+                .items_center()
+                .gap(px(10.0))
+                .h(px(56.0))
+                .px(px(20.0))
+                .bg(BG_PANEL)
+                .border_t_1()
+                .border_color(BORDER_PANEL)
+                .when(state.step != OnboardStep::Connect, |d| d.child(button("btn-onboard-back", "← BACK", false, true).on_click(move |_ev, _window, cx| app_back.update(cx, |this, cx| this.onboard_prev_step(cx)))))
+                .child(div().flex_1())
+                .child(mono(10.0, TEXT_FAINT).child(state.endpoint()).when(state.host.trim().is_empty(), |d| d.invisible()))
+                .child(button("btn-onboard-next", primary_text, true, primary_enabled).on_click(move |_ev, _window, cx| {
+                    if primary_enabled {
+                        app_next.update(cx, |this, cx| this.onboard_next_step(cx));
+                    }
+                })),
+        )
+}
+
+// ---------------------------------------------------------------------------
+// 1. Connect
+// ---------------------------------------------------------------------------
+
+fn step_connect(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &FleetState, state: &OnboardState, keys: &KeysState, local_lab: &LocalLabState) -> impl IntoElement {
+    let bastions = crate::app::bastions::choices(None, &fleet.servers);
+    let method = state.auth_method.as_str();
+    let (app_key, app_agent, app_pw, app_direct) = (app.clone(), app.clone(), app.clone(), app.clone());
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(18.0))
+        .child(div().flex().flex_col().gap(px(4.0)).child(mono(14.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child("Where is it, and how does Crow log in?")).child(hint("Crow connects over SSH and installs nothing. The next step checks the server's host key before anything is sent.")))
+        // Lab containers on this machine, one click away.
+        .when(!local_lab.nodes.is_empty(), |d| {
+            d.child(labeled(
+                "OR A LAB CONTAINER ON THIS MACHINE",
+                div().flex().flex_wrap().gap(px(6.0)).children(local_lab.nodes.iter().enumerate().map(|(i, node)| {
+                    let (app, name, port, distro) = (app.clone(), node.name.clone(), node.ssh_port.unwrap_or(2222).to_string(), node.distro_display());
+                    chip(format!("onboard-lab-{i}"), format!("{} · {}", node.name, distro), false, OK).on_click(move |_ev, _window, cx| {
+                        let (name, port, distro) = (name.clone(), port.clone(), distro.clone());
+                        app.update(cx, |this, cx| this.onboard_select_local_lab_node(&name, &port, &distro, cx))
+                    })
+                })),
+            ))
+        })
+        .child(
+            div()
+                .flex()
+                .gap(px(10.0))
+                .child(div().flex_1().min_w(px(0.0)).child(labeled("ADDRESS", field(inputs, OnboardFieldFocus::Host))))
+                .child(div().w(px(90.0)).flex_none().child(labeled("PORT", field(inputs, OnboardFieldFocus::Port))))
+                .child(div().w(px(200.0)).flex_none().child(labeled("USER", field(inputs, OnboardFieldFocus::User)))),
+        )
+        // How Crow gets there.
+        .child(labeled(
+            "REACH IT",
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(6.0))
+                .child(
+                    div()
+                        .flex()
+                        .flex_wrap()
+                        .gap(px(6.0))
+                        .child(chip("onboard-route-direct", "Directly", state.jump_host_id.is_none(), OK).on_click(move |_ev, _window, cx| {
+                            app_direct.update(cx, |this, cx| {
+                                this.onboard_state.jump_host_id = None;
+                                cx.notify();
+                            })
+                        }))
+                        .children(bastions.iter().map(|b| {
+                            let (app, id) = (app.clone(), b.id.clone());
+                            let route = crate::app::bastions::route(&b.id, &fleet.servers);
+                            chip(format!("onboard-route-{}", b.id), format!("via {route}"), state.jump_host_id.as_deref() == Some(b.id.as_str()), BASTION_BLUE).on_click(move |_ev, _window, cx| {
+                                let id = id.clone();
+                                app.update(cx, |this, cx| {
+                                    this.onboard_state.jump_host_id = Some(id);
+                                    this.onboard_state.probe_result = None;
+                                    cx.notify();
+                                })
+                            })
+                        })),
+                )
+                .child(hint(if bastions.is_empty() {
+                    "Only reachable through another server? Mark that one as a bastion first: the \"bastion\" switch in its header.".to_string()
+                } else if state.jump_host_id.is_some() {
+                    "Every connection goes through the bastion, logging in there with the bastion's own key. How the bastion reaches this server is up to its network; Crow only needs the address as the bastion sees it.".to_string()
+                } else {
+                    "Pick a bastion when this server is only reachable through one.".to_string()
+                })),
+        ))
+        // How Crow logs in.
+        .child(labeled(
+            "LOG IN WITH",
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(8.0))
+                .child(
+                    div()
+                        .flex()
+                        .gap(px(8.0))
+                        .child(method_card("onboard-auth-key", "A key in Crow", "A key from Settings → Keys, already on the server.", method == "publickey").on_click(move |_ev, _window, cx| app_key.update(cx, |this, cx| this.onboard_set_auth("publickey", cx))))
+                        .child(method_card("onboard-auth-password", "A password, once", "Crow logs in once, installs its own key, and forgets the password.", method == "password").on_click(move |_ev, _window, cx| app_pw.update(cx, |this, cx| this.onboard_set_auth("password", cx))))
+                        .child(method_card("onboard-auth-agent", "My SSH agent", "Whatever your agent and ~/.ssh/config would use.", method == "agent").on_click(move |_ev, _window, cx| app_agent.update(cx, |this, cx| this.onboard_set_auth("agent", cx)))),
+                )
+                .when(method == "publickey", |d| {
+                    d.child(if keys.enrolled.is_empty() {
+                        hint("No keys in Crow yet: use \"A password, once\", or add one in Settings → Keys & Rotation.").into_any_element()
+                    } else {
+                        div()
+                            .flex()
+                            .flex_wrap()
+                            .gap(px(6.0))
+                            .children(keys.enrolled.iter().map(|k| {
+                                let (app, id) = (app.clone(), k.id.clone());
+                                chip(format!("onboard-key-{}", k.id), format!("{} · {}", k.name, k.algorithm), state.selected_key_id.as_deref() == Some(k.id.as_str()), OK).on_click(move |_ev, _window, cx| {
+                                    let id = id.clone();
+                                    app.update(cx, |this, cx| {
+                                        this.onboard_state.selected_key_id = Some(id);
+                                        cx.notify();
+                                    })
+                                })
+                            }))
+                            .into_any_element()
+                    })
+                })
+                .when(method == "password", |d| d.child(div().max_w(px(360.0)).child(field(inputs, OnboardFieldFocus::Password))).child(hint("Used for one login only, after the host key is checked. Never saved.")))
+                .when(method == "agent", |d| d.child(hint("Crow won't know which key that is, so it can't rotate or audit it."))),
+        ))
+}
+
+// ---------------------------------------------------------------------------
+// 2. Verify
+// ---------------------------------------------------------------------------
+
+fn step_verify(app: Entity<CrowApp>, state: &OnboardState, fleet: &FleetState) -> impl IntoElement {
+    let via = state.jump_host_id.as_deref().map(|b| crate::app::bastions::route(b, &fleet.servers));
+    let result = state.probe_result.as_ref();
+    let (app_recheck, app_accept) = (app.clone(), app.clone());
+    let headline: (Rgba, String) = match result {
+        _ if state.is_probing && result.is_none() => (TEXT_DIM, "Checking…".into()),
+        None => (TEXT_DIM, "Not checked yet.".into()),
+        Some(r) if !r.is_reachable => (CRIT, format!("Couldn't reach it: {}", r.error.clone().unwrap_or_else(|| "no answer".into()))),
+        Some(_) if state.is_probing => (TEXT_DIM, "Logging in and reading the server…".into()),
+        Some(_) if state.logged_in() => (OK, "Reached, host key trusted, logged in.".into()),
+        Some(_) if state.host_key_accepted => (WARN, "The host key is trusted, but logging in didn't work: see the log below.".into()),
+        Some(r) if r.host_key_mismatch => (CRIT, "The host key changed since it was last trusted.".into()),
+        Some(_) => (WARN, "Reached. Check the host key below, then trust it.".into()),
+    };
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(16.0))
+        .child(
+            div()
+                .flex()
+                .items_start()
+                .gap(px(12.0))
                 .child(
                     div()
                         .flex_1()
                         .min_w(px(0.0))
                         .flex()
                         .flex_col()
-                        .bg(BG_APP)
-                        .child(
-                            div()
-                                .id("onboard-form-list")
-                                .flex_1()
-                                .overflow_y_scrollbar()
-                                .p(px(16.0))
-                                .flex()
-                                .flex_col()
-                                .gap(px(12.0))
-                                .child(render_step_content(app.clone(), inputs, fleet, onboard_state, keys, local_lab)),
-                        )
-                        // Error message if any
-                        .children(if let Some(ref err) = state.error_message {
-                            Some(
-                                div()
-                                    .px(px(18.0))
-                                    .py(px(6.0))
-                                    .bg(hex_rgb(0x2e1114))
-                                    .border_t_1()
-                                    .border_color(CRIT)
-                                    .font_family(FONT_MONO)
-                                    .text_size(px(10.5))
-                                    .text_color(CRIT)
-                                    .child(err.clone()),
-                            )
-                        } else {
-                            None
-                        })
-                        // Form Bottom Actions Bar
-                        .child(
-                            div()
-                                .h(px(46.0))
-                                .flex_none()
-                                .flex()
-                                .items_center()
-                                .px(px(18.0))
-                                .bg(BG_PANEL)
-                                .border_t_1()
-                                .border_color(BORDER_PANEL)
-                                .gap(px(8.0))
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.5))
-                                .child(
-                                    div()
-                                        .id("btn-onboard-back")
-                                        .px(px(12.0))
-                                        .py(px(6.0))
-                                        .border_1()
-                                        .border_color(BORDER_DEFAULT)
-                                        .text_color(TEXT_TERTIARY)
-                                        .cursor_pointer()
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
-                                        .on_click(move |_ev, _window, cx| {
-                                            app_prev.update(cx, |this, cx| {
-                                                this.onboard_prev_step(cx);
-                                            });
-                                        })
-                                        .child(if state.step == OnboardStep::Address { "✕ CANCEL" } else { "← BACK" }),
-                                )
-                                .child(div().flex_1())
-                                .child(
-                                    div()
-                                        .id("btn-onboard-next")
-                                        .px(px(16.0))
-                                        .py(px(7.0))
-                                        .bg(if state.step == OnboardStep::Finish { OK } else { BG_CONTROL })
-                                        .border_1()
-                                        .border_color(if state.step == OnboardStep::Finish { OK } else { BORDER_DEFAULT })
-                                        .text_color(if state.step == OnboardStep::Finish { BG_WINDOW } else { TEXT_MAX })
-                                        .font_weight(FontWeight::BOLD)
-                                        .cursor_pointer()
-                                        .hover(|s| s.bg(if state.step == OnboardStep::Finish { hex_rgb(0x32b55e) } else { BG_ROW_HOVER }))
-                                        .on_click(move |_ev, _window, cx| {
-                                            app_next.update(cx, |this, cx| {
-                                                this.onboard_next_step(cx);
-                                            });
-                                        })
-                                        .child(match state.step {
-                                            OnboardStep::Address => "NEXT: CREDENTIALS →",
-                                            OnboardStep::Credentials => "NEXT: VERIFY HOST →",
-                                            OnboardStep::VerifyHost => "NEXT: CLASSIFY →",
-                                            OnboardStep::Classify => "NEXT: REVIEW & FINISH →",
-                                            OnboardStep::Finish => "COMPLETE ENROLLMENT ⌘⏎",
-                                        }),
-                                ),
-                        ),
+                        .gap(px(4.0))
+                        .child(mono(14.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(state.endpoint()))
+                        .children(via.map(|v| mono(10.5, BASTION_BLUE).child(format!("through {v}"))))
+                        .child(mono(11.5, headline.0).line_height(px(16.0)).child(headline.1)),
                 )
-                // Right Rail: Fingerprint, Probe Log, Detected Facts, Schema Packs
-                .child(render_right_rail(app.clone(), onboard_state)),
+                .child(button("btn-onboard-recheck", if state.is_probing { "CHECKING…" } else { "CHECK AGAIN" }, false, !state.is_probing).on_click(move |_ev, _window, cx| app_recheck.update(cx, |this, cx| this.onboard_run_probe(cx)))),
         )
-}
-
-fn render_step_content(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &FleetState, onboard_state: &OnboardState, keys: &KeysState, local_lab: &LocalLabState) -> Div {
-    let state = &onboard_state;
-
-    match state.step {
-        OnboardStep::Address => render_step_address(app, inputs, onboard_state, local_lab),
-        OnboardStep::Credentials => render_step_credentials(app, inputs, fleet, onboard_state, keys),
-        OnboardStep::VerifyHost => render_step_verify(app, state),
-        OnboardStep::Classify => render_step_classify(app, inputs, onboard_state),
-        OnboardStep::Finish => render_step_finish(state, &keys.enrolled),
-    }
-}
-
-// -----------------------------------------------------------------------------
-// Step 1: Address
-// -----------------------------------------------------------------------------
-fn render_step_address(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, onboard_state: &OnboardState, local_lab: &LocalLabState) -> Div {
-    let state = &onboard_state;
-    let is_host_focused = state.focus == OnboardFieldFocus::Host;
-    let is_port_focused = state.focus == OnboardFieldFocus::Port;
-
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(14.0))
-        .child(
+        // The host key: what the server presented, and whether it's trusted.
+        .children(result.filter(|r| !r.scanned_keys.is_empty()).map(|r| {
+            let (border, title) = if state.host_key_accepted {
+                (OK, "HOST KEY · TRUSTED")
+            } else if r.host_key_mismatch {
+                (CRIT, "HOST KEY · CHANGED, NOT TRUSTED")
+            } else {
+                (WARN, "HOST KEY · NEW TO THIS MACHINE")
+            };
+            let (hash, kind) = match r.host_key_fingerprint.rsplit_once(" (") {
+                Some((h, k)) => (h.to_string(), k.trim_end_matches(')').to_string()),
+                None => (r.host_key_fingerprint.clone(), String::new()),
+            };
             div()
-                .font_family(FONT_MONO)
-                .text_size(px(13.0))
-                .font_weight(FontWeight::BOLD)
-                .text_color(TEXT_MAX)
-                .child("STEP 1: NETWORK ADDRESS & PORT"),
-        )
-        .child(
-            div()
-                .font_family(FONT_MONO)
-                .text_size(px(10.5))
-                .text_color(TEXT_DIM)
-                .child("Provide the target server's IPv4, IPv6, or fully qualified domain name (FQDN)."),
-        )
-        // Local Lab Test Nodes Quick-Pick (if any exist)
-        .children(if !local_lab.nodes.is_empty() {
-            let app_pick = app.clone();
-            Some(
-                div()
-                    .p(px(10.0))
-                    .bg(hex_rgb(0x0f1016))
-                    .border_1()
-                    .border_color(BORDER_DEFAULT)
-                    .flex()
-                    .flex_col()
-                    .gap(px(6.0))
-                    .child(
-                        div()
-                            .flex()
-                            .items_center()
-                            .justify_between()
-                            .child(
-                                div()
-                                    .font_family(FONT_MONO)
-                                    .text_size(px(10.0))
-                                    .font_weight(FontWeight::BOLD)
-                                    .text_color(OK)
-                                    .child("⚡ OR PICK A DETECTED LOCAL TEST NODE"),
-                            )
-                            .child(
-                                div()
-                                    .font_family(FONT_MONO)
-                                    .text_size(px(9.0))
-                                    .text_color(TEXT_MUTED)
-                                    .child("Distrobox / Podman"),
-                            ),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap(px(4.0))
-                            .children(local_lab.nodes.iter().enumerate().map(|(idx, node)| {
-                                let app = app_pick.clone();
-                                let node_name = node.name.clone();
-                                let port_str = node.ssh_port.unwrap_or(2222).to_string();
-                                let distro = node.distro_display();
-                                div()
-                                    .id(ElementId::NamedInteger("quick-pick-lab-node".into(), idx as u64))
-                                    .p(px(6.0))
-                                    .bg(BG_CONTROL)
-                                    .border_1()
-                                    .border_color(BORDER_DEFAULT)
-                                    .hover(|s| s.bg(BG_ROW_HOVER))
-                                    .cursor_pointer()
-                                    .flex()
-                                    .items_center()
-                                    .justify_between()
-                                    .on_click(move |_ev, _window, cx| {
-                                        let name = node_name.clone();
-                                        let p = port_str.clone();
-                                        let d = distro.clone();
-                                        app.update(cx, |this, cx| {
-                                            this.onboard_select_local_lab_node(&name, &p, &d, cx);
-                                        });
-                                    })
-                                    .child(
-                                        div()
-                                            .flex()
-                                            .items_center()
-                                            .gap(px(8.0))
-                                            .child(
-                                                div()
-                                                    .size(px(6.0))
-                                                    .rounded_full()
-                                                    .bg(if node.is_running() { OK } else { TEXT_DIMMER }),
-                                            )
-                                            .child(
-                                                div()
-                                                    .font_family(FONT_MONO)
-                                                    .text_size(px(10.5))
-                                                    .font_weight(FontWeight::BOLD)
-                                                    .text_color(TEXT_PRIMARY)
-                                                    .child(node.name.clone()),
-                                            )
-                                            .child(
-                                                div()
-                                                    .font_family(FONT_MONO)
-                                                    .text_size(px(9.0))
-                                                    .text_color(TEXT_TERTIARY)
-                                                    .child(format!("({})", node.engine.label())),
-                                            ),
-                                    )
-                                    .child(
-                                        div()
-                                            .font_family(FONT_MONO)
-                                            .text_size(px(9.5))
-                                            .text_color(TEXT_MUTED)
-                                            .child(format!("127.0.0.1:{}", node.ssh_port.unwrap_or(2222))),
-                                    )
-                            }))
-                    )
-            )
-        } else {
-            None
+                .flex()
+                .flex_col()
+                .gap(px(8.0))
+                .p(px(12.0))
+                .border_1()
+                .border_color(border.opacity(0.6))
+                .bg(border.opacity(0.05))
+                .child(mono(10.0, border).font_weight(FontWeight::BOLD).child(title))
+                .child(mono(12.5, TEXT_PRIMARY).child(hash))
+                .child(mono(9.5, TEXT_FAINT).child(kind))
+                .when(!state.host_key_accepted && !r.host_key_mismatch, |d| {
+                    d.child(hint("Compare it with the server's own, e.g. from its console: ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub"))
+                        .child(div().flex().child(button("btn-accept-host-key", "✓ IT MATCHES: TRUST IT", true, !state.is_probing).on_click(move |_ev, _window, cx| app_accept.update(cx, |this, cx| this.onboard_accept_host_key(cx)))))
+                })
+                .when(r.host_key_mismatch, |d| d.child(hint("Possibly a reinstalled server, possibly someone in the middle. If the change is expected, remove the old entry from ~/.ssh/known_hosts yourself, then check again.")))
+        }))
+        // What a login read.
+        .when(state.logged_in(), |d| d.child(facts_grid(&state.facts)))
+        // Everything that happened, in order.
+        .when(!state.probe_logs.is_empty(), |d| {
+            d.child(labeled(
+                "LOG",
+                div().flex().flex_col().gap(px(3.0)).p(px(10.0)).bg(BG_PANEL).border_1().border_color(BORDER_PANEL).children(state.probe_logs.iter().map(|l| {
+                    div()
+                        .flex()
+                        .gap(px(8.0))
+                        .child(mono(10.0, TEXT_FAINT).flex_none().child(l.timestamp.clone()))
+                        .child(mono(10.0, l.color).flex_none().w(px(12.0)).child(l.glyph.clone()))
+                        .child(mono(10.5, TEXT_SECONDARY).flex_1().min_w(px(0.0)).line_height(px(15.0)).child(l.message.clone()))
+                        .when(!l.note.is_empty(), |d| d.child(mono(9.5, TEXT_FAINT).flex_none().child(l.note.clone())))
+                })),
+            ))
         })
-        // Host field
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(4.0))
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(if is_host_focused { TEXT_PRIMARY } else { TEXT_DIM })
-                        .child("HOSTNAME OR IP ADDRESS:"),
-                )
-                .child(
-                    onboard_field(inputs, OnboardFieldFocus::Host),
-                )
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(9.5))
-                        .text_color(TEXT_DIMMER)
-                        .child("resolves · 1 A record or direct routable IP address"),
-                ),
-        )
-        // Port field
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(4.0))
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(if is_port_focused { TEXT_PRIMARY } else { TEXT_DIM })
-                        .child("SSH PORT:"),
-                )
-                .child(
-                    onboard_field(inputs, OnboardFieldFocus::Port)
-                    .w(px(120.0)),
-                )
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(9.5))
-                        .text_color(TEXT_DIMMER)
-                        .child("standard OpenSSH daemon default is 22"),
-                ),
-        )
 }
 
-// -----------------------------------------------------------------------------
-// Step 2: Credentials
-// -----------------------------------------------------------------------------
-fn render_step_credentials(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &FleetState, onboard_state: &OnboardState, keys: &KeysState) -> Div {
-    let state = &onboard_state;
-    let enrolled_keys = &keys.enrolled;
-    let servers = &fleet.servers;
-    let app_auth_pub = app.clone();
-    let app_auth_agent = app.clone();
-    let app_auth_pass = app.clone();
-    let app_jump_none = app.clone();
-    let is_user_focused = state.focus == OnboardFieldFocus::User;
-    let is_pw_focused = state.focus == OnboardFieldFocus::Password;
-
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(14.0))
-        .child(
-            div()
-                .font_family(FONT_MONO)
-                .text_size(px(13.0))
-                .font_weight(FontWeight::BOLD)
-                .text_color(TEXT_MAX)
-                .child("STEP 2: LOGIN CREDENTIALS & SSH IDENTITY"),
-        )
-        .child(
-            div()
-                .font_family(FONT_MONO)
-                .text_size(px(10.5))
-                .text_color(TEXT_DIM)
-                .child("Configure login user and cryptographic authentication identity."),
-        )
-        // Login user
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(4.0))
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(if is_user_focused { TEXT_PRIMARY } else { TEXT_DIM })
-                        .child("LOGIN USER:"),
-                )
-                .child(
-                    onboard_field(inputs, OnboardFieldFocus::User),
-                )
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(9.5))
-                        .text_color(TEXT_DIMMER)
-                        .child("administrative remote user (root, ubuntu, deploy, admin)"),
-                ),
-        )
-        // Auth method chips
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(5.0))
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIM)
-                        .child("AUTHENTICATION METHOD:"),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .gap(px(8.0))
-                        .child(
-                            div()
-                                .id("chip-auth-pubkey")
-                                .px(px(10.0))
-                                .py(px(5.0))
-                                .bg(if state.auth_method == "publickey" { BG_OVERLAY_PANEL } else { BG_CONTROL })
-                                .border_1()
-                                .border_color(if state.auth_method == "publickey" { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .on_click(move |_ev, _window, cx| {
-                                    app_auth_pub.update(cx, |this, cx| {
-                                        this.onboard_state.auth_method = "publickey".into();
-                                        cx.notify();
-                                    });
-                                })
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
-                                        .text_color(if state.auth_method == "publickey" { TEXT_MAX } else { TEXT_DIM })
-                                        .child("● Public Key (Vault Key)"),
-                                ),
-                        )
-                        .child(
-                            div()
-                                .id("chip-auth-agent")
-                                .px(px(10.0))
-                                .py(px(5.0))
-                                .bg(if state.auth_method == "agent" { BG_OVERLAY_PANEL } else { BG_CONTROL })
-                                .border_1()
-                                .border_color(if state.auth_method == "agent" { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .on_click(move |_ev, _window, cx| {
-                                    app_auth_agent.update(cx, |this, cx| {
-                                        this.onboard_state.auth_method = "agent".into();
-                                        cx.notify();
-                                    });
-                                })
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
-                                        .text_color(if state.auth_method == "agent" { TEXT_MAX } else { TEXT_DIM })
-                                        .child("○ SSH agent (ssh-agent keys)"),
-                                ),
-                        )
-                        .child(
-                            div()
-                                .id("chip-auth-password")
-                                .px(px(10.0))
-                                .py(px(5.0))
-                                .bg(if state.auth_method == "password" { BG_OVERLAY_PANEL } else { BG_CONTROL })
-                                .border_1()
-                                .border_color(if state.auth_method == "password" { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .on_click(move |_ev, _window, cx| {
-                                    app_auth_pass.update(cx, |this, cx| {
-                                        this.onboard_state.auth_method = "password".into();
-                                        cx.notify();
-                                    });
-                                })
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
-                                        .text_color(if state.auth_method == "password" { TEXT_MAX } else { TEXT_DIM })
-                                        .child("○ Password Auth"),
-                                ),
-                        ),
-                ),
-        )
-        // Public key selector (if publickey)
-        .children(if state.auth_method == "publickey" {
-            Some(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(5.0))
-                    .child(
-                        div()
-                            .font_family(FONT_MONO)
-                            .text_size(px(10.0))
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(TEXT_DIM)
-                            .child("ENROLLED SSH IDENTITY KEY:"),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap(px(6.0))
-                            .children(if enrolled_keys.is_empty() {
-                                vec![
-                                    div()
-                                        .p(px(8.0))
-                                        .bg(WARN_BG)
-                                        .border_1()
-                                        .border_color(WARN)
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(10.5))
-                                        .text_color(WARN_INK)
-                                        .child("No SSH keys enrolled in Crow. Go to Settings → Keys & Rotation to import or generate a key.")
-                                        .into_any_element(),
-                                ]
-                            } else {
-                                enrolled_keys.iter().enumerate().map(|(idx, k)| {
-                                    let is_selected = state.selected_key_id.as_deref() == Some(&k.id);
-                                    let app_sel_key = app.clone();
-                                    let kid = k.id.clone();
-
-                                    div()
-                                        .id(ElementId::NamedInteger("chip-enrolled-key".into(), idx as u64))
-                                        .p(px(8.0))
-                                        .bg(if is_selected { BG_OVERLAY_PANEL } else { BG_CONTROL })
-                                        .border_1()
-                                        .border_color(if is_selected { OK } else { BORDER_DEFAULT })
-                                        .cursor_pointer()
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
-                                        .on_click(move |_ev, _window, cx| {
-                                            let kid_c = kid.clone();
-                                            app_sel_key.update(cx, |this, cx| {
-                                                this.onboard_state.selected_key_id = Some(kid_c);
-                                                cx.notify();
-                                            });
-                                        })
-                                        .flex()
-                                        .items_center()
-                                        .justify_between()
-                                        .child(
-                                            div()
-                                                .flex()
-                                                .items_center()
-                                                .gap(px(8.0))
-                                                .child(
-                                                    div()
-                                                        .font_family(FONT_MONO)
-                                                        .text_size(px(11.0))
-                                                        .font_weight(if is_selected { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                                        .text_color(if is_selected { OK } else { TEXT_PRIMARY })
-                                                        .child(format!("{} {}", if is_selected { "✓" } else { "○" }, k.name)),
-                                                )
-                                                .child(
-                                                    div()
-                                                        .px(px(4.0))
-                                                        .py(px(1.0))
-                                                        .bg(BG_CHIP)
-                                                        .font_family(FONT_MONO)
-                                                        .text_size(px(9.0))
-                                                        .text_color(TEXT_DIM)
-                                                        .child(k.algorithm.clone()),
-                                                ),
-                                        )
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(9.5))
-                                                .text_color(TEXT_DIMMER)
-                                                .child(k.fingerprint.clone()),
-                                        )
-                                        .into_any_element()
-                                }).collect()
-                            }),
-                    ),
-            )
-        } else if state.auth_method == "password" {
-            Some(
-                div()
-                    .flex()
-                    .flex_col()
-                    .gap(px(4.0))
-                    .child(
-                        div()
-                            .font_family(FONT_MONO)
-                            .text_size(px(10.0))
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(if is_pw_focused { TEXT_PRIMARY } else { TEXT_DIM })
-                            .child("PASSWORD:"),
-                    )
-                    .child(
-                        onboard_field(inputs, OnboardFieldFocus::Password),
-                    ),
-            )
-        } else {
-            None
-        })
-        // Jump host / bastion
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(5.0))
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIM)
-                        .child("JUMP HOST / BASTION:"),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .flex_wrap()
-                        .gap(px(6.0))
-                        .child(
-                            div()
-                                .id("chip-jump-none")
-                                .px(px(8.0))
-                                .py(px(4.0))
-                                .bg(if state.jump_host_id.is_none() { BG_OVERLAY_PANEL } else { BG_CONTROL })
-                                .border_1()
-                                .border_color(if state.jump_host_id.is_none() { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .on_click(move |_ev, _window, cx| {
-                                    app_jump_none.update(cx, |this, cx| {
-                                        this.onboard_state.jump_host_id = None;
-                                        cx.notify();
-                                    });
-                                })
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(10.5))
-                                        .text_color(if state.jump_host_id.is_none() { TEXT_MAX } else { TEXT_DIM })
-                                        .child("Direct (none)"),
-                                ),
-                        )
-                        .children(servers.iter().filter(|s| s.role.contains("jump") || s.role.contains("bastion") || s.name == "bastion").enumerate().map(|(idx, s)| {
-                            let is_sel = state.jump_host_id.as_deref() == Some(&s.id);
-                            let app_jump = app.clone();
-                            let sid = s.id.clone();
-
-                            div()
-                                .id(ElementId::NamedInteger("chip-jump-server".into(), idx as u64))
-                                .px(px(8.0))
-                                .py(px(4.0))
-                                .bg(if is_sel { BG_OVERLAY_PANEL } else { BG_CONTROL })
-                                .border_1()
-                                .border_color(if is_sel { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .on_click(move |_ev, _window, cx| {
-                                    let sid_c = sid.clone();
-                                    app_jump.update(cx, |this, cx| {
-                                        this.onboard_state.jump_host_id = Some(sid_c);
-                                        cx.notify();
-                                    });
-                                })
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(10.5))
-                                        .text_color(if is_sel { TEXT_MAX } else { TEXT_DIM })
-                                        .child(format!("{} ({} · {})", s.name, s.host, s.role)),
-                                )
-                        })),
-                ),
-        )
-}
-
-// -----------------------------------------------------------------------------
-// Step 3: Verify Host
-// -----------------------------------------------------------------------------
-fn render_step_verify(app: Entity<CrowApp>, state: &OnboardState) -> Div {
-    let app_probe = app.clone();
-    let app_accept = app.clone();
-
-    let probe_done = state.probe_result.is_some();
-    let is_reachable = state.probe_result.as_ref().map(|p| p.is_reachable).unwrap_or(false);
-    let latency = state.probe_result.as_ref().and_then(|p| p.latency_ms);
-    let banner = state.probe_result.as_ref().and_then(|p| p.ssh_banner.clone());
-
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(14.0))
-        .child(
-            div()
-                .font_family(FONT_MONO)
-                .text_size(px(13.0))
-                .font_weight(FontWeight::BOLD)
-                .text_color(TEXT_MAX)
-                .child("STEP 3: HOST VERIFICATION & PRE-FLIGHT PROBE"),
-        )
-        .child(
-            div()
-                .font_family(FONT_MONO)
-                .text_size(px(10.5))
-                .text_color(TEXT_DIM)
-                .child("Perform an active TCP handshake to measure latency, read the SSH banner, and verify host keys."),
-        )
-        // Connection test card
-        .child(
-            div()
-                .p(px(12.0))
-                .bg(BG_PANEL)
-                .border_1()
-                .border_color(BORDER_PANEL)
-                .flex()
-                .flex_col()
-                .gap(px(8.0))
-                .child(
-                    div()
-                        .flex()
-                        .justify_between()
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_DIM)
-                                .child("TARGET CONNECTION DETAILS:"),
-                        )
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(if is_reachable { OK } else if probe_done { WARN } else { TEXT_DIMMER })
-                                .child(if is_reachable {
-                                    format!("● ONLINE ({}ms)", latency.unwrap_or(0))
-                                } else if probe_done {
-                                    "▲ SIMULATED READINESS".to_string()
-                                } else {
-                                    "○ READY TO PROBE".to_string()
-                                }),
-                        ),
-                )
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(12.0))
-                        .text_color(TEXT_MAX)
-                        .child(format!("{}@{}:{}", state.user, state.host, state.port)),
-                )
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .text_color(TEXT_DIMMER)
-                        .child(format!("banner: {}", banner.unwrap_or_else(|| "SSH-2.0-OpenSSH_9.6p1".to_string()))),
-                )
-                .child(
-                    div()
-                        .id("btn-run-probe")
-                        .px(px(12.0))
-                        .py(px(6.0))
-                        .bg(BG_CONTROL)
-                        .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
-                        .on_click(move |_ev, _window, cx| {
-                            app_probe.update(cx, |this, cx| {
-                                this.onboard_run_probe(cx);
-                            });
-                        })
-                        .flex()
-                        .items_center()
-                        .justify_center()
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(11.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(OK)
-                                .child("⚡ RUN CONNECTION PROBE"),
-                        ),
-                ),
-        )
-        // Fingerprint verification state
-        .child(
-            div()
-                .p(px(12.0))
-                .bg(if state.host_key_accepted { hex_rgb(0x0c1b12) } else { hex_rgb(0x1a1208) })
-                .border_1()
-                .border_color(if state.host_key_accepted { OK } else { WARN })
-                .flex()
-                .flex_col()
-                .gap(px(6.0))
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(8.0))
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(11.0))
-                                .text_color(if state.host_key_accepted { OK } else { WARN })
-                                .child(if state.host_key_accepted { "✓" } else { "▲" }),
-                        )
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(11.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(if state.host_key_accepted { OK } else { WARN })
-                                .child(if state.host_key_accepted {
-                                    "HOST KEY FINGERPRINT VERIFIED & TRUSTED"
-                                } else {
-                                    if state.probe_result.as_ref().is_some_and(|p| p.host_key_mismatch) {
-                                    "HOST KEY CHANGED — NOT TRUSTED (POSSIBLE MITM)"
-                                } else {
-                                    "UNKNOWN HOST KEY FINGERPRINT (WAITING ON YOU)"
-                                }
-                                }),
-                        ),
-                )
-                .child(fingerprint_box(
-                    &state.probe_result.as_ref().map(|p| p.host_key_fingerprint.clone()).filter(|f| !f.is_empty())
-                        .unwrap_or_else(|| if state.is_probing { "fetching host keys…".to_string() } else { "no host key fetched".to_string() }),
-                    state.host_key_accepted,
-                ))
-                .children(if !state.host_key_accepted && state.probe_result.as_ref().is_some_and(|p| !p.host_key_mismatch && !p.scanned_keys.is_empty()) {
-                    Some(
-                        div()
-                            .id("btn-accept-host-key")
-                            .px(px(10.0))
-                            .py(px(5.0))
-                            .bg(OK)
-                            .text_color(BG_WINDOW)
-                            .font_family(FONT_MONO)
-                            .text_size(px(10.5))
-                            .font_weight(FontWeight::BOLD)
-                            .cursor_pointer()
-                            .hover(|s| s.bg(hex_rgb(0x32b55e)))
-                            .on_click(move |_ev, _window, cx| {
-                                app_accept.update(cx, |this, cx| {
-                                    this.onboard_accept_host_key(cx);
-                                });
-                            })
-                            .flex()
-                            .items_center()
-                            .justify_center()
-                            .child("✓ ACCEPT & TRUST FINGERPRINT"),
-                    )
-                } else {
-                    None
-                }),
-        )
-}
-
-// -----------------------------------------------------------------------------
-// Step 4: Classify
-// -----------------------------------------------------------------------------
-fn render_step_classify(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, onboard_state: &OnboardState) -> Div {
-    let state = &onboard_state;
-    let is_label_focused = state.focus == OnboardFieldFocus::Label;
-    let is_tags_focused = state.focus == OnboardFieldFocus::Tags;
-
-    let envs = ["PROD", "STAGE", "DEV", "LAB"];
-    let roles = ["web · nginx", "postgres 16", "cache · queue", "sidekiq", "ssh jump", "prometheus", "custom"];
-    let groups = ["workers", "edge", "data", "staging", "fleet", "bastions"];
-
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(14.0))
-        .child(
-            div()
-                .font_family(FONT_MONO)
-                .text_size(px(13.0))
-                .font_weight(FontWeight::BOLD)
-                .text_color(TEXT_MAX)
-                .child("STEP 4: CLASSIFY & METADATA TAXONOMY"),
-        )
-        .child(
-            div()
-                .font_family(FONT_MONO)
-                .text_size(px(10.5))
-                .text_color(TEXT_DIM)
-                .child("Assign unique fleet label, environment, role, and policy groups."),
-        )
-        // Label
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(4.0))
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(if is_label_focused { TEXT_PRIMARY } else { TEXT_DIM })
-                        .child("SERVER LABEL (UNIQUE IDENTIFIER):"),
-                )
-                .child(
-                    onboard_field(inputs, OnboardFieldFocus::Label),
-                )
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(9.5))
-                        .text_color(TEXT_DIMMER)
-                        .child("must be unique across all servers in your fleet"),
-                ),
-        )
-        // Environment chips
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(5.0))
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIM)
-                        .child("ENVIRONMENT:"),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .gap(px(8.0))
-                        .children(envs.iter().map(|e| {
-                            let is_sel = state.env == *e;
-                            let app_env = app.clone();
-                            let env_val = e.to_string();
-
-                            div()
-                                .id(ElementId::Name(format!("chip-env-{}", e).into()))
-                                .px(px(12.0))
-                                .py(px(4.0))
-                                .bg(if is_sel {
-                                    match *e {
-                                        "PROD" => CRIT_BG,
-                                        "STAGE" => WARN_BG,
-                                        _ => BG_OVERLAY_PANEL,
-                                    }
-                                } else {
-                                    BG_CONTROL
-                                })
-                                .border_1()
-                                .border_color(if is_sel {
-                                    match *e {
-                                        "PROD" => CRIT,
-                                        "STAGE" => WARN,
-                                        _ => TEXT_PRIMARY,
-                                    }
-                                } else {
-                                    BORDER_DEFAULT
-                                })
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .on_click(move |_ev, _window, cx| {
-                                    let ev = env_val.clone();
-                                    app_env.update(cx, |this, cx| {
-                                        this.onboard_state.env = ev;
-                                        cx.notify();
-                                    });
-                                })
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
-                                        .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                        .text_color(if is_sel {
-                                            match *e {
-                                                "PROD" => CRIT,
-                                                "STAGE" => WARN,
-                                                _ => TEXT_MAX,
-                                            }
-                                        } else {
-                                            TEXT_DIM
-                                        })
-                                        .child(*e),
-                                )
-                        })),
-                ),
-        )
-        // Role chips
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(5.0))
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIM)
-                        .child("SERVER ROLE:"),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .flex_wrap()
-                        .gap(px(6.0))
-                        .children(roles.iter().map(|r| {
-                            let is_sel = state.role == *r;
-                            let app_r = app.clone();
-                            let r_val = r.to_string();
-
-                            div()
-                                .id(ElementId::Name(format!("chip-role-{}", r).into()))
-                                .px(px(8.0))
-                                .py(px(4.0))
-                                .bg(if is_sel { BG_OVERLAY_PANEL } else { BG_CONTROL })
-                                .border_1()
-                                .border_color(if is_sel { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .on_click(move |_ev, _window, cx| {
-                                    let rv = r_val.clone();
-                                    app_r.update(cx, |this, cx| {
-                                        this.onboard_state.role = rv;
-                                        cx.notify();
-                                    });
-                                })
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(10.5))
-                                        .text_color(if is_sel { TEXT_MAX } else { TEXT_DIM })
-                                        .child(*r),
-                                )
-                        })),
-                ),
-        )
-        // Group chips
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(5.0))
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIM)
-                        .child("GROUP ASSIGNMENT:"),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .flex_wrap()
-                        .gap(px(6.0))
-                        .children(groups.iter().map(|g| {
-                            let is_sel = state.group == *g;
-                            let app_g = app.clone();
-                            let g_val = g.to_string();
-
-                            div()
-                                .id(ElementId::Name(format!("chip-group-{}", g).into()))
-                                .px(px(8.0))
-                                .py(px(4.0))
-                                .bg(if is_sel { BG_OVERLAY_PANEL } else { BG_CONTROL })
-                                .border_1()
-                                .border_color(if is_sel { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .on_click(move |_ev, _window, cx| {
-                                    let gv = g_val.clone();
-                                    app_g.update(cx, |this, cx| {
-                                        this.onboard_state.group = gv;
-                                        cx.notify();
-                                    });
-                                })
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(10.5))
-                                        .text_color(if is_sel { TEXT_MAX } else { TEXT_DIM })
-                                        .child(*g),
-                                )
-                        })),
-                ),
-        )
-        // Tags
-        .child(
-            div()
-                .flex()
-                .flex_col()
-                .gap(px(4.0))
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(if is_tags_focused { TEXT_PRIMARY } else { TEXT_DIM })
-                        .child("TAGS (COMMA SEPARATED):"),
-                )
-                .child(
-                    onboard_field(inputs, OnboardFieldFocus::Tags),
-                ),
-        )
-}
-
-// -----------------------------------------------------------------------------
-// Step 5: Review
-// -----------------------------------------------------------------------------
-fn render_step_finish(
-    state: &OnboardState,
-    enrolled_keys: &[crate::vault::SshKeyRecord],
-) -> Div {
-    let key_name = state.selected_key_id.as_ref()
-        .and_then(|kid| enrolled_keys.iter().find(|k| &k.id == kid).map(|k| k.name.clone()))
-        .unwrap_or_else(|| "ssh-agent / ~/.ssh defaults".to_string());
-
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(14.0))
-        .child(
-            div()
-                .font_family(FONT_MONO)
-                .text_size(px(13.0))
-                .font_weight(FontWeight::BOLD)
-                .text_color(TEXT_MAX)
-                .child("STEP 5: REVIEW CONFIGURATION & COMMIT ENROLLMENT"),
-        )
-        .child(
-            div()
-                .font_family(FONT_MONO)
-                .text_size(px(10.5))
-                .text_color(TEXT_DIM)
-                .child("Review discovered host profile and choose agentless or daemon mode."),
-        )
-        // Summary Table
-        .child(
-            div()
-                .p(px(12.0))
-                .bg(BG_PANEL)
-                .border_1()
-                .border_color(BORDER_PANEL)
-                .flex()
-                .flex_col()
-                .gap(px(8.0))
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIMMER)
-                        .child("SERVER CONFIGURATION SUMMARY:"),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .justify_between()
-                        .font_family(FONT_MONO)
-                        .text_size(px(11.0))
-                        .child(div().text_color(TEXT_DIM).child("Label / Name:"))
-                        .child(div().font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child(state.label.clone())),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .justify_between()
-                        .font_family(FONT_MONO)
-                        .text_size(px(11.0))
-                        .child(div().text_color(TEXT_DIM).child("Endpoint:"))
-                        .child(div().text_color(TEXT_PRIMARY).child(format!("{}@{}:{}", state.user, state.host, state.port))),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .justify_between()
-                        .font_family(FONT_MONO)
-                        .text_size(px(11.0))
-                        .child(div().text_color(TEXT_DIM).child("Authentication:"))
-                        .child(div().text_color(OK).child(format!("{} ({})", state.auth_method, key_name))),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .justify_between()
-                        .font_family(FONT_MONO)
-                        .text_size(px(11.0))
-                        .child(div().text_color(TEXT_DIM).child("Classification:"))
-                        .child(div().text_color(TEXT_PRIMARY).child(format!("{} · {} · group: {}", state.env, state.role, state.group))),
-                )
-                .child(
-                    div()
-                        .flex()
-                        .justify_between()
-                        .font_family(FONT_MONO)
-                        .text_size(px(11.0))
-                        .child(div().text_color(TEXT_DIM).child("Tags:"))
-                        .child(div().text_color(TEXT_MUTED).child(state.tags.clone())),
-                ),
-        )
-        // How Crow manages the server: over SSH, installing nothing.
-        .child(
-            div()
-                .p(px(12.0))
-                .bg(BG_PANEL)
-                .border_1()
-                .border_color(BORDER_PANEL)
-                .flex()
-                .items_center()
-                .gap(px(8.0))
-                .font_family(FONT_MONO)
-                .text_size(px(11.0))
-                .child(div().text_color(OK).child("●"))
-                .child(div().text_color(TEXT_SECONDARY).child("Agentless: Crow connects over SSH and installs nothing on this server.")),
-        )
-}
-
-// -----------------------------------------------------------------------------
-// Right Rail: Fingerprint, Probe Log, Detected Facts, Schema Packs
-// -----------------------------------------------------------------------------
-fn render_right_rail(app: Entity<CrowApp>, onboard_state: &OnboardState) -> Div {
-    let state = &onboard_state;
-    let app_accept = app.clone();
-
-    let fp = state.probe_result.as_ref()
-        .map(|p| p.host_key_fingerprint.clone())
-        .filter(|f| !f.is_empty())
-        .unwrap_or_else(|| if state.is_probing { "fetching host keys…".to_string() } else { "no host key fetched".to_string() });
-
-    let facts: [(&'static str, String, Rgba); 10] = [
-        ("DISTRO", state.facts.distro.clone(), TEXT_PRIMARY),
-        ("KERNEL", state.facts.kernel.clone(), TEXT_SECONDARY),
-        ("ARCH", state.facts.arch.clone(), TEXT_SECONDARY),
-        ("MEMORY", state.facts.memory.clone(), TEXT_SECONDARY),
-        ("DISK", state.facts.disk.clone(), TEXT_SECONDARY),
-        ("INIT", state.facts.init.clone(), TEXT_SECONDARY),
-        ("OPEN PORTS", state.facts.open_ports.clone(), TEXT_SECONDARY),
-        ("FIREWALL", state.facts.firewall.clone(), OK),
-        ("TIME", state.facts.time_sync.clone(), TEXT_SECONDARY),
-        ("MANAGED VIA", "agentless SSH".to_string(), OK),
+fn facts_grid(f: &DetectedFacts) -> impl IntoElement {
+    let family = classify_distro_family(&f.distro);
+    let rows: [(&str, String); 9] = [
+        ("DISTRO", f.distro.clone()),
+        ("KERNEL", f.kernel.clone()),
+        ("ARCH", f.arch.clone()),
+        ("MEMORY", f.memory.clone()),
+        ("DISK", f.disk.clone()),
+        ("INIT", f.init.clone()),
+        ("FIREWALL", f.firewall.clone()),
+        ("OPEN PORTS", f.open_ports.clone()),
+        ("TIME SYNC", f.time_sync.clone()),
     ];
-
-    div()
-        .w(px(560.0))
-        .flex_none()
-        .flex()
-        .flex_col()
-        .bg(BG_RAIL)
-        .border_l_1()
-        .border_color(BORDER_PANEL)
-        // Amber / Green Fingerprint Card
-        .child(
-            div()
-                .p(px(14.0))
-                .border_b_1()
-                .border_color(BORDER_PANEL)
-                .bg(if state.host_key_accepted { hex_rgb(0x0a140e) } else { hex_rgb(0x100c06) })
-                .flex()
-                .flex_col()
-                .gap(px(6.0))
-                .child(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(7.0))
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .text_color(if state.host_key_accepted { OK } else { WARN })
-                                .child(if state.host_key_accepted { "✓" } else { "▲" }),
-                        )
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(if state.host_key_accepted { OK } else { WARN })
-                                .child(if state.host_key_accepted { "HOST KEY VERIFIED IN KNOWN_HOSTS" } else { "UNKNOWN HOST KEY FINGERPRINT" }),
-                        ),
-                )
-                .child(fingerprint_box(&fp, state.host_key_accepted))
-                .children(if !state.host_key_accepted && state.probe_result.as_ref().is_some_and(|p| !p.host_key_mismatch && !p.scanned_keys.is_empty()) {
-                    Some(
-                        div()
-                            .flex()
-                            .gap(px(8.0))
-                            .pt(px(2.0))
-                            .child(
-                                div()
-                                    .id("rail-btn-trust-fp")
-                                    .px(px(8.0))
-                                    .py(px(4.0))
-                                    .bg(OK)
-                                    .text_color(BG_WINDOW)
-                                    .font_family(FONT_MONO)
-                                    .text_size(px(10.0))
-                                    .font_weight(FontWeight::BOLD)
-                                    .cursor_pointer()
-                                    .hover(|s| s.bg(hex_rgb(0x32b55e)))
-                                    .on_click(move |_ev, _window, cx| {
-                                        app_accept.update(cx, |this, cx| {
-                                            this.onboard_accept_host_key(cx);
-                                        });
-                                    })
-                                    .child("TRUST & ADD TO KNOWN_HOSTS"),
-                            ),
-                    )
-                } else {
-                    None
-                }),
-        )
-        // Probe Log
-        .child(
-            div()
-                .h(px(28.0))
-                .flex_none()
-                .flex()
-                .items_center()
-                .px(px(12.0))
-                .bg(BG_PANEL)
-                .border_b_1()
-                .border_color(BORDER_PANEL)
-                .font_family(FONT_MONO)
-                .text_size(px(10.0))
-                .font_weight(FontWeight::BOLD)
-                .text_color(TEXT_DIMMER)
-                .child("CONNECTION PROBE LOG"),
-        )
-        .child(
-            div()
-                .id("probe-log-list")
-                .h(px(150.0))
-                .overflow_y_scrollbar()
-                .p(px(8.0))
-                .border_b_1()
-                .border_color(BORDER_PANEL)
-                .children(if state.probe_logs.is_empty() {
-                    vec![
-                        div()
-                            .p(px(8.0))
-                            .font_family(FONT_MONO)
-                            .text_size(px(10.0))
-                            .text_color(TEXT_FAINT)
-                            .child("Probe has not been executed yet. Click 'Run Connection Probe' or advance to step 3 to initiate pre-flight network diagnostics."),
-                    ]
-                } else {
-                    state.probe_logs.iter().map(|log| {
-                        div()
-                            .flex()
-                            .items_start()
-                            .gap(px(7.0))
-                            .py(px(1.5))
-                            .font_family(FONT_MONO)
-                            .text_size(px(10.0))
-                            .child(div().w(px(10.0)).flex_none().text_color(log.color).child(log.glyph.clone()))
-                            .child(div().flex_1().min_w(px(0.0)).text_color(TEXT_MUTED).child(log.message.clone()))
-                            .children(if !log.note.is_empty() {
-                                Some(div().flex_none().text_color(TEXT_FAINT).child(log.note.clone()))
-                            } else {
-                                None
-                            })
-                            .children(if !log.timestamp.is_empty() {
-                                Some(div().flex_none().text_color(TEXT_FAINTER).child(log.timestamp.clone()))
-                            } else {
-                                None
-                            })
-                    }).collect()
-                }),
-        )
-        // Unverified distro warning — Crow only knows Debian- and Red Hat-family
-        // conventions; say so plainly instead of quietly guessing wrong paths.
-        .children(if !classify_distro_family(&state.facts.distro).is_supported() {
-            Some(
-                div()
-                    .p(px(10.0))
-                    .bg(hex_rgba(0xfbbf24, 0.08))
-                    .border_b_1()
-                    .border_color(WARN)
-                    .flex()
-                    .items_start()
-                    .gap(px(8.0))
-                    .child(
-                        div()
-                            .font_family(FONT_MONO)
-                            .text_size(px(12.0))
-                            .text_color(WARN)
-                            .child("⚠"),
-                    )
-                    .child(
-                        div()
-                            .flex()
-                            .flex_col()
-                            .gap(px(2.0))
-                            .child(
-                                div()
-                                    .font_family(FONT_MONO)
-                                    .text_size(px(10.5))
-                                    .font_weight(FontWeight::BOLD)
-                                    .text_color(WARN)
-                                    .child("Unverified distro"),
-                            )
-                            .child(
-                                div()
-                                    .font_family(FONT_MONO)
-                                    .text_size(px(10.0))
-                                    .text_color(TEXT_DIM)
-                                    .child("Crow only knows Debian- and Red Hat-family config layouts. Config discovery on this host may miss files or point at the wrong paths."),
-                            ),
-                    ),
-            )
-        } else {
-            None
-        })
-        // Detected Facts Grid
-        .child(
-            div()
-                .h(px(28.0))
-                .flex_none()
-                .flex()
-                .items_center()
-                .px(px(12.0))
-                .bg(BG_PANEL)
-                .border_b_1()
-                .border_color(BORDER_PANEL)
-                .font_family(FONT_MONO)
-                .text_size(px(10.0))
-                .font_weight(FontWeight::BOLD)
-                .text_color(TEXT_DIMMER)
-                .child("DETECTED FACTS"),
-        )
-        .child(
-            div()
-                .id("facts-grid")
-                .flex_1()
-                .overflow_y_scrollbar()
-                .p(px(10.0))
-                .flex()
-                .flex_col()
-                .gap(px(5.0))
-                .children(facts.into_iter().map(|(k, v, c)| {
-                    div()
-                        .flex()
-                        .justify_between()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.5))
-                        .child(div().text_color(TEXT_DIMMER).child(k))
-                        .child(div().text_color(c).font_weight(FontWeight::MEDIUM).child(v))
-                })),
-        )
-        // Detected Schema Packs
-        .child(
-            div()
-                .h(px(28.0))
-                .flex_none()
-                .flex()
-                .items_center()
-                .px(px(12.0))
-                .bg(BG_PANEL)
-                .border_t_1()
-                .border_b_1()
-                .border_color(BORDER_PANEL)
-                .font_family(FONT_MONO)
-                .text_size(px(10.0))
-                .font_weight(FontWeight::BOLD)
-                .text_color(TEXT_DIMMER)
-                .child("DETECTED SCHEMA PACKS"),
-        )
-        .child(
-            div()
-                .p(px(10.0))
-                .flex()
-                .flex_wrap()
-                .gap(px(6.0))
-                .children(state.facts.schema_packs.iter().map(|(name, fg, bg)| {
-                    div()
-                        .px(px(6.0))
-                        .py(px(2.5))
-                        .bg(*bg)
-                        .text_color(*fg)
-                        .font_family(FONT_MONO)
-                        .text_size(px(9.5))
-                        .font_weight(FontWeight::BOLD)
-                        .child(name.clone())
-                })),
-        )
+    labeled(
+        "WHAT CROW READ",
+        div()
+            .flex()
+            .flex_col()
+            .gap(px(8.0))
+            .p(px(12.0))
+            .bg(BG_PANEL)
+            .border_1()
+            .border_color(BORDER_PANEL)
+            .child(div().flex().flex_wrap().gap_y(px(8.0)).children(rows.into_iter().map(|(k, v)| {
+                div().w(px(250.0)).flex().gap(px(8.0)).child(mono(9.5, TEXT_FAINT).w(px(78.0)).flex_none().child(k)).child(mono(10.5, TEXT_SECONDARY).flex_1().min_w(px(0.0)).overflow_hidden().text_ellipsis().whitespace_nowrap().child(v))
+            })))
+            .when(!f.schema_packs.is_empty(), |d| {
+                d.child(div().flex().flex_wrap().gap(px(4.0)).child(mono(9.5, TEXT_FAINT).mr(px(4.0)).child("CONFIG TOOLS")).children(f.schema_packs.iter().map(|(name, fg, bg)| div().px(px(5.0)).py(px(1.0)).bg(*bg).font_family(FONT_MONO).text_size(px(9.5)).text_color(*fg).child(name.clone()))))
+            })
+            .when(!family.is_supported(), |d| d.child(mono(10.0, WARN).line_height(px(14.0)).child("Crow knows Debian- and Red Hat-family config layouts; on this distro config discovery may miss files."))),
+    )
 }
 
-/// A wizard text field: gpui-component's input, styled like the app's other
-/// inputs (sharp corners, mono font).
-fn onboard_field(inputs: Option<&OnboardInputs>, field: OnboardFieldFocus) -> Div {
-    div().w_full().children(inputs.and_then(|i| i.get(field)).map(|state| {
-        Input::new(state)
-            .font_family(FONT_MONO)
-            .text_size(px(12.0))
-            .bg(BG_APP)
-            .rounded(px(2.0))
-    }))
-}
+// ---------------------------------------------------------------------------
+// 3. Name
+// ---------------------------------------------------------------------------
 
-/// The host key's SHA256 fingerprint on its own line with the key type below
-/// it: the hash has no spaces to wrap at, so it gets the full width.
-fn fingerprint_box(fp: &str, accepted: bool) -> Div {
-    let (hash, kind) = match fp.rsplit_once(" (") {
-        Some((hash, kind)) => (hash.to_string(), Some(kind.trim_end_matches(')').to_string())),
-        None => (fp.to_string(), None),
+fn step_name(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &FleetState, state: &OnboardState) -> impl IntoElement {
+    let app_bastion = app.clone();
+    let envs = ["PROD", "STAGE", "DEV", "LAB"];
+    let env_color = |e: &str| match e {
+        "PROD" => CRIT,
+        "STAGE" => WARN,
+        _ => OK,
+    };
+    let via = state.jump_host_id.as_deref().map(|b| crate::app::bastions::route(b, &fleet.servers));
+    let login = match state.auth_method.as_str() {
+        "publickey" => "key".to_string(),
+        "agent" => "your SSH agent".to_string(),
+        _ => "password, once".to_string(),
     };
     div()
-        .p(px(8.0))
-        .bg(BG_PANEL)
-        .border_1()
-        .border_color(if accepted { hex_rgb(0x1a3322) } else { hex_rgb(0x2e2210) })
-        .overflow_hidden()
         .flex()
         .flex_col()
-        .gap(px(3.0))
-        .font_family(FONT_MONO)
-        .child(div().text_size(px(10.5)).text_color(TEXT_PRIMARY).child(hash))
-        .children(kind.map(|k| div().text_size(px(9.0)).text_color(TEXT_FAINT).child(k)))
+        .gap(px(18.0))
+        .child(div().flex().flex_col().gap(px(4.0)).child(mono(14.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child("How should it show in the fleet?")).child(hint("All of this can be changed later.")))
+        .child(div().max_w(px(420.0)).child(labeled("NAME", field(inputs, OnboardFieldFocus::Label))))
+        .child(labeled(
+            "ENVIRONMENT",
+            div().flex().gap(px(6.0)).child({
+                let app = app.clone();
+                chip("onboard-env-none", "none", state.env.is_empty(), TEXT_DIM).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.onboard_set_env("", cx)))
+            })
+            .children(envs.iter().map(|e| {
+                let app = app.clone();
+                let e = *e;
+                chip(format!("onboard-env-{e}"), e, state.env == e, env_color(e)).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.onboard_set_env(e, cx)))
+            })),
+        ))
+        .child(labeled(
+            "GROUP",
+            div().flex().flex_wrap().gap(px(6.0)).child({
+                let app = app.clone();
+                chip("onboard-group-none", "none", state.group.is_empty(), TEXT_DIM).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.onboard_set_group("", cx)))
+            })
+            .children(fleet.groups.iter().map(|g| {
+                let (app, name) = (app.clone(), g.clone());
+                chip(format!("onboard-group-{g}"), g.clone(), state.group == *g, OK).on_click(move |_ev, _window, cx| {
+                    let name = name.clone();
+                    app.update(cx, |this, cx| this.onboard_set_group(&name, cx))
+                })
+            })),
+        ))
+        .child(div().max_w(px(420.0)).child(labeled("TAGS", field(inputs, OnboardFieldFocus::Tags))))
+        // Bastion (ERR-152).
+        .child(
+            div()
+                .id("onboard-bastion-switch")
+                .flex()
+                .items_center()
+                .gap(px(10.0))
+                .cursor_pointer()
+                .on_click(move |_ev, _window, cx| {
+                    app_bastion.update(cx, |this, cx| {
+                        this.onboard_state.make_bastion = !this.onboard_state.make_bastion;
+                        cx.notify();
+                    })
+                })
+                .child(
+                    div()
+                        .w(px(30.0))
+                        .h(px(16.0))
+                        .rounded_full()
+                        .p(px(2.0))
+                        .flex()
+                        .when(state.make_bastion, |d| d.justify_end())
+                        .bg(if state.make_bastion { BASTION_BLUE.opacity(0.25) } else { BG_CONTROL })
+                        .border_1()
+                        .border_color(if state.make_bastion { BASTION_BLUE } else { BORDER_STRONG })
+                        .child(div().size(px(10.0)).rounded_full().bg(if state.make_bastion { BASTION_BLUE } else { TEXT_DIM })),
+                )
+                .child(div().flex().flex_col().gap(px(2.0)).child(mono(11.0, if state.make_bastion { TEXT_PRIMARY } else { TEXT_SECONDARY }).font_weight(FontWeight::BOLD).child("Bastion")).child(hint("Other servers can be added through this one."))),
+        )
+        // What's about to be added.
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(4.0))
+                .p(px(12.0))
+                .bg(BG_PANEL)
+                .border_1()
+                .border_color(BORDER_PANEL)
+                .child(mono(11.0, TEXT_PRIMARY).child(format!("{} · {}", if state.label.trim().is_empty() { state.host.trim() } else { state.label.trim() }, state.endpoint())))
+                .child(mono(10.0, TEXT_DIM).child(format!(
+                    "{}logs in with {login}{}{}",
+                    via.map(|v| format!("through {v} · ")).unwrap_or_default(),
+                    if state.env.is_empty() { String::new() } else { format!(" · {}", state.env) },
+                    if state.group.is_empty() { String::new() } else { format!(" · group {}", state.group) },
+                )))
+                .when(!state.logged_in(), |d| d.child(mono(10.0, WARN).child("Crow couldn't log in yet: the server will be added, but shows as unreachable until it can."))),
+        )
 }

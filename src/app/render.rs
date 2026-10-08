@@ -265,7 +265,7 @@ impl Render for CrowApp {
                                                     .flex()
                                                     .flex_col()
                                                     // Server Identity Bar
-                                                    .child(identity_bar(active_srv, jump.clone(), self.region_picker_open, self.active_provider_actions().is_some_and(|p| p.snapshots), self.local_lab.busy.is_some() || !self.plugin_enabled("multipass"), app_view.clone()))
+                                                    .child(identity_bar(active_srv, jump.clone(), active_srv.is_some_and(|s| crate::app::bastions::is_bastion(s, &self.fleet.servers)), self.region_picker_open, self.active_provider_actions().is_some_and(|p| p.snapshots), self.local_lab.busy.is_some() || !self.plugin_enabled("multipass"), app_view.clone()))
                                                     .children(connection_banner(active_srv, jump.clone(), app_view.clone()))
                                                     // Server Stat Strip
                                                     .child(stat_strip(active_mtr, self.fleet.metrics_lag_secs, self.fleet.active_surge_alert.as_ref()))

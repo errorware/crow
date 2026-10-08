@@ -152,10 +152,11 @@ impl CrowApp {
         o.group = srv.group_name.clone();
         o.tags = srv.tags.join(", ");
         o.jump_host_id = srv.jump_host_id.clone();
+        o.make_bastion = srv.tags.iter().any(|t| t == crate::app::bastions::BASTION_TAG);
         o.auth_method = "password".into();
         o.selected_key_id = None;
-        o.step = OnboardStep::Credentials;
-        o.max_reached_step = OnboardStep::Credentials;
+        o.step = OnboardStep::Connect;
+        o.max_reached_step = OnboardStep::Connect;
         self.onboard_inputs = None;
         self.onboard_set_focus_select(OnboardFieldFocus::Password, false, cx);
     }
@@ -182,105 +183,114 @@ impl CrowApp {
 
     pub fn onboard_set_step(&mut self, step: OnboardStep, cx: &mut Context<Self>) {
         self.onboard_state.step = step;
+        self.onboard_state.error_message = None;
         if step.num() > self.onboard_state.max_reached_step.num() {
             self.onboard_state.max_reached_step = step;
         }
         let focus = match step {
-            OnboardStep::Address => OnboardFieldFocus::Host,
-            OnboardStep::Credentials => OnboardFieldFocus::User,
-            OnboardStep::VerifyHost => {
-                if self.onboard_state.probe_result.is_none() {
+            OnboardStep::Connect => OnboardFieldFocus::Host,
+            OnboardStep::Verify => {
+                if self.onboard_state.probe_result.is_none() && !self.onboard_state.is_probing {
                     self.onboard_run_probe(cx);
-                    return;
                 }
                 OnboardFieldFocus::None
             }
-            OnboardStep::Classify => OnboardFieldFocus::Label,
-            OnboardStep::Finish => OnboardFieldFocus::None,
+            OnboardStep::Name => {
+                // Named after the address until the user says otherwise.
+                if self.onboard_state.label.trim().is_empty() {
+                    self.onboard_state.label = self.onboard_state.host.trim().to_string();
+                    self.onboard_inputs = None;
+                }
+                OnboardFieldFocus::Label
+            }
         };
         self.onboard_set_focus_select(focus, false, cx);
     }
 
+    pub fn onboard_set_auth(&mut self, method: &str, cx: &mut Context<Self>) {
+        self.onboard_state.auth_method = method.to_string();
+        if method == "publickey" && self.onboard_state.selected_key_id.is_none() {
+            self.onboard_state.selected_key_id = self.keys.enrolled.iter().find(|k| k.name == CROW_KEY_NAME).or(self.keys.enrolled.first()).map(|k| k.id.clone());
+        }
+        self.onboard_state.probe_result = None;
+        if method == "password" {
+            self.onboard_set_focus_select(OnboardFieldFocus::Password, false, cx);
+        }
+        cx.notify();
+    }
+
+    pub fn onboard_set_env(&mut self, env: &str, cx: &mut Context<Self>) {
+        self.onboard_state.env = env.to_string();
+        cx.notify();
+    }
+
+    pub fn onboard_set_group(&mut self, group: &str, cx: &mut Context<Self>) {
+        self.onboard_state.group = group.to_string();
+        cx.notify();
+    }
+
     pub fn onboard_next_step(&mut self, cx: &mut Context<Self>) {
-        match self.onboard_state.step {
-            OnboardStep::Address => {
-                if self.onboard_state.host.trim().is_empty() {
-                    self.onboard_state.error_message = Some("Host address is required".into());
+        let o = &mut self.onboard_state;
+        match o.step {
+            OnboardStep::Connect => {
+                if o.port.trim().is_empty() {
+                    o.port = "22".into();
+                }
+                let problem = if o.host.trim().is_empty() {
+                    Some("The server's address is missing.")
+                } else if o.host.trim().starts_with('-') || o.host.trim().contains(char::is_whitespace) {
+                    Some("That isn't an address: a host name or IP, without spaces.")
+                } else if o.user.trim().is_empty() {
+                    Some("The user to log in as is missing.")
+                } else if o.auth_method == "publickey" && o.selected_key_id.is_none() {
+                    Some("Pick the key Crow logs in with, or use a password once.")
+                } else if o.auth_method == "password" && o.password.is_empty() {
+                    Some("Type the server's password: Crow uses it once to install its key.")
+                } else {
+                    None
+                };
+                if let Some(p) = problem {
+                    o.error_message = Some(p.into());
                     cx.notify();
                     return;
                 }
-                if self.onboard_state.port.trim().is_empty() {
-                    self.onboard_state.port = "22".into();
-                }
-                self.onboard_state.error_message = None;
-                self.onboard_state.step = OnboardStep::Credentials;
-                if self.onboard_state.step.num() > self.onboard_state.max_reached_step.num() {
-                    self.onboard_state.max_reached_step = self.onboard_state.step;
-                }
-                self.onboard_set_focus_select(OnboardFieldFocus::User, false, cx);
+                o.probe_result = None;
+                o.host_key_accepted = false;
+                o.facts = DetectedFacts::default();
+                self.onboard_set_step(OnboardStep::Verify, cx);
             }
-            OnboardStep::Credentials => {
-                if self.onboard_state.user.trim().is_empty() {
-                    self.onboard_state.error_message = Some("SSH user username is required".into());
+            OnboardStep::Verify => {
+                if !o.host_key_accepted {
+                    o.error_message = Some("Trust the server's host key first (or check again).".into());
                     cx.notify();
                     return;
                 }
-                self.onboard_state.error_message = None;
-                self.onboard_state.step = OnboardStep::VerifyHost;
-                if self.onboard_state.step.num() > self.onboard_state.max_reached_step.num() {
-                    self.onboard_state.max_reached_step = self.onboard_state.step;
-                }
-                self.onboard_set_focus_select(OnboardFieldFocus::None, false, cx);
-                self.onboard_run_probe(cx);
+                self.onboard_set_step(OnboardStep::Name, cx);
             }
-            OnboardStep::VerifyHost => {
-                self.onboard_state.error_message = None;
-                self.onboard_state.step = OnboardStep::Classify;
-                if self.onboard_state.step.num() > self.onboard_state.max_reached_step.num() {
-                    self.onboard_state.max_reached_step = self.onboard_state.step;
-                }
-                self.onboard_set_focus_select(OnboardFieldFocus::Label, false, cx);
-            }
-            OnboardStep::Classify => {
-                if self.onboard_state.label.trim().is_empty() {
-                    self.onboard_state.error_message = Some("Server name / label is required".into());
+            OnboardStep::Name => {
+                if o.label.trim().is_empty() {
+                    o.error_message = Some("Give it a name.".into());
                     cx.notify();
                     return;
                 }
-                self.onboard_state.error_message = None;
-                self.onboard_state.step = OnboardStep::Finish;
-                if self.onboard_state.step.num() > self.onboard_state.max_reached_step.num() {
-                    self.onboard_state.max_reached_step = self.onboard_state.step;
+                let name = o.label.trim().to_string();
+                if self.fleet.servers.iter().any(|s| s.name == name && s.host != self.onboard_state.host.trim()) {
+                    self.onboard_state.error_message = Some(format!("{name} is already the name of another server."));
+                    cx.notify();
+                    return;
                 }
-                self.onboard_set_focus_select(OnboardFieldFocus::None, false, cx);
-            }
-            OnboardStep::Finish => {
                 self.submit_server_enrollment(cx);
             }
         }
     }
 
     pub fn onboard_prev_step(&mut self, cx: &mut Context<Self>) {
-        self.onboard_state.error_message = None;
-        match self.onboard_state.step {
-            OnboardStep::Address => {}
-            OnboardStep::Credentials => {
-                self.onboard_state.step = OnboardStep::Address;
-                self.onboard_set_focus_select(OnboardFieldFocus::Host, false, cx);
-            }
-            OnboardStep::VerifyHost => {
-                self.onboard_state.step = OnboardStep::Credentials;
-                self.onboard_set_focus_select(OnboardFieldFocus::User, false, cx);
-            }
-            OnboardStep::Classify => {
-                self.onboard_state.step = OnboardStep::VerifyHost;
-                self.onboard_set_focus_select(OnboardFieldFocus::None, false, cx);
-            }
-            OnboardStep::Finish => {
-                self.onboard_state.step = OnboardStep::Classify;
-                self.onboard_set_focus_select(OnboardFieldFocus::Label, false, cx);
-            }
-        }
+        let prev = match self.onboard_state.step {
+            OnboardStep::Connect => return,
+            OnboardStep::Verify => OnboardStep::Connect,
+            OnboardStep::Name => OnboardStep::Verify,
+        };
+        self.onboard_set_step(prev, cx);
     }
 
     /// The server being enrolled, as a record its transport can be built from.
@@ -461,11 +471,14 @@ impl CrowApp {
         };
         let id = name.to_lowercase().replace(' ', "-").replace('.', "-");
         let port = self.onboard_state.port.trim().parse::<u16>().unwrap_or(22);
-        let tags: Vec<String> = self.onboard_state.tags
+        let mut tags: Vec<String> = self.onboard_state.tags
             .split(',')
             .map(|t| t.trim().to_string())
-            .filter(|t| !t.is_empty())
+            .filter(|t| !t.is_empty() && t != crate::app::bastions::BASTION_TAG)
             .collect();
+        if self.onboard_state.make_bastion {
+            tags.push(crate::app::bastions::BASTION_TAG.into());
+        }
         let status = if let Some(ref p) = self.onboard_state.probe_result {
             if p.is_reachable { "online".to_string() } else { "offline".to_string() }
         } else {
@@ -560,30 +573,21 @@ impl CrowApp {
 
 
 
-    pub fn onboard_cycle_focus(&mut self, _reverse: bool, cx: &mut Context<Self>) {
-        let next_focus = match self.onboard_state.step {
-            OnboardStep::Address => match self.onboard_state.focus {
-                OnboardFieldFocus::Host => OnboardFieldFocus::Port,
-                _ => OnboardFieldFocus::Host,
-            },
-            OnboardStep::Credentials => {
-                if self.onboard_state.auth_method == "password" {
-                    match self.onboard_state.focus {
-                        OnboardFieldFocus::User => OnboardFieldFocus::Password,
-                        _ => OnboardFieldFocus::User,
-                    }
-                } else {
-                    OnboardFieldFocus::User
-                }
-            }
-            OnboardStep::VerifyHost => OnboardFieldFocus::None,
-            OnboardStep::Classify => match self.onboard_state.focus {
-                OnboardFieldFocus::Label => OnboardFieldFocus::Tags,
-                _ => OnboardFieldFocus::Label,
-            },
-            OnboardStep::Finish => OnboardFieldFocus::None,
+    pub fn onboard_cycle_focus(&mut self, reverse: bool, cx: &mut Context<Self>) {
+        use OnboardFieldFocus as F;
+        let order: Vec<F> = match self.onboard_state.step {
+            OnboardStep::Connect if self.onboard_state.auth_method == "password" => vec![F::Host, F::Port, F::User, F::Password],
+            OnboardStep::Connect => vec![F::Host, F::Port, F::User],
+            OnboardStep::Verify => vec![F::None],
+            OnboardStep::Name => vec![F::Label, F::Tags],
         };
-        self.onboard_set_focus_select(next_focus, false, cx);
+        let at = order.iter().position(|f| *f == self.onboard_state.focus);
+        let next = match (at, reverse) {
+            (Some(i), false) => order[(i + 1) % order.len()],
+            (Some(i), true) => order[(i + order.len() - 1) % order.len()],
+            (None, _) => order[0],
+        };
+        self.onboard_set_focus_select(next, false, cx);
     }
 }
 
