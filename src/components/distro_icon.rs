@@ -38,6 +38,16 @@ pub fn icon_for(distro: &str) -> Option<&'static str> {
     Some("linux")
 }
 
+/// A distro's name short enough for a table column: no codename in
+/// brackets, no "GNU/Linux" ("Debian GNU/Linux 12 (bookworm)" → "Debian 12").
+pub fn short_name(distro: &str) -> String {
+    let no_codename = match distro.find('(') {
+        Some(i) => &distro[..i],
+        None => distro,
+    };
+    no_codename.replace("GNU/Linux", "").replace("Red Hat Enterprise Linux", "RHEL").split_whitespace().collect::<Vec<_>>().join(" ")
+}
+
 fn bytes(file: &str) -> Option<&'static [u8]> {
     Some(match file {
         "ubuntu-linux" => include_bytes!("../../assets/distro/ubuntu-linux.svg"),
@@ -100,6 +110,15 @@ mod tests {
         ] {
             assert_eq!(icon_for(name), icon, "{name}");
         }
+    }
+
+    #[test]
+    fn short_names_fit_a_column() {
+        use super::short_name;
+        assert_eq!(short_name("Debian GNU/Linux 12 (bookworm)"), "Debian 12");
+        assert_eq!(short_name("Red Hat Enterprise Linux 9.4 (Plow)"), "RHEL 9.4");
+        assert_eq!(short_name("Ubuntu 24.04.1 LTS"), "Ubuntu 24.04.1 LTS");
+        assert_eq!(short_name(""), "");
     }
 
     #[test]

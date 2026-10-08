@@ -683,6 +683,7 @@ pub fn fleet_overview_view(
                                 // flex_none so header and rows can't shrink differently.
                                 .child(div().flex_grow(3.0).flex_basis(px(0.0)).min_w(px(140.0)).child("HOST"))
                                 .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(110.0)).child("ADDRESS"))
+                                .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(120.0)).child("OS"))
                                 .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(90.0)).pr(px(14.0)).text_align(TextAlign::Right).child("ROLE"))
                                 .child(div().w(px(64.0)).flex_none().child("ENV"))
                                 .child(div().w(px(95.0)).flex_none().child("CPU"))
@@ -1343,16 +1344,14 @@ fn render_fleet_host_row(
                 .flex()
                 .items_center()
                 .gap(px(6.0))
-                // Its country's flag, then its distro's logo (Dashboard Icons,
-                // Apache-2.0); the plain server glyph only when it has neither.
-                .children((!host.country.is_empty()).then(|| crate::components::flag::flag(&host.country, 11.0)))
-                .child(crate::components::distro_icon::distro_icon(&host.distro, 14.0).unwrap_or_else(|| {
-                    if host.country.is_empty() {
-                        tabler_icon(TablerIcon::Server).size(px(12.0)).text_color(TEXT_DIMMER).into_any_element()
-                    } else {
-                        div().into_any_element()
-                    }
-                }))
+                .child(if !host.country.is_empty() {
+                    crate::components::flag::flag(&host.country, 11.0)
+                } else {
+                    tabler_icon(TablerIcon::Server)
+                        .size(px(12.0))
+                        .text_color(TEXT_DIMMER)
+                        .into_any_element()
+                })
                 .child(
                     div()
                         .font_weight(if host.is_selected {
@@ -1410,6 +1409,23 @@ fn render_fleet_host_row(
                 .overflow_hidden()
                 .text_color(TEXT_DIM)
                 .child(host.ip.clone()),
+        )
+        // OS: the distro's logo (Dashboard Icons, Apache-2.0) and its short name.
+        .child(
+            div()
+                .flex_grow(2.0)
+                .flex_basis(px(0.0))
+                .min_w(px(120.0))
+                .flex()
+                .items_center()
+                .gap(px(6.0))
+                .overflow_hidden()
+                // No logo (not Linux, or not read yet): its space, so names line up.
+                .child(crate::components::distro_icon::distro_icon(&host.distro, 14.0).unwrap_or_else(|| div().size(px(14.0)).flex_none().into_any_element()))
+                .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(TEXT_DIM).child({
+                    let short = crate::components::distro_icon::short_name(&host.distro);
+                    if short.is_empty() { "—".to_string() } else { short }
+                })),
         )
         // Role
         .child(
