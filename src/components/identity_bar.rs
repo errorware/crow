@@ -145,28 +145,14 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker
                 .border_color(BORDER_PANEL)
                 .font_family(FONT_MONO)
                 .text_size(px(10.5))
-                .child({
-                    let (fg, outlined) = match env_str.to_uppercase().as_str() {
-                        "PROD" => (CRIT, true),
-                        "STAGE" | "STAGING" => (WARN, true),
-                        _ => (TEXT_DIM, false),
-                    };
-                    div()
-                        .flex_none()
-                        .px(px(5.0))
-                        .py(px(1.0))
-                        .when(outlined, |d| d.border_1().border_color(fg))
-                        .text_size(px(9.5))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(fg)
-                        .child(env_str.to_uppercase())
-                })
                 .children(distro.map(|d| {
                     div()
                         .flex()
                         .flex_none()
                         .items_center()
                         .gap(px(6.0))
+                        // The distro's logo (Dashboard Icons, Apache-2.0).
+                        .children(crate::components::distro_icon::distro_icon(&d, 16.0))
                         .child(div().text_color(TEXT_SECONDARY).child(d))
                         .when(!distro_family.is_supported(), |el| el.child(div().text_size(px(9.5)).text_color(WARN).child("unverified")))
                 }))
@@ -188,7 +174,24 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, region_picker
                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_group_assign_target(Some(s_id.clone()), cx)))
                         .child(div().text_color(TEXT_FAINT).child("group"))
                         .child(if none { "none ▾".to_string() } else { format!("{} ▾", s.group_name.trim()) })
-                })),
+                }))
+                // The environment closes the details.
+                .child({
+                    let (fg, outlined) = match env_str.to_uppercase().as_str() {
+                        "PROD" => (CRIT, true),
+                        "STAGE" | "STAGING" => (WARN, true),
+                        _ => (TEXT_DIM, false),
+                    };
+                    div()
+                        .flex_none()
+                        .px(px(5.0))
+                        .py(px(1.0))
+                        .when(outlined, |d| d.border_1().border_color(fg))
+                        .text_size(px(9.5))
+                        .font_weight(FontWeight::BOLD)
+                        .text_color(fg)
+                        .child(env_str.to_uppercase())
+                }),
         )
         // 4. Spacer
         .child(div().flex_1())

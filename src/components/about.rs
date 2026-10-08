@@ -183,7 +183,8 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                 .child(info_row("UI TOOLKIT", "GPUI Kit v0.6.1 · WGPU Native"))
                                 .child(info_row("SECURITY VAULT", "Argon2id · ChaCha20-Poly1305 · TOTP"))
                                 .child(info_row("CONFIG CORE", "crow-config-core · Schema IR"))
-                                .child(info_row("GEOIP DATA", crate::geoip::ATTRIBUTION)),
+                                .child(info_row("GEOIP DATA", crate::geoip::ATTRIBUTION))
+                                .child(info_row("DISTRO ICONS", "Dashboard Icons by homarr-labs · Apache-2.0")),
                         )
                         // A newer version (ERR-88).
                         .children(update_panel(update, auto_install, app.clone()))

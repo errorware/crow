@@ -20,6 +20,7 @@ pub mod window_frame;
 pub mod table_controls;
 pub mod resize;
 pub mod flag;
+pub mod distro_icon;
 pub mod stance;
 pub mod snapshot_offer;
 pub mod snapshots_panel;

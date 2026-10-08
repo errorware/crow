@@ -39,6 +39,8 @@ pub struct FleetHost {
     pub is_selected: bool,
     /// ISO country code ("" when unknown).
     pub country: String,
+    /// The os-release name, for its logo ("" when not read yet).
+    pub distro: String,
 }
 
 pub fn fleet_stat_strip(
@@ -234,6 +236,7 @@ pub fn fleet_overview_view(
                 pill,
                 is_selected: s.id == fleet.active_tab_id,
                 country: s.region_country.clone(),
+                distro: s.os_distro.clone(),
             }
         }).collect()
     } else {
@@ -1340,14 +1343,16 @@ fn render_fleet_host_row(
                 .flex()
                 .items_center()
                 .gap(px(6.0))
-                .child(if !host.country.is_empty() {
-                    crate::components::flag::flag(&host.country, 11.0)
-                } else {
-                    tabler_icon(TablerIcon::Server)
-                        .size(px(12.0))
-                        .text_color(TEXT_DIMMER)
-                        .into_any_element()
-                })
+                // Its country's flag, then its distro's logo (Dashboard Icons,
+                // Apache-2.0); the plain server glyph only when it has neither.
+                .children((!host.country.is_empty()).then(|| crate::components::flag::flag(&host.country, 11.0)))
+                .child(crate::components::distro_icon::distro_icon(&host.distro, 14.0).unwrap_or_else(|| {
+                    if host.country.is_empty() {
+                        tabler_icon(TablerIcon::Server).size(px(12.0)).text_color(TEXT_DIMMER).into_any_element()
+                    } else {
+                        div().into_any_element()
+                    }
+                }))
                 .child(
                     div()
                         .font_weight(if host.is_selected {

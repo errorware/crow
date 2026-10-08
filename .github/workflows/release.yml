@@ -65,6 +65,9 @@ jobs:
           cp target/release/crow packaging/linux/install.sh "$root/"
           cp packaging/linux/rs.crow.Crow.desktop "$root/share/applications/"
           cp -r packaging/linux/icons/hicolor "$root/share/icons/"
+          # The distro logos are built in; their licence travels with them.
+          mkdir -p "$root/licenses/distro-icons"
+          cp assets/distro/LICENSE assets/distro/NOTICE.md "$root/licenses/distro-icons/"
           tar -czf "dist/${{ matrix.asset }}.tar.gz" -C dist "${{ matrix.asset }}"
 
       # macOS: a Crow.app bundle with its icon, ad-hoc signed (not notarized:
@@ -79,6 +82,9 @@ jobs:
           mkdir -p "$app/MacOS" "$app/Resources"
           cp target/release/crow "$app/MacOS/crow"
           cp packaging/macos/AppIcon.icns "$app/Resources/"
+          # The distro logos are built in; their licence travels with them.
+          mkdir -p "$app/Resources/licenses/distro-icons"
+          cp assets/distro/LICENSE assets/distro/NOTICE.md "$app/Resources/licenses/distro-icons/"
           # CFBundleVersion must be numeric: 0.2.0-beta.1 → 0.2.0.
           sed -e "s/@VERSION@/$version/g" -e "s/@BUILD@/${version%%-*}/g" packaging/macos/Info.plist > "$app/Info.plist"
           plutil -lint "$app/Info.plist"
