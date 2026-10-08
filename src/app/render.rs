@@ -277,7 +277,7 @@ impl Render for CrowApp {
                                                         .flex()
                                                         .w_full()
                                                         // Sidebar
-                                                        .child(sidebar(&self.active_view, self.sidebar_collapsed, &self.nav_badges(), app_view.clone()))
+                                                        .child(sidebar(&self.active_view, self.sidebar_collapsed, &self.nav_badges(), &self.plugins.enabled, app_view.clone()))
                                                         // Content Area (Overview or Config or other server view)
                                                         .child(
                                                             div()
@@ -423,6 +423,9 @@ impl Render for CrowApp {
                                                                         .size_full()
                                                                         .child(file_browser_view(app_view.clone(), &self.files))
                                                                 )
+                                                            } else if self.active_view == "containers" {
+                                                                let name = self.fleet.active_server().map(|s| s.name).unwrap_or_default();
+                                                                Some(div().size_full().child(crate::views::containers::containers_view(&self.containers, &name, app_view.clone())))
                                                             } else if self.active_view == "danger" {
                                                                 Some(div().size_full().child(danger_zone(&self.danger, self.active_provider_actions().as_ref(), app_view.clone())))
                                                             } else if self.active_view == "firewall" {

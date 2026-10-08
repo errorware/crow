@@ -100,7 +100,7 @@ impl CrowApp {
             let mut cmds = vec![HostCommand::new(useradd)];
             if !form.password.is_empty() {
                 let (argv, stdin) = host_data::set_password(&name, &form.password)?;
-                cmds.push(HostCommand { argv, stdin });
+                cmds.push(HostCommand { argv, stdin, as_user: false });
             }
             Ok(cmds)
         });
@@ -150,7 +150,7 @@ impl CrowApp {
             cx.notify();
             return;
         }
-        let cmd = host_data::set_password(&user, &password).map(|(argv, stdin)| vec![HostCommand { argv, stdin }]);
+        let cmd = host_data::set_password(&user, &password).map(|(argv, stdin)| vec![HostCommand { argv, stdin, as_user: false }]);
         use zeroize::Zeroize;
         password.zeroize();
         self.users.password_for = None;

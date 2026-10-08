@@ -191,6 +191,31 @@ pub fn explain_service(primary: &ClankerProviderConfig, backup: Option<&ClankerP
     with_fallback(primary, backup, |p| send(p, &chat_config(p, SERVICE_PROMPT, &user, 700)))
 }
 
+const CONTAINER_PROMPT: &str = "You explain containers to an operator who is not a container expert, like a patient senior SRE would. You are given one container's image, its compose service name if any, its state, the ports it publishes and whether each is open to every network. Answer in this exact shape:\nSEVERITY: <LOW|MEDIUM|HIGH|CRITICAL> - <one short reason>\n\nWhat it is: <one or two sentences about the software in the image, plain words>\nWhat it does here: <one or two sentences, from the service name and ports>\nIf you stop it: <what breaks or keeps working>\nIf you restart it: <what users would notice; whether data in it survives>\nExposure: <whether its published ports should be open to every network, and what to do if not>\n\nSEVERITY rates stopping or restarting it: LOW when nothing users rely on breaks, MEDIUM when a feature degrades, HIGH when something users rely on goes down or data could be lost, CRITICAL when it can cut off access to the server or other services depend on it (databases, proxies, DNS). If you don't recognize the image, say so and rate from what's given. Don't invent what isn't given.";
+
+/// What Crow sends about a container: no host name, address, container id,
+/// environment or labels beyond the compose service name.
+pub struct ContainerFacts<'a> {
+    pub image: &'a str,
+    pub service: Option<&'a str>,
+    pub state: &'a str,
+    /// "8080->80/tcp (every network)", "127.0.0.1:6379->6379/tcp (this machine only)".
+    pub ports: &'a [String],
+}
+
+/// Asks for a plain-words explanation of a container and how risky
+/// stopping or restarting it is (primary, then the backup).
+pub fn explain_container(primary: &ClankerProviderConfig, backup: Option<&ClankerProviderConfig>, f: &ContainerFacts) -> Result<Answer, String> {
+    let user = format!(
+        "Image: {}\nCompose service: {}\nState: {}\nPublished ports: {}",
+        f.image,
+        f.service.unwrap_or("none (a standalone container)"),
+        f.state,
+        if f.ports.is_empty() { "none".to_string() } else { f.ports.join(", ") }
+    );
+    with_fallback(primary, backup, |p| send(p, &chat_config(p, CONTAINER_PROMPT, &user, 700)))
+}
+
 /// An answer, with who gave it and, when the backup did, why the primary didn't.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Answer {

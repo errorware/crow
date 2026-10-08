@@ -13,7 +13,7 @@ use crate::theme::*;
 
 const GROUPS: [(&str, &str); 4] = [
     ("provider.vms", "LOCAL VIRTUAL MACHINES"),
-    ("provider.containers", "LAB CONTAINERS"),
+    ("provider.containers", "CONTAINERS"),
     ("provider.hosts", "CLOUD PROVIDERS"),
     ("provider.notify", "NOTIFICATIONS"),
 ];

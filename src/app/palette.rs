@@ -33,7 +33,7 @@ impl CrowApp {
         let current = self.fleet.servers.iter().find(|s| s.id == self.fleet.active_tab_id);
         // The current server's pages first: the likeliest jump.
         if current.is_some() {
-            for item in nav_items() {
+            for item in nav_items().iter().filter(|i| i.view_id.is_none_or(|v| crate::components::sidebar::page_shown(v, &self.plugins.enabled))) {
                 // "this server", not its name: typing a server's name should
                 // find the server, not every page of the open one.
                 if let Some(view) = item.view_id {
@@ -105,6 +105,7 @@ impl CrowApp {
         let Some(srv) = self.fleet.servers.iter().find(|s| s.id == id) else { return Vec::new() };
         let mut out: Vec<Entry> = nav_items()
             .iter()
+            .filter(|i| i.view_id.is_none_or(|v| crate::components::sidebar::page_shown(v, &self.plugins.enabled)))
             .filter_map(|item| item.view_id.map(|view| Entry { category: "PAGE", label: item.label.to_string(), hint: srv.name.clone(), keywords: view.into(), target: Target::Server { id: srv.id.clone(), view } }))
             .collect();
         out.push(Entry { category: "PAGE", label: "Danger Zone".into(), hint: srv.name.clone(), keywords: "danger reboot snapshot".into(), target: Target::Server { id: srv.id.clone(), view: "danger" } });

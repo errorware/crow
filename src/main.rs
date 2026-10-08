@@ -10,6 +10,7 @@ pub mod palette;
 pub mod plugins;
 pub mod topology;
 pub mod config;
+pub mod containers;
 pub mod geoip;
 pub mod host;
 pub mod journal;

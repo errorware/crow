@@ -23,6 +23,8 @@ pub enum NodeKind {
     Vm,
     /// A Podman/Docker lab container on this machine.
     Container,
+    /// A container running on a server (ERR-140), as last read.
+    Workload,
     Key,
 }
 
@@ -34,6 +36,8 @@ pub enum EdgeKind {
     ViaJump,
     /// This key logs Crow in.
     Unlocks,
+    /// The server runs this container.
+    Runs,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
@@ -113,7 +117,34 @@ pub struct Inputs<'a> {
     pub alerts: &'a [Alert],
     pub health: &'a HashMap<String, Health>,
     pub posture: &'a HashMap<String, Posture>,
+    /// The last container scan of each server that has one (ERR-140).
+    pub containers: &'a HashMap<String, crate::containers::Scan>,
     pub now: i64,
+}
+
+/// More containers than this on one server: only the riskiest are drawn.
+pub const WORKLOADS_PER_SERVER: usize = 12;
+
+/// What a container's last scan says is wrong with it.
+pub fn workload_risks(c: &crate::containers::Container) -> Vec<Risk> {
+    let mut out = Vec::new();
+    if c.health.as_deref() == Some("unhealthy") && c.is_running() {
+        out.push(risk(Level::Crit, "container", "its health check fails"));
+    }
+    if c.state == "exited" && !c.status.starts_with("Exited (0)") {
+        out.push(risk(Level::Warn, "container", format!("stopped with an error: {}", c.status)));
+    }
+    if let Some(n) = c.restarts.filter(|n| *n >= 5) {
+        out.push(risk(Level::Warn, "container", format!("restarted {n} times")));
+    }
+    for p in c.published().iter().filter(|p| p.exposed()) {
+        out.push(risk(Level::Warn, "container", format!("port {} (→ {}) published to every network", p.host_port, p.container)));
+    }
+    out
+}
+
+pub fn workload_node_id(server: &str, key: &str) -> String {
+    format!("ctr:{server}:{key}")
 }
 
 /// Keys older than this are flagged for rotation.
@@ -232,6 +263,26 @@ pub fn build(i: &Inputs) -> Graph {
         }
     }
 
+    for s in i.servers {
+        let Some(scan) = i.containers.get(&s.id) else { continue };
+        let mut items: Vec<(&crate::containers::Container, Vec<Risk>)> = scan.containers.iter().map(|c| (c, workload_risks(c))).collect();
+        items.sort_by(|a, b| b.1.iter().map(|r| r.level).max().cmp(&a.1.iter().map(|r| r.level).max()).then(b.1.len().cmp(&a.1.len())).then(a.0.name.cmp(&b.0.name)));
+        for (c, risks) in items.into_iter().take(WORKLOADS_PER_SERVER) {
+            let id = workload_node_id(&s.id, &c.key());
+            g.nodes.push(Node {
+                id: id.clone(),
+                kind: NodeKind::Workload,
+                label: c.name.clone(),
+                detail: c.image.clone(),
+                lane: if s.env.is_empty() { "SERVERS".into() } else { s.env.to_uppercase() },
+                health: if c.is_running() { Health::Ok } else { Health::Unknown },
+                risks,
+                server_id: Some(s.id.clone()),
+            });
+            g.edges.push(Edge { from: server_node_id(&s.id), to: id, kind: EdgeKind::Runs });
+        }
+    }
+
     for k in i.keys {
         let unlocks: Vec<&ServerRecord> = i.servers.iter().filter(|s| s.key_id.as_deref() == Some(k.id.as_str()) && s.auth_method == "publickey").collect();
         if unlocks.is_empty() {
@@ -265,6 +316,35 @@ pub fn build(i: &Inputs) -> Graph {
 mod tests {
     use super::*;
 
+    fn empty_containers() -> &'static HashMap<String, crate::containers::Scan> {
+        static EMPTY: std::sync::OnceLock<HashMap<String, crate::containers::Scan>> = std::sync::OnceLock::new();
+        EMPTY.get_or_init(HashMap::new)
+    }
+
+    #[test]
+    fn a_servers_containers_hang_off_it_with_their_risks() {
+        use crate::containers::{Container, PortMap, Runtime, Scan, Scope};
+        let c = |name: &str, state: &str, status: &str, ports: Vec<PortMap>| Container { runtime: Runtime::Docker, scope: Scope::Root, id: format!("{name}-id"), name: name.into(), image: "nginx".into(), state: state.into(), status: status.into(), health: None, ports, restarts: Some(0), labels: Default::default() };
+        let public = PortMap { host_ip: "0.0.0.0".into(), host_port: "8080".into(), container: "80/tcp".into() };
+        let local = PortMap { host_ip: "127.0.0.1".into(), host_port: "6379".into(), container: "6379/tcp".into() };
+        let scan = Scan { containers: vec![c("web", "running", "Up 1 hour", vec![public]), c("cache", "running", "Up 1 hour", vec![local]), c("job", "exited", "Exited (1) 2 hours ago", vec![])], ..Default::default() };
+        let containers: HashMap<String, Scan> = [("web1".to_string(), scan)].into();
+        let servers = vec![server("web1")];
+        let (p, h) = (HashMap::new(), HashMap::new());
+        let mut inp = inputs(&servers, &[], &[], &p, &h);
+        inp.containers = &containers;
+        let g = build(&inp);
+        let workloads: Vec<&Node> = g.nodes.iter().filter(|n| n.kind == NodeKind::Workload).collect();
+        assert_eq!(workloads.len(), 3);
+        assert!(g.edges.iter().filter(|e| e.kind == EdgeKind::Runs).all(|e| e.from == "srv:web1"));
+        let web = workloads.iter().find(|n| n.label == "web").unwrap();
+        assert!(web.risks.iter().any(|r| r.text.contains("8080") && r.text.contains("every network")));
+        assert!(workloads.iter().find(|n| n.label == "cache").unwrap().risks.is_empty(), "127.0.0.1 only is fine");
+        assert!(workloads.iter().find(|n| n.label == "job").unwrap().risks.iter().any(|r| r.text.contains("stopped with an error")));
+        let lay = layout::layout(&g);
+        assert!(lay.at["srv:web1"].0 < lay.at[&web.id].0, "a container sits right of its server");
+    }
+
     const ED: &str = "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAID6IeWJtxICF/halpN1E+KtZi88x2yIZCTlt4CjfYRyr crow@x";
 
     fn server(id: &str) -> ServerRecord {
@@ -272,7 +352,7 @@ mod tests {
     }
 
     fn inputs<'a>(servers: &'a [ServerRecord], keys: &'a [SshKeyRecord], alerts: &'a [Alert], posture: &'a HashMap<String, Posture>, health: &'a HashMap<String, Health>) -> Inputs<'a> {
-        Inputs { servers, keys, alerts, health, posture, now: chrono::DateTime::parse_from_rfc3339("2026-10-07T00:00:00Z").unwrap().timestamp() }
+        Inputs { servers, keys, alerts, health, posture, containers: empty_containers(), now: chrono::DateTime::parse_from_rfc3339("2026-10-07T00:00:00Z").unwrap().timestamp() }
     }
 
     #[test]

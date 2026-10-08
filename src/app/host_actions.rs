@@ -12,11 +12,13 @@ use crate::vault::{ChangeRecord, ServerRecord};
 pub struct HostCommand {
     pub argv: Vec<String>,
     pub stdin: Vec<u8>,
+    /// Run as the login user instead (rootless Podman, the docker group).
+    pub as_user: bool,
 }
 
 impl HostCommand {
     pub fn new(argv: Vec<String>) -> Self {
-        Self { argv, stdin: Vec::new() }
+        Self { argv, stdin: Vec::new(), as_user: false }
     }
 }
 
@@ -29,11 +31,18 @@ pub fn describe_commands(commands: &[HostCommand]) -> String {
         .join(" && ")
 }
 
+/// Compose pulls images: give it longer than a firewall rule.
+const CONTAINER_TIMEOUT: std::time::Duration = std::time::Duration::from_secs(300);
+
 fn run_all(server: &ServerRecord, commands: &[HostCommand]) -> Result<(), String> {
     let host = host_for(server);
     for cmd in commands {
         let argv: Vec<&str> = cmd.argv.iter().map(String::as_str).collect();
-        host.exec_privileged(&argv, &cmd.stdin, DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;
+        let ran = if cmd.as_user { host.exec_stdin(&argv, &cmd.stdin, CONTAINER_TIMEOUT) } else { host.exec_privileged(&argv, &cmd.stdin, DEFAULT_TIMEOUT) };
+        ran.map_err(|e| match e {
+            crate::host::HostError::Failed { stderr, .. } if !stderr.trim().is_empty() => stderr.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or_default().trim().to_string(),
+            other => other.to_string(),
+        })?;
     }
     Ok(())
 }

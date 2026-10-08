@@ -642,11 +642,11 @@ fn render_pending_confirm(unit_name: &str, action: &str, overview: &OverviewStat
 }
 
 /// The wand's colour.
-const WAND: Rgba = Rgba { r: 0.733, g: 0.604, b: 0.969, a: 1.0 };
+pub(crate) const WAND: Rgba = Rgba { r: 0.733, g: 0.604, b: 0.969, a: 1.0 };
 
 /// The plain-words explanation under the service's name: how risky
 /// stopping or restarting it is, what it is, and what each action does.
-fn render_eli5(loading: bool, result: Option<&Result<crate::views::overview::state::ServiceEli5, String>>) -> impl IntoElement {
+pub(crate) fn render_eli5(loading: bool, result: Option<&Result<crate::views::overview::state::ServiceEli5, String>>) -> impl IntoElement {
     use crate::ai::Severity;
     let body = div().flex().flex_col().gap(px(8.0)).p(px(12.0)).bg(WAND.opacity(0.05)).border_1().border_color(WAND.opacity(0.35));
     match (loading, result) {

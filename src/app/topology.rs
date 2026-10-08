@@ -33,6 +33,7 @@ impl CrowApp {
             alerts: &self.topology.alerts,
             health: &health,
             posture: &self.topology.posture,
+            containers: &self.containers.by_server,
             now: chrono::Utc::now().timestamp(),
         })
     }

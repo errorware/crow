@@ -46,6 +46,13 @@ pub const BUILTIN: &[BuiltinPlugin] = &[
         capabilities: &["containers.list", "containers.power"],
     },
     BuiltinPlugin {
+        id: "containers",
+        name: "Containers on servers",
+        about: "Docker and Podman on your servers, over SSH: containers, compose stacks, published ports, logs, start/stop/restart, and the wand. Adds Containers to each server's sidebar.",
+        category: "provider.containers",
+        capabilities: &["containers.list", "containers.logs", "containers.power", "compose.stacks"],
+    },
+    BuiltinPlugin {
         id: "linode",
         name: "Linode",
         about: "Your Linode instances: import them, read their regions, power them and take snapshots.",
@@ -180,6 +187,8 @@ pub fn status(id: &str) -> PluginStatus {
         }
         // Its status is its saved settings: the app knows them (CrowApp::check_plugin).
         "email" => PluginStatus::Ready("built in".into()),
+        // Each server is read when its Containers page opens.
+        "containers" => PluginStatus::Ready("built in · read over SSH".into()),
         "linode" | "upcloud" => match crate::providers::factory(id) {
             Some(_) => PluginStatus::Ready("built in".into()),
             None => PluginStatus::Unavailable,

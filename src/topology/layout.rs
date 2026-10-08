@@ -27,7 +27,7 @@ pub struct Layout {
 
 /// Hops from Crow: 1 for a server Crow reaches directly, +1 per jump host.
 fn depths(g: &Graph) -> HashMap<String, usize> {
-    let parent: HashMap<&str, &str> = g.edges.iter().filter(|e| e.kind == EdgeKind::ViaJump).map(|e| (e.to.as_str(), e.from.as_str())).collect();
+    let parent: HashMap<&str, &str> = g.edges.iter().filter(|e| matches!(e.kind, EdgeKind::ViaJump | EdgeKind::Runs)).map(|e| (e.to.as_str(), e.from.as_str())).collect();
     let mut out = HashMap::new();
     for n in g.nodes.iter().filter(|n| !matches!(n.kind, NodeKind::Crow | NodeKind::Key)) {
         let (mut d, mut at) = (1usize, n.id.as_str());
@@ -47,7 +47,7 @@ fn depths(g: &Graph) -> HashMap<String, usize> {
 pub fn layout(g: &Graph) -> Layout {
     let depth = depths(g);
     let max_depth = depth.values().copied().max().unwrap_or(1);
-    let parent: HashMap<&str, &str> = g.edges.iter().filter(|e| e.kind == EdgeKind::ViaJump).map(|e| (e.to.as_str(), e.from.as_str())).collect();
+    let parent: HashMap<&str, &str> = g.edges.iter().filter(|e| matches!(e.kind, EdgeKind::ViaJump | EdgeKind::Runs)).map(|e| (e.to.as_str(), e.from.as_str())).collect();
     // Column 0: Crow, then its keys; 1…: servers by depth.
     let mut columns: Vec<Vec<&super::Node>> = vec![Vec::new(); max_depth + 1];
     for n in &g.nodes {

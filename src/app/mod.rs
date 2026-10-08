@@ -56,6 +56,7 @@ pub mod topology;
 pub mod palette;
 pub mod plugins;
 pub mod notify;
+pub mod containers;
 mod secrets;
 pub mod password_login;
 pub mod vault_manage;
@@ -191,6 +192,8 @@ pub struct CrowApp {
     /// The Email plugin (ERR-139): its settings, form and dispatcher.
     pub email: notify::EmailState,
     pub email_inputs: Option<notify::EmailInputs>,
+    /// The server's Containers page (ERR-140).
+    pub containers: containers::ContainersState,
     pub sidebar_collapsed: bool,
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
@@ -440,6 +443,7 @@ impl CrowApp {
             plugins: Default::default(),
             email: Default::default(),
             email_inputs: None,
+            containers: Default::default(),
             sidebar_collapsed: false,
             keys,
             files: FilesState::default(),
@@ -610,6 +614,9 @@ impl CrowApp {
             self.active_view = "files".to_string();
             self.load_file_listing(cx);
             return;
+        } else if view == "containers" {
+            self.active_view = view.to_string();
+            self.refresh_containers(cx);
         } else {
             self.active_view = view.to_string();
         }

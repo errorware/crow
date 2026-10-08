@@ -34,7 +34,7 @@ fn kind_icon(kind: NodeKind) -> TablerIcon {
         NodeKind::Crow => TablerIcon::Network,
         NodeKind::Server => TablerIcon::Server,
         NodeKind::Vm => TablerIcon::Cpu,
-        NodeKind::Container => TablerIcon::Box,
+        NodeKind::Container | NodeKind::Workload => TablerIcon::Box,
         NodeKind::Key => TablerIcon::Key,
     }
 }
@@ -45,6 +45,7 @@ fn kind_label(kind: NodeKind) -> &'static str {
         NodeKind::Server => "SERVER",
         NodeKind::Vm => "MULTIPASS VM",
         NodeKind::Container => "LAB CONTAINER",
+        NodeKind::Workload => "CONTAINER",
         NodeKind::Key => "SSH KEY",
     }
 }
@@ -186,7 +187,7 @@ fn map_area(app_state: &CrowApp, graph: &Graph, placed: &Layout, app: Entity<Cro
             for (from, to, kind, hi, dim) in &lines {
                 let width = if *hi { 2.2 } else { 1.3 };
                 let mut path = match kind {
-                    EdgeKind::Unlocks => PathBuilder::stroke(px(width)).dash_array(&[px(4.0), px(4.0)]),
+                    EdgeKind::Unlocks | EdgeKind::Runs => PathBuilder::stroke(px(width)).dash_array(&[px(4.0), px(4.0)]),
                     _ => PathBuilder::stroke(px(width)),
                 };
                 let p0 = point(o.x + px(from.0), o.y + px(from.1));
@@ -200,6 +201,7 @@ fn map_area(app_state: &CrowApp, graph: &Graph, placed: &Layout, app: Entity<Cro
                     EdgeKind::Ssh => hex_rgba(0x9aa4b2, alpha),
                     EdgeKind::ViaJump => hex_rgba(JUMP_BLUE, alpha),
                     EdgeKind::Unlocks => hex_rgba(KEY_AMBER, alpha),
+                    EdgeKind::Runs => hex_rgba(0x6c6f78, alpha),
                 };
                 if let Ok(p) = path.build() {
                     window.paint_path(p, color);
@@ -436,6 +438,7 @@ fn inspector(app_state: &CrowApp, graph: &Graph, n: &Node, app: Entity<CrowApp>)
                 EdgeKind::Ssh => "ssh",
                 EdgeKind::ViaJump => "via jump",
                 EdgeKind::Unlocks => "key",
+                EdgeKind::Runs => "runs",
             };
             body = body.child(
                 div()

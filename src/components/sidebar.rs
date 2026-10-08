@@ -30,10 +30,18 @@ pub fn nav_items() -> &'static [NavItemDef] {
     ]
 }
 
+/// Pages a plugin brings (ERR-138): (view id, plugin id).
+pub const PLUGIN_PAGES: [(&str, &str); 1] = [("containers", "containers")];
+
+/// Whether page `view` shows, given the plugins that are on.
+pub fn page_shown(view: &str, enabled: &std::collections::HashSet<String>) -> bool {
+    PLUGIN_PAGES.iter().all(|(v, plugin)| *v != view || enabled.contains(*plugin))
+}
+
 /// Live badge per view id: (text, color). Views without an entry show none.
 pub type NavBadges = Vec<(&'static str, String, Rgba)>;
 
-pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: &std::collections::HashSet<String>, app: Entity<CrowApp>) -> impl IntoElement {
     let sidebar_w = if collapsed { px(44.0) } else { px(184.0) };
 
     div()
@@ -46,7 +54,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, app: Enti
         .flex()
         .flex_col()
         // Nav items
-        .children(nav_items().iter().enumerate().map(|(idx, item)| {
+        .children(nav_items().iter().enumerate().filter(|(_, item)| item.view_id.is_none_or(|v| page_shown(v, plugins))).map(|(idx, item)| {
             let is_active = item.view_id == Some(active_view);
             let (badge_text, badge_color) = badges
                 .iter()
