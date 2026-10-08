@@ -49,6 +49,9 @@ impl Render for CrowApp {
         if self.screen == Screen::Settings && self.settings.section == super::SettingsSection::Plugins && self.plugin_enabled("email") {
             self.ensure_email_inputs(window, cx);
         }
+        if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Patching {
+            self.ensure_window_inputs(window, cx);
+        }
         if self.screen == Screen::Settings && self.clankers.editing.is_some() {
             self.ensure_clanker_inputs(window, cx);
         }
@@ -95,8 +98,11 @@ impl Render for CrowApp {
         let screen = self.screen;
         let app_view = cx.entity();
         // The fleet map is built only while it's showing (ERR-120).
-        let map_page = (self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Map)
-            .then(|| crate::views::topology::topology_page(self, app_view.clone()).into_any_element());
+        let map_page = match (self.screen, self.fleet.setup_page) {
+            (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Map) => Some(crate::views::topology::topology_page(self, app_view.clone()).into_any_element()),
+            (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Patching) => Some(crate::views::fleet::patching::patching_page(&self.fleet, &self.patching, app_view.clone()).into_any_element()),
+            _ => None,
+        };
         let vault_status = self.vault.status();
         let stance = self.stance_report();
 

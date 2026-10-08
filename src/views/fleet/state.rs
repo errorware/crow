@@ -251,4 +251,6 @@ pub enum SetupPage {
     Policies,
     /// The fleet map (ERR-120).
     Map,
+    /// Updates, windows and patch runs (ERR-141).
+    Patching,
 }

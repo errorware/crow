@@ -227,6 +227,40 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
                 (fixable.map(|n| n.to_string()).unwrap_or_else(|| "—".into()), "CVES FIXED BY UPDATING", if fixable.unwrap_or(0) > 0 { WARN } else { TEXT_MUTED }),
             ]));
 
+            // Apply them (ERR-141): planned on the fleet runner, which lists
+            // the packages and asks first.
+            if !u.updates.is_empty() {
+                let apply = |id: &'static str, label: String, scope: crate::patching::Scope, color: Rgba| {
+                    let (app, server) = (app.clone(), sec.server_id.clone().unwrap_or_default());
+                    div()
+                        .id(id)
+                        .px(px(9.0))
+                        .py(px(3.0))
+                        .border_1()
+                        .border_color(color.opacity(0.6))
+                        .font_family(FONT_MONO)
+                        .text_size(px(9.5))
+                        .font_weight(FontWeight::BOLD)
+                        .text_color(color)
+                        .cursor_pointer()
+                        .hover(move |s| s.bg(color.opacity(0.12)))
+                        .on_click(move |_ev, window, cx| {
+                            let server = server.clone();
+                            app.update(cx, |this, cx| this.plan_patch_server(&server, scope, window, cx))
+                        })
+                        .child(label)
+                };
+                b = b.child(
+                    div()
+                        .flex()
+                        .gap(px(6.0))
+                        .px(px(12.0))
+                        .pb(px(6.0))
+                        .children((security > 0).then(|| apply("btn-server-patch-security", format!("APPLY {security} SECURITY"), crate::patching::Scope::Security, OK)))
+                        .child(apply("btn-server-patch-all", format!("APPLY ALL {}", u.updates.len()), crate::patching::Scope::All, WARN)),
+                );
+            }
+
             // Kernel and reboot state.
             b = b.child(section_label("KERNEL"));
             b = b.child(info_line(format!("running {}", if u.kernel.is_empty() { "—" } else { &u.kernel }), TEXT_SECONDARY));

@@ -32,6 +32,7 @@ elif command -v dnf >/dev/null 2>&1; then
 elif command -v apk >/dev/null 2>&1; then
   echo "$m manager"; echo apk
   echo "$m upgradable"; apk version -l '<' 2>/dev/null | grep -v '^Installed'
+  echo "$m no-index"; apk version -l '<' 2>&1 >/dev/null | grep -q 'opening from cache' && echo yes
 fi
 true"#;
 
@@ -69,6 +70,9 @@ pub struct UpdatesReport {
     /// The running and newest installed kernel, as OSV source packages.
     pub kernel_running: Option<SourcePkg>,
     pub kernel_newest: Option<SourcePkg>,
+    /// The package index was never downloaded (Alpine images ship without
+    /// one), so "nothing pending" can't be told from "nothing known".
+    pub index_missing: bool,
 }
 
 impl UpdatesReport {
@@ -165,6 +169,7 @@ pub fn parse_updates(stdout: &str) -> UpdatesReport {
     r.manager = get("manager").trim().to_string();
     r.cache_time = get("cache").trim().parse().ok();
     r.reboot_required = get("reboot").trim() == "yes";
+    r.index_missing = get("no-index").trim() == "yes";
     r.updates = match r.manager.as_str() {
         "apt" => parse_apt_upgradable(get("upgradable")),
         "dnf" => parse_dnf_upgradable(get("upgradable"), get("security")),
@@ -228,6 +233,7 @@ mod tests {
         assert!(dnf[0].security && dnf[0].name == "openssl-libs");
         assert!(!dnf[1].security);
         let apk = parse_apk_upgradable("openssl-3.1.4-r5   < 3.1.4-r6\nmusl-1.2.4-r2 < 1.2.4-r3\n");
+        assert!(parse_updates("@@crow-sec@@ manager\napk\n@@crow-sec@@ upgradable\n@@crow-sec@@ no-index\nyes\n").index_missing);
         assert_eq!((apk[0].name.as_str(), apk[0].installed.as_str(), apk[0].candidate.as_str()), ("openssl", "3.1.4-r5", "3.1.4-r6"));
     }
 

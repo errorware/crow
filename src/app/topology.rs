@@ -91,6 +91,9 @@ impl CrowApp {
         if page == SetupPage::Map {
             return self.open_topology(cx);
         }
+        if page == SetupPage::Patching {
+            self.scan_fleet_updates(false, cx);
+        }
         self.fleet.setup_page = page;
         cx.notify();
     }

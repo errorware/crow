@@ -589,5 +589,6 @@ fn setup_tabs(page: crate::views::fleet::state::SetupPage, app: Entity<CrowApp>)
         .border_b_1()
         .border_color(BORDER_PANEL)
         .child(tab("setup-tab-policies", "GROUPS & POLICIES", SetupPage::Policies))
+        .child(tab("setup-tab-patching", "PATCHING", SetupPage::Patching))
         .child(tab("setup-tab-map", "FLEET MAP", SetupPage::Map))
 }

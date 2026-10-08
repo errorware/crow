@@ -58,6 +58,7 @@ pub mod plugins;
 pub mod notify;
 pub mod containers;
 pub mod bastions;
+pub mod patching;
 mod secrets;
 pub mod password_login;
 pub mod vault_manage;
@@ -195,6 +196,8 @@ pub struct CrowApp {
     pub email_inputs: Option<notify::EmailInputs>,
     /// The server's Containers page (ERR-140).
     pub containers: containers::ContainersState,
+    /// Fleet Setup → PATCHING (ERR-141).
+    pub patching: patching::PatchingState,
     pub sidebar_collapsed: bool,
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
@@ -445,6 +448,7 @@ impl CrowApp {
             email: Default::default(),
             email_inputs: None,
             containers: Default::default(),
+            patching: Default::default(),
             sidebar_collapsed: false,
             keys,
             files: FilesState::default(),
@@ -518,6 +522,7 @@ impl CrowApp {
         }
         app.apply_settings();
         app.reload_server_groups();
+        app.load_patching();
         app.load_keyring_key(cx);
         // A remote first server's configs and firewall weren't read above, so
         // the window didn't wait on SSH; read them now, in the background.
