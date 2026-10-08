@@ -486,8 +486,8 @@ fn render_counts_cluster(
 fn socket_col_widths(sockets: &[SocketUnit]) -> (f32, f32) {
     // JetBrains Mono advances 0.6em: 6.6px at the rows' 11px.
     const CH: f32 = 6.6;
-    // The widest firewall pill ("FW ALLOW (DEFAULT)" at 8.5px) with its padding and margin.
-    const PILL: f32 = 110.0;
+    // The widest firewall tag ("default allow" at 9.5px, its dot, padding and margin).
+    const PILL: f32 = 100.0;
     let chars = |a: &str, p: &str| (a.chars().count() + 1 + p.chars().count()) as f32 * CH;
     let local = sockets.iter().map(|s| chars(&s.local_addr, &s.local_port) + if super::summary::is_listening(s) { PILL } else { 0.0 }).fold(0.0, f32::max);
     let peer = sockets.iter().map(|s| chars(&s.peer_addr, &s.peer_port)).fold(0.0, f32::max);
@@ -1285,27 +1285,29 @@ fn render_sockets_rows(
                             let app_fw = app.clone();
                             let port_val = sock.local_port.clone();
                             let label = match fw_match {
-                                PortFirewallMatch::Allowed { rule_number, .. } => format!("FW ALLOW #{}", rule_number),
-                                PortFirewallMatch::Denied { rule_number, .. } => format!("FW DENY #{}", rule_number),
-                                PortFirewallMatch::AllowedDefault => "FW ALLOW (DEFAULT)".to_string(),
-                                PortFirewallMatch::NoRule => "NO FW RULE".to_string(),
-                                PortFirewallMatch::Inactive => "FW OFF".to_string(),
-                                PortFirewallMatch::Unknown => "FW ?".to_string(),
+                                PortFirewallMatch::Allowed { rule_number, .. } => format!("allow #{}", rule_number),
+                                PortFirewallMatch::Denied { rule_number, .. } => format!("deny #{}", rule_number),
+                                PortFirewallMatch::AllowedDefault => "default allow".to_string(),
+                                PortFirewallMatch::NoRule => "no rule".to_string(),
+                                PortFirewallMatch::Inactive => "fw off".to_string(),
+                                PortFirewallMatch::Unknown => "fw ?".to_string(),
                             };
                             Some(
+                                // Quiet: a dot in the rule's colour, muted text; the
+                                // table's job is the sockets, not the firewall.
                                 div()
                                     .id(ElementId::NamedInteger("btn-fw-pill".into(), idx as u64))
-                                    .ml(px(6.0))
-                                    .px(px(4.0))
-                                    .py(px(1.0))
-                                    .bg(fw_match.color().opacity(0.12))
-                                    .border_1()
-                                    .border_color(fw_match.color())
-                                    .text_color(fw_match.color())
-                                    .text_size(px(8.5))
-                                    .font_weight(FontWeight::BOLD)
+                                    .ml(px(8.0))
+                                    .px(px(3.0))
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(4.0))
+                                    .whitespace_nowrap()
+                                    .text_color(TEXT_DIM)
+                                    .text_size(px(9.5))
                                     .cursor_pointer()
-                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                    .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                    .child(div().size(px(5.0)).flex_none().rounded_full().bg(fw_match.color()))
                                     .on_click(move |_ev, _window, cx| {
                                         let p = port_val.clone();
                                         app_fw.update(cx, |this, cx| {

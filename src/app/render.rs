@@ -287,10 +287,19 @@ impl Render for CrowApp {
                                                             } else if is_table_page {
                                                                 Some(
                                                                     if self.overview.active_tab == "sockets" {
+                                                                        // Table above, log drawer below (drag the divider).
+                                                                        let app_resize = app_view.clone();
                                                                         div()
                                                                             .size_full()
                                                                             .flex()
                                                                             .flex_col()
+                                                                            .on_drag_move::<crate::components::resize::BottomPanelResize>(move |ev, _window, cx| {
+                                                                                let height = crate::components::resize::bottom_panel_height(ev, 120.0, 180.0);
+                                                                                app_resize.update(cx, |this, cx| {
+                                                                                    this.overview.socket_log_height = height;
+                                                                                    cx.notify();
+                                                                                });
+                                                                            })
                                                                             .child(
                                                                                 div()
                                                                                     .flex_1()
@@ -300,8 +309,9 @@ impl Render for CrowApp {
                                                                         _ => self.services_search.as_ref().map(|s| &s.input),
                                                                     }, Some(&self.firewall.status), app_view.clone()))
                                                                             )
+                                                                            .children(self.overview.socket_drawer_open.then(|| crate::components::resize::resize_handle("socket-log-resize")))
                                                                             .children(if self.overview.socket_drawer_open {
-                                                                                Some(socket_log_drawer(&self.fleet, &self.overview, &self.journal, app_view.clone()).into_any_element())
+                                                                                Some(div().h(px(self.overview.socket_log_height)).flex_none().child(socket_log_drawer(&self.fleet, &self.overview, &self.journal, app_view.clone())).into_any_element())
                                                                             } else {
                                                                                 None
                                                                             })

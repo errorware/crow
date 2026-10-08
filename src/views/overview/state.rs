@@ -48,6 +48,8 @@ pub struct OverviewState {
     pub security: SecurityState,
     /// Height of the log panel under the Processes table (drag to resize).
     pub process_log_height: f32,
+    /// The Sockets page's log drawer, dragged to size like Processes' log.
+    pub socket_log_height: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -121,6 +123,7 @@ impl OverviewState {
             peer_names_pending: false,
             security: SecurityState::default(),
             process_log_height: 240.0,
+            socket_log_height: 250.0,
         }
     }
 }

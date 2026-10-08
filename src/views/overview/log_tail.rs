@@ -216,6 +216,12 @@ pub fn log_tail(
         )
 }
 
+/// The socket log's columns, shared by its sticky header and its rows.
+const COL_TIME: f32 = 85.0;
+const COL_LEVEL: f32 = 42.0;
+const COL_UNIT: f32 = 160.0;
+const COL_PID: f32 = 64.0;
+
 pub fn socket_log_drawer(
     fleet: &FleetState, overview: &OverviewState, journal: &JournalState,
     app: Entity<CrowApp>,
@@ -268,8 +274,7 @@ pub fn socket_log_drawer(
 
     div()
         .id("socket-log-drawer")
-        .h(px(250.0))
-        .flex_none()
+        .size_full()
         .flex()
         .flex_col()
         .bg(BG_RAIL)
@@ -473,6 +478,28 @@ pub fn socket_log_drawer(
                         ),
                 ),
         )
+        // Column names, outside the scroll so they stay put.
+        .child(
+            div()
+                .h(px(22.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap(px(10.0))
+                .px(px(12.0))
+                .bg(BG_SUBHEAD)
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .font_family(FONT_MONO)
+                .text_size(px(9.0))
+                .font_weight(FontWeight::BOLD)
+                .text_color(TEXT_FAINT)
+                .child(div().w(px(COL_TIME)).flex_none().child("TIME"))
+                .child(div().w(px(COL_LEVEL)).flex_none().child("LEVEL"))
+                .child(div().w(px(COL_UNIT)).flex_none().child("UNIT"))
+                .child(div().w(px(COL_PID)).flex_none().child("PID"))
+                .child(div().flex_1().min_w(px(0.0)).child("MESSAGE")),
+        )
         // 2. Full-Width Log Stream Scroll Region
         .child(
             div()
@@ -516,16 +543,18 @@ pub fn socket_log_drawer(
                         // Timestamp
                         .child(
                             div()
-                                .w(px(85.0))
+                                .w(px(COL_TIME))
                                 .flex_none()
+                                .whitespace_nowrap()
                                 .text_color(TEXT_FAINTER)
                                 .child(entry.timestamp_formatted.clone()),
                         )
                         // Priority Badge
                         .child(
                             div()
-                                .w(px(42.0))
+                                .w(px(COL_LEVEL))
                                 .flex_none()
+                                .whitespace_nowrap()
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(lvl_color)
                                 .child(entry.priority.label()),
@@ -533,18 +562,23 @@ pub fn socket_log_drawer(
                         // Unit / Process
                         .child(
                             div()
-                                .w(px(160.0))
+                                .w(px(COL_UNIT))
                                 .flex_none()
+                                .overflow_hidden()
+                                .whitespace_nowrap()
+                                .text_ellipsis()
                                 .text_color(TEXT_SECONDARY)
                                 .child(unit_label),
                         )
                         // PID (if any)
+                        // PIDs reach 7 digits ([1470100]): one line, never two.
                         .child(
                             div()
-                                .w(px(55.0))
+                                .w(px(COL_PID))
                                 .flex_none()
+                                .whitespace_nowrap()
                                 .text_color(TEXT_DIMMER)
-                                .child(entry.pid.map(|p| format!("[{}]", p)).unwrap_or_default()),
+                                .child(entry.pid.map(|p| p.to_string()).unwrap_or_default()),
                         )
                         // Log Message (Full remaining width!)
                         .child(
