@@ -4,6 +4,7 @@
 pub mod clankers;
 pub mod clankers_state;
 pub mod config_table;
+pub mod email_form;
 pub mod diff_rail;
 pub mod keys;
 pub mod keys_state;
@@ -47,6 +48,7 @@ pub fn settings_view(
     clanker_inputs: Option<&crate::app::ClankerInputs>,
     custom_setting_input: Option<&Entity<InputState>>,
     plugins: &crate::app::plugins::PluginsState,
+    email: (&crate::app::notify::EmailState, Option<&crate::app::notify::EmailInputs>),
 ) -> impl IntoElement {
     let is_auth_enabled = vault.is_password_auth_enabled();
     let secrets_blocker = vault.secrets_blocker().filter(|_| !matches!(vault.keyring_state, crate::vault::KeyringState::Loading));
@@ -100,7 +102,7 @@ pub fn settings_view(
         SettingsSection::Components => lab::render_components_lab(app.clone(), lab_state).into_any_element(),
         SettingsSection::Clankers => clankers::render_clankers_view(app.clone(), clankers, secrets_blocker.clone(), secrets_notice).into_any_element(),
         SettingsSection::Providers => providers::render_providers_view(app.clone(), providers_state, provider_inputs, secrets_blocker.clone(), secrets_notice, !is_auth_enabled, &plugins.enabled).into_any_element(),
-        SettingsSection::Plugins => plugins::render_plugins_view(app.clone(), plugins, &providers_state.accounts).into_any_element(),
+        SettingsSection::Plugins => plugins::render_plugins_view(app.clone(), plugins, &providers_state.accounts, email).into_any_element(),
         SettingsSection::General
         | SettingsSection::Connection
         | SettingsSection::Security

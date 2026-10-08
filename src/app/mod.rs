@@ -55,6 +55,7 @@ pub mod providers;
 pub mod topology;
 pub mod palette;
 pub mod plugins;
+pub mod notify;
 mod secrets;
 pub mod password_login;
 pub mod vault_manage;
@@ -187,6 +188,9 @@ pub struct CrowApp {
     pub palette: palette::PaletteState,
     /// Which plugins are switched on (ERR-138).
     pub plugins: plugins::PluginsState,
+    /// The Email plugin (ERR-139): its settings, form and dispatcher.
+    pub email: notify::EmailState,
+    pub email_inputs: Option<notify::EmailInputs>,
     pub sidebar_collapsed: bool,
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
@@ -434,6 +438,8 @@ impl CrowApp {
             palette_open: false,
             palette: Default::default(),
             plugins: Default::default(),
+            email: Default::default(),
+            email_inputs: None,
             sidebar_collapsed: false,
             keys,
             files: FilesState::default(),
@@ -500,6 +506,7 @@ impl CrowApp {
         };
         app.refresh_providers();
         app.load_plugins();
+        app.load_email();
         // The add-server wizard lists lab containers: only with a lab plugin on.
         if app.lab_enabled() {
             app.local_lab.nodes = crate::lab::scan_local_test_nodes(&app.fleet.servers);

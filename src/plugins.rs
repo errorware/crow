@@ -59,6 +59,13 @@ pub const BUILTIN: &[BuiltinPlugin] = &[
         category: "provider.hosts",
         capabilities: &["instances.list", "instances.power", "snapshots"],
     },
+    BuiltinPlugin {
+        id: "email",
+        name: "Email",
+        about: "Alerts by email through your own SMTP server: critical ones at once, warnings in one digest. Sent while Crow is running.",
+        category: "provider.notify",
+        capabilities: &["notify.email"],
+    },
 ];
 
 pub fn get(id: &str) -> Option<&'static BuiltinPlugin> {
@@ -171,6 +178,8 @@ pub fn status(id: &str) -> PluginStatus {
                 PluginStatus::Problem { summary: "needs Podman or Docker working underneath".into(), steps: Vec::new() }
             }
         }
+        // Its status is its saved settings: the app knows them (CrowApp::check_plugin).
+        "email" => PluginStatus::Ready("built in".into()),
         "linode" | "upcloud" => match crate::providers::factory(id) {
             Some(_) => PluginStatus::Ready("built in".into()),
             None => PluginStatus::Unavailable,

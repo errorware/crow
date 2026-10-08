@@ -17,6 +17,7 @@ pub mod keys;
 pub mod terminal;
 pub mod lab;
 pub mod metrics;
+pub mod notify;
 pub mod os_detect;
 pub mod providers;
 pub mod region;

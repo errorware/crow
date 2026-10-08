@@ -183,6 +183,7 @@ impl CrowApp {
                     if entity.update(cx, |this, cx| {
                         this.apply_poll_result(res);
                         this.maybe_check_certs(cx);
+                        this.notify_tick(cx);
                         this.resolve_peer_names(cx);
                         // Overview on screen: keep the updates/CVE check current
                         // (a no-op while it's fresh; also covers startup).

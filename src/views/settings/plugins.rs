@@ -11,13 +11,16 @@ use crate::components::icons::TablerIcon;
 use crate::plugins::{BuiltinPlugin, PluginStatus, BUILTIN};
 use crate::theme::*;
 
-const GROUPS: [(&str, &str); 3] = [
+const GROUPS: [(&str, &str); 4] = [
     ("provider.vms", "LOCAL VIRTUAL MACHINES"),
     ("provider.containers", "LAB CONTAINERS"),
     ("provider.hosts", "CLOUD PROVIDERS"),
+    ("provider.notify", "NOTIFICATIONS"),
 ];
 
-pub fn render_plugins_view(app: Entity<CrowApp>, plugins: &PluginsState, provider_accounts: &[crate::vault::ProviderAccount]) -> impl IntoElement {
+type EmailParts<'a> = (&'a crate::app::notify::EmailState, Option<&'a crate::app::notify::EmailInputs>);
+
+pub fn render_plugins_view(app: Entity<CrowApp>, plugins: &PluginsState, provider_accounts: &[crate::vault::ProviderAccount], email: EmailParts) -> impl IntoElement {
     let on = BUILTIN.iter().filter(|p| plugins.enabled.contains(p.id)).count();
     let app_check = app.clone();
     div()
@@ -78,12 +81,12 @@ pub fn render_plugins_view(app: Entity<CrowApp>, plugins: &PluginsState, provide
                         .flex_col()
                         .gap(px(8.0))
                         .child(div().flex().items_center().gap(px(8.0)).child(div().font_family(FONT_MONO).text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child(*title)).child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).child(*category)))
-                        .children(BUILTIN.iter().filter(|p| p.category == *category).map(|p| card(p, plugins, provider_accounts, app.clone())))
+                        .children(BUILTIN.iter().filter(|p| p.category == *category).map(|p| card(p, plugins, provider_accounts, app.clone(), email)))
                 })),
         )
 }
 
-fn card(p: &'static BuiltinPlugin, plugins: &PluginsState, accounts: &[crate::vault::ProviderAccount], app: Entity<CrowApp>) -> impl IntoElement {
+fn card(p: &'static BuiltinPlugin, plugins: &PluginsState, accounts: &[crate::vault::ProviderAccount], app: Entity<CrowApp>, email: EmailParts) -> impl IntoElement {
     let on = plugins.enabled.contains(p.id);
     let status = plugins.status.get(p.id);
     let (text, color) = match status {
@@ -159,4 +162,5 @@ fn card(p: &'static BuiltinPlugin, plugins: &PluginsState, accounts: &[crate::va
                 })
         }))
         .children(steps.iter().enumerate().map(|(i, s)| crate::views::fleet::lab_modal::setup_step(i, s, app.clone())))
+        .children((p.id == "email" && on).then(|| super::email_form::email_form(app.clone(), email.0, email.1)))
 }

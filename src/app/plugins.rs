@@ -75,6 +75,13 @@ impl CrowApp {
         if let Ok(db) = self.vault.db().lock() {
             let _ = db.set_flag(&plugins::flag_key(id), if on { "1" } else { "0" });
         }
+        if id == "email" && on {
+            // Start fresh: what opened while it was off isn't news.
+            if let Ok(db) = self.vault.db().lock() {
+                let _ = db.set_flag(crate::notify::email::STATE_FLAG, "{}");
+            }
+            self.email.dispatch = Default::default();
+        }
         if on {
             self.plugins.enabled.insert(id.to_string());
             self.check_plugin(id, cx);
@@ -88,6 +95,15 @@ impl CrowApp {
 
     /// Checks one plugin's status in the background.
     pub fn check_plugin(&mut self, id: &str, cx: &mut Context<Self>) {
+        if id == "email" {
+            let status = match &self.email.saved {
+                Some(s) => PluginStatus::Ready(format!("mails {}", s.to.join(", "))),
+                None => PluginStatus::Problem { summary: "not set up yet".into(), steps: Vec::new() },
+            };
+            self.plugins.status.insert(id.to_string(), status);
+            cx.notify();
+            return;
+        }
         if !self.plugins.checking.insert(id.to_string()) {
             return;
         }

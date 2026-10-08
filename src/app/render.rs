@@ -46,6 +46,9 @@ impl Render for CrowApp {
         if self.screen == Screen::Settings && self.settings.section == super::SettingsSection::Security && self.vault_form.open.is_some() {
             self.ensure_vault_form_inputs(window, cx);
         }
+        if self.screen == Screen::Settings && self.settings.section == super::SettingsSection::Plugins && self.plugin_enabled("email") {
+            self.ensure_email_inputs(window, cx);
+        }
         if self.screen == Screen::Settings && self.clankers.editing.is_some() {
             self.ensure_clanker_inputs(window, cx);
         }
@@ -519,6 +522,7 @@ impl Render for CrowApp {
                                                 self.clanker_inputs.as_ref(),
                                                 self.custom_setting_input.as_ref().map(|s| &s.input),
                                                 &self.plugins,
+                                                (&self.email, self.email_inputs.as_ref()),
                                             )),
                                     ),
                                     Screen::Onboard => Some(

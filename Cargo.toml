@@ -59,3 +59,5 @@ ssh-key = { version = "0.6.7", features = ["ed25519", "rsa", "rand_core", "std",
 maxminddb = "0.32.0"
 flate2 = "1.1.10"
 semver = "1.0.28"
+# Email notifications (ERR-139): SMTP over rustls (Fedora's curl has no SMTP).
+lettre = { version = "0.11", default-features = false, features = ["builder", "smtp-transport", "hostname", "rustls", "ring", "rustls-native-certs"] }
