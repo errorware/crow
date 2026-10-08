@@ -4,12 +4,10 @@ use super::{CrowApp, Screen};
 use crate::components::titlebar::ServerTab;
 use crate::lab::multipass::{self, Lifecycle};
 use crate::lab::{
-    detect_local_engines,
     enroll_local_node_into_db,
     scan_local_test_nodes,
     start_local_node,
     stop_local_node,
-    LocalLabEngine,
     LocalTestNode,
 };
 use crate::metrics::collector::{sample_server, CollectorStates};
@@ -28,11 +26,22 @@ impl CrowApp {
     pub fn toggle_local_lab_modal(&mut self, cx: &mut Context<Self>) {
         self.local_lab.show_modal = !self.local_lab.show_modal;
         if self.local_lab.show_modal {
-            self.local_lab.engines = detect_local_engines();
-            self.local_lab.nodes = scan_local_test_nodes(&self.fleet.servers);
-            self.refresh_multipass(cx);
+            self.refresh_lab(cx);
         }
         cx.notify();
+    }
+
+    /// Re-reads what the enabled lab plugins have, and only those (ERR-138).
+    fn refresh_lab(&mut self, cx: &mut Context<Self>) {
+        for id in crate::plugins::CONTAINER_PLUGINS.into_iter().chain(["multipass"]) {
+            if self.plugin_enabled(id) {
+                self.check_plugin(id, cx);
+            }
+        }
+        self.local_lab.nodes = if self.lab_enabled() { scan_local_test_nodes(&self.fleet.servers) } else { Vec::new() };
+        if self.plugin_enabled("multipass") {
+            self.refresh_multipass(cx);
+        }
     }
 
     // ==========================================
@@ -239,14 +248,8 @@ impl CrowApp {
     }
 
     pub fn refresh_lab_nodes(&mut self, cx: &mut Context<Self>) {
-        self.local_lab.engines = detect_local_engines();
-        self.local_lab.nodes = scan_local_test_nodes(&self.fleet.servers);
+        self.refresh_lab(cx);
         self.reload_configs_for_active_server(cx);
-        cx.notify();
-    }
-
-    pub fn set_new_lab_distro(&mut self, distro: &str, cx: &mut Context<Self>) {
-        self.local_lab.new_node_distro = distro.to_string();
         cx.notify();
     }
 
@@ -270,32 +273,6 @@ impl CrowApp {
         if let Some(node) = self.local_lab.nodes.iter().find(|n| n.name == node_name).cloned() {
             self.enroll_and_open_lab_node(&node);
         }
-        self.local_lab.nodes = scan_local_test_nodes(&self.fleet.servers);
-        self.reload_configs_for_active_server(cx);
-        cx.notify();
-    }
-
-    pub fn create_lab_node(&mut self, cx: &mut Context<Self>) {
-        let distro = self.local_lab.new_node_distro.clone();
-        let name = format!("crow-lab-{}", &distro);
-        let port = 2222;
-
-        // Try starting existing local container or ensure test container is running
-        let _ = std::process::Command::new("podman")
-            .args(["start", "completo-node-1"])
-            .output();
-
-        let node = LocalTestNode {
-            id: format!("local-{}", name),
-            name: name.clone(),
-            engine: LocalLabEngine::Podman,
-            image: format!("docker.io/library/{}:latest", distro),
-            state: "running".into(),
-            ssh_port: Some(port),
-            is_enrolled: false,
-        };
-
-        self.enroll_and_open_lab_node(&node);
         self.local_lab.nodes = scan_local_test_nodes(&self.fleet.servers);
         self.reload_configs_for_active_server(cx);
         cx.notify();

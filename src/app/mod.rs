@@ -16,7 +16,6 @@ use crate::journal::{
     reader::read_journal_for_server,
     retention::{read_retention, read_retention_for_server},
 };
-use crate::lab::{detect_local_engines, scan_local_test_nodes};
 use crate::views::logs::JournalState;
 use crate::views::overview::{
     collector::{
@@ -55,6 +54,7 @@ mod clankers;
 pub mod providers;
 pub mod topology;
 pub mod palette;
+pub mod plugins;
 mod secrets;
 pub mod password_login;
 pub mod vault_manage;
@@ -103,6 +103,8 @@ pub enum SettingsSection {
     Components,
     Clankers,
     Providers,
+    /// Integrations, off until switched on (ERR-138).
+    Plugins,
     Personalisation,
 }
 
@@ -117,6 +119,7 @@ impl SettingsSection {
             SettingsSection::Components => "components",
             SettingsSection::Clankers => "clankers",
             SettingsSection::Providers => "providers",
+            SettingsSection::Plugins => "plugins",
             SettingsSection::Personalisation => "appearance",
         }
     }
@@ -182,6 +185,8 @@ pub struct CrowApp {
     pub audit_filter: crate::views::audit::model::AuditFilter,
     pub palette_open: bool,
     pub palette: palette::PaletteState,
+    /// Which plugins are switched on (ERR-138).
+    pub plugins: plugins::PluginsState,
     pub sidebar_collapsed: bool,
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
@@ -372,8 +377,9 @@ impl CrowApp {
             }
         }
 
-        let lab_engines = detect_local_engines();
-        let lab_nodes = scan_local_test_nodes(&servers);
+        // Nothing is probed here: the lab's plugins are checked when they're
+        // on and looked at (ERR-138).
+        let lab_nodes = Vec::new();
 
         let initial_firewall_state = if is_first_local {
             servers
@@ -427,6 +433,7 @@ impl CrowApp {
             topology: Default::default(),
             palette_open: false,
             palette: Default::default(),
+            plugins: Default::default(),
             sidebar_collapsed: false,
             keys,
             files: FilesState::default(),
@@ -455,7 +462,7 @@ impl CrowApp {
             _update_task: Self::spawn_update_check(cx),
             update: updates::UpdateState::default(),
             journal: JournalState::new(initial_journal, journal_retention, journal_telemetry),
-            local_lab: LocalLabState::new(lab_engines, lab_nodes),
+            local_lab: LocalLabState::new(lab_nodes),
             show_about_modal: false,
             about_copied_toast: false,
             clankers: ClankersState::new(clanker_providers),
@@ -492,6 +499,11 @@ impl CrowApp {
             vault_form_inputs: None,
         };
         app.refresh_providers();
+        app.load_plugins();
+        // The add-server wizard lists lab containers: only with a lab plugin on.
+        if app.lab_enabled() {
+            app.local_lab.nodes = crate::lab::scan_local_test_nodes(&app.fleet.servers);
+        }
         app.apply_settings();
         app.reload_server_groups();
         app.load_keyring_key(cx);

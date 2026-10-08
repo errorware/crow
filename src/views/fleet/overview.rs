@@ -185,7 +185,16 @@ pub fn fleet_overview_view(
     activity: &[crate::views::audit::model::AuditItem],
     alert_lines: &[crate::views::fleet::alert_lines::AlertLine],
     watch_gap: Option<(i64, i64)>,
+    plugins: &crate::app::plugins::PluginsState,
 ) -> impl IntoElement {
+    // The buttons the enabled plugins add (ERR-138).
+    let mut lab_buttons: Vec<&'static str> = Vec::new();
+    if plugins.enabled.contains("multipass") {
+        lab_buttons.push("+ LAUNCH VM");
+    }
+    if crate::plugins::CONTAINER_PLUGINS.iter().any(|p| plugins.enabled.contains(*p)) {
+        lab_buttons.push("LOCAL LAB");
+    }
     let purge_due = crate::app::archive::purge_due_text(purge_days);
     let health: HashMap<String, FleetHealth> = fleet.servers.iter().map(|s| (s.id.clone(), fleet.health(s))).collect();
     let hosts: Vec<FleetHost> = if !fleet.servers.is_empty() {
@@ -424,10 +433,11 @@ pub fn fleet_overview_view(
                                     fleet_tab("fleet-by-group".into(), if groups_count > 0 { format!("BY GROUP ({groups_count})") } else { "BY GROUP".into() }, fleet.group_bar_open)
                                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.toggle_fleet_group_bar(cx)))
                                 })
-                                .child({
+                                // What the enabled plugins bring (ERR-138): nothing when none is on.
+                                .children(lab_buttons.iter().enumerate().map(|(i, label)| {
                                     let app_lab = app.clone();
                                     div()
-                                        .id("btn-fleet-local-lab")
+                                        .id(ElementId::NamedInteger("btn-fleet-plugin".into(), i as u64))
                                         .px(px(8.0))
                                         .py(px(2.0))
                                         .bg(OK_BG)
@@ -444,8 +454,8 @@ pub fn fleet_overview_view(
                                                 this.toggle_local_lab_modal(cx);
                                             });
                                         })
-                                        .child("⚡ LOCAL LAB & VMS")
-                                })
+                                        .child(*label)
+                                }))
                                 .child(div().flex_1())
                                 .child(
                                     div()
@@ -757,7 +767,8 @@ pub fn fleet_overview_view(
                                                     .items_center()
                                                     .gap(px(12.0))
                                                     .mt(px(8.0))
-                                                    .child(
+                                                    .children(lab_buttons.first().map(|label| {
+                                                        let app_lab = app_lab.clone();
                                                         div()
                                                             .id("btn-empty-local-lab")
                                                             .px(px(14.0))
@@ -776,8 +787,8 @@ pub fn fleet_overview_view(
                                                                     this.toggle_local_lab_modal(cx);
                                                                 });
                                                             })
-                                                            .child("⚡ ENROLL LOCAL LAB NODE"),
-                                                    )
+                                                            .child(*label)
+                                                    }))
                                                     .child(
                                                         div()
                                                             .id("btn-empty-add-server")
@@ -1168,7 +1179,7 @@ pub fn fleet_overview_view(
                 )
         }))
         .children(if local_lab.show_modal {
-            Some(crate::views::fleet::lab_modal::local_lab_modal(&local_lab.engines, &local_lab.nodes, app.clone(), local_lab, &fleet.servers))
+            Some(crate::views::fleet::lab_modal::local_lab_modal(&local_lab.nodes, app.clone(), local_lab, &fleet.servers, plugins))
         } else {
             None
         })

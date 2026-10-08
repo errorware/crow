@@ -261,6 +261,7 @@ pub fn render_config_section(
         SettingsSection::Components => ("UI COMPONENTS LAB", "[lab] · gpui-component testbed & sandbox"),
         SettingsSection::Clankers => ("CLANKERS (AI USABILITY)", "[clankers] · api keys & log eli5 helpers"),
         SettingsSection::Providers => ("PROVIDERS", "[providers] · cloud accounts your servers run on"),
+        SettingsSection::Plugins => ("PLUGINS", "[plugins] · integrations, off until you switch them on"),
         SettingsSection::Personalisation => ("PERSONALISATION", "[appearance] · make Crow yours · saved as you change it"),
     };
 

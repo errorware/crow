@@ -64,7 +64,9 @@ impl CrowApp {
         out.push(place("SSH Keys", "keys credentials", Place::Keys));
         let action = |label: &str, keywords: &str, a: Action| Entry { category: "ACTION", label: label.into(), hint: String::new(), keywords: keywords.into(), target: Target::Action(a) };
         out.push(action("Add a server", "enroll onboard new ssh", Action::AddServer));
-        out.push(action("Local Lab & VMs", "multipass vm launch container podman", Action::LocalLab));
+        if let Some(label) = self.lab_label() {
+            out.push(action(label, "multipass vm launch container podman lab", Action::LocalLab));
+        }
         out.push(action("Check posture now", "security sshd firewall ports scan", Action::CheckPosture));
         if current.is_some() {
             out.push(action("Reconnect to this server", "ssh connection", Action::Reconnect));

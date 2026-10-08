@@ -8,6 +8,7 @@ pub mod diff_rail;
 pub mod keys;
 pub mod keys_state;
 pub mod lab;
+pub mod plugins;
 pub mod providers;
 pub mod state;
 pub mod vault_manage;
@@ -45,6 +46,7 @@ pub fn settings_view(
     vault_form: (&crate::app::vault_manage::VaultFormState, Option<&crate::app::vault_manage::VaultFormInputs>),
     clanker_inputs: Option<&crate::app::ClankerInputs>,
     custom_setting_input: Option<&Entity<InputState>>,
+    plugins: &crate::app::plugins::PluginsState,
 ) -> impl IntoElement {
     let is_auth_enabled = vault.is_password_auth_enabled();
     let secrets_blocker = vault.secrets_blocker().filter(|_| !matches!(vault.keyring_state, crate::vault::KeyringState::Loading));
@@ -58,6 +60,7 @@ pub fn settings_view(
         (TablerIcon::Box, "UI Components Lab", SettingsSection::Components),
         (TablerIcon::Cpu, "Clankers (AI)", SettingsSection::Clankers),
         (TablerIcon::Cloud, "Providers", SettingsSection::Providers),
+        (TablerIcon::Settings, "Plugins", SettingsSection::Plugins),
         (TablerIcon::Photo, "Personalisation", SettingsSection::Personalisation),
     ];
 
@@ -96,7 +99,8 @@ pub fn settings_view(
         SettingsSection::Keys => keys::render_keys_center_column(app.clone(), keys).into_any_element(),
         SettingsSection::Components => lab::render_components_lab(app.clone(), lab_state).into_any_element(),
         SettingsSection::Clankers => clankers::render_clankers_view(app.clone(), clankers, secrets_blocker.clone(), secrets_notice).into_any_element(),
-        SettingsSection::Providers => providers::render_providers_view(app.clone(), providers_state, provider_inputs, secrets_blocker.clone(), secrets_notice, !is_auth_enabled).into_any_element(),
+        SettingsSection::Providers => providers::render_providers_view(app.clone(), providers_state, provider_inputs, secrets_blocker.clone(), secrets_notice, !is_auth_enabled, &plugins.enabled).into_any_element(),
+        SettingsSection::Plugins => plugins::render_plugins_view(app.clone(), plugins, &providers_state.accounts).into_any_element(),
         SettingsSection::General
         | SettingsSection::Connection
         | SettingsSection::Security
@@ -146,7 +150,8 @@ pub fn settings_view(
         ),
         SettingsSection::Components
         | SettingsSection::Clankers
-        | SettingsSection::Providers => None,
+        | SettingsSection::Providers
+        | SettingsSection::Plugins => None,
     };
 
     div()

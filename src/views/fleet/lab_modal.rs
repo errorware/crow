@@ -4,23 +4,32 @@ use crate::components::icon_button::icon_button;
 use crate::components::icons::TablerIcon;
 use crate::app::CrowApp;
 use crate::lab::multipass::{vm_of, InstallStep, Instance, Lifecycle, MultipassStatus};
-use crate::lab::{EngineStatus, LocalTestNode};
+use crate::lab::LocalTestNode;
 use crate::vault::ServerRecord;
 use gpui_kit::prelude::FluentBuilder as _;
 use crate::theme::*;
 use crate::views::fleet::lab_state::LocalLabState;
 
+/// The lab window: only what's switched on in Settings → Plugins (ERR-138):
+/// Multipass VMs, and the containers of the enabled container plugins.
 pub fn local_lab_modal(
-    engines: &[EngineStatus],
     nodes: &[LocalTestNode],
     app: Entity<CrowApp>,
     local_lab: &LocalLabState,
     servers: &[ServerRecord],
+    plugins: &crate::app::plugins::PluginsState,
 ) -> impl IntoElement {
     let app_close_scrim = app.clone();
     let app_close_btn = app.clone();
     let app_refresh = app.clone();
-    let app_create = app.clone();
+    let multipass_on = plugins.enabled.contains("multipass");
+    let containers: Vec<&'static crate::plugins::BuiltinPlugin> = crate::plugins::CONTAINER_PLUGINS.iter().filter(|id| plugins.enabled.contains(**id)).filter_map(|id| crate::plugins::get(id)).collect();
+    let lab_on = !containers.is_empty();
+    let (title, subtitle) = match (multipass_on, lab_on) {
+        (true, true) => ("LOCAL VMS & CONTAINERS", "Multipass VMs and lab containers on this machine, enrolled into Crow"),
+        (true, false) => ("MULTIPASS VMS", "Ubuntu VMs on this machine: launch, import and power them"),
+        _ => ("LOCAL LAB CONTAINERS", "Lab containers on this machine, enrolled into Crow as test nodes"),
+    };
 
     div()
         .id("local-lab-modal-scrim")
@@ -73,14 +82,14 @@ pub fn local_lab_modal(
                                         .text_size(px(12.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("LOCAL TEST LAB & VMS"),
+                                        .child(title),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(px(9.5))
                                         .text_color(TEXT_TERTIARY)
-                                        .child("Discover, launch, and enroll Multipass VMs and Podman/Distrobox environments into Crow"),
+                                        .child(subtitle),
                                 ),
                         )
                         .child(
@@ -103,34 +112,40 @@ pub fn local_lab_modal(
                         .flex()
                         .flex_col()
                         .gap(px(20.0))
-                        // A. Engine Status Cards
-                        .child(
+                        // A. The enabled container plugins and whether they work.
+                        .children(lab_on.then(|| {
                             div()
                                 .flex()
-                                .flex_col()
-                                .gap(px(6.0))
-                                .child(
+                                .flex_wrap()
+                                .gap(px(8.0))
+                                .children(containers.iter().map(|p| {
+                                    let (text, color) = match plugins.status.get(p.id) {
+                                        _ if plugins.checking.contains(p.id) => ("checking…".to_string(), TEXT_DIMMER),
+                                        Some(crate::plugins::PluginStatus::Ready(v)) => (v.clone(), OK),
+                                        Some(crate::plugins::PluginStatus::Problem { summary, .. }) => (summary.clone(), WARN),
+                                        Some(crate::plugins::PluginStatus::Missing { .. }) => ("not installed".to_string(), TEXT_DIMMER),
+                                        _ => ("—".to_string(), TEXT_DIMMER),
+                                    };
                                     div()
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(6.0))
+                                        .px(px(8.0))
+                                        .py(px(4.0))
+                                        .bg(BG_CONTROL)
+                                        .border_1()
+                                        .border_color(BORDER_PANEL)
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.0))
-                                        .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_TERTIARY)
-                                        .child("LOCAL VIRTUALIZATION / CONTAINER ENGINES"),
-                                )
-                                .child(
-                                    div()
-                                        .grid()
-                                        .grid_cols(4)
-                                        .gap(px(8.0))
-                                        .children(engines.iter().map(|eng| {
-                                            render_engine_card(eng)
-                                        }))
-                                )
-                        )
-                        // B. Multipass VMs (ERR-119)
-                        .child(multipass_section(local_lab, servers, app.clone()))
-                        // C. Discovered Local Nodes Table
-                        .child(
+                                        .child(div().size(px(6.0)).rounded_full().bg(color))
+                                        .child(div().font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(p.name))
+                                        .child(div().text_color(color).child(text))
+                                }))
+                        }))
+                        // B. Multipass VMs (ERR-119), when its plugin is on.
+                        .children(multipass_on.then(|| multipass_section(local_lab, servers, app.clone())))
+                        // C. Discovered lab containers, when a container plugin is on.
+                        .children(lab_on.then(||
                             div()
                                 .flex()
                                 .flex_col()
@@ -224,115 +239,7 @@ pub fn local_lab_modal(
                                             }).collect()
                                         })
                                 )
-                        )
-                        // C. Spin Up New Test Node Form
-                        .child(
-                            div()
-                                .p(px(14.0))
-                                .bg(hex_rgb(0x0f1016))
-                                .border_1()
-                                .border_color(BORDER_DEFAULT)
-                                .flex()
-                                .flex_col()
-                                .gap(px(12.0))
-                                .child(
-                                    div()
-                                        .flex()
-                                        .items_center()
-                                        .justify_between()
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(11.0))
-                                                .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_PRIMARY)
-                                                .child("⚡ SPIN UP A LOCAL TEST NODE"),
-                                        )
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(9.5))
-                                                .text_color(TEXT_DIMMER)
-                                                .child("Instantly creates an isolated Linux environment with SSH"),
-                                        ),
-                                )
-                                // Presets selection
-                                .child(
-                                    div()
-                                        .flex()
-                                        .gap(px(8.0))
-                                        .children([
-                                            ("Ubuntu 24.04", "noble"),
-                                            ("Debian 12", "bookworm"),
-                                            ("Alpine 3.20", "alpine"),
-                                            ("Fedora 40", "fedora"),
-                                        ].into_iter().enumerate().map(|(idx, (label, val))| {
-                                            let is_sel = local_lab.new_node_distro == val;
-                                            let app_d = app.clone();
-                                            div()
-                                                .id(ElementId::NamedInteger("preset-distro".into(), idx as u64))
-                                                .flex_1()
-                                                .py(px(6.0))
-                                                .flex()
-                                                .items_center()
-                                                .justify_center()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(10.0))
-                                                .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                                .bg(if is_sel { BG_NAV_ACTIVE } else { BG_CONTROL })
-                                                .border_1()
-                                                .border_color(if is_sel { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                                .text_color(if is_sel { TEXT_PRIMARY } else { TEXT_SECONDARY })
-                                                .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                                .on_click(move |_ev, _window, cx| {
-                                                    app_d.update(cx, |this, cx| {
-                                                        this.set_new_lab_distro(val, cx);
-                                                    });
-                                                })
-                                                .child(label)
-                                        }))
-                                )
-                                // Port & Engine options
-                                .child(
-                                    div()
-                                        .flex()
-                                        .items_center()
-                                        .justify_between()
-                                        .child(
-                                            div()
-                                                .flex()
-                                                .items_center()
-                                                .gap(px(8.0))
-                                                .child(
-                                                    div()
-                                                        .font_family(FONT_MONO)
-                                                        .text_size(px(10.0))
-                                                        .text_color(TEXT_MUTED)
-                                                        .child("SSH Port: 127.0.0.1:2222 · Engine: Podman/Distrobox"),
-                                                ),
-                                        )
-                                        .child(
-                                            div()
-                                                .id("btn-spin-up-lab-node")
-                                                .px(px(14.0))
-                                                .py(px(6.0))
-                                                .bg(TEXT_PRIMARY)
-                                                .text_color(rgb(0x0a0a0c))
-                                                .font_weight(FontWeight::BOLD)
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(10.5))
-                                                .cursor_pointer()
-                                                .hover(|s| s.bg(hex_rgb(0xffffff)))
-                                                .on_click(move |_ev, _window, cx| {
-                                                    app_create.update(cx, |this, cx| {
-                                                        this.create_lab_node(cx);
-                                                    });
-                                                })
-                                                .child("⚡ LAUNCH & ENROLL INTO CROW"),
-                                        ),
-                                )
-                        )
+                        ))
                 )
                 // 3. Footer
                 .child(
@@ -367,54 +274,6 @@ pub fn local_lab_modal(
                                 .child("CLOSE"),
                         ),
                 ),
-        )
-}
-
-fn render_engine_card(eng: &EngineStatus) -> impl IntoElement {
-    let is_avail = eng.is_available;
-    let pill_bg = if is_avail { OK_BG } else { BG_CHIP };
-    let pill_fg = if is_avail { OK } else { TEXT_DIMMER };
-    let border_color = if is_avail { BORDER_DEFAULT } else { BORDER_PANEL };
-
-    div()
-        .p(px(8.0))
-        .bg(BG_CONTROL)
-        .border_1()
-        .border_color(border_color)
-        .flex()
-        .flex_col()
-        .gap(px(2.0))
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .justify_between()
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.5))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
-                        .child(eng.engine.label()),
-                )
-                .child(
-                    div()
-                        .px(px(4.0))
-                        .py(px(1.0))
-                        .bg(pill_bg)
-                        .font_family(FONT_MONO)
-                        .text_size(px(8.0))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(pill_fg)
-                        .child(if is_avail { "OK" } else { "OFF" }),
-                ),
-        )
-        .child(
-            div()
-                .font_family(FONT_MONO)
-                .text_size(px(8.5))
-                .text_color(if is_avail { TEXT_MUTED } else { TEXT_DIMMER })
-                .child(eng.version.clone()),
         )
 }
 
@@ -658,7 +517,7 @@ pub fn multipass_section(lab: &LocalLabState, servers: &[ServerRecord], app: Ent
         .children(ready.then(|| launch_form(lab, app.clone())))
 }
 
-fn setup_step(i: usize, s: &InstallStep, app: Entity<CrowApp>) -> impl IntoElement {
+pub(crate) fn setup_step(i: usize, s: &InstallStep, app: Entity<CrowApp>) -> impl IntoElement {
     let command = s.command.clone();
     div()
         .flex()

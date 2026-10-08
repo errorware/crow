@@ -33,14 +33,6 @@ impl LocalLabEngine {
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct EngineStatus {
-    pub engine: LocalLabEngine,
-    pub is_available: bool,
-    pub version: String,
-    pub path: Option<String>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalTestNode {
     pub id: String,
     pub name: String,
@@ -80,53 +72,6 @@ impl LocalTestNode {
             self.image.clone()
         }
     }
-}
-
-/// Detects available local virtualization and container engines on the host
-pub fn detect_local_engines() -> Vec<EngineStatus> {
-    let engines = [
-        LocalLabEngine::Distrobox,
-        LocalLabEngine::Podman,
-        LocalLabEngine::Docker,
-        LocalLabEngine::Multipass,
-    ];
-
-    engines
-        .into_iter()
-        .map(|engine| {
-            let bin = engine.command_bin();
-            let which_res = Command::new("which").arg(bin).output();
-            let is_available = which_res.as_ref().map(|o| o.status.success()).unwrap_or(false);
-            let path = if is_available {
-                String::from_utf8_lossy(&which_res.unwrap().stdout).trim().to_string().into()
-            } else {
-                None
-            };
-
-            let version = if is_available {
-                let ver_arg = match engine {
-                    LocalLabEngine::Distrobox => "--version",
-                    LocalLabEngine::Multipass => "version",
-                    _ => "--version",
-                };
-                if let Ok(output) = Command::new(bin).arg(ver_arg).output() {
-                    let full = String::from_utf8_lossy(&output.stdout);
-                    full.lines().next().unwrap_or("").trim().to_string()
-                } else {
-                    "Installed".to_string()
-                }
-            } else {
-                "Not Installed".to_string()
-            };
-
-            EngineStatus {
-                engine,
-                is_available,
-                version,
-                path,
-            }
-        })
-        .collect()
 }
 
 /// Scans the local host for existing test containers and VMs

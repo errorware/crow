@@ -7,6 +7,7 @@ mod app;
 mod components;
 mod theme;
 pub mod palette;
+pub mod plugins;
 pub mod topology;
 pub mod config;
 pub mod geoip;

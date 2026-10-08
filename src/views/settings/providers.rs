@@ -16,8 +16,10 @@ use crate::app::{CrowApp, SettingsSection};
 use crate::components::icons::{inherited_icon, TablerIcon};
 use crate::theme::*;
 
-pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, inputs: Option<&ProviderFormInputs>, secrets_blocker: Option<String>, secrets_notice: Option<&str>, open_stance: bool) -> impl IntoElement {
-    let factories = crate::providers::factories();
+pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, inputs: Option<&ProviderFormInputs>, secrets_blocker: Option<String>, secrets_notice: Option<&str>, open_stance: bool, enabled: &std::collections::HashSet<String>) -> impl IntoElement {
+    // Only the provider plugins that are switched on (ERR-138).
+    let factories: Vec<_> = crate::providers::factories().into_iter().filter(|f| enabled.contains(&(f.manifest)().plugin.name)).collect();
+    let none_on = factories.is_empty();
     let configured = factories.iter().filter(|f| state.account(&(f.manifest)().plugin.name).is_some()).count();
 
     div()
@@ -84,6 +86,7 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                 .child(intro())
                 .children(secrets_notice.map(|n| notice(n.to_string(), TEXT_SECONDARY, None, Some(app.clone()))))
                 .children(secrets_blocker.map(|why| notice(format!("Tokens can't be saved right now: {why}."), WARN, Some(app.clone()), None)))
+                .children(none_on.then(|| notice("No cloud provider plugin is on. Turn on Linode or UpCloud in Settings → Plugins to connect an account.".into(), TEXT_SECONDARY, None, None)))
                 .children(factories.into_iter().map(|f| card(f, state, inputs, open_stance, app.clone()))),
         )
 }

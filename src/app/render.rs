@@ -262,7 +262,7 @@ impl Render for CrowApp {
                                                     .flex()
                                                     .flex_col()
                                                     // Server Identity Bar
-                                                    .child(identity_bar(active_srv, jump.clone(), self.region_picker_open, self.active_provider_actions().is_some_and(|p| p.snapshots), self.local_lab.busy.is_some(), app_view.clone()))
+                                                    .child(identity_bar(active_srv, jump.clone(), self.region_picker_open, self.active_provider_actions().is_some_and(|p| p.snapshots), self.local_lab.busy.is_some() || !self.plugin_enabled("multipass"), app_view.clone()))
                                                     .children(connection_banner(active_srv, jump.clone(), app_view.clone()))
                                                     // Server Stat Strip
                                                     .child(stat_strip(active_mtr, self.fleet.metrics_lag_secs, self.fleet.active_surge_alert.as_ref()))
@@ -494,7 +494,7 @@ impl Render for CrowApp {
                                         div()
                                             .size_full()
                                             .relative()
-                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab, self.fleet_background.rendered.clone().filter(|_| self.fleet_background_source().is_some()).map(|p| (p, self.fleet_background_opacity())), fleet_purge_days, &fleet_purge_audit, &audit, &alert_lines, watch_gap))
+                                            .child(fleet_overview_view(app_view.clone(), &self.fleet, &self.local_lab, self.fleet_background.rendered.clone().filter(|_| self.fleet_background_source().is_some()).map(|p| (p, self.fleet_background_opacity())), fleet_purge_days, &fleet_purge_audit, &audit, &alert_lines, watch_gap, &self.plugins))
 
                                     ),
                                     Screen::Settings => Some(
@@ -518,6 +518,7 @@ impl Render for CrowApp {
                                                 (&self.vault_form, self.vault_form_inputs.as_ref()),
                                                 self.clanker_inputs.as_ref(),
                                                 self.custom_setting_input.as_ref().map(|s| &s.input),
+                                                &self.plugins,
                                             )),
                                     ),
                                     Screen::Onboard => Some(
@@ -552,7 +553,7 @@ impl Render for CrowApp {
                             let active_name = self.fleet.servers.iter()
                                 .find(|s| s.id == self.fleet.active_tab_id || s.name == self.fleet.active_tab_id)
                                 .map(|s| s.name.clone());
-                            Some(burger_menu_overlay(app_view.clone(), self.screen, &self.active_view, active_name))
+                            Some(burger_menu_overlay(app_view.clone(), self.screen, &self.active_view, active_name, self.lab_label()))
                         } else {
                             None
                         })

@@ -28,6 +28,10 @@ impl CrowApp {
         use crow_provider_core::capabilities::{INSTANCES_POWER, SNAPSHOTS};
         let srv = self.fleet.active_server()?;
         let account = self.providers.accounts.iter().find(|a| a.id == srv.provider_account && !srv.provider_instance.is_empty())?;
+        // A provider plugin that's off acts on nothing (ERR-138).
+        if !self.plugin_enabled(&account.plugin) {
+            return None;
+        }
         let manifest = (crate::providers::factory(&account.plugin)?.manifest)();
         Some(crate::components::danger_zone::ProviderActions {
             name: manifest.display_name().to_string(),

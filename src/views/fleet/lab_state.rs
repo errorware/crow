@@ -1,13 +1,11 @@
 use crate::lab::multipass::{Instance, LaunchSpec, Lifecycle, MultipassStatus};
-use crate::lab::{EngineStatus, LocalTestNode};
+use crate::lab::LocalTestNode;
 
 /// Local test-VM lab: detected container engines, discovered nodes and the
 /// "new node" modal.
 pub struct LocalLabState {
-    pub engines: Vec<EngineStatus>,
     pub nodes: Vec<LocalTestNode>,
     pub show_modal: bool,
-    pub new_node_distro: String,
     /// Multipass (ERR-119): `None` until it's been checked.
     pub multipass: Option<MultipassStatus>,
     pub vms: Vec<Instance>,
@@ -45,12 +43,10 @@ pub fn friendly_vm_name(seed: u64, taken: &[String]) -> String {
 }
 
 impl LocalLabState {
-    pub fn new(engines: Vec<EngineStatus>, nodes: Vec<LocalTestNode>) -> Self {
+    pub fn new(nodes: Vec<LocalTestNode>) -> Self {
         Self {
-            engines,
             nodes,
             show_modal: false,
-            new_node_distro: "noble".to_string(),
             multipass: None,
             vms: Vec::new(),
             launch: LaunchSpec { name: friendly_vm_name(rand::random(), &[]), ..LaunchSpec::default() },

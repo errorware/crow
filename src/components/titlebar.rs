@@ -412,6 +412,8 @@ pub fn burger_menu_overlay(
     current_screen: Screen,
     active_view: &str,
     active_server_name: Option<String>,
+    // The lab's label when a lab plugin is on (ERR-138), else no entry.
+    lab_label: Option<&'static str>,
 ) -> impl IntoElement {
     let app_backdrop = app.clone();
 
@@ -470,16 +472,18 @@ pub fn burger_menu_overlay(
         is_featured: true,
     });
 
-    // Local lab is fleet-wide, not about one server.
-    items.push(MenuItem {
-        icon: Some(TablerIcon::Box),
-        label: "Local Test Lab & VMs".to_string(),
-        shortcut: "",
-        action: Some(MenuAction::ToggleLab),
-        is_danger: false,
-        is_header: false,
-        is_featured: false,
-    });
+    // Local lab is fleet-wide, not about one server; only with its plugins on.
+    if let Some(label) = lab_label {
+        items.push(MenuItem {
+            icon: Some(TablerIcon::Box),
+            label: label.to_string(),
+            shortcut: "",
+            action: Some(MenuAction::ToggleLab),
+            is_danger: false,
+            is_header: false,
+            is_featured: false,
+        });
+    }
 
     // Section 2: THIS SERVER, only while a server is on screen.
     if current_screen == Screen::Server {
