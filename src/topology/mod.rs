@@ -119,6 +119,8 @@ pub struct Inputs<'a> {
     pub posture: &'a HashMap<String, Posture>,
     /// The last container scan of each server that has one (ERR-140).
     pub containers: &'a HashMap<String, crate::containers::Scan>,
+    /// Risks someone accepted (ERR-145): not drawn.
+    pub accepted: &'a [crate::security::hardening::Accepted],
     pub now: i64,
 }
 
@@ -186,24 +188,13 @@ fn age_days(rfc3339: &str, now: i64) -> Option<i64> {
     chrono::DateTime::parse_from_rfc3339(rfc3339).ok().map(|t| (now - t.timestamp()) / 86_400)
 }
 
-fn posture_risks(p: &Posture) -> Vec<Risk> {
-    let mut r = Vec::new();
-    if p.root_password_login() {
-        r.push(risk(Level::Crit, "posture", "root can log in over SSH with a password (PermitRootLogin yes)"));
-    } else if p.root_login_allowed() {
-        r.push(risk(Level::Warn, "posture", format!("root can log in over SSH with a key (PermitRootLogin {})", p.root_login.as_deref().unwrap_or_default())));
-    }
-    if p.password_auth == Some(true) {
-        r.push(risk(Level::Warn, "posture", "sshd accepts passwords (PasswordAuthentication yes)"));
-    }
-    let open = p.unfiltered_ports();
-    if !open.is_empty() {
-        let ports: Vec<String> = open.iter().map(u16::to_string).collect();
-        r.push(risk(Level::Crit, "posture", format!("no firewall, and port{} {} open to every network", if open.len() == 1 { "" } else { "s" }, ports.join(", "))));
-    } else if p.no_firewall() {
-        r.push(risk(Level::Warn, "posture", "no firewall filters incoming traffic"));
-    }
-    r
+/// The posture check's findings as risks, minus the ones accepted (ERR-145).
+fn posture_risks(server_id: &str, p: &Posture, accepted: &[crate::security::hardening::Accepted]) -> Vec<Risk> {
+    crate::security::hardening::findings(p)
+        .into_iter()
+        .filter(|f| !crate::security::hardening::is_accepted(accepted, server_id, f))
+        .map(|f| risk(if f.critical() { Level::Crit } else { Level::Warn }, "posture", f.describe()))
+        .collect()
 }
 
 pub fn build(i: &Inputs) -> Graph {
@@ -241,7 +232,7 @@ pub fn build(i: &Inputs) -> Graph {
             risks.push(risk(Level::Warn, "server", "Crow logs in with a password, not a key"));
         }
         if let Some(p) = i.posture.get(&s.id) {
-            risks.extend(posture_risks(p));
+            risks.extend(posture_risks(&s.id, p, i.accepted));
         }
         if let Some(&n) = through.get(s.id.as_str()).filter(|n| **n >= 2) {
             risks.push(risk(Level::Warn, "fleet", format!("jump host for {n} servers: if it's down, Crow can't reach them")));
@@ -352,7 +343,7 @@ mod tests {
     }
 
     fn inputs<'a>(servers: &'a [ServerRecord], keys: &'a [SshKeyRecord], alerts: &'a [Alert], posture: &'a HashMap<String, Posture>, health: &'a HashMap<String, Health>) -> Inputs<'a> {
-        Inputs { servers, keys, alerts, health, posture, containers: empty_containers(), now: chrono::DateTime::parse_from_rfc3339("2026-10-07T00:00:00Z").unwrap().timestamp() }
+        Inputs { servers, keys, alerts, health, posture, containers: empty_containers(), accepted: &[], now: chrono::DateTime::parse_from_rfc3339("2026-10-07T00:00:00Z").unwrap().timestamp() }
     }
 
     #[test]

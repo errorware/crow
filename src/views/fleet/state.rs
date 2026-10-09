@@ -257,4 +257,6 @@ pub enum SetupPage {
     Rollouts,
     /// Drift from baselines, and fleet-wide config search (ERR-143).
     Drift,
+    /// Posture findings, fixes and accepted risks (ERR-145).
+    Hardening,
 }

@@ -417,6 +417,10 @@ impl CrowApp {
                 this.reload_servers();
                 // Packages may have changed (patching): read them again.
                 this.after_patch_run(cx);
+                // A hardening fix ran: read the posture again (ERR-145).
+                if this.topology.posture_checked_at == 0 && !this.fleet.servers.is_empty() {
+                    this.check_posture(cx);
+                }
                 // Files changed on servers: drift, and the configs on screen.
                 this.refresh_drift();
                 if !this.configs.has_unsaved_changes() {

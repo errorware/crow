@@ -3,3 +3,4 @@ pub mod osv;
 pub mod sessions;
 pub mod sshd_passwords;
 pub mod stance;
+pub mod hardening;

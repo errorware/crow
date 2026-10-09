@@ -52,6 +52,9 @@ impl Render for CrowApp {
         if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Patching {
             self.ensure_window_inputs(window, cx);
         }
+        if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Hardening {
+            self.ensure_hardening_inputs(window, cx);
+        }
         if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Drift {
             self.ensure_drift_inputs(window, cx);
         }
@@ -107,6 +110,10 @@ impl Render for CrowApp {
         let map_page = match (self.screen, self.fleet.setup_page) {
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Map) => Some(crate::views::topology::topology_page(self, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Patching) => Some(crate::views::fleet::patching::patching_page(&self.fleet, &self.patching, app_view.clone()).into_any_element()),
+            (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Hardening) => {
+                let rows: Vec<_> = self.fleet.servers.iter().map(|s| (s.id.clone(), s.name.clone(), s.login_user.clone(), self.server_findings(&s.id))).collect();
+                Some(crate::views::fleet::hardening::hardening_page(&rows, self.hardening.reason.as_ref(), self.hardening.message.clone(), self.topology.scanning, self.topology.posture_checked_at, app_view.clone()).into_any_element())
+            }
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Drift) => {
                 let texts = self.drift_selected_texts();
                 Some(crate::views::fleet::drift::drift_page(&self.fleet, &self.drift_page, texts, app_view.clone()).into_any_element())

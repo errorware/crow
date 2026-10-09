@@ -34,6 +34,7 @@ impl CrowApp {
             health: &health,
             posture: &self.topology.posture,
             containers: &self.containers.by_server,
+            accepted: &self.hardening.accepted,
             now: chrono::Utc::now().timestamp(),
         })
     }
@@ -49,7 +50,7 @@ impl CrowApp {
         cx.notify();
     }
 
-    fn reload_topology_alerts(&mut self) {
+    pub(crate) fn reload_topology_alerts(&mut self) {
         if let Ok(db) = self.vault.db().lock() {
             self.topology.alerts = db.list_alerts(i64::MAX).unwrap_or_default().into_iter().filter(|a| a.resolved_at.is_none()).collect();
         }
@@ -93,6 +94,11 @@ impl CrowApp {
         }
         if page == SetupPage::Patching {
             self.scan_fleet_updates(false, cx);
+        }
+        if page == SetupPage::Hardening {
+            if chrono::Utc::now().timestamp() - self.topology.posture_checked_at >= posture::POSTURE_EVERY_SECS {
+                self.check_posture(cx);
+            }
         }
         if page == SetupPage::Drift {
             self.refresh_drift();

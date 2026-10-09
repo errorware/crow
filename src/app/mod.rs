@@ -61,6 +61,7 @@ pub mod bastions;
 pub mod patching;
 pub mod rollouts;
 pub mod drift;
+pub mod hardening;
 mod secrets;
 pub mod password_login;
 pub mod vault_manage;
@@ -205,6 +206,8 @@ pub struct CrowApp {
     pub rollout_inputs: Option<rollouts::RolloutInputs>,
     /// Fleet Setup → DRIFT (ERR-143).
     pub drift_page: drift::DriftPageState,
+    /// Fleet Setup → HARDENING (ERR-145).
+    pub hardening: hardening::HardeningState,
     pub sidebar_collapsed: bool,
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
@@ -459,6 +462,7 @@ impl CrowApp {
             rollouts: Default::default(),
             rollout_inputs: None,
             drift_page: Default::default(),
+            hardening: Default::default(),
             sidebar_collapsed: false,
             keys,
             files: FilesState::default(),
@@ -533,6 +537,7 @@ impl CrowApp {
         app.apply_settings();
         app.reload_server_groups();
         app.load_patching();
+        app.load_hardening();
         app.load_keyring_key(cx);
         // A remote first server's configs and firewall weren't read above, so
         // the window didn't wait on SSH; read them now, in the background.

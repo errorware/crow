@@ -9,6 +9,7 @@ pub mod overview;
 pub mod patching;
 pub mod rollouts;
 pub mod drift;
+pub mod hardening;
 pub mod setup;
 pub mod run;
 pub mod alert_lines;
