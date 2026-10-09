@@ -59,6 +59,7 @@ impl SavedSearch {
             grep: (!self.text.trim().is_empty()).then(|| self.text.trim().to_string()),
             time_range: range,
             boot: crate::journal::JournalBootScope::Current,
+            window: None,
         }
     }
 

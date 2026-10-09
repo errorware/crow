@@ -119,6 +119,12 @@ impl Render for CrowApp {
         let map_page = match (self.screen, self.fleet.setup_page) {
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Map) => Some(crate::views::topology::topology_page(self, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Patching) => Some(crate::views::fleet::patching::patching_page(&self.fleet, &self.patching, app_view.clone()).into_any_element()),
+            (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Incidents) => {
+                let since = chrono::Utc::now().timestamp() - 7 * 86_400;
+                let mut recent: Vec<_> = self.vault.db().lock().ok().and_then(|db| db.list_alerts(since).ok()).unwrap_or_default().into_iter().filter(|a| a.opened_at >= since || a.resolved_at.is_none()).collect();
+                recent.sort_by(|a, b| b.opened_at.cmp(&a.opened_at));
+                Some(crate::views::fleet::incidents::incidents_page(&self.fleet, &self.incidents, &recent, app_view.clone()).into_any_element())
+            }
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Checks) => Some(crate::views::fleet::checks::checks_page(&self.fleet, &self.checks, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::LogSearch) => Some(crate::views::fleet::logsearch::log_search_page(&self.fleet, &self.log_search, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::People) => {

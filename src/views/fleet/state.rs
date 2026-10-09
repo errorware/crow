@@ -267,4 +267,6 @@ pub enum SetupPage {
     LogSearch,
     /// HTTP/TCP/DNS checks from outside, and uptime (ERR-148).
     Checks,
+    /// Incident timelines (ERR-149).
+    Incidents,
 }

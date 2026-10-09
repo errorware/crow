@@ -16,6 +16,7 @@ pub mod checks;
 pub mod config;
 pub mod containers;
 pub mod geoip;
+pub mod incident;
 pub mod host;
 pub mod journal;
 pub mod keys;

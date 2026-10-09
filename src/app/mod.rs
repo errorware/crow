@@ -66,6 +66,7 @@ pub mod certificates;
 pub mod people;
 pub mod logsearch;
 pub mod checks;
+pub mod incidents;
 mod secrets;
 pub mod password_login;
 pub mod vault_manage;
@@ -220,6 +221,8 @@ pub struct CrowApp {
     pub log_search: logsearch::LogSearchState,
     /// Fleet Setup → CHECKS (ERR-148).
     pub checks: checks::ChecksState,
+    /// Fleet Setup → INCIDENTS (ERR-149).
+    pub incidents: incidents::IncidentsState,
     pub sidebar_collapsed: bool,
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
@@ -479,6 +482,7 @@ impl CrowApp {
             people: Default::default(),
             log_search: Default::default(),
             checks: Default::default(),
+            incidents: Default::default(),
             sidebar_collapsed: false,
             keys,
             files: FilesState::default(),

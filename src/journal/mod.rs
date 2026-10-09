@@ -168,6 +168,8 @@ pub struct JournalQuery {
     pub grep: Option<String>,
     pub time_range: JournalTimeRange,
     pub boot: JournalBootScope,
+    /// An exact window (unix seconds), instead of `time_range` (ERR-149).
+    pub window: Option<(i64, i64)>,
 }
 
 impl Default for JournalQuery {
@@ -180,6 +182,7 @@ impl Default for JournalQuery {
             grep: None,
             time_range: JournalTimeRange::Live,
             boot: JournalBootScope::Current,
+            window: None,
         }
     }
 }

@@ -11,8 +11,11 @@ pub fn journalctl_argv(query: &JournalQuery) -> Vec<String> {
     let mut argv: Vec<String> = ["journalctl", "-o", "json", "-n"].iter().map(|s| s.to_string()).collect();
     argv.push(query.limit.to_string());
     argv.push("--no-pager".into());
-    argv.push("-b".into());
-    argv.push(query.boot.offset().to_string());
+    // An exact window spans boots; otherwise this boot or the one before.
+    if query.window.is_none() {
+        argv.push("-b".into());
+        argv.push(query.boot.offset().to_string());
+    }
     if let Some(ref u) = query.unit {
         if u == KERNEL_UNIT {
             // Kernel messages have no systemd unit; they arrive by the kernel transport.
@@ -27,7 +30,9 @@ pub fn journalctl_argv(query: &JournalQuery) -> Vec<String> {
     if let Some(pid) = query.pid {
         argv.push(format!("_PID={}", pid));
     }
-    if let Some(since) = query.time_range.since_str() {
+    if let Some((from, to)) = query.window {
+        argv.extend(["--since".to_string(), format!("@{from}"), "--until".to_string(), format!("@{to}")]);
+    } else if let Some(since) = query.time_range.since_str() {
         argv.extend(["--since".to_string(), since.to_string()]);
     }
     if let Some(ref pattern) = query.grep {

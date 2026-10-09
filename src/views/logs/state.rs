@@ -119,6 +119,7 @@ impl JournalState {
             grep: if self.search.trim().is_empty() { None } else { Some(self.search.clone()) },
             time_range: self.time_range,
             boot: self.boot,
+            window: None,
         }
     }
 
