@@ -63,6 +63,7 @@ pub mod rollouts;
 pub mod drift;
 pub mod hardening;
 pub mod certificates;
+pub mod people;
 mod secrets;
 pub mod password_login;
 pub mod vault_manage;
@@ -211,6 +212,8 @@ pub struct CrowApp {
     pub hardening: hardening::HardeningState,
     /// Fleet Setup → CERTIFICATES (ERR-146).
     pub certificates: certificates::CertificatesState,
+    /// Fleet Setup → PEOPLE (ERR-144).
+    pub people: people::PeopleState,
     pub sidebar_collapsed: bool,
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
@@ -467,6 +470,7 @@ impl CrowApp {
             drift_page: Default::default(),
             hardening: Default::default(),
             certificates: Default::default(),
+            people: Default::default(),
             sidebar_collapsed: false,
             keys,
             files: FilesState::default(),

@@ -176,7 +176,7 @@ fn valid_name(name: &str) -> bool {
         && name.len() <= 32
 }
 
-fn check_name(kind: &str, name: &str) -> Result<(), String> {
+pub(crate) fn check_name(kind: &str, name: &str) -> Result<(), String> {
     if valid_name(name) { Ok(()) } else { Err(format!("{name:?} is not a valid {kind} name")) }
 }
 
@@ -280,7 +280,7 @@ pub fn delete_user(user: &str) -> Result<Argv, String> {
 /// redirected anywhere. As the user, the kernel only lets the script touch
 /// what the user could touch anyway. Uses runuser, else su; when Crow is
 /// already that user, runs it directly. `args` become $1, $2, …
-fn as_user(user: &str, script: &str, args: &[&str]) -> Argv {
+pub(crate) fn as_user(user: &str, script: &str, args: &[&str]) -> Argv {
     const SWITCH: &str = r#"u="$1"; s="$2"; shift 2
 if [ "$(id -u)" = "$(id -u "$u" 2>/dev/null)" ]; then exec sh -c "$s" crow-as-user "$@"; fi
 if command -v runuser >/dev/null 2>&1; then exec runuser -u "$u" -- sh -c "$s" crow-as-user "$@"; fi

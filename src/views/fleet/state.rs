@@ -261,4 +261,6 @@ pub enum SetupPage {
     Hardening,
     /// Certificates and their renewal (ERR-146).
     Certificates,
+    /// Accounts and keys across the fleet (ERR-144).
+    People,
 }

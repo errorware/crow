@@ -8,6 +8,7 @@ mod components;
 mod theme;
 pub mod palette;
 pub mod patching;
+pub mod people;
 pub mod plugins;
 pub mod topology;
 pub mod certs;

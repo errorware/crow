@@ -95,6 +95,9 @@ impl CrowApp {
         if page == SetupPage::Patching {
             self.scan_fleet_updates(false, cx);
         }
+        if page == SetupPage::People {
+            self.refresh_people(cx);
+        }
         if page == SetupPage::Certificates {
             self.refresh_certificates(false, cx);
         }

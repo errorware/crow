@@ -11,6 +11,7 @@ pub mod rollouts;
 pub mod drift;
 pub mod hardening;
 pub mod certificates;
+pub mod people;
 pub mod setup;
 pub mod run;
 pub mod alert_lines;

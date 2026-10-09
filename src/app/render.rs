@@ -52,6 +52,9 @@ impl Render for CrowApp {
         if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Patching {
             self.ensure_window_inputs(window, cx);
         }
+        if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::People {
+            self.ensure_people_inputs(window, cx);
+        }
         if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Hardening {
             self.ensure_hardening_inputs(window, cx);
         }
@@ -110,6 +113,11 @@ impl Render for CrowApp {
         let map_page = match (self.screen, self.fleet.setup_page) {
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Map) => Some(crate::views::topology::topology_page(self, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Patching) => Some(crate::views::fleet::patching::patching_page(&self.fleet, &self.patching, app_view.clone()).into_any_element()),
+            (Screen::FleetSetup, crate::views::fleet::state::SetupPage::People) => {
+                let known: Vec<(String, String)> = self.keys.enrolled.iter().filter_map(|k| crate::keys::deploy::key_blob(&k.public_key).map(|b| (b, k.name.clone()))).collect();
+                let query = self.people.key_query.as_ref().map(|i| i.read(cx).value().to_string()).unwrap_or_default();
+                Some(crate::views::fleet::people::people_page(&self.fleet, &self.people, &known, &query, app_view.clone()).into_any_element())
+            }
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Certificates) => Some(crate::views::fleet::certificates::certificates_page(&self.fleet, &self.certificates, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Hardening) => {
                 let rows: Vec<_> = self.fleet.servers.iter().map(|s| (s.id.clone(), s.name.clone(), s.login_user.clone(), self.server_findings(&s.id))).collect();
