@@ -2,7 +2,7 @@
 # "crow" is taken on crates.io; the package is crow-rs (after crow.rs), the
 # program it installs is still `crow`.
 name = "crow-rs"
-version = "0.6.0"
+version = "0.7.0"
 edition = "2021"
 license-file = "LICENSE"
 authors = ["Nelson <nelson@errorware.net>"]
