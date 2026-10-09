@@ -15,6 +15,7 @@ pub mod people;
 pub mod logsearch;
 pub mod checks;
 pub mod incidents;
+pub mod dr;
 pub mod setup;
 pub mod run;
 pub mod alert_lines;

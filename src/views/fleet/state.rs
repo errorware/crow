@@ -269,4 +269,6 @@ pub enum SetupPage {
     Checks,
     /// Incident timelines (ERR-149).
     Incidents,
+    /// Disaster recovery plans (ERR-151).
+    Dr,
 }

@@ -14,6 +14,7 @@ pub mod topology;
 pub mod certs;
 pub mod checks;
 pub mod config;
+pub mod dr;
 pub mod containers;
 pub mod geoip;
 pub mod incident;

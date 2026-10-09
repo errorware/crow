@@ -52,6 +52,9 @@ impl Render for CrowApp {
         if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Patching {
             self.ensure_window_inputs(window, cx);
         }
+        if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Dr {
+            self.ensure_dr_inputs(window, cx);
+        }
         if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Checks {
             self.ensure_checks_inputs(window, cx);
         }
@@ -119,6 +122,7 @@ impl Render for CrowApp {
         let map_page = match (self.screen, self.fleet.setup_page) {
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Map) => Some(crate::views::topology::topology_page(self, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Patching) => Some(crate::views::fleet::patching::patching_page(&self.fleet, &self.patching, app_view.clone()).into_any_element()),
+            (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Dr) => Some(crate::views::fleet::dr::dr_page(&self.fleet, &self.dr, self.dr_inputs.as_ref(), app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Incidents) => {
                 let since = chrono::Utc::now().timestamp() - 7 * 86_400;
                 let mut recent: Vec<_> = self.vault.db().lock().ok().and_then(|db| db.list_alerts(since).ok()).unwrap_or_default().into_iter().filter(|a| a.opened_at >= since || a.resolved_at.is_none()).collect();
