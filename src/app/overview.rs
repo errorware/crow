@@ -454,6 +454,9 @@ impl CrowApp {
     /// expected state, then durably record the outcome. Covers start/stop/
     /// restart/reload — every service mutation in the app goes through this.
     fn spawn_service_change(&mut self, unit_name: String, action: String, cx: &mut Context<Self>) {
+        if !self.allowed(crate::team::Permission::Restart, self.fleet.active_server().as_ref(), cx) {
+            return;
+        }
         let Some(srv) = self.fleet.active_server() else {
             return;
         };
@@ -523,6 +526,9 @@ impl CrowApp {
     /// Same pipeline shape as `spawn_service_change`, for a process SIGTERM:
     /// backup, apply off-thread, verify the PID is actually gone, record it.
     fn spawn_process_kill(&mut self, pid: u32, cx: &mut Context<Self>) {
+        if !self.allowed(crate::team::Permission::Restart, self.fleet.active_server().as_ref(), cx) {
+            return;
+        }
         let Some(srv) = self.fleet.active_server() else {
             return;
         };

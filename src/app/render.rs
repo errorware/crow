@@ -117,11 +117,15 @@ impl Render for CrowApp {
         let palette_results = if palette_open { self.palette_results() } else { Vec::new() };
         let menu_open = self.menu_open;
         let screen = self.screen;
+        if self.team.config.enabled() || (self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Team) {
+            self.ensure_team_inputs(window, cx);
+        }
         let app_view = cx.entity();
         // The fleet map is built only while it's showing (ERR-120).
         let map_page = match (self.screen, self.fleet.setup_page) {
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Map) => Some(crate::views::topology::topology_page(self, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Patching) => Some(crate::views::fleet::patching::patching_page(&self.fleet, &self.patching, app_view.clone()).into_any_element()),
+            (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Team) => Some(crate::views::fleet::team::team_page(&self.fleet, &self.team, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Dr) => Some(crate::views::fleet::dr::dr_page(&self.fleet, &self.dr, self.dr_inputs.as_ref(), app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Incidents) => {
                 let since = chrono::Utc::now().timestamp() - 7 * 86_400;
@@ -199,7 +203,10 @@ impl Render for CrowApp {
                             self.screen,
                             self.menu_open,
                             self.fleet.servers.len(),
-                            self.session_label(),
+                            match self.active_member() {
+                                Some(m) => format!("as {} · {} · {}", m.name, m.role.name(), self.session_label()),
+                                None => self.session_label(),
+                            },
                             &stance,
                             app_view.clone(),
                         ))
@@ -631,7 +638,7 @@ impl Render for CrowApp {
                         })
                         // Danger Zone → SNAPSHOTS (ERR-47)
                         .children(self.snapshots_panel.as_ref().map(|p| crate::components::snapshots_panel::snapshots_panel(p, app_view.clone())))
-                        .children(self.fleet_runner.as_ref().map(|r| crate::views::fleet::run_panel::fleet_run_panel(r, app_view.clone())))
+                        .children(self.fleet_runner.as_ref().map(|r| crate::views::fleet::run_panel::fleet_run_panel(r, (self.team.config.enabled() && self.team.config.require_approval).then_some(()).and(self.team.approval.as_ref()), app_view.clone())))
                         .children(self.recovery.as_ref().map(|p| {
                             let name = self.fleet.servers.iter().find(|s| s.id == p.server_id).map(|s| s.name.clone()).unwrap_or_default();
                             crate::components::recovery_panel::recovery_panel(p, &name, app_view.clone())
@@ -656,6 +663,9 @@ impl Render for CrowApp {
                         } else {
                             None
                         })
+                        .children(self.team.notice.as_ref().map(crate::views::fleet::team::team_notice))
+                        // A team with no one signed in: who's at the keyboard? (ERR-150)
+                        .children((self.team.config.enabled() && self.team.active.is_none()).then(|| crate::views::fleet::team::sign_in_overlay(&self.team, app_view.clone())))
                 )
             } else {
                 None

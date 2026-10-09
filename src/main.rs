@@ -32,6 +32,7 @@ pub mod rollout;
 pub mod region;
 pub mod secret_string;
 pub mod security;
+pub mod team;
 pub mod update;
 pub mod vault;
 mod views;

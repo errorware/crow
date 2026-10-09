@@ -68,6 +68,7 @@ pub mod logsearch;
 pub mod checks;
 pub mod incidents;
 pub mod dr;
+pub mod team;
 mod secrets;
 pub mod password_login;
 pub mod vault_manage;
@@ -227,6 +228,8 @@ pub struct CrowApp {
     /// Fleet Setup → DR PLANS (ERR-151).
     pub dr: dr::DrState,
     pub dr_inputs: Option<dr::DrInputs>,
+    /// Members, roles and who's signed in (ERR-150).
+    pub team: team::TeamState,
     pub sidebar_collapsed: bool,
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
@@ -489,6 +492,7 @@ impl CrowApp {
             incidents: Default::default(),
             dr: Default::default(),
             dr_inputs: None,
+            team: Default::default(),
             sidebar_collapsed: false,
             keys,
             files: FilesState::default(),
@@ -567,6 +571,7 @@ impl CrowApp {
         app.load_log_searches();
         app.load_checks();
         app.load_dr();
+        app.load_team();
         app.load_keyring_key(cx);
         // A remote first server's configs and firewall weren't read above, so
         // the window didn't wait on SSH; read them now, in the background.

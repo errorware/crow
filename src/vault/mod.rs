@@ -7,7 +7,7 @@ use std::time::Instant;
 pub use crypto::{
     generate_data_key, generate_salt, generate_totp_secret, key_from_bytes, totp_auth_url, totp_qr_png, verify_totp_code, MasterKey,
 };
-pub use db::{
+pub use db::{current_actor, set_current_actor, 
     clanker_secret_id, provider_secret_id, ChangeRecord, ConfigBaseline, BASELINE_FLEET, CLANKER_SECRET_CATEGORY, ClankerProviderConfig, ProviderAccount, PurgeOutcome, PROVIDER_SECRET_CATEGORY, ServerRecord, SshKeyGroup, SshKeyRecord,
     SshScanPath, StoredConfigRevision, VaultDb, VaultEntryMeta, VaultError, VaultMeta, AUDIT_SERVER_ID,
 };

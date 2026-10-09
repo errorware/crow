@@ -260,9 +260,9 @@ impl CrowApp {
     /// The audit log across the fleet (ERR-75), newest first: the newest
     /// `limit` change records, plus enrollments of active and archived servers.
     pub fn audit_items(&self, limit: usize) -> Vec<crate::views::audit::model::AuditItem> {
-        let records = self.vault.db().lock().ok().and_then(|db| db.list_all_change_records(limit).ok()).unwrap_or_default();
+        let (records, actors) = self.vault.db().lock().ok().map(|db| (db.list_all_change_records(limit).unwrap_or_default(), db.change_record_actors().unwrap_or_default())).unwrap_or_default();
         let servers: Vec<ServerRecord> = self.fleet.servers.iter().chain(&self.fleet.archived).cloned().collect();
-        crate::views::audit::model::audit_items(&records, &servers)
+        crate::views::audit::model::audit_items_by(&records, &servers, &actors)
     }
 
     /// FLEET ALERTS' lines and the last time Crow wasn't watching (ERR-85).

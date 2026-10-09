@@ -271,4 +271,6 @@ pub enum SetupPage {
     Incidents,
     /// Disaster recovery plans (ERR-151).
     Dr,
+    /// Members, roles, scopes (ERR-150).
+    Team,
 }

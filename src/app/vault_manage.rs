@@ -80,6 +80,9 @@ impl CrowApp {
     }
 
     pub fn submit_vault_form(&mut self, cx: &mut Context<Self>) {
+        if !self.allowed(crate::team::Permission::Vault, None, cx) {
+            return;
+        }
         let Some(inputs) = self.vault_form_inputs.as_ref() else { return };
         if self.vault_form.busy {
             return;

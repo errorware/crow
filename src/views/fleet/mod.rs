@@ -20,6 +20,7 @@ pub mod setup;
 pub mod run;
 pub mod alert_lines;
 pub mod run_panel;
+pub mod team;
 
 #[allow(unused_imports)]
 pub use lab_modal::local_lab_modal;

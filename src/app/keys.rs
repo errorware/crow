@@ -59,6 +59,9 @@ impl CrowApp {
     }
 
     pub fn import_discovered_key(&mut self, fingerprint: &str, group_id: Option<&str>, cx: &mut Context<Self>) {
+        if !self.allowed(crate::team::Permission::Keys, None, cx) {
+            return;
+        }
         let key_opt = self.keys.discovered.iter().find(|k| k.fingerprint == fingerprint).cloned();
         if let Some(disc) = key_opt {
             let target_group = group_id.unwrap_or("fleet");
@@ -87,6 +90,9 @@ impl CrowApp {
     }
 
     pub fn delete_enrolled_key(&mut self, key_id: &str, cx: &mut Context<Self>) {
+        if !self.allowed(crate::team::Permission::Keys, None, cx) {
+            return;
+        }
         let db = self.vault.db();
         if let Ok(db_guard) = db.lock() {
             let _ = db_guard.delete_ssh_key(key_id);
@@ -108,6 +114,9 @@ impl CrowApp {
     }
 
     pub fn submit_key_generation(&mut self, cx: &mut Context<Self>) {
+        if !self.allowed(crate::team::Permission::Keys, None, cx) {
+            return;
+        }
         if let Some(ref mut state) = self.keys.gen_modal {
             let name = state.name_input.trim();
             if name.is_empty() {
@@ -194,6 +203,9 @@ impl CrowApp {
     }
 
     pub fn delete_key_group(&mut self, group_id: &str, cx: &mut Context<Self>) {
+        if !self.allowed(crate::team::Permission::Keys, None, cx) {
+            return;
+        }
         let db = self.vault.db();
         if let Ok(db_guard) = db.lock() {
             let _ = db_guard.delete_key_group(group_id);
@@ -270,6 +282,9 @@ impl CrowApp {
     }
 
     pub fn submit_edit_key(&mut self, cx: &mut Context<Self>) {
+        if !self.allowed(crate::team::Permission::Keys, None, cx) {
+            return;
+        }
         if let Some(ref mut state) = self.keys.edit_modal {
             let name = state.name_input.trim();
             if name.is_empty() {
@@ -290,6 +305,9 @@ impl CrowApp {
     }
 
     pub fn toggle_server_attachment(&mut self, server_id: &str, cx: &mut Context<Self>) {
+        if !self.allowed(crate::team::Permission::Keys, None, cx) {
+            return;
+        }
         if let Some(ref mut state) = self.keys.edit_modal {
             if let Some(pos) = state.attached_servers.iter().position(|id| id == server_id) {
                 state.attached_servers.remove(pos);

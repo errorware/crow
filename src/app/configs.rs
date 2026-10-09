@@ -664,6 +664,8 @@ impl CrowApp {
 
     /// Writes one file's current content back to the configs' server.
     fn write_config_file(&self, file: &str) -> Result<(), String> {
+        // The member at the keyboard may edit configs here (ERR-150).
+        self.may(crate::team::Permission::EditConfig, self.configs_server().as_ref())?;
         // Configs with no server are this machine's; with servers enrolled
         // that only happens while the active server's are still loading,
         // and writing then would land on the wrong machine.

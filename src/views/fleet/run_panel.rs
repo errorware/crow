@@ -10,7 +10,7 @@ use crate::app::fleet_run::FleetRunner;
 use crate::app::CrowApp;
 use crate::theme::*;
 
-pub fn fleet_run_panel(runner: &FleetRunner, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::component::input::InputState>>, app: Entity<CrowApp>) -> impl IntoElement {
     let run = &runner.run;
     let button = |id: &'static str, label: String, color: Rgba| {
         div()
@@ -131,6 +131,8 @@ pub fn fleet_run_panel(runner: &FleetRunner, app: Entity<CrowApp>) -> impl IntoE
                                 .w(px(160.0))
                                 .child(Input::new(&runner.input))
                         }))
+                        // A second member's passphrase, when the team asks for it (ERR-150).
+                        .children(approval.filter(|_| run.phase == RunPhase::Confirming && !run.steps.is_empty()).map(|a| div().w(px(220.0)).child(Input::new(a))))
                         .children((run.phase == RunPhase::Confirming && !run.steps.is_empty()).then(|| {
                             let app = app.clone();
                             button("btn-fleet-run-start", format!("TYPE {} TO START", run.keyword), CRIT)

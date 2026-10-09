@@ -49,6 +49,9 @@ impl CrowApp {
     }
 
     pub fn save_config(&mut self, cx: &mut Context<Self>) {
+        if !self.allowed(crate::team::Permission::Vault, None, cx) {
+            return;
+        }
         if let Err(e) = self.config.save() {
             eprintln!("Failed to save config: {:?}", e);
         }

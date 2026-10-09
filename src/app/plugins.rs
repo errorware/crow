@@ -72,6 +72,9 @@ impl CrowApp {
     }
 
     pub fn set_plugin_enabled(&mut self, id: &str, on: bool, cx: &mut Context<Self>) {
+        if !self.allowed(crate::team::Permission::Vault, None, cx) {
+            return;
+        }
         if let Ok(db) = self.vault.db().lock() {
             let _ = db.set_flag(&plugins::flag_key(id), if on { "1" } else { "0" });
         }

@@ -324,7 +324,33 @@ impl CrowApp {
         self.open_fleet_run(FleetRun::new(title, "SWITCH", steps, excluded), jobs, window, cx);
     }
 
-    pub(crate) fn open_fleet_run(&mut self, run: FleetRun, jobs: Vec<RunJob>, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn open_fleet_run(&mut self, mut run: FleetRun, jobs: Vec<RunJob>, window: &mut Window, cx: &mut Context<Self>) {
+        // Fleet runs need the role, and only reach the member's scope (ERR-150).
+        if !self.allowed(crate::team::Permission::RunFleet, None, cx) {
+            return;
+        }
+        let mut jobs = jobs;
+        if self.team.config.enabled() {
+            let mut keep = Vec::new();
+            let (mut steps, mut kept_jobs, mut stages) = (Vec::new(), Vec::new(), Vec::new());
+            for (i, (step, job)) in std::mem::take(&mut run.steps).into_iter().zip(jobs).enumerate() {
+                let srv = self.fleet.servers.iter().find(|s| s.id == step.server_id).cloned();
+                match srv.as_ref().map(|s| self.may(crate::team::Permission::RunFleet, Some(s))) {
+                    Some(Err(why)) => run.excluded.push((step.server.clone(), why)),
+                    _ => {
+                        keep.push(i);
+                        steps.push(step);
+                        kept_jobs.push(job);
+                        if let Some(st) = run.stages.get(i) {
+                            stages.push(*st);
+                        }
+                    }
+                }
+            }
+            run.steps = steps;
+            run.stages = if run.stages.is_empty() { Vec::new() } else { stages };
+            jobs = kept_jobs;
+        }
         let keyword = run.keyword;
         let input = cx.new(|cx| InputState::new(window, cx).placeholder(keyword));
         self.fleet_runner = Some(FleetRunner { run, jobs, input, after: None });
@@ -343,6 +369,24 @@ impl CrowApp {
             cx.notify();
             return;
         }
+        // A second member's approval, when the team requires it (ERR-150).
+        if self.team.config.enabled() && self.team.config.require_approval {
+            match self.check_approval(cx) {
+                Ok(by) => {
+                    self.team.clear_approval = true;
+                    self.team_notice(true, format!("Approved by {by}."), cx);
+                }
+                Err(e) => {
+                    self.team.clear_approval = true;
+                    if let Some(r) = self.fleet_runner.as_mut() {
+                        r.run.error = Some(e);
+                    }
+                    cx.notify();
+                    return;
+                }
+            }
+        }
+        let Some(runner) = self.fleet_runner.as_mut() else { return };
         runner.run.error = None;
         runner.run.phase = RunPhase::Running;
         let mut jobs: Vec<Option<RunJob>> = std::mem::take(&mut runner.jobs).into_iter().map(Some).collect();

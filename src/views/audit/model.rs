@@ -82,8 +82,23 @@ pub struct AuditItem {
 }
 
 /// Change records and enrollments, newest first.
+#[cfg(test)]
 pub fn audit_items(records: &[ChangeRecord], servers: &[ServerRecord]) -> Vec<AuditItem> {
-    let mut items: Vec<AuditItem> = records.iter().filter_map(from_record).collect();
+    audit_items_by(records, servers, &Default::default())
+}
+
+/// Like [`audit_items`], each change marked with the member who made it.
+pub fn audit_items_by(records: &[ChangeRecord], servers: &[ServerRecord], actors: &std::collections::HashMap<String, String>) -> Vec<AuditItem> {
+    let mut items: Vec<AuditItem> = records
+        .iter()
+        .filter_map(|r| {
+            let mut item = from_record(r)?;
+            if let Some(a) = actors.get(&r.id) {
+                item.text = format!("{} · by {a}", item.text);
+            }
+            Some(item)
+        })
+        .collect();
     items.extend(servers.iter().filter_map(|s| {
         Some(AuditItem {
             at: DateTime::parse_from_rfc3339(&s.created_at).ok()?.with_timezone(&Utc),

@@ -310,6 +310,19 @@ pub struct ConfigBaseline {
     pub set_at: String,
 }
 
+/// The member signed in to Crow (ERR-150): stamped on every change record.
+static ACTOR: std::sync::RwLock<Option<String>> = std::sync::RwLock::new(None);
+
+pub fn set_current_actor(name: Option<String>) {
+    if let Ok(mut a) = ACTOR.write() {
+        *a = name;
+    }
+}
+
+pub fn current_actor() -> Option<String> {
+    ACTOR.read().ok().and_then(|a| a.clone())
+}
+
 pub struct VaultDb {
     conn: Connection,
     path: PathBuf,
@@ -651,6 +664,8 @@ impl VaultDb {
         let _ = self.conn.execute("ALTER TABLE servers ADD COLUMN purged_at TEXT", []);
         // ERR-36: where each server lives.
         let _ = self.conn.execute("ALTER TABLE servers ADD COLUMN host_key_mtime INTEGER", []);
+        // Who did it, when a team signs in to Crow (ERR-150).
+        let _ = self.conn.execute("ALTER TABLE change_records ADD COLUMN actor TEXT", []);
         // Clankers: the backup provider, and usage by date (the old
         // daily_history array was never dated, so 30-day numbers were wrong).
         let _ = self.conn.execute("ALTER TABLE clanker_providers ADD COLUMN is_backup INTEGER NOT NULL DEFAULT 0", []);
@@ -1844,8 +1859,8 @@ impl VaultDb {
     pub fn insert_change_record(&self, rec: &ChangeRecord) -> Result<(), VaultError> {
         self.conn.execute(
             "INSERT INTO change_records
-                (id, server_id, server_name, action_kind, target, before_state, after_state, blast_radius, outcome, started_at, completed_at)
-             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11)",
+                (id, server_id, server_name, action_kind, target, before_state, after_state, blast_radius, outcome, started_at, completed_at, actor)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)",
             params![
                 rec.id,
                 rec.server_id,
@@ -1858,9 +1873,17 @@ impl VaultDb {
                 rec.outcome,
                 rec.started_at,
                 rec.completed_at,
+                current_actor(),
             ],
         )?;
         Ok(())
+    }
+
+    /// Who made each change, for changes made by a signed-in member.
+    pub fn change_record_actors(&self) -> Result<std::collections::HashMap<String, String>, VaultError> {
+        let mut stmt = self.conn.prepare("SELECT id, actor FROM change_records WHERE actor IS NOT NULL")?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, String>(1)?)))?;
+        Ok(rows.collect::<rusqlite::Result<_>>()?)
     }
 
     pub fn update_change_record_outcome(
@@ -2528,6 +2551,20 @@ mod tests {
         // Delete is test-only now (ERR-32): servers are archived, not deleted.
         db.delete_server("srv-custom-01").unwrap();
         assert!(db.get_server("srv-custom-01").unwrap().is_none());
+    }
+
+    /// With a team, each change record carries who made it (ERR-150).
+    #[test]
+    fn change_records_carry_the_member() {
+        let db = VaultDb::open_in_memory().unwrap();
+        let rec = |id: &str| ChangeRecord { id: id.into(), server_id: "s".into(), server_name: "web-1".into(), action_kind: "service".into(), target: "restart nginx".into(), before_state: "active".into(), after_state: None, blast_radius: None, outcome: "success".into(), started_at: "2026-10-10T00:00:00Z".into(), completed_at: None };
+        super::set_current_actor(Some("ana".into()));
+        db.insert_change_record(&rec("chg-ana")).unwrap();
+        super::set_current_actor(None);
+        db.insert_change_record(&rec("chg-solo")).unwrap();
+        let actors = db.change_record_actors().unwrap();
+        assert_eq!(actors.get("chg-ana").map(String::as_str), Some("ana"));
+        assert!(!actors.contains_key("chg-solo"));
     }
 
     /// A server leaves the fleet without being deleted, comes back with its

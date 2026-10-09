@@ -62,6 +62,10 @@ impl CrowApp {
         cx: &mut Context<Self>,
     ) {
         let Some(srv) = self.fleet.active_server() else { return };
+        // Accounts, keys and the firewall on a server (ERR-150).
+        if !self.allowed(crate::team::Permission::Users, Some(&srv), cx) {
+            return;
+        }
         let summary = describe_commands(&commands);
         let record_id = format!("chg_{}", chrono::Local::now().timestamp_micros());
         let db = self.vault.db();
