@@ -13,6 +13,7 @@ pub mod hardening;
 pub mod certificates;
 pub mod people;
 pub mod logsearch;
+pub mod checks;
 pub mod setup;
 pub mod run;
 pub mod alert_lines;

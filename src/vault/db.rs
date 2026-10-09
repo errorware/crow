@@ -533,6 +533,15 @@ impl VaultDb {
                 acknowledged_at INTEGER
             );
 
+            CREATE TABLE IF NOT EXISTS check_results (
+                check_id TEXT NOT NULL,
+                ts INTEGER NOT NULL,
+                ok INTEGER NOT NULL,
+                latency_ms INTEGER,
+                detail TEXT NOT NULL DEFAULT '',
+                PRIMARY KEY (check_id, ts)
+            );
+
             CREATE TABLE IF NOT EXISTS watch_sessions (
                 started INTEGER PRIMARY KEY,
                 last_tick INTEGER NOT NULL
@@ -1954,6 +1963,28 @@ impl VaultDb {
         )?;
         let rows = stmt.query_map(params![path], Self::config_revision_row)?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    /// Stores one result of an outside check (ERR-148).
+    pub fn insert_check_result(&self, check_id: &str, ts: i64, ok: bool, latency_ms: Option<i64>, detail: &str) -> Result<(), VaultError> {
+        self.conn.execute("INSERT OR REPLACE INTO check_results (check_id, ts, ok, latency_ms, detail) VALUES (?1, ?2, ?3, ?4, ?5)", params![check_id, ts, ok as i64, latency_ms, detail])?;
+        Ok(())
+    }
+
+    /// A check's results since `since`, oldest first: (ts, ok, latency, detail).
+    pub fn check_results(&self, check_id: &str, since: i64) -> Result<Vec<(i64, bool, Option<i64>, String)>, VaultError> {
+        let mut stmt = self.conn.prepare("SELECT ts, ok, latency_ms, detail FROM check_results WHERE check_id = ?1 AND ts >= ?2 ORDER BY ts")?;
+        let rows = stmt.query_map(params![check_id, since], |r| Ok((r.get(0)?, r.get::<_, i64>(1)? != 0, r.get(2)?, r.get(3)?)))?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    /// Drops check results older than `before`, and all of a deleted check's.
+    pub fn prune_check_results(&self, before: i64, deleted: Option<&str>) -> Result<(), VaultError> {
+        self.conn.execute("DELETE FROM check_results WHERE ts < ?1", params![before])?;
+        if let Some(id) = deleted {
+            self.conn.execute("DELETE FROM check_results WHERE check_id = ?1", params![id])?;
+        }
+        Ok(())
     }
 
     /// Every (server, path) with a recorded revision, without contents.

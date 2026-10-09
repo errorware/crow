@@ -65,6 +65,7 @@ pub mod hardening;
 pub mod certificates;
 pub mod people;
 pub mod logsearch;
+pub mod checks;
 mod secrets;
 pub mod password_login;
 pub mod vault_manage;
@@ -217,6 +218,8 @@ pub struct CrowApp {
     pub people: people::PeopleState,
     /// Fleet Setup → LOG SEARCH (ERR-147).
     pub log_search: logsearch::LogSearchState,
+    /// Fleet Setup → CHECKS (ERR-148).
+    pub checks: checks::ChecksState,
     pub sidebar_collapsed: bool,
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
@@ -475,6 +478,7 @@ impl CrowApp {
             certificates: Default::default(),
             people: Default::default(),
             log_search: Default::default(),
+            checks: Default::default(),
             sidebar_collapsed: false,
             keys,
             files: FilesState::default(),
@@ -551,6 +555,7 @@ impl CrowApp {
         app.load_patching();
         app.load_hardening();
         app.load_log_searches();
+        app.load_checks();
         app.load_keyring_key(cx);
         // A remote first server's configs and firewall weren't read above, so
         // the window didn't wait on SSH; read them now, in the background.

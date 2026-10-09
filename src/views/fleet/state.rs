@@ -265,4 +265,6 @@ pub enum SetupPage {
     People,
     /// The journal of many servers at once (ERR-147).
     LogSearch,
+    /// HTTP/TCP/DNS checks from outside, and uptime (ERR-148).
+    Checks,
 }

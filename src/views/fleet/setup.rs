@@ -596,5 +596,6 @@ fn setup_tabs(page: crate::views::fleet::state::SetupPage, app: Entity<CrowApp>)
         .child(tab("setup-tab-certificates", "CERTIFICATES", SetupPage::Certificates))
         .child(tab("setup-tab-people", "PEOPLE", SetupPage::People))
         .child(tab("setup-tab-logsearch", "LOG SEARCH", SetupPage::LogSearch))
+        .child(tab("setup-tab-checks", "CHECKS", SetupPage::Checks))
         .child(tab("setup-tab-map", "FLEET MAP", SetupPage::Map))
 }

@@ -12,6 +12,7 @@ pub mod people;
 pub mod plugins;
 pub mod topology;
 pub mod certs;
+pub mod checks;
 pub mod config;
 pub mod containers;
 pub mod geoip;
