@@ -10,6 +10,7 @@ pub mod palette;
 pub mod patching;
 pub mod plugins;
 pub mod topology;
+pub mod certs;
 pub mod config;
 pub mod containers;
 pub mod geoip;

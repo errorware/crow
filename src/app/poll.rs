@@ -187,6 +187,7 @@ impl CrowApp {
                         this.containers_tick(cx);
                         this.patching_tick(cx);
                         this.drift_tick(cx);
+                        this.certificates_tick(cx);
                         this.resolve_peer_names(cx);
                         // Overview on screen: keep the updates/CVE check current
                         // (a no-op while it's fresh; also covers startup).

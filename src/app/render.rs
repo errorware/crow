@@ -110,6 +110,7 @@ impl Render for CrowApp {
         let map_page = match (self.screen, self.fleet.setup_page) {
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Map) => Some(crate::views::topology::topology_page(self, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Patching) => Some(crate::views::fleet::patching::patching_page(&self.fleet, &self.patching, app_view.clone()).into_any_element()),
+            (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Certificates) => Some(crate::views::fleet::certificates::certificates_page(&self.fleet, &self.certificates, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Hardening) => {
                 let rows: Vec<_> = self.fleet.servers.iter().map(|s| (s.id.clone(), s.name.clone(), s.login_user.clone(), self.server_findings(&s.id))).collect();
                 Some(crate::views::fleet::hardening::hardening_page(&rows, self.hardening.reason.as_ref(), self.hardening.message.clone(), self.topology.scanning, self.topology.posture_checked_at, app_view.clone()).into_any_element())

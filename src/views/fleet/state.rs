@@ -259,4 +259,6 @@ pub enum SetupPage {
     Drift,
     /// Posture findings, fixes and accepted risks (ERR-145).
     Hardening,
+    /// Certificates and their renewal (ERR-146).
+    Certificates,
 }

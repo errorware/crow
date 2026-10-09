@@ -95,6 +95,9 @@ impl CrowApp {
         if page == SetupPage::Patching {
             self.scan_fleet_updates(false, cx);
         }
+        if page == SetupPage::Certificates {
+            self.refresh_certificates(false, cx);
+        }
         if page == SetupPage::Hardening {
             if chrono::Utc::now().timestamp() - self.topology.posture_checked_at >= posture::POSTURE_EVERY_SECS {
                 self.check_posture(cx);
