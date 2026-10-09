@@ -606,6 +606,14 @@ impl CrowApp {
                     if this.configs.states.contains_key(&selected) {
                         this.configs.selected_file = selected;
                     }
+                    // Opened from a fleet-wide search hit (ERR-143).
+                    if let Some(path) = this.drift_page.open_path.take() {
+                        if let Some(name) = this.configs.states.iter().find(|(_, st)| st.path.to_string_lossy() == path).map(|(n, _)| n.clone()) {
+                            this.configs.selected_file = name;
+                        } else {
+                            this.keys.toast = Some(format!("{path} isn't one of the files Crow manages on this server"));
+                        }
+                    }
                     this.sync_config_history(cx);
                     cx.notify();
                 }

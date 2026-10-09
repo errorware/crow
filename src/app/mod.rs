@@ -60,6 +60,7 @@ pub mod containers;
 pub mod bastions;
 pub mod patching;
 pub mod rollouts;
+pub mod drift;
 mod secrets;
 pub mod password_login;
 pub mod vault_manage;
@@ -202,6 +203,8 @@ pub struct CrowApp {
     /// Fleet Setup → ROLLOUTS (ERR-142).
     pub rollouts: rollouts::RolloutState,
     pub rollout_inputs: Option<rollouts::RolloutInputs>,
+    /// Fleet Setup → DRIFT (ERR-143).
+    pub drift_page: drift::DriftPageState,
     pub sidebar_collapsed: bool,
     pub show_about_modal: bool,
     pub about_copied_toast: bool,
@@ -455,6 +458,7 @@ impl CrowApp {
             patching: Default::default(),
             rollouts: Default::default(),
             rollout_inputs: None,
+            drift_page: Default::default(),
             sidebar_collapsed: false,
             keys,
             files: FilesState::default(),
@@ -577,6 +581,7 @@ impl CrowApp {
         }
         self.palette_open = true;
         self.menu_open = false;
+        self.palette.fleet_files = self.vault.db().lock().ok().and_then(|db| db.config_paths().ok()).unwrap_or_default();
         self.palette.input = None;
         self.palette.query.clear();
         self.palette.selected = 0;

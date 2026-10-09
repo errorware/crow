@@ -6,7 +6,7 @@
 //! the format says order matters. A reworded comment isn't drift; a changed
 //! value is. Other files are compared as text, ignoring trailing whitespace.
 
-use super::history::open_content;
+use crate::config::history::open_content;
 use super::plugins::{editor_for, to_ir, ConfigEditor, StructuredFormat};
 use crate::vault::{ConfigBaseline, MasterKey, ServerRecord, VaultDb, VaultError, BASELINE_FLEET};
 
@@ -143,9 +143,130 @@ pub fn fleet_drift(db: &VaultDb, key: Option<&MasterKey>, servers: &[ServerRecor
     Ok(out)
 }
 
+/// How often the baselined files are read again on every server.
+pub const DRIFT_EVERY_SECS: i64 = 15 * 60;
+
+/// The alert kind for a drifted file.
+pub fn alert_kind(path: &str) -> String {
+    format!("drift:{path}")
+}
+
+/// The baselined paths that apply to a server in `group`.
+pub fn paths_for(baselines: &[ConfigBaseline], group: &str) -> Vec<String> {
+    let mut paths: Vec<String> = baselines.iter().filter(|b| baseline_for(baselines, &b.path, group).is_some_and(|x| x.scope == b.scope)).map(|b| b.path.clone()).collect();
+    paths.sort();
+    paths.dedup();
+    paths
+}
+
+/// Reads each of `paths` on `host` and records a revision of the ones that
+/// changed since Crow last saw them (as "observed": changed on the
+/// server). A file that isn't there is skipped; one that can't be read is
+/// reported. Returns the paths it could read.
+pub fn read_and_record(host: &dyn crate::host::Host, db: &std::sync::Mutex<VaultDb>, key: Option<&MasterKey>, server_id: &str, paths: &[String]) -> (Vec<String>, Vec<(String, String)>) {
+    use crate::host::DEFAULT_TIMEOUT;
+    let mut read = Vec::new();
+    let mut failed = Vec::new();
+    for path in paths {
+        let content = host.read_file(path).or_else(|_| host.exec_privileged(&["cat", "--", path], &[], DEFAULT_TIMEOUT).map(|o| o.stdout));
+        let content = match content {
+            Ok(c) => c,
+            Err(e) => {
+                let gone = host.exec(&["test", "-e", path], DEFAULT_TIMEOUT).is_err() && host.exec_privileged(&["test", "-e", path], &[], DEFAULT_TIMEOUT).is_err();
+                if !gone {
+                    failed.push((path.clone(), e.to_string()));
+                }
+                continue;
+            }
+        };
+        if let Ok(db) = db.lock() {
+            let latest = db.list_config_revisions(server_id, path).ok().and_then(|r| r.last().map(|r| r.sha256.clone()));
+            if latest.as_deref() != Some(super::history::sha256_hex(&content).as_str()) {
+                let _ = super::history::record(&db, key, server_id, path, &content, "on the host", "Changed on the server", super::history::SOURCE_OBSERVED);
+            }
+        }
+        read.push(path.clone());
+    }
+    (read, failed)
+}
+
+/// Alerts for drift (ERR-143): a WARN per drifted file on the servers
+/// just checked (`checked`: server id → paths read), resolved once the
+/// file matches its baseline again. Files not read this round are left
+/// as they are.
+pub fn alert_changes(open: &[crate::metrics::alerts::Alert], entries: &[DriftEntry], checked: &std::collections::HashMap<String, Vec<String>>, now: i64) -> crate::metrics::alerts::AlertChanges {
+    use crate::metrics::alerts::{Alert, AlertChanges};
+    let mut changes = AlertChanges::default();
+    for e in entries {
+        if !checked.get(&e.server_id).is_some_and(|paths| paths.contains(&e.path)) {
+            continue;
+        }
+        let kind = alert_kind(&e.path);
+        let existing = open.iter().find(|a| a.server_id == e.server_id && a.kind == kind && a.resolved_at.is_none());
+        match (&e.drift, existing) {
+            (Drift::Differs(d), existing) => {
+                let scope = if e.scope == BASELINE_FLEET { "fleet".to_string() } else { format!("{} group", e.scope) };
+                let first = d.first().cloned().unwrap_or_default();
+                let more = if d.len() > 1 { format!(" (+{} more)", d.len() - 1) } else { String::new() };
+                let detail = format!("{} drifted from the {scope} baseline: {first}{more}", e.path);
+                match existing {
+                    Some(a) => changes.updated.push((a.id.clone(), "WARN".into(), detail, now)),
+                    None => changes.opened.push(Alert {
+                        id: format!("alert-{}-{kind}-{now}", e.server_id),
+                        server_id: e.server_id.clone(),
+                        kind,
+                        level: "WARN".into(),
+                        detail,
+                        opened_at: now,
+                        last_seen: now,
+                        resolved_at: None,
+                        acknowledged_at: None,
+                    }),
+                }
+            }
+            (_, Some(a)) => changes.resolved.push(a.id.clone()),
+            (_, None) => {}
+        }
+    }
+    // A baseline that was removed: its alerts go too.
+    for a in open.iter().filter(|a| a.resolved_at.is_none() && a.kind.starts_with("drift:")) {
+        let path = &a.kind["drift:".len()..];
+        let still_baselined = entries.iter().any(|e| e.server_id == a.server_id && e.path == path);
+        if !still_baselined && checked.contains_key(&a.server_id) {
+            changes.resolved.push(a.id.clone());
+        }
+    }
+    changes
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn drifted_files_raise_alerts_and_matching_ones_resolve_them() {
+        use std::collections::HashMap;
+        let entry = |srv: &str, drift: Drift| DriftEntry { server_id: srv.into(), path: "/etc/ssh/sshd_config".into(), scope: "web".into(), drift, as_of: String::new() };
+        let checked: HashMap<String, Vec<String>> = [("a".to_string(), vec!["/etc/ssh/sshd_config".to_string()]), ("b".to_string(), vec!["/etc/ssh/sshd_config".to_string()])].into();
+        let entries = vec![entry("a", Drift::Differs(vec!["missing: PasswordAuthentication no".into(), "extra: x".into()])), entry("b", Drift::Cosmetic), entry("c", Drift::Differs(vec!["x".into()]))];
+        let c = alert_changes(&[], &entries, &checked, 100);
+        assert_eq!(c.opened.len(), 1, "c wasn't read this round");
+        assert_eq!(c.opened[0].kind, "drift:/etc/ssh/sshd_config");
+        assert!(c.opened[0].detail.contains("web group baseline: missing: PasswordAuthentication no (+1 more)"), "{}", c.opened[0].detail);
+        // b's old alert resolves now that it matches.
+        let old = crate::metrics::alerts::Alert { id: "x".into(), server_id: "b".into(), kind: "drift:/etc/ssh/sshd_config".into(), level: "WARN".into(), ..Default::default() };
+        let c = alert_changes(&[old], &entries, &checked, 100);
+        assert_eq!(c.resolved, vec!["x".to_string()]);
+    }
+
+    #[test]
+    fn a_servers_group_baseline_hides_the_fleet_one_for_that_path() {
+        let b = |path: &str, scope: &str| ConfigBaseline { path: path.into(), scope: scope.into(), revision_id: String::new(), set_by: String::new(), set_at: String::new() };
+        let baselines = vec![b("/etc/a", BASELINE_FLEET), b("/etc/a", "web"), b("/etc/b", "db")];
+        assert_eq!(paths_for(&baselines, "web"), ["/etc/a"]);
+        assert_eq!(paths_for(&baselines, "db"), ["/etc/a", "/etc/b"]);
+        assert_eq!(paths_for(&baselines, ""), ["/etc/a"]);
+    }
 
     #[test]
     fn comments_and_spacing_are_not_drift() {
@@ -199,5 +320,52 @@ mod tests {
             ("web1".into(), BASELINE_FLEET.into(), false),
             ("web2".into(), BASELINE_FLEET.into(), false),
         ]);
+    }
+
+    /// The whole drift loop against two real servers (throwaway containers
+    /// whose /etc/crow-demo.conf differ), with a real vault key:
+    ///   podman run -d --name crow-drift-1 alpine sleep 7200   (and crow-drift-2)
+    ///   cargo test live_drift_loop -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn live_drift_loop() {
+        use crate::host::ContainerHost;
+        use std::collections::HashMap;
+        let path = "/etc/crow-demo.conf".to_string();
+        let (h1, h2) = (ContainerHost::new("podman", "crow-drift-1"), ContainerHost::new("podman", "crow-drift-2"));
+        use crate::host::Host;
+        h1.exec(&["sh", "-c", "printf 'workers = 8\\ntimeout = 30\\nPermitRootLogin no\\n' > /etc/crow-demo.conf"], crate::host::DEFAULT_TIMEOUT).unwrap();
+        h2.exec(&["sh", "-c", "printf 'workers = 8\\ntimeout = 90\\nPermitRootLogin yes\\n' > /etc/crow-demo.conf"], crate::host::DEFAULT_TIMEOUT).unwrap();
+        let db = std::sync::Mutex::new(VaultDb::open_in_memory().unwrap());
+        let key = crate::vault::generate_data_key();
+        let srv = |id: &str| ServerRecord { id: id.into(), name: id.into(), group_name: "web".into(), login_user: "root".into(), ..Default::default() };
+        let servers = [srv("d1"), srv("d2")];
+        // Pin d1's copy as the web baseline.
+        read_and_record(&h1, &db, Some(&key), "d1", &[path.clone()]);
+        let rev = db.lock().unwrap().list_config_revisions("d1", &path).unwrap().pop().unwrap();
+        db.lock().unwrap().set_config_baseline(&path, "web", &rev.id, "test").unwrap();
+        // A check reads d2 and finds the drift, with what changed.
+        let (read, failed) = read_and_record(&h2, &db, Some(&key), "d2", &[path.clone()]);
+        assert!(failed.is_empty() && read == [path.clone()]);
+        let entries = fleet_drift(&db.lock().unwrap(), Some(&key), &servers).unwrap();
+        let d2 = entries.iter().find(|e| e.server_id == "d2").unwrap();
+        eprintln!("d2: {:?}", d2.drift);
+        assert!(matches!(&d2.drift, Drift::Differs(d) if d.iter().any(|l| l.contains("PermitRootLogin yes"))));
+        let checked: HashMap<String, Vec<String>> = [("d2".to_string(), vec![path.clone()])].into();
+        let changes = alert_changes(&[], &entries, &checked, 1);
+        eprintln!("alert: {}", changes.opened[0].detail);
+        // The search finds the setting on both.
+        let files: Vec<_> = db.lock().unwrap().latest_config_revisions().unwrap().into_iter().map(|r| { let c = crate::config::history::open_content(&r, Some(&key)); (r.server_id.clone(), r.server_id, r.path, c) }).collect();
+        let hits = crate::app::drift::search(&files, "permitroot");
+        assert_eq!(hits.len(), 2, "{hits:?}");
+        // Bring d2 back: the baseline is written there, and it matches again.
+        let base = crate::config::history::open_content(&rev, Some(&key)).unwrap();
+        let t = crate::config::push::PushTarget { server_id: "d2", server_name: "d2", path: &path, baseline: &base, author: "test", login_user: "root", message: "Brought back to the baseline", context: "drift: bring back" };
+        eprintln!("bring back: {:?}", crate::config::push::push_baseline(&h2, &db, Some(&key), &t));
+        assert_eq!(h2.exec(&["cat", &path], crate::host::DEFAULT_TIMEOUT).unwrap().stdout, base);
+        let entries = fleet_drift(&db.lock().unwrap(), Some(&key), &servers).unwrap();
+        assert!(!entries.iter().any(|e| e.drift.is_drift()));
+        let open = changes.opened.clone();
+        assert_eq!(alert_changes(&open, &entries, &checked, 2).resolved.len(), 1, "the alert resolves");
     }
 }

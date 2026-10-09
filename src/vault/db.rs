@@ -1956,6 +1956,24 @@ impl VaultDb {
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
+    /// Every (server, path) with a recorded revision, without contents.
+    pub fn config_paths(&self) -> Result<Vec<(String, String)>, VaultError> {
+        let mut stmt = self.conn.prepare("SELECT DISTINCT server_id, path FROM config_revisions ORDER BY path")?;
+        let rows = stmt.query_map([], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    /// The latest revision of every file on every server (fleet-wide
+    /// config search, ERR-143).
+    pub fn latest_config_revisions(&self) -> Result<Vec<StoredConfigRevision>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT id, server_id, path, sha256, author, message, source, created_at, nonce, ciphertext FROM config_revisions r
+             WHERE seq = (SELECT MAX(seq) FROM config_revisions WHERE server_id = r.server_id AND path = r.path)",
+        )?;
+        let rows = stmt.query_map([], Self::config_revision_row)?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
     fn config_revision_row(r: &rusqlite::Row) -> rusqlite::Result<StoredConfigRevision> {
         let nonce: Option<Vec<u8>> = r.get(8)?;
         let ciphertext: Option<Vec<u8>> = r.get(9)?;

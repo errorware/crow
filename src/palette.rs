@@ -20,6 +20,8 @@ pub enum Target {
     Service(String),
     /// A process of the server that's open now, by PID.
     Process(u32),
+    /// A config file Crow has read on any server (ERR-136).
+    FleetConfig { server_id: String, path: String },
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -27,6 +29,10 @@ pub enum Place {
     Fleet,
     FleetSetup,
     FleetMap,
+    /// Fleet Setup → PATCHING / ROLLOUTS / DRIFT & SEARCH.
+    Patching,
+    Rollouts,
+    Drift,
     Audit,
     Settings,
     Keys,

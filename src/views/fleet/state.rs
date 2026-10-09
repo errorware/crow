@@ -255,4 +255,6 @@ pub enum SetupPage {
     Patching,
     /// A command or config file across a group (ERR-142).
     Rollouts,
+    /// Drift from baselines, and fleet-wide config search (ERR-143).
+    Drift,
 }

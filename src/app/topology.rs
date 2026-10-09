@@ -94,6 +94,10 @@ impl CrowApp {
         if page == SetupPage::Patching {
             self.scan_fleet_updates(false, cx);
         }
+        if page == SetupPage::Drift {
+            self.refresh_drift();
+            self.check_drift(false, cx);
+        }
         self.fleet.setup_page = page;
         cx.notify();
     }

@@ -18,6 +18,9 @@ pub struct PaletteState {
     pub scope: Option<String>,
     /// Entry keys, most recent first.
     pub recent: Vec<String>,
+    /// (server id, path) of every config file Crow has read, loaded when
+    /// the palette opens (ERR-136).
+    pub fleet_files: Vec<(String, String)>,
 }
 
 /// How many results the palette lists.
@@ -59,9 +62,18 @@ impl CrowApp {
         out.push(place("Fleet", "dashboard servers alerts", Place::Fleet));
         out.push(place("Fleet Map", "topology graph risks posture", Place::FleetMap));
         out.push(place("Fleet Setup & Policies", "groups tags host key policy", Place::FleetSetup));
+        out.push(place("Patching", "updates upgrade apt dnf apk reboot maintenance window", Place::Patching));
+        out.push(place("Rollouts", "run command config every server canary batch", Place::Rollouts));
+        out.push(place("Drift & config search", "baseline drift search setting find grep", Place::Drift));
         out.push(place("Audit Log", "changes history who", Place::Audit));
         out.push(place("Settings", "preferences", Place::Settings));
         out.push(place("SSH Keys", "keys credentials", Place::Keys));
+        // Every config file Crow has read, on every other server.
+        let names: std::collections::HashMap<&str, &str> = self.fleet.servers.iter().map(|s| (s.id.as_str(), s.name.as_str())).collect();
+        for (sid, path) in self.palette.fleet_files.iter().filter(|(sid, _)| current.is_none_or(|c| &c.id != sid)) {
+            let Some(name) = names.get(sid.as_str()) else { continue };
+            out.push(Entry { category: "FLEET CONFIG", label: path.clone(), hint: name.to_string(), keywords: name.to_string(), target: Target::FleetConfig { server_id: sid.clone(), path: path.clone() } });
+        }
         let action = |label: &str, keywords: &str, a: Action| Entry { category: "ACTION", label: label.into(), hint: String::new(), keywords: keywords.into(), target: Target::Action(a) };
         out.push(action("Add a server", "enroll onboard new ssh", Action::AddServer));
         if let Some(label) = self.lab_label() {
@@ -213,6 +225,15 @@ impl CrowApp {
             }
             Target::Screen(Place::FleetMap) => self.open_topology(cx),
             Target::Screen(Place::Audit) => self.set_screen(Screen::Audit, cx),
+            Target::Screen(p @ (Place::Patching | Place::Rollouts | Place::Drift)) => {
+                use crate::views::fleet::state::SetupPage;
+                self.set_screen(Screen::FleetSetup, cx);
+                self.set_setup_page(match p { Place::Patching => SetupPage::Patching, Place::Rollouts => SetupPage::Rollouts, _ => SetupPage::Drift }, cx);
+            }
+            Target::FleetConfig { server_id, path } => {
+                let server = self.fleet.servers.iter().find(|s| s.id == server_id).map(|s| s.name.clone()).unwrap_or_default();
+                self.open_search_hit(&crate::app::drift::SearchHit { server_id, server, path, line: None }, cx);
+            }
             Target::Screen(Place::Settings) => self.set_screen(Screen::Settings, cx),
             Target::Screen(Place::Keys) | Target::Key(_) => {
                 self.set_screen(Screen::Settings, cx);

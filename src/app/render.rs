@@ -52,6 +52,9 @@ impl Render for CrowApp {
         if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Patching {
             self.ensure_window_inputs(window, cx);
         }
+        if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Drift {
+            self.ensure_drift_inputs(window, cx);
+        }
         if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Rollouts {
             self.ensure_rollout_inputs(window, cx);
         }
@@ -104,6 +107,10 @@ impl Render for CrowApp {
         let map_page = match (self.screen, self.fleet.setup_page) {
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Map) => Some(crate::views::topology::topology_page(self, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Patching) => Some(crate::views::fleet::patching::patching_page(&self.fleet, &self.patching, app_view.clone()).into_any_element()),
+            (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Drift) => {
+                let texts = self.drift_selected_texts();
+                Some(crate::views::fleet::drift::drift_page(&self.fleet, &self.drift_page, texts, app_view.clone()).into_any_element())
+            }
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Rollouts) => {
                 let baselines = self.vault.db().lock().ok().and_then(|db| db.list_config_baselines().ok()).unwrap_or_default();
                 let new_content = self.rollout_inputs.as_ref().map(|i| i.content.read(cx).value().to_string()).unwrap_or_default();

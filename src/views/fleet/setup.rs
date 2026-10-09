@@ -591,5 +591,6 @@ fn setup_tabs(page: crate::views::fleet::state::SetupPage, app: Entity<CrowApp>)
         .child(tab("setup-tab-policies", "GROUPS & POLICIES", SetupPage::Policies))
         .child(tab("setup-tab-patching", "PATCHING", SetupPage::Patching))
         .child(tab("setup-tab-rollouts", "ROLLOUTS", SetupPage::Rollouts))
+        .child(tab("setup-tab-drift", "DRIFT & SEARCH", SetupPage::Drift))
         .child(tab("setup-tab-map", "FLEET MAP", SetupPage::Map))
 }
