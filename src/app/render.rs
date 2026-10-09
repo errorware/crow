@@ -52,6 +52,9 @@ impl Render for CrowApp {
         if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Patching {
             self.ensure_window_inputs(window, cx);
         }
+        if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::LogSearch {
+            self.ensure_log_search_inputs(window, cx);
+        }
         if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::People {
             self.ensure_people_inputs(window, cx);
         }
@@ -113,6 +116,7 @@ impl Render for CrowApp {
         let map_page = match (self.screen, self.fleet.setup_page) {
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Map) => Some(crate::views::topology::topology_page(self, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Patching) => Some(crate::views::fleet::patching::patching_page(&self.fleet, &self.patching, app_view.clone()).into_any_element()),
+            (Screen::FleetSetup, crate::views::fleet::state::SetupPage::LogSearch) => Some(crate::views::fleet::logsearch::log_search_page(&self.fleet, &self.log_search, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::People) => {
                 let known: Vec<(String, String)> = self.keys.enrolled.iter().filter_map(|k| crate::keys::deploy::key_blob(&k.public_key).map(|b| (b, k.name.clone()))).collect();
                 let query = self.people.key_query.as_ref().map(|i| i.read(cx).value().to_string()).unwrap_or_default();

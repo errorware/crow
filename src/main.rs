@@ -20,6 +20,7 @@ pub mod journal;
 pub mod keys;
 pub mod terminal;
 pub mod lab;
+pub mod logsearch;
 pub mod metrics;
 pub mod notify;
 pub mod os_detect;

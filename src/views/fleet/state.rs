@@ -263,4 +263,6 @@ pub enum SetupPage {
     Certificates,
     /// Accounts and keys across the fleet (ERR-144).
     People,
+    /// The journal of many servers at once (ERR-147).
+    LogSearch,
 }
