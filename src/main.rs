@@ -75,7 +75,9 @@ fn main() {
         let window_size = size(px(width), px(height));
         let bounds = Bounds::centered(None, window_size, cx);
         let mut options = WindowOptions::default();
-        options.window_bounds = Some(WindowBounds::Windowed(bounds));
+        // Settings → Personalisation can ask for a maximized start (ERR-157).
+        let maximized = crate::config::CrowConfigManager::load().saved_bool("appearance.start_maximized").unwrap_or(false);
+        options.window_bounds = Some(if maximized { WindowBounds::Maximized(bounds) } else { WindowBounds::Windowed(bounds) });
         options.window_min_size = Some(size(px(1100.0), px(700.0)));
         #[cfg(target_os = "macos")]
         {
@@ -103,11 +105,24 @@ fn main() {
         options.app_id = Some("rs.crow.Crow".into());
         options.is_minimizable = true;
 
-        cx.open_window(options, |window, cx| {
+        let handle = cx.open_window(options, |window, cx| {
             window.activate_window();
             cx.new(|cx| CrowApp::new(window, cx))
         })
         .expect("failed to open Crow window");
+        // X11 window managers ignore a maximize asked for before the window
+        // is mapped; ask again once it's up, unless it already took.
+        if maximized {
+            cx.spawn(async move |cx| {
+                cx.background_executor().timer(std::time::Duration::from_millis(400)).await;
+                let _ = handle.update(cx, |_, window, _| {
+                    if !window.is_maximized() {
+                        window.zoom_window();
+                    }
+                });
+            })
+            .detach();
+        }
 
         cx.activate(true);
     });

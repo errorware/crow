@@ -217,6 +217,12 @@ max = 24
 help = "Font size in server terminals, in points."
 
 [[fields]]
+name = "appearance.start_maximized"
+type = "bool"
+required = false
+help = "Open Crow maximized. Takes effect the next time Crow starts."
+
+[[fields]]
 name = "servers.host_key_max_age_days"
 type = "enum"
 required = false
