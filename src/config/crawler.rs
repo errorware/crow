@@ -216,6 +216,7 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
         ],
         DistroFamily::RedHat => vec![
             "/etc",
+            "/var/lib/pgsql",
             "/etc/systemd",
             "/etc/ssh",
             "/etc/nginx",
@@ -279,12 +280,24 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
     };
     let mut listings = host.list_dirs(&scan_dirs);
     let mut drop_in_dirs: Vec<String> = Vec::new();
+    let (mut pg_version_dirs, mut pg_cluster_dirs): (Vec<String>, Vec<String>) = (Vec::new(), Vec::new());
     for dir_str in &scan_dirs {
         let Some(entries) = listings.remove(*dir_str) else { continue };
         for entry in entries {
             // /etc/systemd/system: the units written there (most entries are
             // symlinks to the distro's own, which aren't edited here), and
             // the drop-in folders beside them.
+            // PostgreSQL keeps each cluster's files a level or two down:
+            // /etc/postgresql/18/main (Debian), /var/lib/pgsql/data or
+            // /var/lib/pgsql/16/data (Red Hat).
+            if *dir_str == "/etc/postgresql" || *dir_str == "/var/lib/pgsql" {
+                if entry.is_dir && entry.name.chars().next().is_some_and(|c| c.is_ascii_digit()) {
+                    pg_version_dirs.push(format!("{dir_str}/{}", entry.name));
+                } else if entry.is_dir && entry.name == "data" {
+                    pg_cluster_dirs.push(format!("{dir_str}/data"));
+                }
+                continue;
+            }
             if *dir_str == "/etc/systemd/system" {
                 if entry.is_dir && entry.name.ends_with(".d") {
                     drop_in_dirs.push(format!("{dir_str}/{}", entry.name));
@@ -318,10 +331,38 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
         }
     }
     // Drop-ins (foo.service.d/override.conf): named with their folder, since
-    // override.conf is everywhere.
-    if !drop_in_dirs.is_empty() {
-        let refs: Vec<&str> = drop_in_dirs.iter().map(String::as_str).collect();
+    // override.conf is everywhere. PostgreSQL's version folders are listed in
+    // the same trip, with their usual cluster ("main", "data") guessed so
+    // most servers need no further one.
+    let pg_guess: Vec<String> = pg_version_dirs.iter().map(|v| if v.starts_with("/etc/") { format!("{v}/main") } else { format!("{v}/data") }).collect();
+    pg_cluster_dirs.extend(pg_guess);
+    if !drop_in_dirs.is_empty() || !pg_version_dirs.is_empty() || !pg_cluster_dirs.is_empty() {
+        let refs: Vec<&str> = drop_in_dirs.iter().chain(&pg_version_dirs).chain(&pg_cluster_dirs).map(String::as_str).collect();
         let mut listed = host.list_dirs(&refs);
+        // Other clusters (pg_createcluster 18 reports): one more trip.
+        let mut more: Vec<String> = Vec::new();
+        for v in &pg_version_dirs {
+            for entry in listed.remove(v.as_str()).unwrap_or_default() {
+                let c = format!("{v}/{}", entry.name);
+                if entry.is_dir && !pg_cluster_dirs.contains(&c) {
+                    more.push(c);
+                }
+            }
+        }
+        if !more.is_empty() {
+            let refs: Vec<&str> = more.iter().map(String::as_str).collect();
+            listed.extend(host.list_dirs(&refs));
+            pg_cluster_dirs.extend(more);
+        }
+        for dir in &pg_cluster_dirs {
+            // Named from the version on: "18/main/pg_hba.conf", "data/pg_hba.conf".
+            let short = dir.trim_start_matches("/etc/postgresql/").trim_start_matches("/var/lib/pgsql/").to_string();
+            for entry in listed.remove(dir.as_str()).unwrap_or_default() {
+                if !entry.is_dir && matches!(entry.name.as_str(), "pg_hba.conf" | "pg_ident.conf" | "postgresql.conf") {
+                    push(&mut discovered, format!("{short}/{}", entry.name), dir, &entry);
+                }
+            }
+        }
         for dir in &drop_in_dirs {
             let folder = dir.rsplit('/').next().unwrap_or_default().to_string();
             for entry in listed.remove(dir.as_str()).unwrap_or_default() {
@@ -465,6 +506,45 @@ mod tests {
         if std::path::Path::new("/etc/crontab").exists() {
             assert!(all.iter().any(|c| c.name == "crontab"));
         }
+    }
+
+    /// PostgreSQL's cluster folders are found: the usual "main" in the same
+    /// trip as the drop-ins, any other cluster in one more (titan-db-01 had
+    /// /etc/postgresql/18/main/pg_hba.conf and the Configs list missed it).
+    #[test]
+    fn postgres_clusters_are_found_a_level_down() {
+        use std::collections::HashMap;
+        let e = |name: &str, dir: bool| crate::host::DirEntry { name: name.into(), is_dir: dir, is_symlink: false, size_bytes: 400, mode: 0o640, uid: 0, gid: 0, mtime: 0 };
+        struct Pg(std::sync::Mutex<Vec<Vec<String>>>, HashMap<String, Vec<crate::host::DirEntry>>);
+        impl Host for Pg {
+            fn label(&self) -> String {
+                "pg".into()
+            }
+            fn exec_stdin(&self, _: &[&str], _: &[u8], _: std::time::Duration) -> Result<crate::host::ExecOutput, crate::host::HostError> {
+                Err(crate::host::HostError::Unreachable("fake".into()))
+            }
+            fn list_dirs(&self, paths: &[&str]) -> HashMap<String, Vec<crate::host::DirEntry>> {
+                self.0.lock().unwrap().push(paths.iter().map(|p| p.to_string()).collect());
+                paths.iter().filter_map(|p| self.1.get(*p).map(|v| (p.to_string(), v.clone()))).collect()
+            }
+        }
+        let tree: HashMap<String, Vec<crate::host::DirEntry>> = [
+            ("/etc/postgresql", vec![e("18", true)]),
+            ("/etc/postgresql/18", vec![e("main", true), e("reports", true)]),
+            ("/etc/postgresql/18/main", vec![e("pg_hba.conf", false), e("postgresql.conf", false), e("environment", false), e("conf.d", true)]),
+            ("/etc/postgresql/18/reports", vec![e("pg_hba.conf", false)]),
+        ]
+        .into_iter()
+        .map(|(k, v)| (k.to_string(), v))
+        .collect();
+        let host = Pg(Default::default(), tree);
+        let files = crawl_all_configs(&host, DistroFamily::Debian);
+        let mut pg: Vec<_> = files.iter().filter(|f| f.full_path.starts_with("/etc/postgresql")).map(|f| (f.name.as_str(), f.schema_kind)).collect();
+        pg.sort_by_key(|(n, _)| *n);
+        assert_eq!(pg, [("18/main/pg_hba.conf", Some(SchemaKind::PgHba)), ("18/main/postgresql.conf", detect_schema_kind("postgresql.conf", Path::new("/etc/postgresql/18/main/postgresql.conf"))), ("18/reports/pg_hba.conf", Some(SchemaKind::PgHba))]);
+        let trips = host.0.lock().unwrap();
+        assert_eq!(trips.len(), 3, "first listing, versions + main, then the other cluster");
+        assert_eq!(trips[2], ["/etc/postgresql/18/reports"]);
     }
 
     /// The remote code path (one scripted exec per batch) reads the same real
