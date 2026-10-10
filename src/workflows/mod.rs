@@ -10,6 +10,8 @@
 #[cfg(test)]
 mod harness;
 #[cfg(test)]
+mod w00_reset;
+#[cfg(test)]
 mod w01_enroll;
 #[cfg(test)]
 mod w02_bastion;

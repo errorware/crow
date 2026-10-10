@@ -268,7 +268,14 @@ impl CrowApp {
             .map(crate::keys::expand_tilde)
             .and_then(|p| p.parent().map(|d| d.to_path_buf()))
             .unwrap_or_else(|| crate::keys::expand_tilde("~/.ssh"));
-        let name = format!("{}-{}", old.name, chrono::Local::now().format("%Y%m%d"));
+        // A second rotation the same day (say, after cancelling one, whose
+        // new key stays on disk) gets the next free name.
+        let base = format!("{}-{}", old.name, chrono::Local::now().format("%Y%m%d"));
+        let taken = |n: &str| {
+            let file = crate::keys::default_key_file(n, crate::keys::KeyAlgorithm::Ed25519);
+            dir.join(&file).exists() || dir.join(format!("{file}.pub")).exists() || self.keys.enrolled.iter().any(|k| k.name == n)
+        };
+        let name = std::iter::once(base.clone()).chain((2..100).map(|i| format!("{base}-{i}"))).find(|n| !taken(n)).unwrap_or(base);
         let comment = format!("crow rotation of {}", old.name);
         let new_key = match crate::keys::generate_keypair(&name, crate::keys::KeyAlgorithm::Ed25519, Some(&comment), &old.group_id, &dir, None) {
             Ok((record, ..)) => record,

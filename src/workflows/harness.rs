@@ -27,6 +27,12 @@ pub fn isolate() -> PathBuf {
     std::env::set_var("XDG_CONFIG_HOME", root.join("xdg/config"));
     std::env::set_var("XDG_DATA_HOME", root.join("xdg/data"));
     std::env::set_var("XDG_CACHE_HOME", root.join("xdg/cache"));
+    // Crow's SSH control sockets live under the runtime dir: one of the
+    // harness's own, kept short (a socket path must fit in 108 bytes).
+    let run = std::path::PathBuf::from("/tmp/crow-wf-run");
+    std::fs::create_dir_all(&run).unwrap();
+    std::fs::set_permissions(&run, std::os::unix::fs::PermissionsExt::from_mode(0o700)).unwrap();
+    std::env::set_var("XDG_RUNTIME_DIR", &run);
     std::env::set_var("DBUS_SESSION_BUS_ADDRESS", "unix:path=/nonexistent");
     std::env::remove_var("SSH_AUTH_SOCK");
     // Password logins: ssh runs Crow as its askpass helper; the test runner

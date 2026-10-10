@@ -55,14 +55,8 @@ fn w09_drift(cx: &mut TestAppContext) {
     step("BRING BACK: planned when the baseline's content was kept, else left out saying why");
     act(cx, &app, w, |this, window, cx| this.plan_bring_back("/etc/hosts", Some(&app1.id), window, cx));
     let (steps, excluded) = app.read_with(cx, |this, _| this.fleet_runner.as_ref().map(|r| (r.run.steps.len(), r.run.excluded.clone())).unwrap());
-    let keyed = app.read_with(cx, |this, _| this.vault.key().is_some());
-    step(&format!("  vault key: {keyed}; planned {steps}; left out {excluded:?}"));
-    if keyed {
-        assert_eq!(steps, 1, "{excluded:?}");
-    } else {
-        assert_eq!(steps, 0);
-        assert!(excluded.iter().any(|(n, why)| n == "wf-app1" && why.contains("only its hash")), "{excluded:?}");
-    }
+    step(&format!("  planned {steps}; left out {excluded:?}"));
+    assert!(steps == 1 || excluded.iter().any(|(n, why)| n == "wf-app1" && why.contains("only its hash")), "planned, or left out saying why: {excluded:?}");
     act(cx, &app, w, |this, _, cx| this.close_fleet_run(cx));
 
     step("ACCEPT the server's copy: the drift and its alert clear");

@@ -285,6 +285,16 @@ pub fn scan_directory(dir_path: &Path, enrolled_keys: &[SshKeyRecord]) -> Vec<Di
     results
 }
 
+/// The file a generated key goes in when no name is given:
+/// `id_ed25519_<name as a slug>` (or `id_rsa_…`).
+pub fn default_key_file(name: &str, algo: KeyAlgorithm) -> String {
+    let slug = name.to_lowercase().replace(' ', "-").replace('_', "-");
+    match algo {
+        KeyAlgorithm::Ed25519 => format!("id_ed25519_{slug}"),
+        KeyAlgorithm::Rsa4096 => format!("id_rsa_{slug}"),
+    }
+}
+
 /// Generates a new SSH keypair and saves it to disk with strict permissions.
 pub fn generate_keypair(
     name: &str,
@@ -330,11 +340,7 @@ pub fn generate_keypair(
         }
         custom.to_string()
     } else {
-        let slug = name.to_lowercase().replace(' ', "-").replace('_', "-");
-        match algo {
-            KeyAlgorithm::Ed25519 => format!("id_ed25519_{}", slug),
-            KeyAlgorithm::Rsa4096 => format!("id_rsa_{}", slug),
-        }
+        default_key_file(name, algo)
     };
 
     let priv_path = target_dir.join(&base_name);

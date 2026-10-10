@@ -24,7 +24,9 @@ fn w07_rotate_a_key(cx: &mut TestAppContext) {
     let app1 = server(cx, &app, "wf-app1");
     let old_id = bastion.key_id.clone().expect("key login");
     assert_eq!(app1.key_id.as_ref(), Some(&old_id), "both use the key W01 imported (or the last rotation's)");
-    let old = app.read_with(cx, |this, _| this.keys.enrolled.iter().find(|k| k.id == old_id).cloned()).unwrap();
+    let old = app.read_with(cx, |this, _| this.keys.enrolled.iter().find(|k| k.id == old_id).cloned());
+    let enrolled: Vec<(String, String)> = app.read_with(cx, |this, _| this.keys.enrolled.iter().map(|k| (k.id.clone(), k.name.clone())).collect());
+    let old = old.unwrap_or_else(|| panic!("wf-bastion's key {old_id} is enrolled: {enrolled:?}"));
     let old_blob = crate::keys::deploy::key_blob(&old.public_key).unwrap();
     for srv in [&bastion, &app1] {
         crow_exec(srv, "true").unwrap();
@@ -32,7 +34,8 @@ fn w07_rotate_a_key(cx: &mut TestAppContext) {
 
     step(&format!("Settings → Keys → {} → ROTATE", old.name));
     act(cx, &app, w, |this, window, cx| this.plan_key_rotation(&old_id, window, cx));
-    let (steps, title) = app.read_with(cx, |this, _| this.fleet_runner.as_ref().map(|r| (r.run.steps.iter().map(|s| s.server.clone()).collect::<Vec<_>>(), r.run.title.clone())).unwrap());
+    let toast = app.read_with(cx, |this, _| this.keys.toast.clone());
+    let (steps, title) = app.read_with(cx, |this, _| this.fleet_runner.as_ref().map(|r| (r.run.steps.iter().map(|s| s.server.clone()).collect::<Vec<_>>(), r.run.title.clone()))).unwrap_or_else(|| panic!("no run planned: {toast:?}"));
     step(&format!("  {title}: {steps:?}"));
     let mut expected = vec!["wf-bastion".to_string(), "wf-app1".to_string()];
     expected.sort();

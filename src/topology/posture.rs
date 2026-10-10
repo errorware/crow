@@ -8,13 +8,22 @@ use crate::host::{Host, DEFAULT_TIMEOUT};
 /// How often the fleet's posture is read again.
 pub const POSTURE_EVERY_SECS: i64 = 6 * 3600;
 
+/// Reads `nft list ruleset` on stdin; succeeds when an input-hook chain
+/// filters by itself: policy drop, a drop/reject rule, or a jump to a chain
+/// other than ufw's (ufw-, ufw6-: they do nothing while ufw is off). A chain that only
+/// exists, as iptables-nft and a disabled ufw leave behind, isn't a firewall.
+const NFT_FILTERS: &str = r#"/hook input/{i=1} i&&/policy drop/{f=1} i&&/(^|[ \t])(drop|reject)([ \t;]|$)/{f=1} i&&/jump /&&!/jump ufw6?-/{f=1} /^[ \t]*}/{i=0} END{exit !f}"#;
+
+/// The same for `iptables -S INPUT`.
+const IPT_FILTERS: &str = r#"/^-P INPUT (DROP|REJECT)/{f=1} /^-A INPUT/&&/-j (DROP|REJECT)/{f=1} /^-A INPUT/&&/-j /&&!/-j (ufw6?-|ACCEPT|RETURN|LOG)/{f=1} END{exit !f}"#;
+
 const POSTURE: &str = r#"PATH="$PATH:/usr/sbin:/sbin"
 echo "@@sshd"; sshd -T 2>/dev/null | grep -Ei '^(permitrootlogin|passwordauthentication|kbdinteractiveauthentication|port) '
 echo "@@firewall"
 if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q '^Status: active'; then echo ufw
 elif command -v firewall-cmd >/dev/null 2>&1 && firewall-cmd --state >/dev/null 2>&1; then echo firewalld
-elif command -v nft >/dev/null 2>&1 && nft list ruleset 2>/dev/null | grep -q 'hook input'; then echo nftables
-elif command -v iptables >/dev/null 2>&1 && iptables -S INPUT 2>/dev/null | grep -qvx -- '-P INPUT ACCEPT'; then echo iptables
+elif command -v nft >/dev/null 2>&1 && nft list ruleset 2>/dev/null | awk "$1"; then echo nftables
+elif command -v iptables >/dev/null 2>&1 && iptables -S INPUT 2>/dev/null | awk "$2"; then echo iptables
 elif [ "$(id -u)" = 0 ]; then echo none
 else echo unknown; fi
 echo "@@tools"; for t in ufw firewall-cmd; do command -v "$t" >/dev/null 2>&1 && echo "$t"; done
@@ -113,7 +122,7 @@ pub fn parse(stdout: &str, checked_at: i64) -> Posture {
 /// Reads `host`'s posture, as root when Crow can. `None` when it couldn't
 /// run at all.
 pub fn read_posture(host: &dyn Host, now: i64) -> Option<Posture> {
-    let argv = ["sh", "-c", POSTURE];
+    let argv = ["sh", "-c", POSTURE, "crow-posture", NFT_FILTERS, IPT_FILTERS];
     host.exec_privileged(&argv, &[], DEFAULT_TIMEOUT).or_else(|_| host.exec(&argv, DEFAULT_TIMEOUT)).ok().map(|o| parse(&o.stdout, now))
 }
 
@@ -135,6 +144,35 @@ mod tests {
         assert!(p.firewall_tools.is_empty(), "no @@tools section: none known");
         let with_tools = parse("@@firewall\nnone\n@@tools\nufw\n@@listen\n0.0.0.0:22\n", 1);
         assert_eq!((with_tools.firewall_tools, with_tools.exposed_ports), (vec!["ufw".to_string()], vec![22]));
+    }
+
+    /// Runs a filter program over `input` the way the posture script does.
+    fn filters(program: &str, input: &str) -> bool {
+        use crate::host::Host;
+        crate::host::LocalHost.exec_stdin(&["sh", "-c", "awk \"$1\"", "t", program], input.as_bytes(), DEFAULT_TIMEOUT).is_ok()
+    }
+
+    #[test]
+    fn a_disabled_ufw_or_an_empty_chain_is_not_a_firewall() {
+        // Ubuntu 24.04 after `ufw disable` (Linode, 2026-10-10): the input
+        // chain is still there, policy accept, jumping only to ufw's chains.
+        let disabled = "table ip filter {\n\tchain ufw-reject-input {\n\t\tcounter reject\n\t}\n\tchain INPUT {\n\t\ttype filter hook input priority filter; policy accept;\n\t\tcounter packets 6841 bytes 840787 jump ufw-before-logging-input\n\t\tcounter packets 3909 bytes 495741 jump ufw-reject-input\n\t}\n}\n";
+        assert!(!filters(NFT_FILTERS, disabled));
+        let disabled6 = "table ip6 filter {\n\tchain INPUT {\n\t\ttype filter hook input priority filter; policy accept;\n\t\tcounter packets 100 bytes 2022810 jump ufw6-before-input\n\t}\n}\n";
+        assert!(!filters(NFT_FILTERS, disabled6), "and its IPv6 chains");
+        let enabled = "table ip filter {\n\tchain INPUT {\n\t\ttype filter hook input priority filter; policy drop;\n\t\tjump ufw-before-input\n\t}\n}\n";
+        assert!(filters(NFT_FILTERS, enabled));
+        let own_rules = "table inet filter {\n\tchain input {\n\t\ttype filter hook input priority 0; policy accept;\n\t\ttcp dport 22 accept\n\t\tct state invalid drop\n\t}\n}\n";
+        assert!(filters(NFT_FILTERS, own_rules));
+        let custom_chain = "table inet filter {\n\tchain input {\n\t\ttype filter hook input priority 0; policy accept;\n\t\tjump my-rules\n\t}\n}\n";
+        assert!(filters(NFT_FILTERS, custom_chain), "someone else's chain may filter: give it the benefit");
+        let output_only = "table inet filter {\n\tchain output {\n\t\ttype filter hook output priority 0; policy drop;\n\t}\n}\n";
+        assert!(!filters(NFT_FILTERS, output_only));
+
+        assert!(!filters(IPT_FILTERS, "-P INPUT ACCEPT\n-A INPUT -j ufw-before-input\n-A INPUT -j ufw-reject-input\n"));
+        assert!(filters(IPT_FILTERS, "-P INPUT DROP\n"));
+        assert!(filters(IPT_FILTERS, "-P INPUT ACCEPT\n-A INPUT -p tcp --dport 23 -j REJECT\n"));
+        assert!(!filters(IPT_FILTERS, "-P INPUT ACCEPT\n"));
     }
 
     #[test]
