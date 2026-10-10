@@ -18,6 +18,7 @@
   <a href="#providers-and-plugins">Providers & Plugins</a> •
   <a href="#getting-started">Getting Started</a> •
   <a href="#keyboard-shortcuts">Keyboard Shortcuts</a> •
+  <a href="#acknowledgements">Acknowledgements</a> •
   <a href="#license">License</a>
 </p>
 
@@ -34,6 +35,8 @@
 
 Crow is **agentless**: it talks to your servers over plain SSH, reusing one connection per server, and never installs anything on them.
 
+Website: [crow.rs](https://crow.rs) · Community: [forum.errorware.net](https://forum.errorware.net)
+
 ---
 
 ## What it does
@@ -44,19 +47,33 @@ Crow is **agentless**: it talks to your servers over plain SSH, reusing one conn
 - **Add Server** checks the host key before trusting it, can bootstrap a password-only server onto Crow's own SSH key, and reads the machine's facts (distro, kernel, memory, disk, region).
 - **Import from providers**: list your Linode / UpCloud instances, link the servers already in the fleet by IP, and add the rest through Add Server.
 
+### Fleet Setup
+Work across many servers at once. Every run lists what it will do first, goes one server at a time and stops at the first failure.
+- **Groups & policies**, and a **fleet map** of how Crow reaches each server, with the risks the posture check found.
+- **Patching**: who's behind on updates (apt, dnf, apk), and applying them, with orderly reboots.
+- **Rollouts**: a command or a config file across a group, with each server's diff before anything runs.
+- **Drift & search**: servers whose baselined files changed, and a search through every config file Crow has read.
+- **Hardening**: SSH and firewall findings with guarded fixes that prove a fresh login still works, or undo themselves.
+- **Certificates**, **people** (accounts and keys across the fleet, onboarding and offboarding), **log search** across servers, **checks** (HTTP, TCP and DNS from outside), **incidents**, **DR plans** and **team** members with roles.
+- **Audit log**: every change Crow made, on every server.
+
 ### A server
 - **Overview**: live CPU, memory, disk and network; pending package updates; CVEs affecting installed packages (from [OSV](https://osv.dev)).
+- **History**: CPU, memory, disk and load over 24 hours or 7 days, sampled while Crow runs.
 - **Services, processes and sockets**: live search, filters, pagination, and actions with confirmation.
 - **Logs**: `journalctl` with unit, priority, time and PID filters, highlighted search matches, and an optional plain-English explanation from an AI provider you configure.
 - **Configs**: edit `sshd_config`, `/etc/hosts`, `pg_hba.conf` and ufw rules as structured, validated rows through [crow-config](https://github.com/errorware/crow-config). Edits are surgical, every change is a revision you can roll back, and values rated *never on prod* need a typed confirmation. Files are written atomically (temp file, then rename).
-- **Firewall**: ufw and firewalld (read and edit: rules, ports, services, rich rules; firewalld changes go to the running and saved config together), bare nftables/iptables rulesets (read-only, the raw ruleset one click away). A lock-out guard asks for a typed CONFIRM before any change that would stop the SSH port Crow is connected through from being allowed. **Users** (create, sudo, passwords over stdin), **files**.
+- **Firewall**: ufw and firewalld (read and edit: rules, ports, services, rich rules; firewalld changes go to the running and saved config together), bare nftables/iptables rulesets (read-only, the raw ruleset one click away). A lock-out guard asks for a typed CONFIRM before any change that would stop the SSH port Crow is connected through from being allowed.
+- **Terminal**: a full terminal over the server's own connection, with tabs and split panes.
+- **Files**: browse, view files read-only, change permissions, and open a file in nano (through sudoedit when needed).
+- **Users** (create, sudo, passwords over stdin) and **cron**.
 - **Danger Zone**: destructive actions behind a typed keyword. For servers linked to a provider, **power off / reboot / boot and snapshots go through the provider**, so they work even when SSH is down. Fleet-wide (one host at a time, stopping at the first failure): rolling reboot, push baselines, **revoke sessions** (every SSH login but Crow's), and **rotate SSH host keys**: new keys are read over the connection the old key authenticated, re-pinned in known_hosts and proven with a fresh strict login, or everything is put back.
 
 ### Settings
 - Connection and SSH timeouts, auto-lock, archive retention, appearance. Only settings that change something are shown.
 - **Providers**: connect cloud accounts (Linode, UpCloud).
 - **Clankers**: AI providers for the Logs explanation (Anthropic, OpenAI-compatible).
-- **Personalisation**: a picture behind the Fleet list, with opacity and blur.
+- **Personalisation**: a picture behind the Fleet list, the terminal font size, and starting maximized.
 
 ---
 
@@ -106,7 +123,7 @@ crow/
 │   ├── crow-provider-core/      # provider contracts: Provider, ListInstances, PowerControl, Snapshots; curl-based HTTP
 │   ├── crow-provider-linode/    # Linode API v4
 │   └── crow-provider-upcloud/   # UpCloud API 1.3
-├── assets/                      # icons, flags
+├── assets/                      # icons, flags, distro logos, fonts (each with its license)
 └── docs/
 ```
 
@@ -177,6 +194,7 @@ cargo run --release
 | `⌘K` / `Ctrl+K` | Command palette |
 | `⌘1` / `⌘2` / `⌘3` / `⌘4` | Fleet / server overview / configs / logs |
 | `⌘N` | Add server |
+| `⇧⌘F` | Fleet Setup |
 | `⌘,` | Settings |
 | `⌘S` | Save settings (on Settings) |
 | `⌘/` | Open `config.toml` in your editor (on Settings) |
@@ -192,8 +210,7 @@ cargo run --release
 
 ## Acknowledgements
 
-- **[Tabler Icons](https://tabler.io/icons)** by Paweł Kuna and contributors (MIT). See [assets/README.md](assets/README.md).
-- **[flag-icons](https://flagicons.lipis.dev)** (MIT) for country flags.
+Crow builds on GPUI, alacritty_terminal, the RustCrypto crates, SQLite and many more, and ships Tabler Icons, flag-icons, Dashboard Icons and JetBrains Mono. [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md) lists them all with their licenses; the bundled assets carry their own in [`assets/`](assets/README.md).
 
 ---
 

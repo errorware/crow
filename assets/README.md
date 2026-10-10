@@ -1,43 +1,16 @@
-# Icons & Assets
+# Assets
 
-This directory contains vector assets used by Crow.
+Everything Crow draws that isn't code. Each folder carries its own license.
 
-## Tabler Icons Acknowledgement
+| Folder | What | From | License |
+|---|---|---|---|
+| `icons/` | UI icons | [Tabler Icons](https://tabler.io/icons) | MIT, `icons/LICENSE` |
+| `flags/` | Country flags | [flag-icons](https://github.com/lipis/flag-icons) | MIT, `flags/LICENSE` |
+| `distro/` | Linux distribution logos | [Dashboard Icons](https://github.com/homarr-labs/dashboard-icons) | Apache-2.0, `distro/LICENSE`, `distro/NOTICE.md` |
+| `fonts/` | JetBrains Mono | [JetBrains](https://github.com/JetBrains/JetBrainsMono) | OFL-1.1, `fonts/OFL.txt` |
+| `about/` | The About box's picture and the app icon | Crow | Crow's license |
+| `logo.svg` | The titlebar crow | Crow | Crow's license |
 
-The SVG icons in `icons/` are sourced from **[Tabler Icons](https://tabler.io/icons)**, created by Paweł Kuna and contributors.
+The distribution logos are trademarks of their projects; Crow uses them only to show which distribution a server runs.
 
-- **Project Website**: [https://tabler.io/icons](https://tabler.io/icons)
-- **GitHub Repository**: [https://github.com/tabler/tabler-icons](https://github.com/tabler/tabler-icons)
-- **License**: [MIT License](https://github.com/tabler/tabler-icons/blob/main/LICENSE)
-
-```text
-MIT License
-
-Copyright (c) 2020-2026 Paweł Kuna
-
-Permission is hereby granted, free of charge, to any person obtaining a copy
-of this software and associated documentation files (the "Software"), to deal
-in the Software without restriction, including without limitation the rights
-to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-copies of the Software, and to permit persons to whom the Software is
-furnished to do so, subject to the following conditions:
-
-The above copyright notice and this permission notice shall be included in all
-copies or substantial portions of the Software.
-
-THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-SOFTWARE.
-```
-
-## Country flags
-
-`assets/flags/*.svg` come from **[flag-icons](https://github.com/lipis/flag-icons)** by Panayiotis Lipiridis and contributors, licensed under the MIT License (same terms as above; Copyright (c) 2013 Panayiotis Lipiridis). They're shown next to servers by region.
-
-## Cloud icon
-
-`assets/icons/cloud.svg` is from Tabler Icons (MIT, as above).
+For everything Crow builds on, software included, see [ACKNOWLEDGEMENTS.md](../ACKNOWLEDGEMENTS.md).
