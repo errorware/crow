@@ -88,6 +88,12 @@ impl CrowApp {
         .detach();
     }
 
+    /// The audit log lives on Fleet Setup (ERR-156).
+    pub fn open_audit(&mut self, cx: &mut Context<Self>) {
+        self.set_screen(super::Screen::FleetSetup, cx);
+        self.set_setup_page(SetupPage::Audit, cx);
+    }
+
     pub fn set_setup_page(&mut self, page: SetupPage, cx: &mut Context<Self>) {
         if page == SetupPage::Map {
             return self.open_topology(cx);

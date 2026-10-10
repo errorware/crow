@@ -273,4 +273,6 @@ pub enum SetupPage {
     Dr,
     /// Members, roles, scopes (ERR-150).
     Team,
+    /// Every change Crow made, on every server (ERR-75).
+    Audit,
 }

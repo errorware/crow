@@ -1072,7 +1072,7 @@ pub fn fleet_overview_view(
                                         .text_color(TEXT_DIMMER)
                                         .cursor_pointer()
                                         .hover(|s| s.text_color(TEXT_PRIMARY))
-                                        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_screen(Screen::Audit, cx)))
+                                        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.open_audit(cx)))
                                         .child("audit log · all hosts →")
                                 }),
                         )

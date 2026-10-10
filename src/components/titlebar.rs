@@ -403,7 +403,7 @@ struct MenuItem {
     action: Option<MenuAction>,
     is_danger: bool,
     is_header: bool,
-    /// The menu's call to action: a faint green sheen sweeps across it.
+    /// The menu's call to action, drawn in green.
     is_featured: bool,
 }
 
@@ -445,24 +445,6 @@ pub fn burger_menu_overlay(
         is_featured: false,
     });
     items.push(MenuItem {
-        icon: Some(TablerIcon::Network),
-        label: "Fleet Setup — Topology & Policy".to_string(),
-        shortcut: "⌘⇧F",
-        action: Some(MenuAction::NavigateScreen(Screen::FleetSetup)),
-        is_danger: false,
-        is_header: false,
-        is_featured: false,
-    });
-    items.push(MenuItem {
-        icon: Some(TablerIcon::FileText),
-        label: "Audit Log — Every Change".to_string(),
-        shortcut: "",
-        action: Some(MenuAction::NavigateScreen(Screen::Audit)),
-        is_danger: false,
-        is_header: false,
-        is_featured: false,
-    });
-    items.push(MenuItem {
         icon: Some(TablerIcon::Plus),
         label: "Enroll New Server…".to_string(),
         shortcut: "⌘N",
@@ -470,6 +452,15 @@ pub fn burger_menu_overlay(
         is_danger: false,
         is_header: false,
         is_featured: true,
+    });
+    items.push(MenuItem {
+        icon: Some(TablerIcon::Network),
+        label: "Fleet Setup — Topology & Policy".to_string(),
+        shortcut: "⌘⇧F",
+        action: Some(MenuAction::NavigateScreen(Screen::FleetSetup)),
+        is_danger: false,
+        is_header: false,
+        is_featured: false,
     });
 
     // Local lab is fleet-wide, not about one server; only with its plugins on.
@@ -655,20 +646,14 @@ pub fn burger_menu_overlay(
                         .items_center()
                         .gap(px(10.0))
                         .px(px(12.0))
-                        .bg(if is_active { BG_KEY } else if item.is_featured { hex_rgba(0x22c55e, 0.06) } else { hex_rgba(0, 0.0) })
-                        .when(item.is_featured, |d| {
-                            d.overflow_hidden()
-                                .border_l_2()
-                                .border_color(hex_rgba(0x4ade80, 0.85))
-                                .child(enroll_sheen())
-                        })
+                        .bg(if is_active { BG_KEY } else { hex_rgba(0, 0.0) })
                         .children(if is_active {
                             Some(left_indicator(TEXT_PRIMARY))
                         } else {
                             None
                         })
                         .cursor_pointer()
-                        .hover(|s| s.bg(if item.is_featured { hex_rgba(0x22c55e, 0.12) } else { BG_KEY }))
+                        .hover(|s| s.bg(BG_KEY))
                         .on_click(move |_ev, _window, cx| {
                             match action {
                                 Some(MenuAction::Quit) => {
@@ -767,54 +752,5 @@ pub fn burger_menu_overlay(
                             None
                         })
                 })),
-        )
-}
-
-/// A dramatic emerald photon laser beam sweeping left to right across the
-/// "Enroll New Server" row. Composed of an atmospheric outer aura, neon gradient
-/// shoulders, and an intense high-energy photon core.
-fn enroll_sheen() -> impl IntoElement {
-    let emerald = |a: f32| hex_rgba(0x22c55e, a);
-    let neon = |a: f32| hex_rgba(0x4ade80, a);
-    let core = |a: f32| hex_rgba(0xf0fdf4, a);
-
-    div()
-        .absolute()
-        .top_0()
-        .bottom_0()
-        .w(relative(0.55))
-        .flex()
-        // Leading ambient bloom
-        .child(
-            div()
-                .h_full()
-                .w(relative(0.30))
-                .bg(linear_gradient(90.0, linear_color_stop(emerald(0.0), 0.0), linear_color_stop(emerald(0.28), 1.0)))
-        )
-        // Leading neon edge into hot core
-        .child(
-            div()
-                .h_full()
-                .w(relative(0.20))
-                .bg(linear_gradient(90.0, linear_color_stop(neon(0.32), 0.0), linear_color_stop(core(0.70), 1.0)))
-        )
-        // Hot core fading into trailing neon edge
-        .child(
-            div()
-                .h_full()
-                .w(relative(0.20))
-                .bg(linear_gradient(90.0, linear_color_stop(core(0.70), 0.0), linear_color_stop(neon(0.32), 1.0)))
-        )
-        // Trailing ambient bloom
-        .child(
-            div()
-                .h_full()
-                .w(relative(0.30))
-                .bg(linear_gradient(90.0, linear_color_stop(emerald(0.28), 0.0), linear_color_stop(emerald(0.0), 1.0)))
-        )
-        .with_animation(
-            "enroll-sheen",
-            Animation::new(std::time::Duration::from_millis(1800)).repeat().with_easing(ease_in_out),
-            |band, t| band.left(relative(t * 1.55 - 0.55)),
         )
 }

@@ -1,4 +1,4 @@
-//! Audit log screen (ERR-75): every change Crow made, on every server.
+//! Audit log page on Fleet Setup (ERR-75, ERR-156): every change Crow made, on every server.
 
 pub mod model;
 
@@ -6,7 +6,7 @@ use chrono::Local;
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 
-use crate::app::{CrowApp, Screen};
+use crate::app::CrowApp;
 use crate::theme::*;
 use model::{AuditFilter, AuditItem, KindGroup, Outcome};
 
@@ -46,22 +46,6 @@ pub fn audit_view(items: &[AuditItem], filter: &AuditFilter, app: Entity<CrowApp
                     shown.len(),
                     if shown.len() == 1 { "" } else { "s" }
                 )))
-                .child(div().flex_1())
-                .child({
-                    let app = app.clone();
-                    div()
-                        .id("btn-close-audit")
-                        .px(px(10.0))
-                        .py(px(5.0))
-                        .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .text_size(px(10.5))
-                        .text_color(TEXT_TERTIARY)
-                        .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
-                        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_screen(Screen::Fleet, cx)))
-                        .child("CLOSE")
-                }),
         )
         .child(filter_row("SERVER", filter.server_id.is_none(), servers.into_iter().map(|(id, name)| {
             let selected = filter.server_id.as_deref() == Some(id.as_str());

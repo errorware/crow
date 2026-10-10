@@ -103,8 +103,6 @@ pub enum Screen {
     Onboard,
     FleetSetup,
     VaultSetup,
-    /// Every change Crow made, on every server (ERR-75).
-    Audit,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

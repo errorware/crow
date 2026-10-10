@@ -224,7 +224,7 @@ impl CrowApp {
                 self.set_setup_page(crate::views::fleet::state::SetupPage::Policies, cx);
             }
             Target::Screen(Place::FleetMap) => self.open_topology(cx),
-            Target::Screen(Place::Audit) => self.set_screen(Screen::Audit, cx),
+            Target::Screen(Place::Audit) => self.open_audit(cx),
             Target::Screen(p @ (Place::Patching | Place::Rollouts | Place::Drift)) => {
                 use crate::views::fleet::state::SetupPage;
                 self.set_screen(Screen::FleetSetup, cx);
