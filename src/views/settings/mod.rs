@@ -233,7 +233,8 @@ pub fn settings_view(
                         .border_r_1()
                         .border_color(BORDER_PANEL)
                         .pt(px(6.0))
-                        .children(nav_items.into_iter().enumerate().map(|(idx, (icon, label, sec))| {
+                        // The components lab is a developer sandbox: debug builds only.
+                        .children(nav_items.into_iter().filter(|(_, _, sec)| cfg!(debug_assertions) || *sec != SettingsSection::Components).enumerate().map(|(idx, (icon, label, sec))| {
                             let app_nav = app.clone();
                             let is_active = sec == section;
                             let changed_in_sec = config.changed_count_for_section(sec.id_prefix());
