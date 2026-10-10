@@ -21,3 +21,7 @@ mod w04_detach_bastion;
 mod w05_users;
 #[cfg(test)]
 mod w06_hardening;
+#[cfg(test)]
+mod w07_key_rotation;
+#[cfg(test)]
+mod w08_host_keys;

@@ -38,7 +38,8 @@ pub fn isolate() -> PathBuf {
     let kh = root.join("home/.ssh/known_hosts");
     let wrappers = [
         ("ssh", format!("#!/bin/sh\ncase \"$*\" in *UserKnownHostsFile=*) exec /usr/bin/ssh -F /dev/null \"$@\";; esac\nexec /usr/bin/ssh -F /dev/null -o UserKnownHostsFile={} \"$@\"\n", kh.display())),
-        ("ssh-keygen", format!("#!/bin/sh\ncase \" $* \" in *\" -F \"*) case \" $* \" in *\" -f \"*) ;; *) exec /usr/bin/ssh-keygen -f {} \"$@\";; esac;; esac\nexec /usr/bin/ssh-keygen \"$@\"\n", kh.display())),
+        // -F (look up) and -R (remove) default to the passwd home's file.
+        ("ssh-keygen", format!("#!/bin/sh\ncase \" $* \" in *\" -F \"*|*\" -R \"*) case \" $* \" in *\" -f \"*) ;; *) exec /usr/bin/ssh-keygen -f {} \"$@\";; esac;; esac\nexec /usr/bin/ssh-keygen \"$@\"\n", kh.display())),
     ];
     for (name, script) in wrappers {
         let path = root.join("bin").join(name);
@@ -59,16 +60,42 @@ pub fn targets() -> HashMap<String, String> {
     text.lines().filter_map(|l| l.split_once('=')).map(|(k, v)| (k.trim().to_string(), v.trim().to_string())).collect()
 }
 
-/// Runs a command on a target as root with the test key, outside Crow: to
-/// set up a scenario or check what Crow did.
-pub fn ssh(addr: &str, cmd: &str) -> (bool, String) {
+/// The key the harness itself logs in with: its own once W07 set it up
+/// (Crow rotates the test key away), the test key before that.
+fn outside_key() -> PathBuf {
     let root = root().unwrap();
+    let own = root.join("outside_ed25519");
+    if own.exists() { own } else { root.join("home/.ssh/id_ed25519") }
+}
+
+/// Gives the harness a key of its own on `addrs` (authorized with the
+/// current one), so it keeps its way in when Crow rotates the test key.
+pub fn ensure_outside_key(addrs: &[&str]) {
+    let root = root().unwrap();
+    let own = root.join("outside_ed25519");
+    if !own.exists() {
+        let ok = std::process::Command::new("ssh-keygen").args(["-q", "-t", "ed25519", "-N", "", "-C", "crow-workflows-harness", "-f"]).arg(&own).status().unwrap().success();
+        assert!(ok);
+        let public = std::fs::read_to_string(own.with_extension("pub")).unwrap();
+        std::fs::rename(&own, root.join("outside_ed25519.pending")).unwrap();
+        for addr in addrs {
+            let (ok, out) = ssh(addr, &format!("grep -qxF '{0}' /root/.ssh/authorized_keys || echo '{0}' >> /root/.ssh/authorized_keys", public.trim()));
+            assert!(ok, "{addr}: {out}");
+        }
+        std::fs::rename(root.join("outside_ed25519.pending"), &own).unwrap();
+    }
+}
+
+/// Runs a command on a target as root, outside Crow: to set up a scenario
+/// or check what Crow did.
+pub fn ssh(addr: &str, cmd: &str) -> (bool, String) {
     let out = std::process::Command::new("/usr/bin/ssh")
-        .args(["-F", "/dev/null", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no", "-o", "IdentitiesOnly=yes", "-o", "ConnectTimeout=10"])
+        .args(["-F", "/dev/null", "-o", "BatchMode=yes", "-o", "StrictHostKeyChecking=no", "-o", "IdentitiesOnly=yes", "-o", "ConnectTimeout=10", "-o", "LogLevel=ERROR"])
         .arg("-o")
-        .arg(format!("UserKnownHostsFile={}", root.join("outside_known_hosts").display()))
+        // The harness doesn't pin: W08 changes host keys on purpose.
+        .arg("UserKnownHostsFile=/dev/null")
         .arg("-i")
-        .arg(root.join("home/.ssh/id_ed25519"))
+        .arg(outside_key())
         .arg(format!("root@{addr}"))
         .arg(cmd)
         .output()
@@ -78,10 +105,8 @@ pub fn ssh(addr: &str, cmd: &str) -> (bool, String) {
 
 /// Like `ssh`, but through the bastion (for servers that only let it in).
 pub fn ssh_via(bastion: &str, addr: &str, cmd: &str) -> (bool, String) {
-    let root = root().unwrap();
-    let key = root.join("home/.ssh/id_ed25519");
-    let kh = root.join("outside_known_hosts");
-    let common = format!("-F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o UserKnownHostsFile={} -i {}", kh.display(), key.display());
+    let key = outside_key();
+    let common = format!("-F /dev/null -o BatchMode=yes -o StrictHostKeyChecking=no -o IdentitiesOnly=yes -o UserKnownHostsFile=/dev/null -o LogLevel=ERROR -i {}", key.display());
     let out = std::process::Command::new("/usr/bin/ssh")
         .args(common.split(' '))
         .arg("-o")
