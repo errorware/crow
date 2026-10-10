@@ -17,9 +17,9 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
     let open: Vec<&AlertLine> = alerts.iter().filter(|a| !a.resolved && !a.acknowledged).collect();
     let crit = open.iter().any(|a| a.level == "CRIT");
     let (dot, summary) = match open.len() {
-        0 => (OK, "no open alerts".to_string()),
-        1 => (if crit { CRIT } else { WARN }, "1 open alert".to_string()),
-        n => (if crit { CRIT } else { WARN }, format!("{n} open alerts")),
+        0 => (OK, t!("status-bar-no-open-alerts").to_string()),
+        1 => (if crit { CRIT } else { WARN }, t!("status-bar-1-open-alert").to_string()),
+        n => (if crit { CRIT } else { WARN }, t!("status-bar-open-alerts", n = n)),
     };
     // Alerts live on the Fleet screen: clicking takes you there.
     let latest = open.first().map(|a| format!("{} · {} · {}", a.host, a.message, a.age));
@@ -113,7 +113,7 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
                 .border_l_1()
                 .border_color(BORDER_PANEL)
                 .text_color(TEXT_FAINT)
-                .child("agentless · ssh")
+                .child(t!("status-bar-agentless-ssh"))
                 .child(concat!("crow v", env!("CARGO_PKG_VERSION")))
                 // A newer version (ERR-88): details in About.
                 .children(update.map(|v| {
@@ -126,7 +126,7 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
                         .cursor_pointer()
                         .hover(|s| s.bg(OK_BG))
                         .on_click(move |_e, _w, cx| app_update.update(cx, |this, cx| this.open_about_modal(cx)))
-                        .child(format!("v{v} available ↗"))
+                        .child(t!("status-bar-v-available", v = v))
                 })),
         )
 }

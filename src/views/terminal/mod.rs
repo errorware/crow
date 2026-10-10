@@ -125,7 +125,7 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames
                 }))
                 .child({
                     let app = app.clone();
-                    tool("term-new-tab", TablerIcon::Plus, shortcut("⌘T", "Ctrl+Shift+T")).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.terminal_new_tab(cx)))
+                    tool("term-new-tab", TablerIcon::Plus, shortcut("⌘T", t!("terminal-ctrl-shift-t"))).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.terminal_new_tab(cx)))
                 })
                 .child(div().flex_1())
                 .child({
@@ -139,15 +139,15 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames
                 })
                 .child({
                     let app = app.clone();
-                    tool("term-split-right", TablerIcon::LayoutColumns, shortcut("⌘D", "Ctrl+Shift+D")).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.terminal_split(Axis::Row, cx)))
+                    tool("term-split-right", TablerIcon::LayoutColumns, shortcut("⌘D", t!("terminal-ctrl-shift-d"))).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.terminal_split(Axis::Row, cx)))
                 })
                 .child({
                     let app = app.clone();
-                    tool("term-split-down", TablerIcon::LayoutRows, shortcut("⌘⇧D", "Ctrl+Shift+S")).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.terminal_split(Axis::Column, cx)))
+                    tool("term-split-down", TablerIcon::LayoutRows, shortcut("⌘⇧D", t!("terminal-ctrl-shift-s"))).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.terminal_split(Axis::Column, cx)))
                 })
                 .child({
                     let app = app.clone();
-                    tool("term-close-pane", TablerIcon::X, shortcut("⌘W", "Ctrl+Shift+W")).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.terminal_close_pane(None, cx)))
+                    tool("term-close-pane", TablerIcon::X, shortcut("⌘W", t!("terminal-ctrl-shift-w"))).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.terminal_close_pane(None, cx)))
                 }),
         )
         .child(
@@ -162,7 +162,7 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames
                         .font_family(FONT_MONO)
                         .text_size(px(11.0))
                         .text_color(TEXT_DIM)
-                        .child(format!("No terminals open. {} opens one.", shortcut("⌘T", "Ctrl+Shift+T")))
+                        .child(t!("terminal-no-terminals-open-opens-one", shortcut = shortcut("⌘T", t!("terminal-ctrl-shift-t"))))
                 })),
         )
         .children(rename.map(|r| rename_panel(r, app.clone())))
@@ -197,7 +197,7 @@ fn rename_panel(r: &TabRename, app: Entity<CrowApp>) -> impl IntoElement {
             }
         })
         .child(gpui_kit::component::input::Input::new(&r.input))
-        .child(div().text_size(px(9.5)).text_color(TEXT_FAINT).child("Enter renames · Esc cancels · empty follows the shell"))
+        .child(div().text_size(px(9.5)).text_color(TEXT_FAINT).child(t!("terminal-enter-renames-esc-cancels-empty")))
 }
 
 fn node_view(node: &Node, ws: &TerminalWorkspace, frames: &mut HashMap<PaneId, Frame>, focused: Option<PaneId>, multi: bool, look: Look, app: Entity<CrowApp>) -> AnyElement {
@@ -232,8 +232,8 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, l
     let target = pane.target.clone();
     let status = match (&pane.error, pane.session.as_ref().and_then(|s| s.exited.clone())) {
         (Some(e), _) => Some((format!("{e}"), CRIT)),
-        (None, Some(why)) => Some((format!("{why} · press Enter to start a new one"), TEXT_DIM)),
-        (None, None) if pane.session.is_none() => Some(("starting…".to_string(), TEXT_DIM)),
+        (None, Some(why)) => Some((t!("terminal-press-enter-to-start-a", why = why), TEXT_DIM)),
+        (None, None) if pane.session.is_none() => Some((t!("terminal-starting").to_string(), TEXT_DIM)),
         _ => None,
     };
     let scrolled = frame.as_ref().map(|f| f.scrolled).unwrap_or(0);
@@ -303,7 +303,7 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, l
                 .font_family(FONT_MONO)
                 .text_size(px(10.0))
                 .text_color(TEXT_DIM)
-                .child(format!("↑ {scrolled} lines back · type to return"))
+                .child(t!("terminal-lines-back-type-to-return", scrolled = scrolled))
         }))
         .children(status.map(|(text, c)| {
             div()

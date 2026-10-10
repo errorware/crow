@@ -49,10 +49,10 @@ impl CrowApp {
                     .and_then(|b| guard.get_config_revision(&b.revision_id).ok().flatten())
                     .and_then(|rev| history::open_content(&rev, key.as_ref()));
                 let Some(baseline) = content else {
-                    excluded.push((srv.name.clone(), format!("{}: the baseline's content wasn't kept (hash only), so there's nothing to push", e.path)));
+                    excluded.push((srv.name.clone(), t!("app-fleet-run-the-baselines-content-wasnt-kept", path = e.path)));
                     continue;
                 };
-                steps.push(FleetRun::step(&srv.id, &srv.name, format!("push baseline {}", e.path)));
+                steps.push(FleetRun::step(&srv.id, &srv.name, t!("app-fleet-run-push-baseline", path = e.path)));
                 let (db, key, author, path) = (Arc::clone(&db), key.clone(), author.clone(), e.path.clone());
                 jobs.push(Box::new(move || {
                     let host = host_for(&srv);
@@ -61,7 +61,7 @@ impl CrowApp {
                 }));
             }
         }
-        let title = if steps.is_empty() && excluded.is_empty() { "PUSH BASELINE · nothing has drifted" } else { "PUSH BASELINE TO ALL" };
+        let title = if steps.is_empty() && excluded.is_empty() { t!("app-fleet-run-push-baseline-nothing-has-drifted") } else { t!("app-fleet-run-push-baseline-to-all") };
         self.open_fleet_run(FleetRun::new(title, "PUSH", steps, excluded), jobs, window, cx);
     }
 
@@ -87,7 +87,7 @@ impl CrowApp {
             }
         }
         let n = steps.len();
-        self.open_fleet_run(FleetRun::new(format!("ROLLING REBOOT · {n} SERVER{}", if n == 1 { "" } else { "S" }), "REBOOT", steps, excluded), jobs, window, cx);
+        self.open_fleet_run(FleetRun::new(t!("app-fleet-run-rolling-reboot", n = n), "REBOOT", steps, excluded), jobs, window, cx);
     }
 
     /// How `srv` would be rebooted, and the work: reboot, wait for a fresh
@@ -100,10 +100,10 @@ impl CrowApp {
         const POLL: std::time::Duration = std::time::Duration::from_secs(5);
         let kind = transport_kind(srv);
         if kind == TransportKind::Local {
-            return Err("the machine Crow runs on: reboot it yourself".to_string());
+            return Err(t!("app-fleet-run-the-machine-crow-runs-on").to_string());
         }
         if !self.fleet.health(srv).is_ok() {
-            return Err("not reachable right now, so Crow couldn't watch it come back".to_string());
+            return Err(t!("app-fleet-run-not-reachable-right-now-so").to_string());
         }
         // Through the provider when it's linked to one that can power it.
         let provider = self.providers.accounts.iter().find(|a| a.id == srv.provider_account && !srv.provider_instance.is_empty()).cloned().filter(|a| {
@@ -117,8 +117,8 @@ impl CrowApp {
             settings.map(|s| (a, s))
         });
         let how = match (&provider, kind) {
-            (Some((a, _)), _) => format!("reboot via {}", a.label),
-            (None, TransportKind::Container) => "restart the lab container".to_string(),
+            (Some((a, _)), _) => t!("app-fleet-run-reboot-via", label = a.label),
+            (None, TransportKind::Container) => t!("app-fleet-run-restart-the-lab-container").to_string(),
             _ => "systemctl reboot over SSH".to_string(),
         };
         let srv = srv.clone();
@@ -157,13 +157,13 @@ impl CrowApp {
         let (mut steps, mut jobs, mut excluded): (Vec<_>, Vec<RunJob>, Vec<_>) = (Vec::new(), Vec::new(), Vec::new());
         for srv in self.fleet.servers.clone() {
             match transport_kind(&srv) {
-                TransportKind::Local => excluded.push((srv.name.clone(), "the machine Crow runs on".to_string())),
-                TransportKind::Container => excluded.push((srv.name.clone(), "a lab container, reached without SSH".to_string())),
+                TransportKind::Local => excluded.push((srv.name.clone(), t!("app-fleet-run-the-machine-crow-runs-on-2").to_string())),
+                TransportKind::Container => excluded.push((srv.name.clone(), t!("app-fleet-run-a-lab-container-reached-without").to_string())),
                 TransportKind::Ssh if !self.fleet.health(&srv).is_ok() => {
-                    excluded.push((srv.name.clone(), "not reachable right now: the new keys are fetched over the current connection".to_string()))
+                    excluded.push((srv.name.clone(), t!("app-fleet-run-not-reachable-right-now-the").to_string()))
                 }
                 TransportKind::Ssh => {
-                    let what = "new host keys, re-pin, verify a fresh login";
+                    let what = t!("app-fleet-run-new-host-keys-re-pin");
                     steps.push(FleetRun::step(&srv.id, &srv.name, what));
                     let db = self.vault.db();
                     jobs.push(Box::new(move || {
@@ -180,7 +180,7 @@ impl CrowApp {
                                 }
                                 // The held connection was made with the old key.
                                 crate::host::Host::close_connection(&crate::host::SshHost::for_server(&srv));
-                                Ok(crate::views::fleet::run::StepOutcome::Done(format!("pinned {} (was {})", r.keys.join(", "), if before.is_empty() { "not pinned" } else { &before })))
+                                Ok(crate::views::fleet::run::StepOutcome::Done(t!("app-fleet-run-pinned-was", r = r.keys.join(", "), before = if before.is_empty() { t!("app-fleet-run-not-pinned") } else { &before })))
                             }
                             Err(e) => Err(e),
                         };
@@ -192,9 +192,9 @@ impl CrowApp {
         }
         let n = steps.len();
         if n > 0 {
-            excluded.push(("other machines".into(), "anyone else who SSHes to these servers will see a changed host key and must re-verify it".into()));
+            excluded.push((t!("app-fleet-run-other-machines").into(), t!("app-fleet-run-anyone-else-who-sshes-to").into()));
         }
-        self.open_fleet_run(FleetRun::new(format!("ROTATE HOST KEYS · {n} SERVER{}", if n == 1 { "" } else { "S" }), "ROTATE", steps, excluded), jobs, window, cx);
+        self.open_fleet_run(FleetRun::new(t!("app-fleet-run-rotate-host-keys", n = n), "ROTATE", steps, excluded), jobs, window, cx);
     }
 
     /// Plans ending every other SSH login on every reachable SSH server,
@@ -204,11 +204,11 @@ impl CrowApp {
         let (mut steps, mut jobs, mut excluded): (Vec<_>, Vec<RunJob>, Vec<_>) = (Vec::new(), Vec::new(), Vec::new());
         for srv in self.fleet.servers.clone() {
             match transport_kind(&srv) {
-                TransportKind::Local => excluded.push((srv.name.clone(), "the machine Crow runs on (your own logins)".to_string())),
-                TransportKind::Container => excluded.push((srv.name.clone(), "a lab container, reached without SSH".to_string())),
-                TransportKind::Ssh if !self.fleet.health(&srv).is_ok() => excluded.push((srv.name.clone(), "not reachable right now".to_string())),
+                TransportKind::Local => excluded.push((srv.name.clone(), t!("app-fleet-run-the-machine-crow-runs-on-3").to_string())),
+                TransportKind::Container => excluded.push((srv.name.clone(), t!("app-fleet-run-a-lab-container-reached-without").to_string())),
+                TransportKind::Ssh if !self.fleet.health(&srv).is_ok() => excluded.push((srv.name.clone(), t!("app-fleet-run-not-reachable-right-now").to_string())),
                 TransportKind::Ssh => {
-                    let what = "end every SSH login but Crow's";
+                    let what = t!("app-fleet-run-end-every-ssh-login-but");
                     steps.push(FleetRun::step(&srv.id, &srv.name, what));
                     let db = self.vault.db();
                     jobs.push(Box::new(move || {
@@ -222,10 +222,10 @@ impl CrowApp {
             }
         }
         if !steps.is_empty() {
-            excluded.push(("keys".into(), "no key is removed: anyone whose key still works can log back in (rotate or remove keys for that)".into()));
+            excluded.push(("keys".into(), t!("app-fleet-run-no-key-is-removed-anyone").into()));
         }
         let n = steps.len();
-        self.open_fleet_run(FleetRun::new(format!("REVOKE SESSIONS · {n} SERVER{}", if n == 1 { "" } else { "S" }), "REVOKE", steps, excluded), jobs, window, cx);
+        self.open_fleet_run(FleetRun::new(t!("app-fleet-run-revoke-sessions", n = n), "REVOKE", steps, excluded), jobs, window, cx);
     }
 
     /// Plans switching every server attached to `key_id` (that doesn't use
@@ -244,10 +244,10 @@ impl CrowApp {
             .cloned()
             .collect();
         if key.private_key_path.is_none() {
-            excluded.push((key.name.clone(), "Crow has only the public half of this key, so it can't log in with it".into()));
+            excluded.push((key.name.clone(), t!("app-fleet-run-crow-has-only-the-public").into()));
         }
         let targets = if key.private_key_path.is_some() { targets } else { Vec::new() };
-        let title = format!("SWITCH TO KEY {}", key.name);
+        let title = t!("app-fleet-run-switch-to-key", name = key.name);
         self.plan_key_switch(title, key, targets, false, excluded, window, cx);
     }
 
@@ -258,7 +258,7 @@ impl CrowApp {
         let Some(old) = self.keys.enrolled.iter().find(|k| k.id == key_id).cloned() else { return };
         let targets: Vec<_> = self.fleet.servers.iter().filter(|s| s.key_id.as_deref() == Some(key_id)).cloned().collect();
         if targets.is_empty() {
-            self.keys.toast = Some(format!("No server logs in with {}; nothing to rotate.", old.name));
+            self.keys.toast = Some(t!("app-fleet-run-no-server-logs-in-with", name = old.name));
             cx.notify();
             return;
         }
@@ -280,7 +280,7 @@ impl CrowApp {
         let new_key = match crate::keys::generate_keypair(&name, crate::keys::KeyAlgorithm::Ed25519, Some(&comment), &old.group_id, &dir, None) {
             Ok((record, ..)) => record,
             Err(e) => {
-                self.keys.toast = Some(format!("Couldn't generate the new key: {e}"));
+                self.keys.toast = Some(t!("app-fleet-run-couldnt-generate-the-new-key", e = e));
                 cx.notify();
                 return;
             }
@@ -291,8 +291,8 @@ impl CrowApp {
             let _ = db.upsert_ssh_key(&record);
         }
         self.refresh_keys(cx);
-        let excluded = vec![(new_key.name.clone(), format!("new key written to {}; if you cancel it stays there, unused", dir.display()))];
-        let title = format!("ROTATE {} → {}", old.name, new_key.name);
+        let excluded = vec![(new_key.name.clone(), t!("app-fleet-run-new-key-written-to-if", dir = dir.display()))];
+        let title = t!("app-fleet-run-rotate", name = old.name, name2 = new_key.name);
         self.plan_key_switch(title, new_key, targets, true, excluded, window, cx);
     }
 
@@ -307,7 +307,7 @@ impl CrowApp {
             } else {
                 None
             };
-            let what = if revoke_old { "install new key, verify, switch, remove old key" } else { "install key, verify, switch" };
+            let what = if revoke_old { t!("app-fleet-run-install-new-key-verify-switch") } else { t!("app-fleet-run-install-key-verify-switch") };
             steps.push(FleetRun::step(&srv.id, &srv.name, what));
             let (db, key) = (self.vault.db(), key.clone());
             jobs.push(Box::new(move || {
@@ -320,7 +320,7 @@ impl CrowApp {
                         }
                         // The held connection logged in with the old key.
                         crate::host::Host::close_connection(&crate::host::SshHost::for_server(&srv));
-                        Ok(crate::views::fleet::run::StepOutcome::Done(if s.removed_old { "switched; old key removed".into() } else { "switched".into() }))
+                        Ok(crate::views::fleet::run::StepOutcome::Done(if s.removed_old { t!("app-fleet-run-switched-old-key-removed").into() } else { "switched".into() }))
                     }
                     Err(e) => Err(e),
                 };
@@ -372,7 +372,7 @@ impl CrowApp {
         }
         let typed = runner.input.read(cx).value().trim().to_string();
         if typed != runner.run.keyword {
-            runner.run.error = Some(format!("Type {} exactly to start.", runner.run.keyword));
+            runner.run.error = Some(t!("app-fleet-run-type-exactly-to-start", keyword = runner.run.keyword));
             cx.notify();
             return;
         }
@@ -381,7 +381,7 @@ impl CrowApp {
             match self.check_approval(cx) {
                 Ok(by) => {
                     self.team.clear_approval = true;
-                    self.team_notice(true, format!("Approved by {by}."), cx);
+                    self.team_notice(true, t!("app-fleet-run-approved-by", by = by), cx);
                 }
                 Err(e) => {
                     self.team.clear_approval = true;
@@ -459,7 +459,7 @@ impl CrowApp {
                     if r.run.phase != RunPhase::Finished {
                         r.run.finish();
                     }
-                    format!("crow: {} — {}", r.run.title.to_lowercase(), r.run.summary())
+                    t!("app-fleet-run-crow", title = r.run.title.to_lowercase(), summary = r.run.summary())
                 });
                 if let Some(m) = marker {
                     this.push_journal_action_marker(m);

@@ -41,8 +41,8 @@ pub fn stance_badge(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
         .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // not a window drag
         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.toggle_stance_panel(cx)))
         .child(div().text_color(color).child(crate::components::icons::inherited_icon(icon, px(12.0))))
-        .child(div().font_weight(FontWeight::BOLD).text_color(color).child("2FA"))
-        .children((weak > 0).then(|| div().font_weight(FontWeight::BOLD).text_color(CRIT).child(format!("· {weak} issue{}", if weak == 1 { "" } else { "s" }))))
+        .child(div().font_weight(FontWeight::BOLD).text_color(color).child(t!("stance-2fa")))
+        .children((weak > 0).then(|| div().font_weight(FontWeight::BOLD).text_color(CRIT).child(t!("stance-text", weak = weak))))
 }
 
 fn list(title: &'static str, color: Rgba, items: impl IntoIterator<Item = String>) -> impl IntoElement {
@@ -115,17 +115,17 @@ pub fn stance_panel(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
                         .flex()
                         .items_baseline()
                         .gap(px(10.0))
-                        .child(div().text_size(px(9.5)).text_color(TEXT_FAINT).child("SECURITY STANCE"))
+                        .child(div().text_size(px(9.5)).text_color(TEXT_FAINT).child(t!("stance-security-stance")))
                         .child(div().text_size(px(15.0)).font_weight(FontWeight::BOLD).text_color(color).child(stance.label()))
                         .child(div().text_color(TEXT_DIMMER).child(match stance {
-                            Stance::Open => "no vault password · key held by your OS keyring",
-                            Stance::Locked => "vault password + 2FA · key locked by your password",
+                            Stance::Open => t!("stance-no-vault-password-key-held"),
+                            Stance::Locked => t!("stance-vault-password-2fa-key-locked"),
                         })),
                 )
-                .children((!report.findings.is_empty()).then(|| list("WEAKENING IT RIGHT NOW", CRIT, report.findings.clone())))
-                .child(list("WHAT IT PROTECTS", OK, stance.protects().iter().map(|s| s.to_string())))
-                .child(list("WHAT YOU'RE EXPOSED TO", WARN, stance.exposed().iter().map(|s| s.to_string())))
-                .child(list("WHAT IT COSTS", TEXT_DIMMER, stance.costs().iter().map(|s| s.to_string())))
+                .children((!report.findings.is_empty()).then(|| list(t!("stance-weakening-it-right-now"), CRIT, report.findings.clone())))
+                .child(list(t!("stance-what-it-protects"), OK, stance.protects().iter().map(|s| s.to_string())))
+                .child(list(t!("stance-what-youre-exposed-to"), WARN, stance.exposed().iter().map(|s| s.to_string())))
+                .child(list(t!("stance-what-it-costs"), TEXT_DIMMER, stance.costs().iter().map(|s| s.to_string())))
                 .child(
                     div()
                         .pt(px(10.0))
@@ -134,27 +134,23 @@ pub fn stance_panel(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
                         .flex()
                         .flex_col()
                         .gap(px(8.0))
-                        .child(div().min_w(px(0.0)).text_color(TEXT_MUTED).line_height(px(15.0)).child(format!(
-                            "The other stance, {}: {}",
-                            other.label(),
-                            match other {
-                                Stance::Locked => "nothing is usable without your password and a 2FA code, at the price of unlocking every time and losing the secrets if you lose either.",
-                                Stance::Open => "no unlocking, at the price of anything running as you being able to read every secret.",
-                            }
-                        )))
+                        .child(div().min_w(px(0.0)).text_color(TEXT_MUTED).line_height(px(15.0)).child(t!("stance-the-other-stance", label = other.label(), other = match other {
+                                Stance::Locked => t!("stance-nothing-is-usable-without-your"),
+                                Stance::Open => t!("stance-no-unlocking-at-the-price"),
+                            })))
                         .child(
                             div()
                                 .flex()
                                 .gap(px(6.0))
                                 .child(match stance {
-                                    Stance::Open => button("stance-switch", "SWITCH TO LOCKED →", OK, move |cx| {
+                                    Stance::Open => button("stance-switch", t!("stance-switch-to-locked"), OK, move |cx| {
                                         a_switch.update(cx, |this, cx| {
                                             this.stance_panel_open = false;
                                             this.set_screen(Screen::VaultSetup, cx);
                                         })
                                     })
                                     .into_any_element(),
-                                    Stance::Locked => button("stance-lock", "LOCK NOW", OK, move |cx| {
+                                    Stance::Locked => button("stance-lock", t!("stance-lock-now"), OK, move |cx| {
                                         a_switch.update(cx, |this, cx| {
                                             this.stance_panel_open = false;
                                             this.lock(cx);
@@ -162,7 +158,7 @@ pub fn stance_panel(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
                                     })
                                     .into_any_element(),
                                 })
-                                .child(button("stance-settings", "VAULT & SECURITY SETTINGS", TEXT_SECONDARY, move |cx| {
+                                .child(button("stance-settings", t!("stance-vault-security-settings"), TEXT_SECONDARY, move |cx| {
                                     a_settings.update(cx, |this, cx| {
                                         this.stance_panel_open = false;
                                         this.screen = Screen::Settings;
@@ -192,13 +188,13 @@ fn stance_card(stance: Stance, action: AnyElement, extra: Option<AnyElement>) ->
                 .gap(px(8.0))
                 .child(div().text_size(px(14.0)).font_weight(FontWeight::BOLD).text_color(color).child(stance.label()))
                 .child(div().text_color(TEXT_DIMMER).child(match stance {
-                    Stance::Open => "no password",
-                    Stance::Locked => "password + 2FA",
+                    Stance::Open => t!("stance-no-password"),
+                    Stance::Locked => t!("stance-password-2fa"),
                 })),
         )
-        .child(list("PROTECTS", OK, stance.protects().iter().map(|s| s.to_string())))
-        .child(list("EXPOSED TO", WARN, stance.exposed().iter().map(|s| s.to_string())))
-        .child(list("COSTS", TEXT_DIMMER, stance.costs().iter().map(|s| s.to_string())))
+        .child(list(t!("stance-protects"), OK, stance.protects().iter().map(|s| s.to_string())))
+        .child(list(t!("stance-exposed-to"), WARN, stance.exposed().iter().map(|s| s.to_string())))
+        .child(list(t!("stance-costs"), TEXT_DIMMER, stance.costs().iter().map(|s| s.to_string())))
         .child(div().flex_1())
         .children(extra)
         .child(action)
@@ -219,7 +215,7 @@ pub fn stance_choice_modal(acknowledged: bool, app: Entity<CrowApp>) -> impl Int
         .when(acknowledged, |d| {
             d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _window, cx| a_open.update(cx, |this, cx| this.choose_open(cx)))
         })
-        .child("STAY OPEN AND SAVE")
+        .child(t!("stance-stay-open-and-save"))
         .into_any_element();
     let tick = div()
         .id("stance-ack")
@@ -233,9 +229,9 @@ pub fn stance_choice_modal(acknowledged: bool, app: Entity<CrowApp>) -> impl Int
             })
         })
         .child(div().flex_none().text_color(if acknowledged { WARN } else { TEXT_DIMMER }).child(if acknowledged { "[x]" } else { "[ ]" }))
-        .child(div().flex_1().line_height(px(15.0)).text_color(TEXT_SECONDARY).child("I understand: while I'm logged in, anything running as me can read these secrets."))
+        .child(div().flex_1().line_height(px(15.0)).text_color(TEXT_SECONDARY).child(t!("stance-i-understand-while-im-logged")))
         .into_any_element();
-    let locked_action = button("stance-choose-locked", "GO LOCKED: SET A PASSWORD →", OK, move |cx| a_locked.update(cx, |this, cx| this.choose_locked(cx))).into_any_element();
+    let locked_action = button("stance-choose-locked", t!("stance-go-locked-set-a-password"), OK, move |cx| a_locked.update(cx, |this, cx| this.choose_locked(cx))).into_any_element();
 
     div()
         .id("stance-choice-scrim")
@@ -261,14 +257,14 @@ pub fn stance_choice_modal(acknowledged: bool, app: Entity<CrowApp>) -> impl Int
                 .font_family(FONT_MONO)
                 .text_size(px(10.5))
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
-                .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child("Where should this secret stand?"))
-                .child(div().line_height(px(15.0)).text_color(TEXT_MUTED).child("Crow is about to store its first secret. Both stances encrypt it; they differ in who can get at it and what you give up. Pick one on purpose. You can switch to Locked later from the stance badge."))
+                .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("stance-where-should-this-secret-stand")))
+                .child(div().line_height(px(15.0)).text_color(TEXT_MUTED).child(t!("stance-crow-is-about-to-store")))
                 .child(div().flex().gap(px(12.0)).child(stance_card(Stance::Open, open_action, Some(tick))).child(stance_card(Stance::Locked, locked_action, None)))
                 .child(
                     div()
                         .flex()
                         .justify_end()
-                        .child(button("stance-choice-cancel", "CANCEL (DON'T SAVE)", TEXT_SECONDARY, move |cx| a_cancel.update(cx, |this, cx| this.cancel_stance_choice(cx)))),
+                        .child(button("stance-choice-cancel", t!("stance-cancel-dont-save"), TEXT_SECONDARY, move |cx| a_cancel.update(cx, |this, cx| this.cancel_stance_choice(cx)))),
                 ),
         )
 }

@@ -59,7 +59,7 @@ impl CrowApp {
         if transport_kind(&srv) != TransportKind::Ssh {
             return;
         }
-        self.fleet.notice = Some(format!("Reconnecting to {}…", srv.name));
+        self.fleet.notice = Some(t!("app-server-facts-reconnecting-to", name = srv.name));
         cx.notify();
         cx.spawn(async move |entity, cx| {
             let target = srv.clone();
@@ -72,8 +72,8 @@ impl CrowApp {
                 .await;
             let _ = entity.update(cx, |this, cx| {
                 this.fleet.notice = Some(match result {
-                    Ok(_) => format!("{} is connected again", srv.name),
-                    Err(e) => format!("Couldn't reconnect to {}: {e}", srv.name),
+                    Ok(_) => t!("app-server-facts-is-connected-again", name = srv.name),
+                    Err(e) => t!("app-server-facts-couldnt-reconnect-to", name = srv.name, e = e),
                 });
                 // Read the pages again, unless there are edits to keep.
                 if !this.configs.has_unsaved_changes() {

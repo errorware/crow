@@ -39,8 +39,8 @@ pub fn fleet_view_tabs(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEle
         .border_b_1()
         .border_color(BORDER_PANEL)
         .font_family(FONT_MONO)
-        .child(tab_chip("fleet-tab-active", &format!("ACTIVE FLEET ({active_n})"), page == FleetPage::Active, set(FleetPage::Active)))
-        .child(tab_chip("fleet-tab-archived", &format!("ARCHIVED ({archived_n})"), page == FleetPage::Archived, set(FleetPage::Archived)))
+        .child(tab_chip("fleet-tab-active", &t!("fleet-archived-active-fleet", active_n = active_n), page == FleetPage::Active, set(FleetPage::Active)))
+        .child(tab_chip("fleet-tab-archived", &t!("fleet-archived-archived", archived_n = archived_n), page == FleetPage::Archived, set(FleetPage::Archived)))
         .child(danger_chip(page == FleetPage::Danger, set(FleetPage::Danger)))
         .child(div().flex_1())
         .children(fleet.notice.as_ref().map(|notice| {
@@ -87,7 +87,7 @@ fn danger_chip(is_on: bool, on_click: impl Fn(&mut App) + 'static) -> impl IntoE
         .hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT))
         .on_click(move |_ev, _window, cx| on_click(cx))
         .child(tabler_icon(TablerIcon::AlertTriangle).size(px(11.0)).text_color(if is_on { CRIT } else { CRIT_INK_DIM }))
-        .child("DANGER ZONE")
+        .child(t!("fleet-archived-danger-zone"))
 }
 
 /// The archived servers, their purge countdown, and recent purges.
@@ -133,12 +133,12 @@ fn archived_header() -> impl IntoElement {
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(TEXT_DIMMER)
         .child(div().w(px(3.0)).flex_none().child(""))
-        .child(div().flex_grow(3.0).flex_basis(px(0.0)).min_w(px(140.0)).child("HOST"))
-        .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(110.0)).child("ADDRESS"))
-        .child(div().w(px(64.0)).flex_none().child("ENV"))
-        .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(90.0)).child("ROLE"))
-        .child(div().w(px(96.0)).flex_none().child("ARCHIVED"))
-        .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(150.0)).child("STORED DATA"))
+        .child(div().flex_grow(3.0).flex_basis(px(0.0)).min_w(px(140.0)).child(t!("fleet-archived-host")))
+        .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(110.0)).child(t!("fleet-archived-address")))
+        .child(div().w(px(64.0)).flex_none().child(t!("fleet-archived-env")))
+        .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(90.0)).child(t!("fleet-archived-role")))
+        .child(div().w(px(96.0)).flex_none().child(t!("fleet-archived-archived-2")))
+        .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(150.0)).child(t!("fleet-archived-stored-data")))
         .child(div().w(px(90.0)).flex_none().text_align(TextAlign::Right).child(""))
 }
 
@@ -187,7 +187,7 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
                         .text_color(TEXT_DIM)
                         .text_size(px(8.5))
                         .font_weight(FontWeight::BOLD)
-                        .child("ARCHIVED"),
+                        .child(t!("fleet-archived-archived-2")),
                 ),
         )
         .child(
@@ -265,7 +265,7 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
                             app_restore.update(cx, |this, cx| this.restore_archived_server(&id, cx));
                         })
                         .child(tabler_icon(TablerIcon::Refresh).size(px(10.0)).text_color(OK))
-                        .child("RESTORE"),
+                        .child(t!("fleet-archived-restore")),
                 ),
         )
 }
@@ -297,14 +297,14 @@ fn empty_archived_state() -> AnyElement {
                 .font_weight(FontWeight::BOLD)
                 .text_size(px(13.0))
                 .text_color(TEXT_MAX)
-                .child("NO ARCHIVED SERVERS"),
+                .child(t!("fleet-archived-no-archived-servers")),
         )
         .child(
             div()
                 .font_family(FONT_MONO)
                 .text_size(px(11.0))
                 .text_color(TEXT_DIM)
-                .child("Archiving takes a server out of the fleet without deleting it. Nothing is ever deleted outright."),
+                .child(t!("fleet-archived-archiving-takes-a-server-out")),
         )
         .into_any_element()
 }
@@ -332,8 +332,8 @@ fn purge_log(audit: &[ChangeRecord]) -> impl IntoElement {
                 .border_color(BORDER_PANEL)
                 .font_family(FONT_MONO)
                 .text_size(px(10.0))
-                .child(div().font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child("PURGE LOG"))
-                .child(div().text_color(TEXT_DIMMER).child(format!("{} record(s) · Crow's own audit trail", audit.len()))),
+                .child(div().font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("fleet-archived-purge-log")))
+                .child(div().text_color(TEXT_DIMMER).child(t!("fleet-archived-record-s-crows-own-audit", count = audit.len()))),
         )
         .child(
             div()
@@ -349,7 +349,7 @@ fn purge_log(audit: &[ChangeRecord]) -> impl IntoElement {
                         .font_family(FONT_MONO)
                         .text_size(px(10.5))
                         .text_color(TEXT_DIMMER)
-                        .child("Nothing has been purged yet.")
+                        .child(t!("fleet-archived-nothing-has-been-purged-yet"))
                         .into_any_element()]
                 } else {
                     audit
@@ -413,7 +413,7 @@ pub fn archive_confirm_overlay(srv: &ServerRecord, purge_due: &str, app: Entity<
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_MAX)
                         .child(tabler_icon(TablerIcon::AlertTriangle).size(px(13.0)).text_color(WARN))
-                        .child(format!("ARCHIVE {}", srv.name.to_uppercase())),
+                        .child(t!("fleet-archived-archive", name = srv.name.to_uppercase())),
                 )
                 .child(
                     div()
@@ -424,16 +424,16 @@ pub fn archive_confirm_overlay(srv: &ServerRecord, purge_due: &str, app: Entity<
                         .font_family(FONT_MONO)
                         .text_size(px(11.0))
                         .text_color(TEXT_SECONDARY)
-                        .child(format!("{} leaves the active fleet. Crow stops polling it and closes its SSH connection.", srv.name))
+                        .child(t!("fleet-archived-leaves-the-active-fleet-crow", name = srv.name))
                         .child(
                             div()
                                 .text_color(WARN)
-                                .child(format!("Its stored data — change history and key attachments — is deleted on {purge_due}.")),
+                                .child(t!("fleet-archived-its-stored-data-change-history", purge_due = purge_due)),
                         )
                         .child(
                             div()
                                 .text_color(TEXT_DIM)
-                                .child("The server record itself is never deleted: address, port, user, key, jump host, environment, role, group, tags, host-key fingerprint and OS facts all stay. It can be restored from the Archived tab until the purge runs, and after that it returns without its history."),
+                                .child(t!("fleet-archived-the-server-record-itself-is")),
                         ),
                 )
                 .child(
@@ -463,7 +463,7 @@ pub fn archive_confirm_overlay(srv: &ServerRecord, purge_due: &str, app: Entity<
                                         cx.notify();
                                     });
                                 })
-                                .child("CANCEL"),
+                                .child(t!("fleet-archived-cancel")),
                         )
                         .child(
                             div()
@@ -482,7 +482,7 @@ pub fn archive_confirm_overlay(srv: &ServerRecord, purge_due: &str, app: Entity<
                                     cx.stop_propagation();
                                     app_confirm.update(cx, |this, cx| this.archive_server(&id, cx));
                                 })
-                                .child("ARCHIVE SERVER"),
+                                .child(t!("fleet-archived-archive-server")),
                         ),
                 ),
         )

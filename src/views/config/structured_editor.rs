@@ -45,11 +45,11 @@ pub fn risk_color(risk: Option<&RiskLevel>) -> Rgba {
 
 pub(crate) fn risk_label(risk: Option<&RiskLevel>) -> Option<&'static str> {
     match risk? {
-        RiskLevel::Recommended => Some("RECOMMENDED"),
-        RiskLevel::Caution => Some("CAUTION"),
-        RiskLevel::Weak => Some("WEAK"),
-        RiskLevel::NeverOnProd => Some("NEVER ON PROD"),
-        RiskLevel::Deny => Some("DENY"),
+        RiskLevel::Recommended => Some(t!("config-structured-editor-recommended")),
+        RiskLevel::Caution => Some(t!("config-structured-editor-caution")),
+        RiskLevel::Weak => Some(t!("config-structured-editor-weak")),
+        RiskLevel::NeverOnProd => Some(t!("config-structured-editor-never-on-prod")),
+        RiskLevel::Deny => Some(t!("config-structured-editor-deny")),
         RiskLevel::Other(_) => None,
     }
 }
@@ -121,7 +121,7 @@ pub fn structured_editor(
             .iter()
             .map(|row| {
                 let field = |n: &str| row.get_field(n).and_then(|f| f.value.as_str()).unwrap_or_default();
-                (field("kind") == "rule").then(|| crow_config_schemas::sudoers_rule_risk(field("rule"))).flatten().map(|risk| (format!("lets {} run {risk}", field("who")), true))
+                (field("kind") == "rule").then(|| crow_config_schemas::sudoers_rule_risk(field("rule"))).flatten().map(|risk| (t!("config-structured-editor-lets-run", field = field("who"), risk = risk), true))
             })
             .collect()
     } else if format == StructuredFormat::Fstab {
@@ -163,7 +163,7 @@ pub fn structured_editor(
                     .px(px(5.0))
                     .py(px(1.5))
                     .rounded_sm()
-                    .child(format!("CROW UI · {} · {}", ir.plugin_name, ir.shape.kind)),
+                    .child(t!("config-structured-editor-crow-ui", plugin_name = ir.plugin_name, kind = ir.shape.kind)),
             )
             .child(
                 div()
@@ -175,27 +175,27 @@ pub fn structured_editor(
                     .px(px(5.0))
                     .py(px(1.5))
                     .rounded_sm()
-                    .child(if is_modified { format!("EDITED (+{} -{})", add_count, del_count) } else { format!("v{} (BASELINE)", state.active_revision) }),
+                    .child(if is_modified { t!("config-structured-editor-edited", add_count = add_count, del_count = del_count) } else { t!("config-structured-editor-v-baseline", active_revision = state.active_revision) }),
             )
             .child(div().flex_1())
-            .child(small_button("btn-structured-text-view", "TEXT VIEW", TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
+            .child(small_button("btn-structured-text-view", t!("config-structured-editor-text-view"), TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
                 let f = f_text.clone();
                 app_text.update(cx, |this, cx| {
                     this.configs.text_mode.insert(f);
                     cx.notify();
                 });
             }))
-            .child(small_button("btn-structured-history", "HISTORY", TEXT_TERTIARY).on_click(move |_ev, _window, cx| {
+            .child(small_button("btn-structured-history", t!("config-structured-editor-history"), TEXT_TERTIARY).on_click(move |_ev, _window, cx| {
                 app_hist.update(cx, |this, cx| this.toggle_config_history(cx));
             }))
             .children(is_modified.then(|| {
-                small_button("btn-structured-revert", "REVERT", CRIT).on_click(move |_ev, _window, cx| {
+                small_button("btn-structured-revert", t!("config-structured-editor-revert"), CRIT).on_click(move |_ev, _window, cx| {
                     let f = f_revert.clone();
                     app_revert.update(cx, |this, cx| this.revert_managed_config(&f, cx));
                 })
             }))
             .children(is_modified.then(|| {
-                small_button("btn-structured-stage", "STAGE VERSION", OK).on_click(move |_ev, _window, cx| {
+                small_button("btn-structured-stage", t!("config-structured-editor-stage-version"), OK).on_click(move |_ev, _window, cx| {
                     let f = f_stage.clone();
                     app_stage.update(cx, |this, cx| this.stage_config_version(&f, "Updated via structured editor", cx));
                 })
@@ -208,20 +208,20 @@ pub fn structured_editor(
         .flex_col()
         .children(ir.shape.order_sensitive.then(|| {
             notice(
-                format!("ORDER MATTERS · {}", ir.shape.order_note.clone().unwrap_or_else(|| "rows are evaluated top to bottom".into())),
+                t!("config-structured-editor-order-matters", ir = ir.shape.order_note.clone().unwrap_or_else(|| t!("config-structured-editor-rows-are-evaluated-top-to").into())),
                 TEXT_TERTIARY,
                 0x8ab4ff,
             )
         }))
         .children((not_running > 0).then(|| {
-            let what = if not_running == 1 { "1 value here isn't".to_string() } else { format!("{not_running} values here aren't") };
-            notice(format!("NOT RUNNING YET · {what} what the kernel runs now; they apply at boot or with sysctl --system"), WARN, 0xf59e0b)
+            let what = if not_running == 1 { t!("config-structured-editor-1-value-here-isnt").to_string() } else { t!("config-structured-editor-values-here-arent", not_running = not_running) };
+            notice(t!("config-structured-editor-not-running-yet-what-the", what = what), WARN, 0xf59e0b)
         }))
         .children((format == StructuredFormat::Resolv).then(|| crate::config::plugins::resolv_manager(&state.current_content)).flatten().map(|m| {
-            notice(format!("MANAGED BY {} · it rewrites this file, so edits here get overwritten; change the DNS settings in {m} instead", m.to_uppercase()), WARN, 0xf59e0b)
+            notice(t!("config-structured-editor-managed-by-it-rewrites-this", m = m.to_uppercase(), m2 = m), WARN, 0xf59e0b)
         }))
-        .children(state.write_blocked.as_ref().map(|r| notice(format!("READ-ONLY · {r}"), WARN, 0xf59e0b)))
-        .children(configs.edit_error.as_ref().map(|e| notice(format!("EDIT REJECTED · {e}"), CRIT, 0xef4444)));
+        .children(state.write_blocked.as_ref().map(|r| notice(t!("config-structured-editor-read-only", r = r), WARN, 0xf59e0b)))
+        .children(configs.edit_error.as_ref().map(|e| notice(t!("config-structured-editor-edit-rejected", e = e), CRIT, 0xef4444)));
 
     let rows = ir.rows.iter().enumerate().map(|(idx, row)| {
         let scope = scope_of(&row.row_id);
@@ -279,7 +279,7 @@ pub fn structured_editor(
             .text_size(px(9.0))
             .font_weight(FontWeight::BOLD)
             .text_color(TEXT_FAINT)
-            .child(div().w(px(LINE_W)).flex_none().child("LINE"))
+            .child(div().w(px(LINE_W)).flex_none().child(t!("config-structured-editor-line")))
             .child(div().flex_1().min_w(px(0.0)).flex().items_center().gap(px(TABLE_GAP)).children(cols.iter().map(|c| column_cell(c).px(px(4.0)).truncate().child(c.name.to_uppercase()))))
     });
 
@@ -295,7 +295,7 @@ pub fn structured_editor(
         div()
             .flex()
             .flex_col()
-            .child(div().flex().px(px(14.0)).py(px(8.0)).child(small_button("btn-flat-add", "+ ADD DIRECTIVE", OK).on_click(move |_ev, window, cx| {
+            .child(div().flex().px(px(14.0)).py(px(8.0)).child(small_button("btn-flat-add", t!("config-structured-editor-add-directive"), OK).on_click(move |_ev, window, cx| {
                 let f = f.clone();
                 app_open.update(cx, |this, cx| this.begin_section_add(&f, "", window, cx));
             })))
@@ -340,7 +340,7 @@ pub fn structured_editor(
                                 .font_family(FONT_MONO)
                                 .text_size(px(11.0))
                                 .text_color(TEXT_FAINT)
-                                .child("No entries — only comments or blank lines.")
+                                .child(t!("config-structured-editor-no-entries-only-comments-or"))
                         })),
                 ),
         )
@@ -548,7 +548,7 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
                     crate::components::icon_button::icon_button(ElementId::NamedInteger("row-up".into(), index as u64), TablerIcon::ChevronUp, false)
                         .invisible()
                         .group_hover("structured-row", |s| s.visible())
-                        .tooltip(|window, cx| gpui_kit::component::tooltip::Tooltip::new("Move up: rules are read top to bottom").build(window, cx))
+                        .tooltip(|window, cx| gpui_kit::component::tooltip::Tooltip::new(t!("config-structured-editor-move-up-rules-are-read")).build(window, cx))
                         .on_click(move |_ev, _window, cx| {
                             let (f, r, p) = (f.clone(), r.clone(), prev.clone());
                             app_up.update(cx, |this, cx| this.move_structured_row(&f, &r, None, Some(p), cx));
@@ -636,7 +636,7 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
                 .font_family(FONT_MONO)
                 .text_size(px(9.5))
                 .text_color(WARN)
-                .child(format!("Scoped to Match {s} — read-only until crow-config models Match blocks (ERR-12)"))
+                .child(t!("config-structured-editor-scoped-to-match-read-only", s = s))
         }))
         .children(note.map(|(text, warn)| div().pl(px(48.0)).font_family(FONT_MONO).text_size(px(9.5)).text_color(if warn { WARN } else { TEXT_DIM }).child(text)))
         .children((help.is_some() || docs.is_some()).then(|| {
@@ -846,7 +846,7 @@ fn render_add_section(file: &str, format: StructuredFormat, ir: &ConfigDocumentI
     let (app_toggle, app_add) = (app.clone(), app.clone());
     let f_add = file.to_string();
     let keyed = format == StructuredFormat::Sshd;
-    let label = if keyed { "+ ADD DIRECTIVE" } else { "+ ADD ROW" };
+    let label = if keyed { t!("config-structured-editor-add-directive") } else { t!("config-structured-editor-add-row") };
 
     let candidates: Vec<(String, String, Option<RiskLevel>)> = if keyed && open {
         let present: Vec<String> = ir.rows.iter().flat_map(|r| r.fields.iter().map(|f| f.name.to_lowercase())).collect();
@@ -928,7 +928,7 @@ fn render_section_add(format: StructuredFormat, suggestions: Vec<(&'static str, 
                 .child(div().w(px(200.0)).flex_none().child(Input::new(add.key).font_family(FONT_MONO).text_size(px(11.0))))
                 .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child(if format == StructuredFormat::Nginx || crate::config::plugins::is_flat_directives(format) { "" } else { "=" }))
                 .child(div().flex_1().min_w(px(0.0)).child(Input::new(add.value).font_family(FONT_MONO).text_size(px(11.0))))
-                .child(small_button("btn-section-add", "ADD", OK).on_click(move |_ev, _window, cx| {
+                .child(small_button("btn-section-add", t!("config-structured-editor-add"), OK).on_click(move |_ev, _window, cx| {
                     app_ok.update(cx, |this, cx| this.commit_section_add(cx));
                 }))
                 .child(crate::components::icon_button::icon_button("btn-section-add-cancel", crate::components::icons::TablerIcon::X, false).on_click(move |_ev, _window, cx| {
@@ -955,11 +955,11 @@ fn render_section_add(format: StructuredFormat, suggestions: Vec<(&'static str, 
                 .child(div().flex_1().min_w(px(0.0)).truncate().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_TERTIARY).child(help))
         }))
         .child(div().font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINTER).child(if format == StructuredFormat::Nginx {
-            "Added at the end of this block. New blocks are typed in the text view."
+            t!("config-structured-editor-added-at-the-end-of")
         } else if crate::config::plugins::is_flat_directives(format) {
-            "Added at the end of the file."
+            t!("config-structured-editor-added-at-the-end-of-2")
         } else {
-            "Added at the end of this section. New sections are typed in the text view."
+            t!("config-structured-editor-added-at-the-end-of-3")
         }))
 }
 
@@ -982,7 +982,7 @@ fn render_risk_confirm(confirm: &RiskConfirm, app: Entity<CrowApp>) -> impl Into
                 .text_size(px(11.0))
                 .font_weight(FontWeight::BOLD)
                 .text_color(CRIT)
-                .child("This change introduces values rated NEVER ON PROD:"),
+                .child(t!("config-structured-editor-this-change-introduces-values-rated")),
         )
         .children(confirm.findings.iter().map(|(field, value, meaning)| {
             div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_SECONDARY).child(format!("  {field} {value} — {meaning}"))
@@ -992,12 +992,12 @@ fn render_risk_confirm(confirm: &RiskConfirm, app: Entity<CrowApp>) -> impl Into
                 .flex()
                 .items_center()
                 .gap(px(8.0))
-                .child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_TERTIARY).child(format!("Type {RISK_CONFIRM_KEYWORD} to stage it:")))
+                .child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_TERTIARY).child(t!("config-structured-editor-type-to-stage-it", risk_confirm_keyword = RISK_CONFIRM_KEYWORD)))
                 .children(confirm.input.as_ref().map(|input| div().w(px(160.0)).child(Input::new(input).font_family(FONT_MONO).text_size(px(11.0)))))
-                .child(small_button("btn-risk-confirm", "STAGE ANYWAY", CRIT).on_click(move |_ev, _window, cx| {
+                .child(small_button("btn-risk-confirm", t!("config-structured-editor-stage-anyway"), CRIT).on_click(move |_ev, _window, cx| {
                     app_ok.update(cx, |this, cx| this.confirm_risky_stage(cx));
                 }))
-                .child(small_button("btn-risk-cancel", "CANCEL", TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
+                .child(small_button("btn-risk-cancel", t!("config-structured-editor-cancel"), TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
                     app_cancel.update(cx, |this, cx| this.cancel_risky_stage(cx));
                 })),
         )

@@ -70,7 +70,7 @@ pub fn ssh_attach_modal(
                                         .text_size(px(12.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_MAX)
-                                        .child(format!("SSH KEYCHAIN ATTACHMENT · {}", uname)),
+                                        .child(t!("users-ssh-attach-modal-ssh-keychain-attachment", uname = uname)),
                                 )
                                 .child(
                                     div()
@@ -82,7 +82,7 @@ pub fn ssh_attach_modal(
                                         .font_family(FONT_MONO)
                                         .text_size(px(9.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .child(format!("{} ATTACHED", user.authorized_keys.len())),
+                                        .child(t!("users-ssh-attach-modal-attached", count = user.authorized_keys.len())),
                                 ),
                         )
                         .child(
@@ -116,14 +116,14 @@ pub fn ssh_attach_modal(
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
                                 .text_color(TEXT_TERTIARY)
-                                .child(format!("TARGET FILE: {}", target_auth_path)),
+                                .child(t!("users-ssh-attach-modal-target-file", target_auth_path = target_auth_path)),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.0))
                                 .text_color(OK)
-                                .child("PERMISSIONS: 0600 (SECURE)"),
+                                .child(t!("users-ssh-attach-modal-permissions-0600-secure")),
                         ),
                 )
                 // Scrollable Body
@@ -148,7 +148,7 @@ pub fn ssh_attach_modal(
                                         .text_size(px(10.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("CURRENTLY AUTHORIZED KEYS FOR USER"),
+                                        .child(t!("users-ssh-attach-modal-currently-authorized-keys-for-user")),
                                 )
                                 .child(if user.authorized_keys.is_empty() {
                                     div()
@@ -160,7 +160,7 @@ pub fn ssh_attach_modal(
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.0))
                                         .text_color(TEXT_MUTED)
-                                        .child("No SSH keys currently installed for this user. Attach a key below.")
+                                        .child(t!("users-ssh-attach-modal-no-ssh-keys-currently-installed"))
                                         .into_any_element()
                                 } else {
                                     div()
@@ -241,7 +241,7 @@ pub fn ssh_attach_modal(
                                                                 this.user_revoke_key(&u, &k, cx);
                                                             });
                                                         })
-                                                        .child("REVOKE"),
+                                                        .child(t!("users-ssh-attach-modal-revoke")),
                                                 )
                                         }))
                                         .into_any_element()
@@ -264,14 +264,14 @@ pub fn ssh_attach_modal(
                                                 .text_size(px(10.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_PRIMARY)
-                                                .child("SELECT FROM CROW SSH KEYCHAIN"),
+                                                .child(t!("users-ssh-attach-modal-select-from-crow-ssh-keychain")),
                                         )
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(9.0))
                                                 .text_color(TEXT_FAINT)
-                                                .child(format!("{} ENROLLED VAULT KEYS", enrolled_keys.len())),
+                                                .child(t!("users-ssh-attach-modal-enrolled-vault-keys", count = enrolled_keys.len())),
                                         ),
                                 )
                                 .child(if enrolled_keys.is_empty() {
@@ -284,7 +284,7 @@ pub fn ssh_attach_modal(
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.0))
                                         .text_color(TEXT_MUTED)
-                                        .child("No enrolled keys found in Crow Vault. Go to Settings > SSH Keys to generate or scan keys.")
+                                        .child(t!("users-ssh-attach-modal-no-enrolled-keys-found-in"))
                                 } else {
                                     div()
                                         .flex()
@@ -378,7 +378,7 @@ pub fn ssh_attach_modal(
                                                         .text_size(px(9.0))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(OK)
-                                                        .child("✓ ATTACHED")
+                                                        .child(t!("users-ssh-attach-modal-attached-2"))
                                                         .into_any_element()
                                                 } else {
                                                     div()
@@ -410,7 +410,7 @@ pub fn ssh_attach_modal(
                                                                 this.user_attach_key(&u, key_summary, cx);
                                                             });
                                                         })
-                                                        .child("+ ATTACH KEY")
+                                                        .child(t!("users-ssh-attach-modal-attach-key"))
                                                         .into_any_element()
                                                 })
                                         }))

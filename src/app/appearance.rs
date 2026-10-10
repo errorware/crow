@@ -65,7 +65,7 @@ impl CrowApp {
     /// Opens the file picker; the chosen picture is copied into Crow's
     /// backgrounds folder and the setting saved.
     pub fn choose_fleet_background(&mut self, cx: &mut Context<Self>) {
-        let picked = cx.prompt_for_paths(PathPromptOptions { files: true, directories: false, multiple: false, prompt: Some("Choose a picture for the Fleet page".into()) });
+        let picked = cx.prompt_for_paths(PathPromptOptions { files: true, directories: false, multiple: false, prompt: Some(t!("appearance-choose-a-picture-for-the").into()) });
         cx.spawn(async move |entity, cx| {
             let Ok(Ok(Some(paths))) = picked.await else { return };
             let Some(source) = paths.into_iter().next() else { return };

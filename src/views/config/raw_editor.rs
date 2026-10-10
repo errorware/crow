@@ -61,7 +61,7 @@ pub fn raw_config_editor(
                         .px(px(5.0))
                         .py(px(1.5))
                         .rounded_sm()
-                        .child("TRADITIONAL EDITOR"),
+                        .child(t!("config-raw-editor-traditional-editor")),
                 )
                 .child(
                     div()
@@ -74,9 +74,9 @@ pub fn raw_config_editor(
                         .py(px(1.5))
                         .rounded_sm()
                         .child(if is_modified {
-                            format!("EDITED (+{} -{})", add_count, del_count)
+                            t!("config-raw-editor-edited", add_count = add_count, del_count = del_count)
                         } else {
-                            format!("v{} (BASELINE)", state.active_revision)
+                            t!("config-raw-editor-v-baseline", active_revision = state.active_revision)
                         }),
                 )
                 .child(
@@ -87,7 +87,7 @@ pub fn raw_config_editor(
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_MUTED)
-                        .child("Author:")
+                        .child(t!("config-raw-editor-author"))
                         .child(
                             div()
                                 .text_color(TEXT_SECONDARY)
@@ -114,7 +114,7 @@ pub fn raw_config_editor(
                                 this.toggle_config_history(cx);
                             });
                         })
-                        .child(format!("HISTORY · {}", state.revisions.len()))
+                        .child(t!("config-raw-editor-history", count = state.revisions.len()))
                 )
                 // Back to the plugin's structured editor
                 .children(can_structure.then(|| {
@@ -138,7 +138,7 @@ pub fn raw_config_editor(
                                 cx.notify();
                             });
                         })
-                        .child("STRUCTURED VIEW")
+                        .child(t!("config-raw-editor-structured-view"))
                 }))
                 // Revert button
                 .children(if is_modified {
@@ -164,7 +164,7 @@ pub fn raw_config_editor(
                                     this.revert_managed_config(&f, cx);
                                 });
                             })
-                            .child("REVERT BASELINE"),
+                            .child(t!("config-raw-editor-revert-baseline")),
                     )
                 } else {
                     None
@@ -193,7 +193,7 @@ pub fn raw_config_editor(
                                     this.stage_config_version(&f, "Updated via traditional editor", cx);
                                 });
                             })
-                            .child("STAGE VERSION"),
+                            .child(t!("config-raw-editor-stage-version")),
                     )
                 } else {
                     None
@@ -235,22 +235,22 @@ pub fn raw_config_editor(
                         .flex()
                         .items_center()
                         .gap(px(12.0))
-                        .child(format!("{} lines", line_count))
-                        .child(format!("{} bytes", state.current_content.len()))
-                        .child("UTF-8")
-                        .child("UNIX (LF)"),
+                        .child(t!("config-raw-editor-lines", line_count = line_count))
+                        .child(t!("config-raw-editor-bytes", count = state.current_content.len()))
+                        .child(t!("config-raw-editor-utf-8"))
+                        .child(t!("config-raw-editor-unix-lf")),
                 )
                 .child(
                     div()
                         .flex()
                         .items_center()
                         .gap(px(10.0))
-                        .child(format!("Revisions: {}", state.revisions.len()))
-                        .children(read_only.then(|| div().text_color(WARN).child("READ-ONLY")))
+                        .child(t!("config-raw-editor-revisions", count = state.revisions.len()))
+                        .children(read_only.then(|| div().text_color(WARN).child(t!("config-raw-editor-read-only"))))
                         .child(if is_modified {
-                            div().text_color(WARN).child("● Unsaved staged changes")
+                            div().text_color(WARN).child(t!("config-raw-editor-unsaved-staged-changes"))
                         } else {
-                            div().text_color(OK).child("✓ Clean baseline")
+                            div().text_color(OK).child(t!("config-raw-editor-clean-baseline"))
                         }),
                 ),
         )

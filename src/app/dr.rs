@@ -47,13 +47,13 @@ impl CrowApp {
             let p = p.to_string();
             cx.new(|cx| InputState::new(window, cx).placeholder(p))
         };
-        let name = input("plan name, e.g. orders database", window, cx);
-        let rto = input("RTO, minutes", window, cx);
-        let rpo = input("RPO, minutes", window, cx);
-        let notes = input("drill notes, e.g. restored to a Multipass VM from last night's dump", window, cx);
-        let matters = cx.new(|cx| EditorState::new(window, cx).placeholder("what matters, one per line:\n/var/lib/postgresql\n/etc/nginx\norders database"));
-        let backups = cx.new(|cx| EditorState::new(window, cx).placeholder("backups, one per line (path or glob | timer):\n/var/backups/db/*.sql.gz | pg-dump.timer"));
-        let runbook = cx.new(|cx| EditorState::new(window, cx).placeholder("## Rebuild\n1. Launch a fresh server (Add Server)\n2. Restore: zcat /var/backups/db/latest.sql.gz | psql orders\n3. Push the baselines (Drift → bring back)\n4. Check the site (Checks)"));
+        let name = input(t!("app-dr-plan-name-e-g-orders"), window, cx);
+        let rto = input(t!("app-dr-rto-minutes"), window, cx);
+        let rpo = input(t!("app-dr-rpo-minutes"), window, cx);
+        let notes = input(t!("app-dr-drill-notes-e-g-restored"), window, cx);
+        let matters = cx.new(|cx| EditorState::new(window, cx).placeholder(t!("app-dr-what-matters-one-per-line")));
+        let backups = cx.new(|cx| EditorState::new(window, cx).placeholder(t!("app-dr-backups-one-per-line-path")));
+        let runbook = cx.new(|cx| EditorState::new(window, cx).placeholder(t!("app-dr-rebuild-1-launch-a-fresh")));
         self.dr_inputs = Some(DrInputs { name, rto, rpo, notes, matters, backups, runbook });
     }
 
@@ -93,7 +93,7 @@ impl CrowApp {
         let Some(i) = &self.dr_inputs else { return };
         let name = i.name.read(cx).value().trim().to_string();
         if name.is_empty() || self.dr.target.is_empty() {
-            self.dr.message = Some((false, "Give the plan a name and pick what it covers.".into()));
+            self.dr.message = Some((false, t!("app-dr-give-the-plan-a-name").into()));
             cx.notify();
             return;
         }
@@ -107,7 +107,7 @@ impl CrowApp {
         self.dr.plans.push(plan);
         self.dr.selected = Some(id);
         self.save_dr();
-        self.dr.message = Some((true, "Saved.".into()));
+        self.dr.message = Some((true, t!("app-dr-saved").into()));
         cx.notify();
     }
 
@@ -130,7 +130,7 @@ impl CrowApp {
     /// Checks the selected plan on each of its servers.
     pub fn check_dr_plan(&mut self, cx: &mut Context<Self>) {
         let Some(plan) = self.dr.selected.as_ref().and_then(|id| self.dr.plans.iter().find(|p| &p.id == id)).cloned() else {
-            self.dr.message = Some((false, "Save the plan first.".into()));
+            self.dr.message = Some((false, t!("app-dr-save-the-plan-first").into()));
             cx.notify();
             return;
         };
@@ -147,7 +147,7 @@ impl CrowApp {
                 let found = if reachable {
                     cx.background_executor().spawn(async move { dr::check(host_for(&srv).as_ref(), &plan, count, snapshots.as_deref(), chrono::Utc::now().timestamp()) }).await
                 } else {
-                    vec![Finding { ok: false, what: "not reachable right now: nothing could be checked".into() }]
+                    vec![Finding { ok: false, what: t!("app-dr-not-reachable-right-now-nothing").into() }]
                 };
                 let _ = entity.update(cx, |this, cx| {
                     this.dr.checking = this.dr.checking.saturating_sub(1);
@@ -166,7 +166,7 @@ impl CrowApp {
             p.drill_started = Some(chrono::Utc::now().timestamp());
         }
         self.save_dr();
-        self.dr.message = Some((true, "Drill started: follow the runbook (restore to a Multipass VM or a scratch server), then FINISH DRILL.".into()));
+        self.dr.message = Some((true, t!("app-dr-drill-started-follow-the-runbook").into()));
         cx.notify();
     }
 
@@ -179,7 +179,7 @@ impl CrowApp {
             if let Some(start) = p.drill_started.take() {
                 let minutes = ((now - start) as f64 / 60.0).ceil() as i64;
                 let met = p.rto_minutes == 0 || minutes <= p.rto_minutes;
-                msg = Some((met, format!("Drill recorded: {minutes} min, {} the RTO of {} min.", if met { "within" } else { "over" }, p.rto_minutes)));
+                msg = Some((met, t!("app-dr-drill-recorded-min-the-rto", minutes = minutes, met = if met { "within" } else { "over" }, rto_minutes = p.rto_minutes)));
                 p.drills.push(Drill { started_at: start, minutes, met_rto: met, notes });
             }
         }
@@ -191,7 +191,7 @@ impl CrowApp {
     pub fn export_dr_plan(&mut self, cx: &mut Context<Self>) {
         let Some(plan) = self.dr.selected.as_ref().and_then(|id| self.dr.plans.iter().find(|p| &p.id == id)).cloned() else { return };
         let target = match plan.target.strip_prefix("group:") {
-            Some(g) => format!("group {g}"),
+            Some(g) => t!("app-dr-group", g = g),
             None => self.fleet.servers.iter().find(|s| s.id == plan.target).map(|s| s.name.clone()).unwrap_or_else(|| plan.target.clone()),
         };
         let now = chrono::Local::now();
@@ -200,8 +200,8 @@ impl CrowApp {
         let safe: String = plan.name.chars().map(|c| if c.is_ascii_alphanumeric() { c.to_ascii_lowercase() } else { '-' }).collect();
         let path = dir.join(format!("crow-dr-{safe}.md"));
         self.dr.message = Some(match std::fs::write(&path, md) {
-            Ok(()) => (true, format!("Plan written to {}: keep a copy where you can read it when Crow is down.", path.display())),
-            Err(e) => (false, format!("Couldn't write {}: {e}", path.display())),
+            Ok(()) => (true, t!("app-dr-plan-written-to-keep-a", path = path.display())),
+            Err(e) => (false, t!("app-dr-couldnt-write", path = path.display(), e = e)),
         });
         cx.notify();
     }

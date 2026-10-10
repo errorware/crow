@@ -37,13 +37,7 @@ fn app_icon() -> Arc<Image> {
 
 /// What COPY SYSTEM INFO puts on the clipboard, for bug reports.
 fn system_report() -> String {
-    format!(
-        "Crow v{}\nPlatform: {} ({})\nProfile: {}\nRepository: {REPO}\nWebsite: {WEBSITE}\nCommunity: {FORUM}\nEngine: GPUI Kit (WGPU) + crow-config-core\nVault: Argon2id + ChaCha20-Poly1305 + TOTP\n",
-        env!("CARGO_PKG_VERSION"),
-        std::env::consts::OS,
-        std::env::consts::ARCH,
-        if cfg!(debug_assertions) { "debug" } else { "release" },
-    )
+    t!("about-crow-v-platform-profile-repository", env = env!("CARGO_PKG_VERSION"), std = std::env::consts::OS, std2 = std::env::consts::ARCH, cfg = if cfg!(debug_assertions) { "debug" } else { "release" }, repo = REPO, website = WEBSITE, forum = FORUM)
 }
 
 pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateState, auto_install: bool) -> impl IntoElement {
@@ -52,7 +46,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
     let app_close = app.clone();
     let app_copy = app.clone();
     let version = env!("CARGO_PKG_VERSION");
-    let profile = if cfg!(debug_assertions) { "debug build" } else { "release build" };
+    let profile = if cfg!(debug_assertions) { t!("about-debug-build") } else { t!("about-release-build") };
 
     div()
         .id("about-modal-scrim")
@@ -91,7 +85,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                         .bg(BG_PANEL)
                         .border_b_1()
                         .border_color(BORDER_PANEL)
-                        .child(div().text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child("About Crow"))
+                        .child(div().text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child(t!("about-about-crow")))
                         .child(crate::components::icon_button::icon_button("about-close-btn", TablerIcon::X, false).on_click(move |_ev, _window, cx| app_x.update(cx, |this, cx| this.close_about_modal(cx)))),
                 )
                 .child(
@@ -145,10 +139,10 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                                         .flex()
                                                         .items_baseline()
                                                         .gap(px(10.0))
-                                                        .child(div().text_size(px(22.0)).font_weight(FontWeight::EXTRA_BOLD).text_color(TEXT_MAX).child("Crow"))
+                                                        .child(div().text_size(px(22.0)).font_weight(FontWeight::EXTRA_BOLD).text_color(TEXT_MAX).child(t!("about-crow")))
                                                         .child(div().text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(OK).child(format!("v{version}"))),
                                                 )
-                                                .child(div().text_size(px(11.0)).text_color(TEXT_SECONDARY).child("Native Linux server manager over SSH"))
+                                                .child(div().text_size(px(11.0)).text_color(TEXT_SECONDARY).child(t!("about-native-linux-server-manager-over")))
                                                 .child(div().text_size(px(10.0)).text_color(TEXT_FAINT).child(format!("{} · {} · {profile}", std::env::consts::OS, std::env::consts::ARCH))),
                                         ),
                                 )
@@ -161,9 +155,9 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                         .gap(px(3.0))
                                         .px(px(20.0))
                                         .pb(px(12.0))
-                                        .child(link_row("about-link-website", "Website", WEBSITE))
-                                        .child(link_row("about-link-repo", "Source", REPO))
-                                        .child(link_row("about-link-forum", "Community", FORUM)),
+                                        .child(link_row("about-link-website", t!("about-website"), WEBSITE))
+                                        .child(link_row("about-link-repo", t!("about-source"), REPO))
+                                        .child(link_row("about-link-forum", t!("about-community"), FORUM)),
                                 )
                                 // The details, in a dark scroll box
                                 .child(
@@ -185,20 +179,20 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                                 .p(px(12.0))
                                                 // A newer version (ERR-88).
                                                 .children(update_panel(update, auto_install, app.clone()))
-                                                .child(heading("BUILD"))
-                                                .child(info_row("Platform", &format!("{} ({})", std::env::consts::OS, std::env::consts::ARCH)))
-                                                .child(info_row("Profile", profile))
-                                                .child(info_row("UI toolkit", "GPUI Kit 0.6.1 · WGPU"))
-                                                .child(info_row("Config engine", "crow-config-core · schema IR"))
-                                                .child(info_row("Vault", "Argon2id · ChaCha20-Poly1305 · TOTP"))
-                                                .child(heading("CREDITS"))
-                                                .child(info_row("Icons", "Tabler Icons · MIT"))
-                                                .child(info_row("Flags", "flag-icons · MIT"))
-                                                .child(info_row("Distro logos", "Dashboard Icons by homarr-labs · Apache-2.0"))
-                                                .child(info_row("GeoIP data", crate::geoip::ATTRIBUTION))
-                                                .child(info_row("Font", "JetBrains Mono · OFL-1.1"))
-                                                .child(heading("LICENSE"))
-                                                .child(div().text_size(px(10.0)).line_height(px(15.0)).text_color(TEXT_DIM).child("AEUPL-1.2. Free for any non-commercial use. See LICENSE in the repository.")),
+                                                .child(heading(t!("about-build")))
+                                                .child(info_row(t!("about-platform"), &format!("{} ({})", std::env::consts::OS, std::env::consts::ARCH)))
+                                                .child(info_row(t!("about-profile"), profile))
+                                                .child(info_row(t!("about-ui-toolkit"), t!("about-gpui-kit-0-6-1")))
+                                                .child(info_row(t!("about-config-engine"), t!("about-crow-config-core-schema-ir")))
+                                                .child(info_row(t!("about-vault"), t!("about-argon2id-chacha20-poly1305-totp")))
+                                                .child(heading(t!("about-credits")))
+                                                .child(info_row(t!("about-icons"), t!("about-tabler-icons-mit")))
+                                                .child(info_row(t!("about-flags"), t!("about-flag-icons-mit")))
+                                                .child(info_row(t!("about-distro-logos"), t!("about-dashboard-icons-by-homarr-labs")))
+                                                .child(info_row(t!("about-geoip-data"), crate::geoip::ATTRIBUTION))
+                                                .child(info_row(t!("about-font"), t!("about-jetbrains-mono-ofl-1-1")))
+                                                .child(heading(t!("about-license")))
+                                                .child(div().text_size(px(10.0)).line_height(px(15.0)).text_color(TEXT_DIM).child(t!("about-aeupl-1-2-free-for"))),
                                         ),
                                 )
                                 // Footer
@@ -231,7 +225,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                                     });
                                                 })
                                                 .child(tabler_icon(TablerIcon::Copy).size(px(12.0)).text_color(if copied_toast { OK } else { TEXT_SECONDARY }))
-                                                .child(div().font_weight(FontWeight::BOLD).text_size(px(10.5)).text_color(if copied_toast { OK } else { TEXT_PRIMARY }).child(if copied_toast { "✓ COPIED SYSTEM INFO" } else { "COPY SYSTEM INFO" })),
+                                                .child(div().font_weight(FontWeight::BOLD).text_size(px(10.5)).text_color(if copied_toast { OK } else { TEXT_PRIMARY }).child(if copied_toast { t!("about-copied-system-info") } else { t!("about-copy-system-info") })),
                                         )
                                         .child(
                                             div()
@@ -247,7 +241,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                                 .cursor_pointer()
                                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                                 .on_click(move |_ev, _window, cx| app_close.update(cx, |this, cx| this.close_about_modal(cx)))
-                                                .child("OK"),
+                                                .child(t!("about-ok")),
                                         ),
                                 ),
                         ),
@@ -315,7 +309,7 @@ fn update_panel(update: &UpdateState, auto_install: bool, app: Entity<CrowApp>) 
                     .text_size(px(11.0))
                     .font_weight(FontWeight::BOLD)
                     .text_color(OK)
-                    .child(format!("CROW {}{} IS AVAILABLE", r.version, if r.prerelease { " (PRE-RELEASE)" } else { "" }))
+                    .child(t!("about-crow-is-available", version = r.version, r = if r.prerelease { t!("about-pre-release") } else { "" }))
             }))
             .children(update.note.clone().map(|n| div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_PRIMARY).child(n)))
             .child(
@@ -323,20 +317,20 @@ fn update_panel(update: &UpdateState, auto_install: bool, app: Entity<CrowApp>) 
                     .flex()
                     .gap(px(8.0))
                     .when(update.available.is_some(), |d| {
-                        d.child(button("btn-update-notes", "RELEASE NOTES", TEXT_SECONDARY).on_click(move |_e, _w, cx| a_notes.update(cx, |this, cx| this.open_release_notes(cx))))
+                        d.child(button("btn-update-notes", t!("about-release-notes"), TEXT_SECONDARY).on_click(move |_e, _w, cx| a_notes.update(cx, |this, cx| this.open_release_notes(cx))))
                     })
                     .when(update.available.is_some() && !update.installed, |d| {
-                        d.child(button("btn-update-skip", "SKIP THIS VERSION", TEXT_SECONDARY).on_click(move |_e, _w, cx| a_skip.update(cx, |this, cx| this.skip_update(cx))))
+                        d.child(button("btn-update-skip", t!("about-skip-this-version"), TEXT_SECONDARY).on_click(move |_e, _w, cx| a_skip.update(cx, |this, cx| this.skip_update(cx))))
                     })
                     .when(auto_install && update.available.is_some() && !update.installed && !update.installing, |d| {
-                        d.child(button("btn-update-install", "VERIFY & INSTALL", OK).on_click(move |_e, _w, cx| a_install.update(cx, |this, cx| this.install_update(cx))))
+                        d.child(button("btn-update-install", t!("about-verify-install"), OK).on_click(move |_e, _w, cx| a_install.update(cx, |this, cx| this.install_update(cx))))
                     })
                     .when(update.installed, |d| {
-                        d.child(button("btn-update-restart", "RESTART NOW", OK).on_click(move |_e, _w, cx| a_restart.update(cx, |this, cx| this.restart_after_update(cx))))
+                        d.child(button("btn-update-restart", t!("about-restart-now"), OK).on_click(move |_e, _w, cx| a_restart.update(cx, |this, cx| this.restart_after_update(cx))))
                     }),
             )
             .when(!auto_install && update.available.is_some(), |d| {
-                d.child(div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_MUTED).child("Crow doesn't download anything unless you turn on installing in Settings → General."))
+                d.child(div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_MUTED).child(t!("about-crow-doesnt-download-anything-unless")))
             }),
     )
 }

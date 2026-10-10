@@ -114,14 +114,14 @@ impl CrowApp {
             (Some(name), _) if inv.certbot => Renewal::Certbot { name: name.to_string() },
             (_, Some(script)) if !label.is_empty() => Renewal::AcmeSh { script: script.clone(), domain: label.clone() },
             _ => {
-                self.certificates.message = Some((false, format!("{cert_path} isn't managed by certbot or acme.sh on {}: renew it where it came from.", srv.name)));
+                self.certificates.message = Some((false, t!("app-certificates-isnt-managed-by-certbot-or", cert_path = cert_path, name = srv.name)));
                 cx.notify();
                 return;
             }
         };
         let what = match &renewal {
-            Renewal::Certbot { name } => format!("certbot: dry run, renew {name}, reload{}{}, confirm", if inv.nginx { " nginx" } else { "" }, if inv.apache { " apache" } else { "" }),
-            Renewal::AcmeSh { domain, .. } => format!("acme.sh: renew {domain}, reload, confirm"),
+            Renewal::Certbot { name } => t!("app-certificates-certbot-dry-run-renew-reload", name = name, inv = if inv.nginx { " nginx" } else { "" }, inv2 = if inv.apache { " apache" } else { "" }),
+            Renewal::AcmeSh { domain, .. } => t!("app-certificates-acme-sh-renew-reload-confirm", domain = domain),
         };
         let (db, path, what2) = (self.vault.db(), cert_path.to_string(), what.clone());
         let job: RunJob = Box::new(move || {
@@ -138,7 +138,7 @@ impl CrowApp {
         let step = FleetRun::step(server_id, &self.fleet.servers.iter().find(|s| s.id == server_id).map(|s| s.name.clone()).unwrap_or_default(), what);
         // Read the certificates again once it's done.
         self.certificates.last_check = 0;
-        self.open_fleet_run(FleetRun::new(format!("RENEW {}", if label.is_empty() { cert_path.to_string() } else { label }), "RENEW", vec![step], Vec::new()), vec![job], window, cx);
+        self.open_fleet_run(FleetRun::new(t!("app-certificates-renew", label = if label.is_empty() { cert_path.to_string() } else { label }), "RENEW", vec![step], Vec::new()), vec![job], window, cx);
     }
 }
 

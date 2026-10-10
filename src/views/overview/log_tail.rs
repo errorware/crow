@@ -42,14 +42,14 @@ pub fn log_tail(
                         .text_size(px(11.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
-                        .child("LOG TAIL"),
+                        .child(t!("overview-log-tail-log-tail")),
                 )
                 .child(
                     div()
                         .font_family("JetBrains Mono")
                         .text_size(px(10.0))
                         .text_color(TEXT_DIMMER)
-                        .child("journalctl -f"),
+                        .child(t!("overview-log-tail-journalctl-f")),
                 )
                 .child(div().flex_1())
                 // Expand to full view button
@@ -72,7 +72,7 @@ pub fn log_tail(
                                 this.set_active_view("logs", cx);
                             });
                         })
-                        .child("EXPAND ↗"),
+                        .child(t!("overview-log-tail-expand")),
                 )
                 .child(
                     div()
@@ -102,7 +102,7 @@ pub fn log_tail(
                         .font_weight(FontWeight::BOLD)
                         .px(px(5.0))
                         .py(px(2.0))
-                        .child(format!("ERROR {}", err_count)),
+                        .child(t!("overview-log-tail-error", err_count = err_count)),
                 )
                 .child(
                     div()
@@ -111,7 +111,7 @@ pub fn log_tail(
                         .font_weight(FontWeight::BOLD)
                         .px(px(5.0))
                         .py(px(2.0))
-                        .child(format!("WARN {}", warn_count)),
+                        .child(t!("overview-log-tail-warn", warn_count = warn_count)),
                 )
                 .child(
                     div()
@@ -120,13 +120,13 @@ pub fn log_tail(
                         .font_weight(FontWeight::BOLD)
                         .px(px(5.0))
                         .py(px(2.0))
-                        .child(format!("INFO {}", info_count)),
+                        .child(t!("overview-log-tail-info", info_count = info_count)),
                 )
                 .child(div().flex_1())
                 .child(
                     div()
                         .text_color(TEXT_FAINT)
-                        .child("stream active"),
+                        .child(t!("overview-log-tail-stream-active")),
                 ),
         )
         // Log stream
@@ -205,7 +205,7 @@ pub fn log_tail(
                 .child(
                     div()
                         .text_color(TEXT_SECONDARY)
-                        .child("journalctl -f"),
+                        .child(t!("overview-log-tail-journalctl-f")),
                 )
                 .child(
                     div()
@@ -251,7 +251,7 @@ pub fn socket_log_drawer(
                 let m_lower = e.message.to_lowercase();
                 let sys_lower = e.syslog_identifier.to_lowercase();
                 (!p_lower.is_empty() && (u_lower.contains(&p_lower) || m_lower.contains(&p_lower) || sys_lower.contains(&p_lower)))
-                    || (!port_str.is_empty() && (m_lower.contains(&format!(":{}", port_str)) || m_lower.contains(&format!("port {}", port_str))))
+                    || (!port_str.is_empty() && (m_lower.contains(&format!(":{}", port_str)) || m_lower.contains(&t!("overview-log-tail-port", port_str = port_str))))
             })
             .collect();
         if matching.is_empty() {
@@ -270,7 +270,7 @@ pub fn socket_log_drawer(
         .iter()
         .find(|s| s.id == fleet.active_tab_id || s.name == fleet.active_tab_id)
         .map(|s| s.name.clone())
-        .unwrap_or_else(|| "this server".to_string());
+        .unwrap_or_else(|| t!("overview-log-tail-this-server").to_string());
 
     div()
         .id("socket-log-drawer")
@@ -308,7 +308,7 @@ pub fn socket_log_drawer(
                                 .text_size(px(11.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_PRIMARY)
-                                .child("SOCKET LOG TAIL"),
+                                .child(t!("overview-log-tail-socket-log-tail")),
                         ),
                 )
                 // Socket Context Badge (if focused)
@@ -319,7 +319,7 @@ pub fn socket_log_drawer(
                     let process = sock.process.clone();
                     let state = sock.state.clone();
                     let state_color = sock.state_color();
-                    let pid_str = sock.pid.map(|p| format!("PID {}", p)).unwrap_or_default();
+                    let pid_str = sock.pid.map(|p| t!("overview-log-tail-pid", p = p)).unwrap_or_default();
 
                     Some(
                         div()
@@ -370,7 +370,7 @@ pub fn socket_log_drawer(
                             .font_family(FONT_MONO)
                             .text_size(px(10.0))
                             .text_color(TEXT_FAINT)
-                            .child("All host network sockets · click any socket row to trace"),
+                            .child(t!("overview-log-tail-all-host-network-sockets-click")),
                     )
                 })
                 .child(div().flex_1())
@@ -397,7 +397,7 @@ pub fn socket_log_drawer(
                                     this.toggle_socket_drawer_filter(cx);
                                 });
                             })
-                            .child(if is_filtered { "FILTER: SOCKET ✓" } else { "FILTER: ALL" }),
+                            .child(if is_filtered { t!("overview-log-tail-filter-socket") } else { t!("overview-log-tail-filter-all") }),
                     )
                 } else {
                     None
@@ -413,7 +413,7 @@ pub fn socket_log_drawer(
                         .px(px(5.0))
                         .py(px(1.5))
                         .rounded_sm()
-                        .child(format!("ERROR {}", err_count)),
+                        .child(t!("overview-log-tail-error", err_count = err_count)),
                 )
                 // Warn count chip
                 .child(
@@ -426,7 +426,7 @@ pub fn socket_log_drawer(
                         .px(px(5.0))
                         .py(px(1.5))
                         .rounded_sm()
-                        .child(format!("WARN {}", warn_count)),
+                        .child(t!("overview-log-tail-warn", warn_count = warn_count)),
                 )
                 // Expand to full logs view button
                 .child(
@@ -453,7 +453,7 @@ pub fn socket_log_drawer(
                                 this.set_active_view("logs", cx);
                             });
                         })
-                        .child("EXPAND ↗"),
+                        .child(t!("overview-log-tail-expand")),
                 )
                 // Close drawer '✕' button
                 .child(
@@ -494,11 +494,11 @@ pub fn socket_log_drawer(
                 .text_size(px(9.0))
                 .font_weight(FontWeight::BOLD)
                 .text_color(TEXT_FAINT)
-                .child(div().w(px(COL_TIME)).flex_none().child("TIME"))
-                .child(div().w(px(COL_LEVEL)).flex_none().child("LEVEL"))
-                .child(div().w(px(COL_UNIT)).flex_none().child("UNIT"))
-                .child(div().w(px(COL_PID)).flex_none().child("PID"))
-                .child(div().flex_1().min_w(px(0.0)).child("MESSAGE")),
+                .child(div().w(px(COL_TIME)).flex_none().child(t!("overview-log-tail-time")))
+                .child(div().w(px(COL_LEVEL)).flex_none().child(t!("overview-log-tail-level")))
+                .child(div().w(px(COL_UNIT)).flex_none().child(t!("overview-log-tail-unit")))
+                .child(div().w(px(COL_PID)).flex_none().child(t!("overview-log-tail-pid-2")))
+                .child(div().flex_1().min_w(px(0.0)).child(t!("overview-log-tail-message"))),
         )
         // 2. Full-Width Log Stream Scroll Region
         .child(
@@ -618,9 +618,9 @@ pub fn socket_log_drawer(
                     div()
                         .text_color(TEXT_SECONDARY)
                         .child(if let (true, Some(sock)) = (filter_active, &focused_socket) {
-                            format!("journalctl -f -u {}.service", sock.process)
+                            t!("overview-log-tail-journalctl-f-u-service", process = sock.process)
                         } else {
-                            "journalctl -f".to_string()
+                            t!("overview-log-tail-journalctl-f").to_string()
                         }),
                 )
                 .child(
@@ -634,7 +634,7 @@ pub fn socket_log_drawer(
                     div()
                         .text_color(TEXT_FAINTER)
                         .text_size(px(9.5))
-                        .child(format!("{} lines · live stream", filtered_entries.len())),
+                        .child(t!("overview-log-tail-lines-live-stream", count = filtered_entries.len())),
                 ),
         )
 }

@@ -63,7 +63,7 @@ impl CrowApp {
         if !on {
             let users: Vec<String> = dependents(id, &self.fleet.servers).iter().map(|s| s.name.clone()).collect();
             if !users.is_empty() {
-                self.keys.toast = Some(format!("{} is still the bastion for {}: move them first", srv.name, users.join(", ")));
+                self.keys.toast = Some(t!("app-bastions-is-still-the-bastion-for", name = srv.name, users = users.join(", ")));
                 cx.notify();
                 return;
             }
@@ -76,7 +76,7 @@ impl CrowApp {
             let _ = db.upsert_server(&srv);
         }
         self.reload_servers();
-        self.keys.toast = Some(if on { format!("{} is a bastion: servers can be added through it", srv.name) } else { format!("{} is no longer a bastion", srv.name) });
+        self.keys.toast = Some(if on { t!("app-bastions-is-a-bastion-servers-can", name = srv.name) } else { t!("app-bastions-is-no-longer-a-bastion", name = srv.name) });
         cx.notify();
     }
 }

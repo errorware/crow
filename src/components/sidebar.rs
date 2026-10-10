@@ -103,7 +103,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                             .text_size(px(11.5))
                             .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                             .text_color(if is_active { TEXT_PRIMARY } else { TEXT_TERTIARY })
-                            .child(item.label),
+                            .child(crate::i18n::tx(item.label)),
                     )
                     .child(
                         div()
@@ -172,7 +172,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                                                     .size(px(13.0))
                                                     .text_color(TEXT_FAINT),
                                             )
-                                            .child("Collapse"),
+                                            .child(t!("sidebar-collapse")),
                                     )
                                     .child(
                                         div()
@@ -220,7 +220,7 @@ fn danger_nav(is_active: bool, collapsed: bool, app: Entity<CrowApp>) -> impl In
                 .text_size(px(11.5))
                 .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                 .text_color(ink)
-                .child("Danger Zone")
+                .child(t!("sidebar-danger-zone"))
         }))
         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_view("danger", cx)))
 }

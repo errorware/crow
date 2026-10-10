@@ -41,12 +41,12 @@ fn kind_icon(kind: NodeKind) -> TablerIcon {
 
 fn kind_label(kind: NodeKind) -> &'static str {
     match kind {
-        NodeKind::Crow => "CROW",
-        NodeKind::Server => "SERVER",
-        NodeKind::Vm => "MULTIPASS VM",
-        NodeKind::Container => "LAB CONTAINER",
-        NodeKind::Workload => "CONTAINER",
-        NodeKind::Key => "SSH KEY",
+        NodeKind::Crow => t!("topology-crow"),
+        NodeKind::Server => t!("topology-server"),
+        NodeKind::Vm => t!("topology-multipass-vm"),
+        NodeKind::Container => t!("topology-lab-container"),
+        NodeKind::Workload => t!("topology-container"),
+        NodeKind::Key => t!("topology-ssh-key"),
     }
 }
 
@@ -107,12 +107,12 @@ fn toolbar(app_state: &CrowApp, graph: &Graph, app: Entity<CrowApp>) -> impl Int
         None => (c, w),
     });
     let checked = if st.scanning {
-        "checking posture…".to_string()
+        t!("topology-checking-posture").to_string()
     } else if st.posture_checked_at == 0 {
-        "posture not checked yet".to_string()
+        t!("topology-posture-not-checked-yet").to_string()
     } else {
         let mins = (chrono::Utc::now().timestamp() - st.posture_checked_at) / 60;
-        format!("posture checked {} ago · {} servers", if mins < 1 { "just now".to_string() } else if mins < 60 { format!("{mins} min") } else { format!("{} h", mins / 60) }, st.posture.len())
+        t!("topology-posture-checked-ago-servers", mins = if mins < 1 { t!("topology-just-now").to_string() } else if mins < 60 { t!("topology-min", mins = mins) } else { format!("{} h", mins / 60) }, count = st.posture.len())
     };
     let (app_all, app_risky, app_scan, app_out, app_in, app_fit) = (app.clone(), app.clone(), app.clone(), app.clone(), app.clone(), app.clone());
     div()
@@ -130,7 +130,7 @@ fn toolbar(app_state: &CrowApp, graph: &Graph, app: Entity<CrowApp>) -> impl Int
                 .flex()
                 .items_center()
                 .gap(px(6.0))
-                .child(chip("topo-lane-all", "ALL".into(), st.lane.is_none()).on_click(move |_ev, _w, cx| app_all.update(cx, |t, cx| t.topology_set_lane(None, cx))))
+                .child(chip("topo-lane-all", t!("topology-all").into(), st.lane.is_none()).on_click(move |_ev, _w, cx| app_all.update(cx, |t, cx| t.topology_set_lane(None, cx))))
                 .children(lanes.into_iter().enumerate().map(|(i, l)| {
                     let (app, on, lane) = (app.clone(), st.lane.as_deref() == Some(l.as_str()), l.clone());
                     chip(ElementId::NamedInteger("topo-lane".into(), i as u64), l, on).on_click(move |_ev, _w, cx| {
@@ -139,7 +139,7 @@ fn toolbar(app_state: &CrowApp, graph: &Graph, app: Entity<CrowApp>) -> impl Int
                     })
                 }))
                 .child(div().w(px(10.0)))
-                .child(chip("topo-risky", format!("AT RISK ONLY · {crit} crit · {warn} warn"), st.risky_only).on_click(move |_ev, _w, cx| app_risky.update(cx, |t, cx| t.topology_toggle_risky(cx)))),
+                .child(chip("topo-risky", t!("topology-at-risk-only-crit-warn", crit = crit, warn = warn), st.risky_only).on_click(move |_ev, _w, cx| app_risky.update(cx, |t, cx| t.topology_toggle_risky(cx)))),
         )
         .child(
             div()
@@ -147,11 +147,11 @@ fn toolbar(app_state: &CrowApp, graph: &Graph, app: Entity<CrowApp>) -> impl Int
                 .items_center()
                 .gap(px(8.0))
                 .child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(if st.scanning { hex_rgb(JUMP_BLUE) } else { TEXT_FAINT }).child(checked))
-                .child(chip("topo-scan", "CHECK POSTURE".into(), false).on_click(move |_ev, _w, cx| app_scan.update(cx, |t, cx| t.check_posture(cx))))
+                .child(chip("topo-scan", t!("topology-check-posture").into(), false).on_click(move |_ev, _w, cx| app_scan.update(cx, |t, cx| t.check_posture(cx))))
                 .child(icon_button("topo-zoom-out", TablerIcon::Minus, false).on_click(move |_ev, _w, cx| app_out.update(cx, |t, cx| t.topology_zoom(1.0 / 1.2, (300.0, 200.0), cx))))
                 .child(div().min_w(px(36.0)).flex().justify_center().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_SECONDARY).child(format!("{:.0}%", st.zoom * 100.0)))
                 .child(icon_button("topo-zoom-in", TablerIcon::Plus, false).on_click(move |_ev, _w, cx| app_in.update(cx, |t, cx| t.topology_zoom(1.2, (300.0, 200.0), cx))))
-                .child(chip("topo-fit", "RESET VIEW".into(), false).on_click(move |_ev, _w, cx| app_fit.update(cx, |t, cx| t.topology_reset_view(cx)))),
+                .child(chip("topo-fit", t!("topology-reset-view").into(), false).on_click(move |_ev, _w, cx| app_fit.update(cx, |t, cx| t.topology_reset_view(cx)))),
         )
 }
 
@@ -267,7 +267,7 @@ fn map_area(app_state: &CrowApp, graph: &Graph, placed: &Layout, app: Entity<Cro
                 .font_family(FONT_MONO)
                 .text_size(px(11.0))
                 .text_color(TEXT_FAINT)
-                .child("No servers yet: enroll one, or launch a Multipass VM from LOCAL LAB & VMS.")
+                .child(t!("topology-no-servers-yet-enroll-one"))
         }))
         .child(legend())
 }
@@ -288,10 +288,10 @@ fn legend() -> impl IntoElement {
         .font_family(FONT_MONO)
         .text_size(px(9.0))
         .text_color(TEXT_TERTIARY)
-        .child(item(hex_rgb(0x9aa4b2), "SSH"))
-        .child(item(hex_rgb(JUMP_BLUE), "via jump host"))
-        .child(item(hex_rgb(KEY_AMBER), "key unlocks"))
-        .child(item(CRIT, "critical risk"))
+        .child(item(hex_rgb(0x9aa4b2), t!("topology-ssh")))
+        .child(item(hex_rgb(JUMP_BLUE), t!("topology-via-jump-host")))
+        .child(item(hex_rgb(KEY_AMBER), t!("topology-key-unlocks")))
+        .child(item(CRIT, t!("topology-critical-risk")))
         .child(item(WARN, "warning"))
 }
 
@@ -351,7 +351,7 @@ fn node_card(i: usize, n: &Node, (x, y): (f32, f32), zoom: f32, selected: bool, 
                         .gap(z(6.0))
                         .child(div().flex_1().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(z(9.5)).text_color(TEXT_DIM).child(n.detail.clone()))
                         .children((!n.risks.is_empty()).then(|| {
-                            div().flex_none().px(z(4.0)).bg(hex_rgba(if worst == Some(Level::Crit) { 0xef4444 } else { 0xf59e0b }, 0.15)).font_family(FONT_MONO).text_size(z(9.0)).font_weight(FontWeight::BOLD).text_color(level_color(worst)).child(format!("{} RISK{}", n.risks.len(), if n.risks.len() == 1 { "" } else { "S" }))
+                            div().flex_none().px(z(4.0)).bg(hex_rgba(if worst == Some(Level::Crit) { 0xef4444 } else { 0xf59e0b }, 0.15)).font_family(FONT_MONO).text_size(z(9.0)).font_weight(FontWeight::BOLD).text_color(level_color(worst)).child(t!("topology-text", count = n.risks.len()))
                         })),
                 ),
         )
@@ -383,7 +383,7 @@ fn inspector(app_state: &CrowApp, graph: &Graph, n: &Node, app: Entity<CrowApp>)
     let mut body = div().flex().flex_col().gap(px(6.0)).p(px(14.0));
 
     // Risks first: they're why you'd click.
-    body = body.child(heading(if n.risks.is_empty() { "NO RISKS FOUND" } else { "RISKS" }));
+    body = body.child(heading(if n.risks.is_empty() { t!("topology-no-risks-found") } else { t!("topology-risks") }));
     for r in &n.risks {
         body = body.child(
             div()
@@ -397,7 +397,7 @@ fn inspector(app_state: &CrowApp, graph: &Graph, n: &Node, app: Entity<CrowApp>)
         );
     }
     if let Some(s) = server {
-        body = body.child(heading("SERVER"));
+        body = body.child(heading(t!("topology-server")));
         body = body.child(row("address", n.detail.clone()));
         if !s.os_distro.is_empty() {
             body = body.child(row("os", s.os_distro.clone()));
@@ -405,38 +405,38 @@ fn inspector(app_state: &CrowApp, graph: &Graph, n: &Node, app: Entity<CrowApp>)
         if !s.os_kernel.is_empty() {
             body = body.child(row("kernel", s.os_kernel.clone()));
         }
-        body = body.child(row("env · group", format!("{} · {}", if s.env.is_empty() { "—" } else { &s.env }, if s.group_name.is_empty() { "—" } else { &s.group_name })));
-        body = body.child(row("host key", s.host_key_fingerprint.clone().unwrap_or_else(|| "not pinned".into())));
+        body = body.child(row(t!("topology-env-group"), format!("{} · {}", if s.env.is_empty() { "—" } else { &s.env }, if s.group_name.is_empty() { "—" } else { &s.group_name })));
+        body = body.child(row(t!("topology-host-key"), s.host_key_fingerprint.clone().unwrap_or_else(|| t!("topology-not-pinned").into())));
         if let Some(m) = metrics.filter(|m| m.reachable) {
-            body = body.child(row("load", format!("cpu {:.0}% · mem {:.0}% · disk {:.0}%", m.cpu_pct, m.mem_pct, m.disk_pct)));
+            body = body.child(row("load", t!("topology-cpu-mem-disk", cpu_pct = format!("{:.0}", m.cpu_pct), mem_pct = format!("{:.0}", m.mem_pct), disk_pct = format!("{:.0}", m.disk_pct))));
             if !m.uptime_formatted.is_empty() {
                 body = body.child(row("uptime", m.uptime_formatted.clone()));
             }
         }
-        body = body.child(heading("POSTURE"));
+        body = body.child(heading(t!("topology-posture")));
         match posture {
-            None => body = body.child(div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_FAINT).child("Not checked yet (CHECK POSTURE reads it on reachable servers).")),
+            None => body = body.child(div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_FAINT).child(t!("topology-not-checked-yet-check-posture"))),
             Some(p) => {
-                let or_unknown = |v: Option<String>| v.unwrap_or_else(|| "couldn't read (needs root)".into());
+                let or_unknown = |v: Option<String>| v.unwrap_or_else(|| t!("topology-couldnt-read-needs-root").into());
                 body = body
-                    .child(row("root login", or_unknown(p.root_login.clone())))
+                    .child(row(t!("topology-root-login"), or_unknown(p.root_login.clone())))
                     .child(row("passwords", or_unknown(p.password_auth.map(|b| if b { "accepted".into() } else { "refused".into() }))))
                     .child(row("firewall", or_unknown(p.firewall.clone().map(|f| if f.is_empty() { "none".into() } else { f }))))
-                    .child(row("open to all", if p.exposed_ports.is_empty() { "nothing".into() } else { p.exposed_ports.iter().map(u16::to_string).collect::<Vec<_>>().join(", ") }));
+                    .child(row(t!("topology-open-to-all"), if p.exposed_ports.is_empty() { "nothing".into() } else { p.exposed_ports.iter().map(u16::to_string).collect::<Vec<_>>().join(", ") }));
             }
         }
     }
     if let Some(k) = key {
-        body = body.child(heading("KEY")).child(row("algorithm", k.algorithm.clone())).child(row("fingerprint", k.fingerprint.clone())).child(row("created", k.created_at.chars().take(10).collect()));
-        body = body.child(row("private key", k.private_key_path.clone().unwrap_or_else(|| "not on this machine".into())));
+        body = body.child(heading(t!("topology-key"))).child(row("algorithm", k.algorithm.clone())).child(row("fingerprint", k.fingerprint.clone())).child(row("created", k.created_at.chars().take(10).collect()));
+        body = body.child(row(t!("topology-private-key"), k.private_key_path.clone().unwrap_or_else(|| t!("topology-not-on-this-machine").into())));
     }
     if !links.is_empty() {
-        body = body.child(heading("CONNECTED TO"));
+        body = body.child(heading(t!("topology-connected-to")));
         for (i, (id, label, kind)) in links.into_iter().enumerate() {
             let app = app.clone();
             let how = match kind {
                 EdgeKind::Ssh => "ssh",
-                EdgeKind::ViaJump => "via jump",
+                EdgeKind::ViaJump => t!("topology-via-jump"),
                 EdgeKind::Unlocks => "key",
                 EdgeKind::Runs => "runs",
             };
@@ -469,11 +469,11 @@ fn inspector(app_state: &CrowApp, graph: &Graph, n: &Node, app: Entity<CrowApp>)
             .p(px(14.0))
             .border_t_1()
             .border_color(BORDER_PANEL)
-            .child(chip("topo-open-server", "OPEN SERVER".into(), true).on_click(move |_ev, _w, cx| {
+            .child(chip("topo-open-server", t!("topology-open-server").into(), true).on_click(move |_ev, _w, cx| {
                 let id = id_open.clone();
                 app_open.update(cx, |t, cx| t.topology_open_server(&id, "overview", cx))
             }))
-            .child(chip("topo-open-terminal", "TERMINAL".into(), false).on_click(move |_ev, _w, cx| {
+            .child(chip("topo-open-terminal", t!("topology-terminal").into(), false).on_click(move |_ev, _w, cx| {
                 let id = id_term.clone();
                 app_term.update(cx, |t, cx| t.topology_open_server(&id, "terminal", cx))
             }))

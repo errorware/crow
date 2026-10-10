@@ -47,11 +47,11 @@ pub fn format_display_value(leaf: &str, field: Option<&FieldIr>) -> String {
     if let Some(f) = field {
         match &f.value {
             serde_json::Value::Bool(b) => {
-                if *b { "YES".to_string() } else { "NO".to_string() }
+                if *b { t!("settings-config-table-yes").to_string() } else { t!("settings-config-table-no").to_string() }
             }
             serde_json::Value::Number(n) => {
                 if leaf.ends_with("_ms") {
-                    format!("{} ms", n)
+                    t!("settings-config-table-ms", n = n)
                 } else if leaf.ends_with("_sec") || leaf.ends_with("_secs") || leaf.ends_with("_seconds") {
                     format!("{} s", n)
                 } else if leaf.ends_with("_bytes") {
@@ -62,7 +62,7 @@ pub fn format_display_value(leaf: &str, field: Option<&FieldIr>) -> String {
             }
             serde_json::Value::String(s) => {
                 if s.is_empty() {
-                    "(empty)".to_string()
+                    t!("settings-config-table-empty").to_string()
                 } else {
                     s.clone()
                 }
@@ -72,7 +72,7 @@ pub fn format_display_value(leaf: &str, field: Option<&FieldIr>) -> String {
                     .filter_map(|v| v.as_str())
                     .collect::<Vec<_>>()
                     .join(", ");
-                if joined.is_empty() { "(none)".to_string() } else { joined }
+                if joined.is_empty() { t!("settings-config-table-none").to_string() } else { joined }
             }
             _ => serde_json::to_string(&f.value).unwrap_or_else(|_| "unknown".to_string()),
         }
@@ -91,8 +91,8 @@ pub fn get_field_options(
         let is_yes = current_val.eq_ignore_ascii_case("yes") || current_val.eq_ignore_ascii_case("true");
         return (
             vec![
-                SettingOption { value: "true".into(), label: "YES".into(), desc: "Enable setting".into() },
-                SettingOption { value: "false".into(), label: "NO".into(), desc: "Disable setting".into() },
+                SettingOption { value: "true".into(), label: t!("settings-config-table-yes").into(), desc: t!("settings-config-table-enable-setting").into() },
+                SettingOption { value: "false".into(), label: t!("settings-config-table-no").into(), desc: t!("settings-config-table-disable-setting").into() },
             ],
             Some(if is_yes { 0 } else { 1 }),
             false,
@@ -102,59 +102,59 @@ pub fn get_field_options(
     match leaf {
         "connect_timeout_sec" => (
             vec![
-                SettingOption { value: "5".into(), label: "5s".into(), desc: "Aggressive timeout".into() },
-                SettingOption { value: "10".into(), label: "10s".into(), desc: "Standard recommended".into() },
-                SettingOption { value: "15".into(), label: "15s".into(), desc: "Tolerant of high-latency links".into() },
-                SettingOption { value: "30".into(), label: "30s".into(), desc: "Slow satellite / dialup".into() },
+                SettingOption { value: "5".into(), label: "5s".into(), desc: t!("settings-config-table-aggressive-timeout").into() },
+                SettingOption { value: "10".into(), label: "10s".into(), desc: t!("settings-config-table-standard-recommended").into() },
+                SettingOption { value: "15".into(), label: "15s".into(), desc: t!("settings-config-table-tolerant-of-high-latency-links").into() },
+                SettingOption { value: "30".into(), label: "30s".into(), desc: t!("settings-config-table-slow-satellite-dialup").into() },
             ],
             None,
             true,
         ),
         "keepalive_interval_sec" => (
             vec![
-                SettingOption { value: "15".into(), label: "15s".into(), desc: "Aggressive ping".into() },
-                SettingOption { value: "30".into(), label: "30s".into(), desc: "Standard recommended".into() },
-                SettingOption { value: "60".into(), label: "60s".into(), desc: "Relaxed heartbeat".into() },
-                SettingOption { value: "0".into(), label: "OFF".into(), desc: "Disable keepalive ping".into() },
+                SettingOption { value: "15".into(), label: "15s".into(), desc: t!("settings-config-table-aggressive-ping").into() },
+                SettingOption { value: "30".into(), label: "30s".into(), desc: t!("settings-config-table-standard-recommended").into() },
+                SettingOption { value: "60".into(), label: "60s".into(), desc: t!("settings-config-table-relaxed-heartbeat").into() },
+                SettingOption { value: "0".into(), label: t!("settings-config-table-off").into(), desc: t!("settings-config-table-disable-keepalive-ping").into() },
             ],
             None,
             true,
         ),
         "keepalive_max_count" => (
             vec![
-                SettingOption { value: "2".into(), label: "2 attempts".into(), desc: "Fast dead-peer detection".into() },
-                SettingOption { value: "3".into(), label: "3 attempts".into(), desc: "Standard recommended".into() },
-                SettingOption { value: "5".into(), label: "5 attempts".into(), desc: "Tolerate transient packet drop".into() },
-                SettingOption { value: "10".into(), label: "10 attempts".into(), desc: "Very tolerant".into() },
+                SettingOption { value: "2".into(), label: t!("settings-config-table-2-attempts").into(), desc: t!("settings-config-table-fast-dead-peer-detection").into() },
+                SettingOption { value: "3".into(), label: t!("settings-config-table-3-attempts").into(), desc: t!("settings-config-table-standard-recommended").into() },
+                SettingOption { value: "5".into(), label: t!("settings-config-table-5-attempts").into(), desc: t!("settings-config-table-tolerate-transient-packet-drop").into() },
+                SettingOption { value: "10".into(), label: t!("settings-config-table-10-attempts").into(), desc: t!("settings-config-table-very-tolerant").into() },
             ],
             None,
             true,
         ),
         "metrics_refresh_sec" => (
             vec![
-                SettingOption { value: "1".into(), label: "1s (High resolution)".into(), desc: "Higher local/remote CPU use".into() },
-                SettingOption { value: "2".into(), label: "2s (Default)".into(), desc: "Smooth streaming & low load".into() },
-                SettingOption { value: "5".into(), label: "5s (Battery/Eco)".into(), desc: "Low background overhead".into() },
-                SettingOption { value: "10".into(), label: "10s (Minimal)".into(), desc: "Minimal polling footprint".into() },
+                SettingOption { value: "1".into(), label: t!("settings-config-table-1s-high-resolution").into(), desc: t!("settings-config-table-higher-local-remote-cpu-use").into() },
+                SettingOption { value: "2".into(), label: t!("settings-config-table-2s-default").into(), desc: t!("settings-config-table-smooth-streaming-low-load").into() },
+                SettingOption { value: "5".into(), label: t!("settings-config-table-5s-battery-eco").into(), desc: t!("settings-config-table-low-background-overhead").into() },
+                SettingOption { value: "10".into(), label: t!("settings-config-table-10s-minimal").into(), desc: t!("settings-config-table-minimal-polling-footprint").into() },
             ],
             None,
             true,
         ),
         "cipher_preference" => (
             vec![
-                SettingOption { value: "chacha20-poly1305@openssh.com".into(), label: "chacha20-poly1305 (Fast & modern)".into(), desc: "Hardware-agnostic AEAD".into() },
-                SettingOption { value: "aes128-gcm@openssh.com".into(), label: "aes128-gcm (AES-NI accelerated)".into(), desc: "Fast on modern Intel/AMD".into() },
-                SettingOption { value: "aes256-gcm@openssh.com".into(), label: "aes256-gcm (Maximum depth)".into(), desc: "High security environments".into() },
-                SettingOption { value: "aes256-gcm".into(), label: "aes256-gcm".into(), desc: "AES256-GCM only".into() },
+                SettingOption { value: "chacha20-poly1305@openssh.com".into(), label: t!("settings-config-table-chacha20-poly1305-fast-modern").into(), desc: t!("settings-config-table-hardware-agnostic-aead").into() },
+                SettingOption { value: "aes128-gcm@openssh.com".into(), label: t!("settings-config-table-aes128-gcm-aes-ni-accelerated").into(), desc: t!("settings-config-table-fast-on-modern-intel-amd").into() },
+                SettingOption { value: "aes256-gcm@openssh.com".into(), label: t!("settings-config-table-aes256-gcm-maximum-depth").into(), desc: t!("settings-config-table-high-security-environments").into() },
+                SettingOption { value: "aes256-gcm".into(), label: "aes256-gcm".into(), desc: t!("settings-config-table-aes256-gcm-only").into() },
             ],
             None,
             true,
         ),
         "default_identity" => (
             vec![
-                SettingOption { value: "~/.ssh/id_ed25519".into(), label: "~/.ssh/id_ed25519".into(), desc: "Default Ed25519 key".into() },
-                SettingOption { value: "~/.ssh/id_ed25519_bastion".into(), label: "~/.ssh/id_ed25519_bastion".into(), desc: "Dedicated bastion key".into() },
-                SettingOption { value: "~/.ssh/id_rsa".into(), label: "~/.ssh/id_rsa".into(), desc: "Legacy RSA identity".into() },
+                SettingOption { value: "~/.ssh/id_ed25519".into(), label: "~/.ssh/id_ed25519".into(), desc: t!("settings-config-table-default-ed25519-key").into() },
+                SettingOption { value: "~/.ssh/id_ed25519_bastion".into(), label: "~/.ssh/id_ed25519_bastion".into(), desc: t!("settings-config-table-dedicated-bastion-key").into() },
+                SettingOption { value: "~/.ssh/id_rsa".into(), label: "~/.ssh/id_rsa".into(), desc: t!("settings-config-table-legacy-rsa-identity").into() },
             ],
             None,
             true,
@@ -165,7 +165,7 @@ pub fn get_field_options(
                     opts.into_iter().map(|o| SettingOption {
                         value: o.value.clone(),
                         label: o.label.clone(),
-                        desc: format!("Risk: {:?}", o.risk),
+                        desc: t!("settings-config-table-risk", risk = format!("{:?}", o.risk)),
                     }).collect(),
                     None,
                     false,
@@ -216,7 +216,7 @@ pub fn personalisation_block(bg: &(&FleetBackground, Option<std::path::PathBuf>)
                 .justify_center()
                 .child(match (state.rendered.clone(), source) {
                     (Some(p), Some(_)) => img(p).size_full().object_fit(ObjectFit::Cover).into_any_element(),
-                    (_, Some(_)) => div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_FAINT).child("preparing…").into_any_element(),
+                    (_, Some(_)) => div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_FAINT).child(t!("settings-config-table-preparing")).into_any_element(),
                     _ => inherited_icon(TablerIcon::Photo, px(28.0)).text_color(TEXT_FAINTER).into_any_element(),
                 }),
         )
@@ -228,16 +228,16 @@ pub fn personalisation_block(bg: &(&FleetBackground, Option<std::path::PathBuf>)
                 .flex_col()
                 .gap(px(6.0))
                 .font_family(FONT_MONO)
-                .child(div().text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child("FLEET PAGE BACKGROUND"))
-                .child(div().text_size(px(10.0)).text_color(TEXT_DIM).child("A picture behind the server list, faded and softened so the table stays readable. PNG, JPEG or WebP; Crow keeps its own copy."))
+                .child(div().text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-config-table-fleet-page-background")))
+                .child(div().text_size(px(10.0)).text_color(TEXT_DIM).child(t!("settings-config-table-a-picture-behind-the-server")))
                 .children(state.error.clone().map(|e| div().text_size(px(10.0)).text_color(CRIT).child(e)))
                 .child(
                     div()
                         .flex()
                         .gap(px(8.0))
                         .pt(px(6.0))
-                        .child(button("btn-choose-background", OK).on_click(move |_ev, _window, cx| app_choose.update(cx, |this, cx| this.choose_fleet_background(cx))).child(if source.is_some() { "CHANGE PICTURE…" } else { "CHOOSE PICTURE…" }))
-                        .children(source.is_some().then(|| button("btn-remove-background", TEXT_SECONDARY).on_click(move |_ev, _window, cx| app_remove.update(cx, |this, cx| this.remove_fleet_background(cx))).child("REMOVE"))),
+                        .child(button("btn-choose-background", OK).on_click(move |_ev, _window, cx| app_choose.update(cx, |this, cx| this.choose_fleet_background(cx))).child(if source.is_some() { t!("settings-config-table-change-picture") } else { t!("settings-config-table-choose-picture") }))
+                        .children(source.is_some().then(|| button("btn-remove-background", TEXT_SECONDARY).on_click(move |_ev, _window, cx| app_remove.update(cx, |this, cx| this.remove_fleet_background(cx))).child(t!("settings-config-table-remove")))),
                 ),
         )
 }
@@ -253,16 +253,16 @@ pub fn render_config_section(
     custom_setting_input: Option<&Entity<InputState>>,
 ) -> impl IntoElement {
     let (title, sub) = match section {
-        SettingsSection::General => ("GENERAL", "[general] · application behavior"),
-        SettingsSection::Connection => ("CONNECTION & SSH", "[connection] · applies to every host unless overridden"),
-        SettingsSection::Keys => ("KEYS & ROTATION", "[keys] · key distribution & policies"),
-        SettingsSection::Security => ("VAULT & SECURITY", "[vault] · encrypted secrets & who can open Crow"),
-        SettingsSection::Servers => ("SERVERS & ARCHIVES", "[servers] · archiving and how long stored data is kept"),
-        SettingsSection::Components => ("UI COMPONENTS LAB", "[lab] · gpui-component testbed & sandbox"),
-        SettingsSection::Clankers => ("CLANKERS (AI USABILITY)", "[clankers] · api keys & log eli5 helpers"),
-        SettingsSection::Providers => ("PROVIDERS", "[providers] · cloud accounts your servers run on"),
-        SettingsSection::Plugins => ("PLUGINS", "[plugins] · integrations, off until you switch them on"),
-        SettingsSection::Personalisation => ("PERSONALISATION", "[appearance] · make Crow yours · saved as you change it"),
+        SettingsSection::General => (t!("settings-config-table-general"), t!("settings-config-table-general-application-behavior")),
+        SettingsSection::Connection => (t!("settings-config-table-connection-ssh"), t!("settings-config-table-connection-applies-to-every-host")),
+        SettingsSection::Keys => (t!("settings-config-table-keys-rotation"), t!("settings-config-table-keys-key-distribution-policies")),
+        SettingsSection::Security => (t!("settings-config-table-vault-security"), t!("settings-config-table-vault-encrypted-secrets-who-can")),
+        SettingsSection::Servers => (t!("settings-config-table-servers-archives"), t!("settings-config-table-servers-archiving-and-how-long")),
+        SettingsSection::Components => (t!("settings-config-table-ui-components-lab"), t!("settings-config-table-lab-gpui-component-testbed-sandbox")),
+        SettingsSection::Clankers => (t!("settings-config-table-clankers-ai-usability"), t!("settings-config-table-clankers-api-keys-log-eli5")),
+        SettingsSection::Providers => (t!("settings-config-table-providers"), t!("settings-config-table-providers-cloud-accounts-your-servers")),
+        SettingsSection::Plugins => (t!("settings-config-table-plugins"), t!("settings-config-table-plugins-integrations-off-until-you")),
+        SettingsSection::Personalisation => (t!("settings-config-table-personalisation"), t!("settings-config-table-appearance-make-crow-yours-saved")),
     };
 
     let is_auth_enabled = vault.is_password_auth_enabled();
@@ -363,7 +363,7 @@ pub fn render_config_section(
                                                         .text_size(px(12.5))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(TEXT_PRIMARY)
-                                                        .child("PASSWORD LOGON IS NOT CONFIGURED"),
+                                                        .child(t!("settings-config-table-password-logon-is-not-configured")),
                                                 ),
                                         )
                                         .child(
@@ -376,7 +376,7 @@ pub fn render_config_section(
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(9.5))
                                                 .text_color(CRIT_INK_DIM)
-                                                .child("DISABLED (DEFAULT)"),
+                                                .child(t!("settings-config-table-disabled-default")),
                                         ),
                                 )
                                 .child(
@@ -385,7 +385,7 @@ pub fn render_config_section(
                                         .text_size(px(11.0))
                                         .text_color(TEXT_MUTED)
                                         .line_height(px(16.0))
-                                        .child("Without a password, anyone using your computer account can open Crow. Secrets (provider tokens, AI keys) are still encrypted, with the key held by your OS keyring. A master password with two-factor authentication (RFC 6238 TOTP) makes Crow ask before it opens, and locks the secrets' key with that password instead."),
+                                        .child(t!("settings-config-table-without-a-password-anyone-using")),
                                 )
                                 .child(
                                     div()
@@ -414,7 +414,7 @@ pub fn render_config_section(
                                                         .text_size(px(11.0))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(BG_WINDOW)
-                                                        .child("SET PASSWORD & 2FA →"),
+                                                        .child(t!("settings-config-table-set-password-2fa")),
                                                 ),
                                         ),
                                 ),
@@ -447,7 +447,7 @@ pub fn render_config_section(
                                                         .text_size(px(12.5))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(TEXT_PRIMARY)
-                                                        .child("PASSWORD + 2FA VAULT CONFIGURED"),
+                                                        .child(t!("settings-config-table-password-2fa-vault-configured")),
                                                 ),
                                         )
                                         .child(
@@ -460,7 +460,7 @@ pub fn render_config_section(
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(9.5))
                                                 .text_color(OK_INK)
-                                                .child("LOCKED STANCE"),
+                                                .child(t!("settings-config-table-locked-stance")),
                                         ),
                                 )
                                 .child(
@@ -469,7 +469,7 @@ pub fn render_config_section(
                                         .text_size(px(11.0))
                                         .text_color(TEXT_MUTED)
                                         .line_height(px(16.0))
-                                        .child("Database and keys are secured. Unlocking requires password and 6-digit TOTP code. Auto-lock engages after the configured timeout."),
+                                        .child(t!("settings-config-table-database-and-keys-are-secured")),
                                 )
                                 .child(
                                     div()
@@ -496,7 +496,7 @@ pub fn render_config_section(
                                                         .font_family(FONT_MONO)
                                                         .text_size(px(11.0))
                                                         .text_color(TEXT_PRIMARY)
-                                                        .child("LOCK VAULT NOW (⇧⌘L)"),
+                                                        .child(t!("settings-config-table-lock-vault-now-l")),
                                                 ),
                                         ),
                                 ),
@@ -514,7 +514,7 @@ pub fn render_config_section(
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
-                        .child(format!("{hidden_settings} more setting{} in this section {} not wired to anything yet, so {} hidden rather than pretending to work.", if hidden_settings == 1 { "" } else { "s" }, if hidden_settings == 1 { "is" } else { "are" }, if hidden_settings == 1 { "it's" } else { "they're" }))
+                        .child(t!("settings-config-table-more-in-this-section-not", hidden_settings = hidden_settings, hidden_settings2 = if hidden_settings == 1 { t!("settings-config-table-its") } else { t!("settings-config-table-theyre") }))
                 }))
                 .children(sec_rows.into_iter().enumerate().map(|(idx, row)| {
                     let is_even = idx % 2 == 0;
@@ -583,7 +583,7 @@ pub fn render_config_section(
                                                         .text_size(px(8.5))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(WARN)
-                                                        .child("CHANGED")
+                                                        .child(t!("settings-config-table-changed"))
                                                 })),
                                         )
                                         .child(
@@ -747,7 +747,7 @@ pub fn render_config_section(
                                                 .text_size(px(9.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_DIMMER)
-                                                .child("OR ENTER CUSTOM VALUE:"),
+                                                .child(t!("settings-config-table-or-enter-custom-value")),
                                         )
                                         .child(
                                             if let Some(ref input) = custom_setting_input {
@@ -790,7 +790,7 @@ pub fn render_config_section(
                                                         this.apply_settings_custom_input(&rid, cx);
                                                     });
                                                 })
-                                                .child("APPLY"),
+                                                .child(t!("settings-config-table-apply")),
                                         )
                                         .child(
                                             icon_button("btn-cancel-custom-value", TablerIcon::X, false)
@@ -837,7 +837,7 @@ pub fn render_config_section(
                                 });
                             }
                         })
-                        .child("RESET SECTION"),
+                        .child(t!("settings-config-table-reset-section")),
                 )
                 .child(
                     div()
@@ -853,7 +853,7 @@ pub fn render_config_section(
                         .on_click(move |_ev, _window, cx| {
                             app_edit.read(cx).open_config_file();
                         })
-                        .child("EDIT config.toml ⌘/"),
+                        .child(t!("settings-config-table-edit-config-toml")),
                 )
                 .child(div().flex_1())
                 .child(
@@ -877,9 +877,9 @@ pub fn render_config_section(
                             }
                         })
                         .child(if total_changed > 0 {
-                            format!("SAVE ⌘S ({} pending)", total_changed)
+                            t!("settings-config-table-save-s-pending", total_changed = total_changed)
                         } else {
-                            "SAVE ⌘S".to_string()
+                            t!("settings-config-table-save-s").to_string()
                         }),
                 ),
         )

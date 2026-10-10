@@ -59,7 +59,7 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                 .flex()
                 .flex_col()
                 .gap(px(14.0))
-                .child(div().flex().items_center().gap(px(12.0)).child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child("CHECKS FROM OUTSIDE")).child(mono(10.5, if failing > 0 { CRIT } else { OK }).child(format!("{} checks · {failing} failing", st.defs.len()))).child(mono(9.5, TEXT_FAINT).child("run from this machine, only while Crow is open")))
+                .child(div().flex().items_center().gap(px(12.0)).child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("fleet-checks-checks-from-outside"))).child(mono(10.5, if failing > 0 { CRIT } else { OK }).child(t!("fleet-checks-checks-failing", count = st.defs.len(), failing = failing))).child(mono(9.5, TEXT_FAINT).child(t!("fleet-checks-run-from-this-machine-only"))))
                 // Add one.
                 .child(
                     div()
@@ -70,10 +70,10 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                         .border_1()
                         .border_color(BORDER_PANEL)
                         .bg(BG_PANEL)
-                        .child(div().flex().items_center().gap(px(6.0)).children([(FormKind::Http, "HTTP(S)"), (FormKind::Tcp, "TCP PORT"), (FormKind::Dns, "DNS NAME")].into_iter().map(|(k, t)| {
+                        .child(div().flex().items_center().gap(px(6.0)).children([(FormKind::Http, t!("fleet-checks-http-s")), (FormKind::Tcp, t!("fleet-checks-tcp-port")), (FormKind::Dns, t!("fleet-checks-dns-name"))].into_iter().map(|(k, t)| {
                             let app = app.clone();
                             chip(format!("check-kind-{t}"), t, st.form == k).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_check_form(k, cx)))
-                        })).child(div().w(px(12.0))).child(mono(9.5, TEXT_DIMMER).child("EVERY")).children([(30i64, "30 s"), (60, "1 min"), (300, "5 min")].into_iter().map(|(s, t)| {
+                        })).child(div().w(px(12.0))).child(mono(9.5, TEXT_DIMMER).child(t!("fleet-checks-every"))).children([(30i64, "30 s"), (60, t!("fleet-checks-1-min")), (300, t!("fleet-checks-5-min"))].into_iter().map(|(s, t)| {
                             let app = app.clone();
                             chip(format!("check-every-{s}"), t, st.every == s).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_check_every(s, cx)))
                         })))
@@ -84,10 +84,10 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                                 .flex_wrap()
                                 .items_center()
                                 .gap(px(6.0))
-                                .child(mono(9.5, TEXT_DIMMER).child("ATTACH TO"))
+                                .child(mono(9.5, TEXT_DIMMER).child(t!("fleet-checks-attach-to")))
                                 .child({
                                     let app = app.clone();
-                                    chip("check-attach-none", "no server", st.attach.is_none()).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_check_attach(None, cx)))
+                                    chip("check-attach-none", t!("fleet-checks-no-server"), st.attach.is_none()).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_check_attach(None, cx)))
                                 })
                                 .children(fleet.servers.iter().map(|s| {
                                     let (app, id) = (app.clone(), s.id.clone());
@@ -97,9 +97,9 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                                     })
                                 }))
                                 .child(div().flex_1())
-                                .child(chip("btn-check-add", "ADD CHECK", false).on_click(move |_ev, _w, cx| app_add.update(cx, |this, cx| this.add_check(cx)))),
+                                .child(chip("btn-check-add", t!("fleet-checks-add-check"), false).on_click(move |_ev, _w, cx| app_add.update(cx, |this, cx| this.add_check(cx)))),
                         )
-                        .child(mono(9.5, TEXT_FAINT).child("An attached check's alerts land on that server (its page, the map, email). A check alerts after two failures in a row and resolves on the first success.")),
+                        .child(mono(9.5, TEXT_FAINT).child(t!("fleet-checks-an-attached-checks-alerts-land"))),
                 )
                 .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { OK } else { WARN }).child(m)))
                 // The checks.
@@ -134,11 +134,11 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                                 .flex_col()
                                 .gap(px(2.0))
                                 .child(mono(11.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).whitespace_nowrap().overflow_hidden().text_ellipsis().child(c.name.clone()))
-                                .child(mono(9.5, TEXT_FAINT).whitespace_nowrap().overflow_hidden().text_ellipsis().child(format!("{} · every {} s{}", c.target(), c.every_secs, server.map(|s| format!(" · on {s}")).unwrap_or_default())))
+                                .child(mono(9.5, TEXT_FAINT).whitespace_nowrap().overflow_hidden().text_ellipsis().child(t!("fleet-checks-every-s", target = c.target(), every_secs = c.every_secs, server = server.map(|s| t!("fleet-checks-on", s = s)).unwrap_or_default())))
                                 .child(mono(9.5, color).whitespace_nowrap().overflow_hidden().text_ellipsis().child(match last {
-                                    Some(o) => format!("{}{}", o.detail, o.cert_days.map(|d| format!(" · cert {d} days")).unwrap_or_default()),
-                                    None if st.running.contains(&c.id) => "checking…".into(),
-                                    None => "not checked yet".into(),
+                                    Some(o) => format!("{}{}", o.detail, o.cert_days.map(|d| t!("fleet-checks-cert-days", d = d)).unwrap_or_default()),
+                                    None if st.running.contains(&c.id) => t!("fleet-checks-checking").into(),
+                                    None => t!("fleet-checks-not-checked-yet").into(),
                                 })),
                         )
                         // The last results: a bar each, height = latency, red = failed.
@@ -151,7 +151,7 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                             let id = id1.clone();
                             a_run.update(cx, |this, cx| this.run_check(&id, cx))
                         }))
-                        .child(chip(format!("check-alert-{}", c.id), if c.alert { "ALERTS ON" } else { "ALERTS OFF" }, c.alert).on_click(move |_ev, _w, cx| {
+                        .child(chip(format!("check-alert-{}", c.id), if c.alert { t!("fleet-checks-alerts-on") } else { t!("fleet-checks-alerts-off") }, c.alert).on_click(move |_ev, _w, cx| {
                             let id = id2.clone();
                             a_alert.update(cx, |this, cx| this.toggle_check_alert(&id, cx))
                         }))
@@ -160,6 +160,6 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                             a_del.update(cx, |this, cx| this.delete_check(&id, cx))
                         }))
                 }))
-                .when(st.defs.is_empty(), |d| d.child(mono(10.5, TEXT_DIM).child("No checks yet: add a website, a port or a DNS name above."))),
+                .when(st.defs.is_empty(), |d| d.child(mono(10.5, TEXT_DIM).child(t!("fleet-checks-no-checks-yet-add-a")))),
         )
 }

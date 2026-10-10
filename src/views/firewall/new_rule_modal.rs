@@ -24,7 +24,7 @@ impl Default for NewRuleState {
             direction: RuleDirection::Inbound,
             protocol: RuleProtocol::Tcp,
             port_input: "8080".to_string(),
-            source_input: "Anywhere".to_string(),
+            source_input: t!("firewall-new-rule-modal-anywhere").to_string(),
             comment_input: String::new(),
             is_anywhere: true,
         }
@@ -41,31 +41,31 @@ impl NewRuleState {
         };
 
         let proto_str = match self.protocol {
-            RuleProtocol::Tcp => "proto tcp ",
-            RuleProtocol::Udp => "proto udp ",
+            RuleProtocol::Tcp => t!("firewall-new-rule-modal-proto-tcp"),
+            RuleProtocol::Udp => t!("firewall-new-rule-modal-proto-udp"),
             _ => "",
         };
 
         let from_str = if self.is_anywhere || self.source_input.trim().is_empty() {
             "".to_string()
         } else {
-            format!("from {} ", self.source_input.trim())
+            t!("firewall-new-rule-modal-from", source_input = self.source_input.trim())
         };
 
         let port_clean = self.port_input.trim();
         let port_str = if port_clean.is_empty() {
             "any".to_string()
         } else {
-            format!("to any port {}", port_clean)
+            t!("firewall-new-rule-modal-to-any-port", port_clean = port_clean)
         };
 
         let comment_str = if self.comment_input.trim().is_empty() {
             "".to_string()
         } else {
-            format!(" comment '{}'", self.comment_input.trim())
+            t!("firewall-new-rule-modal-comment", comment_input = self.comment_input.trim())
         };
 
-        format!("ufw {} {}{}{}{}", action_str, proto_str, from_str, port_str, comment_str)
+        t!("firewall-new-rule-modal-ufw", action_str = action_str, proto_str = proto_str, from_str = from_str, port_str = port_str, comment_str = comment_str)
     }
 }
 
@@ -117,11 +117,11 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
     // What will run: ufw's one directive, or firewall-cmd's pairs (ERR-77).
     let (preview_title, cmd_preview, preview_ok): (&str, Vec<String>, bool) = if backend == FirewallBackend::Firewalld {
         match super::commands::firewalld_new_rule(state) {
-            Ok(cmds) => ("WILL RUN (running + saved config)", cmds.iter().map(super::commands::describe).collect(), true),
-            Err(e) => ("NOT VALID FOR FIREWALLD", vec![e], false),
+            Ok(cmds) => (t!("firewall-new-rule-modal-will-run-running-saved-config"), cmds.iter().map(super::commands::describe).collect(), true),
+            Err(e) => (t!("firewall-new-rule-modal-not-valid-for-firewalld"), vec![e], false),
         }
     } else {
-        ("WILL RUN", vec![state.generate_ufw_command()], true)
+        (t!("firewall-new-rule-modal-will-run"), vec![state.generate_ufw_command()], true)
     };
 
     let input = |i: Option<&Entity<InputState>>| div().flex_1().min_w(px(0.0)).children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(11.5)).bg(BG_APP)));
@@ -160,7 +160,7 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                         .border_b_1()
                         .border_color(BORDER_PANEL)
                         .font_family(FONT_MONO)
-                        .child(div().text_size(px(11.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child("ADD RULE"))
+                        .child(div().text_size(px(11.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(t!("firewall-new-rule-modal-add-rule")))
                         .child(div().text_size(px(10.5)).text_color(TEXT_DIM).child(backend.short_name().to_lowercase()))
                         .child(div().flex_1())
                         .child(
@@ -180,8 +180,8 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                         .flex_col()
                         .gap(px(12.0))
                         .child(
-                            div().flex().flex_col().gap(px(5.0)).child(field_label("ACTION")).child(div().flex().gap(px(4.0)).children(
-                                [(RuleAction::Allow, "ALLOW", OK), (RuleAction::Deny, "DENY", CRIT), (RuleAction::Reject, "REJECT", CRIT), (RuleAction::Limit, "LIMIT", WARN)].into_iter().map(|(a, label, color)| {
+                            div().flex().flex_col().gap(px(5.0)).child(field_label(t!("firewall-new-rule-modal-action"))).child(div().flex().gap(px(4.0)).children(
+                                [(RuleAction::Allow, t!("firewall-new-rule-modal-allow"), OK), (RuleAction::Deny, t!("firewall-new-rule-modal-deny"), CRIT), (RuleAction::Reject, t!("firewall-new-rule-modal-reject"), CRIT), (RuleAction::Limit, t!("firewall-new-rule-modal-limit"), WARN)].into_iter().map(|(a, label, color)| {
                                     let app = app.clone();
                                     segment(format!("sel-action-{label}"), label, state.action == a, color).on_click(move |_ev, _window, cx| {
                                         app.update(cx, |this, cx| {
@@ -193,8 +193,8 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                             )),
                         )
                         .child(
-                            div().flex().flex_col().gap(px(5.0)).child(field_label("PROTOCOL")).child(div().flex().gap(px(4.0)).children(
-                                [(RuleProtocol::Tcp, "TCP"), (RuleProtocol::Udp, "UDP"), (RuleProtocol::Both, "TCP+UDP"), (RuleProtocol::Any, "ANY")].into_iter().map(|(p, label)| {
+                            div().flex().flex_col().gap(px(5.0)).child(field_label(t!("firewall-new-rule-modal-protocol"))).child(div().flex().gap(px(4.0)).children(
+                                [(RuleProtocol::Tcp, t!("firewall-new-rule-modal-tcp")), (RuleProtocol::Udp, t!("firewall-new-rule-modal-udp")), (RuleProtocol::Both, t!("firewall-new-rule-modal-tcp-udp")), (RuleProtocol::Any, t!("firewall-new-rule-modal-any"))].into_iter().map(|(p, label)| {
                                     let app = app.clone();
                                     segment(format!("sel-proto-{label}"), label, state.protocol == p, TEXT_MAX).on_click(move |_ev, _window, cx| {
                                         app.update(cx, |this, cx| {
@@ -206,7 +206,7 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                             )),
                         )
                         .child(
-                            div().flex().flex_col().gap(px(5.0)).child(field_label("PORT")).child(
+                            div().flex().flex_col().gap(px(5.0)).child(field_label(t!("firewall-new-rule-modal-port"))).child(
                                 div().flex().items_center().gap(px(4.0)).child(input(inputs.map(|i| &i.port))).children(["22", "80", "443", "5432", "6379"].into_iter().map(|p| {
                                     let app = app.clone();
                                     preset(format!("preset-port-{p}"), p).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.set_firewall_rule_field(RuleField::Port, p, window, cx)))
@@ -214,14 +214,14 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                             ),
                         )
                         .child(
-                            div().flex().flex_col().gap(px(5.0)).child(field_label("FROM")).child(
+                            div().flex().flex_col().gap(px(5.0)).child(field_label(t!("firewall-new-rule-modal-from-2"))).child(
                                 div().flex().items_center().gap(px(4.0)).child(input(inputs.map(|i| &i.source))).children([("anywhere", ""), ("10.0.0.0/8", "10.0.0.0/8"), ("192.168.0.0/16", "192.168.0.0/16")].into_iter().map(|(label, value)| {
                                     let app = app.clone();
                                     preset(format!("preset-src-{label}"), label).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.set_firewall_rule_field(RuleField::Source, value, window, cx)))
                                 })),
                             ),
                         )
-                        .child(div().flex().flex_col().gap(px(5.0)).child(field_label("COMMENT")).child(input(inputs.map(|i| &i.comment))))
+                        .child(div().flex().flex_col().gap(px(5.0)).child(field_label(t!("firewall-new-rule-modal-comment-2"))).child(input(inputs.map(|i| &i.comment))))
                         .child(
                             div()
                                 .p(px(10.0))
@@ -247,7 +247,7 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                         .border_t_1()
                         .border_color(BORDER_PANEL)
                         .font_family(FONT_MONO)
-                        .child(div().flex_1().text_size(px(9.5)).text_color(TEXT_FAINT).child("Enter adds it · Esc or a click outside cancels"))
+                        .child(div().flex_1().text_size(px(9.5)).text_color(TEXT_FAINT).child(t!("firewall-new-rule-modal-enter-adds-it-esc-or")))
                         .child(
                             div()
                                 .id("btn-cancel-new-rule")
@@ -258,7 +258,7 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                                 .text_color(TEXT_DIM)
                                 .hover(|s| s.text_color(TEXT_PRIMARY))
                                 .on_click(move |_ev, _window, cx| app_cancel.update(cx, |this, cx| this.close_new_firewall_rule_modal(cx)))
-                                .child("CANCEL"),
+                                .child(t!("firewall-new-rule-modal-cancel")),
                         )
                         .child(
                             div()
@@ -273,7 +273,7 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(OK)
                                 .on_click(move |_ev, _window, cx| app_submit.update(cx, |this, cx| this.submit_new_firewall_rule(cx)))
-                                .child("ADD RULE"),
+                                .child(t!("firewall-new-rule-modal-add-rule")),
                         ),
                 ),
         )

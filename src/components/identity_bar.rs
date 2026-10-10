@@ -24,13 +24,13 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
     // Live transport state: this machine needs no connection; SSH servers
     // report what their last command saw.
     let (status_color, status_text, status_detail): (Rgba, &str, Option<String>) = match server {
-        None => (OK, "LOCAL", None),
+        None => (OK, t!("identity-bar-local"), None),
         Some(s) => match transport_kind(s) {
-            TransportKind::Local => (OK, "LOCAL", None),
-            TransportKind::Container => (OK, "LAB CONTAINER", None),
+            TransportKind::Local => (OK, t!("identity-bar-local"), None),
+            TransportKind::Container => (OK, t!("identity-bar-lab-container"), None),
             TransportKind::Ssh => match connection_state(&s.id) {
-                None => (TEXT_FAINT, "CONNECTING…", None),
-                Some(ConnectionState::Connected) => (OK, "CONNECTED", None),
+                None => (TEXT_FAINT, t!("identity-bar-connecting"), None),
+                Some(ConnectionState::Connected) => (OK, t!("identity-bar-connected"), None),
                 Some(state) => (CRIT, state.label(), state.detail().map(str::to_string)),
             },
         },
@@ -94,7 +94,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         .children(jump.map(|(name, down)| {
                             div()
                                 .text_color(if down { CRIT } else { TEXT_DIM })
-                                .child(if down { format!("via {name} (unreachable)") } else { format!("via {name}") })
+                                .child(if down { t!("identity-bar-via-unreachable", name = name) } else { t!("identity-bar-via", name = name) })
                         }))
                         .children(server.map(|s| {
                             let app = app.clone();
@@ -154,7 +154,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         // The distro's logo (Dashboard Icons, Apache-2.0).
                         .children(crate::components::distro_icon::distro_icon(&d, 16.0))
                         .child(div().text_color(TEXT_SECONDARY).child(d))
-                        .when(!distro_family.is_supported(), |el| el.child(div().text_size(px(9.5)).text_color(WARN).child("unverified")))
+                        .when(!distro_family.is_supported(), |el| el.child(div().text_size(px(9.5)).text_color(WARN).child(t!("identity-bar-unverified"))))
                 }))
                 .children(kernel.map(|k| fact("kernel", k)))
                 .children(role.map(|r| fact("role", r)))
@@ -172,8 +172,8 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         .hover(|h| h.text_color(TEXT_PRIMARY))
                         .text_color(if none { TEXT_DIM } else { TEXT_SECONDARY })
                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_group_assign_target(Some(s_id.clone()), cx)))
-                        .child(div().text_color(TEXT_FAINT).child("group"))
-                        .child(if none { "none ▾".to_string() } else { format!("{} ▾", s.group_name.trim()) })
+                        .child(div().text_color(TEXT_FAINT).child(t!("identity-bar-group")))
+                        .child(if none { t!("identity-bar-none").to_string() } else { format!("{} ▾", s.group_name.trim()) })
                 }))
                 // A bastion others can be reached through (ERR-152): click to switch.
                 .children(server.filter(|s| transport_kind(s) == TransportKind::Ssh).map(|s| {
@@ -188,7 +188,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         .hover(|h| h.text_color(TEXT_PRIMARY))
                         .text_color(if is_bastion { hex_rgb(0x60a5fa) } else { TEXT_FAINT })
                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_bastion(&id, !is_bastion, cx)))
-                        .child(if is_bastion { "bastion ✓" } else { "bastion: no" })
+                        .child(if is_bastion { t!("identity-bar-bastion") } else { t!("identity-bar-bastion-no") })
                 }))
                 // The environment closes the details.
                 .child({
@@ -227,7 +227,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                 .hover(|s| s.border_color(BORDER_STRONG))
                 .on_click(move |_ev, _window, cx| app_clone.update(cx, |this, cx| this.toggle_palette(cx)))
                 .child(tabler_icon(TablerIcon::Search).size(px(13.0)).text_color(TEXT_FAINT))
-                .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child("Search"))
+                .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child(t!("identity-bar-search")))
                 .child(div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_MUTED).bg(BG_KEY).border_1().border_color(BORDER_KEY).px(px(5.0)).py(px(1.0)).child("⌘K")),
         )
         // 6. Actions that do something: a provider snapshot, a fresh SSH
@@ -243,7 +243,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
         }))
         .children(server.filter(|s| transport_kind(s) == TransportKind::Ssh).map(|_| {
             let app = app.clone();
-            header_button("btn-identity-reconnect", "RECONNECT").on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.reconnect_active_server(cx)))
+            header_button("btn-identity-reconnect", t!("identity-bar-reconnect")).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.reconnect_active_server(cx)))
         }))
         // A Multipass VM: power it from here (deleting it is in the lab).
         .children(server.and_then(crate::lab::multipass::vm_of).filter(|_| !vm_busy).map(|vm| {
@@ -258,9 +258,9 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
             div()
                 .flex()
                 .items_center()
-                .child(button("btn-vm-start", "START VM", Lifecycle::Start))
-                .child(button("btn-vm-stop", "STOP VM", Lifecycle::Stop))
-                .child(button("btn-vm-restart", "RESTART VM", Lifecycle::Restart))
+                .child(button("btn-vm-start", t!("identity-bar-start-vm"), Lifecycle::Start))
+                .child(button("btn-vm-stop", t!("identity-bar-stop-vm"), Lifecycle::Stop))
+                .child(button("btn-vm-restart", t!("identity-bar-restart-vm"), Lifecycle::Restart))
         }))
         .child(div().w(px(4.0)))
 }
@@ -322,8 +322,8 @@ pub fn connection_banner(server: Option<&ServerRecord>, jump: JumpInfo, app: Ent
             .child(div().flex_none().font_weight(FontWeight::BOLD).child(format!("✕ {}", state.label())))
             .child(div().flex_1().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().child(match &jump {
                 // The likeliest cause, said first.
-                Some((name, true)) => format!("Crow reaches {} through {name}, which is unreachable itself: fix {name} first. {}", s.name, detail),
-                _ => format!("Crow can't read {} right now — pages below stay empty until the connection works. {}", s.name, detail),
+                Some((name, true)) => t!("identity-bar-crow-reaches-through-which-is", name = s.name, name2 = name, detail = detail),
+                _ => t!("identity-bar-crow-cant-read-right-now", name = s.name, detail = detail),
             }))
             // The diagnosis and the fix (ERR-89).
             .child({
@@ -338,7 +338,7 @@ pub fn connection_banner(server: Option<&ServerRecord>, jump: JumpInfo, app: Ent
                         let id = id.clone();
                         app.update(cx, |this, cx| this.open_recovery(&id, window, cx));
                     })
-                    .child("what happened →")
+                    .child(t!("identity-bar-what-happened"))
             })
             // Password servers: an inline link to log in once with the password
             // and install Crow's key.
@@ -354,7 +354,7 @@ pub fn connection_banner(server: Option<&ServerRecord>, jump: JumpInfo, app: Ent
                         let srv = srv.clone();
                         app.update(cx, |this, cx| this.start_onboarding_for(&srv, cx));
                     })
-                    .child("set up key login →")
+                    .child(t!("identity-bar-set-up-key-login"))
             })),
     )
 }
@@ -367,11 +367,11 @@ fn region_label(s: &ServerRecord) -> String {
         (Some(c), "") => c.to_string(),
         (Some(c), city) => format!("{city}, {c}"),
         (None, _) if !s.region_country.is_empty() => s.region_country.clone(),
-        (None, _) => return if s.region_provider.is_empty() { "region: unknown ▾".into() } else { format!("{} · region unknown ▾", s.region_provider) },
+        (None, _) => return if s.region_provider.is_empty() { t!("identity-bar-region-unknown").into() } else { t!("identity-bar-region-unknown-2", region_provider = s.region_provider) },
     };
     match s.region_source.as_str() {
-        "manual" => format!("{place} (set by hand) ▾"),
-        "geoip" => format!("{place} (by IP) ▾"),
+        "manual" => t!("identity-bar-set-by-hand", place = place),
+        "geoip" => t!("identity-bar-by-ip", place = place),
         _ if !s.region_provider.is_empty() => format!("{place} · {} {} ▾", s.region_provider, s.region_code).replace("  ", " "),
         _ => format!("{place} ▾"),
     }

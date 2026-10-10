@@ -57,25 +57,25 @@ pub fn fleet_stat_strip(
     let groups: std::collections::BTreeSet<&str> = servers.iter().map(|s| s.group_name.as_str()).filter(|g| !g.is_empty()).collect();
     let regions: std::collections::BTreeSet<&str> = servers.iter().map(|s| s.region_country.as_str()).filter(|c| !c.is_empty()).collect();
     let group_note = match groups.len() {
-        0 if server_count == 0 => "none enrolled".to_string(),
+        0 if server_count == 0 => t!("fleet-overview-none-enrolled").to_string(),
         0 => "ungrouped".to_string(),
-        1 => "1 group".to_string(),
-        n => format!("{n} groups"),
+        1 => t!("fleet-overview-1-group").to_string(),
+        n => t!("fleet-overview-groups", n = n),
     };
     let group_note = match regions.len() {
         0 => group_note,
-        1 => format!("1 region · {group_note}"),
-        n => format!("{n} regions · {group_note}"),
+        1 => t!("fleet-overview-1-region", group_note = group_note),
+        n => t!("fleet-overview-regions", n = n, group_note = group_note),
     };
     let load_val = avg_load.map(|l| format!("{:.2}", l)).unwrap_or_else(|| "—".to_string());
-    let vcpu_note = if total_vcpu > 0 { format!("avg 1m load · {} vCPU", total_vcpu) } else { "no metrics yet".to_string() };
+    let vcpu_note = if total_vcpu > 0 { t!("fleet-overview-avg-1m-load-vcpu", total_vcpu = total_vcpu) } else { t!("fleet-overview-no-metrics-yet").to_string() };
     let alert_color = if crit > 0 { CRIT } else if warn > 0 { WARN } else if server_count == 0 { TEXT_MUTED } else { OK };
 
     // From each server's host key file times (ERR-81).
     let ages = crate::views::fleet::state::host_key_ages(servers, chrono::Utc::now().timestamp());
     let (oldest_key_val, oldest_key_unit, oldest_key_note, oldest_key_color) = match &ages.oldest {
-        None if server_count == 0 => ("—".to_string(), "".to_string(), "none enrolled".to_string(), TEXT_MUTED),
-        None => ("—".to_string(), "".to_string(), "not read yet".to_string(), TEXT_MUTED),
+        None if server_count == 0 => ("—".to_string(), "".to_string(), t!("fleet-overview-none-enrolled").to_string(), TEXT_MUTED),
+        None => ("—".to_string(), "".to_string(), t!("fleet-overview-not-read-yet").to_string(), TEXT_MUTED),
         Some((days, name)) => {
             let (val, unit) = if *days >= 365 { (format!("{:.1}", *days as f64 / 365.25), "y") } else { (days.to_string(), "d") };
             // Past the rotation policy (ERR-98): how many, in amber.
@@ -83,10 +83,10 @@ pub fn fleet_stat_strip(
             let overdue = key_policy_days.map_or(0, |max| servers.iter().filter(|s| s.host_key_mtime.is_some_and(|t| (now - t) / 86_400 > max)).count());
             let mut note = name.clone();
             if overdue > 0 {
-                note = format!("{overdue} past the rotation policy · {note}");
+                note = t!("fleet-overview-past-the-rotation-policy", overdue = overdue, note = note);
             }
             if ages.unknown > 0 {
-                note = format!("{note} · {} not read yet", ages.unknown);
+                note = t!("fleet-overview-not-read-yet-2", note = note, unknown = ages.unknown);
             }
             (val, unit.to_string(), note, if overdue > 0 { WARN } else { TEXT_PRIMARY })
         }
@@ -94,25 +94,25 @@ pub fn fleet_stat_strip(
     // Files that mean something other than their baseline, as of each
     // server's last config read (ERR-74).
     let (drift_val, drift_unit, drift_note, drift_fg) = match drift {
-        None => ("—".to_string(), "".to_string(), "not computed yet".to_string(), TEXT_MUTED),
-        Some([]) => ("—".to_string(), "".to_string(), "no baselines pinned".to_string(), TEXT_MUTED),
+        None => ("—".to_string(), "".to_string(), t!("fleet-overview-not-computed-yet").to_string(), TEXT_MUTED),
+        Some([]) => ("—".to_string(), "".to_string(), t!("fleet-overview-no-baselines-pinned").to_string(), TEXT_MUTED),
         Some(entries) => {
             let drifted: Vec<_> = entries.iter().filter(|e| e.drift.is_drift()).collect();
             let servers: std::collections::BTreeSet<&str> = drifted.iter().map(|e| e.server_id.as_str()).collect();
             match drifted.len() {
-                0 => ("0".to_string(), "".to_string(), format!("{} file{} match baselines · as last read", entries.len(), if entries.len() == 1 { "" } else { "s" }), OK),
-                n => (n.to_string(), "".to_string(), format!("on {} server{} · as last read", servers.len(), if servers.len() == 1 { "" } else { "s" }), WARN),
+                0 => ("0".to_string(), "".to_string(), t!("fleet-overview-match-baselines-as-last-read", count = entries.len()), OK),
+                n => (n.to_string(), "".to_string(), t!("fleet-overview-on-as-last-read", count = servers.len()), WARN),
             }
         }
     };
 
     let stats = [
-        ("SERVERS", server_count.to_string(), "".to_string(), group_note, TEXT_PRIMARY),
-        ("OPEN ALERTS", (crit + warn).to_string(), "".to_string(), format!("{crit} crit · {warn} warn"), alert_color),
-        ("CONFIG DRIFT", drift_val, drift_unit, drift_note, drift_fg),
-        ("FLEET LOAD", load_val, "".to_string(), vcpu_note, TEXT_PRIMARY),
-        ("OLDEST HOST KEY", oldest_key_val, oldest_key_unit, oldest_key_note, oldest_key_color),
-        ("CONNECTED", connected_count.to_string(), format!("/{}", server_count), "reachable over their transport".to_string(), if connected_count < server_count { WARN } else { TEXT_PRIMARY }),
+        (t!("fleet-overview-servers"), server_count.to_string(), "".to_string(), group_note, TEXT_PRIMARY),
+        (t!("fleet-overview-open-alerts"), (crit + warn).to_string(), "".to_string(), t!("fleet-overview-crit-warn", crit = crit, warn = warn), alert_color),
+        (t!("fleet-overview-config-drift"), drift_val, drift_unit, drift_note, drift_fg),
+        (t!("fleet-overview-fleet-load"), load_val, "".to_string(), vcpu_note, TEXT_PRIMARY),
+        (t!("fleet-overview-oldest-host-key"), oldest_key_val, oldest_key_unit, oldest_key_note, oldest_key_color),
+        (t!("fleet-overview-connected"), connected_count.to_string(), format!("/{}", server_count), t!("fleet-overview-reachable-over-their-transport").to_string(), if connected_count < server_count { WARN } else { TEXT_PRIMARY }),
     ];
 
     div()
@@ -190,10 +190,10 @@ pub fn fleet_overview_view(
     // The buttons the enabled plugins add (ERR-138).
     let mut lab_buttons: Vec<&'static str> = Vec::new();
     if plugins.enabled.contains("multipass") {
-        lab_buttons.push("+ LAUNCH VM");
+        lab_buttons.push(t!("fleet-overview-launch-vm"));
     }
     if crate::plugins::CONTAINER_PLUGINS.iter().any(|p| plugins.enabled.contains(*p)) {
-        lab_buttons.push("LOCAL LAB");
+        lab_buttons.push(t!("fleet-overview-local-lab"));
     }
     let purge_due = crate::app::archive::purge_due_text(purge_days);
     let health: HashMap<String, FleetHealth> = fleet.servers.iter().map(|s| (s.id.clone(), fleet.health(s))).collect();
@@ -202,8 +202,8 @@ pub fn fleet_overview_view(
             let health = &health[&s.id];
             let status_color = health.color();
             let (pill, is_crit) = match health {
-                FleetHealth::Ok => ("OK".to_string(), false),
-                FleetHealth::Checking => ("CHECKING".to_string(), false),
+                FleetHealth::Ok => (t!("fleet-overview-ok").to_string(), false),
+                FleetHealth::Checking => (t!("fleet-overview-checking").to_string(), false),
                 FleetHealth::Down { label, .. } => (label.to_string(), true),
             };
             let (env_bg, env_fg) = match s.env.as_str() {
@@ -229,7 +229,7 @@ pub fn fleet_overview_view(
                 group: s.group_name.clone(),
                 // Behind a bastion: say which (ERR-152).
                 ip: match s.jump_host_id.as_deref().and_then(|j| fleet.servers.iter().find(|o| o.id == j)) {
-                    Some(b) => format!("{} via {}", s.host, b.name),
+                    Some(b) => t!("fleet-overview-via", host = s.host, name = b.name),
                     None => s.host.clone(),
                 },
                 role: s.role.clone(),
@@ -309,9 +309,9 @@ pub fn fleet_overview_view(
     // What an empty alert list means: reachability is all Crow watches yet.
     let checking = health.values().filter(|h| **h == FleetHealth::Checking).count();
     let (quiet_note, quiet_color) = match (fleet.servers.len(), checking) {
-        (0, _) => ("No servers enrolled".to_string(), TEXT_MUTED),
-        (_, 0) => (format!("All {connected_count} reachable"), OK),
-        (_, n) => (format!("Checking {n} server{}", if n == 1 { "" } else { "s" }), TEXT_MUTED),
+        (0, _) => (t!("fleet-overview-no-servers-enrolled").to_string(), TEXT_MUTED),
+        (_, 0) => (t!("fleet-overview-all-reachable", connected_count = connected_count), OK),
+        (_, n) => (t!("fleet-overview-checking-2", n = n), TEXT_MUTED),
     };
     // Each reachable server once — metrics_store also keys by name.
     let readings: Vec<&ServerMetrics> = fleet.servers.iter()
@@ -330,13 +330,13 @@ pub fn fleet_overview_view(
             ("CRIT", _) => (CRIT, CRIT_BG),
             _ => (WARN, WARN_BG),
         };
-        let msg = if l.acknowledged && !l.resolved { format!("{} · acknowledged", l.message) } else { l.message.clone() };
+        let msg = if l.acknowledged && !l.resolved { t!("fleet-overview-acknowledged", message = l.message) } else { l.message.clone() };
         (l.level, fg, bg, l.host.clone(), msg, l.age.clone())
     }).collect();
     let open_lines: Vec<_> = alert_lines.iter().filter(|l| !l.resolved).collect();
     let gap_note = watch_gap.map(|(from, to)| {
         let fmt = |t: i64| chrono::DateTime::from_timestamp(t, 0).map(|d| d.with_timezone(&chrono::Local).format("%b %d %H:%M").to_string()).unwrap_or_default();
-        format!("Crow wasn't running from {} to {}: nothing was watched then.", fmt(from), fmt(to))
+        t!("fleet-overview-crow-wasnt-running-from-to", fmt = fmt(from), fmt2 = fmt(to))
     });
 
     // The newest of the audit log (ERR-75): what Crow did, where.
@@ -416,10 +416,10 @@ pub fn fleet_overview_view(
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.5))
                                 .children([
-                                    (FleetEnvFilter::All, "ALL", env_counts[0]),
-                                    (FleetEnvFilter::Prod, "PRODUCTION", env_counts[1]),
-                                    (FleetEnvFilter::Stage, "STAGING", env_counts[2]),
-                                    (FleetEnvFilter::DevLab, "DEV / LAB", env_counts[3]),
+                                    (FleetEnvFilter::All, t!("fleet-overview-all"), env_counts[0]),
+                                    (FleetEnvFilter::Prod, t!("fleet-overview-production"), env_counts[1]),
+                                    (FleetEnvFilter::Stage, t!("fleet-overview-staging"), env_counts[2]),
+                                    (FleetEnvFilter::DevLab, t!("fleet-overview-dev-lab"), env_counts[3]),
                                 ].into_iter().map(|(filter, label, count)| {
                                     let app = app.clone();
                                     fleet_tab(SharedString::from(format!("fleet-env-{label}")), format!("{label} ({count})"), fleet.env_filter == filter)
@@ -428,13 +428,13 @@ pub fn fleet_overview_view(
                                 .child({
                                     let app = app.clone();
                                     let regions = region_counts.iter().filter(|(c, _)| !c.is_empty()).count();
-                                    fleet_tab("fleet-by-region".into(), if regions > 0 { format!("BY REGION ({regions})") } else { "BY REGION".into() }, fleet.region_bar_open)
+                                    fleet_tab("fleet-by-region".into(), if regions > 0 { t!("fleet-overview-by-region", regions = regions) } else { t!("fleet-overview-by-region-2").into() }, fleet.region_bar_open)
                                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.toggle_fleet_region_bar(cx)))
                                 })
                                 .child({
                                     let app = app.clone();
                                     let groups_count = group_counts.iter().filter(|(g, _)| g != "default").count();
-                                    fleet_tab("fleet-by-group".into(), if groups_count > 0 { format!("BY GROUP ({groups_count})") } else { "BY GROUP".into() }, fleet.group_bar_open)
+                                    fleet_tab("fleet-by-group".into(), if groups_count > 0 { t!("fleet-overview-by-group", groups_count = groups_count) } else { t!("fleet-overview-by-group-2").into() }, fleet.group_bar_open)
                                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.toggle_fleet_group_bar(cx)))
                                 })
                                 // What the enabled plugins bring (ERR-138): nothing when none is on.
@@ -466,7 +466,7 @@ pub fn fleet_overview_view(
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.5))
                                         .text_color(TEXT_DIMMER)
-                                        .child(if visible_count == server_count { format!("{} hosts · sort health ↓ · click to open", server_count) } else { format!("{visible_count} of {server_count} hosts · click to open") }),
+                                        .child(if visible_count == server_count { t!("fleet-overview-hosts-sort-health-click-to", server_count = server_count) } else { t!("fleet-overview-of-hosts-click-to-open", visible_count = visible_count, server_count = server_count) }),
                                 ),
                         )
                         // Region chips (BY REGION): one per country, with counts.
@@ -488,7 +488,7 @@ pub fn fleet_overview_view(
                                     let app = app.clone();
                                     let on = fleet.region_filter.as_deref() == Some(cc.as_str());
                                     let target = if on { None } else { Some(cc.clone()) };
-                                    let label = if cc.is_empty() { "UNKNOWN".to_string() } else { crate::region::country_name(cc).unwrap_or(cc).to_uppercase() };
+                                    let label = if cc.is_empty() { t!("fleet-overview-unknown").to_string() } else { crate::region::country_name(cc).unwrap_or(cc).to_uppercase() };
                                     div()
                                         .id(SharedString::from(format!("fleet-region-{cc}")))
                                         .flex()
@@ -523,7 +523,7 @@ pub fn fleet_overview_view(
                                         .when(!fleet.region_detecting, |d| {
                                             d.cursor_pointer().hover(|s| s.bg(OK_BG)).on_click(move |_ev, _window, cx| app_detect.update(cx, |this, cx| this.detect_server_regions(None, cx)))
                                         })
-                                        .child(if fleet.region_detecting { "DETECTING…" } else { "DETECT REGIONS ↻" }),
+                                        .child(if fleet.region_detecting { t!("fleet-overview-detecting") } else { t!("fleet-overview-detect-regions") }),
                                 )
                         }))
                         // Expandable group filter strip
@@ -551,7 +551,7 @@ pub fn fleet_overview_view(
                                         .gap(px(4.0))
                                         .text_color(TEXT_DIMMER)
                                         .child(tabler_icon(TablerIcon::Folder).size(px(12.0)).text_color(TEXT_DIMMER))
-                                        .child("GROUP:"),
+                                        .child(t!("fleet-overview-group")),
                                 )
                                 .child({
                                     let app = app.clone();
@@ -570,14 +570,14 @@ pub fn fleet_overview_view(
                                         .on_click(move |_ev, _window, cx| {
                                             app.update(cx, |this, cx| this.set_fleet_group_filter(None, cx));
                                         })
-                                        .child(format!("ALL ({total_count})"))
+                                        .child(t!("fleet-overview-all-2", total_count = total_count))
                                 })
                                 .children(group_counts.iter().map(|(grp, n)| {
                                     let app = app.clone();
                                     let target = Some(grp.clone());
                                     let on = fleet.group_filter.as_ref() == Some(grp);
                                     let grp_name = grp.clone();
-                                    let label = if grp == "default" { "NO GROUP" } else { grp };
+                                    let label = if grp == "default" { t!("fleet-overview-no-group") } else { grp };
                                     let deletable = *n == 0 && grp != "default";
                                     let app_delete = app.clone();
                                     let delete_name = grp.clone();
@@ -637,7 +637,7 @@ pub fn fleet_overview_view(
                                                         .on_click(move |_ev, _window, cx| {
                                                             app_create.update(cx, |this, cx| this.create_new_group(cx));
                                                         })
-                                                        .child("CREATE"),
+                                                        .child(t!("fleet-overview-create")),
                                                 )
                                                 .child(
                                                     div()
@@ -652,7 +652,7 @@ pub fn fleet_overview_view(
                                                         .on_click(move |_ev, window, cx| {
                                                             app_cancel.update(cx, |this, cx| this.toggle_new_group_prompt(window, cx));
                                                         })
-                                                        .child("CANCEL"),
+                                                        .child(t!("fleet-overview-cancel")),
                                                 ),
                                         )
                                     } else {
@@ -673,7 +673,7 @@ pub fn fleet_overview_view(
                                             .on_click(move |_ev, window, cx| {
                                                 app_new.update(cx, |this, cx| this.toggle_new_group_prompt(window, cx));
                                             })
-                                            .child("+ NEW GROUP"),
+                                            .child(t!("fleet-overview-new-group")),
                                     )
                                 })
                         }))
@@ -695,16 +695,16 @@ pub fn fleet_overview_view(
                                 .child(div().w(px(22.0)).flex_none().child(""))
                                 // Same widths as the row cells below; fixed columns are
                                 // flex_none so header and rows can't shrink differently.
-                                .child(div().flex_grow(3.0).flex_basis(px(0.0)).min_w(px(140.0)).child("HOST"))
-                                .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(110.0)).child("ADDRESS"))
-                                .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(120.0)).child("OS"))
-                                .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(90.0)).pr(px(14.0)).text_align(TextAlign::Right).child("ROLE"))
-                                .child(div().w(px(64.0)).flex_none().child("ENV"))
-                                .child(div().w(px(95.0)).flex_none().child("CPU"))
-                                .child(div().w(px(95.0)).flex_none().child("MEM"))
-                                .child(div().w(px(55.0)).flex_none().text_align(TextAlign::Right).child("DISK"))
-                                .child(div().w(px(80.0)).flex_none().text_align(TextAlign::Right).child("UPTIME"))
-                                .child(div().w(px(65.0)).flex_none().text_align(TextAlign::Right).child("ALERTS"))
+                                .child(div().flex_grow(3.0).flex_basis(px(0.0)).min_w(px(140.0)).child(t!("fleet-overview-host")))
+                                .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(110.0)).child(t!("fleet-overview-address")))
+                                .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(120.0)).child(t!("fleet-overview-os")))
+                                .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(90.0)).pr(px(14.0)).text_align(TextAlign::Right).child(t!("fleet-overview-role")))
+                                .child(div().w(px(64.0)).flex_none().child(t!("fleet-overview-env")))
+                                .child(div().w(px(95.0)).flex_none().child(t!("fleet-overview-cpu")))
+                                .child(div().w(px(95.0)).flex_none().child(t!("fleet-overview-mem")))
+                                .child(div().w(px(55.0)).flex_none().text_align(TextAlign::Right).child(t!("fleet-overview-disk")))
+                                .child(div().w(px(80.0)).flex_none().text_align(TextAlign::Right).child(t!("fleet-overview-uptime")))
+                                .child(div().w(px(65.0)).flex_none().text_align(TextAlign::Right).child(t!("fleet-overview-alerts")))
                                 .child(div().w(px(78.0)).flex_none().text_align(TextAlign::Right).child("")),
                         )
                         // Table Body
@@ -754,14 +754,14 @@ pub fn fleet_overview_view(
                                                             .font_weight(FontWeight::BOLD)
                                                             .text_size(px(13.0))
                                                             .text_color(TEXT_MAX)
-                                                            .child("NO SERVERS ENROLLED"),
+                                                            .child(t!("fleet-overview-no-servers-enrolled-2")),
                                                     )
                                                     .child(
                                                         div()
                                                             .font_family(FONT_MONO)
                                                             .text_size(px(11.0))
                                                             .text_color(TEXT_DIM)
-                                                            .child("Connect remote Linux servers via SSH or spin up local isolated lab nodes."),
+                                                            .child(t!("fleet-overview-connect-remote-linux-servers-via")),
                                                     ),
                                             )
                                             // CTAs
@@ -812,7 +812,7 @@ pub fn fleet_overview_view(
                                                                     this.set_screen(Screen::Onboard, cx);
                                                                 });
                                                             })
-                                                            .child("+ ADD REMOTE SERVER (SSH)"),
+                                                            .child(t!("fleet-overview-add-remote-server-ssh")),
                                                     ),
                                             )
                                     ).into_iter().map(|e| e.into_any_element()).collect::<Vec<AnyElement>>()
@@ -833,7 +833,7 @@ pub fn fleet_overview_view(
                                     let ungrouped = grouped_hosts.remove("default");
                                     for (grp_name, group_list) in grouped_hosts.into_iter().chain(ungrouped.map(|l| ("default".to_string(), l))) {
                                         let display_name = if grp_name == "default" {
-                                            "NO GROUP".to_string()
+                                            t!("fleet-overview-no-group").to_string()
                                         } else {
                                             grp_name.to_uppercase()
                                         };
@@ -860,7 +860,7 @@ pub fn fleet_overview_view(
                                                         .ml(px(8.0))
                                                         .text_size(px(9.0))
                                                         .text_color(TEXT_DIMMER)
-                                                        .child(format!("· {host_count} {}", if host_count == 1 { "HOST" } else { "HOSTS" })),
+                                                        .child(format!("· {host_count} {}", if host_count == 1 { t!("fleet-overview-host") } else { t!("fleet-overview-hosts") })),
                                                 )
                                                 .into_any_element(),
                                         );
@@ -918,14 +918,14 @@ pub fn fleet_overview_view(
                                         .text_size(px(11.0))
                                         .font_weight(FontWeight::SEMIBOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("FLEET ALERTS"),
+                                        .child(t!("fleet-overview-fleet-alerts")),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.0))
                                         .text_color(TEXT_DIMMER)
-                                        .child(format!("{} open", open_lines.len())),
+                                        .child(t!("fleet-overview-open", count = open_lines.len())),
                                 )
                                 .child(div().flex_1())
                                 .children(open_lines.iter().any(|l| l.id.is_some() && !l.acknowledged).then(|| {
@@ -938,7 +938,7 @@ pub fn fleet_overview_view(
                                         .cursor_pointer()
                                         .hover(|s| s.text_color(TEXT_PRIMARY))
                                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.acknowledge_alerts(None, cx)))
-                                        .child("ACK ALL")
+                                        .child(t!("fleet-overview-ack-all"))
                                 })),
                         )
                         // Alerts List
@@ -1060,7 +1060,7 @@ pub fn fleet_overview_view(
                                         .text_size(px(11.0))
                                         .font_weight(FontWeight::SEMIBOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("ACTIVITY"),
+                                        .child(t!("fleet-overview-activity")),
                                 )
                                 .child(div().flex_1())
                                 .child({
@@ -1073,7 +1073,7 @@ pub fn fleet_overview_view(
                                         .cursor_pointer()
                                         .hover(|s| s.text_color(TEXT_PRIMARY))
                                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.open_audit(cx)))
-                                        .child("audit log · all hosts →")
+                                        .child(t!("fleet-overview-audit-log-all-hosts"))
                                 }),
                         )
                         // Activity Log List
@@ -1091,7 +1091,7 @@ pub fn fleet_overview_view(
                                             .font_family(FONT_MONO)
                                             .text_size(px(10.5))
                                             .text_color(TEXT_DIMMER)
-                                            .child("No recent fleet activity recorded"),
+                                            .child(t!("fleet-overview-no-recent-fleet-activity-recorded")),
                                     ).into_iter().collect::<Vec<_>>()
                                 } else {
                                     activities.iter().map(|(ts, actor, actor_color, msg, text_c)| {
@@ -1179,7 +1179,7 @@ pub fn fleet_overview_view(
                                 cx.notify();
                             });
                         })
-                        .child("DISMISS"),
+                        .child(t!("fleet-overview-dismiss")),
                 )
         }))
         .children(if local_lab.show_modal {
@@ -1199,19 +1199,19 @@ fn fleet_danger_page(app: Entity<CrowApp>) -> impl IntoElement {
     use crate::components::danger_zone::{action_row, danger_triangle};
     let reboot = {
         let app = app.clone();
-        fleet_action_live("btn-fleet-rolling-reboot", "ROLLING REBOOT".into()).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_rolling_reboot(window, cx)))
+        fleet_action_live("btn-fleet-rolling-reboot", t!("fleet-overview-rolling-reboot").into()).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_rolling_reboot(window, cx)))
     };
     let baseline = {
         let app = app.clone();
-        fleet_action_live("btn-fleet-push-baseline", "PUSH BASELINE TO ALL".into()).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_push_baselines(window, cx)))
+        fleet_action_live("btn-fleet-push-baseline", t!("fleet-overview-push-baseline-to-all").into()).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_push_baselines(window, cx)))
     };
     let revoke = {
         let app = app.clone();
-        fleet_action_live("btn-fleet-revoke-sessions", "REVOKE SESSIONS".into()).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_revoke_sessions(window, cx)))
+        fleet_action_live("btn-fleet-revoke-sessions", t!("fleet-overview-revoke-sessions").into()).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_revoke_sessions(window, cx)))
     };
     let rotate = {
         let app = app.clone();
-        fleet_action_live("btn-fleet-rotate-keys", "ROTATE HOST KEYS".into()).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_rotate_host_keys(window, cx)))
+        fleet_action_live("btn-fleet-rotate-keys", t!("fleet-overview-rotate-host-keys").into()).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_rotate_host_keys(window, cx)))
     };
     div()
         .id("fleet-danger-page")
@@ -1233,19 +1233,19 @@ fn fleet_danger_page(app: Entity<CrowApp>) -> impl IntoElement {
                 .border_b_1()
                 .border_color(BORDER_DANGER)
                 .child(danger_triangle())
-                .child(div().text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child("FLEET-WIDE"))
+                .child(div().text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child(t!("fleet-overview-fleet-wide")))
                 .child(div().flex_1())
-                .child(div().text_size(px(10.0)).text_color(TEXT_DIMMER).child("one host at a time · stops at the first failure")),
+                .child(div().text_size(px(10.0)).text_color(TEXT_DIMMER).child(t!("fleet-overview-one-host-at-a-time"))),
         )
         .child(
             div()
                 .flex()
                 .flex_col()
                 .max_w(px(920.0))
-                .child(action_row("Rolling reboot", "Reboots every reachable server in turn, each back from a fresh boot before the next.", vec![reboot.into_any_element()]))
-                .child(action_row("Push baseline", "Pushes each config baseline to every server whose copy drifted from it.", vec![baseline.into_any_element()]))
-                .child(action_row("Rotate all host keys", "New SSH host keys on every server, re-pinned in known_hosts and proven with a fresh login; undone on any failure. Other machines will see a changed key.", vec![rotate.into_any_element()]))
-                .child(action_row("Revoke all sessions", "Ends every SSH login on every server except Crow's own. Console logins and keys are untouched: anyone whose key still works can log back in.", vec![revoke.into_any_element()])),
+                .child(action_row(t!("fleet-overview-rolling-reboot-2"), t!("fleet-overview-reboots-every-reachable-server-in"), vec![reboot.into_any_element()]))
+                .child(action_row(t!("fleet-overview-push-baseline"), t!("fleet-overview-pushes-each-config-baseline-to"), vec![baseline.into_any_element()]))
+                .child(action_row(t!("fleet-overview-rotate-all-host-keys"), t!("fleet-overview-new-ssh-host-keys-on"), vec![rotate.into_any_element()]))
+                .child(action_row(t!("fleet-overview-revoke-all-sessions"), t!("fleet-overview-ends-every-ssh-login-on"), vec![revoke.into_any_element()])),
         )
 }
 
@@ -1295,7 +1295,7 @@ fn render_fleet_host_row(
     let is_even = idx % 2 == 0;
 
     let grp_display = if host.group.trim().is_empty() || host.group.trim() == "default" {
-        "NO GROUP".to_string()
+        t!("fleet-overview-no-group").to_string()
     } else {
         host.group.trim().to_uppercase()
     };

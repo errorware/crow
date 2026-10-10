@@ -1,6 +1,8 @@
 #![recursion_limit = "512"]
 use gpui_kit::*;
 
+#[macro_use]
+pub mod i18n;
 pub mod ai;
 pub mod appearance;
 mod app;

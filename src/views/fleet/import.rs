@@ -65,11 +65,11 @@ pub fn import_panel(state: &ImportState, app: Entity<CrowApp>) -> impl IntoEleme
                         .flex()
                         .items_center()
                         .gap(px(10.0))
-                        .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child("IMPORT FROM PROVIDERS"))
+                        .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("fleet-import-import-from-providers")))
                         .child(div().text_color(TEXT_DIMMER).child(if state.loading > 0 {
-                            format!("asking {} account(s)…", state.loading)
+                            t!("fleet-import-asking-account-s", loading = state.loading)
                         } else {
-                            format!("{} instance(s) · {importable} not in the fleet", state.rows.len())
+                            t!("fleet-import-instance-s-not-in-the", count = state.rows.len(), importable = importable)
                         }))
                         .child(div().flex_1())
                         .child(
@@ -77,14 +77,14 @@ pub fn import_panel(state: &ImportState, app: Entity<CrowApp>) -> impl IntoEleme
                                 .on_click(move |_ev, _window, cx| a_close.update(cx, |this, cx| this.close_import(cx))),
                         ),
                 )
-                .child(div().text_color(TEXT_MUTED).line_height(px(15.0)).child("Instances already in the fleet are matched by IP and linked, so their region comes from the provider. IMPORT opens Add Server filled in: the host key and login are checked as usual."))
-                .children((state.linked > 0).then(|| div().text_color(OK).child(format!("Linked {} enrolled server(s) to their instances.", state.linked))))
+                .child(div().text_color(TEXT_MUTED).line_height(px(15.0)).child(t!("fleet-import-instances-already-in-the-fleet")))
+                .children((state.linked > 0).then(|| div().text_color(OK).child(t!("fleet-import-linked-enrolled-server-s-to", linked = state.linked))))
                 .children(state.errors.iter().map(|e| div().text_color(CRIT).child(e.clone())))
                 .children(state.missing.iter().map(|m| div().text_color(WARN).child(format!("⚠ {m}"))))
                 .children(state.rows.iter().map(|row| {
                     let inst = &row.instance;
                     let country = inst.region.as_deref().and_then(|c| crate::region::locate(&row.provider_name, c)).map(|(cc, _)| cc);
-                    let ip = inst.ipv4.first().or(inst.ipv6.first()).map(|ip| ip.to_string()).unwrap_or_else(|| "no address".into());
+                    let ip = inst.ipv4.first().or(inst.ipv6.first()).map(|ip| ip.to_string()).unwrap_or_else(|| t!("fleet-import-no-address").into());
                     let (status, status_color) = status_label(&inst.status);
                     let (app, account, id) = (app.clone(), row.account.clone(), inst.id.0.clone());
                     div()
@@ -103,7 +103,7 @@ pub fn import_panel(state: &ImportState, app: Entity<CrowApp>) -> impl IntoEleme
                         .child(div().w(px(70.0)).flex_none().text_color(status_color).child(status))
                         .child(div().flex_1())
                         .child(match &row.enrolled_as {
-                            Some(server) => div().text_color(TEXT_DIMMER).child(format!("in fleet as {server}")).into_any_element(),
+                            Some(server) => div().text_color(TEXT_DIMMER).child(t!("fleet-import-in-fleet-as", server = server)).into_any_element(),
                             None => div()
                                 .id(SharedString::from(format!("import-{account}-{id}")))
                                 .px(px(9.0))
@@ -118,7 +118,7 @@ pub fn import_panel(state: &ImportState, app: Entity<CrowApp>) -> impl IntoEleme
                                     let (account, id) = (account.clone(), id.clone());
                                     app.update(cx, |this, cx| this.import_instance(&account, &id, cx));
                                 })
-                                .child("IMPORT →")
+                                .child(t!("fleet-import-import"))
                                 .into_any_element(),
                         })
                 })),

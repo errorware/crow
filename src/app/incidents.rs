@@ -36,14 +36,14 @@ impl CrowApp {
         let name = self.fleet.servers.iter().find(|s| s.id == a.server_id).map(|s| s.name.clone()).unwrap_or_else(|| a.server_id.clone());
         let now = chrono::Utc::now().timestamp();
         let to = a.resolved_at.map(|r| (r + 600).min(now)).unwrap_or(now);
-        self.load_incident(IncidentScope { title: format!("{} on {name}", a.detail), server_ids: vec![a.server_id.clone()], from: a.opened_at - 1800, to }, cx);
+        self.load_incident(IncidentScope { title: t!("app-incidents-on", detail = a.detail, name = name), server_ids: vec![a.server_id.clone()], from: a.opened_at - 1800, to }, cx);
     }
 
     /// The last `secs` on one server.
     pub fn open_incident_window(&mut self, server_id: &str, secs: i64, cx: &mut Context<Self>) {
         let name = self.fleet.servers.iter().find(|s| s.id == server_id).map(|s| s.name.clone()).unwrap_or_default();
         let now = chrono::Utc::now().timestamp();
-        self.load_incident(IncidentScope { title: format!("{name}, the last {}", if secs >= 86_400 { format!("{} days", secs / 86_400) } else { format!("{} hours", secs / 3600) }), server_ids: vec![server_id.to_string()], from: now - secs, to: now }, cx);
+        self.load_incident(IncidentScope { title: t!("app-incidents-the-last", name = name, secs = if secs >= 86_400 { t!("app-incidents-days", secs = secs / 86_400) } else { t!("app-incidents-hours", secs = secs / 3600) }), server_ids: vec![server_id.to_string()], from: now - secs, to: now }, cx);
     }
 
     /// Gathers what's local (alerts, changes, checks) now, and the error
@@ -102,7 +102,7 @@ impl CrowApp {
             return;
         }
         let Some((primary, backup)) = self.ai_providers() else {
-            self.incidents.summary = Some(Err("No AI provider has a key yet. Add one in Settings → Clankers (AI).".into()));
+            self.incidents.summary = Some(Err(t!("app-incidents-no-ai-provider-has-a").into()));
             cx.notify();
             return;
         };
@@ -135,8 +135,8 @@ impl CrowApp {
         let dir = dirs::download_dir().or_else(dirs::document_dir).or_else(dirs::home_dir).unwrap_or_else(std::env::temp_dir);
         let path = dir.join(format!("crow-incident-{}.md", now.format("%Y%m%d-%H%M")));
         self.incidents.message = Some(match std::fs::write(&path, md) {
-            Ok(()) => (true, format!("Timeline written to {}", path.display())),
-            Err(e) => (false, format!("Couldn't write {}: {e}", path.display())),
+            Ok(()) => (true, t!("app-incidents-timeline-written-to", path = path.display())),
+            Err(e) => (false, t!("app-incidents-couldnt-write", path = path.display(), e = e)),
         });
         cx.notify();
     }

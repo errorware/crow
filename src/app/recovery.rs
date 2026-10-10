@@ -45,7 +45,7 @@ impl CrowApp {
     pub fn open_recovery(&mut self, server_id: &str, window: &mut Window, cx: &mut Context<Self>) {
         let Some(srv) = self.fleet.servers.iter().find(|s| s.id == server_id).cloned() else { return };
         let confirm = cx.new(|cx| InputState::new(window, cx).placeholder(srv.name.clone()));
-        self.recovery = Some(RecoveryPanel { server_id: srv.id.clone(), diagnosis: None, probe: None, confirm, busy: Some("checking the host…".into()), error: None });
+        self.recovery = Some(RecoveryPanel { server_id: srv.id.clone(), diagnosis: None, probe: None, confirm, busy: Some(t!("app-recovery-checking-the-host").into()), error: None });
         cx.notify();
         self.rediagnose(srv, cx);
     }
@@ -84,7 +84,7 @@ impl CrowApp {
     pub fn recovery_retry(&mut self, cx: &mut Context<Self>) {
         let Some(panel) = self.recovery.as_mut() else { return };
         let Some(srv) = self.fleet.servers.iter().find(|s| s.id == panel.server_id).cloned() else { return };
-        panel.busy = Some("connecting…".into());
+        panel.busy = Some(t!("app-recovery-connecting").into());
         panel.error = None;
         cx.notify();
         cx.spawn(async move |entity, cx| {
@@ -99,7 +99,7 @@ impl CrowApp {
             let _ = entity.update(cx, |this, cx| {
                 if ok {
                     this.recovery = None;
-                    this.fleet.notice = Some(format!("{} is reachable again", srv.name));
+                    this.fleet.notice = Some(t!("app-recovery-is-reachable-again", name = srv.name));
                     this.reload_configs_for_active_server(cx);
                     this.refresh_firewall_for_active_server(cx);
                     cx.notify();
@@ -126,12 +126,12 @@ impl CrowApp {
         let Some(panel) = self.recovery.as_mut() else { return };
         let Some(srv) = self.fleet.servers.iter().find(|s| s.id == panel.server_id).cloned() else { return };
         if panel.confirm.read(cx).value().trim() != srv.name {
-            panel.error = Some(format!("Type {} exactly to trust the new key.", srv.name));
+            panel.error = Some(t!("app-recovery-type-exactly-to-trust-the", name = srv.name));
             cx.notify();
             return;
         }
         let Some(probe) = panel.probe.clone().filter(|p| !p.scanned_keys.is_empty()) else {
-            panel.error = Some("No key was fetched from the server; nothing to trust.".into());
+            panel.error = Some(t!("app-recovery-no-key-was-fetched-from").into());
             cx.notify();
             return;
         };
@@ -141,7 +141,7 @@ impl CrowApp {
         let removed = crate::host::LocalHost.exec(&["ssh-keygen", "-R", &pattern], DEFAULT_TIMEOUT);
         let result = removed.map_err(|e| e.to_string()).and_then(|_| trust_host_keys(&probe.scanned_keys).map_err(|e| e.to_string()));
         if let Err(e) = result {
-            panel.error = Some(format!("known_hosts wasn't changed: {e}"));
+            panel.error = Some(t!("app-recovery-known-hosts-wasnt-changed", e = e));
             cx.notify();
             return;
         }

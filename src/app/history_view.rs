@@ -51,7 +51,7 @@ impl CrowApp {
                 cpu: chart::series(&rows, |r| r.cpu, from, to, bucket),
                 mem: chart::series(&rows, |r| r.mem, from, to, bucket),
                 disk: chart::series(&rows, |r| r.disk, from, to, bucket),
-                disk_label: format!("DISK {mount}"),
+                disk_label: t!("app-history-view-disk", mount = mount),
                 load: chart::series(&rows, |r| r.load1, from, to, bucket),
                 gaps: chart::gaps(&rows, &sessions, from, to, bucket),
                 alerts: chart::alert_spans(&alerts, &srv.id, from, to, now),

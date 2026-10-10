@@ -57,7 +57,7 @@ pub fn firewall_view(
         }
         FirewallOperationalState::Active(summary) => {
             // Active backend struct but is_active == false
-            non_operational_view(summary.backend, "Firewall is currently disabled by administrator.", &["ufw".into()], app).into_any_element()
+            non_operational_view(summary.backend, t!("firewall-firewall-is-currently-disabled-by"), &["ufw".into()], app).into_any_element()
         }
     }
 }
@@ -126,7 +126,7 @@ fn render_active_firewall(
         .collect();
     let total_rules = summary.rules.len();
 
-    let chips: Vec<Chip> = [(None, "ALL"), (Some(RuleAction::Allow), "ALLOW"), (Some(RuleAction::Deny), "DENY"), (Some(RuleAction::Limit), "LIMIT")]
+    let chips: Vec<Chip> = [(None, t!("firewall-all")), (Some(RuleAction::Allow), t!("firewall-allow")), (Some(RuleAction::Deny), t!("firewall-deny")), (Some(RuleAction::Limit), t!("firewall-limit"))]
         .into_iter()
         .map(|(act, label)| {
             let app = app.clone();
@@ -163,9 +163,9 @@ fn render_active_firewall(
                     .border_r_1()
                     .border_color(BORDER_PANEL)
                     .font_family(FONT_MONO)
-                    .child(div().text_size(px(11.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child("FIREWALL"))
+                    .child(div().text_size(px(11.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(t!("firewall-firewall")))
                     .child(div().flex().items_center().gap(px(6.0)).child(div().size(px(6.0)).rounded_full().bg(OK)).child(
-                        div().text_size(px(10.5)).text_color(TEXT_DIM).child(format!("{} · on · {} rule{}", summary.backend.short_name().to_lowercase(), total_rules, if total_rules == 1 { "" } else { "s" })),
+                        div().text_size(px(10.5)).text_color(TEXT_DIM).child(t!("firewall-on", short_name = summary.backend.short_name().to_lowercase(), total_rules = total_rules)),
                     )),
             )
             .child(render_table_controls(search, chips))
@@ -177,22 +177,22 @@ fn render_active_firewall(
                     .gap(px(6.0))
                     .px(px(12.0))
                     .when(is_modified, |d| {
-                        d.child(tool_button("btn-stage-firewall-rules", format!("STAGE +{add_count} −{del_count}"), WARN).border_color(WARN).on_click(move |_ev, _window, cx| {
-                            app_stage.update(cx, |this, cx| this.stage_firewall_rules("Staged firewall rule changes", cx));
+                        d.child(tool_button("btn-stage-firewall-rules", t!("firewall-stage", add_count = add_count, del_count = del_count), WARN).border_color(WARN).on_click(move |_ev, _window, cx| {
+                            app_stage.update(cx, |this, cx| this.stage_firewall_rules(t!("firewall-staged-firewall-rule-changes"), cx));
                         }))
                     })
                     .child(
-                        tool_button("btn-toggle-firewall-audit-rail", "AUDIT", if fw.show_audit_rail { TEXT_PRIMARY } else { TEXT_DIM })
+                        tool_button("btn-toggle-firewall-audit-rail", t!("firewall-audit"), if fw.show_audit_rail { TEXT_PRIMARY } else { TEXT_DIM })
                             .when(fw.show_audit_rail, |d| d.bg(BG_CONTROL).border_color(BORDER_STRONG))
                             .on_click(move |_ev, _window, cx| app_audit.update(cx, |this, cx| this.toggle_firewall_audit_rail(cx))),
                     )
                     .when(!writable, |d| {
-                        d.child(tool_button("btn-firewall-raw", if show_raw { "RULE TABLE" } else { "RAW RULESET" }, TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
+                        d.child(tool_button("btn-firewall-raw", if show_raw { t!("firewall-rule-table") } else { t!("firewall-raw-ruleset") }, TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
                             app_raw.update(cx, |this, cx| this.toggle_firewall_raw(cx));
                         }))
                     })
                     .when(writable, |d| {
-                        d.child(tool_button("btn-reload-firewall", "RELOAD", TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
+                        d.child(tool_button("btn-reload-firewall", t!("firewall-reload"), TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
                             app_reload.update(cx, |this, cx| this.reload_firewall(cx));
                         }))
                     })
@@ -206,14 +206,14 @@ fn render_active_firewall(
                     })
                     .when(is_ufw, |d| {
                         d.child(
-                            tool_button("btn-toggle-firewall-active", "DISABLE", CRIT_INK_DIM)
+                            tool_button("btn-toggle-firewall-active", t!("firewall-disable"), CRIT_INK_DIM)
                                 .hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT).border_color(BORDER_DANGER_BTN))
                                 .on_click(move |_ev, _window, cx| app_toggle.update(cx, |this, cx| this.toggle_firewall_active(cx))),
                         )
                     })
                     .when(writable, |d| {
                         d.child(
-                            tool_button("btn-open-new-rule-modal", "+ ADD RULE", OK)
+                            tool_button("btn-open-new-rule-modal", t!("firewall-add-rule"), OK)
                                 .border_color(OK)
                                 .font_weight(FontWeight::BOLD)
                                 .hover(|s| s.bg(OK_BG).text_color(OK))
@@ -233,7 +233,7 @@ fn render_active_firewall(
             .child(div().text_color(TEXT_FAINT).child(label))
             .child(div().text_color(if warn { WARN } else { TEXT_SECONDARY }).child(value.to_lowercase()))
     };
-    let incoming_open = summary.default_incoming.label().eq_ignore_ascii_case("allow");
+    let incoming_open = summary.default_incoming == RuleAction::Allow;
     let defaults_line = div()
         .flex_none()
         .flex()
@@ -248,12 +248,12 @@ fn render_active_firewall(
         .border_color(BORDER_PANEL)
         .font_family(FONT_MONO)
         .text_size(px(10.5))
-        .child(div().text_size(px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child("DEFAULTS"))
+        .child(div().text_size(px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(t!("firewall-defaults")))
         .child(policy("incoming", summary.default_incoming.label().to_string(), incoming_open))
         .child(policy("outgoing", summary.default_outgoing.label().to_string(), false))
         .child(policy("routed", summary.default_forward.label().to_string(), false))
         .when(writable, |d| {
-            d.child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_DEFAULT)).child(div().text_size(px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child("QUICK OPEN")).children(
+            d.child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_DEFAULT)).child(div().text_size(px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(t!("firewall-quick-open"))).children(
                 common_quick_ports().iter().map(|qp| {
                     let open = summary.rules.iter().any(|r| r.action == RuleAction::Allow && r.port == qp.port.to_string());
                     let (port, proto, name, app) = (qp.port, qp.protocol, qp.name, app.clone());
@@ -289,12 +289,12 @@ fn render_active_firewall(
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(TEXT_DIMMER)
         .child(div().w(px(28.0)).flex_none().child("#"))
-        .child(div().w(px(64.0)).flex_none().child("ACTION"))
-        .child(div().w(px(44.0)).flex_none().child("DIR"))
-        .child(div().w(px(120.0)).flex_none().child("PORT"))
-        .child(div().flex_grow(1.0).flex_basis(px(0.0)).min_w(px(130.0)).child("FROM"))
-        .child(div().flex_grow(1.0).flex_basis(px(0.0)).min_w(px(110.0)).child("TO"))
-        .child(div().flex_grow(1.5).flex_basis(px(0.0)).min_w(px(120.0)).child("COMMENT"))
+        .child(div().w(px(64.0)).flex_none().child(t!("firewall-action")))
+        .child(div().w(px(44.0)).flex_none().child(t!("firewall-dir")))
+        .child(div().w(px(120.0)).flex_none().child(t!("firewall-port")))
+        .child(div().flex_grow(1.0).flex_basis(px(0.0)).min_w(px(130.0)).child(t!("firewall-from")))
+        .child(div().flex_grow(1.0).flex_basis(px(0.0)).min_w(px(110.0)).child(t!("firewall-to")))
+        .child(div().flex_grow(1.5).flex_basis(px(0.0)).min_w(px(120.0)).child(t!("firewall-comment")))
         .child(div().w(px(24.0)).flex_none());
 
     let body: Vec<AnyElement> = if show_raw {
@@ -305,14 +305,14 @@ fn render_active_firewall(
             .children(summary.raw_output.lines().map(|line| div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_SECONDARY).child(if line.is_empty() { " ".to_string() } else { line.to_string() })))
             .into_any_element()]
     } else if filtered_rules.is_empty() {
-        let text = if total_rules == 0 { "No rules yet: everything follows the defaults above" } else { "No rules match: try ALL, or clear the search" };
+        let text = if total_rules == 0 { t!("firewall-no-rules-yet-everything-follows") } else { t!("firewall-no-rules-match-try-all") };
         vec![div().px(px(14.0)).py(px(18.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child(text).into_any_element()]
     } else {
         filtered_rules.iter().map(|rule| render_rule_row(rule, writable, app.clone()).into_any_element()).collect()
     };
 
     let modal_element = fw.show_new_rule_modal.then(|| new_rule_modal(&fw.new_rule, summary.backend, rule_inputs, app.clone()).into_any_element());
-    let toast = fw.pending.as_ref().map(|p| format!("Running: {p} …")).or_else(|| fw.toast.clone());
+    let toast = fw.pending.as_ref().map(|p| t!("firewall-running", p = p)).or_else(|| fw.toast.clone());
 
     div()
         .id("firewall-management-view")
@@ -324,15 +324,12 @@ fn render_active_firewall(
         .child(header)
         // Read-only backends, and anything the reader flagged (ERR-76).
         .children((!writable).then(|| notice_strip(match summary.backend {
-            FirewallBackend::Nftables | FirewallBackend::Iptables => format!(
-                "Read-only: Crow reads the {} ruleset (the input chain and what it jumps to) but never writes raw rulesets.",
-                summary.backend.label()
-            ),
-            b => format!("Read-only: Crow reads {} (the running config) but doesn't change it yet; use its own tools to edit.", b.label()),
+            FirewallBackend::Nftables | FirewallBackend::Iptables => t!("firewall-read-only-crow-reads-the", label = summary.backend.label()),
+            b => t!("firewall-read-only-crow-reads-the-2", label = b.label()),
         }, TEXT_SECONDARY)))
         .children(summary.notice.clone().map(|n| notice_strip(n, WARN)))
         .children((summary.backend == FirewallBackend::Firewalld).then(|| notice_strip(
-            "Changes go to firewalld's running config and its saved (permanent) config together, so they apply now and survive a reload.".to_string(),
+            t!("firewall-changes-go-to-firewallds-running").to_string(),
             TEXT_DIM,
         )))
         // A change the lock-out guard held back (ERR-77).
@@ -434,7 +431,7 @@ fn lockout_strip(confirm: &LockoutConfirm, app: Entity<CrowApp>) -> impl IntoEle
         .bg(CRIT_BG)
         .border_b_1()
         .border_color(CRIT)
-        .child(div().font_family(FONT_MONO).text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child("THIS COULD LOCK YOU OUT"))
+        .child(div().font_family(FONT_MONO).text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child(t!("firewall-this-could-lock-you-out")))
         .child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_PRIMARY).child(confirm.reason.clone()))
         .children(confirm.commands.iter().map(|c| div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_SECONDARY).child(format!("  {}", commands::describe(c)))))
         .child(
@@ -442,12 +439,12 @@ fn lockout_strip(confirm: &LockoutConfirm, app: Entity<CrowApp>) -> impl IntoEle
                 .flex()
                 .items_center()
                 .gap(px(8.0))
-                .child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_TERTIARY).child("Type CONFIRM to apply it anyway:"))
+                .child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_TERTIARY).child(t!("firewall-type-confirm-to-apply-it")))
                 .children(confirm.input.as_ref().map(|input| div().w(px(160.0)).child(gpui_kit::component::input::Input::new(input).font_family(FONT_MONO).text_size(px(11.0)))))
-                .child(button("btn-fw-lockout-confirm", "APPLY ANYWAY", CRIT).on_click(move |_ev, _window, cx| {
+                .child(button("btn-fw-lockout-confirm", t!("firewall-apply-anyway"), CRIT).on_click(move |_ev, _window, cx| {
                     app_ok.update(cx, |this, cx| this.confirm_firewall_lockout(cx));
                 }))
-                .child(button("btn-fw-lockout-cancel", "CANCEL", TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
+                .child(button("btn-fw-lockout-cancel", t!("firewall-cancel"), TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
                     app_cancel.update(cx, |this, cx| this.cancel_firewall_lockout(cx));
                 })),
         )

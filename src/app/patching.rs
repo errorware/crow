@@ -33,8 +33,8 @@ impl Target {
 
     pub fn label(&self) -> String {
         match self {
-            Target::All => "every server".into(),
-            Target::Group(g) => format!("group {g}"),
+            Target::All => t!("app-patching-every-server").into(),
+            Target::Group(g) => t!("app-patching-group", g = g),
             Target::Server(_, name) => name.clone(),
         }
     }
@@ -135,7 +135,7 @@ impl CrowApp {
                 continue;
             }
             let value = self.patching.windows.get(&g).map(|w| w.describe()).unwrap_or_default();
-            let input = cx.new(|cx| InputState::new(window, cx).placeholder("any time · e.g. Sun 02-05").default_value(value));
+            let input = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-patching-any-time-e-g-sun")).default_value(value));
             let group = g.clone();
             let sub = cx.subscribe(&input, move |this, input, ev: &InputEvent, cx| {
                 if matches!(ev, InputEvent::PressEnter { .. } | InputEvent::Blur) {
@@ -186,9 +186,9 @@ impl CrowApp {
         let mut excluded = Vec::new();
         for s in self.fleet.servers.iter().filter(|s| target.includes(s)) {
             let why = if transport_kind(s) == TransportKind::Local {
-                Some("the machine Crow runs on: patch it yourself".to_string())
+                Some(t!("app-patching-the-machine-crow-runs-on").to_string())
             } else if !self.fleet.health(s).is_ok() {
-                Some("not reachable right now".to_string())
+                Some(t!("app-patching-not-reachable-right-now").to_string())
             } else {
                 patching::outside_window(s.group_name.trim(), &self.patching.windows)
             };
@@ -211,23 +211,23 @@ impl CrowApp {
         let (mut steps, mut jobs): (Vec<_>, Vec<RunJob>) = (Vec::new(), Vec::new());
         for srv in ordered {
             let Some(summary) = self.patching.summaries.get(&srv.id).cloned() else {
-                excluded.push((srv.name.clone(), "its updates haven't been read yet: REFRESH first".into()));
+                excluded.push((srv.name.clone(), t!("app-patching-its-updates-havent-been-read").into()));
                 continue;
             };
             if let Some(e) = &summary.error {
-                excluded.push((srv.name.clone(), format!("couldn't read its updates: {e}")));
+                excluded.push((srv.name.clone(), t!("app-patching-couldnt-read-its-updates", e = e)));
                 continue;
             }
             let packages = summary.packages(scope);
             if packages.is_empty() {
-                excluded.push((srv.name.clone(), format!("no {} pending", scope.label())));
+                excluded.push((srv.name.clone(), t!("app-patching-no-pending", label = scope.label())));
                 continue;
             }
             let reboot = if reboot_after {
                 match self.reboot_work(&srv) {
                     Ok(r) => Some(r),
                     Err(why) => {
-                        excluded.push((srv.name.clone(), format!("can't be rebooted from here ({why}), so it's left out of a run that reboots")));
+                        excluded.push((srv.name.clone(), t!("app-patching-cant-be-rebooted-from-here", why = why)));
                         continue;
                     }
                 }
@@ -243,7 +243,7 @@ impl CrowApp {
                 if packages.len() == 1 { "package" } else { "packages" },
                 shown.join(", "),
                 if more > 0 { format!(" +{more}") } else { String::new() },
-                if reboot.is_some() { " · then reboot if needed" } else { "" }
+                if reboot.is_some() { t!("app-patching-then-reboot-if-needed") } else { "" }
             );
             steps.push(FleetRun::step(&srv.id, &srv.name, what.clone()));
             let db = self.vault.db();
@@ -254,7 +254,7 @@ impl CrowApp {
                     let done = applied.describe();
                     match reboot {
                         Some((_, work)) if applied.reboot_required => match work()? {
-                            StepOutcome::Done(m) | StepOutcome::Skipped(m) => Ok(StepOutcome::Done(format!("{done}; rebooted: {m}"))),
+                            StepOutcome::Done(m) | StepOutcome::Skipped(m) => Ok(StepOutcome::Done(t!("app-patching-rebooted", done = done, m = m))),
                         },
                         _ => Ok(StepOutcome::Done(done)),
                     }
@@ -265,7 +265,7 @@ impl CrowApp {
         }
         let n = steps.len();
         self.patching.rescan_after_run = n > 0;
-        let title = format!("APPLY {} · {} · {n} SERVER{}", scope.label().to_uppercase(), target.label().to_uppercase(), if n == 1 { "" } else { "S" });
+        let title = t!("app-patching-apply", label = scope.label().to_uppercase(), label2 = target.label().to_uppercase(), n = n);
         self.open_fleet_run(FleetRun::new(title, "PATCH", steps, excluded), jobs, window, cx);
     }
 
@@ -292,7 +292,7 @@ impl CrowApp {
         }
         let n = steps.len();
         self.patching.rescan_after_run = n > 0;
-        let title = format!("REBOOT WHERE NEEDED · {} · {n} SERVER{}", target.label().to_uppercase(), if n == 1 { "" } else { "S" });
+        let title = t!("app-patching-reboot-where-needed", label = target.label().to_uppercase(), n = n);
         self.open_fleet_run(FleetRun::new(title, "REBOOT", steps, excluded), jobs, window, cx);
     }
 

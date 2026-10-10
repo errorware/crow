@@ -92,7 +92,7 @@ pub fn sshd_sheet_view(file: &str, sheet: &SshdSheet, read_only: bool, login_use
                 .font_family(FONT_MONO)
                 .text_size(px(10.0))
                 .text_color(WARN)
-                .child("Some files this config includes couldn't be read, so values below may not be what sshd uses:")
+                .child(t!("config-sshd-sheet-some-files-this-config-includes"))
                 .children(include_notes.into_iter().map(|n| div().text_color(TEXT_SECONDARY).child(n)))
         }))
         .child(posture_panel(file, sheet, read_only, login_user, app.clone()))
@@ -102,13 +102,13 @@ pub fn sshd_sheet_view(file: &str, sheet: &SshdSheet, read_only: bool, login_use
             }))
         }))
         .children((!sheet.other.is_empty()).then(|| {
-            section("OTHER DIRECTIVES".into(), sheet.other.len()).children(sheet.other.iter().enumerate().map(|(i, row)| directive_row(file, row, &format!("other-{i}"), read_only, active_edit, app.clone())))
+            section(t!("config-sshd-sheet-other-directives").into(), sheet.other.len()).children(sheet.other.iter().enumerate().map(|(i, row)| directive_row(file, row, &format!("other-{i}"), read_only, active_edit, app.clone())))
         }))
         .children(sheet.scoped.iter().enumerate().map(|(i, (scope, source, rows))| {
             let app = app.clone();
             let title = match source {
-                Some(path) => format!("MATCH {scope} · IN {}", path.to_uppercase()),
-                None => format!("MATCH {scope} · APPLIES ONLY WHEN THIS MATCHES"),
+                Some(path) => t!("config-sshd-sheet-match-in", scope = scope, path = path.to_uppercase()),
+                None => t!("config-sshd-sheet-match-applies-only-when-this", scope = scope),
             };
             section(title, rows.len()).children(rows.iter().enumerate().map(move |(j, row)| directive_row(file, row, &format!("match-{i}-{j}"), read_only, active_edit, app.clone())))
         }))
@@ -118,9 +118,9 @@ pub fn sshd_sheet_view(file: &str, sheet: &SshdSheet, read_only: bool, login_use
 fn posture_panel(file: &str, sheet: &SshdSheet, read_only: bool, login_user: &str, app: Entity<CrowApp>) -> impl IntoElement {
     let (risky, fine) = posture(sheet, login_user);
     let summary = match risky.len() {
-        0 => "nothing to fix".to_string(),
-        1 => "1 to fix".to_string(),
-        n => format!("{n} to fix"),
+        0 => t!("config-sshd-sheet-nothing-to-fix").to_string(),
+        1 => t!("config-sshd-sheet-1-to-fix").to_string(),
+        n => t!("config-sshd-sheet-to-fix", n = n),
     };
     div()
         .flex()
@@ -140,17 +140,17 @@ fn posture_panel(file: &str, sheet: &SshdSheet, read_only: bool, login_user: &st
                 .py(px(6.0))
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(div().text_size(px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child("SECURITY POSTURE"))
+                .child(div().text_size(px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(t!("config-sshd-sheet-security-posture")))
                 .child(div().text_size(px(9.5)).text_color(if risky.is_empty() { OK } else { WARN }).child(summary))
                 .child(div().flex_1())
-                .child(div().text_size(px(9.5)).text_color(TEXT_FAINTER).child(format!("{} fine", fine.len()))),
+                .child(div().text_size(px(9.5)).text_color(TEXT_FAINTER).child(t!("config-sshd-sheet-fine", count = fine.len()))),
         )
         .children(risky.into_iter().enumerate().map(|(i, item)| {
             let color = risk_color(item.risk.as_ref());
             let meaning = option_of(item.row, &item.value).map(|o| o.label.clone());
             let where_set = match (&item.row.source, item.row.value.is_some()) {
-                (Some(src), _) => Some(format!("set in {}", src.rsplit('/').next().unwrap_or(src))),
-                (None, false) => Some("sshd's default".to_string()),
+                (Some(src), _) => Some(t!("config-sshd-sheet-set-in", src = src.rsplit('/').next().unwrap_or(src))),
+                (None, false) => Some(t!("config-sshd-sheet-sshds-default").to_string()),
                 _ => None,
             };
             div()
@@ -186,8 +186,8 @@ fn posture_panel(file: &str, sheet: &SshdSheet, read_only: bool, login_user: &st
                 .children(item.fix.filter(|_| !read_only).map(|fix| {
                     let (app, file, row_id, field, name) = (app.clone(), file.to_string(), item.row.row_id.clone(), item.row.field_name.clone(), item.row.name.clone());
                     let label = match &fix {
-                        PostureFix::Set(v) => format!("SET {v}"),
-                        PostureFix::PasswordFlow => "TURN OFF SAFELY…".into(),
+                        PostureFix::Set(v) => t!("config-sshd-sheet-set", v = v),
+                        PostureFix::PasswordFlow => t!("config-sshd-sheet-turn-off-safely").into(),
                     };
                     div()
                         .id(SharedString::from(format!("sshd-posture-fix-{i}")))
@@ -307,7 +307,7 @@ fn directive_row(file: &str, row: &SheetRow, key: &str, read_only: bool, active_
         let text = match (&row.value, &effective) {
             (Some(v), _) => v.clone(),
             (None, Some(d)) => d.clone(),
-            (None, None) => "not set".into(),
+            (None, None) => t!("config-sshd-sheet-not-set").into(),
         };
         let is_list = row.def.as_ref().is_some_and(|d| d.field_type == FieldType::StringList);
         let (app, file, row_id, field, name, current) = (app.clone(), file.to_string(), row.row_id.clone(), row.field_name.clone(), row.name.clone(), row.value.clone().unwrap_or_default());
@@ -340,12 +340,12 @@ fn directive_row(file: &str, row: &SheetRow, key: &str, read_only: bool, active_
     let meaning = effective.as_deref().and_then(|v| option_of(row, v)).map(|o| o.label.clone());
     let at = match (&row.source, row.line) {
         (Some(src), Some(l)) => format!("{}:{l}", src.rsplit('/').next().unwrap_or(src)),
-        (None, Some(l)) => format!("line {l}"),
+        (None, Some(l)) => t!("config-sshd-sheet-line", l = l),
         _ => String::new(),
     };
     let location = match (row.shadowed, &row.shadowed_by) {
-        (true, Some(by)) => format!("{at} · ignored: {} sets it first", by.rsplit('/').next().unwrap_or(by)),
-        (true, None) => format!("{at} · ignored, set earlier"),
+        (true, Some(by)) => t!("config-sshd-sheet-ignored-sets-it-first", at = at, by = by.rsplit('/').next().unwrap_or(by)),
+        (true, None) => t!("config-sshd-sheet-ignored-set-earlier", at = at),
         _ => at,
     };
     let reset = row.row_id.clone().filter(|_| !read_only).map(|row_id| {
@@ -356,7 +356,7 @@ fn directive_row(file: &str, row: &SheetRow, key: &str, read_only: bool, active_
         crate::components::icon_button::icon_button(SharedString::from(format!("sshd-reset-{key}")), icon, !resets)
             .invisible()
             .group_hover("sshd-row", |s| s.visible())
-            .tooltip(move |window, cx| gpui_kit::component::tooltip::Tooltip::new(if resets { "Back to sshd's default (removes the line)" } else { "Remove the line" }).build(window, cx))
+            .tooltip(move |window, cx| gpui_kit::component::tooltip::Tooltip::new(if resets { t!("config-sshd-sheet-back-to-sshds-default-removes") } else { t!("config-sshd-sheet-remove-the-line") }).build(window, cx))
             .on_click(move |_ev, _window, cx| {
                 app.update(cx, |this, cx| this.delete_structured_row(&file, &row_id, cx));
             })
@@ -393,7 +393,7 @@ fn directive_row(file: &str, row: &SheetRow, key: &str, read_only: bool, active_
                     let c = risk_color(risk.as_ref());
                     div().px(px(4.0)).border_1().border_color(c.opacity(0.5)).text_size(px(8.5)).font_weight(FontWeight::BOLD).text_color(c).child(l)
                 }))
-                .children((!is_set && effective.is_some()).then(|| div().text_size(px(9.0)).text_color(TEXT_FAINTER).child("default")))
+                .children((!is_set && effective.is_some()).then(|| div().text_size(px(9.0)).text_color(TEXT_FAINTER).child(t!("config-sshd-sheet-default"))))
                 .child(div().flex_1())
                 .children((!location.is_empty()).then(|| div().text_size(px(9.0)).text_color(if row.shadowed { WARN_INK } else { TEXT_FAINTER }).child(location)))
                 .children(reset),

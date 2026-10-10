@@ -50,19 +50,19 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
         .flex()
         .flex_col()
         .gap(px(14.0))
-        .child(mono(10.0, TEXT_FAINT).line_height(px(14.0)).child("One change across many servers: the canary first (the run pauses so you can check it), then the rest in batches that run side by side. The first failure stops everything, with that server's output."))
+        .child(mono(10.0, TEXT_FAINT).line_height(px(14.0)).child(t!("fleet-rollouts-one-change-across-many-servers")))
         .child(
             div()
                 .flex()
                 .flex_col()
                 .gap(px(6.0))
-                .child(label("WHAT"))
+                .child(label(t!("fleet-rollouts-what")))
                 .child(
                     div()
                         .flex()
                         .gap(px(6.0))
-                        .child(chip("rollout-kind-cmd", "A COMMAND", st.kind == Kind::Command).on_click(move |_ev, _w, cx| app_cmd.update(cx, |this, cx| this.set_rollout_kind(Kind::Command, cx))))
-                        .child(chip("rollout-kind-cfg", "A CONFIG FILE", st.kind == Kind::Config).on_click(move |_ev, _w, cx| app_cfg.update(cx, |this, cx| this.set_rollout_kind(Kind::Config, cx)))),
+                        .child(chip("rollout-kind-cmd", t!("fleet-rollouts-a-command"), st.kind == Kind::Command).on_click(move |_ev, _w, cx| app_cmd.update(cx, |this, cx| this.set_rollout_kind(Kind::Command, cx))))
+                        .child(chip("rollout-kind-cfg", t!("fleet-rollouts-a-config-file"), st.kind == Kind::Config).on_click(move |_ev, _w, cx| app_cfg.update(cx, |this, cx| this.set_rollout_kind(Kind::Config, cx)))),
                 ),
         )
         .when(st.kind == Kind::Command, |d| {
@@ -91,10 +91,10 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                     .flex()
                     .flex_col()
                     .gap(px(6.0))
-                    .child(label("PATH (ENTER READS EVERY SERVER'S COPY)"))
-                    .child(div().flex().gap(px(6.0)).child(div().flex_1().child(Input::new(&inputs.path).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0)))).child(chip("rollout-read", "READ", false).on_click(move |_ev, _w, cx| app_read.update(cx, |this, cx| this.read_rollout_preview(cx)))))
+                    .child(label(t!("fleet-rollouts-path-enter-reads-every-servers")))
+                    .child(div().flex().gap(px(6.0)).child(div().flex_1().child(Input::new(&inputs.path).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0)))).child(chip("rollout-read", t!("fleet-rollouts-read"), false).on_click(move |_ev, _w, cx| app_read.update(cx, |this, cx| this.read_rollout_preview(cx)))))
                     .when(!baselines.is_empty(), |d| {
-                        d.child(div().flex().flex_wrap().gap(px(4.0)).child(mono(9.5, TEXT_FAINT).mr(px(4.0)).child("from a baseline:")).children(baselines.iter().enumerate().map(|(i, b)| {
+                        d.child(div().flex().flex_wrap().gap(px(4.0)).child(mono(9.5, TEXT_FAINT).mr(px(4.0)).child(t!("fleet-rollouts-from-a-baseline"))).children(baselines.iter().enumerate().map(|(i, b)| {
                             let (app, path, rev) = (app.clone(), b.path.clone(), b.revision_id.clone());
                             chip(format!("rollout-baseline-{i}"), format!("{} ({})", b.path, b.scope), false).on_click(move |_ev, window, cx| {
                                 let (path, rev) = (path.clone(), rev.clone());
@@ -102,9 +102,9 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                             })
                         })))
                     })
-                    .child(label("NEW CONTENT"))
+                    .child(label(t!("fleet-rollouts-new-content")))
                     .child(div().h(px(260.0)).border_1().border_color(BORDER_DEFAULT).bg(BG_APP).child(Editor::new(&inputs.content).h_full().appearance(false).bordered(false).font_family(FONT_MONO).text_size(px(11.0))))
-                    .child(mono(9.5, TEXT_FAINT).line_height(px(13.0)).child("Each server checks it with the format's own validator first (sshd -t, nginx -t, visudo, fstab…); refused content isn't written. Every write is kept in that server's config history.")),
+                    .child(mono(9.5, TEXT_FAINT).line_height(px(13.0)).child(t!("fleet-rollouts-each-server-checks-it-with"))),
             )
         })
         .child(
@@ -112,7 +112,7 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                 .flex()
                 .flex_col()
                 .gap(px(6.0))
-                .child(label("WHERE"))
+                .child(label(t!("fleet-rollouts-where")))
                 .child(
                     div()
                         .flex()
@@ -120,24 +120,24 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                         .gap(px(6.0))
                         .child({
                             let app = app.clone();
-                            chip("rollout-target-all", "every server", st.target == Target::All).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_rollout_target(Target::All, cx)))
+                            chip("rollout-target-all", t!("fleet-rollouts-every-server"), st.target == Target::All).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_rollout_target(Target::All, cx)))
                         })
                         .children(fleet.groups.iter().map(|g| {
                             let (app, name) = (app.clone(), g.clone());
-                            chip(format!("rollout-target-{g}"), format!("group {g}"), st.target == Target::Group(g.clone())).on_click(move |_ev, _w, cx| {
+                            chip(format!("rollout-target-{g}"), t!("fleet-rollouts-group", g = g), st.target == Target::Group(g.clone())).on_click(move |_ev, _w, cx| {
                                 let name = name.clone();
                                 app.update(cx, |this, cx| this.set_rollout_target(Target::Group(name), cx))
                             })
                         })),
                 )
-                .child(mono(10.0, TEXT_DIM).child(format!("{} server{}{}", servers.len(), if servers.len() == 1 { "" } else { "s" }, if left_out.is_empty() { String::new() } else { format!(" · {} left out (unreachable, or the machine Crow runs on)", left_out.len()) }))),
+                .child(mono(10.0, TEXT_DIM).child(t!("fleet-rollouts-text", count = servers.len(), left_out = if left_out.is_empty() { String::new() } else { t!("fleet-rollouts-left-out-unreachable-or-the", count = left_out.len()) }))),
         )
         .child(
             div()
                 .flex()
                 .flex_col()
                 .gap(px(6.0))
-                .child(label("CANARY · RUNS FIRST, ALONE"))
+                .child(label(t!("fleet-rollouts-canary-runs-first-alone")))
                 .child(
                     div()
                         .flex()
@@ -145,7 +145,7 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                         .gap(px(6.0))
                         .child({
                             let app = app.clone();
-                            chip("rollout-canary-none", "no canary", !st.use_canary).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_rollout_canary(None, cx)))
+                            chip("rollout-canary-none", t!("fleet-rollouts-no-canary"), !st.use_canary).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_rollout_canary(None, cx)))
                         })
                         .children(servers.iter().map(|s| {
                             let (app, id) = (app.clone(), s.id.clone());
@@ -161,7 +161,7 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                 .flex()
                 .flex_col()
                 .gap(px(6.0))
-                .child(label("THEN, AT A TIME"))
+                .child(label(t!("fleet-rollouts-then-at-a-time")))
                 .child(div().flex().gap(px(6.0)).children([1usize, 2, 5, 10].into_iter().map(|n| {
                     let app = app.clone();
                     chip(format!("rollout-batch-{n}"), n.to_string(), st.batch == n).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_rollout_batch(n, cx)))
@@ -184,7 +184,7 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                 .cursor_pointer()
                 .hover(|s| s.bg(WARN.opacity(0.12)))
                 .on_click(move |_ev, window, cx| app_plan.update(cx, |this, cx| this.plan_rollout(window, cx)))
-                .child("PREVIEW THE RUN →"),
+                .child(t!("fleet-rollouts-preview-the-run")),
         );
 
     // The selected server's diff.
@@ -194,19 +194,19 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
         .flex()
         .flex_col()
         .gap(px(8.0))
-        .when(st.kind == Kind::Command, |d| d.child(mono(10.5, TEXT_FAINT).child("A command has no preview: try it on the canary first.")))
+        .when(st.kind == Kind::Command, |d| d.child(mono(10.5, TEXT_FAINT).child(t!("fleet-rollouts-a-command-has-no-preview"))))
         .when(st.kind == Kind::Config, |d| {
-            d.child(label("WHAT CHANGES, PER SERVER"))
-                .when(st.preview_path.is_empty(), |d| d.child(mono(10.5, TEXT_FAINT).child("Type the path and press Enter to read each server's copy.")))
+            d.child(label(t!("fleet-rollouts-what-changes-per-server")))
+                .when(st.preview_path.is_empty(), |d| d.child(mono(10.5, TEXT_FAINT).child(t!("fleet-rollouts-type-the-path-and-press"))))
                 .child(div().flex().flex_wrap().gap(px(4.0)).children(servers.iter().map(|s| {
                     let stat = match st.current.get(&s.id) {
                         Some(Current::Read(now)) => {
                             let (a, r) = diff_stats(&line_diff(now, new_content));
                             if a + r == 0 { "same".to_string() } else { format!("+{a} −{r}") }
                         }
-                        Some(Current::Missing) => "new file".into(),
+                        Some(Current::Missing) => t!("fleet-rollouts-new-file").into(),
                         Some(Current::Failed(_)) => "unreadable".into(),
-                        Some(Current::Reading) => "reading…".into(),
+                        Some(Current::Reading) => t!("fleet-rollouts-reading").into(),
                         None => "—".into(),
                     };
                     let (app, id) = (app.clone(), s.id.clone());
@@ -227,7 +227,7 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                             .bg(BG_PANEL)
                             .border_1()
                             .border_color(BORDER_PANEL)
-                            .when(diff_stats(&diff) == (0, 0), |d| d.child(mono(10.5, TEXT_DIM).child("Identical: this server is left out.")))
+                            .when(diff_stats(&diff) == (0, 0), |d| d.child(mono(10.5, TEXT_DIM).child(t!("fleet-rollouts-identical-this-server-is-left"))))
                             .children(shown.into_iter().map(|l| match l {
                                 None => mono(10.0, TEXT_GHOST).child("⋯"),
                                 Some(l) => {
@@ -241,16 +241,16 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                             }))
                             .into_any_element()
                     }
-                    Current::Missing => mono(10.5, TEXT_DIM).child("No such file there yet: it will be created.").into_any_element(),
-                    Current::Failed(e) => mono(10.5, CRIT).child(format!("Couldn't read it: {e}")).into_any_element(),
-                    Current::Reading => mono(10.5, TEXT_DIM).child("Reading…").into_any_element(),
+                    Current::Missing => mono(10.5, TEXT_DIM).child(t!("fleet-rollouts-no-such-file-there-yet")).into_any_element(),
+                    Current::Failed(e) => mono(10.5, CRIT).child(t!("fleet-rollouts-couldnt-read-it", e = e)).into_any_element(),
+                    Current::Reading => mono(10.5, TEXT_DIM).child(t!("fleet-rollouts-reading-2")).into_any_element(),
                 }))
                 .children(st.selected.as_ref().and_then(|id| match st.current.get(id) {
                     Some(Current::Read(now)) => Some(now.clone()),
                     _ => None,
                 }).map(|now| {
                     let app = app.clone();
-                    chip("rollout-start-from", "START FROM THIS SERVER'S COPY", false).on_click(move |_ev, window, cx| {
+                    chip("rollout-start-from", t!("fleet-rollouts-start-from-this-servers-copy"), false).on_click(move |_ev, window, cx| {
                         let now = now.clone();
                         app.update(cx, |this, cx| this.rollout_content_from(now, window, cx))
                     })

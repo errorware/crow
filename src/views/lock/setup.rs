@@ -39,7 +39,7 @@ impl Default for SetupState {
 
 impl std::fmt::Debug for SetupState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct("SetupState").field("step", &self.step).field("secrets", &"[secret]").field("error_message", &self.error_message).finish()
+        f.debug_struct(t!("lock-setup-setupstate")).field("step", &self.step).field("secrets", &"[secret]").field("error_message", &self.error_message).finish()
     }
 }
 
@@ -114,7 +114,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                         .text_size(px(13.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("SECURITY NOTICE · ENABLING PASSWORD LOGON"),
+                                        .child(t!("lock-setup-security-notice-enabling-password-logon")),
                                 ),
                         )
                         .child(
@@ -128,7 +128,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(CRIT)
-                                .child("MANDATORY 2FA"),
+                                .child(t!("lock-setup-mandatory-2fa")),
                         ),
                 )
                 // Body
@@ -144,7 +144,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                 .text_size(px(12.0))
                                 .text_color(TEXT_SECONDARY)
                                 .line_height(px(18.0))
-                                .child("You are about to activate local encrypted vault protection for Crow. Before proceeding, please review these essential security rules:"),
+                                .child(t!("lock-setup-you-are-about-to-activate")),
                         )
                         // Warning 1: Password means password AND 2FA
                         .child(
@@ -162,7 +162,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                         .text_size(px(11.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("1. PASSWORD MEANS PASSWORD AND 2FA"),
+                                        .child(t!("lock-setup-1-password-means-password-and")),
                                 )
                                 .child(
                                     div()
@@ -170,7 +170,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                         .text_size(px(11.0))
                                         .text_color(TEXT_MUTED)
                                         .line_height(px(16.0))
-                                        .child("There is no password-only logon. Crow requires two-factor authentication (RFC 6238 TOTP) on every unlock. You will pair an authenticator app (1Password, Google Authenticator, YubiKey) in the next step."),
+                                        .child(t!("lock-setup-there-is-no-password-only")),
                                 ),
                         )
                         // Warning 2: Zero-Knowledge
@@ -189,7 +189,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                         .text_size(px(11.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("2. WHAT THE PASSWORD PROTECTS"),
+                                        .child(t!("lock-setup-2-what-the-password-protects")),
                                 )
                                 .child(
                                     div()
@@ -197,7 +197,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                         .text_size(px(11.0))
                                         .text_color(TEXT_MUTED)
                                         .line_height(px(16.0))
-                                        .child("Crow encrypts its secrets (provider tokens, AI API keys) with ChaCha20-Poly1305. With a password, their key is locked by it (Argon2id, 64MB, 3 iterations) instead of your OS keyring, is never written to disk unencrypted and is wiped from RAM on lock. The rest of ~/.config/crow/crow.db (server list, settings, change history) is not encrypted. Your SSH keys stay where they are in ~/.ssh."),
+                                        .child(t!("lock-setup-crow-encrypts-its-secrets-provider")),
                                 ),
                         )
                         // Warning 3: No Cloud Recovery
@@ -216,7 +216,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                         .text_size(px(11.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(CRIT_INK_DIM)
-                                        .child("3. NO CLOUD BACKUP OR PASSWORD RESET"),
+                                        .child(t!("lock-setup-3-no-cloud-backup-or")),
                                 )
                                 .child(
                                     div()
@@ -224,7 +224,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                         .text_size(px(11.0))
                                         .text_color(TEXT_MUTED)
                                         .line_height(px(16.0))
-                                        .child("This is a local-only, single-user system with zero telemetry. If you lose your master password or your 2FA authenticator, the secrets Crow stored (provider tokens, AI keys) can't be recovered and must be entered again. Your server list and settings stay readable."),
+                                        .child(t!("lock-setup-this-is-a-local-only")),
                                 ),
                         )
                         // Buttons
@@ -257,7 +257,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(11.5))
                                                 .text_color(TEXT_SECONDARY)
-                                                .child("CANCEL"),
+                                                .child(t!("lock-setup-cancel")),
                                         ),
                                 )
                                 .child(
@@ -280,7 +280,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                                 .text_size(px(12.0))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(rgb(0x050507))
-                                                .child("I UNDERSTAND · SETUP PASSWORD & 2FA →"),
+                                                .child(t!("lock-setup-i-understand-setup-password-2fa")),
                                         ),
                                 ),
                         ),
@@ -349,7 +349,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                         .text_size(px(14.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("CONFIGURE PASSWORD & MANDATORY 2FA"),
+                                        .child(t!("lock-setup-configure-password-mandatory-2fa")),
                                 ),
                         )
                         .child(
@@ -362,7 +362,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
                                 .text_color(OK)
-                                .child("STEP 2 OF 2"),
+                                .child(t!("lock-setup-step-2-of-2")),
                         ),
                 )
                 // Body
@@ -410,7 +410,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                                 .text_size(px(10.5))
                                                 .font_weight(FontWeight::SEMIBOLD)
                                                 .text_color(TEXT_MUTED)
-                                                .child("MASTER PASSWORD"),
+                                                .child(t!("lock-setup-master-password")),
                                         )
                                         .child(
                                             div()
@@ -423,7 +423,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                                 .on_click(move |_ev, window, cx| {
                                                     app_toggle_show.update(cx, |this, cx| this.toggle_setup_show_password(window, cx));
                                                 })
-                                                .child(if show_pwd { "HIDE PASSWORD" } else { "SHOW PASSWORD" }),
+                                                .child(if show_pwd { t!("lock-setup-hide-password") } else { t!("lock-setup-show-password") }),
                                         ),
                                 )
                                 .children(input(inputs.map(|i| &i.password))),
@@ -440,7 +440,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                         .text_size(px(10.5))
                                         .font_weight(FontWeight::SEMIBOLD)
                                         .text_color(TEXT_MUTED)
-                                        .child("CONFIRM MASTER PASSWORD"),
+                                        .child(t!("lock-setup-confirm-master-password")),
                                 )
                                 .children(input(inputs.map(|i| &i.confirm))),
                         )
@@ -470,7 +470,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                                         .text_size(px(11.0))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(OK)
-                                                        .child("MANDATORY TWO-FACTOR AUTHENTICATION (TOTP)"),
+                                                        .child(t!("lock-setup-mandatory-two-factor-authentication-totp")),
                                                 ),
                                         )
                                         .child(
@@ -484,7 +484,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                                 .text_size(px(9.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(OK)
-                                                .child("REQUIRED"),
+                                                .child(t!("lock-setup-required")),
                                         ),
                                 )
                                 .child(
@@ -503,7 +503,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                                 .flex()
                                                 .flex_col()
                                                 .gap(px(8.0))
-                                                .child(div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(TEXT_MUTED).child("Scan the code with your authenticator app (1Password, Google Authenticator, Aegis…), or enter this key:"))
+                                                .child(div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(TEXT_MUTED).child(t!("lock-setup-scan-the-code-with-your")))
                                                 .child(
                                                     div()
                                                         .p(px(8.0))
@@ -531,7 +531,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                                         .cursor_pointer()
                                                         .hover(|s| s.bg(BG_ROW_HOVER))
                                                         .on_click(move |_ev, _window, cx| app_copy.update(cx, |this, cx| this.copy_setup_secret(cx)))
-                                                        .child(if state.secret_copied { "✓ COPIED" } else { "COPY KEY" }),
+                                                        .child(if state.secret_copied { t!("lock-setup-copied") } else { t!("lock-setup-copy-key") }),
                                                 ),
                                         ),
                                 )
@@ -540,7 +540,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.5))
                                         .text_color(TEXT_MUTED)
-                                        .child("ENTER 6-DIGIT CODE TO CONFIRM PAIRING:"),
+                                        .child(t!("lock-setup-enter-6-digit-code-to")),
                                 )
                                 .children(input(inputs.map(|i| &i.code))),
                         )
@@ -574,7 +574,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(11.0))
                                                 .text_color(TEXT_SECONDARY)
-                                                .child("← BACK"),
+                                                .child(t!("lock-setup-back")),
                                         ),
                                 )
                                 .child(
@@ -599,7 +599,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                                 .text_size(px(12.0))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(rgb(0x050507))
-                                                .child("ACTIVATE PASSWORD & 2FA"),
+                                                .child(t!("lock-setup-activate-password-2fa")),
                                         )
                                         .child(
                                             div()

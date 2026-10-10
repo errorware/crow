@@ -46,7 +46,7 @@ pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState) -> impl IntoE
                         .text_size(px(11.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
-                        .child("FILES"),
+                        .child(t!("files-files")),
                 )
                 .child(div().flex_1())
                 .child({
@@ -76,7 +76,7 @@ pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState) -> impl IntoE
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
                                 .font_weight(FontWeight::BOLD)
-                                .child("UP"),
+                                .child(t!("files-up")),
                         )
                 })
                 .child({
@@ -99,7 +99,7 @@ pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState) -> impl IntoE
                                 this.toggle_new_folder_prompt(window, cx);
                             });
                         })
-                        .child("+ FOLDER")
+                        .child(t!("files-folder"))
                 })
                 .child({
                     let app_refresh = app.clone();
@@ -191,11 +191,11 @@ fn render_listing(files: &FilesState, app: Entity<CrowApp>) -> impl IntoElement 
                 .text_size(px(9.5))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(TEXT_DIMMER)
-                .child(div().flex_1().min_w(px(0.0)).child("NAME"))
-                .child(div().w(px(70.0)).flex_none().text_align(TextAlign::Right).child("SIZE"))
-                .child(div().w(px(100.0)).flex_none().pl(px(12.0)).child("PERMS"))
-                .child(div().w(px(90.0)).flex_none().child("OWNER"))
-                .when(!compact, |d| d.child(div().w(px(90.0)).flex_none().child("GROUP")).child(div().w(px(120.0)).flex_none().child("MODIFIED")))
+                .child(div().flex_1().min_w(px(0.0)).child(t!("files-name")))
+                .child(div().w(px(70.0)).flex_none().text_align(TextAlign::Right).child(t!("files-size")))
+                .child(div().w(px(100.0)).flex_none().pl(px(12.0)).child(t!("files-perms")))
+                .child(div().w(px(90.0)).flex_none().child(t!("files-owner")))
+                .when(!compact, |d| d.child(div().w(px(90.0)).flex_none().child(t!("files-group"))).child(div().w(px(120.0)).flex_none().child(t!("files-modified"))))
                 .child(div().w(px(48.0)).flex_none()),
         )
         // 6. File list
@@ -215,7 +215,7 @@ fn render_listing(files: &FilesState, app: Entity<CrowApp>) -> impl IntoElement 
                             .font_family(FONT_MONO)
                             .text_size(px(11.0))
                             .text_color(TEXT_DIMMER)
-                            .child("Empty directory")
+                            .child(t!("files-empty-directory"))
                             .into_any_element(),
                     ]
                 } else {
@@ -325,7 +325,7 @@ fn render_new_folder_prompt(files: &FilesState, app: Entity<CrowApp>) -> impl In
                         this.create_new_folder(cx);
                     });
                 })
-                .child("CREATE ⏎"),
+                .child(t!("files-create")),
         )
         .child(
             div()
@@ -342,7 +342,7 @@ fn render_new_folder_prompt(files: &FilesState, app: Entity<CrowApp>) -> impl In
                         this.toggle_new_folder_prompt(window, cx);
                     });
                 })
-                .child("cancel"),
+                .child(t!("files-cancel")),
         )
 }
 
@@ -452,7 +452,7 @@ fn render_file_row(entry: &FileEntry, idx: usize, files: &FilesState, compact: b
                         .group_hover("files-row", |s| s.visible())
                         .children((!is_dir).then(|| {
                             icon_button(ElementId::NamedInteger("files-row-edit".into(), idx as u64), TablerIcon::Terminal2, false)
-                                .tooltip(|window, cx| gpui_kit::component::tooltip::Tooltip::new("Edit in a terminal (nano)").build(window, cx))
+                                .tooltip(|window, cx| gpui_kit::component::tooltip::Tooltip::new(t!("files-edit-in-a-terminal-nano")).build(window, cx))
                                 .on_click(move |_ev, _window, cx| {
                                     cx.stop_propagation();
                                     app_edit.update(cx, |this, cx| this.files_edit_in_terminal(&path_for_edit, cx));
@@ -493,9 +493,9 @@ fn render_file_row(entry: &FileEntry, idx: usize, files: &FilesState, compact: b
                             .text_size(px(11.0))
                             .text_color(CRIT_INK)
                             .child(if is_dir {
-                                format!("Delete empty directory {}? This cannot be undone.", del_name)
+                                t!("files-delete-empty-directory-this-cannot", del_name = del_name)
                             } else {
-                                format!("Delete {}? This cannot be undone.", del_name)
+                                t!("files-delete-this-cannot-be-undone", del_name = del_name)
                             }),
                     )
                     .child(
@@ -516,7 +516,7 @@ fn render_file_row(entry: &FileEntry, idx: usize, files: &FilesState, compact: b
                                     cx.notify();
                                 });
                             })
-                            .child("Cancel"),
+                            .child(t!("files-cancel-2")),
                     )
                     .child(
                         div()
@@ -535,7 +535,7 @@ fn render_file_row(entry: &FileEntry, idx: usize, files: &FilesState, compact: b
                                     this.execute_file_delete(cx);
                                 });
                             })
-                            .child("DELETE ⏎"),
+                            .child(t!("files-delete")),
                     ),
             )
         } else {
@@ -569,7 +569,7 @@ fn render_perms_editor(edit: &PermsEdit, entry: &FileEntry, app: Entity<CrowApp>
     let mode = edit.mode;
     let changed = mode != edit.original;
     let symbolic = collector::mode_to_string(mode, entry.is_dir, entry.is_symlink);
-    let who = [("OWNER", entry.owner.as_str(), 6u32), ("GROUP", entry.group.as_str(), 3), ("OTHERS", "everyone else", 0)];
+    let who = [(t!("files-owner"), entry.owner.as_str(), 6u32), (t!("files-group"), entry.group.as_str(), 3), (t!("files-others"), t!("files-everyone-else"), 0)];
 
     let bit = |id: String, label: &'static str, on: bool, color: Rgba, flip: u32| {
         let app = app.clone();
@@ -634,7 +634,7 @@ fn render_perms_editor(edit: &PermsEdit, entry: &FileEntry, app: Entity<CrowApp>
                 .flex()
                 .flex_col()
                 .gap(px(4.0))
-                .children([("SETUID", 0o4000u32, "runs as its owner"), ("SETGID", 0o2000, if entry.is_dir { "new files get this group" } else { "runs as its group" }), ("STICKY", 0o1000, "only owners delete inside")].into_iter().map(|(label, b, what)| {
+                .children([(t!("files-setuid"), 0o4000u32, t!("files-runs-as-its-owner")), (t!("files-setgid"), 0o2000, if entry.is_dir { t!("files-new-files-get-this-group") } else { t!("files-runs-as-its-group") }), (t!("files-sticky"), 0o1000, t!("files-only-owners-delete-inside"))].into_iter().map(|(label, b, what)| {
                     div()
                         .flex()
                         .items_center()
@@ -660,7 +660,7 @@ fn render_perms_editor(edit: &PermsEdit, entry: &FileEntry, app: Entity<CrowApp>
                         .child(div().text_size(px(18.0)).font_weight(FontWeight::BOLD).text_color(if changed { WARN } else { TEXT_PRIMARY }).child(format!("{mode:04o}")))
                         .child(div().text_size(px(12.0)).child(perms_text(&symbolic))),
                 )
-                .children((changed && mode & 0o002 != 0 && !entry.is_dir).then(|| div().text_size(px(9.5)).text_color(WARN).child("anyone on the server can change this file")))
+                .children((changed && mode & 0o002 != 0 && !entry.is_dir).then(|| div().text_size(px(9.5)).text_color(WARN).child(t!("files-anyone-on-the-server-can"))))
                 .child(
                     div()
                         .flex()
@@ -682,7 +682,7 @@ fn render_perms_editor(edit: &PermsEdit, entry: &FileEntry, app: Entity<CrowApp>
                                         cx.notify();
                                     })
                                 })
-                                .child("Cancel"),
+                                .child(t!("files-cancel-2")),
                         )
                         .child(
                             div()
@@ -700,7 +700,7 @@ fn render_perms_editor(edit: &PermsEdit, entry: &FileEntry, app: Entity<CrowApp>
                                         .hover(|s| s.bg(BG_ROW_HOVER))
                                         .on_click(move |_ev, _window, cx| app_apply.update(cx, |this, cx| this.files_apply_perms(cx)))
                                 })
-                                .child(if edit.saving { "applying…".to_string() } else { format!("chmod {mode:04o}") }),
+                                .child(if edit.saving { t!("files-applying").to_string() } else { t!("files-chmod", mode = format!("{:04o}", mode)) }),
                         ),
                 ),
         )
@@ -713,10 +713,10 @@ fn render_preview(pv: &FilePreview, app: Entity<CrowApp>) -> impl IntoElement {
     let app_close = app.clone();
     let path = pv.path.clone();
     let note = match &pv.result {
-        None => "reading…".to_string(),
+        None => t!("files-reading").to_string(),
         Some(Err(_)) => String::new(),
-        Some(Ok(t)) if t.truncated => format!("first {} KB · {} lines", collector::PREVIEW_LIMIT / 1024, t.lines),
-        Some(Ok(t)) => format!("{} line{}", t.lines, if t.lines == 1 { "" } else { "s" }),
+        Some(Ok(t)) if t.truncated => t!("files-first-kb-lines", collector = collector::PREVIEW_LIMIT / 1024, lines = t.lines),
+        Some(Ok(t)) => t!("files-text", lines = t.lines),
     };
     div()
         .w(relative(0.5))
@@ -760,12 +760,12 @@ fn render_preview(pv: &FilePreview, app: Entity<CrowApp>) -> impl IntoElement {
                         .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                         .on_click(move |_ev, _window, cx| app_edit.update(cx, |this, cx| this.files_edit_in_terminal(&path, cx)))
                         .child(tabler_icon(TablerIcon::Terminal2).size(px(11.0)).text_color(TEXT_TERTIARY))
-                        .child("EDIT IN TERMINAL"),
+                        .child(t!("files-edit-in-terminal")),
                 )
                 .child(icon_button("files-preview-close", TablerIcon::X, false).on_click(move |_ev, _window, cx| app_close.update(cx, |this, cx| this.files_close_preview(cx)))),
         )
         .child(match &pv.result {
-            None => div().flex_1().p(px(14.0)).text_size(px(11.0)).text_color(TEXT_DIMMER).child("Reading the file…").into_any_element(),
+            None => div().flex_1().p(px(14.0)).text_size(px(11.0)).text_color(TEXT_DIMMER).child(t!("files-reading-the-file")).into_any_element(),
             Some(Err(e)) => div().flex_1().p(px(14.0)).text_size(px(11.0)).text_color(CRIT_INK).child(e.clone()).into_any_element(),
             Some(Ok(t)) => div()
                 .id("files-preview-scroll")

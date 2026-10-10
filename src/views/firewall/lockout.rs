@@ -53,17 +53,12 @@ pub fn ssh_access(summary: &FirewallStatusSummary, port: u16) -> SshAccess {
 /// when Crow can't tell what the rules will be.
 pub fn risk(before: Option<&FirewallStatusSummary>, after: Option<&FirewallStatusSummary>, port: u16) -> Option<String> {
     let Some(after) = after else {
-        return Some(format!("Crow can't see which rules will apply after this, so it can't check that port {port}/tcp, the SSH port it's connected through, stays allowed."));
+        return Some(t!("firewall-lockout-crow-cant-see-which-rules", port = port));
     };
     let before = before.map(|b| ssh_access(b, port)).unwrap_or(SshAccess::Open);
     match (before, ssh_access(after, port)) {
-        (SshAccess::Open, SshAccess::OnlyFrom(from)) => Some(format!(
-            "After this, port {port}/tcp (Crow's SSH connection) is only allowed from {}. If Crow doesn't connect from there, the next login is refused.",
-            from.join(", ")
-        )),
-        (SshAccess::Open | SshAccess::OnlyFrom(_), SshAccess::Closed) => Some(format!(
-            "This stops port {port}/tcp, the SSH port Crow is connected through, from being allowed. The next SSH login, Crow's included, would be refused."
-        )),
+        (SshAccess::Open, SshAccess::OnlyFrom(from)) => Some(t!("firewall-lockout-after-this-port-tcp-crows", port = port, value = from.join(", "))),
+        (SshAccess::Open | SshAccess::OnlyFrom(_), SshAccess::Closed) => Some(t!("firewall-lockout-this-stops-port-tcp-the", port = port)),
         _ => None,
     }
 }

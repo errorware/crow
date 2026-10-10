@@ -52,7 +52,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                 .text_size(px(12.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_PRIMARY)
-                                .child("CLANKERS · LLM PROVIDERS & KEYS"),
+                                .child(t!("settings-clankers-clankers-llm-providers-keys")),
                         )
                         .child(
                             div()
@@ -64,7 +64,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.5))
                                 .text_color(TEXT_SECONDARY)
-                                .child(format!("{}/{} CONFIGURED", configured_count, providers.len())),
+                                .child(t!("settings-clankers-configured", configured_count = configured_count, count = providers.len())),
                         ),
                 )
                 .child(
@@ -82,7 +82,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.5))
                                         .text_color(TEXT_DIM)
-                                        .child("30d Cumulative Calls:"),
+                                        .child(t!("settings-clankers-30d-cumulative-calls")),
                                 )
                                 .child(
                                     div()
@@ -95,7 +95,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                         .text_size(px(10.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(OK)
-                                        .child(format!("{} calls", total_calls_30d)),
+                                        .child(t!("settings-clankers-calls", total_calls_30d = total_calls_30d)),
                                 ),
                         )
                         .child(
@@ -108,7 +108,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.5))
                                         .text_color(TEXT_DIM)
-                                        .child("Primary · backup:"),
+                                        .child(t!("settings-clankers-primary-backup")),
                                 )
                                 .child(
                                     div()
@@ -119,7 +119,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                         .child(format!(
                                             "{} · {}",
                                             default_provider.map(|p| p.display_name).unwrap_or_else(|| "none".into()),
-                                            backup_provider.map(|p| p.display_name).unwrap_or_else(|| "no backup".into())
+                                            backup_provider.map(|p| p.display_name).unwrap_or_else(|| t!("settings-clankers-no-backup").into())
                                         )),
                                 ),
                         ),
@@ -168,7 +168,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                         .text_size(px(11.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("AI Usability Engine (Log Clarification & ELI5 Assistance)"),
+                                        .child(t!("settings-clankers-ai-usability-engine-log-clarification")),
                                 )
                                 .child(
                                     div()
@@ -177,13 +177,13 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                         .text_color(TEXT_MUTED)
                                         .line_height(px(15.0))
                                         .child(
-                                            "Configure API keys for LLM providers. Crow calls them only when you ask, to explain journal lines in plain English. Keys are stored encrypted in Crow's vault (its key is held by your OS keyring, or locked by your vault password when it's on) and sent through curl's stdin, never the command line. Log lines you send go to that provider."
+                                            t!("settings-clankers-configure-api-keys-for-llm")
                                         ),
                                 ),
                         ),
                 )
                 .children(secrets_notice.map(|n| crate::views::settings::providers::notice(n.to_string(), TEXT_SECONDARY, None, Some(app.clone()))))
-                .children(secrets_blocker.map(|why| crate::views::settings::providers::notice(format!("Keys can't be saved right now: {why}."), WARN, Some(app.clone()), None)))
+                .children(secrets_blocker.map(|why| crate::views::settings::providers::notice(t!("settings-clankers-keys-cant-be-saved-right", why = why), WARN, Some(app.clone()), None)))
                 // The sandbox first: its answer grows the box, and at the
                 // bottom of the page that happened out of view.
                 .child(render_eli5_sandbox(app.clone(), demo_log, demo_output, demo_loading))
@@ -194,7 +194,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                         .text_size(px(11.0))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_SECONDARY)
-                        .child("SUPPORTED CLANKER PROVIDERS & 30-DAY TELEMETRY"),
+                        .child(t!("settings-clankers-supported-clanker-providers-30-day")),
                 )
                 .child(
                     div()
@@ -215,9 +215,9 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
         // Only the last four characters, like a card number.
         let k = prov.api_key.trim();
         let tail: String = k.chars().rev().take(4).collect::<Vec<_>>().into_iter().rev().collect();
-        if k.chars().count() > 12 { format!("set · ends …{tail}") } else { "set".to_string() }
+        if k.chars().count() > 12 { t!("settings-clankers-set-ends", tail = tail) } else { "set".to_string() }
     } else {
-        "NO KEY CONFIGURED".to_string()
+        t!("settings-clankers-no-key-configured").to_string()
     };
 
     let app_edit = app.clone();
@@ -271,7 +271,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                     .text_size(px(9.0))
                                     .font_weight(FontWeight::BOLD)
                                     .text_color(OK)
-                                    .child("★ PRIMARY"),
+                                    .child(t!("settings-clankers-primary")),
                             )
                         } else {
                             None
@@ -287,7 +287,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                 .text_size(px(9.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(hex_rgb(0x8ab4ff))
-                                .child("↺ BACKUP")
+                                .child(t!("settings-clankers-backup"))
                         })),
                 )
                 .child(
@@ -301,7 +301,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(if is_configured { OK } else { TEXT_DIM })
-                        .child(if is_configured { "READY" } else { "NOT SETUP" }),
+                        .child(if is_configured { t!("settings-clankers-ready") } else { t!("settings-clankers-not-setup") }),
                 ),
         )
         // Key and Model Preview Strip
@@ -324,7 +324,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
                                 .text_color(TEXT_DIM)
-                                .child("API Key:"),
+                                .child(t!("settings-clankers-api-key")),
                         )
                         .child(
                             div()
@@ -345,7 +345,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
                                 .text_color(TEXT_DIM)
-                                .child("Model:"),
+                                .child(t!("settings-clankers-model")),
                         )
                         .child(
                             div()
@@ -365,7 +365,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.5))
                                 .text_color(TEXT_DIM)
-                                .child("Endpoint:"),
+                                .child(t!("settings-clankers-endpoint")),
                         )
                         .child(
                             div()
@@ -396,7 +396,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.5))
                                 .text_color(TEXT_DIM)
-                                .child("30-Day Activity:"),
+                                .child(t!("settings-clankers-30-day-activity")),
                         )
                         .child(
                             div()
@@ -404,7 +404,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                 .text_size(px(14.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(if prov.calls_30d > 0 { OK } else { TEXT_DIM })
-                                .child(format!("{} calls", prov.calls_30d)),
+                                .child(t!("settings-clankers-calls-2", calls_30d = prov.calls_30d)),
                         )
                         .child(
                             div()
@@ -430,12 +430,12 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                     prov.last_used_at.as_deref()
                                         .map(|ts| {
                                             if ts.len() >= 19 {
-                                                format!("Last used: {}", &ts[..10])
+                                                t!("settings-clankers-last-used", ts = &ts[..10])
                                             } else {
-                                                format!("Last used: {}", ts)
+                                                t!("settings-clankers-last-used", ts = ts)
                                             }
                                         })
-                                        .unwrap_or_else(|| "Never used".into())
+                                        .unwrap_or_else(|| t!("settings-clankers-never-used").into())
                                 ),
                         ),
                 ),
@@ -472,7 +472,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                         this.open_edit_clanker_modal(&id, cx);
                                     });
                                 })
-                                .child("⚙ Edit Key"),
+                                .child(t!("settings-clankers-edit-key")),
                         )
                         // Test Call Button
                         .child(
@@ -494,7 +494,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                         this.test_clanker_key(&id, cx);
                                     });
                                 })
-                                .child(if checking { "testing…" } else { "⚡ Test Key" }),
+                                .child(if checking { t!("settings-clankers-testing") } else { t!("settings-clankers-test-key") }),
                         ),
                 )
 
@@ -521,7 +521,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                             this.reset_clanker_stats(&id, cx);
                                         });
                                     })
-                                    .child("Reset"),
+                                    .child(t!("settings-clankers-reset")),
                             )
                         } else {
                             None
@@ -546,7 +546,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                     let id = id.clone();
                                     app_backup.update(cx, |this, cx| this.set_backup_clanker(if on { None } else { Some(&id) }, cx));
                                 })
-                                .child(if on { "Remove backup" } else { "Make backup" })
+                                .child(if on { t!("settings-clankers-remove-backup") } else { t!("settings-clankers-make-backup") })
                         }))
                         // Primary: asked first.
                         .children(if !prov.is_default && is_configured {
@@ -570,7 +570,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                             this.set_default_clanker(&id, cx);
                                         });
                                     })
-                                    .child("Make primary"),
+                                    .child(t!("settings-clankers-make-primary")),
                             )
                         } else {
                             None
@@ -627,7 +627,7 @@ fn render_eli5_sandbox(
                                 .text_size(px(12.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_PRIMARY)
-                                .child("AI USABILITY SANDBOX: \"WTF IS THIS LOG TRYING TO SAY?\""),
+                                .child(t!("settings-clankers-ai-usability-sandbox-wtf-is")),
                         )
                         .child(
                             div()
@@ -639,7 +639,7 @@ fn render_eli5_sandbox(
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.0))
                                 .text_color(hex_rgb(0xbb9af7))
-                                .child("ELI5 ASSISTANT PREVIEW"),
+                                .child(t!("settings-clankers-eli5-assistant-preview")),
                         ),
                 )
                 .child(
@@ -652,7 +652,7 @@ fn render_eli5_sandbox(
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.5))
                                 .text_color(TEXT_DIM)
-                                .child("Load Presets:"),
+                                .child(t!("settings-clankers-load-presets")),
                         )
                         .child(
                             div()
@@ -669,12 +669,12 @@ fn render_eli5_sandbox(
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
                                     app_preset1.update(cx, |this, cx| {
-                                        this.clankers.demo_log = "kernel: [  129.412033] Out of memory: Kill process 28419 (mysqld) score 812 or sacrifice child".into();
+                                        this.clankers.demo_log = t!("settings-clankers-kernel-129-412033-out-of").into();
                                         this.clankers.demo_output = None;
                                         cx.notify();
                                     });
                                 })
-                                .child("OOM Killer"),
+                                .child(t!("settings-clankers-oom-killer")),
                         )
                         .child(
                             div()
@@ -691,12 +691,12 @@ fn render_eli5_sandbox(
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
                                     app_preset2.update(cx, |this, cx| {
-                                        this.clankers.demo_log = "nginx[1482]: segfault at 0 ip 00007f3b48201a08 sp 00007ffe3410 error 4 in libc.so.6".into();
+                                        this.clankers.demo_log = t!("settings-clankers-nginx-1482-segfault-at-0").into();
                                         this.clankers.demo_output = None;
                                         cx.notify();
                                     });
                                 })
-                                .child("Segfault in Libc"),
+                                .child(t!("settings-clankers-segfault-in-libc")),
                         )
                         .child(
                             div()
@@ -713,12 +713,12 @@ fn render_eli5_sandbox(
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
                                     app_preset3.update(cx, |this, cx| {
-                                        this.clankers.demo_log = "systemd[1]: postgresql@16-main.service: Main process exited, code=exited, status=1/FAILURE".into();
+                                        this.clankers.demo_log = t!("settings-clankers-systemd-1-postgresql-16-main").into();
                                         this.clankers.demo_output = None;
                                         cx.notify();
                                     });
                                 })
-                                .child("Systemd Failure"),
+                                .child(t!("settings-clankers-systemd-failure")),
                         ),
                 ),
         )
@@ -733,7 +733,7 @@ fn render_eli5_sandbox(
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_DIM)
-                        .child("Sample Raw Journal / Kernel Panic Log Line:"),
+                        .child(t!("settings-clankers-sample-raw-journal-kernel-panic")),
                 )
                 .child(
                     div()
@@ -769,7 +769,7 @@ fn render_eli5_sandbox(
                                         this.run_clanker_eli5(cx);
                                     });
                                 })
-                                .child(if demo_loading { "ASKING…" } else { "TRANSLATE LOG (ELI5) ↵" }),
+                                .child(if demo_loading { t!("settings-clankers-asking") } else { t!("settings-clankers-translate-log-eli5") }),
                         ),
                 ),
         )
@@ -807,8 +807,8 @@ fn render_eli5_sandbox(
 fn models_picker(clankers: &ClankersState, app: Entity<CrowApp>) -> impl IntoElement {
     let app_load = app.clone();
     let status = match (&clankers.models, clankers.models_loading) {
-        (_, true) => Some(("asking the provider…".to_string(), TEXT_DIM)),
-        (Some(Ok(m)), _) => Some((format!("{} models offered for this key", m.len()), TEXT_DIM)),
+        (_, true) => Some((t!("settings-clankers-asking-the-provider").to_string(), TEXT_DIM)),
+        (Some(Ok(m)), _) => Some((t!("settings-clankers-models-offered-for-this-key", count = m.len()), TEXT_DIM)),
         (Some(Err(e)), _) => Some((e.clone(), CRIT)),
         (None, false) => None,
     };
@@ -836,7 +836,7 @@ fn models_picker(clankers: &ClankersState, app: Entity<CrowApp>) -> impl IntoEle
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_ROW_HOVER))
                         .on_click(move |_ev, _window, cx| app_load.update(cx, |this, cx| this.load_clanker_models(cx)))
-                        .child("LOAD MODELS"),
+                        .child(t!("settings-clankers-load-models")),
                 )
                 .children(status.map(|(t, c)| div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(px(9.5)).text_color(c).child(t))),
         )
@@ -942,7 +942,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, clankers: &ClankersState, inp
                                             .text_size(px(13.0))
                                             .font_weight(FontWeight::BOLD)
                                             .text_color(TEXT_MAX)
-                                            .child(format!("Configure {} Clanker API Key", p_name)),
+                                            .child(t!("settings-clankers-configure-clanker-api-key", p_name = p_name)),
                                     ),
                             )
                             .child(
@@ -959,10 +959,10 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, clankers: &ClankersState, inp
                                     .child(inherited_icon(TablerIcon::X, px(14.0))),
                             ),
                     )
-                    .child(field("API Key (stored encrypted in Crow's vault; never shown again):", inputs.map(|i| &i.key)))
-                    .child(field("Model:", inputs.map(|i| &i.model)))
+                    .child(field(t!("settings-clankers-api-key-stored-encrypted-in"), inputs.map(|i| &i.key)))
+                    .child(field(t!("settings-clankers-model"), inputs.map(|i| &i.model)))
                     .child(models_picker(clankers, app.clone()))
-                    .child(field("Custom API Endpoint / Proxy (optional):", inputs.map(|i| &i.base_url)))
+                    .child(field(t!("settings-clankers-custom-api-endpoint-proxy-optional"), inputs.map(|i| &i.base_url)))
                     // Error message
                     .children(if let Some(ref e) = err {
                         Some(
@@ -1002,7 +1002,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, clankers: &ClankersState, inp
                                             .text_size(px(11.0))
                                             .font_weight(FontWeight::BOLD)
                                             .text_color(OK)
-                                            .child("SAVE CONFIG ↵"),
+                                            .child(t!("settings-clankers-save-config")),
                                     ),
                             ),
                     ),

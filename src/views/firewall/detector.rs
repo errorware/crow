@@ -51,18 +51,18 @@ pub fn detect_firewall(host: &dyn Host) -> FirewallOperationalState {
                 }
                 None => FirewallOperationalState::Unmanaged {
                     detected_binaries,
-                    reason: "ufw is active but its status output could not be parsed.".into(),
+                    reason: t!("firewall-detector-ufw-is-active-but-its").into(),
                 },
             },
             Ok(_) => FirewallOperationalState::Inactive {
                 backend: FirewallBackend::Ufw,
-                reason: "UFW is installed but inactive. System netfilter packet filtering is disabled.".into(),
+                reason: t!("firewall-detector-ufw-is-installed-but-inactive").into(),
                 detected_binaries,
                 has_root: true,
             },
             Err(e) => FirewallOperationalState::Inactive {
                 backend: FirewallBackend::Ufw,
-                reason: format!("ufw is installed, but Crow couldn't read its rules as root: {e}"),
+                reason: t!("firewall-detector-ufw-is-installed-but-crow", e = e),
                 detected_binaries,
                 has_root: false,
             },
@@ -76,7 +76,7 @@ pub fn detect_firewall(host: &dyn Host) -> FirewallOperationalState {
         if stopped {
             return FirewallOperationalState::Inactive {
                 backend: FirewallBackend::Firewalld,
-                reason: "firewalld is installed but not running, so it filters nothing.".into(),
+                reason: t!("firewall-detector-firewalld-is-installed-but-not").into(),
                 detected_binaries,
                 has_root: true,
             };
@@ -85,7 +85,7 @@ pub fn detect_firewall(host: &dyn Host) -> FirewallOperationalState {
             Ok(summary) => FirewallOperationalState::Active(summary),
             Err(e) => FirewallOperationalState::Inactive {
                 backend: FirewallBackend::Firewalld,
-                reason: format!("firewalld is running, but Crow couldn't read its zones as root: {e}"),
+                reason: t!("firewall-detector-firewalld-is-running-but-crow", e = e),
                 detected_binaries,
                 has_root: false,
             },
@@ -98,13 +98,13 @@ pub fn detect_firewall(host: &dyn Host) -> FirewallOperationalState {
             Ok(summary) => FirewallOperationalState::Active(summary),
             Err(e) => FirewallOperationalState::Unmanaged {
                 detected_binaries,
-                reason: format!("nftables/iptables are here, but Crow couldn't read the ruleset as root: {e}"),
+                reason: t!("firewall-detector-nftables-iptables-are-here-but", e = e),
             },
         };
     }
     FirewallOperationalState::Unmanaged {
         detected_binaries,
-        reason: "No firewall tooling (ufw, firewalld, nftables, iptables) was found on this host.".into(),
+        reason: t!("firewall-detector-no-firewall-tooling-ufw-firewalld").into(),
     }
 }
 

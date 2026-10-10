@@ -57,7 +57,7 @@ pub fn recovery_panel(panel: &RecoveryPanel, server_name: &str, app: Entity<Crow
                             div()
                                 .flex()
                                 .gap(px(8.0))
-                                .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child(d.map(|d| d.title.clone()).unwrap_or_else(|| "CHECKING".into())))
+                                .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child(d.map(|d| d.title.clone()).unwrap_or_else(|| t!("recovery-panel-checking").into())))
                                 .child(div().text_size(px(13.0)).text_color(TEXT_MAX).child(server_name.to_string())),
                         )
                         .child(div().text_color(TEXT_SECONDARY).child(d.map(|d| d.what.clone()).unwrap_or_default())),
@@ -88,7 +88,7 @@ pub fn recovery_panel(panel: &RecoveryPanel, server_name: &str, app: Entity<Crow
                         .gap(px(5.0))
                         .border_b_1()
                         .border_color(BORDER_ROW)
-                        .child(div().text_size(px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_DIMMER).child("WHAT TO DO"))
+                        .child(div().text_size(px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_DIMMER).child(t!("recovery-panel-what-to-do")))
                         .children(d.steps.iter().enumerate().map(|(i, s)| {
                             div().flex().gap(px(8.0)).child(div().flex_none().text_color(TEXT_DIM).child(format!("{}.", i + 1))).child(div().flex_1().min_w(px(0.0)).text_color(TEXT_SECONDARY).child(s.clone()))
                         }))
@@ -105,20 +105,20 @@ pub fn recovery_panel(panel: &RecoveryPanel, server_name: &str, app: Entity<Crow
                         .children((idle && actions.contains(&RecoveryAction::TrustNewHostKey)).then(|| div().w(px(150.0)).child(Input::new(&panel.confirm))))
                         .children((idle && actions.contains(&RecoveryAction::TrustNewHostKey)).then(|| {
                             let app = app.clone();
-                            button("btn-recovery-trust", "TRUST NEW KEY", CRIT).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.recovery_trust_new_key(cx)))
+                            button("btn-recovery-trust", t!("recovery-panel-trust-new-key"), CRIT).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.recovery_trust_new_key(cx)))
                         }))
                         .children((idle && actions.contains(&RecoveryAction::InstallKeyWithPassword)).then(|| {
                             let app = app.clone();
-                            button("btn-recovery-install-key", "INSTALL KEY WITH PASSWORD", OK).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.recovery_install_key(cx)))
+                            button("btn-recovery-install-key", t!("recovery-panel-install-key-with-password"), OK).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.recovery_install_key(cx)))
                         }))
                         .children((idle && actions.contains(&RecoveryAction::Retry)).then(|| {
                             let app = app.clone();
-                            button("btn-recovery-retry", "TRY AGAIN", TEXT_SECONDARY).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.recovery_retry(cx)))
+                            button("btn-recovery-retry", t!("recovery-panel-try-again"), TEXT_SECONDARY).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.recovery_retry(cx)))
                         }))
                         .child(div().flex_1())
                         .child({
                             let app = app.clone();
-                            button("btn-recovery-close", "CLOSE", TEXT_DIM).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.close_recovery(cx)))
+                            button("btn-recovery-close", t!("recovery-panel-close"), TEXT_DIM).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.close_recovery(cx)))
                         }),
                 ),
         )

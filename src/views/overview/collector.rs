@@ -48,17 +48,17 @@ pub fn parse_systemctl_services(stdout: &str) -> Vec<ServiceUnit> {
         };
 
         let (status, color_hex) = if active_state == "active" && sub_state == "running" {
-            ("ACTIVE", 0x4ade80)
+            (t!("overview-collector-active"), 0x4ade80)
         } else if active_state == "active" && sub_state == "exited" {
-            ("INACTIVE", 0x71717a)
+            (t!("overview-collector-inactive"), 0x71717a)
         } else if active_state == "active" {
-            ("ACTIVE", 0x4ade80)
+            (t!("overview-collector-active"), 0x4ade80)
         } else if sub_state == "failed" {
-            ("FAILED", 0xf87171)
+            (t!("overview-collector-failed"), 0xf87171)
         } else if sub_state == "degraded" {
-            ("DEGRADED", 0xfacc15)
+            (t!("overview-collector-degraded"), 0xfacc15)
         } else {
-            ("INACTIVE", 0x71717a)
+            (t!("overview-collector-inactive"), 0x71717a)
         };
 
         units.push(ServiceUnit {
@@ -354,14 +354,14 @@ pub fn collect_sockets_for_server(server: &ServerRecord) -> Vec<SocketUnit> {
 pub fn systemctl_service_action(server: &ServerRecord, unit: &str, action: &str) -> Result<String, String> {
     let host = host_for(server);
     host.exec_privileged(&["systemctl", action, unit], &[], DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;
-    Ok(format!("{} unit {} on {}", action, unit, host.label()))
+    Ok(t!("overview-collector-unit-on", action = action, unit = unit, label = host.label()))
 }
 
 /// Kills or signals a process
 pub fn terminate_process(server: &ServerRecord, pid: u32, signal: i32) -> Result<String, String> {
     let host = host_for(server);
     host.exec_privileged(&["kill", &format!("-{}", signal), &pid.to_string()], &[], DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;
-    Ok(format!("Sent signal {} to PID {} on {}", signal, pid, host.label()))
+    Ok(t!("overview-collector-sent-signal-to-pid-on", signal = signal, pid = pid, label = host.label()))
 }
 
 #[cfg(test)]

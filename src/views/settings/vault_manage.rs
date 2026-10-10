@@ -42,9 +42,9 @@ pub fn render(state: &VaultFormState, inputs: Option<&VaultFormInputs>, app: Ent
                 .flex()
                 .items_center()
                 .gap(px(8.0))
-                .child(div().flex_1().font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child("PASSWORD"))
-                .child(button("vault-change-pw", "CHANGE PASSWORD…", TEXT_SECONDARY, form.is_none(), move |cx| a_change.update(cx, |this, cx| this.open_vault_form(Some(VaultForm::ChangePassword), cx))))
-                .child(button("vault-go-open", "GO BACK TO OPEN…", WARN, form.is_none(), move |cx| a_open.update(cx, |this, cx| this.open_vault_form(Some(VaultForm::GoOpen), cx)))),
+                .child(div().flex_1().font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-vault-manage-password")))
+                .child(button("vault-change-pw", t!("settings-vault-manage-change-password"), TEXT_SECONDARY, form.is_none(), move |cx| a_change.update(cx, |this, cx| this.open_vault_form(Some(VaultForm::ChangePassword), cx))))
+                .child(button("vault-go-open", t!("settings-vault-manage-go-back-to-open"), WARN, form.is_none(), move |cx| a_open.update(cx, |this, cx| this.open_vault_form(Some(VaultForm::GoOpen), cx)))),
         )
         .children(state.done.clone().map(|d| div().text_color(OK).child(d)))
         .children(form.map(|form| {
@@ -58,7 +58,7 @@ pub fn render(state: &VaultFormState, inputs: Option<&VaultFormInputs>, app: Ent
                         .flex()
                         .flex_col()
                         .gap(px(4.0))
-                        .child(div().text_color(WARN).font_weight(FontWeight::BOLD).child("Going back to OPEN means:"))
+                        .child(div().text_color(WARN).font_weight(FontWeight::BOLD).child(t!("settings-vault-manage-going-back-to-open-means")))
                         .children(Stance::Open.exposed().iter().map(|e| div().flex().gap(px(6.0)).child(div().text_color(WARN).child("•")).child(div().flex_1().min_w(px(0.0)).line_height(px(15.0)).text_color(TEXT_SECONDARY).child(*e))))
                 }))
                 .children(inputs.map(|i| {
@@ -78,7 +78,7 @@ pub fn render(state: &VaultFormState, inputs: Option<&VaultFormInputs>, app: Ent
                             })
                         })
                         .child(div().text_color(if ack { WARN } else { TEXT_DIMMER }).child(if ack { "[x]" } else { "[ ]" }))
-                        .child(div().text_color(TEXT_SECONDARY).child("I understand: without the password, anything running as me can read Crow's secrets."))
+                        .child(div().text_color(TEXT_SECONDARY).child(t!("settings-vault-manage-i-understand-without-the-password")))
                 }))
                 .children(state.error.clone().map(|e| div().text_color(CRIT).child(e)))
                 .child(
@@ -88,14 +88,14 @@ pub fn render(state: &VaultFormState, inputs: Option<&VaultFormInputs>, app: Ent
                         .child(button(
                             "vault-form-submit",
                             match form {
-                                VaultForm::ChangePassword => "CHANGE PASSWORD",
-                                VaultForm::GoOpen => "GO OPEN",
+                                VaultForm::ChangePassword => t!("settings-vault-manage-change-password-2"),
+                                VaultForm::GoOpen => t!("settings-vault-manage-go-open"),
                             },
                             if form == VaultForm::GoOpen { WARN } else { OK },
                             !state.busy && (form != VaultForm::GoOpen || state.ack),
                             move |cx| a_submit.update(cx, |this, cx| this.submit_vault_form(cx)),
                         ))
-                        .child(button("vault-form-cancel", "CANCEL", TEXT_SECONDARY, !state.busy, move |cx| a_cancel.update(cx, |this, cx| this.open_vault_form(None, cx)))),
+                        .child(button("vault-form-cancel", t!("settings-vault-manage-cancel"), TEXT_SECONDARY, !state.busy, move |cx| a_cancel.update(cx, |this, cx| this.open_vault_form(None, cx)))),
                 )
         }))
 }

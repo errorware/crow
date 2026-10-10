@@ -64,10 +64,10 @@ fn note(ok: bool, text: String) -> Div {
 fn ago(ts: i64) -> String {
     let secs = (chrono::Utc::now().timestamp() - ts).max(0);
     match secs {
-        0..=59 => "just now".into(),
-        60..=3599 => format!("{} min ago", secs / 60),
-        3600..=86_399 => format!("{} h ago", secs / 3600),
-        _ => format!("{} d ago", secs / 86_400),
+        0..=59 => t!("settings-email-form-just-now").into(),
+        60..=3599 => t!("settings-email-form-min-ago", secs = secs / 60),
+        3600..=86_399 => t!("settings-email-form-h-ago", secs = secs / 3600),
+        _ => t!("settings-email-form-d-ago", secs = secs / 86_400),
     }
 }
 
@@ -88,9 +88,9 @@ pub fn email_form(app: Entity<CrowApp>, st: &EmailState, inputs: Option<&EmailIn
     };
     let d = &st.dispatch;
     let activity = match (&d.last_error, d.last_sent) {
-        (Some(e), _) => Some(note(false, format!("Last send failed: {e}{}", if d.outbox.is_empty() { String::new() } else { format!(" · {} waiting, retried every 5 min", d.outbox.len()) }))),
-        (None, Some(t)) => Some(note(true, format!("Last mail sent {}{}", ago(t), if d.queue.is_empty() { String::new() } else { format!(" · {} in the next digest", d.queue.len()) }))),
-        (None, None) if !d.queue.is_empty() => Some(note(true, format!("{} in the next digest", d.queue.len()))),
+        (Some(e), _) => Some(note(false, t!("settings-email-form-last-send-failed", e = e, d = if d.outbox.is_empty() { String::new() } else { t!("settings-email-form-waiting-retried-every-5-min", count = d.outbox.len()) }))),
+        (None, Some(t)) => Some(note(true, t!("settings-email-form-last-mail-sent", ago = ago(t), d = if d.queue.is_empty() { String::new() } else { t!("settings-email-form-in-the-next-digest", count = d.queue.len()) }))),
+        (None, None) if !d.queue.is_empty() => Some(note(true, t!("settings-email-form-in-the-next-digest-2", count = d.queue.len()))),
         _ => None,
     };
     let (app_save, app_test) = (app.clone(), app.clone());
@@ -101,26 +101,26 @@ pub fn email_form(app: Entity<CrowApp>, st: &EmailState, inputs: Option<&EmailIn
         .pt(px(10.0))
         .border_t_1()
         .border_color(BORDER_PANEL)
-        .child(div().flex().gap(px(8.0)).child(div().flex_1().min_w(px(0.0)).flex().flex_col().gap(px(4.0)).child(label("SECURITY")).child(security_row)).child(div().w(px(260.0)).flex().gap(px(8.0)).child(field("SMTP SERVER", &inputs.host)).child(div().w(px(70.0)).child(field("PORT", &inputs.port)))))
-        .when(st.security == Security::None, |d| d.child(note(false, "No encryption: the password and mail cross the network in the clear. Only for a relay on this machine or your own network.".into())))
-        .child(div().flex().gap(px(8.0)).child(field("USERNAME", &inputs.username)).child(field("PASSWORD", &inputs.password)))
-        .child(div().flex().gap(px(8.0)).child(field("FROM", &inputs.from)).child(field("TO (comma separated)", &inputs.to)))
-        .child(div().flex().flex_col().gap(px(4.0)).child(label("CRITICAL ALERTS")).child(delivery_row(true, crit)))
-        .child(div().flex().flex_col().gap(px(4.0)).child(label("WARNINGS")).child(delivery_row(false, warn)))
-        .child(div().flex().gap(px(8.0)).child(field("DIGEST EVERY (MINUTES)", &inputs.digest)).child(field("QUIET HOURS (DIGESTS WAIT)", &inputs.quiet)))
+        .child(div().flex().gap(px(8.0)).child(div().flex_1().min_w(px(0.0)).flex().flex_col().gap(px(4.0)).child(label(t!("settings-email-form-security"))).child(security_row)).child(div().w(px(260.0)).flex().gap(px(8.0)).child(field(t!("settings-email-form-smtp-server"), &inputs.host)).child(div().w(px(70.0)).child(field(t!("settings-email-form-port"), &inputs.port)))))
+        .when(st.security == Security::None, |d| d.child(note(false, t!("settings-email-form-no-encryption-the-password-and").into())))
+        .child(div().flex().gap(px(8.0)).child(field(t!("settings-email-form-username"), &inputs.username)).child(field(t!("settings-email-form-password"), &inputs.password)))
+        .child(div().flex().gap(px(8.0)).child(field(t!("settings-email-form-from"), &inputs.from)).child(field(t!("settings-email-form-to-comma-separated"), &inputs.to)))
+        .child(div().flex().flex_col().gap(px(4.0)).child(label(t!("settings-email-form-critical-alerts"))).child(delivery_row(true, crit)))
+        .child(div().flex().flex_col().gap(px(4.0)).child(label(t!("settings-email-form-warnings"))).child(delivery_row(false, warn)))
+        .child(div().flex().gap(px(8.0)).child(field(t!("settings-email-form-digest-every-minutes"), &inputs.digest)).child(field(t!("settings-email-form-quiet-hours-digests-wait"), &inputs.quiet)))
         .child(div().font_family(FONT_MONO).text_size(px(10.0)).line_height(px(14.0)).text_color(TEXT_FAINT).child(
-            "Resolved alerts send nothing. Alerts already open when you switch this on aren't mailed. Crow has no agent: mail only goes out while Crow is running.",
+            t!("settings-email-form-resolved-alerts-send-nothing-alerts"),
         ))
         .child(
             div()
                 .flex()
                 .items_center()
                 .gap(px(8.0))
-                .child(button("btn-email-save", "SAVE", true).on_click(move |_ev, _window, cx| app_save.update(cx, |this, cx| this.save_email(cx))))
-                .child(button("btn-email-test", if st.testing { "SENDING…" } else { "SEND TEST" }, false).on_click(move |_ev, _window, cx| app_test.update(cx, |this, cx| this.send_test_email(cx))))
+                .child(button("btn-email-save", t!("settings-email-form-save"), true).on_click(move |_ev, _window, cx| app_save.update(cx, |this, cx| this.save_email(cx))))
+                .child(button("btn-email-test", if st.testing { t!("settings-email-form-sending") } else { t!("settings-email-form-send-test") }, false).on_click(move |_ev, _window, cx| app_test.update(cx, |this, cx| this.send_test_email(cx))))
                 .children(st.form_message.clone().map(|(ok, m)| div().flex_1().min_w(px(0.0)).child(note(ok, m)))),
         )
-        .children(st.test_result.clone().map(|(ok, m)| note(ok, if ok { m } else { format!("Test failed: {m}") })))
+        .children(st.test_result.clone().map(|(ok, m)| note(ok, if ok { m } else { t!("settings-email-form-test-failed", m = m) })))
         .children(activity)
         .into_any_element()
 }

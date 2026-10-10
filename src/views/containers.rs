@@ -76,11 +76,11 @@ pub fn containers_view(st: &ContainersState, server_name: &str, app: Entity<Crow
                         .flex()
                         .flex_col()
                         .gap(px(14.0))
-                        .children(st.busy.clone().map(|b| mono(10.5, WARN).child(format!("Running: {b}…"))))
+                        .children(st.busy.clone().map(|b| mono(10.5, WARN).child(t!("containers-running", b = b))))
                         .children(st.result.clone().map(|(ok, m)| mono(10.5, if ok { OK } else { CRIT }).line_height(px(15.0)).child(m)))
                         .child(match &st.scan {
-                            None => mono(11.0, TEXT_DIM).child("Reading the server's containers…").into_any_element(),
-                            Some(Err(e)) => mono(11.0, CRIT).child(format!("Couldn't read the server: {e}")).into_any_element(),
+                            None => mono(11.0, TEXT_DIM).child(t!("containers-reading-the-servers-containers")).into_any_element(),
+                            Some(Err(e)) => mono(11.0, CRIT).child(t!("containers-couldnt-read-the-server", e = e)).into_any_element(),
                             Some(Ok(scan)) => body(scan, st, app.clone()).into_any_element(),
                         }),
                 ),
@@ -100,10 +100,10 @@ fn header(st: &ContainersState, server_name: &str, app: Entity<CrowApp>) -> impl
         .bg(BG_PANEL)
         .border_b_1()
         .border_color(BORDER_PANEL)
-        .child(mono(12.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(format!("CONTAINERS · {server_name}")))
+        .child(mono(12.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(t!("containers-containers", server_name = server_name)))
         .children(scan.map(|s| {
             let running = s.containers.iter().filter(|c| c.is_running()).count();
-            div().px(px(6.0)).py(px(2.0)).border_1().border_color(BORDER_DEFAULT).font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_SECONDARY).child(format!("{running}/{} RUNNING", s.containers.len()))
+            div().px(px(6.0)).py(px(2.0)).border_1().border_color(BORDER_DEFAULT).font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_SECONDARY).child(t!("containers-running-2", running = running, count = s.containers.len()))
         }))
         .children(scan.into_iter().flat_map(|s| s.usable().map(|r| r.describe(s.login_is_root)).collect::<Vec<_>>()).map(|text| div().px(px(6.0)).py(px(2.0)).bg(BG_CHIP).font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_TERTIARY).child(text)))
         .child(div().flex_1())
@@ -124,7 +124,7 @@ fn header(st: &ContainersState, server_name: &str, app: Entity<CrowApp>) -> impl
                 .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.refresh_containers(cx)))
                 .child(inherited_icon(TablerIcon::Refresh, px(12.0)))
-                .child(if st.loading { "READING…" } else { "REFRESH" }),
+                .child(if st.loading { t!("containers-reading") } else { t!("containers-refresh") }),
         )
 }
 
@@ -154,23 +154,23 @@ fn body(scan: &Scan, st: &ContainersState, app: Entity<CrowApp>) -> impl IntoEle
                 .border_1()
                 .border_color(WARN.opacity(0.4))
                 .child(mono(11.0, WARN).font_weight(FontWeight::BOLD).child(format!("{runtime}: {summary}")))
-                .children(fix.map(|command| crate::views::fleet::lab_modal::setup_step(i, &InstallStep { why: "Fix it on the server".into(), command }, app.clone())))
+                .children(fix.map(|command| crate::views::fleet::lab_modal::setup_step(i, &InstallStep { why: t!("containers-fix-it-on-the-server").into(), command }, app.clone())))
         }))
         .when(nothing, |d| {
             d.child(mono(11.0, TEXT_DIM).line_height(px(16.0)).child(if scan.missing.len() == 2 {
-                "Neither Docker nor Podman is installed on this server.".to_string()
+                t!("containers-neither-docker-nor-podman-is").to_string()
             } else {
-                "No container runtime Crow can use here.".to_string()
+                t!("containers-no-container-runtime-crow-can").to_string()
             }))
         })
-        .when(!nothing && scan.containers.is_empty(), |d| d.child(mono(11.0, TEXT_DIM).child("No containers on this server.")))
+        .when(!nothing && scan.containers.is_empty(), |d| d.child(mono(11.0, TEXT_DIM).child(t!("containers-no-containers-on-this-server"))))
         .children(stacks.iter().map(|stack| stack_section(stack, scan, st, app.clone())))
         .when(!standalone.is_empty(), |d| {
             d.child(
                 div()
                     .flex()
                     .flex_col()
-                    .child(div().flex().items_center().gap(px(8.0)).pb(px(6.0)).child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child("STANDALONE")).child(mono(9.5, TEXT_FAINT).child(format!("{} not in a compose stack", standalone.len()))))
+                    .child(div().flex().items_center().gap(px(8.0)).pb(px(6.0)).child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("containers-standalone"))).child(mono(9.5, TEXT_FAINT).child(t!("containers-not-in-a-compose-stack", count = standalone.len()))))
                     .child(table_head())
                     .children(standalone.iter().map(|c| row(c, st, app.clone()))),
             )
@@ -186,9 +186,9 @@ fn stack_section(stack: &Stack, scan: &Scan, st: &ContainersState, app: Entity<C
     let action_button = |action: StackAction, color: Rgba| {
         let (app, project) = (app.clone(), stack.project.clone());
         button(format!("stack-{}-{}", stack.project, action.verb()), match action {
-            StackAction::Up => "UP",
-            StackAction::Restart => "RESTART",
-            StackAction::Down => "DOWN",
+            StackAction::Up => t!("containers-up"),
+            StackAction::Restart => t!("containers-restart"),
+            StackAction::Down => t!("containers-down"),
         }, color)
         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.request_container_action(Pending::Stack { project: project.clone(), action }, cx)))
     };
@@ -203,7 +203,7 @@ fn stack_section(stack: &Stack, scan: &Scan, st: &ContainersState, app: Entity<C
                 .pb(px(6.0))
                 .child(inherited_icon(TablerIcon::Box, px(13.0)).text_color(TEXT_DIM))
                 .child(mono(10.5, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(stack.project.clone()))
-                .child(mono(9.5, if stack.running == members.len() { OK } else { WARN }).child(format!("{}/{} running", stack.running, members.len())))
+                .child(mono(9.5, if stack.running == members.len() { OK } else { WARN }).child(t!("containers-running-3", running = stack.running, count = members.len())))
                 .children(stack.working_dir.clone().map(|d| mono(9.5, TEXT_FAINT).child(d)))
                 .child(mono(9.5, TEXT_FAINT).child(stack.runtime.label()))
                 .child(div().flex_1())
@@ -213,9 +213,9 @@ fn stack_section(stack: &Stack, scan: &Scan, st: &ContainersState, app: Entity<C
         )
         .children(pending.map(|action| {
             let what = match action {
-                StackAction::Up => "Create and start every service in this stack (it may pull images)?",
-                StackAction::Restart => "Restart every container in this stack? Each is down for a moment.",
-                StackAction::Down => "Stop and remove this stack's containers and networks? Named volumes are kept.",
+                StackAction::Up => t!("containers-create-and-start-every-service"),
+                StackAction::Restart => t!("containers-restart-every-container-in-this"),
+                StackAction::Down => t!("containers-stop-and-remove-this-stacks"),
             };
             confirm_row(what, crate::containers::stack_argv(stack, action).map(|a| a.join(" ")).unwrap_or_else(|e| e), app.clone())
         }))
@@ -236,7 +236,7 @@ fn confirm_row(question: &'static str, command: String, app: Entity<CrowApp>) ->
         .border_color(WARN.opacity(0.4))
         .child(div().flex_1().min_w(px(0.0)).flex().flex_col().gap(px(2.0)).child(mono(10.5, TEXT_PRIMARY).child(question)).child(mono(9.5, TEXT_DIM).child(command)))
         .child(button("btn-container-confirm", "CONFIRM", WARN).on_click(move |_ev, _window, cx| app_yes.update(cx, |this, cx| this.confirm_container_pending(cx))))
-        .child(button("btn-container-cancel", "CANCEL", TEXT_DIM).on_click(move |_ev, _window, cx| app_no.update(cx, |this, cx| this.cancel_container_pending(cx))))
+        .child(button("btn-container-cancel", t!("containers-cancel"), TEXT_DIM).on_click(move |_ev, _window, cx| app_no.update(cx, |this, cx| this.cancel_container_pending(cx))))
 }
 
 fn table_head() -> impl IntoElement {
@@ -256,12 +256,12 @@ fn table_head() -> impl IntoElement {
         .bg(BG_SUBHEAD)
         .border_1()
         .border_color(BORDER_PANEL)
-        .child(cell(None, "NAME"))
-        .child(cell(Some(W_IMAGE), "IMAGE"))
-        .child(cell(Some(W_STATE), "STATE"))
-        .child(cell(Some(W_PORTS), "PUBLISHED PORTS"))
-        .child(cell(Some(W_RESTARTS), "RESTARTS"))
-        .child(cell(Some(W_RUNTIME), "RUNTIME"))
+        .child(cell(None, t!("containers-name")))
+        .child(cell(Some(W_IMAGE), t!("containers-image")))
+        .child(cell(Some(W_STATE), t!("containers-state")))
+        .child(cell(Some(W_PORTS), t!("containers-published-ports")))
+        .child(cell(Some(W_RESTARTS), t!("containers-restarts")))
+        .child(cell(Some(W_RUNTIME), t!("containers-runtime")))
 }
 
 fn ports_cell(c: &Container) -> impl IntoElement {
@@ -274,7 +274,7 @@ fn ports_cell(c: &Container) -> impl IntoElement {
             .items_center()
             .gap(px(4.0))
             .child(mono(10.0, if exposed { TEXT_SECONDARY } else { TEXT_DIM }).child(text))
-            .when(exposed, |d| d.child(div().px(px(3.0)).border_1().border_color(WARN.opacity(0.45)).font_family(FONT_MONO).text_size(px(8.5)).text_color(WARN.opacity(0.85)).child("ALL NETS")))
+            .when(exposed, |d| d.child(div().px(px(3.0)).border_1().border_color(WARN.opacity(0.45)).font_family(FONT_MONO).text_size(px(8.5)).text_color(WARN.opacity(0.85)).child(t!("containers-all-nets"))))
     }))
 }
 
@@ -317,7 +317,7 @@ fn row(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl IntoEl
         .child(div().w(px(W_STATE)).flex_none().flex().flex_col().child(mono(10.5, color).child(state_text)).child(mono(9.0, TEXT_FAINT).whitespace_nowrap().overflow_hidden().text_ellipsis().child(c.status.clone())))
         .child(ports_cell(c))
         .child(mono(10.5, if restarts > 0 { WARN } else { TEXT_DIM }).w(px(W_RESTARTS)).flex_none().child(c.restarts.map(|r| r.to_string()).unwrap_or_else(|| "—".into())))
-        .child(mono(10.0, TEXT_DIM).w(px(W_RUNTIME)).flex_none().child(format!("{}{}", c.runtime.cmd(), if c.scope == crate::containers::Scope::Root { " · root" } else { "" })))
+        .child(mono(10.0, TEXT_DIM).w(px(W_RUNTIME)).flex_none().child(format!("{}{}", c.runtime.cmd(), if c.scope == crate::containers::Scope::Root { t!("containers-root") } else { "" })))
 }
 
 fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl IntoElement {
@@ -349,7 +349,7 @@ fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl Int
             Some((k, Ok(text))) if *k == key => {
                 let lines: Vec<&str> = text.lines().collect();
                 if lines.is_empty() {
-                    mono(10.5, TEXT_DIM).child("No output yet.").into_any_element()
+                    mono(10.5, TEXT_DIM).child(t!("containers-no-output-yet")).into_any_element()
                 } else {
                     div()
                         .flex()
@@ -366,12 +366,12 @@ fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl Int
                 }
             }
             Some((k, Err(e))) if *k == key => mono(10.5, CRIT).child(e.clone()).into_any_element(),
-            _ => mono(10.5, TEXT_DIM).child("Reading logs…").into_any_element(),
+            _ => mono(10.5, TEXT_DIM).child(t!("containers-reading-logs")).into_any_element(),
         },
         DrawerTab::Inspect => match &st.inspect {
             Some((k, Ok(json))) if *k == key => div().flex().flex_col().children(json.lines().map(|l| mono(10.0, TEXT_SECONDARY).whitespace_nowrap().child(l.replace(' ', "\u{a0}")))).into_any_element(),
             Some((k, Err(e))) if *k == key => mono(10.5, CRIT).child(e.clone()).into_any_element(),
-            _ => mono(10.5, TEXT_DIM).child("Reading…").into_any_element(),
+            _ => mono(10.5, TEXT_DIM).child(t!("containers-reading-2")).into_any_element(),
         },
     };
     div()
@@ -433,17 +433,17 @@ fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl Int
                 .child(div().flex().gap(px(6.0)).children(actions.into_iter().map(|(action, color)| {
                     let (app, key) = (app.clone(), key.clone());
                     button(format!("container-{}", action.verb()), match action {
-                        Action::Start => "START",
-                        Action::Stop => "STOP",
-                        Action::Restart => "RESTART",
+                        Action::Start => t!("containers-start"),
+                        Action::Stop => t!("containers-stop"),
+                        Action::Restart => t!("containers-restart"),
                     }, color)
                     .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.request_container_action(Pending::Container { key: key.clone(), action }, cx)))
                 })))
                 .children(pending.map(|action| {
                     let what = match action {
-                        Action::Start => "Start this container?",
-                        Action::Stop => "Stop this container? What it serves goes down until it's started again.",
-                        Action::Restart => "Restart this container? It's down for a moment.",
+                        Action::Start => t!("containers-start-this-container"),
+                        Action::Stop => t!("containers-stop-this-container-what-it"),
+                        Action::Restart => t!("containers-restart-this-container-its-down"),
                     };
                     confirm_row(what, crate::containers::action_argv(c, action).join(" "), app.clone())
                 })),
@@ -456,11 +456,11 @@ fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl Int
                 .px(px(8.0))
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(tab("container-tab-logs", "LOGS", st.tab == DrawerTab::Logs).on_click(move |_ev, _window, cx| app_logs.update(cx, |this, cx| this.set_container_tab(DrawerTab::Logs, cx))))
-                .child(tab("container-tab-inspect", "INSPECT", st.tab == DrawerTab::Inspect).on_click(move |_ev, _window, cx| app_inspect.update(cx, |this, cx| this.set_container_tab(DrawerTab::Inspect, cx))))
+                .child(tab("container-tab-logs", t!("containers-logs"), st.tab == DrawerTab::Logs).on_click(move |_ev, _window, cx| app_logs.update(cx, |this, cx| this.set_container_tab(DrawerTab::Logs, cx))))
+                .child(tab("container-tab-inspect", t!("containers-inspect"), st.tab == DrawerTab::Inspect).on_click(move |_ev, _window, cx| app_inspect.update(cx, |this, cx| this.set_container_tab(DrawerTab::Inspect, cx))))
                 .child(div().flex_1())
                 .when(st.tab == DrawerTab::Logs, |d| {
-                    d.child(mono(9.0, TEXT_FAINT).mr(px(8.0)).child("newest first")).child(
+                    d.child(mono(9.0, TEXT_FAINT).mr(px(8.0)).child(t!("containers-newest-first"))).child(
                         div()
                             .id("btn-container-follow")
                             .flex()
@@ -469,10 +469,10 @@ fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl Int
                             .cursor_pointer()
                             .on_click(move |_ev, _window, cx| app_follow.update(cx, |this, cx| this.toggle_container_follow(cx)))
                             .child(div().size(px(6.0)).rounded_full().bg(if st.follow { OK } else { TEXT_GHOST }))
-                            .child(mono(9.5, if st.follow { OK } else { TEXT_DIM }).font_weight(FontWeight::BOLD).child(if st.follow { "FOLLOWING" } else { "FOLLOW" })),
+                            .child(mono(9.5, if st.follow { OK } else { TEXT_DIM }).font_weight(FontWeight::BOLD).child(if st.follow { t!("containers-following") } else { t!("containers-follow") })),
                     )
                 })
-                .when(st.tab == DrawerTab::Inspect, |d| d.child(mono(9.0, TEXT_FAINT).child("environment values hidden"))),
+                .when(st.tab == DrawerTab::Inspect, |d| d.child(mono(9.0, TEXT_FAINT).child(t!("containers-environment-values-hidden")))),
         )
         .child(div().id("container-drawer-scroll").flex_1().min_h(px(0.0)).overflow_y_scrollbar().p(px(12.0)).child(content))
 }

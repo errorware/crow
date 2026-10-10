@@ -32,9 +32,9 @@ impl OnboardStep {
 
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Connect => "Connect",
-            Self::Verify => "Verify",
-            Self::Name => "Name",
+            Self::Connect => t!("onboard-connect"),
+            Self::Verify => t!("onboard-verify"),
+            Self::Name => t!("onboard-name"),
         }
     }
 
@@ -227,9 +227,9 @@ fn button(id: &'static str, text: impl Into<SharedString>, primary: bool, enable
 pub fn onboard_view(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &FleetState, state: &OnboardState, keys: &KeysState, local_lab: &LocalLabState) -> impl IntoElement {
     let (app_cancel, app_back, app_next) = (app.clone(), app.clone(), app.clone());
     let (primary_text, primary_enabled) = match state.step {
-        OnboardStep::Connect => ("CHECK CONNECTION →".to_string(), true),
-        OnboardStep::Verify => ("NEXT: NAME IT →".to_string(), state.host_key_accepted && !state.is_probing),
-        OnboardStep::Name => ("ADD SERVER ⏎".to_string(), true),
+        OnboardStep::Connect => (t!("onboard-check-connection").to_string(), true),
+        OnboardStep::Verify => (t!("onboard-next-name-it").to_string(), state.host_key_accepted && !state.is_probing),
+        OnboardStep::Name => (t!("onboard-add-server").to_string(), true),
     };
     div()
         .size_full()
@@ -248,7 +248,7 @@ pub fn onboard_view(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet:
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(mono(15.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child("ADD SERVER"))
+                .child(mono(15.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(t!("onboard-add-server-2")))
                 .child(div().flex().items_center().gap(px(4.0)).children(OnboardStep::ALL.iter().map(|step| {
                     let (active, done) = (state.step == *step, step.num() < state.max_reached_step.num() || (step.num() <= state.max_reached_step.num() && state.step != *step));
                     let reachable = step.num() <= state.max_reached_step.num();
@@ -273,7 +273,7 @@ pub fn onboard_view(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet:
                         .child(mono(11.0, if active { TEXT_PRIMARY } else if reachable { TEXT_SECONDARY } else { TEXT_FAINT }).font_weight(if active { FontWeight::BOLD } else { FontWeight::NORMAL }).child(step.label()))
                 })))
                 .child(div().flex_1())
-                .child(button("btn-onboard-cancel", "CANCEL esc", false, true).on_click(move |_ev, _window, cx| app_cancel.update(cx, |this, cx| this.set_screen(crate::app::Screen::Fleet, cx)))),
+                .child(button("btn-onboard-cancel", t!("onboard-cancel-esc"), false, true).on_click(move |_ev, _window, cx| app_cancel.update(cx, |this, cx| this.set_screen(crate::app::Screen::Fleet, cx)))),
         )
         // The step
         .child(
@@ -305,7 +305,7 @@ pub fn onboard_view(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet:
                 .bg(BG_PANEL)
                 .border_t_1()
                 .border_color(BORDER_PANEL)
-                .when(state.step != OnboardStep::Connect, |d| d.child(button("btn-onboard-back", "← BACK", false, true).on_click(move |_ev, _window, cx| app_back.update(cx, |this, cx| this.onboard_prev_step(cx)))))
+                .when(state.step != OnboardStep::Connect, |d| d.child(button("btn-onboard-back", t!("onboard-back"), false, true).on_click(move |_ev, _window, cx| app_back.update(cx, |this, cx| this.onboard_prev_step(cx)))))
                 .child(div().flex_1())
                 .child(mono(10.0, TEXT_FAINT).child(state.endpoint()).when(state.host.trim().is_empty(), |d| d.invisible()))
                 .child(button("btn-onboard-next", primary_text, true, primary_enabled).on_click(move |_ev, _window, cx| {
@@ -328,11 +328,11 @@ fn step_connect(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fl
         .flex()
         .flex_col()
         .gap(px(18.0))
-        .child(div().flex().flex_col().gap(px(4.0)).child(mono(14.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child("Where is it, and how does Crow log in?")).child(hint("Crow connects over SSH and installs nothing. The next step checks the server's host key before anything is sent.")))
+        .child(div().flex().flex_col().gap(px(4.0)).child(mono(14.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(t!("onboard-where-is-it-and-how"))).child(hint(t!("onboard-crow-connects-over-ssh-and"))))
         // Lab containers on this machine, one click away.
         .when(!local_lab.nodes.is_empty(), |d| {
             d.child(labeled(
-                "OR A LAB CONTAINER ON THIS MACHINE",
+                t!("onboard-or-a-lab-container-on"),
                 div().flex().flex_wrap().gap(px(6.0)).children(local_lab.nodes.iter().enumerate().map(|(i, node)| {
                     let (app, name, port, distro) = (app.clone(), node.name.clone(), node.ssh_port.unwrap_or(2222).to_string(), node.distro_display());
                     chip(format!("onboard-lab-{i}"), format!("{} · {}", node.name, distro), false, OK).on_click(move |_ev, _window, cx| {
@@ -346,13 +346,13 @@ fn step_connect(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fl
             div()
                 .flex()
                 .gap(px(10.0))
-                .child(div().flex_1().min_w(px(0.0)).child(labeled("ADDRESS", field(inputs, OnboardFieldFocus::Host))))
-                .child(div().w(px(90.0)).flex_none().child(labeled("PORT", field(inputs, OnboardFieldFocus::Port))))
-                .child(div().w(px(200.0)).flex_none().child(labeled("USER", field(inputs, OnboardFieldFocus::User)))),
+                .child(div().flex_1().min_w(px(0.0)).child(labeled(t!("onboard-address"), field(inputs, OnboardFieldFocus::Host))))
+                .child(div().w(px(90.0)).flex_none().child(labeled(t!("onboard-port"), field(inputs, OnboardFieldFocus::Port))))
+                .child(div().w(px(200.0)).flex_none().child(labeled(t!("onboard-user"), field(inputs, OnboardFieldFocus::User)))),
         )
         // How Crow gets there.
         .child(labeled(
-            "REACH IT",
+            t!("onboard-reach-it"),
             div()
                 .flex()
                 .flex_col()
@@ -362,7 +362,7 @@ fn step_connect(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fl
                         .flex()
                         .flex_wrap()
                         .gap(px(6.0))
-                        .child(chip("onboard-route-direct", "Directly", state.jump_host_id.is_none(), OK).on_click(move |_ev, _window, cx| {
+                        .child(chip("onboard-route-direct", t!("onboard-directly"), state.jump_host_id.is_none(), OK).on_click(move |_ev, _window, cx| {
                             app_direct.update(cx, |this, cx| {
                                 this.onboard_state.jump_host_id = None;
                                 cx.notify();
@@ -371,7 +371,7 @@ fn step_connect(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fl
                         .children(bastions.iter().map(|b| {
                             let (app, id) = (app.clone(), b.id.clone());
                             let route = crate::app::bastions::route(&b.id, &fleet.servers);
-                            chip(format!("onboard-route-{}", b.id), format!("via {route}"), state.jump_host_id.as_deref() == Some(b.id.as_str()), BASTION_BLUE).on_click(move |_ev, _window, cx| {
+                            chip(format!("onboard-route-{}", b.id), t!("onboard-via", route = route), state.jump_host_id.as_deref() == Some(b.id.as_str()), BASTION_BLUE).on_click(move |_ev, _window, cx| {
                                 let id = id.clone();
                                 app.update(cx, |this, cx| {
                                     this.onboard_state.jump_host_id = Some(id);
@@ -382,16 +382,16 @@ fn step_connect(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fl
                         })),
                 )
                 .child(hint(if bastions.is_empty() {
-                    "Only reachable through another server? Mark that one as a bastion first: the \"bastion\" switch in its header.".to_string()
+                    t!("onboard-only-reachable-through-another-server").to_string()
                 } else if state.jump_host_id.is_some() {
-                    "Every connection goes through the bastion, logging in there with the bastion's own key. How the bastion reaches this server is up to its network; Crow only needs the address as the bastion sees it.".to_string()
+                    t!("onboard-every-connection-goes-through-the").to_string()
                 } else {
-                    "Pick a bastion when this server is only reachable through one.".to_string()
+                    t!("onboard-pick-a-bastion-when-this").to_string()
                 })),
         ))
         // How Crow logs in.
         .child(labeled(
-            "LOG IN WITH",
+            t!("onboard-log-in-with"),
             div()
                 .flex()
                 .flex_col()
@@ -400,13 +400,13 @@ fn step_connect(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fl
                     div()
                         .flex()
                         .gap(px(8.0))
-                        .child(method_card("onboard-auth-key", "A key in Crow", "A key from Settings → Keys, already on the server.", method == "publickey").on_click(move |_ev, _window, cx| app_key.update(cx, |this, cx| this.onboard_set_auth("publickey", cx))))
-                        .child(method_card("onboard-auth-password", "A password, once", "Crow logs in once, installs its own key, and forgets the password.", method == "password").on_click(move |_ev, _window, cx| app_pw.update(cx, |this, cx| this.onboard_set_auth("password", cx))))
-                        .child(method_card("onboard-auth-agent", "My SSH agent", "Whatever your agent and ~/.ssh/config would use.", method == "agent").on_click(move |_ev, _window, cx| app_agent.update(cx, |this, cx| this.onboard_set_auth("agent", cx)))),
+                        .child(method_card("onboard-auth-key", t!("onboard-a-key-in-crow"), t!("onboard-a-key-from-settings-keys"), method == "publickey").on_click(move |_ev, _window, cx| app_key.update(cx, |this, cx| this.onboard_set_auth("publickey", cx))))
+                        .child(method_card("onboard-auth-password", t!("onboard-a-password-once"), t!("onboard-crow-logs-in-once-installs"), method == "password").on_click(move |_ev, _window, cx| app_pw.update(cx, |this, cx| this.onboard_set_auth("password", cx))))
+                        .child(method_card("onboard-auth-agent", t!("onboard-my-ssh-agent"), t!("onboard-whatever-your-agent-and-ssh"), method == "agent").on_click(move |_ev, _window, cx| app_agent.update(cx, |this, cx| this.onboard_set_auth("agent", cx)))),
                 )
                 .when(method == "publickey", |d| {
                     d.child(if keys.enrolled.is_empty() {
-                        hint("No keys in Crow yet: use \"A password, once\", or add one in Settings → Keys & Rotation.").into_any_element()
+                        hint(t!("onboard-no-keys-in-crow-yet")).into_any_element()
                     } else {
                         div()
                             .flex()
@@ -425,8 +425,8 @@ fn step_connect(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fl
                             .into_any_element()
                     })
                 })
-                .when(method == "password", |d| d.child(div().max_w(px(360.0)).child(field(inputs, OnboardFieldFocus::Password))).child(hint("Used for one login only, after the host key is checked. Never saved.")))
-                .when(method == "agent", |d| d.child(hint("Crow won't know which key that is, so it can't rotate or audit it."))),
+                .when(method == "password", |d| d.child(div().max_w(px(360.0)).child(field(inputs, OnboardFieldFocus::Password))).child(hint(t!("onboard-used-for-one-login-only"))))
+                .when(method == "agent", |d| d.child(hint(t!("onboard-crow-wont-know-which-key")))),
         ))
 }
 
@@ -439,14 +439,14 @@ fn step_verify(app: Entity<CrowApp>, state: &OnboardState, fleet: &FleetState) -
     let result = state.probe_result.as_ref();
     let (app_recheck, app_accept) = (app.clone(), app.clone());
     let headline: (Rgba, String) = match result {
-        _ if state.is_probing && result.is_none() => (TEXT_DIM, "Checking…".into()),
-        None => (TEXT_DIM, "Not checked yet.".into()),
-        Some(r) if !r.is_reachable => (CRIT, format!("Couldn't reach it: {}", r.error.clone().unwrap_or_else(|| "no answer".into()))),
-        Some(_) if state.is_probing => (TEXT_DIM, "Logging in and reading the server…".into()),
-        Some(_) if state.logged_in() => (OK, "Reached, host key trusted, logged in.".into()),
-        Some(_) if state.host_key_accepted => (WARN, "The host key is trusted, but logging in didn't work: see the log below.".into()),
-        Some(r) if r.host_key_mismatch => (CRIT, "The host key changed since it was last trusted.".into()),
-        Some(_) => (WARN, "Reached. Check the host key below, then trust it.".into()),
+        _ if state.is_probing && result.is_none() => (TEXT_DIM, t!("onboard-checking").into()),
+        None => (TEXT_DIM, t!("onboard-not-checked-yet").into()),
+        Some(r) if !r.is_reachable => (CRIT, t!("onboard-couldnt-reach-it", r = r.error.clone().unwrap_or_else(|| t!("onboard-no-answer").into()))),
+        Some(_) if state.is_probing => (TEXT_DIM, t!("onboard-logging-in-and-reading-the").into()),
+        Some(_) if state.logged_in() => (OK, t!("onboard-reached-host-key-trusted-logged").into()),
+        Some(_) if state.host_key_accepted => (WARN, t!("onboard-the-host-key-is-trusted").into()),
+        Some(r) if r.host_key_mismatch => (CRIT, t!("onboard-the-host-key-changed-since").into()),
+        Some(_) => (WARN, t!("onboard-reached-check-the-host-key").into()),
     };
     div()
         .flex()
@@ -465,19 +465,19 @@ fn step_verify(app: Entity<CrowApp>, state: &OnboardState, fleet: &FleetState) -
                         .flex_col()
                         .gap(px(4.0))
                         .child(mono(14.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(state.endpoint()))
-                        .children(via.map(|v| mono(10.5, BASTION_BLUE).child(format!("through {v}"))))
+                        .children(via.map(|v| mono(10.5, BASTION_BLUE).child(t!("onboard-through", v = v))))
                         .child(mono(11.5, headline.0).line_height(px(16.0)).child(headline.1)),
                 )
-                .child(button("btn-onboard-recheck", if state.is_probing { "CHECKING…" } else { "CHECK AGAIN" }, false, !state.is_probing).on_click(move |_ev, _window, cx| app_recheck.update(cx, |this, cx| this.onboard_run_probe(cx)))),
+                .child(button("btn-onboard-recheck", if state.is_probing { t!("onboard-checking-2") } else { t!("onboard-check-again") }, false, !state.is_probing).on_click(move |_ev, _window, cx| app_recheck.update(cx, |this, cx| this.onboard_run_probe(cx)))),
         )
         // The host key: what the server presented, and whether it's trusted.
         .children(result.filter(|r| !r.scanned_keys.is_empty()).map(|r| {
             let (border, title) = if state.host_key_accepted {
-                (OK, "HOST KEY · TRUSTED")
+                (OK, t!("onboard-host-key-trusted"))
             } else if r.host_key_mismatch {
-                (CRIT, "HOST KEY · CHANGED, NOT TRUSTED")
+                (CRIT, t!("onboard-host-key-changed-not-trusted"))
             } else {
-                (WARN, "HOST KEY · NEW TO THIS MACHINE")
+                (WARN, t!("onboard-host-key-new-to-this"))
             };
             let (hash, kind) = match r.host_key_fingerprint.rsplit_once(" (") {
                 Some((h, k)) => (h.to_string(), k.trim_end_matches(')').to_string()),
@@ -495,17 +495,17 @@ fn step_verify(app: Entity<CrowApp>, state: &OnboardState, fleet: &FleetState) -
                 .child(mono(12.5, TEXT_PRIMARY).child(hash))
                 .child(mono(9.5, TEXT_FAINT).child(kind))
                 .when(!state.host_key_accepted && !r.host_key_mismatch, |d| {
-                    d.child(hint("Compare it with the server's own, e.g. from its console: ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub"))
-                        .child(div().flex().child(button("btn-accept-host-key", "✓ IT MATCHES: TRUST IT", true, !state.is_probing).on_click(move |_ev, _window, cx| app_accept.update(cx, |this, cx| this.onboard_accept_host_key(cx)))))
+                    d.child(hint(t!("onboard-compare-it-with-the-servers")))
+                        .child(div().flex().child(button("btn-accept-host-key", t!("onboard-it-matches-trust-it"), true, !state.is_probing).on_click(move |_ev, _window, cx| app_accept.update(cx, |this, cx| this.onboard_accept_host_key(cx)))))
                 })
-                .when(r.host_key_mismatch, |d| d.child(hint("Possibly a reinstalled server, possibly someone in the middle. If the change is expected, remove the old entry from ~/.ssh/known_hosts yourself, then check again.")))
+                .when(r.host_key_mismatch, |d| d.child(hint(t!("onboard-possibly-a-reinstalled-server-possibly"))))
         }))
         // What a login read.
         .when(state.logged_in(), |d| d.child(facts_grid(&state.facts)))
         // Everything that happened, in order.
         .when(!state.probe_logs.is_empty(), |d| {
             d.child(labeled(
-                "LOG",
+                t!("onboard-log"),
                 div().flex().flex_col().gap(px(3.0)).p(px(10.0)).bg(BG_PANEL).border_1().border_color(BORDER_PANEL).children(state.probe_logs.iter().map(|l| {
                     div()
                         .flex()
@@ -522,18 +522,18 @@ fn step_verify(app: Entity<CrowApp>, state: &OnboardState, fleet: &FleetState) -
 fn facts_grid(f: &DetectedFacts) -> impl IntoElement {
     let family = classify_distro_family(&f.distro);
     let rows: [(&str, String); 9] = [
-        ("DISTRO", f.distro.clone()),
-        ("KERNEL", f.kernel.clone()),
-        ("ARCH", f.arch.clone()),
-        ("MEMORY", f.memory.clone()),
-        ("DISK", f.disk.clone()),
-        ("INIT", f.init.clone()),
-        ("FIREWALL", f.firewall.clone()),
-        ("OPEN PORTS", f.open_ports.clone()),
-        ("TIME SYNC", f.time_sync.clone()),
+        (t!("onboard-distro"), f.distro.clone()),
+        (t!("onboard-kernel"), f.kernel.clone()),
+        (t!("onboard-arch"), f.arch.clone()),
+        (t!("onboard-memory"), f.memory.clone()),
+        (t!("onboard-disk"), f.disk.clone()),
+        (t!("onboard-init"), f.init.clone()),
+        (t!("onboard-firewall"), f.firewall.clone()),
+        (t!("onboard-open-ports"), f.open_ports.clone()),
+        (t!("onboard-time-sync"), f.time_sync.clone()),
     ];
     labeled(
-        "WHAT CROW READ",
+        t!("onboard-what-crow-read"),
         div()
             .flex()
             .flex_col()
@@ -546,9 +546,9 @@ fn facts_grid(f: &DetectedFacts) -> impl IntoElement {
                 div().w(px(250.0)).flex().gap(px(8.0)).child(mono(9.5, TEXT_FAINT).w(px(78.0)).flex_none().child(k)).child(mono(10.5, TEXT_SECONDARY).flex_1().min_w(px(0.0)).overflow_hidden().text_ellipsis().whitespace_nowrap().child(v))
             })))
             .when(!f.schema_packs.is_empty(), |d| {
-                d.child(div().flex().flex_wrap().gap(px(4.0)).child(mono(9.5, TEXT_FAINT).mr(px(4.0)).child("CONFIG TOOLS")).children(f.schema_packs.iter().map(|(name, fg, bg)| div().px(px(5.0)).py(px(1.0)).bg(*bg).font_family(FONT_MONO).text_size(px(9.5)).text_color(*fg).child(name.clone()))))
+                d.child(div().flex().flex_wrap().gap(px(4.0)).child(mono(9.5, TEXT_FAINT).mr(px(4.0)).child(t!("onboard-config-tools"))).children(f.schema_packs.iter().map(|(name, fg, bg)| div().px(px(5.0)).py(px(1.0)).bg(*bg).font_family(FONT_MONO).text_size(px(9.5)).text_color(*fg).child(name.clone()))))
             })
-            .when(!family.is_supported(), |d| d.child(mono(10.0, WARN).line_height(px(14.0)).child("Crow knows Debian- and Red Hat-family config layouts; on this distro config discovery may miss files."))),
+            .when(!family.is_supported(), |d| d.child(mono(10.0, WARN).line_height(px(14.0)).child(t!("onboard-crow-knows-debian-and-red")))),
     )
 }
 
@@ -567,17 +567,17 @@ fn step_name(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fleet
     let via = state.jump_host_id.as_deref().map(|b| crate::app::bastions::route(b, &fleet.servers));
     let login = match state.auth_method.as_str() {
         "publickey" => "key".to_string(),
-        "agent" => "your SSH agent".to_string(),
-        _ => "password, once".to_string(),
+        "agent" => t!("onboard-your-ssh-agent").to_string(),
+        _ => t!("onboard-password-once").to_string(),
     };
     div()
         .flex()
         .flex_col()
         .gap(px(18.0))
-        .child(div().flex().flex_col().gap(px(4.0)).child(mono(14.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child("How should it show in the fleet?")).child(hint("All of this can be changed later.")))
-        .child(div().max_w(px(420.0)).child(labeled("NAME", field(inputs, OnboardFieldFocus::Label))))
+        .child(div().flex().flex_col().gap(px(4.0)).child(mono(14.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(t!("onboard-how-should-it-show-in"))).child(hint(t!("onboard-all-of-this-can-be"))))
+        .child(div().max_w(px(420.0)).child(labeled(t!("onboard-name-2"), field(inputs, OnboardFieldFocus::Label))))
         .child(labeled(
-            "ENVIRONMENT",
+            t!("onboard-environment"),
             div().flex().gap(px(6.0)).child({
                 let app = app.clone();
                 chip("onboard-env-none", "none", state.env.is_empty(), TEXT_DIM).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.onboard_set_env("", cx)))
@@ -589,7 +589,7 @@ fn step_name(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fleet
             })),
         ))
         .child(labeled(
-            "GROUP",
+            t!("onboard-group"),
             div().flex().flex_wrap().gap(px(6.0)).child({
                 let app = app.clone();
                 chip("onboard-group-none", "none", state.group.is_empty(), TEXT_DIM).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.onboard_set_group("", cx)))
@@ -602,7 +602,7 @@ fn step_name(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fleet
                 })
             })),
         ))
-        .child(div().max_w(px(420.0)).child(labeled("TAGS", field(inputs, OnboardFieldFocus::Tags))))
+        .child(div().max_w(px(420.0)).child(labeled(t!("onboard-tags"), field(inputs, OnboardFieldFocus::Tags))))
         // Bastion (ERR-152).
         .child(
             div()
@@ -630,7 +630,7 @@ fn step_name(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fleet
                         .border_color(if state.make_bastion { BASTION_BLUE } else { BORDER_STRONG })
                         .child(div().size(px(10.0)).rounded_full().bg(if state.make_bastion { BASTION_BLUE } else { TEXT_DIM })),
                 )
-                .child(div().flex().flex_col().gap(px(2.0)).child(mono(11.0, if state.make_bastion { TEXT_PRIMARY } else { TEXT_SECONDARY }).font_weight(FontWeight::BOLD).child("Bastion")).child(hint("Other servers can be added through this one."))),
+                .child(div().flex().flex_col().gap(px(2.0)).child(mono(11.0, if state.make_bastion { TEXT_PRIMARY } else { TEXT_SECONDARY }).font_weight(FontWeight::BOLD).child(t!("onboard-bastion"))).child(hint(t!("onboard-other-servers-can-be-added")))),
         )
         // What's about to be added.
         .child(
@@ -643,12 +643,7 @@ fn step_name(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fleet
                 .border_1()
                 .border_color(BORDER_PANEL)
                 .child(mono(11.0, TEXT_PRIMARY).child(format!("{} · {}", if state.label.trim().is_empty() { state.host.trim() } else { state.label.trim() }, state.endpoint())))
-                .child(mono(10.0, TEXT_DIM).child(format!(
-                    "{}logs in with {login}{}{}",
-                    via.map(|v| format!("through {v} · ")).unwrap_or_default(),
-                    if state.env.is_empty() { String::new() } else { format!(" · {}", state.env) },
-                    if state.group.is_empty() { String::new() } else { format!(" · group {}", state.group) },
-                )))
-                .when(!state.logged_in(), |d| d.child(mono(10.0, WARN).child("Crow couldn't log in yet: the server will be added, but shows as unreachable until it can."))),
+                .child(mono(10.0, TEXT_DIM).child(t!("onboard-logs-in-with", via = via.map(|v| t!("onboard-through-2", v = v)).unwrap_or_default(), login = login, state = if state.env.is_empty() { String::new() } else { format!(" · {}", state.env) }, state2 = if state.group.is_empty() { String::new() } else { t!("onboard-group-2", group = state.group) })))
+                .when(!state.logged_in(), |d| d.child(mono(10.0, WARN).child(t!("onboard-crow-couldnt-log-in-yet")))),
         )
 }

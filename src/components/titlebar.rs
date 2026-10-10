@@ -103,7 +103,7 @@ pub fn titlebar(
                     .text_size(px(11.5))
                     .font_weight(FontWeight::BOLD)
                     .text_color(menu_ink)
-                    .child("CROW"),
+                    .child(t!("titlebar-crow")),
             ),
     );
 
@@ -149,7 +149,7 @@ pub fn titlebar(
                             .text_size(px(11.0))
                             .font_weight(if is_fleet_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                             .text_color(if is_fleet_active { TEXT_PRIMARY } else { TEXT_MUTED })
-                            .child("FLEET"),
+                            .child(t!("titlebar-fleet")),
                     ),
             )
             // Server Tabs (each with close affordance)
@@ -258,7 +258,7 @@ pub fn titlebar(
 
     // 4. Session meta (varies by screen)
     let meta_text = if current_screen == Screen::Fleet {
-        format!("{} host{} · agentless ssh", server_count, if server_count == 1 { "" } else { "s" })
+        t!("titlebar-agentless-ssh", server_count = server_count)
     } else {
         session
     };
@@ -286,14 +286,14 @@ pub fn titlebar(
                         .flex()
                         .items_center()
                         .gap(px(5.0))
-                        .child(div().text_color(TEXT_DIMMER).child("SRV"))
+                        .child(div().text_color(TEXT_DIMMER).child(t!("titlebar-srv")))
                         .child(
                             div()
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .text_color(TEXT_SECONDARY)
                                 .child(server_time_text),
                         )
-                        .child(div().text_color(TEXT_DIMMER).child("UTC")),
+                        .child(div().text_color(TEXT_DIMMER).child(t!("titlebar-utc"))),
                 )
             } else {
                 None
@@ -303,7 +303,7 @@ pub fn titlebar(
                     .flex()
                     .items_center()
                     .gap(px(5.0))
-                    .child(div().text_color(TEXT_DIMMER).child("YOU"))
+                    .child(div().text_color(TEXT_DIMMER).child(t!("titlebar-you")))
                     .child(
                         div()
                             .font_weight(FontWeight::SEMIBOLD)
@@ -418,9 +418,9 @@ pub fn burger_menu_overlay(
     let app_backdrop = app.clone();
 
     let server_overview_label = if let Some(ref name) = active_server_name {
-        format!("{} · Overview", name)
+        t!("titlebar-overview", name = name)
     } else {
-        "Server Overview".to_string()
+        t!("titlebar-server-overview").to_string()
     };
 
     let mut items: Vec<MenuItem> = Vec::new();
@@ -428,7 +428,7 @@ pub fn burger_menu_overlay(
     // Section 1: FLEET
     items.push(MenuItem {
         icon: None,
-        label: "FLEET".to_string(),
+        label: t!("titlebar-fleet").to_string(),
         shortcut: "",
         action: None,
         is_danger: false,
@@ -437,7 +437,7 @@ pub fn burger_menu_overlay(
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::LayoutDashboard),
-        label: "Fleet Overview".to_string(),
+        label: t!("titlebar-fleet-overview").to_string(),
         shortcut: "⌘1",
         action: Some(MenuAction::NavigateScreen(Screen::Fleet)),
         is_danger: false,
@@ -446,7 +446,7 @@ pub fn burger_menu_overlay(
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Plus),
-        label: "Enroll New Server…".to_string(),
+        label: t!("titlebar-enroll-new-server").to_string(),
         shortcut: "⌘N",
         action: Some(MenuAction::NavigateScreen(Screen::Onboard)),
         is_danger: false,
@@ -455,7 +455,7 @@ pub fn burger_menu_overlay(
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Network),
-        label: "Fleet Setup — Topology & Policy".to_string(),
+        label: t!("titlebar-fleet-setup-topology-policy").to_string(),
         shortcut: "⌘⇧F",
         action: Some(MenuAction::NavigateScreen(Screen::FleetSetup)),
         is_danger: false,
@@ -480,7 +480,7 @@ pub fn burger_menu_overlay(
     if current_screen == Screen::Server {
         items.push(MenuItem {
             icon: None,
-            label: "THIS SERVER".to_string(),
+            label: t!("titlebar-this-server").to_string(),
             shortcut: "",
             action: None,
             is_danger: false,
@@ -498,7 +498,7 @@ pub fn burger_menu_overlay(
         });
         items.push(MenuItem {
             icon: Some(TablerIcon::AdjustmentsHorizontal),
-            label: "Managed Configs".to_string(),
+            label: t!("titlebar-managed-configs").to_string(),
             shortcut: "⌘3",
             action: Some(MenuAction::NavigateServerView("config")),
             is_danger: false,
@@ -507,7 +507,7 @@ pub fn burger_menu_overlay(
         });
         items.push(MenuItem {
             icon: Some(TablerIcon::FileText),
-            label: "Systemd Journal Logs".to_string(),
+            label: t!("titlebar-systemd-journal-logs").to_string(),
             shortcut: "⌘4",
             action: Some(MenuAction::NavigateServerView("logs")),
             is_danger: false,
@@ -519,7 +519,7 @@ pub fn burger_menu_overlay(
     // Section 3: APPLICATION
     items.push(MenuItem {
         icon: None,
-        label: "APPLICATION".to_string(),
+        label: t!("titlebar-application").to_string(),
         shortcut: "",
         action: None,
         is_danger: false,
@@ -528,7 +528,7 @@ pub fn burger_menu_overlay(
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Search),
-        label: "Command Palette…".to_string(),
+        label: t!("titlebar-command-palette").to_string(),
         shortcut: "⌘K",
         action: Some(MenuAction::TogglePalette),
         is_danger: false,
@@ -537,7 +537,7 @@ pub fn burger_menu_overlay(
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Settings),
-        label: "Settings".to_string(),
+        label: t!("titlebar-settings").to_string(),
         shortcut: "⌘,",
         action: Some(MenuAction::NavigateScreen(Screen::Settings)),
         is_danger: false,
@@ -546,7 +546,7 @@ pub fn burger_menu_overlay(
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::InfoCircle),
-        label: "About Crow…".to_string(),
+        label: t!("titlebar-about-crow").to_string(),
         shortcut: "",
         action: Some(MenuAction::About),
         is_danger: false,
@@ -557,7 +557,7 @@ pub fn burger_menu_overlay(
     // Section 4: SESSION
     items.push(MenuItem {
         icon: None,
-        label: "SESSION".to_string(),
+        label: t!("titlebar-session").to_string(),
         shortcut: "",
         action: None,
         is_danger: false,
@@ -566,7 +566,7 @@ pub fn burger_menu_overlay(
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Lock),
-        label: "Lock Vault & Disconnect".to_string(),
+        label: t!("titlebar-lock-vault-disconnect").to_string(),
         shortcut: "⇧⌘L",
         action: Some(MenuAction::LockVault),
         is_danger: true,
@@ -575,7 +575,7 @@ pub fn burger_menu_overlay(
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Power),
-        label: "Quit Crow".to_string(),
+        label: t!("titlebar-quit-crow").to_string(),
         shortcut: "⌘Q",
         action: Some(MenuAction::Quit),
         is_danger: true,

@@ -49,9 +49,9 @@ impl CrowApp {
         if self.clanker_inputs.as_ref().is_some_and(|i| i.provider_id == st.provider_id) {
             return;
         }
-        let placeholder = if st.has_key { "set · leave blank to keep it, or paste a new key" } else { "e.g. sk-proj-..." };
+        let placeholder = if st.has_key { t!("app-clankers-set-leave-blank-to-keep") } else { t!("app-clankers-e-g-sk-proj") };
         let key = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder).masked(true));
-        let model = cx.new(|cx| InputState::new(window, cx).placeholder("e.g. gpt-4o-mini").default_value(st.model.clone()));
+        let model = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-clankers-e-g-gpt-4o-mini")).default_value(st.model.clone()));
         let base_url = cx.new(|cx| InputState::new(window, cx).placeholder("https://api.openai.com/v1").default_value(st.base_url.clone()));
         let events = [&key, &model, &base_url]
             .into_iter()
@@ -82,7 +82,7 @@ impl CrowApp {
 
         if model.is_empty() {
             if let Some(ref mut st) = self.clankers.editing {
-                st.error_message = Some("Model cannot be empty".to_string());
+                st.error_message = Some(t!("app-clankers-model-cannot-be-empty").to_string());
             }
             cx.notify();
             return;
@@ -93,15 +93,15 @@ impl CrowApp {
             let mut key = key;
             let result = ready.and_then(|()| {
                 let db = this.vault.db();
-                let db_guard = db.lock().map_err(|_| "the vault is busy; try again".to_string())?;
-                let mut provider = db_guard.get_clanker_provider(&p_id).ok().flatten().ok_or("unknown provider")?;
+                let db_guard = db.lock().map_err(|_| t!("app-clankers-the-vault-is-busy-try").to_string())?;
+                let mut provider = db_guard.get_clanker_provider(&p_id).ok().flatten().ok_or(t!("app-clankers-unknown-provider"))?;
                 provider.model = model;
                 if !base_url.is_empty() {
                     provider.base_url = base_url;
                 }
                 db_guard.upsert_clanker_provider(&provider).map_err(|e| e.to_string())?;
                 if !key.is_empty() {
-                    let data_key = this.vault.key().ok_or("no encryption key")?;
+                    let data_key = this.vault.key().ok_or(t!("app-clankers-no-encryption-key"))?;
                     db_guard.set_clanker_api_key(data_key, &p_id, Some(&key)).map_err(|e| e.to_string())?;
                 }
                 Ok(())
@@ -122,7 +122,7 @@ impl CrowApp {
                 }
                 Err(e) => {
                     if let Some(ref mut st) = this.clankers.editing {
-                        st.error_message = Some(format!("Not saved: {e}"));
+                        st.error_message = Some(t!("app-clankers-not-saved", e = e));
                     }
                 }
             }
@@ -142,7 +142,7 @@ impl CrowApp {
             let _ = db_guard.set_default_clanker_provider(provider_id);
         }
         let name = self.clankers.providers.iter().find(|p| p.id == provider_id).map_or(provider_id.to_string(), |p| p.display_name.clone());
-        self.keys.toast = Some(format!("{name} is the primary clanker"));
+        self.keys.toast = Some(t!("app-clankers-is-the-primary-clanker", name = name));
         self.refresh_clankers(cx);
     }
 
@@ -154,8 +154,8 @@ impl CrowApp {
             let _ = db_guard.set_backup_clanker_provider(provider_id);
         }
         self.keys.toast = Some(match provider_id.and_then(|id| self.clankers.providers.iter().find(|p| p.id == id)) {
-            Some(p) => format!("{} is the backup clanker", p.display_name),
-            None => "No backup clanker".into(),
+            Some(p) => t!("app-clankers-is-the-backup-clanker", display_name = p.display_name),
+            None => t!("app-clankers-no-backup-clanker").into(),
         });
         self.refresh_clankers(cx);
     }
@@ -203,7 +203,7 @@ impl CrowApp {
         if let Ok(db_guard) = db.lock() {
             let _ = db_guard.reset_clanker_usage(provider_id);
         }
-        self.keys.toast = Some("Provider call stats reset".into());
+        self.keys.toast = Some(t!("app-clankers-provider-call-stats-reset").into());
         self.refresh_clankers(cx);
     }
 
@@ -241,7 +241,7 @@ impl CrowApp {
     /// and shows the real answer and who gave it.
     pub fn run_clanker_eli5(&mut self, cx: &mut Context<Self>) {
         let Some((provider, backup)) = self.ai_providers() else {
-            self.clankers.demo_output = Some(Err("No AI provider has an API key yet. Add one above with ⚙ Edit Key.".into()));
+            self.clankers.demo_output = Some(Err(t!("app-clankers-no-ai-provider-has-an").into()));
             cx.notify();
             return;
         };
@@ -266,8 +266,8 @@ impl CrowApp {
             let _ = entity.update(cx, |this, cx| {
                 this.clankers.demo_loading = false;
                 this.clankers.demo_output = Some(answer.map(|a| match a.primary_failed {
-                    Some(why) => format!("via the backup, {} (the primary failed: {why})\n\n{}", a.provider_label, a.text),
-                    None => format!("via {}\n\n{}", a.provider_label, a.text),
+                    Some(why) => t!("app-clankers-via-the-backup-the-primary", provider_label = a.provider_label, why = why, text = a.text),
+                    None => t!("app-clankers-via", provider_label = a.provider_label, text = a.text),
                 }));
                 this.refresh_clankers(cx);
             });

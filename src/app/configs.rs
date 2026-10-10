@@ -27,7 +27,7 @@ use crate::vault::{ChangeRecord, KeyringState, ServerRecord, VaultError, BASELIN
 
 /// "the fleet" or "group web".
 pub fn scope_label(scope: &str) -> String {
-    if scope == BASELINE_FLEET { "the fleet".into() } else { format!("group {scope}") }
+    if scope == BASELINE_FLEET { t!("app-configs-the-fleet").into() } else { t!("app-configs-group", scope = scope) }
 }
 use crate::views::config::state::ConfigsState;
 use crate::views::firewall::generate_user_rules_content;
@@ -369,9 +369,9 @@ impl CrowApp {
         let (file, heading) = (add.file.clone(), add.heading.clone());
         let Some(format) = self.structured_format_of(&file) else { return };
         let refuse = if key.is_empty() {
-            Some("type a key, or pick one from the list")
+            Some(t!("app-configs-type-a-key-or-pick"))
         } else if format == StructuredFormat::Nginx && value.is_empty() {
-            Some("a directive needs its arguments")
+            Some(t!("app-configs-a-directive-needs-its-arguments"))
         } else {
             None
         };
@@ -514,7 +514,7 @@ impl CrowApp {
                             return structured_editor(st, format, &ir, &self.configs, active, confirm, adding, &login_user, app).into_any_element();
                         }
                         // Unparseable: fall through to the text editor.
-                        Err(e) => self.configs.edit_error = Some(format!("{selected} could not be parsed: {e}")),
+                        Err(e) => self.configs.edit_error = Some(t!("app-configs-could-not-be-parsed", selected = selected, e = e)),
                     }
                 }
             }
@@ -530,7 +530,7 @@ impl CrowApp {
                 .font_family(FONT_MONO)
                 .text_size(px(11.0))
                 .text_color(TEXT_FAINT)
-                .child("No config file selected.")
+                .child(t!("app-configs-no-config-file-selected"))
                 .into_any_element(),
         }
     }
@@ -612,7 +612,7 @@ impl CrowApp {
                         if let Some(name) = this.configs.states.iter().find(|(_, st)| st.path.to_string_lossy() == path).map(|(n, _)| n.clone()) {
                             this.configs.selected_file = name;
                         } else {
-                            this.keys.toast = Some(format!("{path} isn't one of the files Crow manages on this server"));
+                            this.keys.toast = Some(t!("app-configs-isnt-one-of-the-files", path = path));
                         }
                     }
                     this.sync_config_history(cx);
@@ -671,9 +671,9 @@ impl CrowApp {
         // that only happens while the active server's are still loading,
         // and writing then would land on the wrong machine.
         if self.configs.server_id.is_none() && !self.fleet.servers.is_empty() {
-            return Err("this server's configs are still loading; nothing was written".into());
+            return Err(t!("app-configs-this-servers-configs-are-still").into());
         }
-        let state = self.configs.states.get(file).ok_or_else(|| format!("{file} is not loaded"))?;
+        let state = self.configs.states.get(file).ok_or_else(|| t!("app-configs-is-not-loaded", file = file))?;
         let host: Arc<dyn Host> = match self.configs_server() {
             Some(srv) => host_for(&srv),
             None => Arc::new(LocalHost),
@@ -704,8 +704,8 @@ impl CrowApp {
         let fstab = format == Some(StructuredFormat::Fstab) && state.write_blocked.is_none();
         if fstab {
             let path = state.path.to_string_lossy();
-            let on_host = host.read_file(&path).map_err(|e| format!("{file}: couldn't re-read it: {e}"))?;
-            crate::config::fstab::check(host.as_ref(), &on_host, &state.current_content).map_err(|e| format!("{file}: not saved: {e}"))?;
+            let on_host = host.read_file(&path).map_err(|e| t!("app-configs-couldnt-re-read-it", file = file, e = e))?;
+            crate::config::fstab::check(host.as_ref(), &on_host, &state.current_content).map_err(|e| t!("app-configs-not-saved", file = file, e = e))?;
         }
         state.save_to(host.as_ref()).map_err(|e| format!("{file}: {e}"))?;
         if fstab {
@@ -718,7 +718,7 @@ impl CrowApp {
         if self.config_search.is_none() {
             let input = cx.new(|cx| {
                 InputState::new(window, cx)
-                    .placeholder("Filter configs...")
+                    .placeholder(t!("app-configs-filter-configs"))
                     .default_value(&self.configs.search_query)
             });
             let events = cx.subscribe(&input, |this, input, ev: &InputEvent, cx| {
@@ -753,7 +753,7 @@ impl CrowApp {
                     summary.rules = rules;
                 }
             }
-            self.firewall.toast = Some("Reverted firewall rules to baseline".to_string());
+            self.firewall.toast = Some(t!("app-configs-reverted-firewall-rules-to-baseline").to_string());
         }
         if let Some(state) = self.configs.states.get_mut(file) {
             state.revert();
@@ -845,13 +845,13 @@ impl CrowApp {
         let provider_name = crate::providers::display_name(&account.plugin);
         let settings = match (self.vault.key(), self.vault.db().lock()) {
             (Some(key), Ok(db)) => crate::providers::load_settings(&db, key, &account),
-            _ => Err(self.vault.secrets_blocker().unwrap_or_else(|| "the vault is busy".into())),
+            _ => Err(self.vault.secrets_blocker().unwrap_or_else(|| t!("app-configs-the-vault-is-busy").into())),
         };
         let offer = self.snapshot_offer.get_or_insert_with(|| SnapshotOffer { file: file.clone(), description: description.clone(), provider: provider_name.clone(), remember: false, busy: false, error: None });
         let settings = match settings {
             Ok(s) => s,
             Err(e) => {
-                offer.error = Some(format!("No snapshot, nothing applied: {e}"));
+                offer.error = Some(t!("app-configs-no-snapshot-nothing-applied", e = e));
                 cx.notify();
                 return;
             }
@@ -877,7 +877,7 @@ impl CrowApp {
                 Err(e) => {
                     if let Some(o) = this.snapshot_offer.as_mut() {
                         o.busy = false;
-                        o.error = Some(format!("The snapshot failed, so nothing was applied: {e}"));
+                        o.error = Some(t!("app-configs-the-snapshot-failed-so-nothing", e = e));
                     }
                     cx.notify();
                 }
@@ -891,7 +891,7 @@ impl CrowApp {
         let Some(pending) = self.risk_confirm.as_mut() else { return };
         let typed = pending.input.as_ref().map(|i| i.read(cx).value().trim().to_string()).unwrap_or_default();
         if typed != RISK_CONFIRM_KEYWORD {
-            pending.error = Some(format!("Type {RISK_CONFIRM_KEYWORD} exactly to stage this change."));
+            pending.error = Some(t!("app-configs-type-exactly-to-stage-this", risk_confirm_keyword = RISK_CONFIRM_KEYWORD));
             cx.notify();
             return;
         }
@@ -926,7 +926,7 @@ impl CrowApp {
             if file == "journald.conf" {
                 self.journal.show_retention_modal = false;
             } else if file == "user.rules" {
-                self.firewall.toast = Some(format!("Audit commit created: {}", description));
+                self.firewall.toast = Some(t!("app-configs-audit-commit-created", description = description));
             }
             cx.notify();
         }
@@ -966,7 +966,7 @@ impl CrowApp {
                     if let FirewallOperationalState::Active(ref mut summary) = self.firewall.status {
                         summary.rules = rules;
                     }
-                    self.firewall.toast = Some(format!("Rolled back firewall to revision v{}", version));
+                    self.firewall.toast = Some(t!("app-configs-rolled-back-firewall-to-revision", version = version));
                 }
                 cx.notify();
             }
@@ -985,10 +985,10 @@ impl CrowApp {
         let path = st.path.to_string_lossy().into_owned();
         let content = st.baseline_content.clone();
         let server_id = self.configs.server_id.clone().unwrap_or_else(|| history::LOCAL_SERVER_ID.to_string());
-        let server_name = self.configs_server().map(|s| s.name).unwrap_or_else(|| "this machine".into());
+        let server_name = self.configs_server().map(|s| s.name).unwrap_or_else(|| t!("app-configs-this-machine").into());
         let key = self.vault.key().cloned();
         let db = self.vault.db();
-        let result = db.lock().map_err(|_| VaultError::Crypto("the vault is busy".into())).and_then(|db| {
+        let result = db.lock().map_err(|_| VaultError::Crypto(t!("app-configs-the-vault-is-busy").into())).and_then(|db| {
             let rev = history::record(&db, key.as_ref(), &server_id, &path, &content, &self.default_author(), message, history::SOURCE_CROW)?;
             let now = chrono::Utc::now().to_rfc3339();
             db.insert_change_record(&ChangeRecord {
@@ -1009,7 +1009,7 @@ impl CrowApp {
         });
         self.refresh_drift();
         if let Err(e) = result {
-            self.configs.history_error = Some(format!("{file} was written, but its history wasn't recorded: {e}"));
+            self.configs.history_error = Some(t!("app-configs-was-written-but-its-history", file = file, e = e));
         }
     }
 
@@ -1050,21 +1050,21 @@ impl CrowApp {
         let Some(rev) = st.revisions.iter().find(|r| r.version == version && !r.id.is_empty()) else { return };
         let path = st.path.to_string_lossy().into_owned();
         let scope = self.configs.baseline_scope.clone();
-        let result = self.vault.db().lock().map_err(|_| VaultError::Crypto("the vault is busy".into())).and_then(|db| {
+        let result = self.vault.db().lock().map_err(|_| VaultError::Crypto(t!("app-configs-the-vault-is-busy").into())).and_then(|db| {
             db.set_config_baseline(&path, &scope, &rev.id, &self.default_author())?;
             self.audit_baseline(&db, &path, &format!("pinned v{version} for {}", scope_label(&scope)))
         });
-        self.configs.history_error = result.err().map(|e| format!("baseline not pinned: {e}"));
+        self.configs.history_error = result.err().map(|e| t!("app-configs-baseline-not-pinned", e = e));
         self.refresh_drift();
         cx.notify();
     }
 
     pub fn unpin_config_baseline(&mut self, path: &str, scope: &str, cx: &mut Context<Self>) {
-        let result = self.vault.db().lock().map_err(|_| VaultError::Crypto("the vault is busy".into())).and_then(|db| {
+        let result = self.vault.db().lock().map_err(|_| VaultError::Crypto(t!("app-configs-the-vault-is-busy").into())).and_then(|db| {
             db.clear_config_baseline(path, scope)?;
             self.audit_baseline(&db, path, &format!("unpinned for {}", scope_label(scope)))
         });
-        self.configs.history_error = result.err().map(|e| format!("baseline not unpinned: {e}"));
+        self.configs.history_error = result.err().map(|e| t!("app-configs-baseline-not-unpinned", e = e));
         self.refresh_drift();
         cx.notify();
     }
@@ -1086,7 +1086,7 @@ impl CrowApp {
         db.insert_change_record(&ChangeRecord {
             id: format!("chg_{}", chrono::Local::now().timestamp_micros()),
             server_id: srv.as_ref().map(|s| s.id.clone()).unwrap_or_else(|| history::LOCAL_SERVER_ID.into()),
-            server_name: srv.map(|s| s.name).unwrap_or_else(|| "this machine".into()),
+            server_name: srv.map(|s| s.name).unwrap_or_else(|| t!("app-configs-this-machine").into()),
             action_kind: "config.baseline".into(),
             target: path.into(),
             before_state: what.into(),
@@ -1131,7 +1131,7 @@ impl CrowApp {
         };
         self.configs.history_sealed = Some(key.is_some());
         self.refresh_drift();
-        self.configs.history_error = result.err().map(|e| format!("couldn't be read or recorded: {e}"));
+        self.configs.history_error = result.err().map(|e| t!("app-configs-couldnt-be-read-or-recorded", e = e));
         cx.notify();
     }
 

@@ -39,8 +39,8 @@ pub fn certificates_page(fleet: &FleetState, st: &CertificatesState, app: Entity
                         .flex()
                         .items_center()
                         .gap(px(12.0))
-                        .child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child("CERTIFICATES"))
-                        .child(mono(10.5, if soon > 0 || broken > 0 { WARN } else { OK }).child(format!("{total} served · {soon} expiring within {CERT_WARN_DAYS} days · {broken} server{} not renewing on its own", if broken == 1 { "" } else { "s" })))
+                        .child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("fleet-certificates-certificates")))
+                        .child(mono(10.5, if soon > 0 || broken > 0 { WARN } else { OK }).child(t!("fleet-certificates-served-expiring-within-days-not", total = total, soon = soon, cert_warn_days = CERT_WARN_DAYS, broken = broken)))
                         .child(div().flex_1())
                         .child(
                             div()
@@ -59,20 +59,20 @@ pub fn certificates_page(fleet: &FleetState, st: &CertificatesState, app: Entity
                                 .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                                 .on_click(move |_ev, _w, cx| app_refresh.update(cx, |this, cx| this.refresh_certificates(true, cx)))
                                 .child(inherited_icon(TablerIcon::Refresh, px(12.0)))
-                                .child(if st.reading.is_empty() { "READ AGAIN".to_string() } else { format!("READING {}…", st.reading.len()) }),
+                                .child(if st.reading.is_empty() { t!("fleet-certificates-read-again").to_string() } else { t!("fleet-certificates-reading", count = st.reading.len()) }),
                         ),
                 )
                 .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { OK } else { WARN }).line_height(px(15.0)).child(m)))
-                .child(mono(9.5, TEXT_FAINT).line_height(px(13.0)).child("RENEW runs certbot's dry run first, then the renewal, then checks and reloads nginx or Apache (never a broken config), and reads the certificate again to confirm its new expiry. certbot only renews within 30 days of expiry; Let's Encrypt limits how often a certificate can be issued."))
+                .child(mono(9.5, TEXT_FAINT).line_height(px(13.0)).child(t!("fleet-certificates-renew-runs-certbots-dry-run")))
                 .children(fleet.servers.iter().filter(|s| st.inventory.contains_key(&s.id) || st.certs.contains_key(&s.id) || st.reading.contains(&s.id)).map(|s| {
                     let inv = st.inventory.get(&s.id);
                     let certs = st.certs.get(&s.id).cloned().unwrap_or_default();
                     let tool = match inv {
                         Some(Ok(i)) if i.certbot => "certbot".to_string(),
                         Some(Ok(i)) if i.acme_sh.is_some() => "acme.sh".to_string(),
-                        Some(Ok(_)) => "no renewal tool".to_string(),
-                        Some(Err(e)) => format!("couldn't read: {e}"),
-                        None => "reading…".to_string(),
+                        Some(Ok(_)) => t!("fleet-certificates-no-renewal-tool").to_string(),
+                        Some(Err(e)) => t!("fleet-certificates-couldnt-read", e = e),
+                        None => t!("fleet-certificates-reading-2").to_string(),
                     };
                     let problem = inv.and_then(|i| i.as_ref().ok()).and_then(|i| i.auto_renew_problem());
                     div()
@@ -93,11 +93,11 @@ pub fn certificates_page(fleet: &FleetState, st: &CertificatesState, app: Entity
                                 .child(div().flex_1())
                                 .child(match &problem {
                                     Some(p) => mono(9.5, WARN).child(p.clone()),
-                                    None if inv.is_some_and(|i| i.as_ref().is_ok_and(|i| i.certbot || i.acme_sh.is_some())) => mono(9.5, OK).child("renews on its own"),
+                                    None if inv.is_some_and(|i| i.as_ref().is_ok_and(|i| i.certbot || i.acme_sh.is_some())) => mono(9.5, OK).child(t!("fleet-certificates-renews-on-its-own")),
                                     None => mono(9.5, TEXT_FAINT).child(""),
                                 }),
                         )
-                        .when(certs.is_empty(), |d| d.child(div().px(px(10.0)).py(px(6.0)).bg(BG_PANEL).child(mono(10.0, TEXT_DIM).child("No certificates found (Let's Encrypt's live folder, nginx and Apache configs)."))))
+                        .when(certs.is_empty(), |d| d.child(div().px(px(10.0)).py(px(6.0)).bg(BG_PANEL).child(mono(10.0, TEXT_DIM).child(t!("fleet-certificates-no-certificates-found-lets-encrypts")))))
                         .children(certs.iter().map(|c| {
                             let days = (c.expires - now) / 86_400;
                             let color = if days <= CERT_CRIT_DAYS { CRIT } else if days <= CERT_WARN_DAYS { WARN } else { OK };
@@ -113,8 +113,8 @@ pub fn certificates_page(fleet: &FleetState, st: &CertificatesState, app: Entity
                                 .border_color(BORDER_PANEL)
                                 .bg(BG_PANEL)
                                 .child(div().flex_none().size(px(7.0)).rounded_full().bg(color))
-                                .child(mono(10.5, TEXT_PRIMARY).w(px(200.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(if c.name.is_empty() { "(no name)".to_string() } else { c.name.clone() }))
-                                .child(mono(10.5, color).w(px(160.0)).flex_none().child(if days < 0 { format!("expired {} days ago", -days) } else { format!("{days} days left") }))
+                                .child(mono(10.5, TEXT_PRIMARY).w(px(200.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(if c.name.is_empty() { t!("fleet-certificates-no-name").to_string() } else { c.name.clone() }))
+                                .child(mono(10.5, color).w(px(160.0)).flex_none().child(if days < 0 { t!("fleet-certificates-expired-days-ago", days = -days) } else { t!("fleet-certificates-days-left", days = days) }))
                                 .child(mono(9.5, TEXT_FAINT).flex_1().min_w(px(0.0)).whitespace_nowrap().overflow_hidden().text_ellipsis().child(c.path.clone()))
                                 .child(if managed {
                                     div()
@@ -134,13 +134,13 @@ pub fn certificates_page(fleet: &FleetState, st: &CertificatesState, app: Entity
                                             let (sid, path) = (sid.clone(), path.clone());
                                             app.update(cx, |this, cx| this.plan_cert_renewal(&sid, &path, window, cx))
                                         })
-                                        .child("RENEW")
+                                        .child(t!("fleet-certificates-renew"))
                                         .into_any_element()
                                 } else {
-                                    mono(9.0, TEXT_FAINT).flex_none().child("not certbot/acme.sh").into_any_element()
+                                    mono(9.0, TEXT_FAINT).flex_none().child(t!("fleet-certificates-not-certbot-acme-sh")).into_any_element()
                                 })
                         }))
                 }))
-                .when(st.inventory.is_empty() && st.reading.is_empty(), |d| d.child(mono(10.5, TEXT_DIM).child("Nothing read yet: READ AGAIN reads every reachable server."))),
+                .when(st.inventory.is_empty() && st.reading.is_empty(), |d| d.child(mono(10.5, TEXT_DIM).child(t!("fleet-certificates-nothing-read-yet-read-again")))),
         )
 }

@@ -42,14 +42,14 @@ pub fn days_until_purge(srv: &ServerRecord, window_days: Option<i64>) -> Option<
 /// How an archived server's countdown reads in the Archived tab.
 pub fn purge_status_text(srv: &ServerRecord, window_days: Option<i64>) -> String {
     if srv.purged_at.is_some() {
-        return "stored data purged".to_string();
+        return t!("app-archive-stored-data-purged").to_string();
     }
     match days_until_purge(srv, window_days) {
-        Some(days) if days > 1 => format!("data purged in {days} days"),
-        Some(1) => "data purged in 1 day".to_string(),
-        Some(0) => "data purged today".to_string(),
-        Some(_) => "purge due".to_string(),
-        None => "purging is off · data kept".to_string(),
+        Some(days) if days > 1 => t!("app-archive-data-purged-in-days", days = days),
+        Some(1) => t!("app-archive-data-purged-in-1-day").to_string(),
+        Some(0) => t!("app-archive-data-purged-today").to_string(),
+        Some(_) => t!("app-archive-purge-due").to_string(),
+        None => t!("app-archive-purging-is-off-data-kept").to_string(),
     }
 }
 
@@ -66,7 +66,7 @@ pub fn archived_on_text(srv: &ServerRecord) -> String {
 pub fn purge_due_text(window_days: Option<i64>) -> String {
     match window_days {
         Some(days) => (Utc::now() + Duration::days(days)).format("%d %b %Y").to_string(),
-        None => "never — purging is switched off".to_string(),
+        None => t!("app-archive-never-purging-is-switched-off").to_string(),
     }
 }
 
@@ -104,7 +104,7 @@ impl CrowApp {
         // A bastion still in use: the servers behind it would lose their way in.
         let users: Vec<String> = crate::app::bastions::dependents(&srv.id, &self.fleet.servers).iter().map(|s| s.name.clone()).collect();
         if !users.is_empty() {
-            self.fleet.notice = Some(format!("{} is the bastion for {}: move them first, then archive it", srv.name, users.join(", ")));
+            self.fleet.notice = Some(t!("app-archive-is-the-bastion-for-move", name = srv.name, users = users.join(", ")));
             self.fleet.pending_archive = None;
             cx.notify();
             return;
@@ -114,14 +114,14 @@ impl CrowApp {
             Ok(db) => match db.archive_server(&srv.id) {
                 Ok(()) => db.list_archived_servers().unwrap_or_default(),
                 Err(e) => {
-                    self.fleet.notice = Some(format!("Could not archive {}: {e}", srv.name));
+                    self.fleet.notice = Some(t!("app-archive-could-not-archive", name = srv.name, e = e));
                     self.fleet.pending_archive = None;
                     cx.notify();
                     return;
                 }
             },
             Err(_) => {
-                self.fleet.notice = Some("Could not archive: the vault is unavailable".to_string());
+                self.fleet.notice = Some(t!("app-archive-could-not-archive-the-vault").to_string());
                 self.fleet.pending_archive = None;
                 cx.notify();
                 return;
@@ -142,7 +142,7 @@ impl CrowApp {
         self.fleet.pending_archive = None;
         self.forget_server_runtime(&srv, cx);
         update_directory(&self.fleet.servers, &self.keys.enrolled);
-        self.fleet.notice = Some(format!("{} archived · its data is purged {}", srv.name, self.purge_due_text()));
+        self.fleet.notice = Some(t!("app-archive-archived-its-data-is-purged", name = srv.name, purge_due_text = self.purge_due_text()));
         cx.notify();
     }
 
@@ -154,7 +154,7 @@ impl CrowApp {
         let (servers, archived) = match self.vault.db().lock() {
             Ok(db) => {
                 if let Err(e) = db.restore_server(&srv.id) {
-                    self.fleet.notice = Some(format!("Could not restore {}: {e}", srv.name));
+                    self.fleet.notice = Some(t!("app-archive-could-not-restore", name = srv.name, e = e));
                     cx.notify();
                     return;
                 }
@@ -171,7 +171,7 @@ impl CrowApp {
         self.fleet.metrics_store.extend(metrics);
         self.fleet.buffered_stores.extend(buffers);
 
-        self.fleet.notice = Some(format!("{} restored to the fleet", srv.name));
+        self.fleet.notice = Some(t!("app-archive-restored-to-the-fleet", name = srv.name));
         self.fleet.page = crate::views::fleet::state::FleetPage::Active;
         // Opens a tab for it; then stay on the Fleet screen it was restored from.
         self.switch_tab(&srv.id, cx);
@@ -226,7 +226,7 @@ impl CrowApp {
                     purged += 1;
                     self.record_purge_audit(&srv, &outcome);
                 }
-                Err(e) => self.fleet.notice = Some(format!("Could not purge {}'s data: {e}", srv.name)),
+                Err(e) => self.fleet.notice = Some(t!("app-archive-could-not-purge-s-data", name = srv.name, e = e)),
             }
         }
 

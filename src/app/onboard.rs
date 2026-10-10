@@ -66,12 +66,12 @@ impl CrowApp {
         if self.onboard_inputs.is_none() {
             let st = &self.onboard_state;
             let fields = [
-                (OnboardFieldFocus::Host, st.host.clone(), "e.g. 10.0.4.32 or prod-db.internal", false),
+                (OnboardFieldFocus::Host, st.host.clone(), t!("app-onboard-e-g-10-0-4"), false),
                 (OnboardFieldFocus::Port, st.port.clone(), "22", false),
                 (OnboardFieldFocus::User, st.user.clone(), "root", false),
                 (OnboardFieldFocus::Password, st.password.to_string(), "password", true),
-                (OnboardFieldFocus::Label, st.label.clone(), "e.g. prod-db-01", false),
-                (OnboardFieldFocus::Tags, st.tags.clone(), "e.g. postgres, primary", false),
+                (OnboardFieldFocus::Label, st.label.clone(), t!("app-onboard-e-g-prod-db-01"), false),
+                (OnboardFieldFocus::Tags, st.tags.clone(), t!("app-onboard-e-g-postgres-primary"), false),
             ];
             let mut events = Vec::new();
             let mut made = Vec::new();
@@ -123,7 +123,7 @@ impl CrowApp {
         self.onboard_state.label = name.to_string();
         self.onboard_state.user = "root".to_string();
         self.onboard_state.env = "LAB".to_string();
-        self.onboard_state.role = format!("test-node · {}", distro);
+        self.onboard_state.role = t!("app-onboard-test-node", distro = distro);
         self.onboard_state.facts.distro = distro.to_string();
         self.onboard_inputs = None;
         cx.notify();
@@ -237,15 +237,15 @@ impl CrowApp {
                     o.port = "22".into();
                 }
                 let problem = if o.host.trim().is_empty() {
-                    Some("The server's address is missing.")
+                    Some(t!("app-onboard-the-servers-address-is-missing"))
                 } else if o.host.trim().starts_with('-') || o.host.trim().contains(char::is_whitespace) {
-                    Some("That isn't an address: a host name or IP, without spaces.")
+                    Some(t!("app-onboard-that-isnt-an-address-a"))
                 } else if o.user.trim().is_empty() {
-                    Some("The user to log in as is missing.")
+                    Some(t!("app-onboard-the-user-to-log-in"))
                 } else if o.auth_method == "publickey" && o.selected_key_id.is_none() {
-                    Some("Pick the key Crow logs in with, or use a password once.")
+                    Some(t!("app-onboard-pick-the-key-crow-logs"))
                 } else if o.auth_method == "password" && o.password.is_empty() {
-                    Some("Type the server's password: Crow uses it once to install its key.")
+                    Some(t!("app-onboard-type-the-servers-password-crow"))
                 } else {
                     None
                 };
@@ -261,7 +261,7 @@ impl CrowApp {
             }
             OnboardStep::Verify => {
                 if !o.host_key_accepted {
-                    o.error_message = Some("Trust the server's host key first (or check again).".into());
+                    o.error_message = Some(t!("app-onboard-trust-the-servers-host-key").into());
                     cx.notify();
                     return;
                 }
@@ -269,13 +269,13 @@ impl CrowApp {
             }
             OnboardStep::Name => {
                 if o.label.trim().is_empty() {
-                    o.error_message = Some("Give it a name.".into());
+                    o.error_message = Some(t!("app-onboard-give-it-a-name").into());
                     cx.notify();
                     return;
                 }
                 let name = o.label.trim().to_string();
                 if self.fleet.servers.iter().any(|s| s.name == name && s.host != self.onboard_state.host.trim()) {
-                    self.onboard_state.error_message = Some(format!("{name} is already the name of another server."));
+                    self.onboard_state.error_message = Some(t!("app-onboard-is-already-the-name-of", name = name));
                     cx.notify();
                     return;
                 }
@@ -316,17 +316,17 @@ impl CrowApp {
         if let Some(k) = self.keys.enrolled.iter().find(|k| exists(k)) {
             return Ok(k.clone());
         }
-        let dir = dirs::home_dir().ok_or("no home directory")?.join(".ssh");
+        let dir = dirs::home_dir().ok_or(t!("app-onboard-no-home-directory"))?.join(".ssh");
         // Never overwrite a key file that isn't recorded in this vault.
         let file = (0..100)
             .map(|i| if i == 0 { "crow_ed25519".to_string() } else { format!("crow_ed25519_{i}") })
             .find(|f| !dir.join(f).exists())
-            .ok_or("no free crow_ed25519 file name in ~/.ssh")?;
+            .ok_or(t!("app-onboard-no-free-crow-ed25519-file"))?;
         let host = std::fs::read_to_string("/etc/hostname").map(|h| h.trim().to_string()).unwrap_or_default();
         let comment = format!("crow@{}", if host.is_empty() { "workstation" } else { &host });
         let (record, ..) = crate::keys::generate_keypair(CROW_KEY_NAME, crate::keys::KeyAlgorithm::Ed25519, Some(&comment), "fleet", &dir, Some(&file))?;
         if let Ok(db) = self.vault.db().lock() {
-            db.upsert_ssh_key(&record).map_err(|e| format!("saving Crow's key in the vault: {e}"))?;
+            db.upsert_ssh_key(&record).map_err(|e| t!("app-onboard-saving-crows-key-in-the", e = e))?;
         }
         self.refresh_keys(cx);
         Ok(record)
@@ -339,7 +339,7 @@ impl CrowApp {
             return Ok(None);
         }
         if self.onboard_state.password.is_empty() {
-            return Err("enter the server's password on step 2 (Credentials)".into());
+            return Err(t!("app-onboard-enter-the-servers-password-on").into());
         }
         let key = self.ensure_crow_key(cx)?;
         let jump = crate::host::ssh::proxy_for(&self.onboard_candidate())?;
@@ -359,7 +359,7 @@ impl CrowApp {
         // Behind a bastion: probe through it (ERR-152).
         let via = match crate::host::ssh::proxy_for(&candidate) {
             Ok(Some(proxy)) => {
-                let name = crate::host::ssh::chain_of(&candidate).ok().and_then(|c| c.last().map(|h| h.name.clone())).unwrap_or_else(|| "the bastion".into());
+                let name = crate::host::ssh::chain_of(&candidate).ok().and_then(|c| c.last().map(|h| h.name.clone())).unwrap_or_else(|| t!("app-onboard-the-bastion").into());
                 Some(Ok((proxy, name)))
             }
             Ok(None) => None,
@@ -375,7 +375,7 @@ impl CrowApp {
                         Some(Ok((proxy, name))) => crate::views::onboard::probe::probe_via_bastion(&candidate.host, candidate.port, &candidate.login_user, &proxy, &name),
                         Some(Err(e)) => {
                             let mut logs = Vec::new();
-                            probe_log(&mut logs, "✕", CRIT, format!("can't go through the bastion: {e}"), String::new());
+                            probe_log(&mut logs, "✕", CRIT, t!("app-onboard-cant-go-through-the-bastion", e = e), String::new());
                             let mut r = crate::views::onboard::probe::ProbeResult::empty();
                             r.error = Some(e);
                             (r, logs)
@@ -419,17 +419,17 @@ impl CrowApp {
     pub fn onboard_accept_host_key(&mut self, cx: &mut Context<Self>) {
         let Some(result) = self.onboard_state.probe_result.as_ref() else { return };
         if result.host_key_mismatch {
-            self.onboard_state.error_message = Some("The host key changed. Remove the old entry from ~/.ssh/known_hosts yourself if the change is expected.".into());
+            self.onboard_state.error_message = Some(t!("app-onboard-the-host-key-changed-remove").into());
             cx.notify();
             return;
         }
         if result.scanned_keys.is_empty() {
-            self.onboard_state.error_message = Some("No host key was fetched from the server; probe it again.".into());
+            self.onboard_state.error_message = Some(t!("app-onboard-no-host-key-was-fetched").into());
             cx.notify();
             return;
         }
         if let Err(e) = trust_host_keys(&result.scanned_keys) {
-            self.onboard_state.error_message = Some(format!("Couldn't write ~/.ssh/known_hosts: {e}"));
+            self.onboard_state.error_message = Some(t!("app-onboard-couldnt-write-ssh-known-hosts", e = e));
             cx.notify();
             return;
         }
@@ -563,7 +563,7 @@ impl CrowApp {
         self.reload_configs_for_active_server(cx);
         self.screen = Screen::Server;
         self.active_view = "overview".to_string();
-        self.keys.toast = Some(format!("Server '{}' enrolled into fleet", name));
+        self.keys.toast = Some(t!("app-onboard-server-enrolled-into-fleet", name = name));
         // Nothing of the wizard outlives it, least of all a password.
         self.onboard_state.password.zeroize();
         self.onboard_inputs = None;
@@ -608,18 +608,18 @@ fn connect_and_read(mut candidate: ServerRecord, bootstrap: Result<Option<Bootst
     let mut installed = None;
     match bootstrap {
         Err(why) => {
-            probe_log(logs, "✕", CRIT, format!("password login: {why}"), String::new());
+            probe_log(logs, "✕", CRIT, t!("app-onboard-password-login", why = why), String::new());
             return (DetectedFacts::default(), None);
         }
         Ok(Some(b)) => match install_key_with_password(&candidate, b.jump.as_deref(), b.password, &b.key.public_key) {
             Ok(()) => {
-                probe_log(logs, "✓", OK, format!("logged in with the password once; installed Crow's key ({})", b.key.fingerprint), "key-only from now on".into());
+                probe_log(logs, "✓", OK, t!("app-onboard-logged-in-with-the-password", fingerprint = b.key.fingerprint), t!("app-onboard-key-only-from-now-on").into());
                 candidate.auth_method = "publickey".into();
                 candidate.key_id = Some(b.key.id.clone());
                 installed = Some(b.key.id);
             }
             Err(e) => {
-                probe_log(logs, "✕", CRIT, format!("password login: {e}"), String::new());
+                probe_log(logs, "✕", CRIT, t!("app-onboard-password-login-2", e = e), String::new());
                 return (DetectedFacts::default(), None);
             }
         },

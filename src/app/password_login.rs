@@ -29,7 +29,7 @@ impl CrowApp {
         let Some(srv) = self.fleet.active_server() else { return };
         let mut flow = PasswordLoginFlow { server_id: srv.id.clone(), server_name: srv.name.clone(), stage: PasswordLoginStage::Checking, ack: false };
         if srv.auth_method != "publickey" {
-            flow.stage = PasswordLoginStage::Unavailable("Crow doesn't connect to this server with its own key yet. Set up key login first (Add Server → install Crow's key), then turn passwords off.".into());
+            flow.stage = PasswordLoginStage::Unavailable(t!("app-password-login-crow-doesnt-connect-to-this").into());
             self.password_login = Some(flow);
             cx.notify();
             return;
@@ -41,10 +41,10 @@ impl CrowApp {
             let _ = entity.update(cx, |this, cx| {
                 if let Some(f) = this.password_login.as_mut() {
                     f.stage = match result {
-                        Ok(p) if !p.password_login_on => PasswordLoginStage::Done(Ok(vec!["✓ Password login is already off on this server.".into()])),
-                        Ok(p) if !p.reads_dropins => PasswordLoginStage::Unavailable("This sshd_config doesn't include sshd_config.d, so Crow's drop-in wouldn't apply. Set PasswordAuthentication to no in the sshd_config sheet, then reload sshd.".into()),
+                        Ok(p) if !p.password_login_on => PasswordLoginStage::Done(Ok(vec![t!("app-password-login-password-login-is-already-off").into()])),
+                        Ok(p) if !p.reads_dropins => PasswordLoginStage::Unavailable(t!("app-password-login-this-sshd-config-doesnt-include").into()),
                         Ok(p) => PasswordLoginStage::Ready(p),
-                        Err(e) => PasswordLoginStage::Unavailable(format!("Couldn't read sshd's settings: {e}")),
+                        Err(e) => PasswordLoginStage::Unavailable(t!("app-password-login-couldnt-read-sshds-settings", e = e)),
                     };
                 }
                 cx.notify();

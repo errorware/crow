@@ -49,7 +49,7 @@ impl CrowApp {
         self.snapshots_panel = Some(SnapshotsPanel { server: srv.name.clone(), provider, result: None });
         let settings = match (self.vault.key(), self.vault.db().lock()) {
             (Some(key), Ok(db)) => crate::providers::load_settings(&db, key, &account),
-            _ => Err(self.vault.secrets_blocker().unwrap_or_else(|| "the vault is busy".into())),
+            _ => Err(self.vault.secrets_blocker().unwrap_or_else(|| t!("app-danger-the-vault-is-busy").into())),
         };
         let settings = match settings {
             Ok(s) => s,
@@ -93,7 +93,7 @@ impl CrowApp {
         let Some(account) = self.providers.accounts.iter().find(|a| a.id == srv.provider_account).cloned() else { return };
         let settings = match (self.vault.key(), self.vault.db().lock()) {
             (Some(key), Ok(db)) => crate::providers::load_settings(&db, key, &account),
-            _ => Err(self.vault.secrets_blocker().unwrap_or_else(|| "the vault is busy".into())),
+            _ => Err(self.vault.secrets_blocker().unwrap_or_else(|| t!("app-danger-the-vault-is-busy").into())),
         };
         let settings = match settings {
             Ok(s) => s,
@@ -119,7 +119,7 @@ impl CrowApp {
                 completed_at: None,
             });
         }
-        self.danger.last_result = Some(format!("asking {} to {}…", account.label, action.verb()));
+        self.danger.last_result = Some(t!("app-danger-asking-to", label = account.label, verb = action.verb()));
         cx.notify();
         let (db, instance) = (self.vault.db(), srv.provider_instance.clone());
         cx.spawn(async move |entity, cx| {
@@ -177,13 +177,13 @@ impl CrowApp {
             .map(|s| s.read(cx).value().trim().to_string())
             .unwrap_or_default();
         if typed != keyword {
-            self.danger.error = Some(format!("Type {} exactly to confirm.", keyword));
+            self.danger.error = Some(t!("app-danger-type-exactly-to-confirm", keyword = keyword));
             cx.notify();
             return;
         }
 
         let Some(srv) = self.fleet.active_server() else {
-            self.danger.error = Some("No active server".to_string());
+            self.danger.error = Some(t!("app-danger-no-active-server").to_string());
             cx.notify();
             return;
         };
@@ -206,9 +206,9 @@ impl CrowApp {
             "flush_firewall" => flush_firewall(&srv),
             "kill_containers" => {
                 let (ok, failed) = kill_all_lab_containers(&self.local_lab.nodes);
-                Ok(format!("Stopped {} lab container(s), {} failed", ok, failed))
+                Ok(t!("app-danger-stopped-lab-container-s-failed", ok = ok, failed = failed))
             }
-            _ => Err("Unknown action".to_string()),
+            _ => Err(t!("app-danger-unknown-action").to_string()),
         };
 
         match result {

@@ -85,9 +85,9 @@ impl CrowApp {
             let secret = def.field_type == FieldType::Secret;
             let current = account.as_ref().and_then(|a| a.settings.get(&def.name)).map(|v| v.as_str().map(str::to_string).unwrap_or_else(|| v.to_string()));
             let placeholder = if secret {
-                if account.as_ref().is_some_and(|a| self.providers.is_secret_set(&a.id, &def.name)) { "set · type to replace".to_string() } else { "not set".to_string() }
+                if account.as_ref().is_some_and(|a| self.providers.is_secret_set(&a.id, &def.name)) { t!("app-providers-set-type-to-replace").to_string() } else { t!("app-providers-not-set").to_string() }
             } else {
-                def.default.clone().map(|d| format!("default: {d}")).unwrap_or_default()
+                def.default.clone().map(|d| t!("app-providers-default", d = d)).unwrap_or_default()
             };
             let input = cx.new(|cx| {
                 let state = InputState::new(window, cx).placeholder(placeholder).masked(secret);
@@ -153,7 +153,7 @@ impl CrowApp {
         }
         let result = match self.vault.db().lock() {
             Ok(db) => providers::save_form(&db, self.vault.key(), &mut account, edits),
-            Err(_) => Err("the vault is busy; try again".into()),
+            Err(_) => Err(t!("app-providers-the-vault-is-busy-try").into()),
         };
         match result {
             Ok(()) => {
@@ -176,7 +176,7 @@ impl CrowApp {
         let Some(mut account) = self.providers.account(plugin).cloned() else { return };
         let result = match self.vault.db().lock() {
             Ok(db) => providers::save_form(&db, self.vault.key(), &mut account, vec![SettingsEdit::ClearSecret { key: key.to_string() }]),
-            Err(_) => Err("the vault is busy; try again".into()),
+            Err(_) => Err(t!("app-providers-the-vault-is-busy-try").into()),
         };
         if let Err(e) = result {
             self.providers.errors.insert(plugin.to_string(), e);
@@ -217,8 +217,8 @@ impl CrowApp {
         let db = self.vault.db();
         let settings = match (self.vault.key(), db.lock()) {
             (Some(key), Ok(guard)) => providers::load_settings(&guard, key, &account),
-            (None, _) => Err("the vault is locked or has no password, so the provider's secrets can't be read".into()),
-            (_, Err(_)) => Err("the vault is busy; try again".into()),
+            (None, _) => Err(t!("app-providers-the-vault-is-locked-or").into()),
+            (_, Err(_)) => Err(t!("app-providers-the-vault-is-busy-try").into()),
         };
         let settings = match settings {
             Ok(s) => s,
@@ -291,12 +291,12 @@ impl CrowApp {
             .cloned()
             .collect();
         if accounts.is_empty() {
-            self.import.errors.push("No provider accounts yet. Set one up in Settings → Providers.".into());
+            self.import.errors.push(t!("app-providers-no-provider-accounts-yet-set").into());
             cx.notify();
             return;
         }
         let Some(key) = self.vault.key().cloned() else {
-            self.import.errors.push(self.vault.secrets_blocker().unwrap_or_else(|| "no encryption key".into()));
+            self.import.errors.push(self.vault.secrets_blocker().unwrap_or_else(|| t!("app-providers-no-encryption-key").into()));
             cx.notify();
             return;
         };
@@ -318,7 +318,7 @@ impl CrowApp {
                     .background_executor()
                     .spawn(async move {
                         let provider = providers::connect(&acct, settings).map_err(|e| e.to_string())?;
-                        let list = provider.as_list_instances().ok_or("this provider can't list instances")?;
+                        let list = provider.as_list_instances().ok_or(t!("app-providers-this-provider-cant-list-instances"))?;
                         list.instances().map_err(|e| e.to_string())
                     })
                     .await;
@@ -344,8 +344,8 @@ impl CrowApp {
             }
         }
         self.import.linked += r.updates.len();
-        self.import.missing.extend(r.missing.into_iter().map(|m| format!("{m} (no longer listed by {name})")));
-        self.import.missing.extend(r.address_changed.into_iter().map(|(m, addrs)| format!("{m}: {name} now lists {} for it; Crow still connects to the old address", addrs.join(", "))));
+        self.import.missing.extend(r.missing.into_iter().map(|m| t!("app-providers-no-longer-listed-by", m = m, name = name)));
+        self.import.missing.extend(r.address_changed.into_iter().map(|(m, addrs)| t!("app-providers-now-lists-for-it-crow", m = m, name = name, addrs = addrs.join(", "))));
         self.import.rows.extend(r.rows);
         if !r.updates.is_empty() {
             self.reload_servers();

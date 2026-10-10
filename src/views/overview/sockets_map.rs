@@ -57,11 +57,11 @@ pub fn resolve_connection_map_items(sockets: &[SocketUnit]) -> Vec<ConnectionMap
 /// Formats byte counts nicely (e.g. 1.2 MB, 450 KB, 80 B)
 fn format_bytes(bytes: u64) -> String {
     if bytes >= 1024 * 1024 * 1024 {
-        format!("{:.1} GB", bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+        t!("overview-sockets-map-gb", bytes = format!("{:.1}", bytes as f64 / (1024.0 * 1024.0 * 1024.0)))
     } else if bytes >= 1024 * 1024 {
-        format!("{:.1} MB", bytes as f64 / (1024.0 * 1024.0))
+        t!("overview-sockets-map-mb", bytes = format!("{:.1}", bytes as f64 / (1024.0 * 1024.0)))
     } else if bytes >= 1024 {
-        format!("{:.0} KB", bytes as f64 / 1024.0)
+        t!("overview-sockets-map-kb", bytes = format!("{:.0}", bytes as f64 / 1024.0))
     } else {
         format!("{} B", bytes)
     }
@@ -156,8 +156,8 @@ pub fn render_sockets_map(
                 .bg(BG_PANEL)
                 // Left Column: Remote Peers (Incoming)
                 .child(render_peers_column(
-                    "INCOMING PEERS",
-                    "Remote clients initiating traffic into listening services",
+                    t!("overview-sockets-map-incoming-peers"),
+                    t!("overview-sockets-map-remote-clients-initiating-traffic-into"),
                     &sorted_incoming,
                     ConnectionDirection::Incoming,
                     overview,
@@ -165,16 +165,16 @@ pub fn render_sockets_map(
                 ))
                 // Middle Column: Local Host Processes & Services
                 .child(render_local_column(
-                    "LOCAL PROCESSES & DAEMONS",
-                    "Host processes maintaining open sockets",
+                    t!("overview-sockets-map-local-processes-daemons"),
+                    t!("overview-sockets-map-host-processes-maintaining-open-sockets"),
                     &sorted_procs,
                     overview,
                     app.clone(),
                 ))
                 // Right Column: Remote Peers (Outgoing)
                 .child(render_peers_column(
-                    "OUTGOING PEERS",
-                    "External endpoints reached by host processes",
+                    t!("overview-sockets-map-outgoing-peers"),
+                    t!("overview-sockets-map-external-endpoints-reached-by-host"),
                     &sorted_outgoing,
                     ConnectionDirection::Outgoing,
                     overview,
@@ -250,7 +250,7 @@ fn render_map_filter_toolbar(
                 .on_click(move |_ev, _window, cx| {
                     app_loopback.update(cx, |this, cx| this.toggle_map_hide_loopback(cx));
                 })
-                .child("HIDE 127.0.0.1"),
+                .child(t!("overview-sockets-map-hide-127-0-0-1")),
         )
         // Process Focus Chip (if any)
         .children(overview.map_process_focus.as_ref().map(|proc_name| {
@@ -265,7 +265,7 @@ fn render_map_filter_toolbar(
                 .border_1()
                 .border_color(hex_rgb(0x38bdf8))
                 .text_color(hex_rgb(0x38bdf8))
-                .child(format!("FOCUS: {}", p_name))
+                .child(t!("overview-sockets-map-focus", p_name = p_name))
                 .child(
                     icon_button("btn-clear-proc-focus", TablerIcon::X, false)
                         .on_click(move |_ev, _window, cx| {
@@ -278,7 +278,7 @@ fn render_map_filter_toolbar(
         .child(
             div()
                 .text_color(TEXT_DIM)
-                .child(format!("SHOWING {} OF {} ESTABLISHED CONNECTIONS", shown_conns, total_conns)),
+                .child(t!("overview-sockets-map-showing-of-established-connections", shown_conns = shown_conns, total_conns = total_conns)),
         )
 }
 
@@ -343,7 +343,7 @@ fn render_peers_column(
                         .font_family(FONT_MONO)
                         .text_size(px(10.5))
                         .text_color(TEXT_FAINT)
-                        .child("No connections in this category.")
+                        .child(t!("overview-sockets-map-no-connections-in-this-category"))
                         .into_any_element()]
                 } else {
                     peers
@@ -439,7 +439,7 @@ fn render_peer_card(
                 .font_family(FONT_MONO)
                 .text_size(px(9.5))
                 .text_color(TEXT_DIM)
-                .child(format!("{} connection{} · ports: {}", items.len(), if items.len() == 1 { "" } else { "s" }, ports_summary)),
+                .child(t!("overview-sockets-map-ports", count = items.len(), ports_summary = ports_summary)),
         )
         // Bottom line: Traffic statistics if available
         .children((total_sent > 0 || total_recv > 0).then(|| {
@@ -515,7 +515,7 @@ fn render_local_column(
                         .font_family(FONT_MONO)
                         .text_size(px(10.5))
                         .text_color(TEXT_FAINT)
-                        .child("No active process connections.")
+                        .child(t!("overview-sockets-map-no-active-process-connections"))
                         .into_any_element()]
                 } else {
                     procs
@@ -535,8 +535,8 @@ fn render_process_card(
     let pid_str = items
         .first()
         .and_then(|i| i.socket.pid)
-        .map(|p| format!("PID {}", p))
-        .unwrap_or_else(|| "proc unprivileged".to_string());
+        .map(|p| t!("overview-sockets-map-pid", p = p))
+        .unwrap_or_else(|| t!("overview-sockets-map-proc-unprivileged").to_string());
 
     let in_count = items.iter().filter(|i| i.direction == ConnectionDirection::Incoming).count();
     let out_count = items.iter().filter(|i| i.direction == ConnectionDirection::Outgoing).count();
@@ -601,12 +601,12 @@ fn render_process_card(
                 .child(
                     div()
                         .text_color(if in_count > 0 { OK } else { TEXT_FAINTER })
-                        .child(format!("← {} in", in_count)),
+                        .child(t!("overview-sockets-map-in", in_count = in_count)),
                 )
                 .child(
                     div()
                         .text_color(if out_count > 0 { hex_rgb(0x60a5fa) } else { TEXT_FAINTER })
-                        .child(format!("→ {} out", out_count)),
+                        .child(t!("overview-sockets-map-out", out_count = out_count)),
                 ),
         )
 }
@@ -669,7 +669,7 @@ fn render_connection_inspector(
                     div()
                         .text_size(px(9.5))
                         .text_color(TEXT_DIM)
-                        .child(format!("Protocol: {} · State: {} · Direction: {:?}", sock.protocol, sock.state, item.direction)),
+                        .child(t!("overview-sockets-map-protocol-state-direction", protocol = sock.protocol, state = sock.state, direction = format!("{:?}", item.direction))),
                 ),
         )
         // Center: Process & PID jump button
@@ -682,7 +682,7 @@ fn render_connection_inspector(
                     div()
                         .text_size(px(10.5))
                         .text_color(TEXT_DIM)
-                        .child(format!("Process: {} (PID {:?})", sock.process, sock.pid)),
+                        .child(t!("overview-sockets-map-process-pid", process = sock.process, pid = format!("{:?}", sock.pid))),
                 )
                 .child(
                     div()
@@ -703,7 +703,7 @@ fn render_connection_inspector(
                                 this.overview.process_query = p;
                             });
                         })
-                        .child("VIEW IN PROCESSES →"),
+                        .child(t!("overview-sockets-map-view-in-processes")),
                 ),
         )
         // Center-Right: Firewall Rule Status & Jump
@@ -747,7 +747,7 @@ fn render_connection_inspector(
                                         this.firewall.search_query = p;
                                     });
                                 })
-                                .child("VIEW IN FIREWALL →"),
+                                .child(t!("overview-sockets-map-view-in-firewall")),
                         )
                     }
                     _ => None,

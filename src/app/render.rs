@@ -205,7 +205,7 @@ impl Render for CrowApp {
                             self.menu_open,
                             self.fleet.servers.len(),
                             match self.active_member() {
-                                Some(m) => format!("as {} · {} · {}", m.name, m.role.name(), self.session_label()),
+                                Some(m) => t!("app-render-as", name = m.name, name2 = m.role.name(), session_label = self.session_label()),
                                 None => self.session_label(),
                             },
                             &stance,
@@ -262,14 +262,14 @@ impl Render for CrowApp {
                                                             .font_weight(FontWeight::BOLD)
                                                             .text_size(px(13.0))
                                                             .text_color(TEXT_MAX)
-                                                            .child("NO ACTIVE SERVER SELECTED"),
+                                                            .child(t!("app-render-no-active-server-selected")),
                                                     )
                                                     .child(
                                                         div()
                                                             .font_family(FONT_MONO)
                                                             .text_size(px(11.0))
                                                             .text_color(TEXT_DIM)
-                                                            .child("Select a server tab or enroll a new Linux host to inspect services and config."),
+                                                            .child(t!("app-render-select-a-server-tab-or")),
                                                     )
                                                     .child(
                                                         div()
@@ -296,7 +296,7 @@ impl Render for CrowApp {
                                                                             this.set_screen(Screen::Fleet, cx);
                                                                         });
                                                                     })
-                                                                    .child("⬢ GO TO FLEET OVERVIEW"),
+                                                                    .child(t!("app-render-go-to-fleet-overview")),
                                                             )
                                                             .child(
                                                                 div()
@@ -317,7 +317,7 @@ impl Render for CrowApp {
                                                                             this.set_screen(Screen::Onboard, cx);
                                                                         });
                                                                     })
-                                                                    .child("+ ENROLL NEW SERVER"),
+                                                                    .child(t!("app-render-enroll-new-server")),
                                                             ),
                                                     ),
                                             )
@@ -546,7 +546,7 @@ impl Render for CrowApp {
                                                                                 .text_size(px(11.5))
                                                                                 .text_color(TEXT_FAINT)
                                                                                 .child(div().size(px(6.0)).rounded_full().bg(OK))
-                                                                                .child(format!("{} · not built yet", self.active_view)),
+                                                                                .child(t!("app-render-not-built-yet", active_view = self.active_view)),
                                                                         ),
                                                                 )
                                                             })
@@ -627,7 +627,7 @@ impl Render for CrowApp {
                             let scope = self.fleet.servers.iter()
                                 .find(|s| s.id == self.fleet.active_tab_id || s.name == self.fleet.active_tab_id)
                                 .map(|s| s.name.as_str())
-                                .unwrap_or("Fleet");
+                                .unwrap_or(t!("app-render-fleet"));
                             Some(palette_overlay(app_view.clone(), scope, self.palette_scope_name(), self.palette.input.as_ref(), &palette_results, self.palette.selected, &self.palette.query))
                         } else {
                             None
@@ -677,11 +677,11 @@ impl CrowApp {
         let Some(srv) = self.fleet.active_server() else { return "local".into() };
         match transport_kind(&srv) {
             TransportKind::Local => "local".into(),
-            TransportKind::Container => "lab container".into(),
+            TransportKind::Container => t!("app-render-lab-container").into(),
             TransportKind::Ssh => match connection_state(&srv.id) {
-                None => "ssh · connecting".into(),
-                Some(ConnectionState::Connected) => "ssh · connected".into(),
-                Some(state) => format!("ssh · {}", state.label().to_lowercase()),
+                None => t!("app-render-ssh-connecting").into(),
+                Some(ConnectionState::Connected) => t!("app-render-ssh-connected").into(),
+                Some(state) => t!("app-render-ssh", label = state.label().to_lowercase()),
             },
         }
     }

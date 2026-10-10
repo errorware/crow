@@ -70,7 +70,7 @@ pub fn hardening_page(rows: &[ServerFindings], reason: Option<&Entity<InputState
         }
     }
     let (app_check, app_report) = (app.clone(), app.clone());
-    let checked = if checked_at == 0 { "not yet".to_string() } else { format!("{} min ago", ((chrono::Utc::now().timestamp() - checked_at).max(0)) / 60) };
+    let checked = if checked_at == 0 { t!("fleet-hardening-not-yet").to_string() } else { t!("fleet-hardening-min-ago", chrono = ((chrono::Utc::now().timestamp() - checked_at).max(0)) / 60) };
     div()
         .id("hardening-page")
         .flex_1()
@@ -88,22 +88,22 @@ pub fn hardening_page(rows: &[ServerFindings], reason: Option<&Entity<InputState
                         .flex()
                         .items_center()
                         .gap(px(12.0))
-                        .child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child("POSTURE"))
-                        .child(mono(10.5, if crit > 0 { CRIT } else if open > 0 { WARN } else { OK }).child(format!("{open} open ({crit} critical) · {accepted} accepted")))
-                        .child(mono(9.5, TEXT_FAINT).child(format!("read {checked}, as root where Crow can (sshd -T, the firewall's status, ss)")))
+                        .child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("fleet-hardening-posture")))
+                        .child(mono(10.5, if crit > 0 { CRIT } else if open > 0 { WARN } else { OK }).child(t!("fleet-hardening-open-critical-accepted", open = open, crit = crit, accepted = accepted)))
+                        .child(mono(9.5, TEXT_FAINT).child(t!("fleet-hardening-read-as-root-where-crow", checked = checked)))
                         .child(div().flex_1())
-                        .child(header_button("btn-hardening-check", Some(TablerIcon::Refresh), if scanning { "READING…".into() } else { "CHECK NOW".into() }).on_click(move |_ev, _w, cx| app_check.update(cx, |this, cx| this.check_posture(cx))))
-                        .child(header_button("btn-hardening-report", None, "EXPORT REPORT (.md)".into()).on_click(move |_ev, _w, cx| app_report.update(cx, |this, cx| this.export_posture_report(cx)))),
+                        .child(header_button("btn-hardening-check", Some(TablerIcon::Refresh), if scanning { t!("fleet-hardening-reading").into() } else { t!("fleet-hardening-check-now").into() }).on_click(move |_ev, _w, cx| app_check.update(cx, |this, cx| this.check_posture(cx))))
+                        .child(header_button("btn-hardening-report", None, t!("fleet-hardening-export-report-md").into()).on_click(move |_ev, _w, cx| app_report.update(cx, |this, cx| this.export_posture_report(cx)))),
                 )
                 .children(message.map(|(ok, m)| mono(10.5, if ok { OK } else { WARN }).line_height(px(15.0)).child(m)))
-                .child(div().flex().items_center().gap(px(10.0)).child(mono(9.5, TEXT_DIMMER).font_weight(FontWeight::SEMIBOLD).child("REASON TO ACCEPT")).child(div().flex_1().max_w(px(560.0)).children(reason.map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0))))))
+                .child(div().flex().items_center().gap(px(10.0)).child(mono(9.5, TEXT_DIMMER).font_weight(FontWeight::SEMIBOLD).child(t!("fleet-hardening-reason-to-accept"))).child(div().flex_1().max_w(px(560.0)).children(reason.map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0))))))
                 .when(codes.iter().any(|(_, n)| *n > 1), |d| {
-                    d.child(div().flex().flex_wrap().gap(px(6.0)).child(mono(9.5, TEXT_FAINT).mr(px(4.0)).child("fix everywhere:")).children(codes.into_iter().filter(|(_, n)| *n > 1).map(|(code, n)| {
+                    d.child(div().flex().flex_wrap().gap(px(6.0)).child(mono(9.5, TEXT_FAINT).mr(px(4.0)).child(t!("fleet-hardening-fix-everywhere"))).children(codes.into_iter().filter(|(_, n)| *n > 1).map(|(code, n)| {
                         let app = app.clone();
                         action(format!("fix-all-{code}"), format!("{code} ({n})"), OK).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_hardening_fix(code, None, window, cx)))
                     })))
                 })
-                .child(mono(9.5, TEXT_FAINT).line_height(px(13.0)).child("Every fix first proves a fresh key login works, then changes one thing, checks it took (sshd -t, sshd -T, the firewall's status), and proves a fresh login still works. Anything that fails is undone. Crow never sets PermitRootLogin no where it logs in as root, and a firewall always allows the SSH port."))
+                .child(mono(9.5, TEXT_FAINT).line_height(px(13.0)).child(t!("fleet-hardening-every-fix-first-proves-a")))
                 .children(rows.iter().map(|(id, name, user, findings)| {
                     div()
                         .flex()
@@ -119,12 +119,12 @@ pub fn hardening_page(rows: &[ServerFindings], reason: Option<&Entity<InputState
                                 .h(px(28.0))
                                 .bg(BG_SUBHEAD)
                                 .child(mono(11.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(name.clone()))
-                                .child(mono(9.5, TEXT_FAINT).child(format!("Crow logs in as {user}")))
+                                .child(mono(9.5, TEXT_FAINT).child(t!("fleet-hardening-crow-logs-in-as", user = user)))
                                 .child(div().flex_1())
                                 .child(match findings {
-                                    None => mono(9.5, TEXT_DIM).child("not read (unreachable, or not checked yet)"),
-                                    Some(f) if f.is_empty() => mono(9.5, OK).child("nothing found"),
-                                    Some(f) => mono(9.5, TEXT_DIM).child(format!("{} finding{}", f.len(), if f.len() == 1 { "" } else { "s" })),
+                                    None => mono(9.5, TEXT_DIM).child(t!("fleet-hardening-not-read-unreachable-or-not")),
+                                    Some(f) if f.is_empty() => mono(9.5, OK).child(t!("fleet-hardening-nothing-found")),
+                                    Some(f) => mono(9.5, TEXT_DIM).child(t!("fleet-hardening-text", count = f.len())),
                                 }),
                         )
                         .children(findings.iter().flatten().map(|(f, accepted)| {
@@ -153,8 +153,8 @@ pub fn hardening_page(rows: &[ServerFindings], reason: Option<&Entity<InputState
                                         .flex_col()
                                         .child(mono(10.5, if accepted.is_some() { TEXT_DIM } else { TEXT_PRIMARY }).child(f.describe()))
                                         .child(match accepted {
-                                            Some(a) => mono(9.5, TEXT_FAINT).child(format!("accepted by {}: {}", a.by, a.reason)),
-                                            None => mono(9.5, TEXT_FAINT).child(format!("fix: {}", f.fix(user))),
+                                            Some(a) => mono(9.5, TEXT_FAINT).child(t!("fleet-hardening-accepted-by", by = a.by, reason = a.reason)),
+                                            None => mono(9.5, TEXT_FAINT).child(t!("fleet-hardening-fix", f = f.fix(user))),
                                         }),
                                 )
                                 .when(accepted.is_none() && f.fixable(user), |d| {

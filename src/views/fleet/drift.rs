@@ -44,13 +44,13 @@ fn action(id: impl Into<SharedString>, text: impl Into<SharedString>, color: Rgb
 
 fn ago(ts: i64) -> String {
     if ts == 0 {
-        return "not yet".into();
+        return t!("fleet-drift-not-yet").into();
     }
     let s = (chrono::Utc::now().timestamp() - ts).max(0);
     match s {
-        0..=59 => "just now".into(),
-        60..=3599 => format!("{} min ago", s / 60),
-        _ => format!("{} h ago", s / 3600),
+        0..=59 => t!("fleet-drift-just-now").into(),
+        60..=3599 => t!("fleet-drift-min-ago", s = s / 60),
+        _ => t!("fleet-drift-h-ago", s = s / 3600),
     }
 }
 
@@ -68,13 +68,13 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
         .flex()
         .flex_col()
         .gap(px(8.0))
-        .child(section("SEARCH EVERY SERVER'S CONFIGS", "from what Crow has read; no server is contacted"))
+        .child(section(t!("fleet-drift-search-every-servers-configs"), t!("fleet-drift-from-what-crow-has-read")))
         .children(st.search.as_ref().map(|i| div().max_w(px(640.0)).child(Input::new(i).font_family(FONT_MONO).text_size(px(11.5)).bg(BG_APP).rounded(px(2.0)))))
         .when(st.searched.len() >= 2, |d| {
             d.child(mono(9.5, TEXT_FAINT).child(match st.hits.len() {
-                0 => "Nothing found. Crow searches the files it has read: open a server's Config screen to read its files.".to_string(),
-                n if n >= crate::app::drift::MAX_HITS => format!("first {n} matches"),
-                n => format!("{n} match{}", if n == 1 { "" } else { "es" }),
+                0 => t!("fleet-drift-nothing-found-crow-searches-the").to_string(),
+                n if n >= crate::app::drift::MAX_HITS => t!("fleet-drift-first-matches", n = n),
+                n => t!("fleet-drift-text", n = n),
             }))
             .child(div().flex().flex_col().max_h(px(320.0)).id("drift-search-hits").overflow_y_scrollbar().children(st.hits.iter().enumerate().map(|(i, h)| {
                 let (app, hit) = (app.clone(), h.clone());
@@ -95,7 +95,7 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
                     .child(mono(10.5, TEXT_TERTIARY).w(px(260.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(h.path.clone()))
                     .child(match &h.line {
                         Some((n, l)) => mono(10.5, TEXT_SECONDARY).flex_1().min_w(px(0.0)).whitespace_nowrap().overflow_hidden().text_ellipsis().child(format!("{n}: {l}")),
-                        None => mono(10.0, TEXT_FAINT).flex_1().child("the file"),
+                        None => mono(10.0, TEXT_FAINT).flex_1().child(t!("fleet-drift-the-file")),
                     })
             })))
         });
@@ -108,7 +108,7 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
             div()
                 .flex()
                 .items_center()
-                .child(section("DRIFT FROM BASELINES", format!("{drifted} drifted · files re-read every 15 min while Crow runs · checked {}", ago(st.last_check))))
+                .child(section(t!("fleet-drift-drift-from-baselines"), t!("fleet-drift-drifted-files-re-read-every", drifted = drifted, ago = ago(st.last_check))))
                 .child(div().flex_1())
                 .child(
                     div()
@@ -127,11 +127,11 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
                         .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                         .on_click(move |_ev, _w, cx| app_check.update(cx, |this, cx| this.check_drift(true, cx)))
                         .child(inherited_icon(TablerIcon::Refresh, px(12.0)))
-                        .child(if st.checking.is_empty() { "CHECK NOW".to_string() } else { format!("READING {}…", st.checking.len()) }),
+                        .child(if st.checking.is_empty() { t!("fleet-drift-check-now").to_string() } else { t!("fleet-drift-reading", count = st.checking.len()) }),
                 ),
         )
         .children(st.message.clone().map(|m| mono(10.5, WARN).line_height(px(15.0)).child(m)))
-        .when(paths.is_empty(), |d| d.child(mono(10.5, TEXT_DIM).line_height(px(15.0)).child("No baselines pinned yet. Pin one from a server's Config screen (a file's history → PIN AS BASELINE); every server in that group, or the fleet, is then compared with it.")))
+        .when(paths.is_empty(), |d| d.child(mono(10.5, TEXT_DIM).line_height(px(15.0)).child(t!("fleet-drift-no-baselines-pinned-yet-pin"))))
         .children(paths.into_iter().map(|path| {
             let rows: Vec<&&DriftEntry> = entries.iter().filter(|e| e.path == path).collect();
             let n_drift = rows.iter().filter(|e| e.drift.is_drift()).count();
@@ -151,10 +151,10 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
                         .h(px(30.0))
                         .bg(BG_SUBHEAD)
                         .child(mono(11.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(path.to_string()))
-                        .child(mono(9.5, if n_drift > 0 { WARN } else { OK }).child(if n_drift > 0 { format!("{n_drift} drifted") } else { "all match".to_string() }))
+                        .child(mono(9.5, if n_drift > 0 { WARN } else { OK }).child(if n_drift > 0 { t!("fleet-drift-drifted", n_drift = n_drift) } else { t!("fleet-drift-all-match").to_string() }))
                         .child(div().flex_1())
                         .when(n_drift > 1, |d| {
-                            d.child(action(format!("drift-all-{path}"), format!("BRING ALL {n_drift} BACK"), WARN).on_click(move |_ev, window, cx| {
+                            d.child(action(format!("drift-all-{path}"), t!("fleet-drift-bring-all-back", n_drift = n_drift), WARN).on_click(move |_ev, window, cx| {
                                 let p = p.clone();
                                 app_all.update(cx, |this, cx| this.plan_bring_back(&p, None, window, cx))
                             }))
@@ -164,8 +164,8 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
                     let selected = st.selected.as_ref().is_some_and(|(s, p)| *s == e.server_id && *p == e.path);
                     let (text, color) = match &e.drift {
                         Drift::Identical => ("matches".to_string(), OK),
-                        Drift::Cosmetic => ("matches (comments/spacing differ)".to_string(), OK),
-                        Drift::Differs(d) => (format!("{} difference{}: {}", d.len(), if d.len() == 1 { "" } else { "s" }, d.first().cloned().unwrap_or_default()), WARN),
+                        Drift::Cosmetic => (t!("fleet-drift-matches-comments-spacing-differ").to_string(), OK),
+                        Drift::Differs(d) => (t!("fleet-drift-text-2", count = d.len(), cloned = d.first().cloned().unwrap_or_default()), WARN),
                     };
                     let scope = if e.scope == BASELINE_FLEET { "fleet".to_string() } else { e.scope.clone() };
                     let (app, sid, p) = (app.clone(), e.server_id.clone(), e.path.clone());
@@ -188,7 +188,7 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
                         .child(div().size(px(7.0)).rounded_full().bg(color))
                         .child(mono(11.0, TEXT_PRIMARY).w(px(160.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(name(&e.server_id)))
                         .child(mono(10.5, color).flex_1().min_w(px(0.0)).whitespace_nowrap().overflow_hidden().text_ellipsis().child(text))
-                        .child(mono(9.5, TEXT_FAINT).w(px(110.0)).flex_none().child(format!("vs {scope} baseline")))
+                        .child(mono(9.5, TEXT_FAINT).w(px(110.0)).flex_none().child(t!("fleet-drift-vs-baseline", scope = scope)))
                 }))
         }));
 
@@ -200,7 +200,7 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
             .flex()
             .flex_col()
             .gap(px(8.0))
-            .child(section("WHAT CHANGED", format!("{} · {} · baseline (−) vs server (+)", name(&sid), path)))
+            .child(section(t!("fleet-drift-what-changed"), t!("fleet-drift-baseline-vs-server", name = name(&sid), path = path)))
             .child(match &selected_texts {
                 Some((base, now)) => {
                     let diff = line_diff(base, now);
@@ -225,7 +225,7 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
                         }))
                         .into_any_element()
                 }
-                None => mono(10.5, TEXT_DIM).line_height(px(15.0)).child("Crow kept only hashes of one of the two: file contents are sealed with the vault's key, and there was none when it was read (or the vault is locked now). It can tell that they differ, not how, and can't push the baseline or pin this copy. Set up the vault (Settings → Vault & Security), then CHECK NOW.").into_any_element(),
+                None => mono(10.5, TEXT_DIM).line_height(px(15.0)).child(t!("fleet-drift-crow-kept-only-hashes-of")).into_any_element(),
             })
             .when(e.drift.is_drift() && selected_texts.is_some(), |d| {
                 d.child(
@@ -241,7 +241,7 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
                             app_accept.update(cx, |this, cx| this.accept_drift(&sid, &path, cx))
                         })),
                 )
-                .child(mono(9.5, TEXT_FAINT).line_height(px(13.0)).child("Bring back writes the baseline over this server's copy (checked by its validator, kept in history). Accept makes this copy the baseline: every other server in its scope is then compared with it."))
+                .child(mono(9.5, TEXT_FAINT).line_height(px(13.0)).child(t!("fleet-drift-bring-back-writes-the-baseline")))
             })
     });
 

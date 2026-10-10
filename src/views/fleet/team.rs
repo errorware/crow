@@ -59,8 +59,8 @@ pub fn team_page(fleet: &FleetState, st: &TeamState, app: Entity<CrowApp>) -> im
                 .flex()
                 .flex_col()
                 .gap(px(14.0))
-                .child(div().flex().items_center().gap(px(12.0)).child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child("TEAM")).child(mono(10.5, if enabled { OK } else { TEXT_DIM }).child(if enabled { format!("{} member{} · team mode on", st.config.members.len(), if st.config.members.len() == 1 { "" } else { "s" }) } else { "off: Crow is single-user".to_string() })).child(div().flex_1()).when(st.active.is_some(), |d| d.child(chip("team-signout", "SIGN OUT / SWITCH", false).on_click(move |_ev, _w, cx| app_out.update(cx, |this, cx| this.sign_out(cx))))))
-                .child(mono(9.5, TEXT_FAINT).line_height(px(14.0)).child("Who uses this Crow, with which role, on which servers. Each member signs in with their own passphrase; their role is enforced on every action that changes a server (service actions, config writes, users and firewall, fleet runs), and every change record carries their name. Members live in this machine's vault: sharing them across machines needs Crow accounts (later)."))
+                .child(div().flex().items_center().gap(px(12.0)).child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("fleet-team-team"))).child(mono(10.5, if enabled { OK } else { TEXT_DIM }).child(if enabled { t!("fleet-team-team-mode-on", count = st.config.members.len()) } else { t!("fleet-team-off-crow-is-single-user").to_string() })).child(div().flex_1()).when(st.active.is_some(), |d| d.child(chip("team-signout", t!("fleet-team-sign-out-switch"), false).on_click(move |_ev, _w, cx| app_out.update(cx, |this, cx| this.sign_out(cx))))))
+                .child(mono(9.5, TEXT_FAINT).line_height(px(14.0)).child(t!("fleet-team-who-uses-this-crow-with")))
                 .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { OK } else { WARN }).line_height(px(15.0)).child(m)))
                 // Members.
                 .children(st.config.members.iter().map(|m| {
@@ -77,7 +77,7 @@ pub fn team_page(fleet: &FleetState, st: &TeamState, app: Entity<CrowApp>) -> im
                         .border_1()
                         .border_color(if me { OK.opacity(0.5) } else { BORDER_PANEL })
                         .bg(BG_PANEL)
-                        .child(mono(11.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).w(px(140.0)).flex_none().child(format!("{}{}", m.name, if me { " (you)" } else { "" })))
+                        .child(mono(11.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).w(px(140.0)).flex_none().child(format!("{}{}", m.name, if me { t!("fleet-team-you") } else { "" })))
                         .child(mono(10.5, if m.role == Role::Admin { WARN } else { TEXT_SECONDARY }).w(px(90.0)).flex_none().child(m.role.name()))
                         .child(mono(10.0, TEXT_DIM).w(px(160.0)).flex_none().child(m.scope.describe()))
                         .child(mono(9.5, TEXT_FAINT).flex_1().min_w(px(0.0)).child(perms.join(", ")))
@@ -101,7 +101,7 @@ pub fn team_page(fleet: &FleetState, st: &TeamState, app: Entity<CrowApp>) -> im
                             .cursor_pointer()
                             .on_click(move |_ev, _w, cx| app_appr.update(cx, |this, cx| this.toggle_approval(cx)))
                             .child(div().size(px(12.0)).border_1().border_color(if st.config.require_approval { WARN } else { BORDER_STRONG }).bg(if st.config.require_approval { WARN } else { BG_CONTROL }))
-                            .child(mono(10.5, TEXT_SECONDARY).child("fleet runs need a second member's approval (their passphrase, typed at the run)")),
+                            .child(mono(10.5, TEXT_SECONDARY).child(t!("fleet-team-fleet-runs-need-a-second"))),
                     )
                 })
                 // Add.
@@ -113,10 +113,10 @@ pub fn team_page(fleet: &FleetState, st: &TeamState, app: Entity<CrowApp>) -> im
                         .p(px(12.0))
                         .border_1()
                         .border_color(BORDER_PANEL)
-                        .child(mono(10.0, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(if enabled { "ADD A MEMBER" } else { "START A TEAM: THE FIRST MEMBER IS AN ADMIN (YOU)" }))
+                        .child(mono(10.0, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(if enabled { t!("fleet-team-add-a-member") } else { t!("fleet-team-start-a-team-the-first") }))
                         .child(div().flex().gap(px(8.0)).child(div().w(px(200.0)).child(input(st.new_name.as_ref()))).child(input(st.new_pass.as_ref())))
                         .when(enabled, |d| {
-                            d.child(div().flex().flex_wrap().items_center().gap(px(6.0)).child(mono(9.5, TEXT_DIMMER).child("ROLE")).children([Role::Viewer, Role::Operator, Role::Admin].into_iter().map(|r| {
+                            d.child(div().flex().flex_wrap().items_center().gap(px(6.0)).child(mono(9.5, TEXT_DIMMER).child(t!("fleet-team-role"))).children([Role::Viewer, Role::Operator, Role::Admin].into_iter().map(|r| {
                                 let (app, on) = (app.clone(), role == r);
                                 chip(format!("team-role-{}", r.name()), r.name(), on).on_click(move |_ev, _w, cx| {
                                     let r = r.clone();
@@ -125,14 +125,14 @@ pub fn team_page(fleet: &FleetState, st: &TeamState, app: Entity<CrowApp>) -> im
                             })).child({
                                 let app = app.clone();
                                 let on = matches!(role, Role::Custom { .. });
-                                chip("team-role-custom", "CUSTOM", on).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_new_role(Role::Custom { name: "Custom".into(), perms: vec![] }, cx)))
+                                chip("team-role-custom", t!("fleet-team-custom"), on).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_new_role(Role::Custom { name: "Custom".into(), perms: vec![] }, cx)))
                             }))
                             .when(matches!(role, Role::Custom { .. }), |d| {
                                 let perms = match &role {
                                     Role::Custom { perms, .. } => perms.clone(),
                                     _ => vec![],
                                 };
-                                d.child(div().flex().flex_wrap().gap(px(6.0)).child(mono(9.5, TEXT_DIMMER).child("CAN")).children(Permission::ALL.into_iter().filter(|p| *p != Permission::View).map(|p| {
+                                d.child(div().flex().flex_wrap().gap(px(6.0)).child(mono(9.5, TEXT_DIMMER).child(t!("fleet-team-can"))).children(Permission::ALL.into_iter().filter(|p| *p != Permission::View).map(|p| {
                                     let (app, on, perms) = (app.clone(), perms.contains(&p), perms.clone());
                                     chip(format!("team-perm-{p:?}"), p.label(), on).on_click(move |_ev, _w, cx| {
                                         let mut next = perms.clone();
@@ -141,21 +141,21 @@ pub fn team_page(fleet: &FleetState, st: &TeamState, app: Entity<CrowApp>) -> im
                                     })
                                 })))
                             })
-                            .child(div().flex().flex_wrap().items_center().gap(px(6.0)).child(mono(9.5, TEXT_DIMMER).child("ON")).children(fleet.groups.iter().map(|g| {
+                            .child(div().flex().flex_wrap().items_center().gap(px(6.0)).child(mono(9.5, TEXT_DIMMER).child(t!("fleet-team-on"))).children(fleet.groups.iter().map(|g| {
                                 let (app, name, on) = (app.clone(), g.clone(), st.new_scope_groups.contains(g));
-                                chip(format!("team-scope-g-{g}"), format!("group {g}"), on).on_click(move |_ev, _w, cx| {
+                                chip(format!("team-scope-g-{g}"), t!("fleet-team-group", g = g), on).on_click(move |_ev, _w, cx| {
                                     let n = name.clone();
                                     app.update(cx, |this, cx| this.toggle_new_scope(Some(n), None, cx))
                                 })
                             })).children(envs.iter().map(|e| {
                                 let (app, name, on) = (app.clone(), e.clone(), st.new_scope_envs.contains(e));
-                                chip(format!("team-scope-e-{e}"), format!("env {e}"), on).on_click(move |_ev, _w, cx| {
+                                chip(format!("team-scope-e-{e}"), t!("fleet-team-env", e = e), on).on_click(move |_ev, _w, cx| {
                                     let n = name.clone();
                                     app.update(cx, |this, cx| this.toggle_new_scope(None, Some(n), cx))
                                 })
-                            })).child(mono(9.5, TEXT_FAINT).child("(none picked: the whole fleet; envs win over groups)")))
+                            })).child(mono(9.5, TEXT_FAINT).child(t!("fleet-team-none-picked-the-whole-fleet"))))
                         })
-                        .child(div().flex().child(chip("team-add", if enabled { "ADD MEMBER" } else { "START THE TEAM" }, false).on_click(move |_ev, window, cx| app_add.update(cx, |this, cx| this.add_member(window, cx))))),
+                        .child(div().flex().child(chip("team-add", if enabled { t!("fleet-team-add-member") } else { t!("fleet-team-start-the-team") }, false).on_click(move |_ev, window, cx| app_add.update(cx, |this, cx| this.add_member(window, cx))))),
                 ),
         )
 }
@@ -185,8 +185,8 @@ pub fn sign_in_overlay(st: &TeamState, app: Entity<CrowApp>) -> impl IntoElement
                 .border_1()
                 .border_color(BORDER_PANEL)
                 .bg(BG_PANEL)
-                .child(mono(13.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child("Who's at the keyboard?"))
-                .child(mono(10.0, TEXT_DIM).line_height(px(14.0)).child("This Crow has a team: sign in so your role applies and your changes carry your name."))
+                .child(mono(13.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(t!("fleet-team-whos-at-the-keyboard")))
+                .child(mono(10.0, TEXT_DIM).line_height(px(14.0)).child(t!("fleet-team-this-crow-has-a-team")))
                 .child(div().flex().flex_wrap().gap(px(6.0)).children(st.config.members.iter().map(|m| {
                     let (app, id) = (app.clone(), m.id.clone());
                     chip(format!("signin-{}", m.id), format!("{} · {}", m.name, m.role.name()), st.signing_in.as_deref() == Some(m.id.as_str())).on_click(move |_ev, _w, cx| {
@@ -194,7 +194,7 @@ pub fn sign_in_overlay(st: &TeamState, app: Entity<CrowApp>) -> impl IntoElement
                         app.update(cx, |this, cx| this.choose_signin(&id, cx))
                     })
                 })))
-                .when(st.signing_in.is_some(), |d| d.child(input(st.passphrase.as_ref())).child(div().flex().child(chip("signin-go", "SIGN IN", false).on_click(move |_ev, window, cx| app_go.update(cx, |this, cx| this.sign_in(window, cx))))))
+                .when(st.signing_in.is_some(), |d| d.child(input(st.passphrase.as_ref())).child(div().flex().child(chip("signin-go", t!("fleet-team-sign-in"), false).on_click(move |_ev, window, cx| app_go.update(cx, |this, cx| this.sign_in(window, cx))))))
                 .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { OK } else { CRIT }).child(m))),
         )
 }

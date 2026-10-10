@@ -98,7 +98,7 @@ impl CrowApp {
     /// the AI provider and shows its plain-English reading in the panel.
     pub fn explain_logs_with_ai(&mut self, cx: &mut Context<Self>) {
         let Some((provider, backup)) = self.ai_providers() else {
-            self.journal.ai.answer = Some(Err("No AI provider has an API key. Add one in Settings → Clankers.".into()));
+            self.journal.ai.answer = Some(Err(t!("app-journal-no-ai-provider-has-an").into()));
             cx.notify();
             return;
         };
@@ -115,7 +115,7 @@ impl CrowApp {
         }
         lines.reverse();
         if lines.is_empty() {
-            self.journal.ai.answer = Some(Err("There are no log lines on screen to explain.".into()));
+            self.journal.ai.answer = Some(Err(t!("app-journal-there-are-no-log-lines").into()));
             cx.notify();
             return;
         }
@@ -124,7 +124,7 @@ impl CrowApp {
             "These are the most recent {} lines matching: unit {}, priority {}, search {}, range {}.",
             lines.len(),
             j.unit_filter.as_deref().unwrap_or("any"),
-            j.severity_filter.map(|p| format!("{} and worse", p.label())).unwrap_or_else(|| "any".into()),
+            j.severity_filter.map(|p| t!("app-journal-and-worse", label = p.label())).unwrap_or_else(|| "any".into()),
             if j.search.is_empty() { "none".to_string() } else { format!("`{}`", j.search) },
             j.time_range.label(),
         );
@@ -145,7 +145,7 @@ impl CrowApp {
                     // Say when the backup answered, and why.
                     this.journal.ai.provider = a.provider_label.clone();
                     match a.primary_failed {
-                        Some(why) => format!("Answered by the backup, {}: the primary failed ({why}).\n\n{}", a.provider_label, a.text),
+                        Some(why) => t!("app-journal-answered-by-the-backup-the", provider_label = a.provider_label, why = why, text = a.text),
                         None => a.text,
                     }
                 }));
@@ -251,10 +251,10 @@ impl CrowApp {
     /// EXPORT: copies the lines on screen (after filters) to the clipboard.
     pub fn export_journal(&mut self, text: String, lines: usize, cx: &mut Context<Self>) {
         if lines == 0 {
-            self.journal.export_note = Some("Nothing to export".into());
+            self.journal.export_note = Some(t!("app-journal-nothing-to-export").into());
         } else {
             cx.write_to_clipboard(ClipboardItem::new_string(text));
-            self.journal.export_note = Some(format!("Copied {lines} line{}", if lines == 1 { "" } else { "s" }));
+            self.journal.export_note = Some(t!("app-journal-copied", lines = lines));
         }
         cx.notify();
     }

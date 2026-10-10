@@ -39,7 +39,7 @@ pub fn read_accounts(host: &dyn Host) -> Result<(Vec<SystemUserRecord>, Vec<(Str
 }
 
 pub fn read_users(host: &dyn Host) -> Result<Vec<SystemUserRecord>, String> {
-    let passwd = host.read_file("/etc/passwd").map_err(|e| format!("can't read /etc/passwd: {e}"))?;
+    let passwd = host.read_file("/etc/passwd").map_err(|e| t!("users-host-data-cant-read-etc-passwd", e = e))?;
     let group = host.read_file("/etc/group").unwrap_or_default();
     let locks = host
         .exec_privileged(&["awk", "-F:", "{print $1\":\"substr($2,1,1)}", "/etc/shadow"], &[], DEFAULT_TIMEOUT)
@@ -156,7 +156,7 @@ pub fn key_summary(line: &str) -> Option<UserSshKeySummary> {
     let comment = (!key.comment().is_empty()).then(|| key.comment().to_string());
     Some(UserSshKeySummary {
         id: fingerprint.clone(),
-        name: comment.clone().unwrap_or_else(|| "unnamed key".into()),
+        name: comment.clone().unwrap_or_else(|| t!("users-host-data-unnamed-key").into()),
         algorithm: key.algorithm().as_str().to_uppercase(),
         fingerprint,
         comment,
@@ -177,7 +177,7 @@ fn valid_name(name: &str) -> bool {
 }
 
 pub(crate) fn check_name(kind: &str, name: &str) -> Result<(), String> {
-    if valid_name(name) { Ok(()) } else { Err(format!("{name:?} is not a valid {kind} name")) }
+    if valid_name(name) { Ok(()) } else { Err(t!("users-host-data-is-not-a-valid-name", name = format!("{:?}", name), kind = kind)) }
 }
 
 fn argv(parts: &[&str]) -> Argv {
@@ -190,13 +190,13 @@ fn argv(parts: &[&str]) -> Argv {
 pub fn set_password(user: &str, password: &str) -> Result<(Argv, Vec<u8>), String> {
     check_name("user", user)?;
     if password.is_empty() {
-        return Err("the password is empty".into());
+        return Err(t!("users-host-data-the-password-is-empty").into());
     }
     if password.contains('\n') || password.contains('\r') {
-        return Err("the password can't contain line breaks".into());
+        return Err(t!("users-host-data-the-password-cant-contain-line").into());
     }
     if password.len() > 256 {
-        return Err("the password is longer than 256 characters".into());
+        return Err(t!("users-host-data-the-password-is-longer-than").into());
     }
     Ok((argv(&["chpasswd"]), format!("{user}:{password}\n").into_bytes()))
 }
@@ -204,7 +204,7 @@ pub fn set_password(user: &str, password: &str) -> Result<(Argv, Vec<u8>), Strin
 pub fn add_to_group(user: &str, group: &str) -> Result<Argv, String> {
     check_name("user", user)?;
     check_name("group", group)?;
-    Ok(argv(&["usermod", "-aG", group, user]))
+    Ok(argv(&["usermod", t!("users-host-data-ag"), group, user]))
 }
 
 pub fn remove_from_group(user: &str, group: &str) -> Result<Argv, String> {
@@ -221,7 +221,7 @@ pub fn set_locked(user: &str, locked: bool) -> Result<Argv, String> {
 pub fn set_shell(user: &str, shell: &str) -> Result<Argv, String> {
     check_name("user", user)?;
     if !shell.starts_with('/') || shell.contains(char::is_whitespace) {
-        return Err(format!("{shell:?} is not an absolute shell path"));
+        return Err(t!("users-host-data-is-not-an-absolute-shell", shell = format!("{:?}", shell)));
     }
     Ok(argv(&["usermod", "-s", shell, user]))
 }
@@ -233,7 +233,7 @@ pub fn create_user(form: &NewUserState, sudo_group: Option<&str>) -> Result<Argv
     check_name("user", &user)?;
     let gecos = form.gecos.trim();
     if gecos.contains(':') || gecos.contains('\n') {
-        return Err("the full name can't contain ':' or line breaks".into());
+        return Err(t!("users-host-data-the-full-name-cant-contain").into());
     }
     let mut groups: Vec<String> = Vec::new();
     for g in &form.selected_groups {
@@ -252,7 +252,7 @@ pub fn create_user(form: &NewUserState, sudo_group: Option<&str>) -> Result<Argv
     if !form.shell.trim().is_empty() {
         let shell = form.shell.trim();
         if !shell.starts_with('/') || shell.contains(char::is_whitespace) {
-            return Err(format!("{shell:?} is not an absolute shell path"));
+            return Err(t!("users-host-data-is-not-an-absolute-shell", shell = format!("{:?}", shell)));
         }
         cmd.extend(["-s".into(), shell.into()]);
     }
@@ -270,7 +270,7 @@ pub fn create_user(form: &NewUserState, sudo_group: Option<&str>) -> Result<Argv
 pub fn delete_user(user: &str) -> Result<Argv, String> {
     check_name("user", user)?;
     if user == "root" {
-        return Err("the root account can't be deleted".into());
+        return Err(t!("users-host-data-the-root-account-cant-be").into());
     }
     Ok(argv(&["userdel", user]))
 }
@@ -295,7 +295,7 @@ exec su -s /bin/sh "$u" -c "$s" crow-as-user "$@""#;
 pub fn authorize_key(user: &str, home: &str, key: &str) -> Result<Argv, String> {
     check_name("user", user)?;
     let key = key.trim();
-    PublicKey::from_openssh(key).map_err(|_| "not a valid OpenSSH public key".to_string())?;
+    PublicKey::from_openssh(key).map_err(|_| t!("users-host-data-not-a-valid-openssh-public").to_string())?;
     let script = r#"set -e; umask 077; d="$1/.ssh"; f="$d/authorized_keys"; mkdir -p "$d"; chmod 700 "$d"; [ -e "$f" ] || : > "$f"; chmod 600 "$f"; grep -qxF -- "$2" "$f" || printf '%s\n' "$2" >> "$f""#;
     Ok(as_user(user, script, &[home, key]))
 }

@@ -40,8 +40,8 @@ pub fn render_plugins_view(app: Entity<CrowApp>, plugins: &PluginsState, provide
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(div().font_family(FONT_MONO).text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child("PLUGINS · WHAT CROW CONNECTS TO"))
-                .child(div().px(px(6.0)).py(px(2.0)).border_1().border_color(BORDER_DEFAULT).font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_SECONDARY).child(format!("{on}/{} ON", BUILTIN.len())))
+                .child(div().font_family(FONT_MONO).text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-plugins-plugins-what-crow-connects-to")))
+                .child(div().px(px(6.0)).py(px(2.0)).border_1().border_color(BORDER_DEFAULT).font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_SECONDARY).child(t!("settings-plugins-on", on = on, count = BUILTIN.len())))
                 .child(div().flex_1())
                 .child(
                     div()
@@ -60,7 +60,7 @@ pub fn render_plugins_view(app: Entity<CrowApp>, plugins: &PluginsState, provide
                         .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                         .on_click(move |_ev, _window, cx| app_check.update(cx, |this, cx| this.check_all_plugins(cx)))
                         .child(crate::components::icons::inherited_icon(TablerIcon::Refresh, px(12.0)))
-                        .child("RE-CHECK"),
+                        .child(t!("settings-plugins-re-check")),
                 ),
         )
         .child(
@@ -73,14 +73,14 @@ pub fn render_plugins_view(app: Entity<CrowApp>, plugins: &PluginsState, provide
                 .flex_col()
                 .gap(px(16.0))
                 .child(div().p(px(12.0)).bg(BG_OVERLAY_PANEL).border_1().border_color(BORDER_PANEL).font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(TEXT_MUTED).child(
-                    "Crow does nothing with these until you switch them on. A plugin that's on adds what it brings where it belongs (Multipass adds + LAUNCH VM to the Fleet; a cloud provider adds import, power and snapshots); one that's off isn't probed or shown.",
+                    t!("settings-plugins-crow-does-nothing-with-these"),
                 ))
                 .children(GROUPS.iter().map(|(category, title)| {
                     div()
                         .flex()
                         .flex_col()
                         .gap(px(8.0))
-                        .child(div().flex().items_center().gap(px(8.0)).child(div().font_family(FONT_MONO).text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child(*title)).child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).child(*category)))
+                        .child(div().flex().items_center().gap(px(8.0)).child(div().font_family(FONT_MONO).text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child(crate::i18n::tx(title))).child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).child(*category)))
                         .children(BUILTIN.iter().filter(|p| p.category == *category).map(|p| card(p, plugins, provider_accounts, app.clone(), email)))
                 })),
         )
@@ -90,12 +90,12 @@ fn card(p: &'static BuiltinPlugin, plugins: &PluginsState, accounts: &[crate::va
     let on = plugins.enabled.contains(p.id);
     let status = plugins.status.get(p.id);
     let (text, color) = match status {
-        _ if plugins.checking.contains(p.id) => ("checking…".to_string(), TEXT_DIMMER),
+        _ if plugins.checking.contains(p.id) => (t!("settings-plugins-checking").to_string(), TEXT_DIMMER),
         Some(PluginStatus::Ready(v)) => (v.clone(), OK),
         Some(PluginStatus::Problem { summary, .. }) => (summary.clone(), WARN),
-        Some(PluginStatus::Missing { .. }) => ("not installed on this machine".to_string(), TEXT_DIM),
-        Some(PluginStatus::Unavailable) => ("not in this build".to_string(), TEXT_DIM),
-        None => ("not checked yet".to_string(), TEXT_DIMMER),
+        Some(PluginStatus::Missing { .. }) => (t!("settings-plugins-not-installed-on-this-machine").to_string(), TEXT_DIM),
+        Some(PluginStatus::Unavailable) => (t!("settings-plugins-not-in-this-build").to_string(), TEXT_DIM),
+        None => (t!("settings-plugins-not-checked-yet").to_string(), TEXT_DIMMER),
     };
     let steps = match status {
         Some(PluginStatus::Problem { steps, .. }) | Some(PluginStatus::Missing { steps }) => steps.clone(),
@@ -156,9 +156,9 @@ fn card(p: &'static BuiltinPlugin, plugins: &PluginsState, accounts: &[crate::va
                 .hover(|s| s.text_color(TEXT_PRIMARY))
                 .on_click(move |_ev, _window, cx| app_providers.update(cx, |this, cx| this.set_settings_section(SettingsSection::Providers, cx)))
                 .child(match account_count {
-                    0 => "No account yet · set one up in Providers →".to_string(),
-                    1 => "1 account · Providers →".to_string(),
-                    n => format!("{n} accounts · Providers →"),
+                    0 => t!("settings-plugins-no-account-yet-set-one").to_string(),
+                    1 => t!("settings-plugins-1-account-providers").to_string(),
+                    n => t!("settings-plugins-accounts-providers", n = n),
                 })
         }))
         .children(steps.iter().enumerate().map(|(i, s)| crate::views::fleet::lab_modal::setup_step(i, s, app.clone())))

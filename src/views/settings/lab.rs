@@ -29,17 +29,17 @@ impl LabState {
         Self {
             text_input: cx.new(|cx| {
                 InputState::new(window, cx)
-                    .placeholder("Type something here to test gpui-component...")
+                    .placeholder(t!("settings-lab-type-something-here-to-test"))
                     .default_value("prod-db-cluster.internal")
             }),
             cleanable_input: cx.new(|cx| {
                 InputState::new(window, cx)
-                    .placeholder("Type to reveal clear button...")
-                    .default_value("search fleet by tag or region...")
+                    .placeholder(t!("settings-lab-type-to-reveal-clear-button"))
+                    .default_value(t!("settings-lab-search-fleet-by-tag-or"))
             }),
             password_input: cx.new(|cx| {
                 InputState::new(window, cx)
-                    .placeholder("Enter sensitive secret...")
+                    .placeholder(t!("settings-lab-enter-sensitive-secret"))
                     .masked(true)
                     .default_value("crow_vault_master_key_9981")
             }),
@@ -50,7 +50,7 @@ impl LabState {
             }),
             textarea: cx.new(|cx| {
                 TextareaState::new(window, cx).default_value(
-                    "# Fleet Deployment Manifest\nenv: production\nreplicas: 4\nregion: us-east-1\nauto_drain: true",
+                    t!("settings-lab-fleet-deployment-manifest-env-production"),
                 )
             }),
             otp_input: cx.new(|cx| {
@@ -93,14 +93,14 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .text_size(px(12.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_MAX)
-                                .child("UI COMPONENTS LAB"),
+                                .child(t!("settings-lab-ui-components-lab")),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.5))
                                 .text_color(TEXT_DIM)
-                                .child("· gpui-component transition testbed"),
+                                .child(t!("settings-lab-gpui-component-transition-testbed")),
                         ),
                 )
                 .child(
@@ -114,7 +114,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                         .text_size(px(9.5))
                         .font_weight(FontWeight::BOLD)
                         .text_color(OK_INK)
-                        .child("ISOLATED SANDBOX"),
+                        .child(t!("settings-lab-isolated-sandbox")),
                 ),
         )
         // Scrollable Testbed Content
@@ -150,7 +150,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                         .text_size(px(11.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("EVALUATION & TRANSITION SANDBOX"),
+                                        .child(t!("settings-lab-evaluation-transition-sandbox")),
                                 ),
                         )
                         .child(
@@ -160,7 +160,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .text_color(TEXT_DIM)
                                 .line_height(relative(1.4))
                                 .child(
-                                    "This page runs gpui-component widgets directly inside Crow to test platform-native text selection, cursor blinking, clipboard chords, undo/redo, and HarfBuzz text shaping before migrating existing screens.",
+                                    t!("settings-lab-this-page-runs-gpui-component"),
                                 ),
                         ),
                 )
@@ -176,7 +176,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .text_size(px(11.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_MAX)
-                                .child("1. PRIMARY NATIVE GPUI INPUT"),
+                                .child(t!("settings-lab-1-primary-native-gpui-input")),
                         )
                         .child(
                             div()
@@ -199,7 +199,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                                 .text_size(px(10.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(OK_INK)
-                                                .child("NATIVE GPUI-COMPONENT INPUT"),
+                                                .child(t!("settings-lab-native-gpui-component-input")),
                                         )
                                         .child(
                                             div()
@@ -209,7 +209,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(9.0))
                                                 .text_color(OK_INK)
-                                                .child("Rope Buffer + Shaping"),
+                                                .child(t!("settings-lab-rope-buffer-shaping")),
                                         ),
                                 )
                                 .child(
@@ -228,7 +228,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                         .text_size(px(9.5))
                                         .text_color(TEXT_DIMMER)
                                         .line_height(relative(1.4))
-                                        .child("✓ Native mouse drag selection\n✓ Cmd+A, Cmd+C, Cmd+V, Cmd+Z (undo!)\n✓ Word jumps (Alt+Arrows) & line ends (Cmd+Arrows)"),
+                                        .child(t!("settings-lab-native-mouse-drag-selection-cmd")),
                                 ),
                         ),
                 )
@@ -244,7 +244,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .text_size(px(11.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_MAX)
-                                .child("2. INPUT VARIANTS & CAPABILITIES"),
+                                .child(t!("settings-lab-2-input-variants-capabilities")),
                         )
                         .child(
                             div()
@@ -268,7 +268,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                                 .text_size(px(10.0))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_DIM)
-                                                .child("PASSWORD INPUT (WITH NATIVE MASK TOGGLE & CLEAR BUTTON):"),
+                                                .child(t!("settings-lab-password-input-with-native-mask")),
                                         )
                                         .child(
                                             Input::new(&lab.password_input)
@@ -299,7 +299,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                                 .text_size(px(10.0))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_DIM)
-                                                .child("SEARCH / FILTER INPUT (CLEANABLE):"),
+                                                .child(t!("settings-lab-search-filter-input-cleanable")),
                                         )
                                         .child(
                                             Input::new(&lab.cleanable_input)
@@ -330,7 +330,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                                 .text_size(px(10.0))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_DIM)
-                                                .child("PREFIX & SUFFIX ADORNMENTS:"),
+                                                .child(t!("settings-lab-prefix-suffix-adornments")),
                                         )
                                         .child(
                                             Input::new(&lab.prefix_input)
@@ -346,7 +346,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                                         .font_family(FONT_MONO)
                                                         .text_size(px(9.0))
                                                         .text_color(TEXT_MUTED)
-                                                        .child("PORT 22"),
+                                                        .child(t!("settings-lab-port-22")),
                                                 )
                                                 .w_full()
                                                 .font_family(FONT_MONO)
@@ -369,7 +369,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .text_size(px(11.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_MAX)
-                                .child("3. 6-DIGIT OTP AUTHENTICATOR INPUT"),
+                                .child(t!("settings-lab-3-6-digit-otp-authenticator")),
                         )
                         .child(
                             div()
@@ -387,7 +387,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                         .text_size(px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_DIM)
-                                        .child("GROUPED OTP CELLS (SPLIT 3-3 WITH AUTO-ADVANCE & BACKSPACE):"),
+                                        .child(t!("settings-lab-grouped-otp-cells-split-3")),
                                 )
                                 .child(
                                     div()
@@ -400,7 +400,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                         .font_family(FONT_MONO)
                                         .text_size(px(9.5))
                                         .text_color(TEXT_DIMMER)
-                                        .child("Direct replacement candidate for Vault Lock and Setup screens."),
+                                        .child(t!("settings-lab-direct-replacement-candidate-for-vault")),
                                 ),
                         ),
                 )
@@ -416,7 +416,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .text_size(px(11.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_MAX)
-                                .child("4. MULTI-LINE TEXTAREA"),
+                                .child(t!("settings-lab-4-multi-line-textarea")),
                         )
                         .child(
                             div()
@@ -434,7 +434,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                         .text_size(px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_DIM)
-                                        .child("MULTI-LINE EDITOR WITH WORD-WRAP & MULTI-LINE SELECTION:"),
+                                        .child(t!("settings-lab-multi-line-editor-with-word")),
                                 )
                                 .child(
                                     Textarea::new(&lab.textarea)
@@ -459,7 +459,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .text_size(px(11.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_MAX)
-                                .child("5. GPUI-COMPONENT BUTTON MATRIX"),
+                                .child(t!("settings-lab-5-gpui-component-button-matrix")),
                         )
                         .child(
                             div()
@@ -471,10 +471,10 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .flex()
                                 .items_center()
                                 .gap(px(10.0))
-                                .child(Button::new("btn-primary").label("Primary Action").primary())
-                                .child(Button::new("btn-secondary").label("Secondary").secondary())
-                                .child(Button::new("btn-ghost").label("Ghost").ghost())
-                                .child(Button::new("btn-danger").label("Destructive").danger()),
+                                .child(Button::new("btn-primary").label(t!("settings-lab-primary-action")).primary())
+                                .child(Button::new("btn-secondary").label(t!("settings-lab-secondary")).secondary())
+                                .child(Button::new("btn-ghost").label(t!("settings-lab-ghost")).ghost())
+                                .child(Button::new("btn-danger").label(t!("settings-lab-destructive")).danger()),
                         ),
                 ),
         )

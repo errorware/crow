@@ -40,18 +40,14 @@ pub fn audit_view(items: &[AuditItem], filter: &AuditFilter, app: Entity<CrowApp
                 .gap(px(10.0))
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(div().text_size(px(16.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child("AUDIT LOG"))
-                .child(div().text_size(px(11.5)).text_color(TEXT_DIM).child(format!(
-                    "{} change{} · {failed} failed · every server",
-                    shown.len(),
-                    if shown.len() == 1 { "" } else { "s" }
-                )))
+                .child(div().text_size(px(16.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child(t!("audit-audit-log")))
+                .child(div().text_size(px(11.5)).text_color(TEXT_DIM).child(t!("audit-failed-every-server", count = shown.len(), failed = failed)))
         )
-        .child(filter_row("SERVER", filter.server_id.is_none(), servers.into_iter().map(|(id, name)| {
+        .child(filter_row(t!("audit-server"), filter.server_id.is_none(), servers.into_iter().map(|(id, name)| {
             let selected = filter.server_id.as_deref() == Some(id.as_str());
             (name, selected, AuditFilter { server_id: (!selected).then_some(id), group: filter.group })
         }).collect(), AuditFilter { server_id: None, group: filter.group }, app.clone()))
-        .child(filter_row("KIND", filter.group.is_none(), groups.into_iter().map(|g| {
+        .child(filter_row(t!("audit-kind"), filter.group.is_none(), groups.into_iter().map(|g| {
             let selected = filter.group == Some(g);
             (g.label().to_string(), selected, AuditFilter { server_id: filter.server_id.clone(), group: (!selected).then_some(g) })
         }).collect(), AuditFilter { server_id: filter.server_id.clone(), group: None }, app.clone()))
@@ -64,7 +60,7 @@ pub fn audit_view(items: &[AuditItem], filter: &AuditFilter, app: Entity<CrowApp
                 .flex()
                 .flex_col()
                 .children(if shown.is_empty() {
-                    vec![div().p(px(16.0)).text_size(px(11.0)).text_color(TEXT_MUTED).child("Nothing recorded yet.").into_any_element()]
+                    vec![div().p(px(16.0)).text_size(px(11.0)).text_color(TEXT_MUTED).child(t!("audit-nothing-recorded-yet")).into_any_element()]
                 } else {
                     shown.into_iter().map(|i| audit_row(i, now)).collect()
                 }),

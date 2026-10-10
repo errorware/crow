@@ -19,19 +19,19 @@ pub fn icon_for(distro: &str) -> Option<&'static str> {
         (&["ubuntu"], "ubuntu-linux"),
         (&["debian"], "debian-linux"),
         (&["rocky"], "rocky-linux"),
-        (&["almalinux", "alma linux"], "almalinux"),
+        (&["almalinux", t!("distro-icon-alma-linux")], "almalinux"),
         (&["centos"], "centos"),
-        (&["red hat", "redhat", "rhel"], "redhat-linux"),
+        (&[t!("distro-icon-red-hat"), "redhat", "rhel"], "redhat-linux"),
         (&["alpine"], "alpine-linux"),
         (&["artix"], "artixlinux"),
-        (&["arch linux", "archlinux"], "arch-linux"),
+        (&[t!("distro-icon-arch-linux"), "archlinux"], "arch-linux"),
         (&["kali"], "kali-linux"),
-        (&["azure linux", "cbl-mariner", "mariner"], "azure-linux"),
+        (&[t!("distro-icon-azure-linux"), "cbl-mariner", "mariner"], "azure-linux"),
     ];
     if let Some((_, file)) = known.iter().find(|(names, _)| names.iter().any(|n| d.contains(n))) {
         return Some(file);
     }
-    let not_linux = ["solaris", "sunos", "illumos", "openindiana", "freebsd", "openbsd", "netbsd", "dragonfly", "macos", "mac os", "darwin", "windows", "aix", "hp-ux"];
+    let not_linux = ["solaris", "sunos", "illumos", "openindiana", "freebsd", "openbsd", "netbsd", "dragonfly", "macos", t!("distro-icon-mac-os"), "darwin", "windows", "aix", "hp-ux"];
     if not_linux.iter().any(|n| d.contains(n)) {
         return None;
     }
@@ -45,7 +45,7 @@ pub fn short_name(distro: &str) -> String {
         Some(i) => &distro[..i],
         None => distro,
     };
-    no_codename.replace("GNU/Linux", "").replace("Red Hat Enterprise Linux", "RHEL").split_whitespace().collect::<Vec<_>>().join(" ")
+    no_codename.replace("GNU/Linux", "").replace("Red Hat Enterprise Linux", t!("distro-icon-rhel")).split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 fn bytes(file: &str) -> Option<&'static [u8]> {

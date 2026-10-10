@@ -63,11 +63,11 @@ impl CrowApp {
     pub fn ensure_table_search(&mut self, page: TablePage, window: &mut Window, cx: &mut Context<Self>) {
         if self.table_search_slot(page).is_none() {
             let (placeholder, query) = match page {
-                TablePage::Services => ("search services…  ( / )", self.overview.service_query.clone()),
-                TablePage::Processes => ("search command, user, pid…  ( / )", self.overview.process_query.clone()),
-                TablePage::Users => ("search name, group, shell…  ( / )", self.users.search_query.clone()),
+                TablePage::Services => (t!("app-overview-search-services"), self.overview.service_query.clone()),
+                TablePage::Processes => (t!("app-overview-search-command-user-pid"), self.overview.process_query.clone()),
+                TablePage::Users => (t!("app-overview-search-name-group-shell"), self.users.search_query.clone()),
                 TablePage::Logs => ("grep the journal (regex; lowercase ignores case)…  ( / )", self.journal.search.clone()),
-                TablePage::Firewall => ("search port, address, comment…  ( / )", self.firewall.search_query.clone()),
+                TablePage::Firewall => (t!("app-overview-search-port-address-comment"), self.firewall.search_query.clone()),
             };
             let input = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder).default_value(query));
             let events = cx.subscribe(&input, move |this, input, ev: &InputEvent, cx| {
@@ -160,7 +160,7 @@ impl CrowApp {
                             let cves = crate::security::osv::lookup(&report);
                             (Ok(report), Some(cves))
                         }
-                        Err(e) => (Err(format!("couldn't read updates: {e}")), None),
+                        Err(e) => (Err(t!("app-overview-couldnt-read-updates", e = e)), None),
                     }
                 })
                 .await;
@@ -249,7 +249,7 @@ impl CrowApp {
         let mut badges = NavBadges::new();
         let services = summarize_services(&self.overview.services);
         if services.failed > 0 {
-            badges.push(("services", format!("{} FAILED", services.failed), CRIT));
+            badges.push(("services", t!("app-overview-failed", failed = services.failed), CRIT));
         } else if services.total > 0 {
             badges.push(("services", services.total.to_string(), TEXT_FAINT));
         }
@@ -269,8 +269,8 @@ impl CrowApp {
             badges.push(("logs", errors.to_string(), CRIT));
         }
         match &self.firewall.status {
-            FirewallOperationalState::Active(summary) if summary.is_active => badges.push(("firewall", "ON".into(), OK)),
-            FirewallOperationalState::Active(_) | FirewallOperationalState::Inactive { .. } => badges.push(("firewall", "OFF".into(), WARN)),
+            FirewallOperationalState::Active(summary) if summary.is_active => badges.push(("firewall", t!("app-overview-on").into(), OK)),
+            FirewallOperationalState::Active(_) | FirewallOperationalState::Inactive { .. } => badges.push(("firewall", t!("app-overview-off").into(), WARN)),
             FirewallOperationalState::Unmanaged { .. } => {}
         }
         badges
@@ -465,7 +465,7 @@ impl CrowApp {
             .unwrap_or_else(|| "unknown".to_string());
         let blast_radius_summary = self.overview.blast_radius.as_ref()
             .filter(|b| b.for_unit == unit_name)
-            .map(|b| format!("{} established, {} listening", b.established, b.listening));
+            .map(|b| t!("app-overview-established-listening", established = b.established, listening = b.listening));
 
         let record_id = format!("chg_{}", chrono::Local::now().timestamp_micros());
         let started_at = chrono::Utc::now().to_rfc3339();
@@ -675,7 +675,7 @@ impl CrowApp {
             return;
         }
         let Some((primary, backup)) = self.ai_providers() else {
-            self.overview.service_eli5.insert(key, Err("No AI provider has a key yet. Add one in Settings → Clankers (AI).".into()));
+            self.overview.service_eli5.insert(key, Err(t!("app-overview-no-ai-provider-has-a").into()));
             cx.notify();
             return;
         };

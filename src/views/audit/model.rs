@@ -94,7 +94,7 @@ pub fn audit_items_by(records: &[ChangeRecord], servers: &[ServerRecord], actors
         .filter_map(|r| {
             let mut item = from_record(r)?;
             if let Some(a) = actors.get(&r.id) {
-                item.text = format!("{} · by {a}", item.text);
+                item.text = t!("audit-model-by", text = item.text, a = a);
             }
             Some(item)
         })
@@ -105,7 +105,7 @@ pub fn audit_items_by(records: &[ChangeRecord], servers: &[ServerRecord], actors
             server_id: s.id.clone(),
             server: s.name.clone(),
             group: KindGroup::Enroll,
-            text: format!("enrolled {}@{}:{}", s.login_user, s.host, s.port),
+            text: t!("audit-model-enrolled", login_user = s.login_user, host = s.host, port = s.port),
             detail: None,
             outcome: Outcome::Done,
         })
@@ -123,20 +123,20 @@ fn from_record(r: &ChangeRecord) -> Option<AuditItem> {
     };
     let group = KindGroup::of(&r.action_kind);
     let text = match r.action_kind.as_str() {
-        "config.write" => format!("saved {}", r.target),
-        "config.restore" => format!("restored an earlier version of {}", r.target),
-        "config.baseline" => format!("baseline for {}: {}", r.target, r.before_state),
-        "process_kill" => format!("killed process {}", r.target),
-        "purge" => format!("purged stored data for {}", r.target),
-        "sshd.password_login_off" => "turned off SSH password login".to_string(),
-        "ssh.host_key" => format!("trusted a new host key for {}", r.target),
+        "config.write" => t!("audit-model-saved", target = r.target),
+        "config.restore" => t!("audit-model-restored-an-earlier-version-of", target = r.target),
+        "config.baseline" => t!("audit-model-baseline-for", target = r.target, before_state = r.before_state),
+        "process_kill" => t!("audit-model-killed-process", target = r.target),
+        "purge" => t!("audit-model-purged-stored-data-for", target = r.target),
+        "sshd.password_login_off" => t!("audit-model-turned-off-ssh-password-login").to_string(),
+        "ssh.host_key" => t!("audit-model-trusted-a-new-host-key", target = r.target),
         "ssh.key_switch" => r.before_state.clone(),
-        "ssh.terminal" => "opened a terminal".to_string(),
+        "ssh.terminal" => t!("audit-model-opened-a-terminal").to_string(),
         k if k.starts_with("service_") => format!("{} {}", k.trim_start_matches("service_"), r.target),
-        k if k.starts_with("provider.") => format!("{} at the provider", k.trim_start_matches("provider.")),
-        "fleet.reboot" => format!("rolling reboot: {}", r.before_state),
-        "firewall" => format!("ufw {}", r.target),
-        "user" => format!("user {}", r.target),
+        k if k.starts_with("provider.") => t!("audit-model-at-the-provider", k = k.trim_start_matches("provider.")),
+        "fleet.reboot" => t!("audit-model-rolling-reboot", before_state = r.before_state),
+        "firewall" => t!("audit-model-ufw", target = r.target),
+        "user" => t!("audit-model-user", target = r.target),
         k => format!("{k} {}", r.target),
     };
     // Config records carry hashes; command records carry the command, and

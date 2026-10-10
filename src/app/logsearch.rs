@@ -54,9 +54,9 @@ impl CrowApp {
         if self.log_search.text.is_some() {
             return;
         }
-        let text = cx.new(|cx| InputState::new(window, cx).placeholder("text or regex, e.g. Out of memory|segfault"));
-        let unit = cx.new(|cx| InputState::new(window, cx).placeholder("unit (optional), e.g. nginx.service"));
-        let name = cx.new(|cx| InputState::new(window, cx).placeholder("a name to save it as"));
+        let text = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-logsearch-text-or-regex-e-g")));
+        let unit = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-logsearch-unit-optional-e-g-nginx")));
+        let name = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-logsearch-a-name-to-save-it")));
         let subs = [&text, &unit]
             .into_iter()
             .map(|i| {
@@ -121,7 +121,7 @@ impl CrowApp {
         let target = self.log_search.target.clone();
         let servers: Vec<_> = self.fleet.servers.iter().filter(|s| target.includes(s) && self.fleet.health(s).is_ok()).cloned().collect();
         if servers.is_empty() {
-            self.log_search.message = Some((false, format!("No reachable server in {}.", target.label())));
+            self.log_search.message = Some((false, t!("app-logsearch-no-reachable-server-in", label = target.label())));
             cx.notify();
             return;
         }
@@ -134,7 +134,7 @@ impl CrowApp {
             self.log_search.running.insert(srv.id.clone());
             let (q, id, name) = (query.clone(), srv.id.clone(), srv.name.clone());
             cx.spawn(async move |entity, cx| {
-                let lines = cx.background_executor().spawn(async move { read_journal(host_for(&srv).as_ref(), &q).ok_or_else(|| "couldn't read its journal (no journalctl, or unreachable)".to_string()) }).await;
+                let lines = cx.background_executor().spawn(async move { read_journal(host_for(&srv).as_ref(), &q).ok_or_else(|| t!("app-logsearch-couldnt-read-its-journal-no").to_string()) }).await;
                 let _ = entity.update(cx, |this, cx| {
                     this.log_search.running.remove(&id);
                     this.log_search.results.push((id, name, lines));
@@ -150,17 +150,17 @@ impl CrowApp {
     pub fn save_log_search(&mut self, cx: &mut Context<Self>) {
         let mut s = self.current_search(cx);
         if s.name.is_empty() {
-            self.log_search.message = Some((false, "Name the search to save it.".into()));
+            self.log_search.message = Some((false, t!("app-logsearch-name-the-search-to-save").into()));
             cx.notify();
             return;
         }
         if s.text.is_empty() && s.unit.is_empty() && s.priority.is_none() {
-            self.log_search.message = Some((false, "A saved search needs text, a unit or a priority: one matching everything would always alert.".into()));
+            self.log_search.message = Some((false, t!("app-logsearch-a-saved-search-needs-text").into()));
             cx.notify();
             return;
         }
         s.id = format!("ls{}", chrono::Utc::now().timestamp_millis());
-        self.log_search.message = Some((true, format!("Saved \"{}\". Switch ALERT on to be told when it matches.", s.name)));
+        self.log_search.message = Some((true, t!("app-logsearch-saved-switch-alert-on-to", name = s.name)));
         self.log_search.saved.push(s);
         self.save_log_searches();
         cx.notify();
@@ -248,7 +248,7 @@ impl CrowApp {
             return;
         }
         let Some((primary, backup)) = self.ai_providers() else {
-            self.log_search.summary = Some(Err("No AI provider has a key yet. Add one in Settings → Clankers (AI).".into()));
+            self.log_search.summary = Some(Err(t!("app-logsearch-no-ai-provider-has-a").into()));
             cx.notify();
             return;
         };

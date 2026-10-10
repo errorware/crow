@@ -68,9 +68,9 @@ pub fn candidates(servers: &[ServerRecord], target: &Target, healthy: impl Fn(&S
     let mut out = Vec::new();
     for s in servers.iter().filter(|s| target.includes(s)) {
         if transport_kind(s) == TransportKind::Local {
-            out.push((s.name.clone(), "the machine Crow runs on: run it yourself".into()));
+            out.push((s.name.clone(), t!("app-rollouts-the-machine-crow-runs-on").into()));
         } else if !healthy(s) {
-            out.push((s.name.clone(), "not reachable right now".into()));
+            out.push((s.name.clone(), t!("app-rollouts-not-reachable-right-now").into()));
         } else {
             ok.push(s.clone());
         }
@@ -86,7 +86,7 @@ impl CrowApp {
         }
         let script = cx.new(|cx| EditorState::new(window, cx).placeholder("# runs with sh on each server, e.g.\nsystemctl reload nginx"));
         let path = cx.new(|cx| InputState::new(window, cx).placeholder("/etc/ssh/sshd_config.d/50-crow.conf"));
-        let content = cx.new(|cx| EditorState::new(window, cx).placeholder("the file's new content"));
+        let content = cx.new(|cx| EditorState::new(window, cx).placeholder(t!("app-rollouts-the-files-new-content")));
         let sub = cx.subscribe(&path, |this, input, ev: &InputEvent, cx| {
             if matches!(ev, InputEvent::PressEnter { .. } | InputEvent::Blur) {
                 let path = input.read(cx).value().trim().to_string();
@@ -202,7 +202,7 @@ impl CrowApp {
         let key = self.vault.key().cloned();
         let content = self.vault.db().lock().ok().and_then(|db| db.get_config_revision(revision_id).ok().flatten()).and_then(|rev| crate::config::history::open_content(&rev, key.as_ref()));
         let Some(content) = content else {
-            self.rollouts.message = Some("That baseline's content wasn't kept (only its hash), so it can't be rolled out.".into());
+            self.rollouts.message = Some(t!("app-rollouts-that-baselines-content-wasnt-kept").into());
             cx.notify();
             return;
         };
@@ -232,12 +232,12 @@ impl CrowApp {
             Kind::Command => {
                 let script = inputs.script.read(cx).value().to_string();
                 if script.trim().is_empty() {
-                    self.rollouts.message = Some("Write the command to run first.".into());
+                    self.rollouts.message = Some(t!("app-rollouts-write-the-command-to-run").into());
                     cx.notify();
                     return;
                 }
                 let first = script.lines().map(str::trim).find(|l| !l.is_empty() && !l.starts_with('#')).unwrap_or("script").to_string();
-                let what = format!("{}{first}{}", if st.as_root { "as root: " } else { "" }, if script.trim().lines().count() > 1 { " …" } else { "" });
+                let what = format!("{}{first}{}", if st.as_root { t!("app-rollouts-as-root") } else { "" }, if script.trim().lines().count() > 1 { " …" } else { "" });
                 for srv in &servers {
                     steps.push(FleetRun::step(&srv.id, &srv.name, what.clone()));
                     let (db, srv, script, as_root, what) = (self.vault.db(), srv.clone(), script.clone(), st.as_root, what.clone());
@@ -247,24 +247,24 @@ impl CrowApp {
                         result
                     }));
                 }
-                ("ROLLOUT · COMMAND".to_string(), "RUN", None)
+                (t!("app-rollouts-rollout-command").to_string(), "RUN", None)
             }
             Kind::Config => {
                 let path = inputs.path.read(cx).value().trim().to_string();
                 let content = inputs.content.read(cx).value().to_string();
                 if !path.starts_with('/') {
-                    self.rollouts.message = Some("The file's path must be absolute, like /etc/nginx/conf.d/app.conf.".into());
+                    self.rollouts.message = Some(t!("app-rollouts-the-files-path-must-be").into());
                     cx.notify();
                     return;
                 }
                 if content.trim().is_empty() {
-                    self.rollouts.message = Some("Write the file's new content first (or start from a server's copy or a baseline).".into());
+                    self.rollouts.message = Some(t!("app-rollouts-write-the-files-new-content").into());
                     cx.notify();
                     return;
                 }
                 if path != st.preview_path {
                     self.read_rollout_preview(cx);
-                    self.rollouts.message = Some("Reading each server's current file for the preview; plan again once it's read.".into());
+                    self.rollouts.message = Some(t!("app-rollouts-reading-each-servers-current-file").into());
                     cx.notify();
                     return;
                 }
@@ -274,18 +274,18 @@ impl CrowApp {
                         Some(Current::Read(now)) => {
                             let (add, del) = rollout::diff_stats(&rollout::line_diff(now, &content));
                             if add == 0 && del == 0 {
-                                excluded.push((srv.name.clone(), "already identical".into()));
+                                excluded.push((srv.name.clone(), t!("app-rollouts-already-identical").into()));
                                 continue;
                             }
-                            format!("write {path} (+{add} −{del})")
+                            t!("app-rollouts-write", path = path, add = add, del = del)
                         }
-                        Some(Current::Missing) => format!("create {path}"),
+                        Some(Current::Missing) => t!("app-rollouts-create", path = path),
                         Some(Current::Failed(e)) => {
-                            excluded.push((srv.name.clone(), format!("couldn't read its copy: {e}")));
+                            excluded.push((srv.name.clone(), t!("app-rollouts-couldnt-read-its-copy", e = e)));
                             continue;
                         }
                         Some(Current::Reading) | None => {
-                            excluded.push((srv.name.clone(), "its copy hasn't been read yet".into()));
+                            excluded.push((srv.name.clone(), t!("app-rollouts-its-copy-hasnt-been-read").into()));
                             continue;
                         }
                     };
@@ -307,13 +307,13 @@ impl CrowApp {
                         result
                     }));
                 }
-                (format!("ROLLOUT · {path}"), "ROLLOUT", Some(path))
+                (t!("app-rollouts-rollout", path = path), "ROLLOUT", Some(path))
             }
         };
         let n = steps.len();
         let use_canary = st.use_canary && n > 1;
         let stages = rollout::stages(n, use_canary, st.batch);
-        let title = format!("{title} · {n} SERVER{}", if n == 1 { "" } else { "S" });
+        let title = t!("app-rollouts-text", title = title, n = n);
         self.rollouts.message = None;
         let run = FleetRun::new(title, keyword, steps, excluded).staged(stages, use_canary.then_some(0));
         self.open_fleet_run(run, jobs, window, cx);
@@ -334,8 +334,8 @@ impl CrowApp {
         let (mut steps, mut jobs): (Vec<_>, Vec<RunJob>) = (Vec::new(), Vec::new());
         for (srv, before) in entries {
             let what = match &before {
-                crate::config::push::Before::Missing { .. } => format!("remove {path} (it didn't exist)"),
-                crate::config::push::Before::Content(_) => format!("put back {path} as it was"),
+                crate::config::push::Before::Missing { .. } => t!("app-rollouts-remove-it-didnt-exist", path = path),
+                crate::config::push::Before::Content(_) => t!("app-rollouts-put-back-as-it-was", path = path),
             };
             steps.push(FleetRun::step(&srv.id, &srv.name, what.clone()));
             let (db, key, author, path) = (self.vault.db(), self.vault.key().cloned(), author.to_string(), path.to_string());
@@ -352,7 +352,7 @@ impl CrowApp {
             }));
         }
         let n = steps.len();
-        self.open_fleet_run(FleetRun::new(format!("ROLL BACK {path} · {n} SERVER{}", if n == 1 { "" } else { "S" }), "ROLLBACK", steps, Vec::new()), jobs, window, cx);
+        self.open_fleet_run(FleetRun::new(t!("app-rollouts-roll-back", path = path, n = n), "ROLLBACK", steps, Vec::new()), jobs, window, cx);
     }
 }
 

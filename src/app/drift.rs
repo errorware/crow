@@ -72,7 +72,7 @@ impl CrowApp {
         if self.drift_page.search.is_some() {
             return;
         }
-        let input = cx.new(|cx| InputState::new(window, cx).placeholder("a file (sshd_config) or a setting (PermitRootLogin) on any server…"));
+        let input = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-drift-a-file-sshd-config-or")));
         let sub = cx.subscribe(&input, |this, input, ev: &InputEvent, cx| {
             if matches!(ev, InputEvent::Change | InputEvent::PressEnter { .. }) {
                 let q = input.read(cx).value().to_string();
@@ -151,7 +151,7 @@ impl CrowApp {
                 let _ = entity.update(cx, |this, cx| {
                     this.drift_page.checking.remove(&id);
                     if !failed.is_empty() {
-                        this.drift_page.message = Some(format!("couldn't read {} on a server: {}", failed[0].0, failed[0].1));
+                        this.drift_page.message = Some(t!("app-drift-couldnt-read-on-a-server", failed = failed[0].0, failed2 = failed[0].1));
                     }
                     this.refresh_drift();
                     let checked: HashMap<String, Vec<String>> = [(id, read)].into();
@@ -214,14 +214,14 @@ impl CrowApp {
                 let Some(srv) = self.fleet.servers.iter().find(|s| s.id == e.server_id).cloned() else { continue };
                 let content = baselines.iter().find(|b| b.path == e.path && b.scope == e.scope).and_then(|b| guard.get_config_revision(&b.revision_id).ok().flatten()).and_then(|rev| history::open_content(&rev, key.as_ref()));
                 let Some(baseline) = content else {
-                    excluded.push((srv.name.clone(), "the baseline's content wasn't kept (only its hash), so there's nothing to push".into()));
+                    excluded.push((srv.name.clone(), t!("app-drift-the-baselines-content-wasnt-kept").into()));
                     continue;
                 };
                 if !self.fleet.health(&srv).is_ok() {
-                    excluded.push((srv.name.clone(), "not reachable right now".into()));
+                    excluded.push((srv.name.clone(), t!("app-drift-not-reachable-right-now").into()));
                     continue;
                 }
-                let what = format!("put {path} back to the {} baseline", if e.scope == BASELINE_FLEET { "fleet".to_string() } else { e.scope.clone() });
+                let what = t!("app-drift-put-back-to-the-baseline", path = path, e = if e.scope == BASELINE_FLEET { "fleet".to_string() } else { e.scope.clone() });
                 steps.push(FleetRun::step(&srv.id, &srv.name, what.clone()));
                 let (db, key, author, path) = (self.vault.db(), key.clone(), author.clone(), path.to_string());
                 jobs.push(Box::new(move || {
@@ -237,7 +237,7 @@ impl CrowApp {
         self.drift_page.message = None;
         // After the run, read the files again so the alerts resolve.
         self.drift_page.last_check = 0;
-        self.open_fleet_run(FleetRun::new(format!("BRING BACK {path} · {n} SERVER{}", if n == 1 { "" } else { "S" }), "RESTORE", steps, excluded), jobs, window, cx);
+        self.open_fleet_run(FleetRun::new(t!("app-drift-bring-back", path = path, n = n), "RESTORE", steps, excluded), jobs, window, cx);
     }
 
     /// Accepts a server's copy: its latest revision becomes the baseline
@@ -246,10 +246,10 @@ impl CrowApp {
         let Some(entry) = self.fleet.drift.iter().flatten().find(|e| e.server_id == server_id && e.path == path).cloned() else { return };
         let name = self.fleet.servers.iter().find(|s| s.id == server_id).map(|s| s.name.clone()).unwrap_or_else(|| server_id.to_string());
         let author = self.default_author();
-        let result = self.vault.db().lock().map_err(|_| "the vault is busy".to_string()).and_then(|db| {
-            let rev = db.list_config_revisions(server_id, path).map_err(|e| e.to_string())?.pop().ok_or("Crow has no copy of it from that server")?;
+        let result = self.vault.db().lock().map_err(|_| t!("app-drift-the-vault-is-busy").to_string()).and_then(|db| {
+            let rev = db.list_config_revisions(server_id, path).map_err(|e| e.to_string())?.pop().ok_or(t!("app-drift-crow-has-no-copy-of"))?;
             if rev.sealed.is_none() {
-                return Err("only the hash of that copy was kept, so it couldn't be pushed anywhere: open the vault and read it again".into());
+                return Err(t!("app-drift-only-the-hash-of-that").into());
             }
             db.set_config_baseline(path, &entry.scope, &rev.id, &author).map_err(|e| e.to_string())?;
             let now = chrono::Utc::now().to_rfc3339();
@@ -269,8 +269,8 @@ impl CrowApp {
             .map_err(|e| e.to_string())
         });
         self.drift_page.message = Some(match result {
-            Ok(()) => format!("{name}'s {path} is now the baseline for {}. Other servers are compared with it from now on.", crate::app::configs::scope_label(&entry.scope)),
-            Err(e) => format!("Not accepted: {e}"),
+            Ok(()) => t!("app-drift-s-is-now-the-baseline", name = name, path = path, app = crate::app::configs::scope_label(&entry.scope)),
+            Err(e) => t!("app-drift-not-accepted", e = e),
         });
         self.refresh_drift();
         // Resolve what's now matching, everywhere this baseline applies.

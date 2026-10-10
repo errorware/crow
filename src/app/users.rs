@@ -48,7 +48,7 @@ impl CrowApp {
         let commands = match commands {
             Ok(c) => c,
             Err(e) => {
-                self.users.toast = Some(format!("Not applied: {e}"));
+                self.users.toast = Some(t!("app-users-not-applied", e = e));
                 cx.notify();
                 return;
             }
@@ -64,8 +64,8 @@ impl CrowApp {
                 this.apply_users(users);
                 this.users.pending = None;
                 this.users.toast = Some(match &result {
-                    Ok(()) => format!("Ran: {summary}"),
-                    Err(e) => format!("Failed: {summary} — {e}"),
+                    Ok(()) => t!("app-users-ran", summary = summary),
+                    Err(e) => t!("app-users-failed", summary = summary, e = e),
                 });
                 if closes_modal && result.is_ok() {
                     this.users.show_new_user_modal = false;
@@ -92,7 +92,7 @@ impl CrowApp {
         let form = &self.users.new_user;
         let name = form.username.trim().to_lowercase();
         if form.password != form.password_confirm {
-            self.users.toast = Some("Not applied: the passwords don't match".into());
+            self.users.toast = Some(t!("app-users-not-applied-the-passwords-dont").into());
             cx.notify();
             return;
         }
@@ -123,8 +123,8 @@ impl CrowApp {
             return;
         }
         use gpui_kit::component::input::{InputEvent, InputState};
-        let password = cx.new(|cx| InputState::new(window, cx).placeholder("new password").masked(true));
-        let confirm = cx.new(|cx| InputState::new(window, cx).placeholder("again").masked(true));
+        let password = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-users-new-password")).masked(true));
+        let confirm = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-users-again")).masked(true));
         let events = [&password, &confirm]
             .into_iter()
             .map(|input| {
@@ -146,7 +146,7 @@ impl CrowApp {
         let mut password = inputs.password.read(cx).value().to_string();
         let confirm = inputs.confirm.read(cx).value().to_string();
         if password != confirm {
-            self.users.toast = Some("Not applied: the passwords don't match".into());
+            self.users.toast = Some(t!("app-users-not-applied-the-passwords-dont").into());
             cx.notify();
             return;
         }
@@ -172,8 +172,8 @@ impl CrowApp {
             return;
         }
         use gpui_kit::component::input::{InputEvent, InputState};
-        let username = cx.new(|cx| InputState::new(window, cx).placeholder("e.g. alice, deploy"));
-        let gecos = cx.new(|cx| InputState::new(window, cx).placeholder("e.g. Alice Wonderland (optional)"));
+        let username = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-users-e-g-alice-deploy")));
+        let gecos = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-users-e-g-alice-wonderland-optional")));
         let sub_user = cx.subscribe(&username, |this, input, ev: &InputEvent, cx| match ev {
             InputEvent::Change => {
                 this.users.new_user.username = input.read(cx).value().to_string();
@@ -190,8 +190,8 @@ impl CrowApp {
             InputEvent::PressEnter { .. } => this.user_create(cx),
             _ => {}
         });
-        let password = cx.new(|cx| InputState::new(window, cx).placeholder("password").masked(true));
-        let password_confirm = cx.new(|cx| InputState::new(window, cx).placeholder("again").masked(true));
+        let password = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-users-password")).masked(true));
+        let password_confirm = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-users-again")).masked(true));
         let sub_pw = cx.subscribe(&password, |this, input, ev: &InputEvent, cx| {
             if matches!(ev, InputEvent::Change) {
                 this.users.new_user.password = crate::secret_string::SecretString::new(input.read(cx).value().to_string());
@@ -249,7 +249,7 @@ impl CrowApp {
         // Deleting the account Crow logs in as locks Crow out (ERR-111).
         if self.crow_login_user().as_deref() == Some(user) {
             self.users.confirm_delete = None;
-            self.users.toast = Some(format!("Not applied: Crow logs in to this server as {user}; deleting it would lock Crow (and you, through Crow) out. Switch the server to another account first."));
+            self.users.toast = Some(t!("app-users-not-applied-crow-logs-in", user = user));
             cx.notify();
             return;
         }
@@ -280,7 +280,7 @@ impl CrowApp {
         let is_crow_key = self.crow_login_user().as_deref() == Some(user)
             && self.crow_login_key_blob().is_some_and(|blob| line.split_whitespace().any(|w| w == blob.as_str()));
         if is_crow_key {
-            self.users.toast = Some("Not applied: that's the key Crow logs in to this server with; revoking it would lock Crow out. Switch the server to another key first (Keys → switch), then revoke this one.".into());
+            self.users.toast = Some(t!("app-users-not-applied-thats-the-key").into());
             cx.notify();
             return;
         }

@@ -64,9 +64,9 @@ impl CrowApp {
     /// What the lab is called given what's on, or `None` when nothing is.
     pub fn lab_label(&self) -> Option<&'static str> {
         match (self.plugin_enabled("multipass"), self.lab_enabled()) {
-            (true, true) => Some("Local VMs & Containers"),
-            (true, false) => Some("Multipass VMs"),
-            (false, true) => Some("Local Lab Containers"),
+            (true, true) => Some(t!("app-plugins-local-vms-containers")),
+            (true, false) => Some(t!("app-plugins-multipass-vms")),
+            (false, true) => Some(t!("app-plugins-local-lab-containers")),
             (false, false) => None,
         }
     }
@@ -92,7 +92,7 @@ impl CrowApp {
             self.plugins.enabled.remove(id);
         }
         let name = plugins::get(id).map_or(id, |p| p.name);
-        self.keys.toast = Some(format!("{name} {}", if on { "is on" } else { "is off" }));
+        self.keys.toast = Some(format!("{name} {}", if on { t!("app-plugins-is-on") } else { t!("app-plugins-is-off") }));
         cx.notify();
     }
 
@@ -100,8 +100,8 @@ impl CrowApp {
     pub fn check_plugin(&mut self, id: &str, cx: &mut Context<Self>) {
         if id == "email" {
             let status = match &self.email.saved {
-                Some(s) => PluginStatus::Ready(format!("mails {}", s.to.join(", "))),
-                None => PluginStatus::Problem { summary: "not set up yet".into(), steps: Vec::new() },
+                Some(s) => PluginStatus::Ready(t!("app-plugins-mails", s = s.to.join(", "))),
+                None => PluginStatus::Problem { summary: t!("app-plugins-not-set-up-yet").into(), steps: Vec::new() },
             };
             self.plugins.status.insert(id.to_string(), status);
             cx.notify();

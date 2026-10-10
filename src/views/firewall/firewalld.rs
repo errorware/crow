@@ -145,7 +145,7 @@ pub fn parse_rich_rule(rule: &str) -> Option<RichRule> {
         _ => None,
     })?;
     let action = if action == RuleAction::Allow && rule.contains(" limit value=") { RuleAction::Limit } else { action };
-    let source = rule.contains("source ").then(|| attr("address")).flatten().map(|a| if rule.contains("source NOT ") { format!("not {a}") } else { a });
+    let source = rule.contains("source ").then(|| attr("address")).flatten().map(|a| if rule.contains("source NOT ") { t!("firewalld-not", a = a) } else { a });
     let port = rule.contains(" port port=").then(|| Some((attr("port")?, attr("protocol")?))).flatten();
     let service = rule.contains("service name=").then(|| attr("name")).flatten();
     Some(RichRule { source, port, service, action, ipv6: attr("family").as_deref() == Some("ipv6") })
@@ -180,9 +180,9 @@ pub fn zones_to_summary(zones: &[Zone], services: &HashMap<String, ServiceInfo>,
     let default_zone = zones.iter().find(|z| z.is_default);
     for z in zones.iter().filter(|z| z.is_default || !z.interfaces.is_empty() || !z.sources.is_empty()) {
         let binding = match (z.sources.is_empty(), z.interfaces.is_empty()) {
-            (false, _) => format!("from {}", z.sources.join(", ")),
-            (true, false) => format!("on {}", z.interfaces.join(", ")),
-            (true, true) => "every interface not in another zone".to_string(),
+            (false, _) => t!("firewalld-from", z = z.sources.join(", ")),
+            (true, false) => t!("firewalld-on", z = z.interfaces.join(", ")),
+            (true, true) => t!("firewalld-every-interface-not-in-another").to_string(),
         };
         // What a listening port is exposed through: the default zone (it
         // takes every unassigned interface) and zones bound to sources.
@@ -190,36 +190,36 @@ pub fn zones_to_summary(zones: &[Zone], services: &HashMap<String, ServiceInfo>,
         let scope = ZoneScope { name: z.name.clone(), binding: binding.clone(), counts_for_exposure: z.is_default || !z.sources.is_empty(), entry: None };
         let source = if z.sources.is_empty() { "Anywhere".to_string() } else { z.sources.join(", ") };
         if z.target == "ACCEPT" {
-            push(&mut rules, RuleAction::Allow, String::new(), "", source.clone(), format!("zone {} accepts all traffic ({binding})", z.name), &scope, ZoneEntry::Target, false);
+            push(&mut rules, RuleAction::Allow, String::new(), "", source.clone(), t!("firewalld-zone-accepts-all-traffic", name = z.name, binding = binding), &scope, ZoneEntry::Target, false);
         }
         for svc in &z.services {
             let ports = service_ports(svc, services, &mut Vec::new());
             if ports.is_empty() {
-                push(&mut rules, RuleAction::Allow, String::new(), "", source.clone(), format!("service {svc} (ports not known) · zone {}", z.name), &scope, ZoneEntry::Service(svc.clone()), false);
+                push(&mut rules, RuleAction::Allow, String::new(), "", source.clone(), t!("firewalld-service-ports-not-known-zone", svc = svc, name = z.name), &scope, ZoneEntry::Service(svc.clone()), false);
             }
             for (port, proto) in ports {
-                push(&mut rules, RuleAction::Allow, port, &proto, source.clone(), format!("service {svc} · zone {}", z.name), &scope, ZoneEntry::Service(svc.clone()), false);
+                push(&mut rules, RuleAction::Allow, port, &proto, source.clone(), t!("firewalld-service-zone", svc = svc, name = z.name), &scope, ZoneEntry::Service(svc.clone()), false);
             }
         }
         for (port, proto) in &z.ports {
-            push(&mut rules, RuleAction::Allow, port.clone(), proto, source.clone(), format!("port · zone {}", z.name), &scope, ZoneEntry::Port(format!("{port}/{proto}")), false);
+            push(&mut rules, RuleAction::Allow, port.clone(), proto, source.clone(), t!("firewalld-port-zone", name = z.name), &scope, ZoneEntry::Port(format!("{port}/{proto}")), false);
         }
         for raw_rule in &z.rich_rules {
             match parse_rich_rule(raw_rule) {
                 Some(r) => {
                     let src = r.source.clone().unwrap_or_else(|| source.clone());
                     match (&r.port, &r.service) {
-                        (Some((port, proto)), _) => push(&mut rules, r.action, port.clone(), proto, src, format!("rich rule · zone {}", z.name), &scope, ZoneEntry::RichRule(raw_rule.clone()), r.ipv6),
+                        (Some((port, proto)), _) => push(&mut rules, r.action, port.clone(), proto, src, t!("firewalld-rich-rule-zone", name = z.name), &scope, ZoneEntry::RichRule(raw_rule.clone()), r.ipv6),
                         (None, Some(svc)) => {
                             for (port, proto) in service_ports(svc, services, &mut Vec::new()) {
-                                push(&mut rules, r.action, port, &proto, src.clone(), format!("rich rule, service {svc} · zone {}", z.name), &scope, ZoneEntry::RichRule(raw_rule.clone()), r.ipv6);
+                                push(&mut rules, r.action, port, &proto, src.clone(), t!("firewalld-rich-rule-service-zone", svc = svc, name = z.name), &scope, ZoneEntry::RichRule(raw_rule.clone()), r.ipv6);
                             }
                         }
-                        (None, None) => push(&mut rules, r.action, String::new(), "", src, format!("rich rule · zone {}", z.name), &scope, ZoneEntry::RichRule(raw_rule.clone()), r.ipv6),
+                        (None, None) => push(&mut rules, r.action, String::new(), "", src, t!("firewalld-rich-rule-zone", name = z.name), &scope, ZoneEntry::RichRule(raw_rule.clone()), r.ipv6),
                     }
                 }
                 // Shown, not interpreted: it doesn't take part in correlation.
-                None => push(&mut rules, RuleAction::Allow, String::new(), "", source.clone(), format!("rich rule (not interpreted): {raw_rule}"), &ZoneScope { counts_for_exposure: false, ..scope.clone() }, ZoneEntry::RichRule(raw_rule.clone()), false),
+                None => push(&mut rules, RuleAction::Allow, String::new(), "", source.clone(), t!("firewalld-rich-rule-not-interpreted", raw_rule = raw_rule), &ZoneScope { counts_for_exposure: false, ..scope.clone() }, ZoneEntry::RichRule(raw_rule.clone()), false),
             }
         }
     }
@@ -237,7 +237,7 @@ pub fn zones_to_summary(zones: &[Zone], services: &HashMap<String, ServiceInfo>,
         default_forward: RuleAction::Deny,
         rules,
         raw_output: raw,
-        notice: permanent_differs.then(|| "The running firewall differs from its saved (permanent) config: a reload or reboot will drop the runtime-only changes.".to_string()),
+        notice: permanent_differs.then(|| t!("firewalld-the-running-firewall-differs-from").to_string()),
     }
 }
 

@@ -79,8 +79,8 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                         .flex()
                         .items_center()
                         .gap(px(12.0))
-                        .child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child("PEOPLE"))
-                        .child(mono(10.5, TEXT_DIM).child(format!("{} accounts · {} keys · {} servers read", rows.len(), key_rows.len(), scans.len())))
+                        .child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("fleet-people-people")))
+                        .child(mono(10.5, TEXT_DIM).child(t!("fleet-people-accounts-keys-servers-read", count = rows.len(), key_rows_count = key_rows.len(), scans_count = scans.len())))
                         .child(div().flex_1())
                         .child(
                             div()
@@ -99,18 +99,18 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                                 .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                                 .on_click(move |_ev, _w, cx| app_read.update(cx, |this, cx| this.refresh_people(cx)))
                                 .child(inherited_icon(TablerIcon::Refresh, px(12.0)))
-                                .child(if st.reading.is_empty() { "READ AGAIN".to_string() } else { format!("READING {}…", st.reading.len()) }),
+                                .child(if st.reading.is_empty() { t!("fleet-people-read-again").to_string() } else { t!("fleet-people-reading", count = st.reading.len()) }),
                         ),
                 )
                 .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { OK } else { WARN }).child(m)))
-                .children((!failed.is_empty()).then(|| mono(10.0, WARN).child(format!("couldn't read: {}", failed.join(" · ")))))
+                .children((!failed.is_empty()).then(|| mono(10.0, WARN).child(t!("fleet-people-couldnt-read", failed = failed.join(" · ")))))
                 // Accounts.
                 .child(
                     div()
                         .flex()
                         .flex_col()
                         .gap(px(6.0))
-                        .child(section("WHO CAN LOG IN WHERE", "accounts with a login shell; ★ = sudo, ⊘ = locked, ◆ = Crow logs in as it"))
+                        .child(section(t!("fleet-people-who-can-log-in-where"), "accounts with a login shell; ★ = sudo, ⊘ = locked, ◆ = Crow logs in as it"))
                         .children(rows.iter().map(|r| {
                             let selected = st.selected.as_deref() == Some(r.username.as_str());
                             let (app_sel, user) = (app.clone(), r.username.clone());
@@ -140,7 +140,7 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                                             let mark = format!("{}{}{}{}", p.server, if p.sudo { " ★" } else { "" }, if p.locked { " ⊘" } else { "" }, if p.crow { " ◆" } else { "" });
                                             div().px(px(5.0)).py(px(1.0)).bg(BG_CHIP).font_family(FONT_MONO).text_size(px(9.5)).text_color(if p.locked { TEXT_FAINT } else if p.sudo { WARN } else { TEXT_TERTIARY }).child(mark)
                                         })))
-                                        .child(mono(9.5, TEXT_FAINT).flex_none().child(format!("{} server{}", r.on.len(), if r.on.len() == 1 { "" } else { "s" }))),
+                                        .child(mono(9.5, TEXT_FAINT).flex_none().child(t!("fleet-people-text", count = r.on.len()))),
                                 )
                                 .when(selected && !crow_everywhere && r.username != "root", |d| {
                                     let (a1, a2, u1, u2) = (app.clone(), app.clone(), r.username.clone(), r.username.clone());
@@ -153,7 +153,7 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                                             .py(px(6.0))
                                             .border_t_1()
                                             .border_color(BORDER_PANEL)
-                                            .child(mono(9.5, TEXT_DIM).flex_1().min_w(px(0.0)).line_height(px(13.0)).child("Offboard everywhere: their keys are revoked first, then the account is locked and expired (reversible) or deleted (home kept). Servers where Crow logs in as this account are left out."))
+                                            .child(mono(9.5, TEXT_DIM).flex_1().min_w(px(0.0)).line_height(px(13.0)).child(t!("fleet-people-offboard-everywhere-their-keys-are")))
                                             .child(action(format!("offboard-lock-{}", r.username), "LOCK EVERYWHERE", WARN).on_click(move |_ev, window, cx| {
                                                 let u = u1.clone();
                                                 a1.update(cx, |this, cx| this.plan_offboard(&u, Offboard::Lock, window, cx))
@@ -172,7 +172,7 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                         .flex()
                         .flex_col()
                         .gap(px(6.0))
-                        .child(section("FIND A KEY EVERYWHERE", "every key in any authorized_keys, named when it's one of Crow's"))
+                        .child(section(t!("fleet-people-find-a-key-everywhere"), t!("fleet-people-every-key-in-any-authorized")))
                         .children(st.key_query.as_ref().map(|i| div().max_w(px(560.0)).child(Input::new(i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0)))))
                         .children(found.into_iter().take(40).map(|k| {
                             let crow_key = k.opens.iter().any(|o| o.3);
@@ -186,7 +186,7 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                                 .border_1()
                                 .border_color(BORDER_PANEL)
                                 .bg(BG_PANEL)
-                                .child(mono(10.5, if k.enrolled { OK } else { TEXT_PRIMARY }).w(px(200.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(format!("{}{}", k.label, if k.enrolled { " (Crow)" } else { "" })))
+                                .child(mono(10.5, if k.enrolled { OK } else { TEXT_PRIMARY }).w(px(200.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(format!("{}{}", k.label, if k.enrolled { t!("fleet-people-crow") } else { "" })))
                                 .child(mono(9.5, TEXT_FAINT).w(px(170.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(k.fingerprint.clone()))
                                 .child(div().flex_1().min_w(px(0.0)).flex().flex_wrap().gap(px(4.0)).children(k.opens.iter().map(|(_, server, account, crow)| {
                                     div().px(px(5.0)).py(px(1.0)).bg(BG_CHIP).font_family(FONT_MONO).text_size(px(9.5)).text_color(if *crow { OK } else { TEXT_TERTIARY }).child(format!("{account}@{server}{}", if *crow { " ◆" } else { "" }))
@@ -195,7 +195,7 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                                     let (blob, label) = (blob.clone(), label.clone());
                                     app.update(cx, |this, cx| this.plan_revoke_key_everywhere(&blob, &label, window, cx))
                                 }))
-                                .when(crow_key, |d| d.child(mono(9.0, TEXT_FAINT).child("(skips Crow's own logins)")))
+                                .when(crow_key, |d| d.child(mono(9.0, TEXT_FAINT).child(t!("fleet-people-skips-crows-own-logins"))))
                         })),
                 )
                 // Onboarding.
@@ -208,7 +208,7 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                         .border_1()
                         .border_color(BORDER_PANEL)
                         .bg(BG_PANEL)
-                        .child(section("ONBOARD", "an account with their key on a group's servers (created where missing)"))
+                        .child(section("ONBOARD", t!("fleet-people-an-account-with-their-key")))
                         .child(div().flex().gap(px(8.0)).child(div().w(px(200.0)).children(st.new_user.as_ref().map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0))))).child(div().flex_1().children(st.new_key.as_ref().map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0))))))
                         .child(
                             div()
@@ -218,11 +218,11 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                                 .gap(px(6.0))
                                 .child({
                                     let app = app.clone();
-                                    chip("people-target-all", "every server", st.target == Target::All).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_people_target(Target::All, cx)))
+                                    chip("people-target-all", t!("fleet-people-every-server"), st.target == Target::All).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_people_target(Target::All, cx)))
                                 })
                                 .children(fleet.groups.iter().map(|g| {
                                     let (app, name) = (app.clone(), g.clone());
-                                    chip(format!("people-target-{g}"), format!("group {g}"), st.target == Target::Group(g.clone())).on_click(move |_ev, _w, cx| {
+                                    chip(format!("people-target-{g}"), t!("fleet-people-group", g = g), st.target == Target::Group(g.clone())).on_click(move |_ev, _w, cx| {
                                         let name = name.clone();
                                         app.update(cx, |this, cx| this.set_people_target(Target::Group(name), cx))
                                     })
@@ -237,7 +237,7 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                                         .cursor_pointer()
                                         .on_click(move |_ev, _w, cx| app_sudo.update(cx, |this, cx| this.toggle_people_sudo(cx)))
                                         .child(div().size(px(12.0)).border_1().border_color(if st.new_sudo { WARN } else { BORDER_STRONG }).bg(if st.new_sudo { WARN } else { BG_CONTROL }))
-                                        .child(mono(10.5, TEXT_SECONDARY).child("with sudo")),
+                                        .child(mono(10.5, TEXT_SECONDARY).child(t!("fleet-people-with-sudo"))),
                                 )
                                 .child(div().flex_1())
                                 .child(action("btn-onboard-run", "ONBOARD →", OK).on_click(move |_ev, window, cx| app_onboard.update(cx, |this, cx| this.plan_onboard(window, cx)))),

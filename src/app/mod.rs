@@ -428,12 +428,12 @@ impl CrowApp {
                 .map(|s| detect_firewall_status(s))
                 .unwrap_or_else(|| FirewallOperationalState::Unmanaged {
                     detected_binaries: Vec::new(),
-                    reason: "No server is enrolled yet.".into(),
+                    reason: t!("app-no-server-is-enrolled-yet").into(),
                 })
         } else {
             FirewallOperationalState::Unmanaged {
                 detected_binaries: Vec::new(),
-                reason: "Detecting...".into(),
+                reason: t!("app-detecting").into(),
             }
         };
         let configs = if is_first_local {

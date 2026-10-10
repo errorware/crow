@@ -15,7 +15,7 @@ pub fn group_assign_modal(
     let app_close = app.clone();
     let app_close_scrim = app.clone();
     let server = fleet.servers.iter().find(|s| s.id == server_id);
-    let server_name = server.map(|s| s.name.as_str()).unwrap_or("Server");
+    let server_name = server.map(|s| s.name.as_str()).unwrap_or(t!("fleet-group-modal-server"));
     let current_group = server.map(|s| s.group_name.as_str()).unwrap_or("default");
 
     // Collect all unique groups, ensuring default/unassigned is at the top
@@ -83,7 +83,7 @@ pub fn group_assign_modal(
                                         .text_size(px(11.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_MAX)
-                                        .child(format!("GROUP · {server_name}")),
+                                        .child(t!("fleet-group-modal-group", server_name = server_name)),
                                 ),
                         )
                         .child(
@@ -110,7 +110,7 @@ pub fn group_assign_modal(
                         .text_color(TEXT_DIM)
                         .border_b_1()
                         .border_color(BORDER_PANEL)
-                        .child("Move this server to a group:"),
+                        .child(t!("fleet-group-modal-move-this-server-to-a")),
                 )
                 // Group List
                 .child(
@@ -125,7 +125,7 @@ pub fn group_assign_modal(
                             let is_assigned = (grp == "default" && (current_group.is_empty() || current_group == "default"))
                                 || grp == current_group;
                             let display_label = if grp == "default" {
-                                "no group".to_string()
+                                t!("fleet-group-modal-no-group").to_string()
                             } else {
                                 grp.clone()
                             };

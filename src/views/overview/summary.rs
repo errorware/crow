@@ -44,9 +44,9 @@ pub enum Exposure {
 impl Exposure {
     pub fn label(&self) -> &'static str {
         match self {
-            Exposure::AllInterfaces => "ALL INTERFACES",
-            Exposure::Interface => "INTERFACE",
-            Exposure::Local => "LOCAL",
+            Exposure::AllInterfaces => t!("overview-summary-all-interfaces"),
+            Exposure::Interface => t!("overview-summary-interface"),
+            Exposure::Local => t!("overview-summary-local"),
         }
     }
 }
@@ -83,7 +83,7 @@ pub fn summarize_services(services: &[ServiceUnit]) -> ServiceSummary {
             _ => s.inactive += 1,
         }
     }
-    for status in ["FAILED", "DEGRADED"] {
+    for status in [t!("overview-summary-failed"), t!("overview-summary-degraded")] {
         s.attention.extend(services.iter().filter(|svc| svc.status == status).map(|svc| (svc.name.clone(), svc.status.clone())));
     }
     s

@@ -77,14 +77,14 @@ pub fn retention_boundaries_modal(
                                         .text_size(px(12.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("SYSTEMD JOURNAL RETENTION & BOUNDARIES"),
+                                        .child(t!("logs-retention-modal-systemd-journal-retention-boundaries")),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(px(9.5))
                                         .text_color(TEXT_TERTIARY)
-                                        .child("Eliminate 30-minute silent log rotations & prevent crash wipeouts"),
+                                        .child(t!("logs-retention-modal-eliminate-30-minute-silent-log")),
                                 ),
                         )
                         .child(
@@ -129,14 +129,14 @@ pub fn retention_boundaries_modal(
                                                     .text_size(px(11.0))
                                                     .font_weight(FontWeight::BOLD)
                                                     .text_color(CRIT)
-                                                    .child("⚠ CRITICAL: STORAGE IS VOLATILE / AUTO"),
+                                                    .child(t!("logs-retention-modal-critical-storage-is-volatile-auto")),
                                             )
                                             .child(
                                                 div()
                                                     .font_family(FONT_MONO)
                                                     .text_size(px(10.0))
                                                     .text_color(TEXT_PRIMARY)
-                                                    .child("If this host crashes or powers off, logs will be permanently wiped from RAM."),
+                                                    .child(t!("logs-retention-modal-if-this-host-crashes-or")),
                                             ),
                                     )
                                     .child(
@@ -156,7 +156,7 @@ pub fn retention_boundaries_modal(
                                                     this.set_journal_storage_mode(JournalStorageMode::Persistent, cx);
                                                 });
                                             })
-                                            .child("LOCK TO DISK 🔒"),
+                                            .child(t!("logs-retention-modal-lock-to-disk")),
                                     )
                             } else {
                                 div()
@@ -185,14 +185,14 @@ pub fn retention_boundaries_modal(
                                                     .text_size(px(10.5))
                                                     .font_weight(FontWeight::BOLD)
                                                     .text_color(OK)
-                                                    .child("CRASH-SAFE PERSISTENT STORAGE ACTIVE"),
+                                                    .child(t!("logs-retention-modal-crash-safe-persistent-storage-active")),
                                             )
                                             .child(
                                                 div()
                                                     .font_family(FONT_MONO)
                                                     .text_size(px(9.5))
                                                     .text_color(TEXT_SECONDARY)
-                                                    .child("Active journals persist in /var/log/journal/ across server crashes and reboots."),
+                                                    .child(t!("logs-retention-modal-active-journals-persist-in-var")),
                                             ),
                                     )
                             }
@@ -203,9 +203,9 @@ pub fn retention_boundaries_modal(
                                 .grid()
                                 .grid_cols(3)
                                 .gap(px(10.0))
-                                .child(render_stat_card("CURRENT DISK USAGE", &telemetry.disk_usage_display(), &format!("{} active files", telemetry.active_files_count)))
-                                .child(render_stat_card("RETENTION HORIZON", &format!("{:.0} hours", telemetry.retention_horizon_hours), &format!("Oldest: {}", telemetry.oldest_timestamp)))
-                                .child(render_stat_card("DAILY WRITE RATE", &format!("{:.0} MB/day", telemetry.daily_burn_rate_mb), &format!("~{:.0} days at current rate", telemetry.estimated_retained_days)))
+                                .child(render_stat_card(t!("logs-retention-modal-current-disk-usage"), &telemetry.disk_usage_display(), &t!("logs-retention-modal-active-files", active_files_count = telemetry.active_files_count)))
+                                .child(render_stat_card(t!("logs-retention-modal-retention-horizon"), &t!("logs-retention-modal-hours", retention_horizon_hours = format!("{:.0}", telemetry.retention_horizon_hours)), &t!("logs-retention-modal-oldest", oldest_timestamp = telemetry.oldest_timestamp)))
+                                .child(render_stat_card(t!("logs-retention-modal-daily-write-rate"), &t!("logs-retention-modal-mb-day", daily_burn_rate_mb = format!("{:.0}", telemetry.daily_burn_rate_mb)), &t!("logs-retention-modal-days-at-current-rate", estimated_retained_days = format!("{:.0}", telemetry.estimated_retained_days))))
                         )
                         // 3. Visual Capacity Gauge Bar
                         .child(
@@ -224,14 +224,14 @@ pub fn retention_boundaries_modal(
                                                 .text_size(px(10.0))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_SECONDARY)
-                                                .child(format!("ALLOCATION: {} / {} ({:.1}%)", telemetry.disk_usage_display(), config.max_use_display(), usage_pct)),
+                                                .child(t!("logs-retention-modal-allocation", disk_usage_display = telemetry.disk_usage_display(), max_use_display = config.max_use_display(), usage_pct = format!("{:.1}", usage_pct))),
                                         )
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(9.5))
                                                 .text_color(TEXT_TERTIARY)
-                                                .child("SystemMaxUse boundary"),
+                                                .child(t!("logs-retention-modal-systemmaxuse-boundary")),
                                         ),
                                 )
                                 .child(
@@ -266,14 +266,14 @@ pub fn retention_boundaries_modal(
                                                 .text_size(px(10.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_PRIMARY)
-                                                .child("STORAGE PERSISTENCE (Storage)"),
+                                                .child(t!("logs-retention-modal-storage-persistence-storage")),
                                         )
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(9.5))
                                                 .text_color(TEXT_MUTED)
-                                                .child("Controls whether logs survive host reboots & power loss"),
+                                                .child(t!("logs-retention-modal-controls-whether-logs-survive-host")),
                                         ),
                                 )
                                 .child(
@@ -281,9 +281,9 @@ pub fn retention_boundaries_modal(
                                         .flex()
                                         .gap(px(8.0))
                                         .children([
-                                            (JournalStorageMode::Persistent, "PERSISTENT (Rec)", OK),
-                                            (JournalStorageMode::Volatile, "VOLATILE (RAM-only)", CRIT),
-                                            (JournalStorageMode::Auto, "AUTO (Fragile)", WARN),
+                                            (JournalStorageMode::Persistent, t!("logs-retention-modal-persistent-rec"), OK),
+                                            (JournalStorageMode::Volatile, t!("logs-retention-modal-volatile-ram-only"), CRIT),
+                                            (JournalStorageMode::Auto, t!("logs-retention-modal-auto-fragile"), WARN),
                                         ].into_iter().enumerate().map(|(idx, (mode, label, accent))| {
                                             let is_sel = config.storage == mode;
                                             let app_m = app_mode.clone();
@@ -329,14 +329,14 @@ pub fn retention_boundaries_modal(
                                                 .text_size(px(10.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_PRIMARY)
-                                                .child("MAX DISK QUOTA (SystemMaxUse)"),
+                                                .child(t!("logs-retention-modal-max-disk-quota-systemmaxuse")),
                                         )
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(9.5))
                                                 .text_color(TEXT_MUTED)
-                                                .child("Hard ceiling before older journals rotate out"),
+                                                .child(t!("logs-retention-modal-hard-ceiling-before-older-journals")),
                                         ),
                                 )
                                 .child(
@@ -346,12 +346,12 @@ pub fn retention_boundaries_modal(
                                         .children([512, 2048, 4096, 8192, 16384].into_iter().enumerate().map(|(idx, mb)| {
                                             let is_sel = config.system_max_use_mb == mb;
                                             let label = match mb {
-                                                512 => "500 MB",
-                                                2048 => "2.0 GB",
-                                                4096 => "4.0 GB (Rec)",
-                                                8192 => "8.0 GB",
-                                                16384 => "16 GB",
-                                                _ => "Custom",
+                                                512 => t!("logs-retention-modal-500-mb"),
+                                                2048 => t!("logs-retention-modal-2-0-gb"),
+                                                4096 => t!("logs-retention-modal-4-0-gb-rec"),
+                                                8192 => t!("logs-retention-modal-8-0-gb"),
+                                                16384 => t!("logs-retention-modal-16-gb"),
+                                                _ => t!("logs-retention-modal-custom"),
                                             };
                                             let app_q = app_quota.clone();
                                             div()
@@ -396,14 +396,14 @@ pub fn retention_boundaries_modal(
                                                 .text_size(px(10.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_PRIMARY)
-                                                .child("TIME HORIZON (MaxRetentionSec)"),
+                                                .child(t!("logs-retention-modal-time-horizon-maxretentionsec")),
                                         )
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(9.5))
                                                 .text_color(TEXT_MUTED)
-                                                .child("Maximum age before logs are purged"),
+                                                .child(t!("logs-retention-modal-maximum-age-before-logs-are")),
                                         ),
                                 )
                                 .child(
@@ -413,13 +413,13 @@ pub fn retention_boundaries_modal(
                                         .children([7, 14, 30, 90, 180, 0].into_iter().enumerate().map(|(idx, days)| {
                                             let is_sel = config.max_retention_days == days;
                                             let label = match days {
-                                                7 => "7 Days",
-                                                14 => "14 Days",
-                                                30 => "30 Days (Rec)",
-                                                90 => "90 Days",
-                                                180 => "180 Days",
-                                                0 => "Unlimited",
-                                                _ => "Custom",
+                                                7 => t!("logs-retention-modal-7-days"),
+                                                14 => t!("logs-retention-modal-14-days"),
+                                                30 => t!("logs-retention-modal-30-days-rec"),
+                                                90 => t!("logs-retention-modal-90-days"),
+                                                180 => t!("logs-retention-modal-180-days"),
+                                                0 => t!("logs-retention-modal-unlimited"),
+                                                _ => t!("logs-retention-modal-custom"),
                                             };
                                             let app_t = app_time.clone();
                                             div()
@@ -464,14 +464,14 @@ pub fn retention_boundaries_modal(
                                                 .text_size(px(10.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_PRIMARY)
-                                                .child("SAFETY DISK RESERVE (SystemKeepFree)"),
+                                                .child(t!("logs-retention-modal-safety-disk-reserve-systemkeepfree")),
                                         )
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(9.5))
                                                 .text_color(TEXT_MUTED)
-                                                .child("Guarantees disk space stays free to avoid root disk crashes"),
+                                                .child(t!("logs-retention-modal-guarantees-disk-space-stays-free")),
                                         ),
                                 )
                                 .child(
@@ -481,10 +481,10 @@ pub fn retention_boundaries_modal(
                                         .children([1024, 2048, 5120].into_iter().enumerate().map(|(idx, mb)| {
                                             let is_sel = config.system_keep_free_mb == mb;
                                             let label = match mb {
-                                                1024 => "1.0 GB",
-                                                2048 => "2.0 GB (Rec)",
-                                                5120 => "5.0 GB",
-                                                _ => "Custom",
+                                                1024 => t!("logs-retention-modal-1-0-gb"),
+                                                2048 => t!("logs-retention-modal-2-0-gb-rec"),
+                                                5120 => t!("logs-retention-modal-5-0-gb"),
+                                                _ => t!("logs-retention-modal-custom"),
                                             };
                                             let app_k = app_keep.clone();
                                             div()
@@ -546,7 +546,7 @@ pub fn retention_boundaries_modal(
                                         this.select_managed_file("journald.conf", cx);
                                     });
                                 })
-                                .child("EDIT IN CROW-CONFIG ↗"),
+                                .child(t!("logs-retention-modal-edit-in-crow-config")),
                         )
                         // Right: Save / Close
                         .child(
@@ -571,7 +571,7 @@ pub fn retention_boundaries_modal(
                                                 this.apply_journal_boundaries(cx);
                                             });
                                         })
-                                        .child("APPLY TO /etc/systemd/journald.conf"),
+                                        .child(t!("logs-retention-modal-apply-to-etc-systemd-journald")),
                                 ),
                         ),
                 ),

@@ -105,7 +105,7 @@ pub fn services_table(
                                             this.set_sockets_subview(SocketsViewMode::Table, cx);
                                         });
                                     })
-                                    .child("TABLE"),
+                                    .child(t!("overview-services-table-table")),
                             )
                             .child(
                                 div()
@@ -127,7 +127,7 @@ pub fn services_table(
                                             this.set_sockets_subview(SocketsViewMode::Map, cx);
                                         });
                                     })
-                                    .child("MAP"),
+                                    .child(t!("overview-services-table-map")),
                             ),
                     )
                 } else {
@@ -164,7 +164,7 @@ pub fn services_table(
                                     .size(px(12.0))
                                     .text_color(if is_open { hex_rgb(0x8ab4ff) } else { TEXT_DIMMER }),
                             )
-                            .child(if is_open { "LOG DRAWER (ACTIVE)" } else { "LOG DRAWER" }),
+                            .child(if is_open { t!("overview-services-table-log-drawer-active") } else { t!("overview-services-table-log-drawer") }),
                     )
                 } else {
                     None
@@ -188,9 +188,9 @@ pub fn services_table(
                                     .text_size(px(10.5))
                                     .text_color(TEXT_TERTIARY)
                                     .child(match active_tab {
-                                        "sockets" => "sort port ↑",
-                                        "services" => "sort status · name",
-                                        _ => "sort cpu ↓",
+                                        "sockets" => t!("overview-services-table-sort-port"),
+                                        "services" => t!("overview-services-table-sort-status-name"),
+                                        _ => t!("overview-services-table-sort-cpu"),
                                     }),
                             )
                             .child(
@@ -242,7 +242,7 @@ pub fn services_table(
                             let filtered = filter_processes(processes, overview.process_filter, &overview.process_query);
                             let shown: Vec<ProcessUnit> = page_of(&filtered, overview.process_page).0.iter().map(|p| (*p).clone()).collect();
                             if shown.is_empty() && !processes.is_empty() {
-                                vec![empty_state("No processes match — try ALL, or clear the search")]
+                                vec![empty_state(t!("overview-services-table-no-processes-match-try-all"))]
                             } else if overview.group_processes {
                                 render_processes_rows_grouped(&shown, &overview.collapsed_process_groups, app.clone())
                             } else {
@@ -253,7 +253,7 @@ pub fn services_table(
                         _ => {
                             let shown = page_services(overview);
                             if shown.is_empty() && !services.is_empty() {
-                                vec![empty_state("No services match — try ALL, or clear the search")]
+                                vec![empty_state(t!("overview-services-table-no-services-match-try-all"))]
                             } else if overview.group_services {
                                 render_services_rows_grouped(&shown, &overview.collapsed_service_groups, overview, app.clone())
                             } else {
@@ -347,11 +347,11 @@ fn render_pager(table: TablePage, total: usize, page: usize, app: Entity<CrowApp
             .border_color(BORDER_PANEL)
             .font_family(FONT_MONO)
             .text_size(px(10.5))
-            .child(div().text_color(TEXT_DIMMER).child(format!("{first}–{last} of {total}")))
+            .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-of", first = first, last = last, total = total)))
             .child(div().flex_1())
-            .child(button("table-page-prev", "‹ PREV", page.checked_sub(1)))
+            .child(button("table-page-prev", t!("overview-services-table-prev"), page.checked_sub(1)))
             .child(div().text_color(TEXT_FAINT).child(format!("{} / {}", page + 1, pages)))
-            .child(button("table-page-next", "NEXT ›", (page + 1 < pages).then_some(page + 1))),
+            .child(button("table-page-next", t!("overview-services-table-next"), (page + 1 < pages).then_some(page + 1))),
     )
 }
 
@@ -362,7 +362,7 @@ fn render_pager(table: TablePage, total: usize, page: usize, app: Entity<CrowApp
 fn render_group_toggle(active_tab: &str, overview: &OverviewState, app: Entity<CrowApp>) -> impl IntoElement {
     let is_on = if active_tab == "services" { overview.group_services } else { overview.group_processes };
     let tab_owned = active_tab.to_string();
-    let label = if active_tab == "services" { "GROUP BY STATUS" } else { "GROUP BY NAME" };
+    let label = if active_tab == "services" { t!("overview-services-table-group-by-status") } else { t!("overview-services-table-group-by-name") };
 
     div()
         .id("btn-group-toggle")
@@ -420,10 +420,10 @@ fn render_counts_cluster(
                 .px(px(12.0))
                 .font_family(FONT_MONO)
                 .text_size(px(10.5))
-                .child(div().text_color(TEXT_DIMMER).child(format!("{} processes", total)))
-                .child(div().text_color(OK).child(format!("{} running", running)))
+                .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-processes", total = total)))
+                .child(div().text_color(OK).child(t!("overview-services-table-running", running = running)))
                 .children(if high_cpu > 0 {
-                    Some(div().text_color(WARN).child(format!("{} high cpu", high_cpu)))
+                    Some(div().text_color(WARN).child(t!("overview-services-table-high-cpu", high_cpu = high_cpu)))
                 } else {
                     None
                 })
@@ -440,10 +440,10 @@ fn render_counts_cluster(
                 .px(px(12.0))
                 .font_family(FONT_MONO)
                 .text_size(px(10.5))
-                .child(div().text_color(TEXT_DIMMER).child(format!("{} sockets", total)))
-                .child(div().text_color(OK).child(format!("{} listening", listen)))
+                .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-sockets", total = total)))
+                .child(div().text_color(OK).child(t!("overview-services-table-listening", listen = listen)))
                 .children(if estab > 0 {
-                    Some(div().text_color(hex_rgb(0x38bdf8)).child(format!("{} established", estab)))
+                    Some(div().text_color(hex_rgb(0x38bdf8)).child(t!("overview-services-table-established", estab = estab)))
                 } else {
                     None
                 })
@@ -461,15 +461,15 @@ fn render_counts_cluster(
                 .px(px(12.0))
                 .font_family(FONT_MONO)
                 .text_size(px(10.5))
-                .child(div().text_color(TEXT_DIMMER).child(format!("{} units", total)))
-                .child(div().text_color(OK).child(format!("{} active", active)))
+                .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-units", total = total)))
+                .child(div().text_color(OK).child(t!("overview-services-table-active", active = active)))
                 .children(if degraded > 0 {
-                    Some(div().text_color(WARN).child(format!("{} degraded", degraded)))
+                    Some(div().text_color(WARN).child(t!("overview-services-table-degraded", degraded = degraded)))
                 } else {
                     None
                 })
                 .children(if failed > 0 {
-                    Some(div().text_color(CRIT).child(format!("{} failed", failed)))
+                    Some(div().text_color(CRIT).child(t!("overview-services-table-failed", failed = failed)))
                 } else {
                     None
                 })
@@ -510,31 +510,31 @@ fn render_column_header(active_tab: &str, (local_w, peer_w): (f32, f32)) -> impl
 
     match active_tab {
         "processes" => header_box
-            .child(div().w(px(74.0)).pl(px(12.0)).child("PID"))
-            .child(div().w(px(96.0)).child("USER"))
-            .child(div().w(px(70.0)).text_right().child("CPU %"))
-            .child(div().w(px(70.0)).text_right().child("MEM %"))
-            .child(div().w(px(74.0)).text_right().child("RSS"))
-            .child(div().w(px(64.0)).text_center().child("STAT"))
-            .child(div().w(px(80.0)).text_right().child("TIME"))
-            .child(div().flex_1().min_w(px(0.0)).pl(px(12.0)).child("COMMAND"))
-            .child(div().w(px(78.0)).text_right().pr(px(12.0)).child("ACTIONS")),
+            .child(div().w(px(74.0)).pl(px(12.0)).child(t!("overview-services-table-pid")))
+            .child(div().w(px(96.0)).child(t!("overview-services-table-user")))
+            .child(div().w(px(70.0)).text_right().child(t!("overview-services-table-cpu")))
+            .child(div().w(px(70.0)).text_right().child(t!("overview-services-table-mem")))
+            .child(div().w(px(74.0)).text_right().child(t!("overview-services-table-rss")))
+            .child(div().w(px(64.0)).text_center().child(t!("overview-services-table-stat")))
+            .child(div().w(px(80.0)).text_right().child(t!("overview-services-table-time")))
+            .child(div().flex_1().min_w(px(0.0)).pl(px(12.0)).child(t!("overview-services-table-command")))
+            .child(div().w(px(78.0)).text_right().pr(px(12.0)).child(t!("overview-services-table-actions"))),
         "sockets" => header_box
-            .child(div().w(px(64.0)).pl(px(12.0)).child("PROTO"))
-            .child(div().w(px(local_w)).flex_none().child("LOCAL ENDPOINT / FIREWALL"))
-            .child(div().w(px(peer_w)).flex_none().child("PEER ENDPOINT"))
-            .child(div().w(px(90.0)).child("STATE"))
-            .child(div().flex_1().min_w(px(0.0)).child("PROCESS / SERVICE"))
-            .child(div().w(px(74.0)).text_right().pr(px(12.0)).child("PID")),
+            .child(div().w(px(64.0)).pl(px(12.0)).child(t!("overview-services-table-proto")))
+            .child(div().w(px(local_w)).flex_none().child(t!("overview-services-table-local-endpoint-firewall")))
+            .child(div().w(px(peer_w)).flex_none().child(t!("overview-services-table-peer-endpoint")))
+            .child(div().w(px(90.0)).child(t!("overview-services-table-state")))
+            .child(div().flex_1().min_w(px(0.0)).child(t!("overview-services-table-process-service")))
+            .child(div().w(px(74.0)).text_right().pr(px(12.0)).child(t!("overview-services-table-pid"))),
         _ => header_box
             .child(div().w(px(26.0)))
-            .child(div().flex_1().min_w(px(0.0)).child("UNIT"))
-            .child(div().w(px(84.0)).child("PID"))
-            .child(div().w(px(74.0)).text_right().child("CPU %"))
-            .child(div().w(px(72.0)).text_right().child("MEM %"))
-            .child(div().w(px(72.0)).text_right().child("RSS"))
-            .child(div().w(px(84.0)).text_right().child("UPTIME"))
-            .child(div().w(px(108.0)).text_right().pr(px(12.0)).child("ACTIONS")),
+            .child(div().flex_1().min_w(px(0.0)).child(t!("overview-services-table-unit")))
+            .child(div().w(px(84.0)).child(t!("overview-services-table-pid")))
+            .child(div().w(px(74.0)).text_right().child(t!("overview-services-table-cpu")))
+            .child(div().w(px(72.0)).text_right().child(t!("overview-services-table-mem")))
+            .child(div().w(px(72.0)).text_right().child(t!("overview-services-table-rss")))
+            .child(div().w(px(84.0)).text_right().child(t!("overview-services-table-uptime")))
+            .child(div().w(px(108.0)).text_right().pr(px(12.0)).child(t!("overview-services-table-actions"))),
     }
 }
 
@@ -654,7 +654,7 @@ fn empty_state(message: &'static str) -> AnyElement {
 
 fn render_services_rows(services: &[ServiceUnit], overview: &OverviewState, app: Entity<CrowApp>) -> Vec<AnyElement> {
     if services.is_empty() {
-        return vec![empty_state("No systemd service units detected on active host")];
+        return vec![empty_state(t!("overview-services-table-no-systemd-service-units-detected"))];
     }
 
     services.iter().enumerate().map(|(idx, svc)| render_service_row(svc, idx, overview, app.clone())).collect::<Vec<_>>()
@@ -662,7 +662,7 @@ fn render_services_rows(services: &[ServiceUnit], overview: &OverviewState, app:
 
 fn render_services_rows_grouped(services: &[ServiceUnit], collapsed: &HashSet<String>, overview: &OverviewState, app: Entity<CrowApp>) -> Vec<AnyElement> {
     if services.is_empty() {
-        return vec![empty_state("No systemd service units detected on active host")];
+        return vec![empty_state(t!("overview-services-table-no-systemd-service-units-detected"))];
     }
 
     let mut order: Vec<String> = Vec::new();
@@ -715,13 +715,9 @@ fn render_services_rows_grouped(services: &[ServiceUnit], collapsed: &HashSet<St
 /// "checking…" state while the async socket lookup is still in flight.
 fn blast_radius_text(overview: &OverviewState, unit: &str) -> String {
     match overview.blast_radius.as_ref().filter(|b| b.for_unit == unit) {
-        Some(b) if b.established == 0 && b.listening == 0 => "No active connections will be dropped.".to_string(),
-        Some(b) => format!(
-            "{} established connection{} and {} listening socket{} will be dropped.",
-            b.established, if b.established == 1 { "" } else { "s" },
-            b.listening, if b.listening == 1 { "" } else { "s" },
-        ),
-        None => "Checking active connections…".to_string(),
+        Some(b) if b.established == 0 && b.listening == 0 => t!("overview-services-table-no-active-connections-will-be").to_string(),
+        Some(b) => t!("overview-services-table-established-and-listening-will-be", established = b.established, listening = b.listening),
+        None => t!("overview-services-table-checking-active-connections").to_string(),
     }
 }
 
@@ -893,7 +889,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                             .font_family(FONT_MONO)
                             .text_size(px(11.5))
                             .text_color(CRIT_INK)
-                            .child(format!("Restart {}? {}", svc.name, blast_radius_text(overview, &svc.name))),
+                            .child(t!("overview-services-table-restart", name = svc.name, blast_radius_text = blast_radius_text(overview, &svc.name))),
                     )
                     .child(div().flex_1())
                     .child(
@@ -916,8 +912,8 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                                     });
                                 }
                             })
-                            .child("Cancel ")
-                            .child(div().text_color(TEXT_DIMMER).child("esc")),
+                            .child(t!("overview-services-table-cancel"))
+                            .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-esc"))),
                     )
                     .child(
                         div()
@@ -939,7 +935,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                                     });
                                 }
                             })
-                            .child("RESTART ⏎"),
+                            .child(t!("overview-services-table-restart-2")),
                     ),
             )
         } else {
@@ -954,7 +950,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
 
 fn render_processes_rows(processes: &[ProcessUnit], app: Entity<CrowApp>) -> Vec<AnyElement> {
     if processes.is_empty() {
-        return vec![empty_state("No processes detected on active host")];
+        return vec![empty_state(t!("overview-services-table-no-processes-detected-on-active"))];
     }
 
     processes.iter().enumerate().map(|(idx, proc_item)| render_process_row(proc_item, idx, app.clone())).collect::<Vec<_>>()
@@ -962,7 +958,7 @@ fn render_processes_rows(processes: &[ProcessUnit], app: Entity<CrowApp>) -> Vec
 
 fn render_processes_rows_grouped(processes: &[ProcessUnit], collapsed: &HashSet<String>, app: Entity<CrowApp>) -> Vec<AnyElement> {
     if processes.is_empty() {
-        return vec![empty_state("No processes detected on active host")];
+        return vec![empty_state(t!("overview-services-table-no-processes-detected-on-active"))];
     }
 
     let mut order: Vec<String> = Vec::new();
@@ -1153,7 +1149,7 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                             .font_family(FONT_MONO)
                             .text_size(px(11.5))
                             .text_color(CRIT_INK)
-                            .child(format!("Terminate {} (PID {})? Send SIGTERM.", comm, pid)),
+                            .child(t!("overview-services-table-terminate-pid-send-sigterm", comm = comm, pid = pid)),
                     )
                     .child(div().flex_1())
                     .child(
@@ -1173,8 +1169,8 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                                     this.toggle_process_confirm(pid, cx);
                                 });
                             })
-                            .child("Cancel ")
-                            .child(div().text_color(TEXT_DIMMER).child("esc")),
+                            .child(t!("overview-services-table-cancel"))
+                            .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-esc"))),
                     )
                     .child(
                         div()
@@ -1193,7 +1189,7 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                                     this.execute_process_kill(pid, cx);
                                 });
                             })
-                            .child("KILL (SIGTERM) ⏎"),
+                            .child(t!("overview-services-table-kill-sigterm")),
                     ),
             )
         } else {
@@ -1212,7 +1208,7 @@ fn render_sockets_rows(
     app: Entity<CrowApp>,
 ) -> Vec<AnyElement> {
     if sockets.is_empty() {
-        return vec![empty_state("No open network sockets detected on active host")];
+        return vec![empty_state(t!("overview-services-table-no-open-network-sockets-detected"))];
     }
     let (local_w, peer_w) = socket_col_widths(sockets);
 
@@ -1285,12 +1281,12 @@ fn render_sockets_rows(
                             let app_fw = app.clone();
                             let port_val = sock.local_port.clone();
                             let label = match fw_match {
-                                PortFirewallMatch::Allowed { rule_number, .. } => format!("allow #{}", rule_number),
-                                PortFirewallMatch::Denied { rule_number, .. } => format!("deny #{}", rule_number),
-                                PortFirewallMatch::AllowedDefault => "default allow".to_string(),
-                                PortFirewallMatch::NoRule => "no rule".to_string(),
-                                PortFirewallMatch::Inactive => "fw off".to_string(),
-                                PortFirewallMatch::Unknown => "fw ?".to_string(),
+                                PortFirewallMatch::Allowed { rule_number, .. } => t!("overview-services-table-allow", rule_number = rule_number),
+                                PortFirewallMatch::Denied { rule_number, .. } => t!("overview-services-table-deny", rule_number = rule_number),
+                                PortFirewallMatch::AllowedDefault => t!("overview-services-table-default-allow").to_string(),
+                                PortFirewallMatch::NoRule => t!("overview-services-table-no-rule").to_string(),
+                                PortFirewallMatch::Inactive => t!("overview-services-table-fw-off").to_string(),
+                                PortFirewallMatch::Unknown => t!("overview-services-table-fw").to_string(),
                             };
                             Some(
                                 // Quiet: a dot in the rule's colour, muted text; the

@@ -30,7 +30,7 @@ impl CrowApp {
 
     pub fn ensure_hardening_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.hardening.reason.is_none() {
-            self.hardening.reason = Some(cx.new(|cx| InputState::new(window, cx).placeholder("why this risk is acceptable (needed to accept one)")));
+            self.hardening.reason = Some(cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-hardening-why-this-risk-is-acceptable"))));
         }
     }
 
@@ -46,7 +46,7 @@ impl CrowApp {
     pub fn accept_risk(&mut self, server_id: &str, code: &str, cx: &mut Context<Self>) {
         let reason = self.hardening.reason.as_ref().map(|i| i.read(cx).value().trim().to_string()).unwrap_or_default();
         if reason.is_empty() {
-            self.hardening.message = Some((false, "Write why the risk is acceptable first: the reason goes in the report and the audit log.".into()));
+            self.hardening.message = Some((false, t!("app-hardening-write-why-the-risk-is").into()));
             cx.notify();
             return;
         }
@@ -56,7 +56,7 @@ impl CrowApp {
         self.hardening.accepted.push(Accepted { server_id: server_id.into(), code: code.into(), reason: reason.clone(), by, at });
         self.save_accepted();
         self.audit_posture(server_id, "posture.accept", &format!("accepted {code}: {reason}"));
-        self.hardening.message = Some((true, "Accepted: it's no longer flagged on the map or here, and the report lists it with your reason.".into()));
+        self.hardening.message = Some((true, t!("app-hardening-accepted-its-no-longer-flagged").into()));
         self.reload_topology_alerts();
         cx.notify();
     }
@@ -101,24 +101,24 @@ impl CrowApp {
             let Some(found) = self.server_findings(&srv.id) else { continue };
             let Some((finding, accepted)) = found.into_iter().find(|(f, _)| f.code() == code) else { continue };
             if accepted.is_some() {
-                excluded.push((srv.name.clone(), "accepted as a risk".into()));
+                excluded.push((srv.name.clone(), t!("app-hardening-accepted-as-a-risk").into()));
                 continue;
             }
             if transport_kind(&srv) != TransportKind::Ssh {
-                excluded.push((srv.name.clone(), "not an SSH server (Crow proves every fix with a fresh SSH login)".into()));
+                excluded.push((srv.name.clone(), t!("app-hardening-not-an-ssh-server-crow").into()));
                 continue;
             }
             if !self.fleet.health(&srv).is_ok() {
-                excluded.push((srv.name.clone(), "not reachable right now".into()));
+                excluded.push((srv.name.clone(), t!("app-hardening-not-reachable-right-now").into()));
                 continue;
             }
             // Turning a firewall on needs ufw or firewalld there (ERR-167).
             if matches!(finding, Finding::NoFirewall(_)) && self.topology.posture.get(&srv.id).is_some_and(|p| p.firewall_tools.is_empty()) {
-                excluded.push((srv.name.clone(), "neither ufw nor firewalld is installed: install one (apt install ufw, dnf install firewalld), then fix it".into()));
+                excluded.push((srv.name.clone(), t!("app-hardening-neither-ufw-nor-firewalld-is").into()));
                 continue;
             }
             if !finding.fixable(&srv.login_user) {
-                excluded.push((srv.name.clone(), "Crow logs in as root with a key: prohibit-password is already the safest setting it can keep".into()));
+                excluded.push((srv.name.clone(), t!("app-hardening-crow-logs-in-as-root").into()));
                 continue;
             }
             let what = finding.fix(&srv.login_user);
@@ -145,7 +145,7 @@ impl CrowApp {
         let n = steps.len();
         // Read the posture again once it's done.
         self.topology.posture_checked_at = 0;
-        let title = format!("HARDEN · {} · {n} SERVER{}", code.to_uppercase(), if n == 1 { "" } else { "S" });
+        let title = t!("app-hardening-harden", code = code.to_uppercase(), n = n);
         self.open_fleet_run(FleetRun::new(title, "HARDEN", steps, excluded), jobs, window, cx);
     }
 
@@ -173,8 +173,8 @@ impl CrowApp {
         let dir = dirs::download_dir().or_else(dirs::document_dir).or_else(dirs::home_dir).unwrap_or_else(std::env::temp_dir);
         let path = dir.join(format!("crow-posture-{}.md", now.format("%Y%m%d-%H%M")));
         self.hardening.message = Some(match std::fs::write(&path, md) {
-            Ok(()) => (true, format!("Report written to {}", path.display())),
-            Err(e) => (false, format!("Couldn't write the report to {}: {e}", path.display())),
+            Ok(()) => (true, t!("app-hardening-report-written-to", path = path.display())),
+            Err(e) => (false, t!("app-hardening-couldnt-write-the-report-to", path = path.display(), e = e)),
         });
         cx.notify();
     }

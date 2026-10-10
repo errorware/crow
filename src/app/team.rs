@@ -55,7 +55,7 @@ impl CrowApp {
         match self.may(perm, server) {
             Ok(()) => true,
             Err(why) => {
-                self.team_notice(false, format!("Not allowed: {why}."), cx);
+                self.team_notice(false, t!("app-team-not-allowed", why = why), cx);
                 false
             }
         }
@@ -80,10 +80,10 @@ impl CrowApp {
     pub fn ensure_team_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let t = &mut self.team;
         if t.passphrase.is_none() {
-            t.passphrase = Some(cx.new(|cx| InputState::new(window, cx).placeholder("passphrase").masked(true)));
-            t.new_name = Some(cx.new(|cx| InputState::new(window, cx).placeholder("name, e.g. ana")));
-            t.new_pass = Some(cx.new(|cx| InputState::new(window, cx).placeholder("their passphrase (8+ characters; they can change it later)").masked(true)));
-            t.approval = Some(cx.new(|cx| InputState::new(window, cx).placeholder("a second member's passphrase").masked(true)));
+            t.passphrase = Some(cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-team-passphrase")).masked(true)));
+            t.new_name = Some(cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-team-name-e-g-ana"))));
+            t.new_pass = Some(cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-team-their-passphrase-8-characters-they")).masked(true)));
+            t.approval = Some(cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-team-a-second-members-passphrase")).masked(true)));
         }
         if std::mem::take(&mut t.clear_approval) {
             if let Some(i) = &t.approval {
@@ -110,9 +110,9 @@ impl CrowApp {
             self.team.signing_in = None;
             self.team.message = None;
             crate::vault::set_current_actor(Some(m.name.clone()));
-            self.team_notice(true, format!("Signed in as {} ({}).", m.name, m.role.name()), cx);
+            self.team_notice(true, t!("app-team-signed-in-as", name = m.name, name2 = m.role.name()), cx);
         } else {
-            self.team.message = Some((false, "That passphrase isn't right.".into()));
+            self.team.message = Some((false, t!("app-team-that-passphrase-isnt-right").into()));
         }
         cx.notify();
     }
@@ -156,7 +156,7 @@ impl CrowApp {
         let first = !self.team.config.enabled();
         let role = if first { Role::Admin } else { self.team.new_role.clone().unwrap_or(Role::Viewer) };
         if name.is_empty() || self.team.config.members.iter().any(|m| m.name.eq_ignore_ascii_case(&name)) {
-            self.team.message = Some((false, "Give the member a name no one else has.".into()));
+            self.team.message = Some((false, t!("app-team-give-the-member-a-name").into()));
             cx.notify();
             return;
         }
@@ -186,9 +186,9 @@ impl CrowApp {
         if first {
             self.team.active = Some(m.id.clone());
             crate::vault::set_current_actor(Some(m.name.clone()));
-            self.team.message = Some((true, format!("Team mode is on: {name} is the first Admin and is signed in. From now on Crow asks who's at the keyboard when it starts.")));
+            self.team.message = Some((true, t!("app-team-team-mode-is-on-is", name = name)));
         } else {
-            self.team.message = Some((true, format!("Added {name} as {}.", role.name())));
+            self.team.message = Some((true, t!("app-team-added-as", name = name, name2 = role.name())));
         }
         cx.notify();
     }
@@ -198,7 +198,7 @@ impl CrowApp {
             return;
         }
         if self.team.config.last_admin(id) && self.team.config.members.len() > 1 {
-            self.team.message = Some((false, "That's the last Admin: make someone else Admin first.".into()));
+            self.team.message = Some((false, t!("app-team-thats-the-last-admin-make").into()));
             cx.notify();
             return;
         }
@@ -208,7 +208,7 @@ impl CrowApp {
         }
         self.save_team();
         if !self.team.config.enabled() {
-            self.team.message = Some((true, "No members left: team mode is off, and Crow is single-user again.".into()));
+            self.team.message = Some((true, t!("app-team-no-members-left-team-mode").into()));
         }
         cx.notify();
     }
@@ -236,6 +236,6 @@ impl CrowApp {
             .iter()
             .find(|m| m.id != me && m.role.allows(Permission::RunFleet) && team::check_passphrase(m, &pass))
             .map(|m| m.name.clone())
-            .ok_or_else(|| "needs a second member's approval: someone else allowed fleet runs types their passphrase".into())
+            .ok_or_else(|| t!("app-team-needs-a-second-members-approval").into())
     }
 }

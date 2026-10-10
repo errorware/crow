@@ -72,13 +72,13 @@ impl CrowApp {
         };
         let host = input(window, cx, "smtp.example.com", s.host.clone());
         let port = input(window, cx, "465", s.port.to_string());
-        let username = input(window, cx, "blank if the server needs no login", s.username.clone());
-        let pw_placeholder = if self.email.has_password { "set · leave blank to keep it" } else { "the SMTP password or app password" };
+        let username = input(window, cx, t!("app-notify-blank-if-the-server-needs"), s.username.clone());
+        let pw_placeholder = if self.email.has_password { t!("app-notify-set-leave-blank-to-keep") } else { t!("app-notify-the-smtp-password-or-app") };
         let password = cx.new(|cx| InputState::new(window, cx).placeholder(pw_placeholder).masked(true));
         let from = input(window, cx, "crow@example.com", s.from.clone());
-        let to = input(window, cx, "you@example.com, oncall@example.com", s.to.join(", "));
+        let to = input(window, cx, t!("app-notify-you-example-com-oncall-example"), s.to.join(", "));
         let digest = input(window, cx, "60", s.digest_minutes.to_string());
-        let quiet = input(window, cx, "e.g. 22-07, or blank", email::format_quiet_hours(s.quiet_hours));
+        let quiet = input(window, cx, t!("app-notify-e-g-22-07-or"), email::format_quiet_hours(s.quiet_hours));
         let events = [&host, &port, &username, &password, &from, &to, &digest, &quiet]
             .into_iter()
             .map(|i| {
@@ -116,10 +116,10 @@ impl CrowApp {
 
     /// The form as settings, and the password typed (blank: keep the saved one).
     fn email_form(&self, cx: &App) -> Result<(EmailSettings, String), String> {
-        let inputs = self.email_inputs.as_ref().ok_or("the form isn't open")?;
+        let inputs = self.email_inputs.as_ref().ok_or(t!("app-notify-the-form-isnt-open"))?;
         let text = |i: &Entity<InputState>| i.read(cx).value().trim().to_string();
-        let port: u16 = text(&inputs.port).parse().map_err(|_| "the port is a number, like 465 or 587".to_string())?;
-        let digest_minutes: u32 = text(&inputs.digest).parse().map_err(|_| "the digest interval is a number of minutes".to_string())?;
+        let port: u16 = text(&inputs.port).parse().map_err(|_| t!("app-notify-the-port-is-a-number").to_string())?;
+        let digest_minutes: u32 = text(&inputs.digest).parse().map_err(|_| t!("app-notify-the-digest-interval-is-a").to_string())?;
         let defaults = EmailSettings::default();
         let settings = EmailSettings {
             host: text(&inputs.host),
@@ -135,7 +135,7 @@ impl CrowApp {
         };
         settings.validate()?;
         if !settings.username.is_empty() && !self.email.has_password && text(&inputs.password).is_empty() {
-            return Err("there's a username but no password".into());
+            return Err(t!("app-notify-theres-a-username-but-no").into());
         }
         Ok((settings, inputs.password.read(cx).value().to_string()))
     }
@@ -153,9 +153,9 @@ impl CrowApp {
             let mut password = password;
             let result = ready.and_then(|()| {
                 let db = this.vault.db();
-                let db = db.lock().map_err(|_| "the vault is busy; try again".to_string())?;
+                let db = db.lock().map_err(|_| t!("app-notify-the-vault-is-busy-try").to_string())?;
                 if !password.is_empty() {
-                    let key = this.vault.key().ok_or("the vault is locked")?;
+                    let key = this.vault.key().ok_or(t!("app-notify-the-vault-is-locked"))?;
                     db.store_entry(key, email::PASSWORD_ENTRY, email::PASSWORD_CATEGORY, "SMTP password", password.as_bytes()).map_err(|e| e.to_string())?;
                 } else if settings.username.is_empty() {
                     // No login: no password to keep.
@@ -165,8 +165,8 @@ impl CrowApp {
             });
             password.zeroize();
             this.email.form_message = Some(match result {
-                Ok(()) => (true, "Saved. Alerts are mailed while Crow is running.".into()),
-                Err(e) => (false, format!("Not saved: {e}")),
+                Ok(()) => (true, t!("app-notify-saved-alerts-are-mailed-while").into()),
+                Err(e) => (false, t!("app-notify-not-saved", e = e)),
             });
             this.load_email();
             this.check_plugin("email", cx);
@@ -204,7 +204,7 @@ impl CrowApp {
         };
         let password = if typed.is_empty() { self.email_password() } else { Some(typed) };
         if !settings.username.is_empty() && password.is_none() {
-            self.email.test_result = Some((false, "the saved password can't be read while the vault is locked".into()));
+            self.email.test_result = Some((false, t!("app-notify-the-saved-password-cant-be").into()));
             cx.notify();
             return;
         }
@@ -225,9 +225,9 @@ impl CrowApp {
             let _ = entity.update(cx, |this, cx| {
                 this.email.testing = false;
                 this.email.test_result = Some(match err {
-                    None if sent == 1 => (true, format!("Sent to {to}. Check the inbox (and spam).")),
+                    None if sent == 1 => (true, t!("app-notify-sent-to-check-the-inbox", to = to)),
                     Some(e) => (false, e),
-                    None => (false, "nothing was sent".into()),
+                    None => (false, t!("app-notify-nothing-was-sent").into()),
                 });
                 cx.notify();
             });
@@ -261,7 +261,7 @@ impl CrowApp {
         }
         let password = if settings.username.is_empty() { None } else { self.email_password() };
         if !settings.username.is_empty() && password.is_none() {
-            state.last_error = Some("the SMTP password can't be read (is the vault locked?)".into());
+            state.last_error = Some(t!("app-notify-the-smtp-password-cant-be").into());
             state.last_attempt = now;
             self.save_dispatch(&state);
             self.email.dispatch = state;

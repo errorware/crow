@@ -28,15 +28,15 @@ impl FleetEnvFilter {
 
 /// What a detection run found, for the Fleet page's status line.
 fn summarize(found: usize, by_geoip: usize, unknown: usize, failed: usize) -> String {
-    let mut parts = vec![format!("{found} located")];
+    let mut parts = vec![t!("app-region-located", found = found)];
     if by_geoip > 0 {
-        parts.push(format!("{by_geoip} by GeoIP"));
+        parts.push(t!("app-region-by-geoip", by_geoip = by_geoip));
     }
     if unknown > 0 {
-        parts.push(format!("{unknown} without cloud metadata"));
+        parts.push(t!("app-region-without-cloud-metadata", unknown = unknown));
     }
     if failed > 0 {
-        parts.push(format!("{failed} unreachable"));
+        parts.push(t!("app-region-unreachable", failed = failed));
     }
     parts.join(" · ")
 }
@@ -81,7 +81,7 @@ impl CrowApp {
             return;
         }
         self.fleet.region_detecting = true;
-        self.fleet.region_note = Some(format!("asking {} server(s)…", targets.len()));
+        self.fleet.region_note = Some(t!("app-region-asking-server-s", count = targets.len()));
         cx.notify();
         let db = self.vault.db();
         let use_geoip = self.geoip_regions();
@@ -143,7 +143,7 @@ impl CrowApp {
                     }
                     let note = summarize(found, by_geoip, unknown, failed);
                     match geoip_error {
-                        Some(e) => format!("{note} · GeoIP unavailable: {e}"),
+                        Some(e) => t!("app-region-geoip-unavailable", note = note, e = e),
                         None => note,
                     }
                 })

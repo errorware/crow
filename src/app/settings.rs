@@ -22,8 +22,8 @@ impl CrowApp {
     pub fn update_config_field(&mut self, row_id: &str, new_value: serde_json::Value, cx: &mut Context<Self>) {
         match self.config.update_field(row_id, new_value) {
             Ok(()) => self.settings.edit_error = None,
-            Err(crow_config_core::edit::EditError::InvalidValue { message, .. }) => self.settings.edit_error = Some(format!("Not changed: {message}")),
-            Err(e) => self.settings.edit_error = Some(format!("Not changed: {e}")),
+            Err(crow_config_core::edit::EditError::InvalidValue { message, .. }) => self.settings.edit_error = Some(t!("app-settings-not-changed", message = message)),
+            Err(e) => self.settings.edit_error = Some(t!("app-settings-not-changed-2", e = e)),
         }
         // Personalisation is saved as soon as it changes; nothing to review.
         if row_id.starts_with("appearance.") {
@@ -154,7 +154,7 @@ impl CrowApp {
         }
         let input = cx.new(|cx| {
             InputState::new(window, cx)
-                .placeholder("value…")
+                .placeholder(t!("app-settings-value"))
                 .default_value(&self.settings.custom_input)
         });
         let rid = row_id.clone();

@@ -65,14 +65,7 @@ impl KeysState {
             }
         }
         let new_count = discovered.iter().filter(|d| !d.is_enrolled).count();
-        self.scan_status = Some(format!(
-            "Scanned {} path{} · {} key{} found ({} new)",
-            self.scan_paths.len(),
-            if self.scan_paths.len() == 1 { "" } else { "s" },
-            discovered.len(),
-            if discovered.len() == 1 { "" } else { "s" },
-            new_count
-        ));
+        self.scan_status = Some(t!("settings-keys-state-scanned-found-new", count = self.scan_paths.len(), discovered_count = discovered.len(), new_count = new_count));
         self.discovered = discovered;
     }
 }

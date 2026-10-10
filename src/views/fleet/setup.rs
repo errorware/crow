@@ -19,7 +19,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
     let mut group_map: BTreeMap<String, Vec<&crate::vault::ServerRecord>> = BTreeMap::new();
     for s in servers {
         let g = if s.group_name.trim().is_empty() {
-            "default / unassigned"
+            t!("fleet-setup-default-unassigned")
         } else {
             s.group_name.trim()
         };
@@ -69,14 +69,14 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                                 .text_size(px(16.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_MAX)
-                                .child("FLEET SETUP & POLICIES"),
+                                .child(t!("fleet-setup-fleet-setup-policies")),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(11.5))
                                 .text_color(TEXT_DIM)
-                                .child("groups, tag taxonomy, host key lifecycle, and the fleet map"),
+                                .child(t!("fleet-setup-groups-tag-taxonomy-host-key")),
                         ),
                 )
                 .child(div().flex_1())
@@ -97,7 +97,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                                 this.set_screen(Screen::Fleet, cx);
                             });
                         })
-                        .child("CLOSE esc"),
+                        .child(t!("fleet-setup-close-esc")),
                 ),
         )
         .child(setup_tabs(fleet.setup_page, app.clone()))
@@ -120,7 +120,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child("ENROLLED SERVERS:"))
+                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-enrolled-servers")))
                         .child(div().text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(total_servers.to_string())),
                 )
                 .child(
@@ -128,7 +128,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child("FLEET GROUPS:"))
+                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-fleet-groups")))
                         .child(div().text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(hex_rgb(0x38bdf8)).child(group_map.len().to_string())),
                 )
                 .child(
@@ -136,7 +136,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child("UNIQUE TAGS:"))
+                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-unique-tags")))
                         .child(div().text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(hex_rgb(0xa78bfa)).child(tag_counts.len().to_string())),
                 )
                 .child(
@@ -144,14 +144,14 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child("HOST KEYS PINNED:"))
+                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-host-keys-pinned")))
                         .child(
                             div()
                                 .text_size(px(11.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(if total_servers == 0 { TEXT_MUTED } else if missing_keys > 0 { WARN } else { OK })
                                 .child(if total_servers == 0 {
-                                    "NONE ENROLLED".to_string()
+                                    t!("fleet-setup-none-enrolled").to_string()
                                 } else {
                                     format!("{pinned_keys}/{total_servers}")
                                 }),
@@ -185,7 +185,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                                         .text_size(px(11.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("FLEET TOPOLOGY & GROUP ASSIGNMENTS"),
+                                        .child(t!("fleet-setup-fleet-topology-group-assignments")),
                                 )
                                 .child({
                                     let app_btn = app.clone();
@@ -208,7 +208,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                                                 this.set_screen(Screen::Fleet, cx);
                                             });
                                         })
-                                        .child("+ MANAGE / NEW GROUP")
+                                        .child(t!("fleet-setup-manage-new-group"))
                                 }),
                         )
                         .children(if group_map.is_empty() {
@@ -222,7 +222,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                                     .font_family(FONT_MONO)
                                     .text_size(px(11.0))
                                     .text_color(TEXT_FAINT)
-                                    .child("No servers currently enrolled in fleet.")
+                                    .child(t!("fleet-setup-no-servers-currently-enrolled-in"))
                                     .into_any_element(),
                             ]
                         } else {
@@ -272,7 +272,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                                                     .rounded_xs()
                                                     .text_size(px(9.5))
                                                     .text_color(TEXT_SECONDARY)
-                                                    .child(format!("{member_count} SERVER{}", if member_count == 1 { "" } else { "S" })),
+                                                    .child(t!("fleet-setup-text", member_count = member_count)),
                                             ),
                                     )
                                     // Member Server List
@@ -372,7 +372,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                                                                             this.set_group_assign_target(Some(sid), cx);
                                                                         });
                                                                     })
-                                                                    .child("CHANGE GROUP ▾")
+                                                                    .child(t!("fleet-setup-change-group"))
                                                             }),
                                                     )
                                             })),
@@ -412,14 +412,14 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                                                 .text_size(px(11.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_MAX)
-                                                .child("HOST KEYS"),
+                                                .child(t!("fleet-setup-host-keys")),
                                         ),
                                 )
                                 .child(
                                     div()
                                         .text_size(px(10.5))
                                         .text_color(TEXT_DIM)
-                                        .child("Crow pins each server's host key fingerprint at enrollment and refuses to connect if it changes. Ages come from the key files' dates on each server; there's no rotation policy yet."),
+                                        .child(t!("fleet-setup-crow-pins-each-servers-host")),
                                 )
                                 // Age breakdown rows
                                 .child(
@@ -430,12 +430,12 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                                         .border_t_1()
                                         .border_color(BORDER_ROW)
                                         .pt(px(8.0))
-                                        .child(render_policy_row("Fingerprint pinned", pinned_keys, OK))
-                                        .child(render_policy_row("Not pinned", missing_keys, if missing_keys > 0 { WARN } else { TEXT_MUTED }))
-                                        .child(render_policy_row("Keys under a year old", ages.buckets[0], OK))
-                                        .child(render_policy_row("Keys 1–2 years old", ages.buckets[1], TEXT_SECONDARY))
-                                        .child(render_policy_row("Keys over 2 years old", ages.buckets[2], WARN))
-                                        .children((ages.unknown > 0).then(|| render_policy_row("Key age not read yet", ages.unknown, TEXT_MUTED))),
+                                        .child(render_policy_row(t!("fleet-setup-fingerprint-pinned"), pinned_keys, OK))
+                                        .child(render_policy_row(t!("fleet-setup-not-pinned"), missing_keys, if missing_keys > 0 { WARN } else { TEXT_MUTED }))
+                                        .child(render_policy_row(t!("fleet-setup-keys-under-a-year-old"), ages.buckets[0], OK))
+                                        .child(render_policy_row(t!("fleet-setup-keys-1-2-years-old"), ages.buckets[1], TEXT_SECONDARY))
+                                        .child(render_policy_row(t!("fleet-setup-keys-over-2-years-old"), ages.buckets[2], WARN))
+                                        .children((ages.unknown > 0).then(|| render_policy_row(t!("fleet-setup-key-age-not-read-yet"), ages.unknown, TEXT_MUTED))),
                                 ),
                         )
                         // Card 2: Tag Taxonomy
@@ -461,7 +461,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                                                 .text_size(px(11.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_MAX)
-                                                .child("FLEET TAG TAXONOMY"),
+                                                .child(t!("fleet-setup-fleet-tag-taxonomy")),
                                         ),
                                 )
                                 .children(if tag_counts.is_empty() {
@@ -469,7 +469,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                                         div()
                                             .text_size(px(10.5))
                                             .text_color(TEXT_FAINT)
-                                            .child("No custom tags defined. Assign tags to nodes during onboarding or in server configuration to categorize your infrastructure.")
+                                            .child(t!("fleet-setup-no-custom-tags-defined-assign"))
                                             .into_any_element(),
                                     ]
                                 } else {
@@ -519,14 +519,14 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                                                 .text_size(px(11.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_MAX)
-                                                .child("AGENTLESS EXECUTION GUARANTEE"),
+                                                .child(t!("fleet-setup-agentless-execution-guarantee")),
                                         ),
                                 )
                                 .child(
                                     div()
                                         .text_size(px(10.0))
                                         .text_color(TEXT_DIM)
-                                        .child("Crow talks plain SSH and installs nothing on your servers. Fleet-wide actions aren't built yet; when they are, they'll run one host at a time and stop at the first failure."),
+                                        .child(t!("fleet-setup-crow-talks-plain-ssh-and")),
                                 ),
                         ),
                 ),
@@ -553,7 +553,7 @@ fn render_policy_row(label: &'static str, count: usize, color: Rgba) -> impl Int
             div()
                 .font_weight(FontWeight::BOLD)
                 .text_color(if count > 0 { color } else { TEXT_MUTED })
-                .child(format!("{count} server{}", if count == 1 { "" } else { "s" })),
+                .child(t!("fleet-setup-text-2", count = count)),
         )
 }
 
@@ -588,18 +588,18 @@ fn setup_tabs(page: crate::views::fleet::state::SetupPage, app: Entity<CrowApp>)
         .bg(BG_PANEL)
         .border_b_1()
         .border_color(BORDER_PANEL)
-        .child(tab("setup-tab-policies", "GROUPS & POLICIES", SetupPage::Policies))
-        .child(tab("setup-tab-patching", "PATCHING", SetupPage::Patching))
-        .child(tab("setup-tab-rollouts", "ROLLOUTS", SetupPage::Rollouts))
-        .child(tab("setup-tab-drift", "DRIFT & SEARCH", SetupPage::Drift))
-        .child(tab("setup-tab-hardening", "HARDENING", SetupPage::Hardening))
-        .child(tab("setup-tab-certificates", "CERTIFICATES", SetupPage::Certificates))
-        .child(tab("setup-tab-people", "PEOPLE", SetupPage::People))
-        .child(tab("setup-tab-logsearch", "LOG SEARCH", SetupPage::LogSearch))
-        .child(tab("setup-tab-checks", "CHECKS", SetupPage::Checks))
-        .child(tab("setup-tab-incidents", "INCIDENTS", SetupPage::Incidents))
-        .child(tab("setup-tab-dr", "DR PLANS", SetupPage::Dr))
-        .child(tab("setup-tab-team", "TEAM", SetupPage::Team))
-        .child(tab("setup-tab-audit", "AUDIT LOG", SetupPage::Audit))
-        .child(tab("setup-tab-map", "FLEET MAP", SetupPage::Map))
+        .child(tab("setup-tab-policies", t!("fleet-setup-groups-policies"), SetupPage::Policies))
+        .child(tab("setup-tab-patching", t!("fleet-setup-patching"), SetupPage::Patching))
+        .child(tab("setup-tab-rollouts", t!("fleet-setup-rollouts"), SetupPage::Rollouts))
+        .child(tab("setup-tab-drift", t!("fleet-setup-drift-search"), SetupPage::Drift))
+        .child(tab("setup-tab-hardening", t!("fleet-setup-hardening"), SetupPage::Hardening))
+        .child(tab("setup-tab-certificates", t!("fleet-setup-certificates"), SetupPage::Certificates))
+        .child(tab("setup-tab-people", t!("fleet-setup-people"), SetupPage::People))
+        .child(tab("setup-tab-logsearch", t!("fleet-setup-log-search"), SetupPage::LogSearch))
+        .child(tab("setup-tab-checks", t!("fleet-setup-checks"), SetupPage::Checks))
+        .child(tab("setup-tab-incidents", t!("fleet-setup-incidents"), SetupPage::Incidents))
+        .child(tab("setup-tab-dr", t!("fleet-setup-dr-plans"), SetupPage::Dr))
+        .child(tab("setup-tab-team", t!("fleet-setup-team"), SetupPage::Team))
+        .child(tab("setup-tab-audit", t!("fleet-setup-audit-log"), SetupPage::Audit))
+        .child(tab("setup-tab-map", t!("fleet-setup-fleet-map"), SetupPage::Map))
 }

@@ -182,7 +182,7 @@ impl CrowApp {
                         if let Some(p) = this.files.perms.as_mut() {
                             p.saving = false;
                         }
-                        this.files.error = Some(format!("chmod {after:04o} {path}: {e}"));
+                        this.files.error = Some(t!("app-files-chmod", after = format!("{:04o}", after), path = path, e = e));
                     }
                 }
                 cx.notify();
@@ -195,7 +195,7 @@ impl CrowApp {
     /// vim/vi), through sudoedit when the login can't write it.
     pub fn files_edit_in_terminal(&mut self, path: &str, cx: &mut Context<Self>) {
         let Some(cmd) = edit_command(path) else {
-            self.files.error = Some("That name has control characters; open it from the terminal yourself.".into());
+            self.files.error = Some(t!("app-files-that-name-has-control-characters").into());
             cx.notify();
             return;
         };

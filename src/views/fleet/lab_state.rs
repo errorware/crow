@@ -21,11 +21,11 @@ pub struct LocalLabState {
 /// One running Multipass job at a time: what it is, for the progress line.
 pub fn busy_label(action: Lifecycle, name: &str) -> String {
     match action {
-        Lifecycle::Start => format!("Starting {name}…"),
-        Lifecycle::Stop => format!("Stopping {name}…"),
-        Lifecycle::Restart => format!("Restarting {name}…"),
-        Lifecycle::Suspend => format!("Suspending {name}…"),
-        Lifecycle::Purge => format!("Deleting {name} and its disk…"),
+        Lifecycle::Start => t!("fleet-lab-state-starting", name = name),
+        Lifecycle::Stop => t!("fleet-lab-state-stopping", name = name),
+        Lifecycle::Restart => t!("fleet-lab-state-restarting", name = name),
+        Lifecycle::Suspend => t!("fleet-lab-state-suspending", name = name),
+        Lifecycle::Purge => t!("fleet-lab-state-deleting-and-its-disk", name = name),
     }
 }
 

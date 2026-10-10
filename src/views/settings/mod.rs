@@ -54,29 +54,24 @@ pub fn settings_view(
     let secrets_blocker = vault.secrets_blocker().filter(|_| !matches!(vault.keyring_state, crate::vault::KeyringState::Loading));
 
     let nav_items = [
-        (TablerIcon::AdjustmentsHorizontal, "General", SettingsSection::General),
-        (TablerIcon::Network, "Connection & SSH", SettingsSection::Connection),
-        (TablerIcon::Key, "Keys & Rotation", SettingsSection::Keys),
-        (TablerIcon::ShieldCheck, "Vault & Security", SettingsSection::Security),
-        (TablerIcon::Server, "Servers & Archives", SettingsSection::Servers),
-        (TablerIcon::Box, "UI Components Lab", SettingsSection::Components),
-        (TablerIcon::Cpu, "Clankers (AI)", SettingsSection::Clankers),
-        (TablerIcon::Cloud, "Providers", SettingsSection::Providers),
-        (TablerIcon::Settings, "Plugins", SettingsSection::Plugins),
-        (TablerIcon::Photo, "Personalisation", SettingsSection::Personalisation),
+        (TablerIcon::AdjustmentsHorizontal, t!("settings-general"), SettingsSection::General),
+        (TablerIcon::Network, t!("settings-connection-ssh"), SettingsSection::Connection),
+        (TablerIcon::Key, t!("settings-keys-rotation"), SettingsSection::Keys),
+        (TablerIcon::ShieldCheck, t!("settings-vault-security"), SettingsSection::Security),
+        (TablerIcon::Server, t!("settings-servers-archives"), SettingsSection::Servers),
+        (TablerIcon::Box, t!("settings-ui-components-lab"), SettingsSection::Components),
+        (TablerIcon::Cpu, t!("settings-clankers-ai"), SettingsSection::Clankers),
+        (TablerIcon::Cloud, t!("settings-providers"), SettingsSection::Providers),
+        (TablerIcon::Settings, t!("settings-plugins"), SettingsSection::Plugins),
+        (TablerIcon::Photo, t!("settings-personalisation"), SettingsSection::Personalisation),
     ];
 
     let total_changed = config.total_changed_count();
     let path_str = config.path.display().to_string();
     let status_subtitle = if total_changed == 0 {
-        format!("{} · in sync", path_str)
+        t!("settings-in-sync", path_str = path_str)
     } else {
-        format!(
-            "{} · {} pending change{}",
-            path_str,
-            total_changed,
-            if total_changed == 1 { "" } else { "s" }
-        )
+        t!("settings-pending", path_str = path_str, total_changed = total_changed)
     };
 
     let keychain: Vec<(String, String, Rgba)> = keys
@@ -86,9 +81,9 @@ pub fn settings_view(
         .map(|k| {
             let present = k.private_key_path.as_deref().is_some_and(|p| crate::keys::expand_tilde(p).exists());
             let used = match k.attached_servers.len() {
-                0 => "no servers".to_string(),
-                1 => "1 server".to_string(),
-                n => format!("{n} servers"),
+                0 => t!("settings-no-servers").to_string(),
+                1 => t!("settings-1-server").to_string(),
+                n => t!("settings-servers", n = n),
             };
             (k.name.clone(), format!("{} · {}", k.algorithm, used), if present { OK } else { TEXT_FAINT })
         })
@@ -187,7 +182,7 @@ pub fn settings_view(
                                 .text_size(px(16.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_MAX)
-                                .child("SETTINGS"),
+                                .child(t!("settings-settings")),
                         )
                         .child(
                             div()
@@ -219,7 +214,7 @@ pub fn settings_view(
                                 this.set_screen(Screen::Fleet, cx);
                             });
                         })
-                        .child("CLOSE esc"),
+                        .child(t!("settings-close-esc")),
                 ),
         )
         // 2. 3-Column Content: Nav (200px) | Central Section (flex-1) | Right Rail (340px)

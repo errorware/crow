@@ -24,14 +24,14 @@ pub fn history_view(cache: &HistoryCache, hover: Option<f32>, app: Entity<CrowAp
     };
     let bucket_frac = cache.range.bucket_secs() as f32 / (cache.to - cache.from) as f32;
     let readout = match hover {
-        Some(h) => format!("at {}", fmt(at(h))),
+        Some(h) => t!("history-at", fmt = fmt(at(h))),
         None => "latest".to_string(),
     };
     let charts: [(&str, &Series, Option<f32>, &str); 4] = [
-        ("CPU", &cache.cpu, Some(100.0), "%"),
-        ("MEMORY", &cache.mem, Some(100.0), "%"),
+        (t!("history-cpu"), &cache.cpu, Some(100.0), "%"),
+        (t!("history-memory"), &cache.mem, Some(100.0), "%"),
         (cache.disk_label.as_str(), &cache.disk, Some(100.0), "%"),
-        ("LOAD (1m)", &cache.load, None, ""),
+        (t!("history-load-1m"), &cache.load, None, ""),
     ];
     let range_button = |r: Range| {
         let app = app.clone();
@@ -67,8 +67,8 @@ pub fn history_view(cache: &HistoryCache, hover: Option<f32>, app: Entity<CrowAp
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(div().text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child("HISTORY"))
-                .child(div().text_size(px(10.5)).text_color(TEXT_DIM).child(format!("one sample a minute while Crow is open · {}", readout)))
+                .child(div().text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("history-history")))
+                .child(div().text_size(px(10.5)).text_color(TEXT_DIM).child(t!("history-one-sample-a-minute-while", readout = readout)))
                 .child(div().flex_1())
                 .child(range_button(Range::Day))
                 .child(range_button(Range::Week)),
@@ -194,14 +194,11 @@ fn legend(cache: &HistoryCache) -> impl IntoElement {
                 .flex()
                 .flex_wrap()
                 .gap(px(14.0))
-                .child(div().text_color(TEXT_DIM).child(format!(
-                    "{} → now",
-                    chrono::DateTime::from_timestamp(cache.from, 0).map(|d| d.with_timezone(&chrono::Local).format("%b %d %H:%M").to_string()).unwrap_or_default()
-                )))
-                .child(key(hex_rgba(0xffffff, 0.12), "Crow wasn't running: nothing watched".into()))
-                .child(key(hex_rgba(0xf87171, 0.3), "server unreachable".into()))
-                .child(key(WARN, "alert open (warn)".into()))
-                .child(key(CRIT, "alert open (crit)".into())),
+                .child(div().text_color(TEXT_DIM).child(t!("history-now", chrono = chrono::DateTime::from_timestamp(cache.from, 0).map(|d| d.with_timezone(&chrono::Local).format("%b %d %H:%M").to_string()).unwrap_or_default())))
+                .child(key(hex_rgba(0xffffff, 0.12), t!("history-crow-wasnt-running-nothing-watched").into()))
+                .child(key(hex_rgba(0xf87171, 0.3), t!("history-server-unreachable").into()))
+                .child(key(WARN, t!("history-alert-open-warn").into()))
+                .child(key(CRIT, t!("history-alert-open-crit").into())),
         )
         .children(cache.alert_labels.iter().map(|(level, text)| {
             div().flex().gap(px(6.0)).child(div().text_color(if level == "CRIT" { CRIT } else { WARN }).font_weight(FontWeight::BOLD).child(level.clone())).child(div().text_color(TEXT_SECONDARY).child(text.clone()))

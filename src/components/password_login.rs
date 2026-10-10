@@ -30,9 +30,9 @@ pub fn password_login_dialog(flow: &PasswordLoginFlow, app: Entity<CrowApp>) -> 
     let (a_scrim, a_close, a_run, a_ack) = (app.clone(), app.clone(), app.clone(), app);
     let running = matches!(flow.stage, PasswordLoginStage::Running);
     let body: Div = match &flow.stage {
-        PasswordLoginStage::Checking => div().child(line("Reading sshd's settings…", TEXT_DIMMER)),
+        PasswordLoginStage::Checking => div().child(line(t!("password-login-reading-sshds-settings"), TEXT_DIMMER)),
         PasswordLoginStage::Unavailable(why) => div().child(line(why.clone(), WARN)),
-        PasswordLoginStage::Running => div().child(line("Working: checking a fresh key login, writing the drop-in, validating, reloading, checking again…", TEXT_DIMMER)),
+        PasswordLoginStage::Running => div().child(line(t!("password-login-working-checking-a-fresh-key"), TEXT_DIMMER)),
         PasswordLoginStage::Done(result) => {
             let (log, ok) = match result {
                 Ok(l) => (l, true),
@@ -43,20 +43,20 @@ pub fn password_login_dialog(flow: &PasswordLoginFlow, app: Entity<CrowApp>) -> 
                 .flex_col()
                 .gap(px(4.0))
                 .children(log.iter().map(|l| line(l.clone(), if l.starts_with('✕') || l.starts_with('⚠') { CRIT } else if l.starts_with('↺') { WARN } else { TEXT_SECONDARY })))
-                .child(line(if ok { "Done. Keep a key for this server somewhere safe: passwords won't get you in any more." } else { "Password login is still on." }, if ok { OK } else { WARN }))
+                .child(line(if ok { t!("password-login-done-keep-a-key-for") } else { t!("password-login-password-login-is-still-on") }, if ok { OK } else { WARN }))
         }
         PasswordLoginStage::Ready(pre) => div()
             .flex()
             .flex_col()
             .gap(px(8.0))
-            .child(line("Password login is ON. Anyone who guesses or steals a password can get in, and bots try constantly. With it off, only SSH keys work.", TEXT_SECONDARY))
-            .child(line("What Crow will do, stopping and undoing at the first problem:", TEXT_MUTED))
+            .child(line(t!("password-login-password-login-is-on-anyone"), TEXT_SECONDARY))
+            .child(line(t!("password-login-what-crow-will-do-stopping"), TEXT_MUTED))
             .children(
                 [
-                    "1. Check that a fresh key login works (a new connection, not the one Crow holds).".to_string(),
-                    format!("2. Write {DROPIN} (PasswordAuthentication no, KbdInteractiveAuthentication no); it's read before other drop-ins, so a cloud image's own setting can't override it."),
-                    "3. Validate with sshd -t, and confirm with sshd -T that passwords are really off.".to_string(),
-                    "4. Reload sshd (open sessions stay up), then check a fresh key login again; if that fails, remove the file and reload.".to_string(),
+                    t!("password-login-1-check-that-a-fresh").to_string(),
+                    t!("password-login-2-write-passwordauthentication-no-kbdinteractiveauthentication", dropin = DROPIN),
+                    t!("password-login-3-validate-with-sshd-t").to_string(),
+                    t!("password-login-4-reload-sshd-open-sessions").to_string(),
                 ]
                 .into_iter()
                 .map(|s| line(s, TEXT_SECONDARY)),
@@ -67,7 +67,7 @@ pub fn password_login_dialog(flow: &PasswordLoginFlow, app: Entity<CrowApp>) -> 
                     .flex()
                     .flex_col()
                     .gap(px(6.0))
-                    .child(line(format!("These accounts have a password and will lose SSH login with it: {}. Make sure each one has a key first.", pre.password_users.join(", ")), WARN))
+                    .child(line(t!("password-login-these-accounts-have-a-password", pre = pre.password_users.join(", ")), WARN))
                     .child(
                         div()
                             .id("pw-login-ack")
@@ -76,7 +76,7 @@ pub fn password_login_dialog(flow: &PasswordLoginFlow, app: Entity<CrowApp>) -> 
                             .cursor_pointer()
                             .on_click(move |_ev, _window, cx| a_ack.update(cx, |this, cx| this.toggle_password_login_ack(cx)))
                             .child(div().text_color(if ack { WARN } else { TEXT_DIMMER }).child(if ack { "[x]" } else { "[ ]" }))
-                            .child(line("I understand", TEXT_SECONDARY)),
+                            .child(line(t!("password-login-i-understand"), TEXT_SECONDARY)),
                     )
             })),
     };
@@ -108,14 +108,14 @@ pub fn password_login_dialog(flow: &PasswordLoginFlow, app: Entity<CrowApp>) -> 
                 .font_family(FONT_MONO)
                 .text_size(px(10.5))
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
-                .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(format!("Turn off SSH password login · {}", flow.server_name)))
+                .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("password-login-turn-off-ssh-password-login", server_name = flow.server_name)))
                 .child(body)
                 .child(
                     div()
                         .flex()
                         .gap(px(6.0))
-                        .children(show_run.then(|| button("pw-login-run", "TURN OFF PASSWORD LOGIN", WARN, can_run, move |cx| a_run.update(cx, |this, cx| this.run_password_login_off(cx)))))
-                        .child(button("pw-login-close", if show_run { "CANCEL" } else { "CLOSE" }, TEXT_SECONDARY, !running, move |cx| a_close.update(cx, |this, cx| this.close_password_login(cx)))),
+                        .children(show_run.then(|| button("pw-login-run", t!("password-login-turn-off-password-login"), WARN, can_run, move |cx| a_run.update(cx, |this, cx| this.run_password_login_off(cx)))))
+                        .child(button("pw-login-close", if show_run { t!("password-login-cancel") } else { t!("password-login-close") }, TEXT_SECONDARY, !running, move |cx| a_close.update(cx, |this, cx| this.close_password_login(cx)))),
                 ),
         )
 }

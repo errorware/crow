@@ -66,7 +66,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                 .text_size(px(11.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_PRIMARY)
-                                .child("CONFIG FILES"),
+                                .child(t!("config-managed-files-config-files")),
                         ),
                 )
                 .child(
@@ -120,7 +120,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                     .font_family(FONT_MONO)
                     .text_size(px(9.5))
                     .text_color(WARN)
-                    .child("⚠ Unverified distro — generic scan only, some configs may be missing."),
+                    .child(t!("config-managed-files-unverified-distro-generic-scan-only")),
             )
         } else {
             None
@@ -204,7 +204,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(hex_rgb(0x8ab4ff))
-                                .child("● CROW UI MAPPED"),
+                                .child(t!("config-managed-files-crow-ui-mapped")),
                         )
                         .child(
                             div()
@@ -231,9 +231,9 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                         hex_rgb(0x8ab4ff)
                     };
                     let pill_text = if is_edited {
-                        "EDITED"
+                        t!("config-managed-files-edited")
                     } else {
-                        "CROW UI"
+                        t!("config-managed-files-crow-ui")
                     };
 
                     div()
@@ -323,7 +323,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_MUTED)
-                                .child("○ SYSTEM CONFIGS (RAW)"),
+                                .child(t!("config-managed-files-system-configs-raw")),
                         )
                         .child(
                             div()
@@ -354,11 +354,11 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                         TEXT_MUTED
                     };
                     let pill_text = if is_edited {
-                        "EDITED"
+                        t!("config-managed-files-edited")
                     } else if f.is_readonly {
-                        "RO"
+                        t!("config-managed-files-ro")
                     } else {
-                        "RAW"
+                        t!("config-managed-files-raw")
                     };
 
                     div()
@@ -443,14 +443,14 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                         .text_size(px(9.5))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_DIMMER)
-                        .child("SCHEMA PACKS ACTIVE"),
+                        .child(t!("config-managed-files-schema-packs-active")),
                 )
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(px(9.5))
                         .text_color(TEXT_DIM)
-                        .child("systemd · postgres · openssh · ufw"),
+                        .child(t!("config-managed-files-systemd-postgres-openssh-ufw")),
                 ),
         )
 }

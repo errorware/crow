@@ -21,9 +21,9 @@ pub enum UserAccountStatus {
 impl UserAccountStatus {
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Active => "ACTIVE",
-            Self::Locked => "LOCKED",
-            Self::SystemDaemon => "SYSTEM",
+            Self::Active => t!("users-models-active"),
+            Self::Locked => t!("users-models-locked"),
+            Self::SystemDaemon => t!("users-models-system"),
         }
     }
 }
@@ -109,10 +109,10 @@ impl UserFilterTab {
 
     pub fn label(&self) -> &'static str {
         match self {
-            Self::All => "ALL",
-            Self::Human => "LOGIN",
-            Self::Sudoers => "SUDO",
-            Self::System => "SYSTEM",
+            Self::All => t!("users-models-all"),
+            Self::Human => t!("users-models-login"),
+            Self::Sudoers => t!("users-models-sudo"),
+            Self::System => t!("users-models-system"),
         }
     }
 

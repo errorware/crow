@@ -61,7 +61,7 @@ impl CrowApp {
         let inputs: Vec<(&'static str, Entity<InputState>)> = form
             .fields()
             .iter()
-            .map(|(key, placeholder, masked)| (*key, cx.new(|cx| InputState::new(window, cx).placeholder(*placeholder).masked(*masked))))
+            .map(|(key, placeholder, masked)| (*key, cx.new(|cx| InputState::new(window, cx).placeholder(crate::i18n::tx(placeholder)).masked(*masked))))
             .collect();
         let events = inputs
             .iter()
@@ -93,7 +93,7 @@ impl CrowApp {
             VaultForm::ChangePassword => {
                 let (mut new, mut confirm) = (inputs.value("new", cx), inputs.value("confirm", cx));
                 let result = if new != confirm {
-                    Err("the new passwords don't match".to_string())
+                    Err(t!("app-vault-manage-the-new-passwords-dont-match").to_string())
                 } else {
                     self.vault.change_password(&current, &code, &new).map_err(|e| e.to_string())
                 };
@@ -102,7 +102,7 @@ impl CrowApp {
                 confirm.zeroize();
                 match result {
                     Ok(()) => {
-                        self.vault_form = VaultFormState { done: Some("Password changed. Your secrets and 2FA are unchanged.".into()), ..Default::default() };
+                        self.vault_form = VaultFormState { done: Some(t!("app-vault-manage-password-changed-your-secrets-and").into()), ..Default::default() };
                         self.vault_form_inputs = None;
                     }
                     Err(e) => self.vault_form.error = Some(e),
@@ -110,7 +110,7 @@ impl CrowApp {
             }
             VaultForm::GoOpen => {
                 if !self.vault_form.ack {
-                    self.vault_form.error = Some("Tick \"I understand\" first.".into());
+                    self.vault_form.error = Some(t!("app-vault-manage-tick-i-understand-first").into());
                     cx.notify();
                     return;
                 }
@@ -134,11 +134,11 @@ impl CrowApp {
                         this.vault_form.busy = false;
                         match result.map_err(|e| format!("{e:#}")).and_then(|()| this.vault.finish_password_removal(key).map_err(|e| e.to_string())) {
                             Ok(()) => {
-                                this.vault_form = VaultFormState { done: Some("Crow is OPEN now: no password, and the OS keyring holds the key.".into()), ..Default::default() };
+                                this.vault_form = VaultFormState { done: Some(t!("app-vault-manage-crow-is-open-now-no").into()), ..Default::default() };
                                 this.vault_form_inputs = None;
                                 this.on_data_key_ready(cx);
                             }
-                            Err(e) => this.vault_form.error = Some(format!("Still LOCKED: couldn't hand the key to the OS keyring ({e}).")),
+                            Err(e) => this.vault_form.error = Some(t!("app-vault-manage-still-locked-couldnt-hand-the", e = e)),
                         }
                         cx.notify();
                     });

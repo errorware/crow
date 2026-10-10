@@ -24,7 +24,7 @@ pub fn stat_strip(
     } else {
         OK
     };
-    let cpu_sub = format!("{} vCPU · peak {:.1}%", m.vcpu_count, m.cpu_peak.max(m.cpu_pct));
+    let cpu_sub = t!("stat-strip-vcpu-peak", vcpu_count = m.vcpu_count, m = format!("{:.1}", m.cpu_peak.max(m.cpu_pct)));
 
     // Memory formatting
     let (mem_used_str, mem_total_str) = m.mem_formatted();
@@ -40,7 +40,7 @@ pub fn stat_strip(
     // Disk formatting
     let (disk_used_str, disk_total_str) = m.disk_formatted();
     let pct_or_dash = |v: Option<f32>| v.map(|v| format!("{v:.1}%")).unwrap_or_else(|| "—".into());
-    let disk_sub = format!("inodes {} · iowait {}", pct_or_dash(m.inodes_pct), pct_or_dash(m.iowait_pct));
+    let disk_sub = t!("stat-strip-inodes-iowait", pct_or_dash = pct_or_dash(m.inodes_pct), pct_or_dash2 = pct_or_dash(m.iowait_pct));
 
     // Load formatting
     let load_str = format!("{:.2}", m.load_1m);
@@ -63,7 +63,7 @@ pub fn stat_strip(
     } else {
         format!("{:.1}", net_total_mbps)
     };
-    let net_sub = format!("↓ {:.1} · ↑ {:.1} Mb/s", rx_mbps, tx_mbps);
+    let net_sub = t!("stat-strip-mb-s", rx_mbps = format!("{:.1}", rx_mbps), tx_mbps = format!("{:.1}", tx_mbps));
 
     div()
         .flex_none()
@@ -103,14 +103,14 @@ pub fn stat_strip(
                                 .text_size(px(10.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(if surge_alert.is_some() { CRIT_INK_DIM } else { OK })
-                                .child("TURBO BUFFER"),
+                                .child(t!("stat-strip-turbo-buffer")),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.5))
                                 .text_color(TEXT_MUTED)
-                                .child(format!("· -{}s lag · local memory cache", lag_secs)),
+                                .child(t!("stat-strip-s-lag-local-memory-cache", lag_secs = lag_secs)),
                         ),
                 )
                 // Right: Surge Foreknowledge / Preview
@@ -125,7 +125,7 @@ pub fn stat_strip(
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(CRIT_INK_DIM)
-                                .child(format!("AHEAD · {} · in {}s", surge.description, surge.lead_seconds)),
+                                .child(t!("stat-strip-ahead-in-s", description = surge.description, lead_seconds = surge.lead_seconds)),
                         )
                         .into_any_element()
                 } else {
@@ -137,7 +137,7 @@ pub fn stat_strip(
                         .text_size(px(9.5))
                         .text_color(TEXT_FAINT)
                         .child(div().text_color(OK).child("✓"))
-                        .child(format!("next {}s: nothing unusual", lag_secs))
+                        .child(t!("stat-strip-next-s-nothing-unusual", lag_secs = lag_secs))
                         .into_any_element()
                 }),
         )
@@ -169,7 +169,7 @@ pub fn stat_strip(
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
-                        .child("CPU LOAD"),
+                        .child(t!("stat-strip-cpu-load")),
                 )
                 .child(
                     div()
@@ -228,7 +228,7 @@ pub fn stat_strip(
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
-                        .child("MEMORY"),
+                        .child(t!("stat-strip-memory")),
                 )
                 .child(
                     div()
@@ -299,7 +299,7 @@ pub fn stat_strip(
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
-                        .child(format!("DISK {} (NVME)", m.disk_mount)),
+                        .child(t!("stat-strip-disk-nvme", disk_mount = m.disk_mount)),
                 )
                 .child(
                     div()
@@ -371,7 +371,7 @@ pub fn stat_strip(
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
-                        .child("LOAD AVG"),
+                        .child(t!("stat-strip-load-avg")),
                 )
                 .child(
                     div()
@@ -417,7 +417,7 @@ pub fn stat_strip(
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
-                        .child("UPTIME"),
+                        .child(t!("stat-strip-uptime")),
                 )
                 .child(
                     div()
@@ -470,7 +470,7 @@ pub fn stat_strip(
                         .text_size(px(10.0))
                         .text_color(TEXT_FAINT)
                         .mt(px(6.0))
-                        .child(format!("sampled {}", m.last_sample_ts)),
+                        .child(t!("stat-strip-sampled", last_sample_ts = m.last_sample_ts)),
                 ),
         )
         // 6. NETWORK eth0
@@ -489,7 +489,7 @@ pub fn stat_strip(
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
-                        .child("NETWORK"),
+                        .child(t!("stat-strip-network")),
                 )
                 .child(
                     div()
@@ -516,7 +516,7 @@ pub fn stat_strip(
                                         .font_family(FONT_MONO)
                                         .text_size(px(13.0))
                                         .text_color(TEXT_DIM)
-                                        .child("Mb/s"),
+                                        .child(t!("stat-strip-mb-s-2")),
                                 ),
                         )
                         .child(dynamic_sparkline(&m.net_history, Some(0.0), None, TEXT_SECONDARY)),

@@ -65,8 +65,8 @@ impl CrowApp {
     pub fn ensure_checks_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.checks.target.is_none() {
             self.checks.target = Some(cx.new(|cx| InputState::new(window, cx).placeholder("https://example.com/health · db.lan:5432 · app.example.com")));
-            self.checks.extra = Some(cx.new(|cx| InputState::new(window, cx).placeholder("HTTP: a word the page must contain · DNS: the address it must resolve to")));
-            self.checks.name = Some(cx.new(|cx| InputState::new(window, cx).placeholder("name (optional)")));
+            self.checks.extra = Some(cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-checks-http-a-word-the-page"))));
+            self.checks.name = Some(cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-checks-name-optional"))));
         }
         if self.checks.every == 0 {
             self.checks.every = 60;
@@ -92,14 +92,14 @@ impl CrowApp {
         let v = |i: &Option<Entity<InputState>>| i.as_ref().map(|i| i.read(cx).value().trim().to_string()).unwrap_or_default();
         let (target, extra, name) = (v(&self.checks.target), v(&self.checks.extra), v(&self.checks.name));
         if target.is_empty() {
-            self.checks.message = Some((false, "Type what to check first.".into()));
+            self.checks.message = Some((false, t!("app-checks-type-what-to-check-first").into()));
             cx.notify();
             return;
         }
         let kind = match self.checks.form {
             FormKind::Http => {
                 if !(target.starts_with("http://") || target.starts_with("https://")) {
-                    self.checks.message = Some((false, "An HTTP check needs a URL starting with http:// or https://.".into()));
+                    self.checks.message = Some((false, t!("app-checks-an-http-check-needs-a").into()));
                     cx.notify();
                     return;
                 }
@@ -108,7 +108,7 @@ impl CrowApp {
             FormKind::Tcp => match target.rsplit_once(':').and_then(|(h, p)| p.parse::<u16>().ok().map(|p| (h.trim_matches(['[', ']']).to_string(), p))) {
                 Some((host, port)) if !host.is_empty() => Kind::Tcp { host, port },
                 _ => {
-                    self.checks.message = Some((false, "A TCP check is host:port, like db.lan:5432.".into()));
+                    self.checks.message = Some((false, t!("app-checks-a-tcp-check-is-host").into()));
                     cx.notify();
                     return;
                 }
@@ -116,7 +116,7 @@ impl CrowApp {
             FormKind::Dns => Kind::Dns { name: target.clone(), expect: extra },
         };
         let check = Check { id: format!("chk{}", chrono::Utc::now().timestamp_millis()), name: if name.is_empty() { target } else { name }, kind, server_id: self.checks.attach.clone(), every_secs: self.checks.every.max(30), alert: true };
-        self.checks.message = Some((true, format!("Added \"{}\": checked every {} s while Crow is open.", check.name, check.every_secs)));
+        self.checks.message = Some((true, t!("app-checks-added-checked-every-s-while", name = check.name, every_secs = check.every_secs)));
         let id = check.id.clone();
         self.checks.defs.push(check);
         self.save_checks();

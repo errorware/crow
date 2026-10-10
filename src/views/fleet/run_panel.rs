@@ -26,15 +26,15 @@ pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::
             .child(label)
     };
     let status_line = match run.phase {
-        RunPhase::Confirming if run.steps.is_empty() => "Nothing to run.".to_string(),
+        RunPhase::Confirming if run.steps.is_empty() => t!("fleet-run-panel-nothing-to-run").to_string(),
         RunPhase::Confirming if !run.stages.is_empty() => {
             let groups = run.stage_groups();
-            format!("{} step{} in {} stage{}{}; the first failure stops the run.", run.steps.len(), if run.steps.len() == 1 { "" } else { "s" }, groups.len(), if groups.len() == 1 { "" } else { "s" }, if run.pause_after.is_some() { ", pausing after the canary" } else { "" })
+            t!("fleet-run-panel-in-the-first-failure-stops", count = run.steps.len(), groups_count = groups.len(), run = if run.pause_after.is_some() { t!("fleet-run-panel-pausing-after-the-canary") } else { "" })
         }
-        RunPhase::Confirming => format!("{} step{}, one host at a time; the first failure stops the run.", run.steps.len(), if run.steps.len() == 1 { "" } else { "s" }),
-        RunPhase::Paused => "The canary is done. Check it, then CONTINUE with the rest, or STOP here.".to_string(),
-        RunPhase::Running if run.stop_requested() => "Stopping after the current host…".to_string(),
-        RunPhase::Running => "Running…".to_string(),
+        RunPhase::Confirming => t!("fleet-run-panel-one-host-at-a-time", count = run.steps.len()),
+        RunPhase::Paused => t!("fleet-run-panel-the-canary-is-done-check").to_string(),
+        RunPhase::Running if run.stop_requested() => t!("fleet-run-panel-stopping-after-the-current-host").to_string(),
+        RunPhase::Running => t!("fleet-run-panel-running").to_string(),
         RunPhase::Finished => run.summary(),
     };
 
@@ -82,7 +82,7 @@ pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::
                                 StepStatus::Done(m) => ("✓", OK, m.clone()),
                                 StepStatus::Skipped(m) => ("=", TEXT_DIM, m.clone()),
                                 StepStatus::Failed(e) => ("✗", CRIT, e.clone()),
-                                StepStatus::NotRun => ("–", TEXT_FAINTER, "not run".to_string()),
+                                StepStatus::NotRun => ("–", TEXT_FAINTER, t!("fleet-run-panel-not-run").to_string()),
                             };
                             div()
                                 .flex()
@@ -113,7 +113,7 @@ pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::
                                 .border_color(BORDER_ROW)
                                 .child(div().w(px(14.0)).flex_none().text_color(WARN).child("!"))
                                 .child(div().w(px(140.0)).flex_none().text_color(TEXT_DIM).child(server.clone()))
-                                .child(div().flex_1().min_w(px(0.0)).text_color(TEXT_DIM).child(format!("left out · {why}")))
+                                .child(div().flex_1().min_w(px(0.0)).text_color(TEXT_DIM).child(t!("fleet-run-panel-left-out", why = why)))
                         })),
                 )
                 .children(run.error.clone().map(|e| div().px(px(16.0)).py(px(6.0)).text_color(CRIT).child(e)))
@@ -135,16 +135,16 @@ pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::
                         .children(approval.filter(|_| run.phase == RunPhase::Confirming && !run.steps.is_empty()).map(|a| div().w(px(220.0)).child(Input::new(a))))
                         .children((run.phase == RunPhase::Confirming && !run.steps.is_empty()).then(|| {
                             let app = app.clone();
-                            button("btn-fleet-run-start", format!("TYPE {} TO START", run.keyword), CRIT)
+                            button("btn-fleet-run-start", t!("fleet-run-panel-type-to-start", keyword = run.keyword), CRIT)
                                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.confirm_fleet_run(cx)))
                         }))
                         .children((run.phase == RunPhase::Paused).then(|| {
                             let app = app.clone();
-                            button("btn-fleet-run-continue", "CONTINUE WITH THE REST".into(), OK).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.continue_fleet_run(cx)))
+                            button("btn-fleet-run-continue", t!("fleet-run-panel-continue-with-the-rest").into(), OK).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.continue_fleet_run(cx)))
                         }))
                         .children((run.phase == RunPhase::Paused).then(|| {
                             let app = app.clone();
-                            button("btn-fleet-run-stop-here", "STOP HERE".into(), WARN).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.stop_fleet_run(cx)))
+                            button("btn-fleet-run-stop-here", t!("fleet-run-panel-stop-here").into(), WARN).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.stop_fleet_run(cx)))
                         }))
                         .children(runner.after.as_ref().filter(|_| run.phase == RunPhase::Finished).map(|(label, _)| {
                             let app = app.clone();
@@ -152,13 +152,13 @@ pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::
                         }))
                         .children((run.phase == RunPhase::Running && !run.stop_requested()).then(|| {
                             let app = app.clone();
-                            button("btn-fleet-run-stop", "STOP AFTER THIS HOST".into(), WARN)
+                            button("btn-fleet-run-stop", t!("fleet-run-panel-stop-after-this-host").into(), WARN)
                                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.stop_fleet_run(cx)))
                         }))
                         .child(div().flex_1())
                         .children((!matches!(run.phase, RunPhase::Running | RunPhase::Paused)).then(|| {
                             let app = app.clone();
-                            button("btn-fleet-run-close", if run.phase == RunPhase::Finished { "CLOSE".into() } else { "CANCEL".into() }, TEXT_SECONDARY)
+                            button("btn-fleet-run-close", if run.phase == RunPhase::Finished { t!("fleet-run-panel-close").into() } else { t!("fleet-run-panel-cancel").into() }, TEXT_SECONDARY)
                                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.close_fleet_run(cx)))
                         })),
                 ),

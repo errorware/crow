@@ -64,7 +64,7 @@ pub fn service_inspector_rail(vault: &Vault, fleet: &FleetState, overview: &Over
                         .text_size(px(11.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
-                        .child("SERVICE MANAGER"),
+                        .child(t!("overview-service-inspector-service-manager")),
                 )
                 .child(div().flex_1())
                 .child(
@@ -96,7 +96,7 @@ pub fn service_inspector_rail(vault: &Vault, fleet: &FleetState, overview: &Over
                             .text_size(px(11.0))
                             .text_color(TEXT_DIMMER)
                             .text_align(TextAlign::Center)
-                            .child("Select a service on the left to manage it"),
+                            .child(t!("overview-service-inspector-select-a-service-on-the")),
                     )
                     .into_any_element(),
             ),
@@ -226,11 +226,11 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                 .flex_wrap()
                 .gap(px(16.0))
                 .px(px(2.0))
-                .child(info_cell("PID", svc.pid.clone(), TEXT_SECONDARY))
-                .child(info_cell("CPU", svc.cpu.clone(), TEXT_SECONDARY))
-                .child(info_cell("MEM", svc.mem.clone(), TEXT_SECONDARY))
-                .child(info_cell("RSS", svc.rss.clone(), TEXT_SECONDARY))
-                .child(info_cell("UPTIME", svc.uptime.clone(), TEXT_SECONDARY)),
+                .child(info_cell(t!("overview-service-inspector-pid"), svc.pid.clone(), TEXT_SECONDARY))
+                .child(info_cell(t!("overview-service-inspector-cpu"), svc.cpu.clone(), TEXT_SECONDARY))
+                .child(info_cell(t!("overview-service-inspector-mem"), svc.mem.clone(), TEXT_SECONDARY))
+                .child(info_cell(t!("overview-service-inspector-rss"), svc.rss.clone(), TEXT_SECONDARY))
+                .child(info_cell(t!("overview-service-inspector-uptime"), svc.uptime.clone(), TEXT_SECONDARY)),
         )
         // Failed-outcome banner — the "tell the truth if it didn't work" step
         .children(failed_banner.map(|(unit, _)| {
@@ -249,7 +249,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                         .font_family(FONT_MONO)
                         .text_size(px(10.5))
                         .text_color(CRIT_INK)
-                        .child(format!("{} did not reach the expected state after the last action.", unit)),
+                        .child(t!("overview-service-inspector-did-not-reach-the-expected", unit = unit)),
                 )
                 .child(
                     div()
@@ -268,11 +268,11 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                                 this.run_service_panel_action_now("restart", cx);
                             });
                         })
-                        .child("RETRY"),
+                        .child(t!("overview-service-inspector-retry")),
                 )
         }))
         // Lifecycle actions
-        .child(section_divider("LIFECYCLE"))
+        .child(section_divider(t!("overview-service-inspector-lifecycle")))
         .child(render_actions_row(is_active, app.clone()))
         // Confirm bar for disruptive actions
         .children(pending_action.map(|action| render_pending_confirm(&svc.name, &action, overview, app.clone())))
@@ -308,7 +308,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                         .text_size(px(11.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
-                        .child("VIEW LOGS FOR THIS UNIT"),
+                        .child(t!("overview-service-inspector-view-logs-for-this-unit")),
                 )
                 .child(
                     tabler_icon(TablerIcon::ChevronRight)
@@ -324,7 +324,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                 .flex()
                 .flex_col()
                 .gap(px(8.0))
-                .child(section_divider("CONFIGURATION"))
+                .child(section_divider(t!("overview-service-inspector-configuration")))
                 .child(
                     div()
                         .id("btn-edit-service-config")
@@ -353,14 +353,14 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                                         .text_size(px(11.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(OK)
-                                        .child(format!("EDIT {}", file)),
+                                        .child(t!("overview-service-inspector-edit", file = file)),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(px(9.5))
                                         .text_color(TEXT_DIM)
-                                        .child("open in crow-config — structured, validated editing"),
+                                        .child(t!("overview-service-inspector-open-in-crow-config-structured")),
                                 ),
                         )
                         .child(
@@ -379,7 +379,7 @@ fn render_recent_actions(records: &[ChangeRecord]) -> impl IntoElement {
         .flex()
         .flex_col()
         .gap(px(8.0))
-        .child(section_divider("RECENT ACTIONS"))
+        .child(section_divider(t!("overview-service-inspector-recent-actions")))
         .child(
             div()
                 .flex()
@@ -388,9 +388,9 @@ fn render_recent_actions(records: &[ChangeRecord]) -> impl IntoElement {
                 .border_color(BORDER_PANEL)
                 .children(records.iter().enumerate().map(|(idx, rec)| {
                     let (dot_color, outcome_label) = match rec.outcome.as_str() {
-                        "success" => (OK, "OK"),
-                        "failed" => (CRIT, "FAILED"),
-                        _ => (WARN, "PENDING"),
+                        "success" => (OK, t!("overview-service-inspector-ok")),
+                        "failed" => (CRIT, t!("overview-service-inspector-failed")),
+                        _ => (WARN, t!("overview-service-inspector-pending")),
                     };
                     let when = rec.started_at.split('T').nth(1).and_then(|t| t.get(0..8)).unwrap_or(&rec.started_at).to_string();
 
@@ -494,7 +494,7 @@ fn render_actions_row(is_active: bool, app: Entity<CrowApp>) -> impl IntoElement
         .children(if !is_active {
             Some(action_button(
                 "btn-svc-start",
-                "▶ START",
+                t!("overview-service-inspector-start"),
                 OK,
                 OK_BG,
                 OK,
@@ -510,7 +510,7 @@ fn render_actions_row(is_active: bool, app: Entity<CrowApp>) -> impl IntoElement
         .children(if is_active {
             Some(action_button(
                 "btn-svc-reload",
-                "⟳ RELOAD",
+                t!("overview-service-inspector-reload"),
                 TEXT_SECONDARY,
                 BG_CONTROL,
                 BORDER_DEFAULT,
@@ -525,7 +525,7 @@ fn render_actions_row(is_active: bool, app: Entity<CrowApp>) -> impl IntoElement
         })
         .child(action_button(
             "btn-svc-restart",
-            "↻ RESTART",
+            t!("overview-service-inspector-restart"),
             WARN,
             WARN_BG,
             WARN,
@@ -538,7 +538,7 @@ fn render_actions_row(is_active: bool, app: Entity<CrowApp>) -> impl IntoElement
         .children(if is_active {
             Some(action_button(
                 "btn-svc-stop",
-                "■ STOP",
+                t!("overview-service-inspector-stop"),
                 CRIT,
                 CRIT_BG,
                 CRIT,
@@ -557,13 +557,9 @@ fn render_actions_row(is_active: bool, app: Entity<CrowApp>) -> impl IntoElement
 /// "checking…" state while the async socket lookup is still in flight.
 fn blast_radius_text(overview: &OverviewState, unit: &str) -> String {
     match overview.blast_radius.as_ref().filter(|b| b.for_unit == unit) {
-        Some(b) if b.established == 0 && b.listening == 0 => "No active connections will be dropped.".to_string(),
-        Some(b) => format!(
-            "{} established connection{} and {} listening socket{} will be dropped.",
-            b.established, if b.established == 1 { "" } else { "s" },
-            b.listening, if b.listening == 1 { "" } else { "s" },
-        ),
-        None => "Checking active connections…".to_string(),
+        Some(b) if b.established == 0 && b.listening == 0 => t!("overview-service-inspector-no-active-connections-will-be").to_string(),
+        Some(b) => t!("overview-service-inspector-established-and-listening-will-be", established = b.established, listening = b.listening),
+        None => t!("overview-service-inspector-checking-active-connections").to_string(),
     }
 }
 
@@ -614,7 +610,7 @@ fn render_pending_confirm(unit_name: &str, action: &str, overview: &OverviewStat
                                 this.cancel_service_panel_action(cx);
                             });
                         })
-                        .child("Cancel"),
+                        .child(t!("overview-service-inspector-cancel")),
                 )
                 .child(
                     div()
@@ -650,22 +646,22 @@ pub(crate) fn render_eli5(loading: bool, result: Option<&Result<crate::views::ov
     use crate::ai::Severity;
     let body = div().flex().flex_col().gap(px(8.0)).p(px(12.0)).bg(WAND.opacity(0.05)).border_1().border_color(WAND.opacity(0.35));
     match (loading, result) {
-        (true, _) | (false, None) => body.child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(WAND).child("Asking the clanker what this service is…")),
+        (true, _) | (false, None) => body.child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(WAND).child(t!("overview-service-inspector-asking-the-clanker-what-this"))),
         (false, Some(Err(e))) => body.child(div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(CRIT).child(e.clone())),
         (false, Some(Ok(e))) => body
             .children(e.severity.as_ref().map(|(level, reason)| {
                 let (label, color) = match level {
-                    Severity::Low => ("LOW RISK", OK),
-                    Severity::Medium => ("MEDIUM RISK", WARN),
-                    Severity::High => ("HIGH RISK", hex_rgb(0xf97316)),
-                    Severity::Critical => ("CRITICAL", CRIT),
+                    Severity::Low => (t!("overview-service-inspector-low-risk"), OK),
+                    Severity::Medium => (t!("overview-service-inspector-medium-risk"), WARN),
+                    Severity::High => (t!("overview-service-inspector-high-risk"), hex_rgb(0xf97316)),
+                    Severity::Critical => (t!("overview-service-inspector-critical"), CRIT),
                 };
                 div()
                     .flex()
                     .items_start()
                     .gap(px(8.0))
                     .child(div().flex_none().px(px(5.0)).py(px(1.5)).bg(color.opacity(0.15)).border_1().border_color(color).font_family(FONT_MONO).text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(color).child(label))
-                    .child(div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(TEXT_SECONDARY).child(format!("to stop or restart: {reason}")))
+                    .child(div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(TEXT_SECONDARY).child(t!("overview-service-inspector-to-stop-or-restart", reason = reason)))
             }))
             // One line per point, its label ("If you stop it:") bold.
             .children(e.body.lines().map(str::trim).filter(|l| !l.is_empty()).map(|line| {
@@ -683,8 +679,8 @@ pub(crate) fn render_eli5(loading: bool, result: Option<&Result<crate::views::ov
                     .child(rest)
             }))
             .child(div().font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINT).child(match &e.primary_failed {
-                Some(why) => format!("via the backup, {} · the primary failed: {why}", e.via),
-                None => format!("via {} · an AI's reading: check before acting on it", e.via),
+                Some(why) => t!("overview-service-inspector-via-the-backup-the-primary", via = e.via, why = why),
+                None => t!("overview-service-inspector-via-an-ais-reading-check", via = e.via),
             })),
     }
 }

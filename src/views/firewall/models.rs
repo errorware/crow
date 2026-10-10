@@ -12,11 +12,11 @@ pub enum FirewallBackend {
 impl FirewallBackend {
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Ufw => "UFW (Uncomplicated Firewall)",
+            Self::Ufw => t!("firewall-models-ufw-uncomplicated-firewall"),
             Self::Firewalld => "firewalld",
             Self::Nftables => "nftables",
             Self::Iptables => "iptables",
-            Self::NoneDetected => "Unmanaged / None Detected",
+            Self::NoneDetected => t!("firewall-models-unmanaged-none-detected"),
         }
     }
 
@@ -52,9 +52,9 @@ pub enum RuleDirection {
 impl RuleDirection {
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Inbound => "IN",
-            Self::Outbound => "OUT",
-            Self::Forward => "FWD",
+            Self::Inbound => t!("firewall-models-in"),
+            Self::Outbound => t!("firewall-models-out"),
+            Self::Forward => t!("firewall-models-fwd"),
         }
     }
 }
@@ -70,10 +70,10 @@ pub enum RuleAction {
 impl RuleAction {
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Allow => "ALLOW",
-            Self::Deny => "DENY",
-            Self::Reject => "REJECT",
-            Self::Limit => "LIMIT",
+            Self::Allow => t!("firewall-models-allow"),
+            Self::Deny => t!("firewall-models-deny"),
+            Self::Reject => t!("firewall-models-reject"),
+            Self::Limit => t!("firewall-models-limit"),
         }
     }
 }
@@ -90,10 +90,10 @@ pub enum RuleProtocol {
 impl RuleProtocol {
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Tcp => "TCP",
-            Self::Udp => "UDP",
-            Self::Both => "TCP+UDP",
-            Self::Any => "ANY",
+            Self::Tcp => t!("firewall-models-tcp"),
+            Self::Udp => t!("firewall-models-udp"),
+            Self::Both => t!("firewall-models-tcp-udp"),
+            Self::Any => t!("firewall-models-any"),
         }
     }
 
@@ -243,12 +243,12 @@ pub enum PortFirewallMatch {
 impl PortFirewallMatch {
     pub fn label(&self) -> &'static str {
         match self {
-            Self::Allowed { .. } => "FIREWALL: ALLOWED",
-            Self::Denied { .. } => "FIREWALL: BLOCKED",
-            Self::AllowedDefault => "FIREWALL: ALLOW (DEFAULT)",
-            Self::NoRule => "FIREWALL: NO INBOUND RULE",
-            Self::Inactive => "FIREWALL: INACTIVE",
-            Self::Unknown => "FIREWALL: NOT READ",
+            Self::Allowed { .. } => t!("firewall-models-firewall-allowed"),
+            Self::Denied { .. } => t!("firewall-models-firewall-blocked"),
+            Self::AllowedDefault => t!("firewall-models-firewall-allow-default"),
+            Self::NoRule => t!("firewall-models-firewall-no-inbound-rule"),
+            Self::Inactive => t!("firewall-models-firewall-inactive"),
+            Self::Unknown => t!("firewall-models-firewall-not-read"),
         }
     }
 

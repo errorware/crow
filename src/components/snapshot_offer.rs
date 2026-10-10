@@ -48,11 +48,8 @@ pub fn snapshot_offer(offer: &SnapshotOffer, app: Entity<CrowApp>) -> impl IntoE
                 .font_family(FONT_MONO)
                 .text_size(px(10.5))
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
-                .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(format!("Snapshot the whole server at {} first?", offer.provider)))
-                .child(div().line_height(px(15.0)).text_color(TEXT_MUTED).child(format!(
-                    "You're about to apply {} ({}). A mistake here can lock you out of SSH, and then Crow's file backup can't reach the server to undo it. A {} snapshot restores the whole machine from outside. The change waits until {} accepts the snapshot; if it fails, nothing is applied.",
-                    offer.file, offer.description, offer.provider, offer.provider
-                )))
+                .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("snapshot-offer-snapshot-the-whole-server-at", provider = offer.provider)))
+                .child(div().line_height(px(15.0)).text_color(TEXT_MUTED).child(t!("snapshot-offer-youre-about-to-apply-a", file = offer.file, description = offer.description, provider = offer.provider)))
                 .children(offer.error.clone().map(|e| div().text_color(CRIT).child(e)))
                 .child(
                     div()
@@ -62,15 +59,15 @@ pub fn snapshot_offer(offer: &SnapshotOffer, app: Entity<CrowApp>) -> impl IntoE
                         .cursor_pointer()
                         .on_click(move |_ev, _window, cx| a_remember.update(cx, |this, cx| this.toggle_snapshot_offer_remember(cx)))
                         .child(div().text_color(if offer.remember { TEXT_PRIMARY } else { TEXT_DIMMER }).child(if offer.remember { "[x]" } else { "[ ]" }))
-                        .child(div().text_color(TEXT_SECONDARY).child("Remember my choice for these changes")),
+                        .child(div().text_color(TEXT_SECONDARY).child(t!("snapshot-offer-remember-my-choice-for-these"))),
                 )
                 .child(
                     div()
                         .flex()
                         .gap(px(6.0))
-                        .child(button("snapshot-offer-yes", if busy { "TAKING SNAPSHOT…".into() } else { "SNAPSHOT FIRST, THEN APPLY".into() }, OK, !busy, move |cx| a_snap.update(cx, |this, cx| this.answer_snapshot_offer(true, cx))))
-                        .child(button("snapshot-offer-no", "APPLY WITHOUT".into(), WARN, !busy, move |cx| a_skip.update(cx, |this, cx| this.answer_snapshot_offer(false, cx))))
-                        .child(button("snapshot-offer-cancel", "CANCEL".into(), TEXT_SECONDARY, !busy, move |cx| a_cancel.update(cx, |this, cx| this.cancel_snapshot_offer(cx)))),
+                        .child(button("snapshot-offer-yes", if busy { t!("snapshot-offer-taking-snapshot").into() } else { t!("snapshot-offer-snapshot-first-then-apply").into() }, OK, !busy, move |cx| a_snap.update(cx, |this, cx| this.answer_snapshot_offer(true, cx))))
+                        .child(button("snapshot-offer-no", t!("snapshot-offer-apply-without").into(), WARN, !busy, move |cx| a_skip.update(cx, |this, cx| this.answer_snapshot_offer(false, cx))))
+                        .child(button("snapshot-offer-cancel", t!("snapshot-offer-cancel").into(), TEXT_SECONDARY, !busy, move |cx| a_cancel.update(cx, |this, cx| this.cancel_snapshot_offer(cx)))),
                 ),
         )
 }

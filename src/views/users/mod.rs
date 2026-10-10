@@ -73,7 +73,7 @@ pub fn user_management_view(
         .bg(BG_PANEL)
         .border_b_1()
         .border_color(BORDER_PANEL)
-        .child(div().px(px(14.0)).h_full().flex().items_center().border_r_1().border_color(BORDER_PANEL).font_family(FONT_MONO).text_size(px(11.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child("USERS"))
+        .child(div().px(px(14.0)).h_full().flex().items_center().border_r_1().border_color(BORDER_PANEL).font_family(FONT_MONO).text_size(px(11.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(t!("users-users")))
         .child(render_table_controls(search, chips))
         .child(div().flex_1())
         .child(
@@ -91,7 +91,7 @@ pub fn user_management_view(
                 .cursor_pointer()
                 .hover(|s| s.bg(OK_BG))
                 .on_click(move |_ev, _window, cx| app_new.update(cx, |this, cx| this.open_new_user_modal(cx)))
-                .child("+ NEW USER"),
+                .child(t!("users-new-user")),
         );
 
     let column_header = div()
@@ -109,19 +109,19 @@ pub fn user_management_view(
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(TEXT_DIMMER)
         .child(div().w(px(10.0)).flex_none())
-        .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(160.0)).child("USER"))
-        .child(div().w(px(60.0)).flex_none().text_align(TextAlign::Right).child("UID"))
-        .child(div().flex_grow(1.5).flex_basis(px(0.0)).min_w(px(120.0)).child("GROUPS"))
-        .child(div().flex_grow(1.0).flex_basis(px(0.0)).min_w(px(110.0)).child("SHELL"))
-        .child(div().w(px(50.0)).flex_none().text_align(TextAlign::Right).child("KEYS"))
-        .child(div().w(px(76.0)).flex_none().child("STATUS"));
+        .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(160.0)).child(t!("users-user")))
+        .child(div().w(px(60.0)).flex_none().text_align(TextAlign::Right).child(t!("users-uid")))
+        .child(div().flex_grow(1.5).flex_basis(px(0.0)).min_w(px(120.0)).child(t!("users-groups")))
+        .child(div().flex_grow(1.0).flex_basis(px(0.0)).min_w(px(110.0)).child(t!("users-shell")))
+        .child(div().w(px(50.0)).flex_none().text_align(TextAlign::Right).child(t!("users-keys")))
+        .child(div().w(px(76.0)).flex_none().child(t!("users-status")));
 
     let rows: Vec<AnyElement> = if let Some(e) = users.load_error.as_ref().filter(|_| users.users.is_empty()) {
-        vec![message_row(format!("Couldn't read accounts: {e}"), CRIT)]
+        vec![message_row(t!("users-couldnt-read-accounts", e = e), CRIT)]
     } else if users.users.is_empty() {
-        vec![message_row("Reading accounts…".into(), TEXT_FAINT)]
+        vec![message_row(t!("users-reading-accounts").into(), TEXT_FAINT)]
     } else if visible.is_empty() {
-        vec![message_row("No accounts match — try ALL, or clear the search".into(), TEXT_FAINT)]
+        vec![message_row(t!("users-no-accounts-match-try-all").into(), TEXT_FAINT)]
     } else {
         visible
             .iter()
@@ -171,12 +171,12 @@ pub fn user_management_view(
                         .overflow_y_scrollbar()
                         .child(match inspected {
                             Some(u) => inspector(u, users, password_inputs, app.clone()).into_any_element(),
-                            None => message_row("Select an account to see its details.".into(), TEXT_FAINT),
+                            None => message_row(t!("users-select-an-account-to-see").into(), TEXT_FAINT),
                         }),
                 ),
         )
         // Status of the command running on the server, or the last result.
-        .children(users.pending.as_ref().map(|p| format!("Running: {p} …")).or_else(|| users.toast.clone()).map(|msg| {
+        .children(users.pending.as_ref().map(|p| t!("users-running", p = p)).or_else(|| users.toast.clone()).map(|msg| {
             let app_dismiss = app.clone();
             div()
                 .absolute()
@@ -268,7 +268,7 @@ fn user_row(u: &SystemUserRecord, idx: usize, selected: bool, sudo_group: Option
                 .gap(px(8.0))
                 .overflow_hidden()
                 .child(div().flex_none().text_size(px(11.5)).font_weight(if u.is_human() { FontWeight::SEMIBOLD } else { FontWeight::NORMAL }).text_color(if u.is_human() { TEXT_PRIMARY } else { TEXT_DIM }).child(u.username.clone()))
-                .children(is_admin.then(|| div().flex_none().rounded_sm().px(px(4.0)).py(px(1.0)).bg(WARN_BG).text_color(WARN).text_size(px(8.0)).font_weight(FontWeight::BOLD).child("SUDO")))
+                .children(is_admin.then(|| div().flex_none().rounded_sm().px(px(4.0)).py(px(1.0)).bg(WARN_BG).text_color(WARN).text_size(px(8.0)).font_weight(FontWeight::BOLD).child(t!("users-sudo"))))
                 .children((!full_name.is_empty() && full_name != u.username).then(|| div().min_w(px(0.0)).text_size(px(10.0)).text_color(TEXT_FAINT).child(full_name))),
         )
         .child(div().w(px(60.0)).flex_none().text_align(TextAlign::Right).text_size(px(10.5)).text_color(TEXT_DIM).child(u.uid.to_string()))
@@ -337,21 +337,21 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
                     .gap(px(8.0))
                     .child(div().text_size(px(16.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child(u.username.clone()))
                     .child(status_badge(u))
-                    .children(u.is_sudoer().then(|| div().rounded_sm().px(px(5.0)).py(px(1.5)).bg(WARN_BG).text_color(WARN).text_size(px(8.5)).font_weight(FontWeight::BOLD).child(if is_root { "ROOT" } else { "SUDO" }))),
+                    .children(u.is_sudoer().then(|| div().rounded_sm().px(px(5.0)).py(px(1.5)).bg(WARN_BG).text_color(WARN).text_size(px(8.5)).font_weight(FontWeight::BOLD).child(if is_root { t!("users-root") } else { t!("users-sudo") }))),
             )
             .children((!full_name.is_empty() && full_name != u.username).then(|| div().text_size(px(10.5)).text_color(TEXT_DIM).child(full_name))),
     );
 
     // Account details
     panel = panel
-        .child(inspector_section("ACCOUNT"))
-        .child(detail("uid / gid", format!("{} / {}", u.uid, u.gid)))
+        .child(inspector_section(t!("users-account")))
+        .child(detail(t!("users-uid-gid"), format!("{} / {}", u.uid, u.gid)))
         .child(detail("home", u.home_dir.clone()))
         .child(detail("shell", u.shell.clone()))
-        .child(detail("can log in", if u.is_locked { "no — password locked".into() } else if u.shell.ends_with("nologin") || u.shell.ends_with("/false") { "no — no login shell".into() } else { "yes".into() }));
+        .child(detail(t!("users-can-log-in"), if u.is_locked { t!("users-no-password-locked").into() } else if u.shell.ends_with("nologin") || u.shell.ends_with("/false") { t!("users-no-no-login-shell").into() } else { "yes".into() }));
 
     // Groups, with admin rights as a toggle
-    panel = panel.child(inspector_section("GROUPS")).child(
+    panel = panel.child(inspector_section(t!("users-groups"))).child(
         div().flex().flex_wrap().gap(px(5.0)).px(px(14.0)).children(u.groups.iter().map(|g| {
             let is_primary = *g == u.primary_group;
             div()
@@ -364,14 +364,14 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
                 .font_family(FONT_MONO)
                 .text_size(px(10.0))
                 .text_color(if Some(g.as_str()) == sudo_group { WARN } else { TEXT_SECONDARY })
-                .child(if is_primary { format!("{g} (primary)") } else { g.clone() })
+                .child(if is_primary { t!("users-primary", g = g) } else { g.clone() })
         })),
     );
     if let (Some(group), false) = (sudo_group, is_root) {
         let (app, n) = (app.clone(), name.clone());
         panel = panel.child(div().px(px(14.0)).pt(px(8.0)).child(action_button(
             format!("user-sudo-{name}"),
-            if in_sudo { format!("REMOVE FROM {group} (NO SUDO)") } else { format!("MAKE ADMIN: ADD TO {group} (SUDO)") },
+            if in_sudo { t!("users-remove-from-no-sudo", group = group) } else { t!("users-make-admin-add-to-sudo", group = group) },
             WARN,
             !busy,
             move |cx| {
@@ -382,9 +382,9 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
     }
 
     // SSH keys
-    panel = panel.child(inspector_section("AUTHORIZED SSH KEYS"));
+    panel = panel.child(inspector_section(t!("users-authorized-ssh-keys")));
     if u.authorized_keys.is_empty() {
-        panel = panel.child(div().px(px(14.0)).py(px(2.0)).font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_FAINT).child("No keys in ~/.ssh/authorized_keys."));
+        panel = panel.child(div().px(px(14.0)).py(px(2.0)).font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_FAINT).child(t!("users-no-keys-in-ssh-authorized")));
     }
     for (i, k) in u.authorized_keys.iter().enumerate() {
         let (app, n, id) = (app.clone(), name.clone(), k.id.clone());
@@ -418,7 +418,7 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
     }
     {
         let (app, n) = (app.clone(), name.clone());
-        panel = panel.child(div().px(px(14.0)).pt(px(2.0)).child(action_button(format!("user-attach-{name}"), "+ ADD KEY FROM VAULT".into(), OK, !busy, move |cx| {
+        panel = panel.child(div().px(px(14.0)).pt(px(2.0)).child(action_button(format!("user-attach-{name}"), t!("users-add-key-from-vault").into(), OK, !busy, move |cx| {
             let n = n.clone();
             app.update(cx, |this, cx| {
                 this.users.selected_for_ssh = Some(n);
@@ -428,7 +428,7 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
     }
 
     // Login shell
-    panel = panel.child(inspector_section("LOGIN SHELL")).child(
+    panel = panel.child(inspector_section(t!("users-login-shell"))).child(
         div().flex().flex_wrap().gap(px(5.0)).px(px(14.0)).children(users.shell_choices().into_iter().enumerate().map(|(i, shell)| {
             let current = shell == u.shell;
             let (app, n, sh) = (app.clone(), name.clone(), shell.clone());
@@ -453,11 +453,11 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
 
     // Password
     let form_open = users.password_for.as_deref() == Some(u.username.as_str());
-    panel = panel.child(inspector_section("PASSWORD")).child(
+    panel = panel.child(inspector_section(t!("users-password"))).child(
         div().px(px(14.0)).py(px(2.0)).font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_SECONDARY).child(if u.is_locked {
-            "locked — no password login (setting one unlocks it)"
+            t!("users-locked-no-password-login-setting")
         } else {
-            "set (can log in with a password)"
+            t!("users-set-can-log-in-with")
         }),
     );
     if form_open {
@@ -481,13 +481,13 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
                         .child(gpui_kit::component::input::Input::new(&p.password).font_family(FONT_MONO).text_size(px(11.0)).rounded(px(2.0)))
                         .child(gpui_kit::component::input::Input::new(&p.confirm).font_family(FONT_MONO).text_size(px(11.0)).rounded(px(2.0)))
                 }))
-                .child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).child("Set with chpasswd over stdin; Crow doesn't keep it."))
+                .child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).child(t!("users-set-with-chpasswd-over-stdin")))
                 .child(
                     div()
                         .flex()
                         .gap(px(6.0))
-                        .child(action_button(format!("user-pw-save-{name}"), "SET PASSWORD".into(), OK, !busy, move |cx| app_save.update(cx, |this, cx| this.user_set_password(cx))))
-                        .child(action_button(format!("user-pw-cancel-{name}"), "CANCEL".into(), TEXT_SECONDARY, true, move |cx| {
+                        .child(action_button(format!("user-pw-save-{name}"), t!("users-set-password").into(), OK, !busy, move |cx| app_save.update(cx, |this, cx| this.user_set_password(cx))))
+                        .child(action_button(format!("user-pw-cancel-{name}"), t!("users-cancel").into(), TEXT_SECONDARY, true, move |cx| {
                             let n = n_cancel.clone();
                             app_cancel.update(cx, |this, cx| this.toggle_password_form(&n, cx));
                         })),
@@ -495,7 +495,7 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
         );
     } else {
         let (app_pw, n_pw) = (app.clone(), name.clone());
-        panel = panel.child(div().px(px(14.0)).pt(px(6.0)).child(action_button(format!("user-pw-{name}"), "SET PASSWORD…".into(), OK, !busy, move |cx| {
+        panel = panel.child(div().px(px(14.0)).pt(px(6.0)).child(action_button(format!("user-pw-{name}"), t!("users-set-password-2").into(), OK, !busy, move |cx| {
             let n = n_pw.clone();
             app_pw.update(cx, |this, cx| this.toggle_password_form(&n, cx));
         })));
@@ -505,24 +505,24 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
     let confirming = users.confirm_delete.as_deref() == Some(u.username.as_str());
     let (app_lock, app_passwd, app_delete) = (app.clone(), app.clone(), app);
     let (n_lock, n_passwd, n_delete) = (name.clone(), name.clone(), name.clone());
-    panel.child(inspector_section("ACTIONS")).child(
+    panel.child(inspector_section(t!("users-actions"))).child(
         div()
             .flex()
             .flex_wrap()
             .gap(px(6.0))
             .px(px(14.0))
-            .child(action_button(format!("user-lock-{name}"), if u.is_locked { "UNLOCK PASSWORD".into() } else { "LOCK PASSWORD".into() }, WARN, !busy && !is_root, move |cx| {
+            .child(action_button(format!("user-lock-{name}"), if u.is_locked { t!("users-unlock-password").into() } else { t!("users-lock-password").into() }, WARN, !busy && !is_root, move |cx| {
                 let n = n_lock.clone();
                 app_lock.update(cx, |this, cx| this.user_toggle_lock(&n, cx));
             }))
-            .child(action_button(format!("user-passwd-{name}"), "VIEW PASSWD ENTRY".into(), TEXT_SECONDARY, true, move |cx| {
+            .child(action_button(format!("user-passwd-{name}"), t!("users-view-passwd-entry").into(), TEXT_SECONDARY, true, move |cx| {
                 let n = n_passwd.clone();
                 app_passwd.update(cx, |this, cx| {
                     this.users.selected_for_passwd = Some(n);
                     cx.notify();
                 });
             }))
-            .child(action_button(format!("user-delete-{name}"), if confirming { format!("CLICK AGAIN TO DELETE {}", u.username) } else { "DELETE USER".into() }, CRIT, !busy && !is_root && u.uid != 0, move |cx| {
+            .child(action_button(format!("user-delete-{name}"), if confirming { t!("users-click-again-to-delete", username = u.username) } else { t!("users-delete-user").into() }, CRIT, !busy && !is_root && u.uid != 0, move |cx| {
                 let n = n_delete.clone();
                 app_delete.update(cx, |this, cx| this.user_delete_clicked(&n, cx));
             })),

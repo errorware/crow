@@ -45,9 +45,9 @@ impl CrowApp {
         let form = &self.firewall.new_rule;
         let source_now = if form.is_anywhere { String::new() } else { form.source_input.clone() };
         let make = |placeholder: &str, value: String, window: &mut Window, cx: &mut Context<Self>| cx.new(|cx| InputState::new(window, cx).placeholder(placeholder.to_string()).default_value(value));
-        let port = make("8080, or a range 8000:8100", form.port_input.clone(), window, cx);
-        let source = make("anywhere, or an address / CIDR", source_now, window, cx);
-        let comment = make("why this rule exists", form.comment_input.clone(), window, cx);
+        let port = make(t!("app-firewall-8080-or-a-range-8000"), form.port_input.clone(), window, cx);
+        let source = make(t!("app-firewall-anywhere-or-an-address-cidr"), source_now, window, cx);
+        let comment = make(t!("app-firewall-why-this-rule-exists"), form.comment_input.clone(), window, cx);
         let events = [(&port, RuleField::Port), (&source, RuleField::Source), (&comment, RuleField::Comment)]
             .into_iter()
             .map(|(input, field)| {
@@ -142,7 +142,7 @@ impl CrowApp {
         self.firewall.lockout = None;
         self.firewall.status = FirewallOperationalState::Unmanaged {
             detected_binaries: Vec::new(),
-            reason: format!("Reading {}'s firewall…", srv.name),
+            reason: t!("app-firewall-reading-s-firewall", name = srv.name),
         };
         let id = srv.id.clone();
         cx.spawn(async move |entity, cx| {
@@ -210,8 +210,8 @@ impl CrowApp {
                 this.firewall.status = status;
                 this.firewall.pending = None;
                 this.firewall.toast = Some(match &result {
-                    Ok(()) => format!("Ran: {summary}"),
-                    Err(e) => format!("Failed: {summary} — {e}"),
+                    Ok(()) => t!("app-firewall-ran", summary = summary),
+                    Err(e) => t!("app-firewall-failed", summary = summary, e = e),
                 });
                 if closes_modal && result.is_ok() {
                     this.firewall.show_new_rule_modal = false;
@@ -241,7 +241,7 @@ impl CrowApp {
         let Some(pending) = self.firewall.lockout.as_mut() else { return };
         let typed = pending.input.as_ref().map(|i| i.read(cx).value().trim().to_string()).unwrap_or_default();
         if typed != RISK_CONFIRM_KEYWORD {
-            pending.error = Some(format!("Type {RISK_CONFIRM_KEYWORD} exactly to apply this change."));
+            pending.error = Some(t!("app-firewall-type-exactly-to-apply-this", risk_confirm_keyword = RISK_CONFIRM_KEYWORD));
             cx.notify();
             return;
         }
@@ -260,8 +260,8 @@ impl CrowApp {
             b @ (FirewallBackend::Ufw | FirewallBackend::Firewalld) => Some(b),
             b => {
                 self.firewall.toast = Some(match b {
-                    FirewallBackend::NoneDetected => "Not applied: no firewall Crow can change was found on this host.".to_string(),
-                    b => format!("Not applied: Crow reads {} but never writes it.", b.label()),
+                    FirewallBackend::NoneDetected => t!("app-firewall-not-applied-no-firewall-crow").to_string(),
+                    b => t!("app-firewall-not-applied-crow-reads-but", label = b.label()),
                 });
                 cx.notify();
                 None
@@ -317,7 +317,7 @@ impl CrowApp {
         };
         match cmds {
             Ok(cmds) => self.run_firewall_change(cmds, Some(after), false, cx),
-            Err(e) => self.firewall_toast(format!("Not applied: {e}"), cx),
+            Err(e) => self.firewall_toast(t!("app-firewall-not-applied", e = e), cx),
         }
     }
 
@@ -329,7 +329,7 @@ impl CrowApp {
         let cmds = if backend == FirewallBackend::Ufw { Ok(vec![commands::delete_numbered(rule.number)]) } else { commands::firewalld_remove(&rule) };
         match cmds {
             Ok(cmds) => self.run_firewall_change(cmds, Some(Some(after)), false, cx),
-            Err(e) => self.firewall_toast(format!("Not applied: {e}"), cx),
+            Err(e) => self.firewall_toast(t!("app-firewall-not-applied", e = e), cx),
         }
     }
 
@@ -343,7 +343,7 @@ impl CrowApp {
         let after = self.firewall_summary().map(|s| if inbound { lockout::with(s, vec![planned], backend == FirewallBackend::Firewalld) } else { s.clone() });
         match cmds {
             Ok(cmds) => self.run_firewall_change(cmds, Some(after), true, cx),
-            Err(e) => self.firewall_toast(format!("Not applied: {e}"), cx),
+            Err(e) => self.firewall_toast(t!("app-firewall-not-applied", e = e), cx),
         }
     }
 

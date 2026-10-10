@@ -39,7 +39,7 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(div().font_family(FONT_MONO).text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child("PROVIDERS · WHERE YOUR SERVERS LIVE"))
+                .child(div().font_family(FONT_MONO).text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-providers-providers-where-your-servers-live")))
                 .child(
                     div()
                         .px(px(6.0))
@@ -49,7 +49,7 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                         .font_family(FONT_MONO)
                         .text_size(px(9.5))
                         .text_color(TEXT_SECONDARY)
-                        .child(format!("{configured}/{} SET UP", factories.len())),
+                        .child(t!("settings-providers-set-up", configured = configured, count = factories.len())),
                 )
                 .child(div().flex_1())
                 // The fleet's import from these accounts (ERR-46) lives here, with them.
@@ -71,7 +71,7 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                         .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.open_import(cx)))
                         .child(inherited_icon(TablerIcon::Download, px(12.0)))
-                        .child("IMPORT INSTANCES")
+                        .child(t!("settings-providers-import-instances"))
                 })),
         )
         .child(
@@ -85,8 +85,8 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                 .gap(px(14.0))
                 .child(intro())
                 .children(secrets_notice.map(|n| notice(n.to_string(), TEXT_SECONDARY, None, Some(app.clone()))))
-                .children(secrets_blocker.map(|why| notice(format!("Tokens can't be saved right now: {why}."), WARN, Some(app.clone()), None)))
-                .children(none_on.then(|| notice("No cloud provider plugin is on. Turn on Linode or UpCloud in Settings → Plugins to connect an account.".into(), TEXT_SECONDARY, None, None)))
+                .children(secrets_blocker.map(|why| notice(t!("settings-providers-tokens-cant-be-saved-right", why = why), WARN, Some(app.clone()), None)))
+                .children(none_on.then(|| notice(t!("settings-providers-no-cloud-provider-plugin-is").into(), TEXT_SECONDARY, None, None)))
                 .children(factories.into_iter().map(|f| card(f, state, inputs, open_stance, app.clone()))),
         )
 }
@@ -108,7 +108,7 @@ fn intro() -> impl IntoElement {
                 .text_size(px(10.5))
                 .line_height(px(15.0))
                 .text_color(TEXT_MUTED)
-                .child("Connect the cloud accounts your servers run on. Crow reads your instances from them and, where the provider supports it, can power servers and take snapshots from outside SSH. Tokens are stored encrypted in Crow's vault: its key is held by your OS keyring (Keychain, Secret Service) or, with a vault password, locked by that password. They reach the provider through curl's stdin, never the command line."),
+                .child(t!("settings-providers-connect-the-cloud-accounts-your")),
         )
 }
 
@@ -137,7 +137,7 @@ pub(crate) fn notice(text: String, color: Rgba, link: Option<Entity<CrowApp>>, d
                 .text_color(TEXT_PRIMARY)
                 .hover(|s| s.underline())
                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_settings_section(SettingsSection::Security, cx)))
-                .child("Vault & Security →")
+                .child(t!("settings-providers-vault-security"))
         }))
 }
 
@@ -149,12 +149,12 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
     let checking = account.is_some_and(|a| state.checking.contains(&a.id));
 
     let status: (String, Rgba) = match account {
-        None => ("not set up".into(), TEXT_FAINT),
-        Some(_) if checking => ("testing…".into(), TEXT_SECONDARY),
+        None => (t!("settings-providers-not-set-up").into(), TEXT_FAINT),
+        Some(_) if checking => (t!("settings-providers-testing").into(), TEXT_SECONDARY),
         Some(a) => match (&a.last_check, a.last_check_ok) {
-            (Some(msg), true) => (format!("connected · {msg}"), OK),
+            (Some(msg), true) => (t!("settings-providers-connected", msg = msg), OK),
             (Some(msg), false) => (msg.clone(), CRIT),
-            (None, _) => ("saved · not tested yet".into(), TEXT_SECONDARY),
+            (None, _) => (t!("settings-providers-saved-not-tested-yet").into(), TEXT_SECONDARY),
         },
     };
 
@@ -166,7 +166,7 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
         .child(tag(manifest.plugin.category.clone().unwrap_or_default(), TEXT_DIMMER))
         .children(manifest.plugin.capabilities.iter().map(|c| tag(c.clone(), TEXT_SECONDARY)))
         .child(div().flex_1())
-        .children(account.and_then(|a| a.last_check_at.as_deref()).map(|t| div().font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINTER).child(format!("checked {}", short_time(t)))));
+        .children(account.and_then(|a| a.last_check_at.as_deref()).map(|t| div().font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINTER).child(t!("settings-providers-checked", short_time = short_time(t)))));
 
     let status_line = div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(14.0)).text_color(status.1).child(status.0);
 
@@ -176,17 +176,17 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
         .flex()
         .gap(px(6.0))
         .when(!editing, |d| {
-            d.child(button(format!("provider-edit-{plugin}"), if account.is_some() { "EDIT" } else { "SET UP" }.into(), OK, true, move |cx| {
+            d.child(button(format!("provider-edit-{plugin}"), if account.is_some() { t!("settings-providers-edit") } else { t!("settings-providers-set-up-2") }.into(), OK, true, move |cx| {
                 let p = p_edit.clone();
                 a_edit.update(cx, |this, cx| this.open_provider_form(&p, cx));
             }))
         })
         .when(account.is_some(), |d| {
-            d.child(button(format!("provider-test-{plugin}"), "TEST CONNECTION".into(), TEXT_SECONDARY, !checking, move |cx| {
+            d.child(button(format!("provider-test-{plugin}"), t!("settings-providers-test-connection").into(), TEXT_SECONDARY, !checking, move |cx| {
                 let p = p_test.clone();
                 a_test.update(cx, |this, cx| this.test_provider(&p, cx));
             }))
-            .child(button(format!("provider-remove-{plugin}"), if confirming { "CLICK AGAIN TO REMOVE".into() } else { "REMOVE".into() }, CRIT, true, move |cx| {
+            .child(button(format!("provider-remove-{plugin}"), if confirming { t!("settings-providers-click-again-to-remove").into() } else { t!("settings-providers-remove").into() }, CRIT, true, move |cx| {
                 let p = p_remove.clone();
                 a_remove.update(cx, |this, cx| this.remove_provider_clicked(&p, cx));
             }))
@@ -208,9 +208,9 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
                 .text_size(px(10.0))
                 .line_height(px(13.5))
                 .text_color(WARN)
-                .child("Crow is OPEN: anyone at this session can use this token to power servers off or snapshot them. See the stance badge.")
+                .child(t!("settings-providers-crow-is-open-anyone-at"))
         }))
-        .children(state.errors.get(&plugin).map(|e| div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(14.0)).text_color(CRIT).child(format!("Not saved: {e}"))))
+        .children(state.errors.get(&plugin).map(|e| div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(14.0)).text_color(CRIT).child(t!("settings-providers-not-saved", e = e))))
         .children(editing.then(|| form(&factory, state, inputs, app.clone())))
         .child(actions)
 }
@@ -255,7 +255,7 @@ fn form(factory: &ProviderFactory, state: &ProvidersState, inputs: Option<&Provi
                                 .text_color(TEXT_PRIMARY)
                                 .child(def.label.clone().unwrap_or_else(|| def.name.clone()))
                                 .children((def.required == Some(true)).then(|| div().text_color(WARN).child("*")))
-                                .children(secret.then(|| div().text_size(px(9.0)).text_color(TEXT_FAINT).child("secret · vault"))),
+                                .children(secret.then(|| div().text_size(px(9.0)).text_color(TEXT_FAINT).child(t!("settings-providers-secret-vault")))),
                         )
                         .children(def.help.clone().map(|h| div().text_size(px(9.5)).line_height(px(13.0)).text_color(TEXT_FAINT).child(h))),
                 )
@@ -267,7 +267,7 @@ fn form(factory: &ProviderFactory, state: &ProvidersState, inputs: Option<&Provi
                         .gap(px(8.0))
                         .children(input.map(|i| div().flex_1().max_w(px(420.0)).child(Input::new(&i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0)))))
                         .children(clearable.then(|| {
-                            button(format!("provider-clear-{plugin}-{key}"), "CLEAR".into(), TEXT_DIMMER, true, move |cx| {
+                            button(format!("provider-clear-{plugin}-{key}"), t!("settings-providers-clear").into(), TEXT_DIMMER, true, move |cx| {
                                 let (p, k) = (plugin.clone(), key.clone());
                                 app.update(cx, |this, cx| this.clear_provider_secret(&p, &k, cx));
                             })
@@ -278,8 +278,8 @@ fn form(factory: &ProviderFactory, state: &ProvidersState, inputs: Option<&Provi
             div()
                 .flex()
                 .gap(px(6.0))
-                .child(button(format!("provider-save-{plugin}"), "SAVE & TEST".into(), OK, true, move |cx| a_save.update(cx, |this, cx| this.save_provider_form(cx))))
-                .child(button(format!("provider-cancel-{plugin}"), "CANCEL".into(), TEXT_SECONDARY, true, move |cx| a_cancel.update(cx, |this, cx| this.close_provider_form(cx)))),
+                .child(button(format!("provider-save-{plugin}"), t!("settings-providers-save-test").into(), OK, true, move |cx| a_save.update(cx, |this, cx| this.save_provider_form(cx))))
+                .child(button(format!("provider-cancel-{plugin}"), t!("settings-providers-cancel").into(), TEXT_SECONDARY, true, move |cx| a_cancel.update(cx, |this, cx| this.close_provider_form(cx)))),
         )
 }
 

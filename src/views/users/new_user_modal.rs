@@ -111,7 +111,7 @@ pub fn new_user_modal(
                                         .text_size(px(12.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_MAX)
-                                        .child("PROVISION NEW SYSTEM USER"),
+                                        .child(t!("users-new-user-modal-provision-new-system-user")),
                                 ),
                         )
                         .child(
@@ -148,7 +148,7 @@ pub fn new_user_modal(
                                         .text_size(px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_MUTED)
-                                        .child("LOGIN USERNAME (POSIX)"),
+                                        .child(t!("users-new-user-modal-login-username-posix")),
                                 )
                                 .child(field(inputs.map(|i| &i.username))),
                         )
@@ -164,7 +164,7 @@ pub fn new_user_modal(
                                         .text_size(px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_MUTED)
-                                        .child("FULL NAME (GECOS METADATA)"),
+                                        .child(t!("users-new-user-modal-full-name-gecos-metadata")),
                                 )
                                 .child(field(inputs.map(|i| &i.gecos))),
                         )
@@ -175,14 +175,14 @@ pub fn new_user_modal(
                                 .flex()
                                 .flex_col()
                                 .gap(px(4.0))
-                                .child(div().font_family(FONT_MONO).text_size(px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MUTED).child("PASSWORD (OPTIONAL)"))
+                                .child(div().font_family(FONT_MONO).text_size(px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MUTED).child(t!("users-new-user-modal-password-optional")))
                                 .child(div().flex().gap(px(8.0)).child(div().flex_1().child(field(inputs.map(|i| &i.password)))).child(div().flex_1().child(field(inputs.map(|i| &i.password_confirm)))))
                                 .child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(if mismatch { CRIT } else { TEXT_FAINT }).child(if mismatch {
-                                    "The passwords don't match."
+                                    t!("users-new-user-modal-the-passwords-dont-match")
                                 } else if state.password.is_empty() {
-                                    "Leave empty for key-only login (add a key from the inspector afterwards)."
+                                    t!("users-new-user-modal-leave-empty-for-key-only")
                                 } else {
-                                    "Set with chpasswd over stdin; Crow doesn't keep it."
+                                    t!("users-new-user-modal-set-with-chpasswd-over-stdin")
                                 }))
                         })
                         // Shell & Privileges Row
@@ -204,7 +204,7 @@ pub fn new_user_modal(
                                                 .text_size(px(10.0))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_MUTED)
-                                                .child("LOGIN SHELL"),
+                                                .child(t!("users-new-user-modal-login-shell")),
                                         )
                                         .child(div().flex().flex_wrap().gap(px(4.0)).children(shells.into_iter().enumerate().map(|(i, shell)| {
                                             let current = shell == state.shell;
@@ -242,7 +242,7 @@ pub fn new_user_modal(
                                                 .text_size(px(10.0))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_MUTED)
-                                                .child("INITIAL PRIVILEGES"),
+                                                .child(t!("users-new-user-modal-initial-privileges")),
                                         )
                                         .child(
                                             div()
@@ -271,8 +271,8 @@ pub fn new_user_modal(
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(if current_sudo { OK } else { TEXT_MUTED })
                                                         .child(match (current_sudo, sudo_group) {
-                                                            (true, Some(g)) => format!("✓ ADMIN ({g} group)"),
-                                                            (false, Some(g)) => format!("STANDARD USER · click to add to {g}"),
+                                                            (true, Some(g)) => t!("users-new-user-modal-admin-group", g = g),
+                                                            (false, Some(g)) => t!("users-new-user-modal-standard-user-click-to-add", g = g),
                                                             (_, None) => "STANDARD USER (no sudo/wheel group here)".to_string(),
                                                         }),
                                                 ),
@@ -291,7 +291,7 @@ pub fn new_user_modal(
                                         .text_size(px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_MUTED)
-                                        .child("SUPPLEMENTARY GROUPS (usermod -aG)"),
+                                        .child(t!("users-new-user-modal-supplementary-groups-usermod-ag")),
                                 )
                                 .child(
                                     div()
@@ -356,7 +356,7 @@ pub fn new_user_modal(
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.0))
                                         .text_color(TEXT_SECONDARY)
-                                        .child("Create user home directory (/home/<username>) with skeleton dotfiles"),
+                                        .child(t!("users-new-user-modal-create-user-home-directory-home")),
                                 )
                                 .child(
                                     div()
@@ -364,7 +364,7 @@ pub fn new_user_modal(
                                         .text_size(px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(if current_home { OK } else { TEXT_MUTED })
-                                        .child(if current_home { "ENABLED" } else { "DISABLED" }),
+                                        .child(if current_home { t!("users-new-user-modal-enabled") } else { t!("users-new-user-modal-disabled") }),
                                 ),
                         ),
                 )
@@ -410,7 +410,7 @@ pub fn new_user_modal(
                                                 this.user_create(cx);
                                             });
                                         })
-                                        .child("PROVISION ACCOUNT"),
+                                        .child(t!("users-new-user-modal-provision-account")),
                                 ),
                         ),
                 ),

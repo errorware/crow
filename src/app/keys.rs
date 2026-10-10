@@ -84,7 +84,7 @@ impl CrowApp {
             if let Ok(db_guard) = db.lock() {
                 let _ = db_guard.upsert_ssh_key(&record);
             }
-            self.keys.toast = Some(format!("Enrolled '{}' into group '{}'", record.name, target_group));
+            self.keys.toast = Some(t!("app-keys-enrolled-into-group", name = record.name, target_group = target_group));
             self.refresh_keys(cx);
         }
     }
@@ -97,7 +97,7 @@ impl CrowApp {
         if let Ok(db_guard) = db.lock() {
             let _ = db_guard.delete_ssh_key(key_id);
         }
-        self.keys.toast = Some("Removed key from memory (file preserved)".to_string());
+        self.keys.toast = Some(t!("app-keys-removed-key-from-memory-file").to_string());
         self.refresh_keys(cx);
     }
 
@@ -120,7 +120,7 @@ impl CrowApp {
         if let Some(ref mut state) = self.keys.gen_modal {
             let name = state.name_input.trim();
             if name.is_empty() {
-                state.error_message = Some("Key name cannot be empty".to_string());
+                state.error_message = Some(t!("app-keys-key-name-cannot-be-empty").to_string());
                 cx.notify();
                 return;
             }
@@ -179,7 +179,7 @@ impl CrowApp {
         if let Some(ref mut state) = self.keys.new_group_modal {
             let name = state.name_input.trim();
             if name.is_empty() {
-                state.error_message = Some("Group name cannot be empty".to_string());
+                state.error_message = Some(t!("app-keys-group-name-cannot-be-empty").to_string());
                 cx.notify();
                 return;
             }
@@ -232,13 +232,13 @@ impl CrowApp {
         if let Some(ref mut state) = self.keys.add_scan_path_modal {
             let path = state.path_input.trim();
             if path.is_empty() {
-                state.error_message = Some("Path cannot be empty".to_string());
+                state.error_message = Some(t!("app-keys-path-cannot-be-empty").to_string());
                 cx.notify();
                 return;
             }
             let expanded = expand_tilde(path);
             if !expanded.exists() || !expanded.is_dir() {
-                state.error_message = Some(format!("Directory does not exist: {}", expanded.display()));
+                state.error_message = Some(t!("app-keys-directory-does-not-exist", expanded = expanded.display()));
                 cx.notify();
                 return;
             }
@@ -288,7 +288,7 @@ impl CrowApp {
         if let Some(ref mut state) = self.keys.edit_modal {
             let name = state.name_input.trim();
             if name.is_empty() {
-                state.error_message = Some("Key name cannot be empty".to_string());
+                state.error_message = Some(t!("app-keys-key-name-cannot-be-empty").to_string());
                 cx.notify();
                 return;
             }
@@ -332,8 +332,8 @@ impl CrowApp {
     pub fn ensure_key_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(ref gen) = self.keys.gen_modal {
             if !matches!(self.key_inputs, Some(KeyModalInputs::Gen(_))) {
-                let name = cx.new(|cx| InputState::new(window, cx).placeholder("e.g. id_ed25519_bastion").default_value(&gen.name_input));
-                let comment = cx.new(|cx| InputState::new(window, cx).placeholder("e.g. nelson@crow").default_value(&gen.comment_input));
+                let name = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-keys-e-g-id-ed25519-bastion")).default_value(&gen.name_input));
+                let comment = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-keys-e-g-nelson-crow")).default_value(&gen.comment_input));
                 let custom_dir = cx.new(|cx| InputState::new(window, cx).placeholder("~/.ssh").default_value(&gen.custom_dir_input));
                 let mut events = Vec::new();
                 for (input, field_idx) in [(&name, 0), (&comment, 1), (&custom_dir, 2)] {
@@ -361,7 +361,7 @@ impl CrowApp {
             }
         } else if let Some(ref grp) = self.keys.new_group_modal {
             if !matches!(self.key_inputs, Some(KeyModalInputs::NewGroup(_))) {
-                let name = cx.new(|cx| InputState::new(window, cx).placeholder("e.g. Staging Fleet, Edge Bastions").default_value(&grp.name_input));
+                let name = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-keys-e-g-staging-fleet-edge")).default_value(&grp.name_input));
                 let events = vec![cx.subscribe(&name, |this, input, ev: &InputEvent, cx| match ev {
                     InputEvent::Change => {
                         if let Some(ref mut g) = this.keys.new_group_modal {
@@ -379,7 +379,7 @@ impl CrowApp {
             }
         } else if let Some(ref sp) = self.keys.add_scan_path_modal {
             if !matches!(self.key_inputs, Some(KeyModalInputs::AddScanPath(_))) {
-                let path = cx.new(|cx| InputState::new(window, cx).placeholder("e.g. ~/work-keys or /etc/ssh").default_value(&sp.path_input));
+                let path = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-keys-e-g-work-keys-or")).default_value(&sp.path_input));
                 let events = vec![cx.subscribe(&path, |this, input, ev: &InputEvent, cx| match ev {
                     InputEvent::Change => {
                         if let Some(ref mut s) = this.keys.add_scan_path_modal {
@@ -397,7 +397,7 @@ impl CrowApp {
             }
         } else if let Some(ref edit) = self.keys.edit_modal {
             if !matches!(self.key_inputs, Some(KeyModalInputs::Edit(_))) {
-                let name = cx.new(|cx| InputState::new(window, cx).placeholder("Enter key name…").default_value(&edit.name_input));
+                let name = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-keys-enter-key-name")).default_value(&edit.name_input));
                 let events = vec![cx.subscribe(&name, |this, input, ev: &InputEvent, cx| match ev {
                     InputEvent::Change => {
                         if let Some(ref mut e) = this.keys.edit_modal {

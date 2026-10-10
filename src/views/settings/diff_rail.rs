@@ -20,7 +20,7 @@ pub fn render_diff_rail(
     let additions = diff_lines.iter().filter(|d| d.kind == DiffKind::Addition).count();
     let deletions = diff_lines.iter().filter(|d| d.kind == DiffKind::Deletion).count();
     let diff_badge = if additions == 0 && deletions == 0 {
-        "in sync".to_string()
+        t!("settings-diff-rail-in-sync").to_string()
     } else {
         format!("+{} −{}", additions, deletions)
     };
@@ -48,7 +48,7 @@ pub fn render_diff_rail(
                         .text_size(px(11.0))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_PRIMARY)
-                        .child("PENDING DIFF"),
+                        .child(t!("settings-diff-rail-pending-diff")),
                 )
                 .child(
                     div()
@@ -76,13 +76,13 @@ pub fn render_diff_rail(
                         .gap(px(6.0))
                         .text_color(OK)
                         .child(inherited_icon(TablerIcon::Check, px(12.0)))
-                        .child("Configuration in sync"),
+                        .child(t!("settings-diff-rail-configuration-in-sync")),
                 )
                 .child(
                     div()
                         .mt(px(4.0))
                         .text_color(TEXT_FAINTER)
-                        .child("Working copy matches ~/.config/crow/config.toml"),
+                        .child(t!("settings-diff-rail-working-copy-matches-config-crow")),
                 )
                 .into_any_element()
         } else {
@@ -137,7 +137,7 @@ pub fn render_diff_rail(
                                     .text_size(px(10.0))
                                     .font_weight(FontWeight::BOLD)
                                     .text_color(WARN)
-                                    .child("AFFECTS LIVE SESSIONS"),
+                                    .child(t!("settings-diff-rail-affects-live-sessions")),
                             ),
                     )
                     .child(
@@ -146,7 +146,7 @@ pub fn render_diff_rail(
                             .text_size(px(10.5))
                             .line_height(relative(1.5))
                             .text_color(TEXT_TERTIARY)
-                            .child("Pending SSH connection changes take effect upon reconnection. Existing active sessions will retain their current parameters."),
+                            .child(t!("settings-diff-rail-pending-ssh-connection-changes-take")),
                     ),
             )
         } else {
@@ -166,9 +166,9 @@ pub fn render_diff_rail(
                         .text_size(px(10.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_DIMMER)
-                        .child("KEYCHAIN"),
+                        .child(t!("settings-diff-rail-keychain")),
                 )
-                .children(keychain.is_empty().then(|| div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_FAINT).child("No keys enrolled yet.")))
+                .children(keychain.is_empty().then(|| div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_FAINT).child(t!("settings-diff-rail-no-keys-enrolled-yet"))))
                 .children(keychain.iter().map(|(name, note, dot)| {
                     div()
                         .flex()

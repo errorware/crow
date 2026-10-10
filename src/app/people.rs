@@ -41,7 +41,7 @@ fn run_all(host: &dyn crate::host::Host, cmds: &[Argv]) -> Result<(), String> {
     for c in cmds {
         let argv: Vec<&str> = c.iter().map(String::as_str).collect();
         host.exec_privileged(&argv, &[], crate::host::DEFAULT_TIMEOUT).map_err(|e| match e {
-            crate::host::HostError::Failed { stderr, status } => format!("`{}` failed (exit {status}): {}", c.first().cloned().unwrap_or_default(), stderr.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").trim()),
+            crate::host::HostError::Failed { stderr, status } => t!("app-people-failed-exit", cloned = c.first().cloned().unwrap_or_default(), status = status, stderr = stderr.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").trim()),
             other => other.to_string(),
         })?;
     }
@@ -52,9 +52,9 @@ impl CrowApp {
     pub fn ensure_people_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let p = &mut self.people;
         if p.key_query.is_none() {
-            p.key_query = Some(cx.new(|cx| InputState::new(window, cx).placeholder("a key's fingerprint (SHA256:…) or comment")));
-            p.new_user = Some(cx.new(|cx| InputState::new(window, cx).placeholder("username, e.g. alice")));
-            p.new_key = Some(cx.new(|cx| InputState::new(window, cx).placeholder("their public key: ssh-ed25519 AAAA… alice@laptop")));
+            p.key_query = Some(cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-people-a-keys-fingerprint-sha256-or"))));
+            p.new_user = Some(cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-people-username-e-g-alice"))));
+            p.new_key = Some(cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-people-their-public-key-ssh-ed25519"))));
         }
     }
 
@@ -137,11 +137,11 @@ impl CrowApp {
             (s, c)
         }).collect();
         let verb = match mode {
-            Offboard::Lock => "revoke keys, lock and expire",
-            Offboard::Delete => "revoke keys, delete the account (home kept)",
+            Offboard::Lock => t!("app-people-revoke-keys-lock-and-expire"),
+            Offboard::Delete => t!("app-people-revoke-keys-delete-the-account"),
         };
         let n = plan.iter().filter(|(_, c)| c.is_ok()).count();
-        self.people_run(format!("OFFBOARD {user} · {n} SERVER{}", if n == 1 { "" } else { "S" }), "OFFBOARD", "people.offboard", plan, |c| format!("{user}: {verb} ({} step{})", c.len(), if c.len() == 1 { "" } else { "s" }), window, cx);
+        self.people_run(t!("app-people-offboard", user = user, n = n), "OFFBOARD", "people.offboard", plan, |c| t!("app-people-text", user = user, verb = verb, count = c.len()), window, cx);
     }
 
     /// Removes a key from every account on every server it opens.
@@ -151,7 +151,7 @@ impl CrowApp {
             (s, c)
         }).collect();
         let n = plan.iter().filter(|(_, c)| c.is_ok()).count();
-        self.people_run(format!("REVOKE KEY {label} · {n} SERVER{}", if n == 1 { "" } else { "S" }), "REVOKE", "people.revoke_key", plan, |c| format!("remove the key from {} account{}", c.len(), if c.len() == 1 { "" } else { "s" }), window, cx);
+        self.people_run(t!("app-people-revoke-key", label = label, n = n), "REVOKE", "people.revoke_key", plan, |c| t!("app-people-remove-the-key-from", count = c.len()), window, cx);
     }
 
     /// Gives a user a login with a key on the target's servers.
@@ -159,7 +159,7 @@ impl CrowApp {
         let user = self.people.new_user.as_ref().map(|i| i.read(cx).value().trim().to_lowercase()).unwrap_or_default();
         let key = self.people.new_key.as_ref().map(|i| i.read(cx).value().trim().to_string()).unwrap_or_default();
         if user.is_empty() || key.is_empty() {
-            self.people.message = Some((false, "Fill in the username and their public key first.".into()));
+            self.people.message = Some((false, t!("app-people-fill-in-the-username-and").into()));
             cx.notify();
             return;
         }
@@ -171,13 +171,13 @@ impl CrowApp {
             (s, c)
         }).collect();
         if plan.is_empty() {
-            self.people.message = Some((false, format!("No server in {} has been read yet: READ AGAIN first.", target.label())));
+            self.people.message = Some((false, t!("app-people-no-server-in-has-been", label = target.label())));
             cx.notify();
             return;
         }
         self.people.message = None;
         let n = plan.iter().filter(|(_, c)| c.is_ok()).count();
-        self.people_run(format!("ONBOARD {user} · {} · {n} SERVER{}", target.label().to_uppercase(), if n == 1 { "" } else { "S" }), "ONBOARD", "people.onboard", plan, |c| if c.len() > 1 { format!("create {user}{}, add their key", if sudo { " with sudo" } else { "" }) } else { format!("add the key to {user}") }, window, cx);
+        self.people_run(t!("app-people-onboard", user = user, label = target.label().to_uppercase(), n = n), "ONBOARD", "people.onboard", plan, |c| if c.len() > 1 { t!("app-people-create-add-their-key", user = user, sudo = if sudo { " with sudo" } else { "" }) } else { t!("app-people-add-the-key-to", user = user) }, window, cx);
     }
 
     pub fn people_tick(&mut self, cx: &mut Context<Self>) {

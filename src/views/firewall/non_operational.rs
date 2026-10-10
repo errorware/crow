@@ -58,7 +58,7 @@ pub fn non_operational_view(
                                         .text_size(px(12.0))
                                         .font_weight(FontWeight::SEMIBOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("NO FIREWALL RUNNING"),
+                                        .child(t!("firewall-non-operational-no-firewall-running")),
                                 )
                                 .child(
                                     div()
@@ -85,7 +85,7 @@ pub fn non_operational_view(
                                 .text_size(px(10.5))
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .text_color(TEXT_DIMMER)
-                                .child("WHY"),
+                                .child(t!("firewall-non-operational-why")),
                         )
                         .child(
                             div()
@@ -107,7 +107,7 @@ pub fn non_operational_view(
                                 .text_size(px(10.0))
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .text_color(TEXT_DIMMER)
-                                .child("FIREWALL TOOLS ON THE HOST"),
+                                .child(t!("firewall-non-operational-firewall-tools-on-the-host")),
                         )
                         .child(
                             div()
@@ -120,7 +120,7 @@ pub fn non_operational_view(
                                             .font_family(FONT_MONO)
                                             .text_size(px(10.5))
                                             .text_color(TEXT_FAINT)
-                                            .child("No standard packet filter binaries found (ufw, firewalld, iptables)")
+                                            .child(t!("firewall-non-operational-no-standard-packet-filter-binaries"))
                                             .into_any_element(),
                                     ]
                                 } else {
@@ -155,7 +155,7 @@ pub fn non_operational_view(
                                 .text_size(px(10.0))
                                 .font_weight(FontWeight::SEMIBOLD)
                                 .text_color(TEXT_DIMMER)
-                                .child(if ufw || backend == FirewallBackend::Firewalld { "TO TURN IT ON:" } else { "TO SET ONE UP (ufw):" }),
+                                .child(if ufw || backend == FirewallBackend::Firewalld { t!("firewall-non-operational-to-turn-it-on") } else { t!("firewall-non-operational-to-set-one-up-ufw") }),
                         )
                         .child(
                             div()
@@ -218,7 +218,7 @@ pub fn non_operational_view(
                                         this.toggle_firewall_active(cx);
                                     });
                                 })
-                                .child("TURN THE FIREWALL ON"),
+                                .child(t!("firewall-non-operational-turn-the-firewall-on")),
                         ),
                 )),
         )

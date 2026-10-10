@@ -70,9 +70,9 @@ impl MapFilter {
 
     pub fn label(&self) -> &'static str {
         match self {
-            MapFilter::Both => "ALL TRAFFIC",
-            MapFilter::Incoming => "INCOMING",
-            MapFilter::Outgoing => "OUTGOING",
+            MapFilter::Both => t!("overview-state-all-traffic"),
+            MapFilter::Incoming => t!("overview-state-incoming"),
+            MapFilter::Outgoing => t!("overview-state-outgoing"),
         }
     }
 }
@@ -148,10 +148,10 @@ impl ServiceFilter {
 
     pub fn label(self) -> &'static str {
         match self {
-            ServiceFilter::Live => "LIVE",
-            ServiceFilter::Failed => "FAILED",
-            ServiceFilter::Inactive => "INACTIVE",
-            ServiceFilter::All => "ALL",
+            ServiceFilter::Live => t!("overview-state-live"),
+            ServiceFilter::Failed => t!("overview-state-failed"),
+            ServiceFilter::Inactive => t!("overview-state-inactive"),
+            ServiceFilter::All => t!("overview-state-all"),
         }
     }
 
@@ -214,11 +214,11 @@ impl ProcessFilter {
 
     pub fn label(self) -> &'static str {
         match self {
-            ProcessFilter::Apps => "APPS",
-            ProcessFilter::Root => "ROOT",
-            ProcessFilter::Busy => "CPU > 1%",
-            ProcessFilter::Kernel => "KERNEL",
-            ProcessFilter::All => "ALL",
+            ProcessFilter::Apps => t!("overview-state-apps"),
+            ProcessFilter::Root => t!("overview-state-root"),
+            ProcessFilter::Busy => t!("overview-state-cpu-1"),
+            ProcessFilter::Kernel => t!("overview-state-kernel"),
+            ProcessFilter::All => t!("overview-state-all"),
         }
     }
 

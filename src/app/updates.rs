@@ -66,7 +66,7 @@ impl CrowApp {
             return;
         }
         self.update.installing = true;
-        self.update.note = Some(format!("Downloading and verifying Crow {}…", release.version));
+        self.update.note = Some(t!("app-updates-downloading-and-verifying-crow", version = release.version));
         cx.notify();
         cx.spawn(async move |entity, cx| {
             let result = cx.background_executor().spawn(async move { update::install(&release) }).await;
@@ -104,7 +104,7 @@ impl CrowApp {
         match update::restart_into_installed() {
             Ok(()) => cx.quit(),
             Err(e) => {
-                self.update.note = Some(format!("Couldn't start the new version: {e}"));
+                self.update.note = Some(t!("app-updates-couldnt-start-the-new-version", e = e));
                 cx.notify();
             }
         }

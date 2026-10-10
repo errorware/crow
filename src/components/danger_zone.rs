@@ -15,19 +15,16 @@ use crate::vault::ServerRecord;
 /// named, honest simulation on every host — a safety boundary, not a
 /// shortcut we forgot to finish.
 pub fn send_power_action(server: &ServerRecord, action: &str) -> Result<String, String> {
-    Ok(format!(
-        "Simulated {} signal sent to {} — Crow does not execute real power actions yet",
-        action, server.name
-    ))
+    Ok(t!("danger-zone-simulated-signal-sent-to-crow", action = action, name = server.name))
 }
 
 pub fn flush_firewall(server: &ServerRecord) -> Result<String, String> {
     let host = host_for(server);
     if host.exec(&["which", "ufw"], DEFAULT_TIMEOUT).is_err() {
-        return Err("This host isn't running ufw — nothing to flush.".to_string());
+        return Err(t!("danger-zone-this-host-isnt-running-ufw").to_string());
     }
     host.exec_privileged(&["ufw", "--force", "reset"], &[], DEFAULT_TIMEOUT).map_err(|e| e.to_string())?;
-    Ok(format!("ufw rules flushed on {}", host.label()))
+    Ok(t!("danger-zone-ufw-rules-flushed-on", label = host.label()))
 }
 
 /// Stops every Crow-enrolled lab node — bounded to what Crow itself manages,
@@ -136,15 +133,15 @@ pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>,
     let mut rows: Vec<AnyElement> = Vec::new();
     rows.push(match power {
         Some(p) => action_row(
-            "Power",
-            format!("Through {}: works even when SSH is down.", p.name),
-            vec![btn("btn-danger-poweroff", "POWER OFF".into(), "poweroff"), btn("btn-danger-reboot", "REBOOT".into(), "reboot"), btn("btn-danger-boot", "BOOT".into(), "boot")],
+            t!("danger-zone-power"),
+            t!("danger-zone-through-works-even-when-ssh", name = p.name),
+            vec![btn("btn-danger-poweroff", t!("danger-zone-power-off").into(), "poweroff"), btn("btn-danger-reboot", "REBOOT".into(), "reboot"), btn("btn-danger-boot", "BOOT".into(), "boot")],
         )
         .into_any_element(),
         None => action_row(
-            "Power",
-            "Simulated: Crow doesn't send real power signals to hosts yet. Link a provider for real power control.",
-            vec![btn("btn-danger-poweroff", "POWER OFF".into(), "poweroff"), btn("btn-danger-reboot", "REBOOT · 45s DOWNTIME".into(), "reboot")],
+            t!("danger-zone-power"),
+            t!("danger-zone-simulated-crow-doesnt-send-real"),
+            vec![btn("btn-danger-poweroff", t!("danger-zone-power-off").into(), "poweroff"), btn("btn-danger-reboot", t!("danger-zone-reboot-45s-downtime").into(), "reboot")],
         )
         .into_any_element(),
     });
@@ -161,27 +158,27 @@ pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>,
             .cursor_pointer()
             .hover(|s| s.bg(BG_ROW_HOVER))
             .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.open_snapshots_panel(cx)))
-            .child("SNAPSHOTS…")
+            .child(t!("danger-zone-snapshots"))
             .into_any_element();
-        rows.push(action_row("Snapshots", format!("Taken and listed at {}.", p.name), vec![list, btn("btn-danger-snapshot", "SNAPSHOT".into(), "snapshot")]).into_any_element());
+        rows.push(action_row(t!("danger-zone-snapshots-2"), t!("danger-zone-taken-and-listed-at", name = p.name), vec![list, btn("btn-danger-snapshot", "SNAPSHOT".into(), "snapshot")]).into_any_element());
     }
-    rows.push(action_row("Flush firewall", "Resets ufw: every rule is removed and the firewall is disabled.", vec![btn("btn-danger-flush-fw", "FLUSH FIREWALL (UFW)".into(), "flush_firewall")]).into_any_element());
+    rows.push(action_row(t!("danger-zone-flush-firewall"), t!("danger-zone-resets-ufw-every-rule-is"), vec![btn("btn-danger-flush-fw", t!("danger-zone-flush-firewall-ufw").into(), "flush_firewall")]).into_any_element());
     rows.push(
         action_row(
-            "Rotate host keys",
-            "Not built yet.",
-            vec![div().id("btn-danger-rotate-keys").text_size(px(11.0)).text_color(TEXT_FAINTER).border_1().border_color(BORDER_DEFAULT).px(px(10.0)).py(px(4.0)).child("NOT YET BUILT").into_any_element()],
+            t!("danger-zone-rotate-host-keys"),
+            t!("danger-zone-not-built-yet"),
+            vec![div().id("btn-danger-rotate-keys").text_size(px(11.0)).text_color(TEXT_FAINTER).border_1().border_color(BORDER_DEFAULT).px(px(10.0)).py(px(4.0)).child(t!("danger-zone-not-yet-built")).into_any_element()],
         )
         .into_any_element(),
     );
-    rows.push(action_row("Lab containers", "Stops every lab node Crow created on this machine, and nothing else.", vec![btn("btn-danger-kill-containers", "KILL ALL LAB CONTAINERS".into(), "kill_containers")]).into_any_element());
+    rows.push(action_row(t!("danger-zone-lab-containers"), t!("danger-zone-stops-every-lab-node-crow"), vec![btn("btn-danger-kill-containers", t!("danger-zone-kill-all-lab-containers").into(), "kill_containers")]).into_any_element());
     // Archive acts on Crow's own record, not the host: last, and it opens an
     // explanation rather than the keyword prompt.
     let app_archive = app.clone();
     rows.push(
         action_row(
-            "Archive server",
-            "Removes it from the fleet; its data is kept until the purge date, and it can be restored.",
+            t!("danger-zone-archive-server"),
+            t!("danger-zone-removes-it-from-the-fleet"),
             vec![div()
                 .id("btn-danger-archive")
                 .text_size(px(11.0))
@@ -195,7 +192,7 @@ pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>,
                 .cursor_pointer()
                 .hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT))
                 .on_click(move |_ev, _window, cx| app_archive.update(cx, |this, cx| this.request_archive_active_server(cx)))
-                .child("ARCHIVE SERVER")
+                .child(t!("danger-zone-archive-server-2"))
                 .into_any_element()],
         )
         .into_any_element(),
@@ -221,9 +218,9 @@ pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>,
                 .border_b_1()
                 .border_color(BORDER_DANGER)
                 .child(danger_triangle())
-                .child(div().text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child("DANGER ZONE"))
+                .child(div().text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child(t!("danger-zone-danger-zone")))
                 .child(div().flex_1())
-                .child(div().text_size(px(10.0)).text_color(TEXT_DIMMER).child("type the action's keyword to confirm · no single-click destructive actions")),
+                .child(div().text_size(px(10.0)).text_color(TEXT_DIMMER).child(t!("danger-zone-type-the-actions-keyword-to"))),
         )
         .children(danger.pending_action.clone().map(|action| {
             div().flex().items_center().min_h(px(46.0)).bg(CRIT_STRIP_BG).border_b_1().border_color(BORDER_DANGER).child(render_confirm_prompt(&action, danger, app.clone()))
@@ -248,7 +245,7 @@ fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<Cro
                 .font_family(FONT_MONO)
                 .text_size(px(10.5))
                 .text_color(CRIT_INK)
-                .child(format!("Type {} to confirm:", keyword)),
+                .child(t!("danger-zone-type-to-confirm", keyword = keyword)),
         )
         .children(danger.confirm_input.as_ref().map(|state| {
             div()
@@ -279,7 +276,7 @@ fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<Cro
                         this.execute_danger_zone_action(cx);
                     });
                 })
-                .child("EXECUTE ⏎"),
+                .child(t!("danger-zone-execute")),
         )
         .child(
             div()
@@ -294,7 +291,7 @@ fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<Cro
                         this.cancel_danger_zone_action(cx);
                     });
                 })
-                .child("cancel"),
+                .child(t!("danger-zone-cancel")),
         )
         .children(danger.error.as_ref().map(|err| {
             div()

@@ -69,7 +69,7 @@ fn card(title: &'static str, view: &'static str, app: Entity<CrowApp>) -> Div {
                         .on_click(move |_ev, _window, cx| {
                             app.update(cx, |this, cx| this.set_view(view, cx));
                         })
-                        .child("OPEN →"),
+                        .child(t!("overview-dashboard-open")),
                 ),
         )
 }
@@ -118,15 +118,15 @@ fn services_card(s: &ServiceSummary, app: Entity<CrowApp>) -> impl IntoElement {
             app.update(cx, |this, cx| this.open_service_from_dashboard(&unit, cx));
         })
     });
-    card("SERVICES", "services", app.clone())
+    card(t!("overview-dashboard-services"), "services", app.clone())
         .child(stats(vec![
-            (s.active.to_string(), "ACTIVE", OK),
-            (s.failed.to_string(), "FAILED", if s.failed > 0 { CRIT } else { TEXT_MUTED }),
-            (s.degraded.to_string(), "DEGRADED", if s.degraded > 0 { WARN } else { TEXT_MUTED }),
-            (s.inactive.to_string(), "INACTIVE", TEXT_MUTED),
+            (s.active.to_string(), t!("overview-dashboard-active"), OK),
+            (s.failed.to_string(), t!("overview-dashboard-failed"), if s.failed > 0 { CRIT } else { TEXT_MUTED }),
+            (s.degraded.to_string(), t!("overview-dashboard-degraded"), if s.degraded > 0 { WARN } else { TEXT_MUTED }),
+            (s.inactive.to_string(), t!("overview-dashboard-inactive"), TEXT_MUTED),
         ]))
-        .child(section_label("NEEDS ATTENTION"))
-        .children((s.attention.is_empty()).then(|| empty_line("No failed or degraded units.")))
+        .child(section_label(t!("overview-dashboard-needs-attention")))
+        .children((s.attention.is_empty()).then(|| empty_line(t!("overview-dashboard-no-failed-or-degraded-units"))))
         .children(attention)
         .child(div().h(px(8.0)))
 }
@@ -134,7 +134,7 @@ fn services_card(s: &ServiceSummary, app: Entity<CrowApp>) -> impl IntoElement {
 fn processes_card(p: &ProcessSummary, app: Entity<CrowApp>) -> impl IntoElement {
     let top_cpu = p.top_cpu.iter().enumerate().map(|(i, (pid, cmd, cpu))| {
         let (app, pid) = (app.clone(), *pid);
-        link_row(SharedString::from(format!("dash-cpu-{i}")), format!("{pid:>7}  {cmd}"), format!("{cpu:.1}% CPU"), if *cpu >= 80.0 { CRIT } else if *cpu >= 40.0 { WARN } else { TEXT_SECONDARY }, move |_w, cx| {
+        link_row(SharedString::from(format!("dash-cpu-{i}")), format!("{pid:>7}  {cmd}"), t!("overview-dashboard-cpu", cpu = format!("{:.1}", cpu)), if *cpu >= 80.0 { CRIT } else if *cpu >= 40.0 { WARN } else { TEXT_SECONDARY }, move |_w, cx| {
             app.update(cx, |this, cx| this.open_process_from_dashboard(pid, cx));
         })
     });
@@ -144,16 +144,16 @@ fn processes_card(p: &ProcessSummary, app: Entity<CrowApp>) -> impl IntoElement 
             app.update(cx, |this, cx| this.open_process_from_dashboard(pid, cx));
         })
     });
-    card("PROCESSES", "processes", app.clone())
+    card(t!("overview-dashboard-processes"), "processes", app.clone())
         .child(stats(vec![
-            (p.total.to_string(), "TOTAL", TEXT_PRIMARY),
-            (p.zombies.to_string(), "ZOMBIE", if p.zombies > 0 { WARN } else { TEXT_MUTED }),
-            (p.blocked.to_string(), "BLOCKED (D)", if p.blocked > 0 { WARN } else { TEXT_MUTED }),
+            (p.total.to_string(), t!("overview-dashboard-total"), TEXT_PRIMARY),
+            (p.zombies.to_string(), t!("overview-dashboard-zombie"), if p.zombies > 0 { WARN } else { TEXT_MUTED }),
+            (p.blocked.to_string(), t!("overview-dashboard-blocked-d"), if p.blocked > 0 { WARN } else { TEXT_MUTED }),
         ]))
-        .child(section_label("TOP CPU"))
-        .children(p.top_cpu.is_empty().then(|| empty_line("No processes sampled yet.")))
+        .child(section_label(t!("overview-dashboard-top-cpu")))
+        .children(p.top_cpu.is_empty().then(|| empty_line(t!("overview-dashboard-no-processes-sampled-yet"))))
         .children(top_cpu)
-        .child(section_label("TOP MEMORY"))
+        .child(section_label(t!("overview-dashboard-top-memory")))
         .children(top_mem)
         .child(div().h(px(8.0)))
 }
@@ -177,15 +177,15 @@ fn sockets_card(s: &SocketSummary, app: Entity<CrowApp>) -> impl IntoElement {
             },
         )
     });
-    card("SOCKETS", "sockets", app.clone())
+    card(t!("overview-dashboard-sockets"), "sockets", app.clone())
         .child(stats(vec![
-            (s.listening.to_string(), "LISTENING", TEXT_PRIMARY),
-            (s.all_interfaces.to_string(), "ALL INTERFACES", if s.all_interfaces > 0 { WARN } else { TEXT_MUTED }),
-            (s.interface.to_string(), "INTERFACE", TEXT_SECONDARY),
-            (s.local_only.to_string(), "LOCAL ONLY", OK),
+            (s.listening.to_string(), t!("overview-dashboard-listening"), TEXT_PRIMARY),
+            (s.all_interfaces.to_string(), t!("overview-dashboard-all-interfaces"), if s.all_interfaces > 0 { WARN } else { TEXT_MUTED }),
+            (s.interface.to_string(), t!("overview-dashboard-interface"), TEXT_SECONDARY),
+            (s.local_only.to_string(), t!("overview-dashboard-local-only"), OK),
         ]))
-        .child(section_label("LISTENING PORTS · WIDEST EXPOSURE FIRST"))
-        .children(s.ports.is_empty().then(|| empty_line("No listening sockets sampled yet.")))
+        .child(section_label(t!("overview-dashboard-listening-ports-widest-exposure-first")))
+        .children(s.ports.is_empty().then(|| empty_line(t!("overview-dashboard-no-listening-sockets-sampled-yet"))))
         .children(ports)
         .child(div().h(px(8.0)))
 }
@@ -201,9 +201,9 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
         .px(px(12.0))
         .border_b_1()
         .border_color(BORDER_PANEL)
-        .child(div().font_family(FONT_MONO).text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child("UPDATES & SECURITY"))
+        .child(div().font_family(FONT_MONO).text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("overview-dashboard-updates-security")))
         .child(div().flex_1())
-        .children((!sec.checked_label.is_empty()).then(|| div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).mr(px(10.0)).child(format!("checked {}", sec.checked_label))))
+        .children((!sec.checked_label.is_empty()).then(|| div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).mr(px(10.0)).child(t!("overview-dashboard-checked", checked_label = sec.checked_label))))
         .child(
             div()
                 .id("security-refresh")
@@ -211,20 +211,20 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
                 .text_size(px(10.0))
                 .text_color(if sec.loading { TEXT_FAINT } else { hex_rgb(0x8ab4ff) })
                 .when(!sec.loading, |d| d.cursor_pointer().hover(|s| s.text_color(TEXT_PRIMARY)).on_click(move |_ev, _window, cx| app_refresh.update(cx, |this, cx| this.refresh_security(true, cx))))
-                .child(if sec.loading { "CHECKING…" } else { "REFRESH ↻" }),
+                .child(if sec.loading { t!("overview-dashboard-checking") } else { t!("overview-dashboard-refresh") }),
         );
     let body = div().flex().flex_col();
     let body = match &sec.updates {
-        None if sec.loading => body.child(empty_line("Reading the package manager and looking up CVEs…")),
-        None => body.child(empty_line("Not checked yet.")),
+        None if sec.loading => body.child(empty_line(t!("overview-dashboard-reading-the-package-manager-and"))),
+        None => body.child(empty_line(t!("overview-dashboard-not-checked-yet"))),
         Some(Err(e)) => body.child(div().px(px(12.0)).py(px(8.0)).font_family(FONT_MONO).text_size(px(10.5)).text_color(CRIT).child(e.clone())),
         Some(Ok(u)) => {
             let security = u.security_count();
             let fixable = sec.cves.as_ref().and_then(|c| c.as_ref().ok()).map(|c| c.fixable_count());
             let mut b = body.child(stats(vec![
-                (u.updates.len().to_string(), "PENDING", if u.updates.is_empty() { OK } else { TEXT_PRIMARY }),
-                (security.to_string(), "SECURITY", if security > 0 { CRIT } else { TEXT_MUTED }),
-                (fixable.map(|n| n.to_string()).unwrap_or_else(|| "—".into()), "CVES FIXED BY UPDATING", if fixable.unwrap_or(0) > 0 { WARN } else { TEXT_MUTED }),
+                (u.updates.len().to_string(), t!("overview-dashboard-pending"), if u.updates.is_empty() { OK } else { TEXT_PRIMARY }),
+                (security.to_string(), t!("overview-dashboard-security"), if security > 0 { CRIT } else { TEXT_MUTED }),
+                (fixable.map(|n| n.to_string()).unwrap_or_else(|| "—".into()), t!("overview-dashboard-cves-fixed-by-updating"), if fixable.unwrap_or(0) > 0 { WARN } else { TEXT_MUTED }),
             ]));
 
             // Apply them (ERR-141): planned on the fleet runner, which lists
@@ -256,25 +256,25 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
                         .gap(px(6.0))
                         .px(px(12.0))
                         .pb(px(6.0))
-                        .children((security > 0).then(|| apply("btn-server-patch-security", format!("APPLY {security} SECURITY"), crate::patching::Scope::Security, OK)))
-                        .child(apply("btn-server-patch-all", format!("APPLY ALL {}", u.updates.len()), crate::patching::Scope::All, WARN)),
+                        .children((security > 0).then(|| apply("btn-server-patch-security", t!("overview-dashboard-apply-security", security = security), crate::patching::Scope::Security, OK)))
+                        .child(apply("btn-server-patch-all", t!("overview-dashboard-apply-all", count = u.updates.len()), crate::patching::Scope::All, WARN)),
                 );
             }
 
             // Kernel and reboot state.
-            b = b.child(section_label("KERNEL"));
-            b = b.child(info_line(format!("running {}", if u.kernel.is_empty() { "—" } else { &u.kernel }), TEXT_SECONDARY));
+            b = b.child(section_label(t!("overview-dashboard-kernel")));
+            b = b.child(info_line(t!("overview-dashboard-running", u = if u.kernel.is_empty() { "—" } else { &u.kernel }), TEXT_SECONDARY));
             if let Some((change, is_security)) = u.kernel_update() {
-                b = b.child(info_line(format!("{} update pending: {change}", if is_security { "security" } else { "kernel" }), if is_security { CRIT } else { WARN }));
+                b = b.child(info_line(t!("overview-dashboard-update-pending", is_security = if is_security { "security" } else { "kernel" }, change = change), if is_security { CRIT } else { WARN }));
             }
             if u.reboot_required {
-                b = b.child(info_line("reboot required to finish installed updates".into(), WARN));
+                b = b.child(info_line(t!("overview-dashboard-reboot-required-to-finish-installed").into(), WARN));
             }
             if let Some(t) = u.cache_time {
                 let age_h = (chrono::Utc::now().timestamp() - t).max(0) / 3600;
                 let (text, color) = match age_h {
-                    0..=23 => (format!("package lists refreshed {}h ago", age_h), TEXT_FAINT),
-                    h => (format!("package lists are {} days old — run `apt update` for current results", h / 24), WARN),
+                    0..=23 => (t!("overview-dashboard-package-lists-refreshed-h-ago", age_h = age_h), TEXT_FAINT),
+                    h => (t!("overview-dashboard-package-lists-are-days-old", h = h / 24), WARN),
                 };
                 b = b.child(info_line(text, color));
             }
@@ -288,9 +288,9 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
                         .flat_map(|(pkg, ids)| ids.iter().filter_map(|id| c.details.get(id).map(|v| (pkg.clone(), v))))
                         .collect();
                     fixed.sort_by_key(|(_, v)| v.rank());
-                    b = b.child(section_label("CVES FIXED BY PENDING UPDATES"));
+                    b = b.child(section_label(t!("overview-dashboard-cves-fixed-by-pending-updates")));
                     if fixed.is_empty() {
-                        b = b.child(empty_line("None found for the pending updates."));
+                        b = b.child(empty_line(t!("overview-dashboard-none-found-for-the-pending")));
                     }
                     for (i, (pkg, v)) in fixed.iter().take(10).enumerate() {
                         let url = format!("https://osv.dev/vulnerability/{}", v.id);
@@ -302,22 +302,22 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
                             }));
                     }
                     if fixed.len() > 10 {
-                        b = b.child(empty_line_owned(format!("+{} more", fixed.len() - 10)));
+                        b = b.child(empty_line_owned(t!("overview-dashboard-more", fixed = fixed.len() - 10)));
                     }
                     if c.no_fix_yet > 0 {
-                        b = b.child(info_line(format!("{} known CVEs in running software have no fix yet", c.no_fix_yet), TEXT_FAINT));
+                        b = b.child(info_line(t!("overview-dashboard-known-cves-in-running-software", no_fix_yet = c.no_fix_yet), TEXT_FAINT));
                     }
                 }
-                Some(Err(e)) => b = b.child(section_label("CVES")).child(info_line(e.clone(), TEXT_FAINT)),
+                Some(Err(e)) => b = b.child(section_label(t!("overview-dashboard-cves"))).child(info_line(e.clone(), TEXT_FAINT)),
                 None => {}
             }
 
             // Security updates, then the rest.
             let mut pending: Vec<&super::updates::PackageUpdate> = u.updates.iter().collect();
             pending.sort_by_key(|p| (!p.security, p.name.clone()));
-            b = b.child(section_label("PENDING UPDATES · SECURITY FIRST"));
+            b = b.child(section_label(t!("overview-dashboard-pending-updates-security-first")));
             if pending.is_empty() {
-                b = b.child(empty_line("Everything is up to date."));
+                b = b.child(empty_line(t!("overview-dashboard-everything-is-up-to-date")));
             }
             for p in pending.iter().take(12) {
                 let versions = if p.installed.is_empty() { p.candidate.clone() } else { format!("{} → {}", p.installed, p.candidate) };
@@ -331,14 +331,14 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
                         .font_family(FONT_MONO)
                         .text_size(px(10.5))
                         .child(div().flex_1().min_w(px(0.0)).overflow_hidden().text_color(if p.security { TEXT_PRIMARY } else { TEXT_SECONDARY }).child(p.name.clone()))
-                        .children(p.security.then(|| div().flex_none().text_size(px(8.5)).font_weight(FontWeight::BOLD).text_color(CRIT).child("SECURITY")))
+                        .children(p.security.then(|| div().flex_none().text_size(px(8.5)).font_weight(FontWeight::BOLD).text_color(CRIT).child(t!("overview-dashboard-security"))))
                         .child(div().flex_none().max_w(px(220.0)).overflow_hidden().text_color(TEXT_FAINT).child(versions)),
                 );
             }
             if pending.len() > 12 {
-                b = b.child(empty_line_owned(format!("+{} more", pending.len() - 12)));
+                b = b.child(empty_line_owned(t!("overview-dashboard-more-2", pending = pending.len() - 12)));
             }
-            b.child(div().px(px(12.0)).pt(px(8.0)).font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINTER).child("CVE data: OSV.dev · Crow sends package names and versions only, never host names"))
+            b.child(div().px(px(12.0)).pt(px(8.0)).font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINTER).child(t!("overview-dashboard-cve-data-osv-dev-crow")))
         }
     };
     div()

@@ -128,7 +128,7 @@ impl TerminalWorkspace {
             .and_then(|p| p.session.as_ref())
             .and_then(|s| s.title.clone())
             .filter(|t| !t.trim().is_empty())
-            .unwrap_or_else(|| format!("shell {}", i + 1))
+            .unwrap_or_else(|| t!("app-terminal-shell", i = i + 1))
     }
 
     /// Whether a pane in tab `i` rang the bell since it was last focused.
@@ -220,7 +220,7 @@ impl CrowApp {
         self.terminal_rename = None;
         self.terminal_select_tab(i, cx);
         let Some(current) = self.terminal_workspace(cx).filter(|ws| i < ws.tabs.len()).map(|ws| ws.tab_title(i)) else { return };
-        let input = cx.new(|cx| InputState::new(window, cx).default_value(current).placeholder("follows the shell's title when empty"));
+        let input = cx.new(|cx| InputState::new(window, cx).default_value(current).placeholder(t!("app-terminal-follows-the-shells-title-when")));
         input.update(cx, |inp, cx| inp.focus(window, cx));
         // Select the name once the field has focus, so typing replaces it.
         cx.defer_in(window, |_, window, cx| window.dispatch_action(Box::new(gpui_kit::component::input::SelectAll), cx));
@@ -332,7 +332,7 @@ impl CrowApp {
                 }
                 None if pane.error.is_none() => {
                     let Some(srv) = servers.iter().find(|s| s.id == pane.server_id) else { continue };
-                    match launch_for(srv).and_then(|l| Session::spawn(&l, size).map_err(|e| format!("couldn't start a terminal: {e}"))) {
+                    match launch_for(srv).and_then(|l| Session::spawn(&l, size).map_err(|e| t!("app-terminal-couldnt-start-a-terminal", e = e))) {
                         Ok(s) => {
                             if let Some(bytes) = pane.pending_input.take() {
                                 s.write(bytes);

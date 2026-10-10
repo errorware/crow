@@ -69,7 +69,7 @@ impl CrowApp {
             return;
         }
         let masked = !self.lock_state.show_password;
-        let password = cx.new(|cx| InputState::new(window, cx).placeholder("Enter master password…").masked(masked));
+        let password = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-session-enter-master-password")).masked(masked));
         let code = cx.new(|cx| InputState::new(window, cx).placeholder("000000"));
         let events = [&password, &code]
             .into_iter()
@@ -99,13 +99,13 @@ impl CrowApp {
         let pwd = zeroize::Zeroizing::new(inputs.password.read(cx).value().to_string());
         let code: String = inputs.code.read(cx).value().chars().filter(|c| c.is_ascii_digit()).collect();
         if pwd.is_empty() {
-            self.lock_state.error_message = Some("Password cannot be empty".into());
+            self.lock_state.error_message = Some(t!("app-session-password-cannot-be-empty").into());
             cx.notify();
             return;
         }
         let totp = code.as_str();
         if totp.is_empty() {
-            self.lock_state.error_message = Some("6-digit 2FA code is required".into());
+            self.lock_state.error_message = Some(t!("app-session-6-digit-2fa-code-is").into());
             cx.notify();
             return;
         }
@@ -135,7 +135,7 @@ impl CrowApp {
             let account = format!(
                 "{}@{}",
                 std::env::var("USER").unwrap_or_else(|_| "crow".into()),
-                std::fs::read_to_string("/etc/hostname").map(|h| h.trim().to_string()).unwrap_or_else(|_| "this computer".into())
+                std::fs::read_to_string("/etc/hostname").map(|h| h.trim().to_string()).unwrap_or_else(|_| t!("app-session-this-computer").into())
             );
             self.setup_state.totp_qr = crate::vault::totp_qr_png(&self.setup_state.totp_secret, &account)
                 .ok()
@@ -153,9 +153,9 @@ impl CrowApp {
             return;
         }
         let masked = !self.setup_state.show_password;
-        let password = cx.new(|cx| InputState::new(window, cx).placeholder("Enter master password (min 8 characters)…").masked(masked));
-        let confirm = cx.new(|cx| InputState::new(window, cx).placeholder("Re-type password…").masked(masked));
-        let code = cx.new(|cx| InputState::new(window, cx).placeholder("6-digit code (e.g. 123456)"));
+        let password = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-session-enter-master-password-min-8")).masked(masked));
+        let confirm = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-session-re-type-password")).masked(masked));
+        let code = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-session-6-digit-code-e-g")));
         let events = [&password, &confirm, &code]
             .into_iter()
             .map(|input| {
@@ -195,24 +195,24 @@ impl CrowApp {
         let code: String = inputs.code.read(cx).value().chars().filter(|c| c.is_ascii_digit()).collect();
 
         if pwd.len() < 8 {
-            self.setup_state.error_message = Some("Password must be at least 8 characters".into());
+            self.setup_state.error_message = Some(t!("app-session-password-must-be-at-least").into());
             cx.notify();
             return;
         }
         if pwd != confirm {
-            self.setup_state.error_message = Some("Passwords do not match".into());
+            self.setup_state.error_message = Some(t!("app-session-passwords-do-not-match").into());
             cx.notify();
             return;
         }
 
         let code = code.as_str();
         if code.is_empty() {
-            self.setup_state.error_message = Some("Please enter the 6-digit confirmation code from your authenticator".into());
+            self.setup_state.error_message = Some(t!("app-session-please-enter-the-6-digit").into());
             cx.notify();
             return;
         }
         if !crate::vault::verify_totp_code(&self.setup_state.totp_secret, code) {
-            self.setup_state.error_message = Some("Invalid 6-digit code. Check your authenticator and try again".into());
+            self.setup_state.error_message = Some(t!("app-session-invalid-6-digit-code-check").into());
             cx.notify();
             return;
         }

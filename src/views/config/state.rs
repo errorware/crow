@@ -70,7 +70,7 @@ impl AppliedBaseline {
         }
         match &self.content {
             Some(base) => compare(format_for_path(path), base, on_host),
-            None => Drift::Differs(vec!["differs from the baseline (only its hash was kept)".into()]),
+            None => Drift::Differs(vec![t!("config-state-differs-from-the-baseline-only").into()]),
         }
     }
 }
@@ -151,7 +151,7 @@ impl ConfigsState {
         if !self.states.contains_key(file) {
             let Some(path) = create_at else { return };
             let mut st = ConfigFileState::new(path.into(), file.to_string(), text.clone());
-            st.write_blocked = Some(format!("{file} was not found on this server"));
+            st.write_blocked = Some(t!("config-state-was-not-found-on-this", file = file));
             self.states.insert(file.to_string(), st);
         }
         if let Some(st) = self.states.get_mut(file) {
@@ -252,7 +252,7 @@ impl ConfigsState {
             // Starts disabled with a placeholder: staging it can't schedule
             // anything until a real command is filled in and it's enabled.
             command: "/path/to/command".to_string(),
-            comment: Some("New job".to_string()),
+            comment: Some(t!("config-state-new-job").to_string()),
             enabled: false,
             is_expanded: true,
         });

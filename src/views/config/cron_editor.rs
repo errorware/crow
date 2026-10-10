@@ -70,41 +70,41 @@ impl CronJobDef {
 
 pub fn human_readable_schedule(m: &str, h: &str, dom: &str, mon: &str, dow: &str) -> String {
     if m == "*" && h == "*" && dom == "*" && mon == "*" && dow == "*" {
-        return "Every minute (* * * * *)".to_string();
+        return t!("config-cron-editor-every-minute").to_string();
     }
     if m.starts_with("*/") && h == "*" && dom == "*" && mon == "*" && dow == "*" {
         let step = &m[2..];
-        return format!("Every {} minutes", step);
+        return t!("config-cron-editor-every-minutes", step = step);
     }
     if m == "0" && h == "*" && dom == "*" && mon == "*" && dow == "*" {
-        return "Every hour on the hour (0 * * * *)".to_string();
+        return t!("config-cron-editor-every-hour-on-the-hour").to_string();
     }
     if h == "*" && dom == "*" && mon == "*" && dow == "*" {
-        return format!("Every hour at minute {}", m);
+        return t!("config-cron-editor-every-hour-at-minute", m = m);
     }
     if dom == "*" && mon == "*" && dow == "*" {
-        return format!("Every day at {:0>2}:{:0>2}", h, m);
+        return t!("config-cron-editor-every-day-at", h = format!("{:0>2}", h), m = format!("{:0>2}", m));
     }
     if dow != "*" && dom == "*" && mon == "*" {
         let day_name = match dow {
-            "0" | "7" => "Sunday",
-            "1" => "Monday",
-            "2" => "Tuesday",
-            "3" => "Wednesday",
-            "4" => "Thursday",
-            "5" => "Friday",
-            "6" => "Saturday",
-            "1-5" => "Weekday (Mon-Fri)",
-            "6,7" | "0,6" => "Weekend (Sat-Sun)",
+            "0" | "7" => t!("config-cron-editor-sunday"),
+            "1" => t!("config-cron-editor-monday"),
+            "2" => t!("config-cron-editor-tuesday"),
+            "3" => t!("config-cron-editor-wednesday"),
+            "4" => t!("config-cron-editor-thursday"),
+            "5" => t!("config-cron-editor-friday"),
+            "6" => t!("config-cron-editor-saturday"),
+            "1-5" => t!("config-cron-editor-weekday-mon-fri"),
+            "6,7" | "0,6" => t!("config-cron-editor-weekend-sat-sun"),
             _ => dow,
         };
-        return format!("Weekly on {} at {:0>2}:{:0>2}", day_name, h, m);
+        return t!("config-cron-editor-weekly-on-at", day_name = day_name, h = format!("{:0>2}", h), m = format!("{:0>2}", m));
     }
     if dom != "*" && mon == "*" && dow == "*" {
-        return format!("Monthly on day {} at {:0>2}:{:0>2}", dom, h, m);
+        return t!("config-cron-editor-monthly-on-day-at", dom = dom, h = format!("{:0>2}", h), m = format!("{:0>2}", m));
     }
 
-    format!("Schedule: {} {} {} {} {}", m, h, dom, mon, dow)
+    t!("config-cron-editor-schedule", m = m, h = h, dom = dom, mon = mon, dow = dow)
 }
 
 pub fn cron_editor(
@@ -160,7 +160,7 @@ pub fn cron_editor(
                         .px(px(6.0))
                         .py(px(2.0))
                         .rounded_sm()
-                        .child(format!("{} ACTIVE SCHEDULES", active_count)),
+                        .child(t!("config-cron-editor-active-schedules", active_count = active_count)),
                 )
                 .child(if is_modified {
                     div()
@@ -172,7 +172,7 @@ pub fn cron_editor(
                         .px(px(6.0))
                         .py(px(2.0))
                         .rounded_sm()
-                        .child("UNSAVED EDITS")
+                        .child(t!("config-cron-editor-unsaved-edits"))
                 } else {
                     div()
                         .bg(OK_BG)
@@ -183,7 +183,7 @@ pub fn cron_editor(
                         .px(px(6.0))
                         .py(px(2.0))
                         .rounded_sm()
-                        .child("IN SYNC")
+                        .child(t!("config-cron-editor-in-sync"))
                 })
                 .child(
                     div()
@@ -214,7 +214,7 @@ pub fn cron_editor(
                                 this.configs.add_cron_job(); cx.notify();
                             });
                         })
-                        .child("+ NEW CRON JOB"),
+                        .child(t!("config-cron-editor-new-cron-job")),
                 )
                 // Revert button
                 .children(if is_modified {
@@ -238,7 +238,7 @@ pub fn cron_editor(
                                     this.revert_managed_config("crontab", cx);
                                 });
                             })
-                            .child("REVERT")
+                            .child(t!("config-cron-editor-revert"))
                     )
                 } else {
                     None
@@ -263,7 +263,7 @@ pub fn cron_editor(
                                     this.stage_config_version("crontab", "Updated cron scheduled jobs", cx);
                                 });
                             })
-                            .child("STAGE & APPLY")
+                            .child(t!("config-cron-editor-stage-apply"))
                     )
                 } else {
                     None
@@ -288,7 +288,7 @@ pub fn cron_editor(
                                 this.toggle_config_history(cx);
                             });
                         })
-                        .child(format!("HISTORY · {}", rev_count)),
+                        .child(t!("config-cron-editor-history", rev_count = rev_count)),
                 ),
         )
         // 2. Info Strip
@@ -318,7 +318,7 @@ pub fn cron_editor(
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
                                 .text_color(TEXT_TERTIARY)
-                                .child("Each job runs as its USER · cron rereads /etc/crontab by itself after a save"),
+                                .child(t!("config-cron-editor-each-job-runs-as-its")),
                         ),
                 )
         )
@@ -333,7 +333,7 @@ pub fn cron_editor(
                 .flex()
                 .flex_col()
                 .children(jobs.is_empty().then(|| {
-                    div().p(px(16.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child("No jobs in /etc/crontab. + NEW CRON JOB adds one.")
+                    div().p(px(16.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child(t!("config-cron-editor-no-jobs-in-etc-crontab"))
                 }))
                 .children(jobs.iter().enumerate().map(|(idx, job)| {
                     render_cron_job_card(job, idx, app.clone())
@@ -362,10 +362,10 @@ fn render_cron_header() -> impl IntoElement {
         .text_size(px(9.0))
         .font_weight(FontWeight::BOLD)
         .text_color(TEXT_FAINT)
-        .child(div().w(px(COL_ON)).flex_none().child("ON"))
-        .child(div().w(px(COL_SCHEDULE)).flex_none().child("SCHEDULE"))
-        .child(div().w(px(COL_USER)).flex_none().child("USER"))
-        .child(div().flex_1().min_w(px(0.0)).child("COMMAND"))
+        .child(div().w(px(COL_ON)).flex_none().child(t!("config-cron-editor-on")))
+        .child(div().w(px(COL_SCHEDULE)).flex_none().child(t!("config-cron-editor-schedule-2")))
+        .child(div().w(px(COL_USER)).flex_none().child(t!("config-cron-editor-user")))
+        .child(div().flex_1().min_w(px(0.0)).child(t!("config-cron-editor-command")))
         .child(div().w(px(COL_ACTIONS)).flex_none())
 }
 
@@ -483,13 +483,13 @@ fn render_cron_builder(
 
     // Quick presets
     let presets = [
-        ("Every 15m", "*/15", "*", "*", "*", "*"),
-        ("Hourly", "0", "*", "*", "*", "*"),
-        ("Daily (3 AM)", "0", "3", "*", "*", "*"),
-        ("Daily (Midnight)", "0", "0", "*", "*", "*"),
-        ("Weekly (Sun)", "0", "0", "*", "*", "7"),
-        ("Monthly (1st)", "0", "0", "1", "*", "*"),
-        ("Workdays (9 AM)", "0", "9", "*", "*", "1-5"),
+        (t!("config-cron-editor-every-15m"), "*/15", "*", "*", "*", "*"),
+        (t!("config-cron-editor-hourly"), "0", "*", "*", "*", "*"),
+        (t!("config-cron-editor-daily-3-am"), "0", "3", "*", "*", "*"),
+        (t!("config-cron-editor-daily-midnight"), "0", "0", "*", "*", "*"),
+        (t!("config-cron-editor-weekly-sun"), "0", "0", "*", "*", "7"),
+        (t!("config-cron-editor-monthly-1st"), "0", "0", "1", "*", "*"),
+        (t!("config-cron-editor-workdays-9-am"), "0", "9", "*", "*", "1-5"),
     ];
 
     div()
@@ -512,7 +512,7 @@ fn render_cron_builder(
                         .text_size(px(9.5))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_DIMMER)
-                        .child("QUICK SCHEDULE PRESETS"),
+                        .child(t!("config-cron-editor-quick-schedule-presets")),
                 )
                 .child(
                     div()
@@ -564,17 +564,17 @@ fn render_cron_builder(
                         .text_size(px(9.5))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_DIMMER)
-                        .child("5-FIELD SCHEDULE EXPRESSION"),
+                        .child(t!("config-cron-editor-5-field-schedule-expression")),
                 )
                 .child(
                     div()
                         .flex()
                         .gap(px(10.0))
-                        .child(render_field_stepper("Minute (0-59)", &job.minute, "m", &jid, app.clone()))
-                        .child(render_field_stepper("Hour (0-23)", &job.hour, "h", &jid, app.clone()))
-                        .child(render_field_stepper("Day of Month (1-31)", &job.day_of_month, "dom", &jid, app.clone()))
-                        .child(render_field_stepper("Month (1-12)", &job.month, "mon", &jid, app.clone()))
-                        .child(render_field_stepper("Day of Week (0-7)", &job.day_of_week, "dow", &jid, app.clone())),
+                        .child(render_field_stepper(t!("config-cron-editor-minute-0-59"), &job.minute, "m", &jid, app.clone()))
+                        .child(render_field_stepper(t!("config-cron-editor-hour-0-23"), &job.hour, "h", &jid, app.clone()))
+                        .child(render_field_stepper(t!("config-cron-editor-day-of-month-1-31"), &job.day_of_month, "dom", &jid, app.clone()))
+                        .child(render_field_stepper(t!("config-cron-editor-month-1-12"), &job.month, "mon", &jid, app.clone()))
+                        .child(render_field_stepper(t!("config-cron-editor-day-of-week-0-7"), &job.day_of_week, "dow", &jid, app.clone())),
                 ),
         )
         // User & Command Inputs
@@ -595,7 +595,7 @@ fn render_cron_builder(
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_DIMMER)
-                                .child("EXECUTION USER"),
+                                .child(t!("config-cron-editor-execution-user")),
                         )
                         .child(
                             div()
@@ -624,7 +624,7 @@ fn render_cron_builder(
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_DIMMER)
-                                .child("SHELL COMMAND"),
+                                .child(t!("config-cron-editor-shell-command")),
                         )
                         .child(
                             div()
@@ -707,7 +707,7 @@ fn render_field_stepper(
                                 this.configs.update_cron_field(&id, &f, "*"); cx.notify();
                             });
                         })
-                        .child("* (any)"),
+                        .child(t!("config-cron-editor-any")),
                 )
                 .child(
                     div()

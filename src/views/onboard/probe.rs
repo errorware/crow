@@ -98,8 +98,8 @@ pub fn probe_host(host: &str, port: u16) -> (ProbeResult, Vec<ProbeLog>) {
         error: None,
     };
     if host.is_empty() || host.starts_with('-') {
-        result.error = Some(format!("{host:?} is not a valid host"));
-        log(&mut logs, "✕", CRIT, format!("{host:?} is not a valid host"), String::new());
+        result.error = Some(t!("onboard-probe-is-not-a-valid-host", host = format!("{:?}", host)));
+        log(&mut logs, "✕", CRIT, t!("onboard-probe-is-not-a-valid-host", host = format!("{:?}", host)), String::new());
         return (result, logs);
     }
 
@@ -108,23 +108,23 @@ pub fn probe_host(host: &str, port: u16) -> (ProbeResult, Vec<ProbeLog>) {
     let addr = match format!("{host}:{port}").to_socket_addrs().ok().and_then(|mut a| a.next()) {
         Some(a) => a,
         None => {
-            result.error = Some(format!("could not resolve {host}"));
-            log(&mut logs, "✕", CRIT, format!("could not resolve {host}"), "dns".into());
+            result.error = Some(t!("onboard-probe-could-not-resolve", host = host));
+            log(&mut logs, "✕", CRIT, t!("onboard-probe-could-not-resolve", host = host), "dns".into());
             return (result, logs);
         }
     };
     let stream = match TcpStream::connect_timeout(&addr, Duration::from_millis(3000)) {
         Ok(s) => s,
         Err(e) => {
-            result.error = Some(format!("tcp {host}:{port}: {e}"));
-            log(&mut logs, "✕", CRIT, format!("tcp connect {host}:{port} failed: {e}"), format!("{}ms", start.elapsed().as_millis()));
+            result.error = Some(t!("onboard-probe-tcp", host = host, port = port, e = e));
+            log(&mut logs, "✕", CRIT, t!("onboard-probe-tcp-connect-failed", host = host, port = port, e = e), format!("{}ms", start.elapsed().as_millis()));
             return (result, logs);
         }
     };
     let latency = start.elapsed().as_millis() as u64;
     result.is_reachable = true;
     result.latency_ms = Some(latency);
-    log(&mut logs, "✓", OK, format!("tcp connect {host}:{port}"), format!("{latency}ms"));
+    log(&mut logs, "✓", OK, t!("onboard-probe-tcp-connect", host = host, port = port), format!("{latency}ms"));
 
     // 2. SSH banner
     let _ = stream.set_read_timeout(Some(Duration::from_millis(2000)));
@@ -132,9 +132,9 @@ pub fn probe_host(host: &str, port: u16) -> (ProbeResult, Vec<ProbeLog>) {
     match BufReader::new(&stream).read_line(&mut banner) {
         Ok(_) if banner.starts_with("SSH-") => {
             result.ssh_banner = Some(banner.trim().to_string());
-            log(&mut logs, "✓", OK, format!("ssh banner {}", banner.trim()), String::new());
+            log(&mut logs, "✓", OK, t!("onboard-probe-ssh-banner", banner = banner.trim()), String::new());
         }
-        _ => log(&mut logs, "▲", WARN, "no SSH banner — is this an SSH port?".into(), String::new()),
+        _ => log(&mut logs, "▲", WARN, t!("onboard-probe-no-ssh-banner-is-this").into(), String::new()),
     }
     drop(stream);
 
@@ -148,9 +148,9 @@ pub fn probe_host(host: &str, port: u16) -> (ProbeResult, Vec<ProbeLog>) {
     match fingerprints.iter().find(|(alg, _)| alg == "ssh-ed25519").or(fingerprints.first()) {
         Some((alg, fp)) => {
             result.host_key_fingerprint = format!("{fp} ({})", alg.trim_start_matches("ssh-").to_uppercase());
-            log(&mut logs, "✓", OK, format!("host key {}", result.host_key_fingerprint), "ssh-keyscan".into());
+            log(&mut logs, "✓", OK, t!("onboard-probe-host-key", host_key_fingerprint = result.host_key_fingerprint), "ssh-keyscan".into());
         }
-        None => log(&mut logs, "✕", CRIT, "could not fetch the server's host keys (ssh-keyscan)".into(), String::new()),
+        None => log(&mut logs, "✕", CRIT, t!("onboard-probe-could-not-fetch-the-servers").into(), String::new()),
     }
 
     // 4. Compare with known_hosts (ssh-keygen -F handles hashed entries)
@@ -167,21 +167,21 @@ pub fn probe_via_bastion(host: &str, port: u16, user: &str, proxy: &str, via: &s
     let mut logs = Vec::new();
     let mut result = ProbeResult::empty();
     if host.is_empty() || host.starts_with('-') {
-        result.error = Some(format!("{host:?} is not a valid host"));
-        log(&mut logs, "✕", CRIT, format!("{host:?} is not a valid host"), String::new());
+        result.error = Some(t!("onboard-probe-is-not-a-valid-host", host = format!("{:?}", host)));
+        log(&mut logs, "✕", CRIT, t!("onboard-probe-is-not-a-valid-host", host = format!("{:?}", host)), String::new());
         return (result, logs);
     }
     let scratch = std::env::temp_dir().join(format!("crow-probe-{}-{}", std::process::id(), Instant::now().elapsed().as_nanos()));
     let kh = scratch.join("known_hosts");
     if let Err(e) = std::fs::create_dir_all(&scratch).and_then(|_| std::fs::write(&kh, "")) {
-        log(&mut logs, "✕", CRIT, format!("couldn't make a scratch known_hosts: {e}"), String::new());
+        log(&mut logs, "✕", CRIT, t!("onboard-probe-couldnt-make-a-scratch-known", e = e), String::new());
         return (result, logs);
     }
     let port_s = port.to_string();
-    let kh_opt = format!("UserKnownHostsFile={}", kh.display());
-    let proxy_opt = format!("ProxyCommand={proxy}");
-    let mut argv: Vec<&str> = vec!["ssh", "-v", "-o", "BatchMode=yes", "-o", &kh_opt, "-o", "GlobalKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", "-o", "HashKnownHosts=no", "-o", "UpdateHostKeys=no"];
-    for off in ["PubkeyAuthentication=no", "PasswordAuthentication=no", "KbdInteractiveAuthentication=no", "GSSAPIAuthentication=no", "HostbasedAuthentication=no", "ControlMaster=no", "ControlPath=none", "ConnectTimeout=10"] {
+    let kh_opt = t!("onboard-probe-userknownhostsfile", kh = kh.display());
+    let proxy_opt = t!("onboard-probe-proxycommand", proxy = proxy);
+    let mut argv: Vec<&str> = vec!["ssh", "-v", "-o", t!("onboard-probe-batchmode-yes"), "-o", &kh_opt, "-o", t!("onboard-probe-globalknownhostsfile-dev-null"), "-o", t!("onboard-probe-stricthostkeychecking-no"), "-o", t!("onboard-probe-hashknownhosts-no"), "-o", t!("onboard-probe-updatehostkeys-no")];
+    for off in [t!("onboard-probe-pubkeyauthentication-no"), t!("onboard-probe-passwordauthentication-no"), t!("onboard-probe-kbdinteractiveauthentication-no"), t!("onboard-probe-gssapiauthentication-no"), t!("onboard-probe-hostbasedauthentication-no"), t!("onboard-probe-controlmaster-no"), t!("onboard-probe-controlpath-none"), t!("onboard-probe-connecttimeout-10")] {
         argv.extend(["-o", off]);
     }
     argv.extend(["-o", &proxy_opt, "-p", &port_s]);
@@ -207,29 +207,29 @@ pub fn probe_via_bastion(host: &str, port: u16, user: &str, proxy: &str, via: &s
             .lines()
             .rev()
             .find(|l| !l.starts_with("debug") && !l.trim().is_empty() && !l.starts_with("OpenSSH_"))
-            .unwrap_or("no answer")
+            .unwrap_or(t!("onboard-probe-no-answer"))
             .trim()
             .to_string();
         let why = match crate::host::ssh::classify_hop_failure(&stderr, &[], host) {
             Some(crate::host::ssh::ConnectionState::Unreachable(m)) => m.replacen("the bastion", via, 1),
-            _ if why.contains("Connection closed by UNKNOWN") => format!("{via} let Crow in but couldn't reach {host}:{port}, or {via} refused Crow"),
+            _ if why.contains("Connection closed by UNKNOWN") => t!("onboard-probe-let-crow-in-but-couldnt", via = via, host = host, port = port),
             _ => why,
         };
         result.error = Some(why.clone());
-        log(&mut logs, "✕", CRIT, format!("through {via}: {why}"), format!("{elapsed}ms"));
+        log(&mut logs, "✕", CRIT, t!("onboard-probe-through", via = via, why = why), format!("{elapsed}ms"));
         return (result, logs);
     }
     result.is_reachable = true;
     result.latency_ms = Some(elapsed);
-    log(&mut logs, "✓", OK, format!("reached {host}:{port} through {via}"), format!("{elapsed}ms"));
+    log(&mut logs, "✓", OK, t!("onboard-probe-reached-through", host = host, port = port, via = via), format!("{elapsed}ms"));
     if let Some(b) = &result.ssh_banner {
-        log(&mut logs, "✓", OK, format!("ssh banner {b}"), String::new());
+        log(&mut logs, "✓", OK, t!("onboard-probe-ssh-banner-2", b = b), String::new());
     }
     result.scanned_keys = lines;
     let fingerprints: Vec<(String, String)> = result.scanned_keys.iter().filter_map(|l| key_fingerprint(l)).collect();
     if let Some((alg, fp)) = fingerprints.first() {
         result.host_key_fingerprint = format!("{fp} ({})", alg.trim_start_matches("ssh-").to_uppercase());
-        log(&mut logs, "✓", OK, format!("host key {}", result.host_key_fingerprint), format!("through {via}"));
+        log(&mut logs, "✓", OK, t!("onboard-probe-host-key", host_key_fingerprint = result.host_key_fingerprint), t!("onboard-probe-through-2", via = via));
     }
     compare_with_known_hosts(&mut result, &mut logs, host, port);
     (result, logs)
@@ -241,11 +241,11 @@ fn compare_with_known_hosts(result: &mut ProbeResult, logs: &mut Vec<ProbeLog>, 
     result.is_known_host = known.iter().any(|k| scanned_blobs.contains(&k.as_str()));
     result.host_key_mismatch = !known.is_empty() && !result.is_known_host && !scanned_blobs.is_empty();
     if result.is_known_host {
-        log(logs, "✓", OK, "host key matches ~/.ssh/known_hosts".into(), String::new());
+        log(logs, "✓", OK, t!("onboard-probe-host-key-matches-ssh-known").into(), String::new());
     } else if result.host_key_mismatch {
-        log(logs, "✕", CRIT, "HOST KEY CHANGED: known_hosts has a different key for this host — possible man-in-the-middle; not trusting it".into(), String::new());
+        log(logs, "✕", CRIT, t!("onboard-probe-host-key-changed-known-hosts").into(), String::new());
     } else {
-        log(logs, "▲", WARN, "host key not in known_hosts — verify the fingerprint, then accept".into(), String::new());
+        log(logs, "▲", WARN, t!("onboard-probe-host-key-not-in-known").into(), String::new());
     }
 }
 
@@ -270,7 +270,7 @@ fn known_host_keys(host: &str, port: u16) -> Vec<String> {
 /// Appends the scanned host keys to `~/.ssh/known_hosts`.
 pub fn trust_host_keys(lines: &[String]) -> std::io::Result<()> {
     use std::io::Write;
-    let dir = dirs::home_dir().ok_or_else(|| std::io::Error::other("no home directory"))?.join(".ssh");
+    let dir = dirs::home_dir().ok_or_else(|| std::io::Error::other(t!("onboard-probe-no-home-directory")))?.join(".ssh");
     std::fs::create_dir_all(&dir)?;
     let mut file = std::fs::OpenOptions::new().create(true).append(true).open(dir.join("known_hosts"))?;
     for line in lines {
@@ -300,7 +300,7 @@ true"#;
     let out = match host.exec(&["sh", "-c", &script], DEFAULT_TIMEOUT) {
         Ok(o) => o.stdout,
         Err(e) => {
-            log(&mut logs, "✕", CRIT, format!("could not read facts over SSH: {e}"), String::new());
+            log(&mut logs, "✕", CRIT, t!("onboard-probe-could-not-read-facts-over", e = e), String::new());
             return (DetectedFacts::default(), logs);
         }
     };
@@ -324,7 +324,7 @@ true"#;
             "tool" => tools.push(v),
             "sudo" => {
                 let ok = v != "needs password";
-                log(&mut logs, if ok { "✓" } else { "▲" }, if ok { OK } else { WARN }, format!("privileges: {v}"), String::new());
+                log(&mut logs, if ok { "✓" } else { "▲" }, if ok { OK } else { WARN }, t!("onboard-probe-privileges", v = v), String::new());
             }
             _ => {}
         }
@@ -334,13 +334,13 @@ true"#;
         let place = match (crate::region::country_name(&r.country), r.city.is_empty()) {
             (Some(c), false) => format!("{}, {c}", r.city),
             (Some(c), true) => c.to_string(),
-            (None, _) => "unknown location".to_string(),
+            (None, _) => t!("onboard-probe-unknown-location").to_string(),
         };
-        log(&mut logs, "✓", OK, format!("region {place} · {} {}", r.provider, r.code), "cloud metadata".into());
+        log(&mut logs, "✓", OK, t!("onboard-probe-region", place = place, provider = r.provider, code = r.code), t!("onboard-probe-cloud-metadata").into());
     }
-    facts.firewall = if tools.iter().any(|t| t == "ufw") { "ufw installed".into() } else { "—".into() };
+    facts.firewall = if tools.iter().any(|t| t == "ufw") { t!("onboard-probe-ufw-installed").into() } else { "—".into() };
     facts.schema_packs = tools.iter().filter(|t| *t != "systemctl").map(|t| (t.clone(), OK, OK_BG)).collect();
-    log(&mut logs, "✓", OK, "read os-release, uname, meminfo, df, listening ports".into(), "read-only".into());
+    log(&mut logs, "✓", OK, t!("onboard-probe-read-os-release-uname-meminfo").into(), "read-only".into());
     (facts, logs)
 }
 

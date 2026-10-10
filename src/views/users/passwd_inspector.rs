@@ -60,7 +60,7 @@ pub fn passwd_inspector(
                                         this.users.selected_for_passwd = None; cx.notify();
                                     });
                                 })
-                                .child("← RETURN TO USERS"),
+                                .child(t!("users-passwd-inspector-return-to-users")),
                         )
                         .child(
                             div()
@@ -82,7 +82,7 @@ pub fn passwd_inspector(
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(hex_rgb(0x8ab4ff))
-                                .child(format!("ACCOUNT: {}", uname)),
+                                .child(t!("users-passwd-inspector-account", uname = uname)),
                         ),
                 )
                 .child(
@@ -115,7 +115,7 @@ pub fn passwd_inspector(
                                     });
                                 })
                                 .child(inherited_icon(TablerIcon::FileText, px(12.0)))
-                                .child("OPEN IN CONFIG EDITOR"),
+                                .child(t!("users-passwd-inspector-open-in-config-editor")),
                         ),
                 ),
         )
@@ -151,14 +151,14 @@ pub fn passwd_inspector(
                                         .text_size(px(10.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_MUTED)
-                                        .child("RAW 7-FIELD POSIX PASSWD RECORD"),
+                                        .child(t!("users-passwd-inspector-raw-7-field-posix-passwd")),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(px(9.0))
                                         .text_color(TEXT_FAINT)
-                                        .child("DELIMITER: ':' (COLON)"),
+                                        .child(t!("users-passwd-inspector-delimiter-colon")),
                                 ),
                         )
                         .child(
@@ -185,7 +185,7 @@ pub fn passwd_inspector(
                                 .text_size(px(11.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_PRIMARY)
-                                .child("EXPLODED FIELD ANATOMY & SYSTEM SEMANTICS"),
+                                .child(t!("users-passwd-inspector-exploded-field-anatomy-system-semantics")),
                         )
                         .child(render_exploded_fields(user)),
                 )
@@ -202,7 +202,7 @@ pub fn passwd_inspector(
                                 .text_size(px(10.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_MUTED)
-                                .child("SWITCH PASSWD RECORD TO INSPECT"),
+                                .child(t!("users-passwd-inspector-switch-passwd-record-to-inspect")),
                         )
                         .child(
                             div()
@@ -283,65 +283,65 @@ fn render_exploded_fields(user: &SystemUserRecord) -> impl IntoElement {
     let fields = [
         (
             1,
-            "LOGIN USERNAME",
+            t!("users-passwd-inspector-login-username"),
             user.username.clone(),
             hex_rgb(0x38bdf8),
             "Identifier used to authenticate during SSH, login, PAM, or sudo sessions. Restricted to alphanumeric characters.",
         ),
         (
             2,
-            "PASSWORD PLACEHOLDER",
+            t!("users-passwd-inspector-password-placeholder"),
             pwd_flag.to_string(),
             hex_rgb(0xf43f5e),
             if user.is_locked {
-                "'!' indicates account password is locked. Login through PAM/password is denied."
+                t!("users-passwd-inspector-indicates-account-password-is-locked")
             } else {
-                "'x' indicates hashed passwords and salt are shadowed in /etc/shadow, restricted to root (0640)."
+                t!("users-passwd-inspector-x-indicates-hashed-passwords-and")
             },
         ),
         (
             3,
-            "USER IDENTIFIER (UID)",
+            t!("users-passwd-inspector-user-identifier-uid"),
             user.uid.to_string(),
             hex_rgb(0x10b981),
             if user.uid == 0 {
-                "UID 0: Superuser (root) with unrestricted Linux kernel privileges."
+                t!("users-passwd-inspector-uid-0-superuser-root-with")
             } else if user.uid < 1000 {
-                "System Service UID: Reserved for isolated background daemons and system services."
+                t!("users-passwd-inspector-system-service-uid-reserved-for")
             } else {
-                "Interactive Login UID: Standard regular human user accounts start at UID 1000+."
+                t!("users-passwd-inspector-interactive-login-uid-standard-regular")
             },
         ),
         (
             4,
-            "PRIMARY GROUP (GID)",
+            t!("users-passwd-inspector-primary-group-gid"),
             user.gid.to_string(),
             hex_rgb(0x60a5fa),
-            "Primary numeric group ID applied to new files and processes created by this user. Defined in /etc/group.",
+            t!("users-passwd-inspector-primary-numeric-group-id-applied"),
         ),
         (
             5,
-            "GECOS METADATA",
-            if user.gecos.is_empty() { "(empty)".to_string() } else { user.gecos.clone() },
+            t!("users-passwd-inspector-gecos-metadata"),
+            if user.gecos.is_empty() { t!("users-passwd-inspector-empty").to_string() } else { user.gecos.clone() },
             hex_rgb(0xc084fc),
-            "General Electric Comprehensive Operating Supervisor legacy field. Holds Full Name, Office, Phone numbers.",
+            t!("users-passwd-inspector-general-electric-comprehensive-operating-supervisor"),
         ),
         (
             6,
-            "HOME DIRECTORY",
+            t!("users-passwd-inspector-home-directory"),
             user.home_dir.clone(),
             hex_rgb(0xfbbf24),
-            "Initial working directory set upon login session initialization. Houses ~/.ssh, ~/.config, and dotfiles.",
+            t!("users-passwd-inspector-initial-working-directory-set-upon"),
         ),
         (
             7,
-            "LOGIN SHELL",
+            t!("users-passwd-inspector-login-shell"),
             user.shell.clone(),
             hex_rgb(0x34d399),
             if user.shell.contains("nologin") || user.shell.contains("false") {
-                "Prohibits interactive terminal access. Daemons and service accounts use nologin for defense in depth."
+                t!("users-passwd-inspector-prohibits-interactive-terminal-access-daemons")
             } else {
-                "Command interpreter spawned upon login session (e.g. /bin/bash, /bin/zsh, /usr/bin/fish)."
+                t!("users-passwd-inspector-command-interpreter-spawned-upon-login")
             },
         ),
     ];
@@ -382,7 +382,7 @@ fn render_exploded_fields(user: &SystemUserRecord) -> impl IntoElement {
                                         .text_size(px(9.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(*color)
-                                        .child(format!("PORTION #{}", num)),
+                                        .child(t!("users-passwd-inspector-portion", num = num)),
                                 )
                                 .child(
                                     div()

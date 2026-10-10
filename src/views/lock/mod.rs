@@ -73,7 +73,7 @@ pub fn vault_lock_view(app: Entity<CrowApp>, lock_state: &LockState, inputs: Opt
                                         .text_size(px(14.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
-                                        .child("CROW VAULT LOCKED"),
+                                        .child(t!("lock-crow-vault-locked")),
                                 ),
                         )
                         .child(
@@ -87,7 +87,7 @@ pub fn vault_lock_view(app: Entity<CrowApp>, lock_state: &LockState, inputs: Opt
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.5))
                                         .text_color(TEXT_MUTED)
-                                        .child("PASSWORD + 2FA"),
+                                        .child(t!("lock-password-2fa")),
                                 ),
                         ),
                 )
@@ -112,8 +112,8 @@ pub fn vault_lock_view(app: Entity<CrowApp>, lock_state: &LockState, inputs: Opt
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
                                 .text_color(TEXT_DIMMER)
-                                .child("STORE: ~/.config/crow/crow.db")
-                                .child("2FA: MANDATORY"),
+                                .child(t!("lock-store-config-crow-crow-db"))
+                                .child(t!("lock-2fa-mandatory")),
                         )
                         // Error message
                         .children(if has_error {
@@ -153,7 +153,7 @@ pub fn vault_lock_view(app: Entity<CrowApp>, lock_state: &LockState, inputs: Opt
                                                 .text_size(px(10.5))
                                                 .font_weight(FontWeight::SEMIBOLD)
                                                 .text_color(TEXT_MUTED)
-                                                .child("MASTER PASSWORD"),
+                                                .child(t!("lock-master-password")),
                                         )
                                         .child(
                                             div()
@@ -166,7 +166,7 @@ pub fn vault_lock_view(app: Entity<CrowApp>, lock_state: &LockState, inputs: Opt
                                                 .on_click(move |_ev, window, cx| {
                                                     app_toggle_show.update(cx, |this, cx| this.toggle_lock_show_password(window, cx));
                                                 })
-                                                .child(if show_pwd { "HIDE" } else { "SHOW" }),
+                                                .child(if show_pwd { t!("lock-hide") } else { t!("lock-show") }),
                                         ),
                                 )
                                 .children(input(inputs.map(|i| &i.password))),
@@ -188,14 +188,14 @@ pub fn vault_lock_view(app: Entity<CrowApp>, lock_state: &LockState, inputs: Opt
                                                 .text_size(px(10.5))
                                                 .font_weight(FontWeight::SEMIBOLD)
                                                 .text_color(TEXT_MUTED)
-                                                .child("2FA TOTP CODE"),
+                                                .child(t!("lock-2fa-totp-code")),
                                         )
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(px(10.0))
                                                 .text_color(TEXT_DIMMER)
-                                                .child("6 DIGITS"),
+                                                .child(t!("lock-6-digits")),
                                         ),
                                 )
                                 .children(input(inputs.map(|i| &i.code))),
@@ -212,7 +212,7 @@ pub fn vault_lock_view(app: Entity<CrowApp>, lock_state: &LockState, inputs: Opt
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.5))
                                         .text_color(TEXT_FAINT)
-                                        .child("Tab to switch · ↵ to unlock"),
+                                        .child(t!("lock-tab-to-switch-to-unlock")),
                                 )
                                 .child(
                                     div()
@@ -236,7 +236,7 @@ pub fn vault_lock_view(app: Entity<CrowApp>, lock_state: &LockState, inputs: Opt
                                                 .text_size(px(12.0))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(rgb(0x050507))
-                                                .child("UNLOCK VAULT"),
+                                                .child(t!("lock-unlock-vault")),
                                         )
                                         .child(
                                             div()

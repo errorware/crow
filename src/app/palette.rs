@@ -40,10 +40,10 @@ impl CrowApp {
                 // "this server", not its name: typing a server's name should
                 // find the server, not every page of the open one.
                 if let Some(view) = item.view_id {
-                    out.push(Entry { category: "PAGE", label: item.label.to_string(), hint: "this server".into(), keywords: view.into(), target: Target::Page(view) });
+                    out.push(Entry { category: t!("app-palette-page"), label: crate::i18n::tx(item.label).to_string(), hint: t!("app-palette-this-server").into(), keywords: view.into(), target: Target::Page(view) });
                 }
             }
-            out.push(Entry { category: "PAGE", label: "Danger Zone".into(), hint: "this server".into(), keywords: "danger reboot snapshot".into(), target: Target::Page("danger") });
+            out.push(Entry { category: t!("app-palette-page"), label: t!("app-palette-danger-zone").into(), hint: t!("app-palette-this-server").into(), keywords: "danger reboot snapshot".into(), target: Target::Page("danger") });
             out.extend(self.current_server_entries());
         }
         for s in &self.fleet.servers {
@@ -51,46 +51,46 @@ impl CrowApp {
             // Also found by how it's doing and where it lives.
             let health = match self.fleet.health(s) {
                 crate::views::fleet::state::FleetHealth::Ok => "online",
-                crate::views::fleet::state::FleetHealth::Down { .. } => "offline unreachable down",
+                crate::views::fleet::state::FleetHealth::Down { .. } => t!("app-palette-offline-unreachable-down"),
                 crate::views::fleet::state::FleetHealth::Checking => "",
             };
             let keywords = format!("{} {} {} {health} {} {} {}", s.env, s.group_name, s.tags.join(" "), s.provider_account, s.region_city, s.region_provider);
-            out.push(Entry { category: "SERVER", label: s.name.clone(), hint: addr.clone(), keywords: keywords.clone(), target: Target::Server { id: s.id.clone(), view: "overview" } });
-            out.push(Entry { category: "TERMINAL", label: format!("Terminal on {}", s.name), hint: addr, keywords, target: Target::Server { id: s.id.clone(), view: "terminal" } });
+            out.push(Entry { category: t!("app-palette-server"), label: s.name.clone(), hint: addr.clone(), keywords: keywords.clone(), target: Target::Server { id: s.id.clone(), view: "overview" } });
+            out.push(Entry { category: t!("app-palette-terminal"), label: t!("app-palette-terminal-on", name = s.name), hint: addr, keywords, target: Target::Server { id: s.id.clone(), view: "terminal" } });
         }
-        let place = |label: &str, keywords: &str, p: Place| Entry { category: "PLACE", label: label.into(), hint: String::new(), keywords: keywords.into(), target: Target::Screen(p) };
-        out.push(place("Fleet", "dashboard servers alerts", Place::Fleet));
-        out.push(place("Fleet Map", "topology graph risks posture", Place::FleetMap));
-        out.push(place("Fleet Setup & Policies", "groups tags host key policy", Place::FleetSetup));
-        out.push(place("Patching", "updates upgrade apt dnf apk reboot maintenance window", Place::Patching));
-        out.push(place("Rollouts", "run command config every server canary batch", Place::Rollouts));
-        out.push(place("Drift & config search", "baseline drift search setting find grep", Place::Drift));
-        out.push(place("Audit Log", "changes history who", Place::Audit));
-        out.push(place("Settings", "preferences", Place::Settings));
-        out.push(place("SSH Keys", "keys credentials", Place::Keys));
+        let place = |label: &str, keywords: &str, p: Place| Entry { category: t!("app-palette-place"), label: label.into(), hint: String::new(), keywords: keywords.into(), target: Target::Screen(p) };
+        out.push(place(t!("app-palette-fleet"), "dashboard servers alerts", Place::Fleet));
+        out.push(place(t!("app-palette-fleet-map"), "topology graph risks posture", Place::FleetMap));
+        out.push(place(t!("app-palette-fleet-setup-policies"), "groups tags host key policy", Place::FleetSetup));
+        out.push(place(t!("app-palette-patching"), "updates upgrade apt dnf apk reboot maintenance window", Place::Patching));
+        out.push(place(t!("app-palette-rollouts"), "run command config every server canary batch", Place::Rollouts));
+        out.push(place(t!("app-palette-drift-config-search"), "baseline drift search setting find grep", Place::Drift));
+        out.push(place(t!("app-palette-audit-log"), "changes history who", Place::Audit));
+        out.push(place(t!("app-palette-settings"), "preferences", Place::Settings));
+        out.push(place(t!("app-palette-ssh-keys"), "keys credentials", Place::Keys));
         // Every config file Crow has read, on every other server.
         let names: std::collections::HashMap<&str, &str> = self.fleet.servers.iter().map(|s| (s.id.as_str(), s.name.as_str())).collect();
         for (sid, path) in self.palette.fleet_files.iter().filter(|(sid, _)| current.is_none_or(|c| &c.id != sid)) {
             let Some(name) = names.get(sid.as_str()) else { continue };
-            out.push(Entry { category: "FLEET CONFIG", label: path.clone(), hint: name.to_string(), keywords: name.to_string(), target: Target::FleetConfig { server_id: sid.clone(), path: path.clone() } });
+            out.push(Entry { category: t!("app-palette-fleet-config"), label: path.clone(), hint: name.to_string(), keywords: name.to_string(), target: Target::FleetConfig { server_id: sid.clone(), path: path.clone() } });
         }
-        let action = |label: &str, keywords: &str, a: Action| Entry { category: "ACTION", label: label.into(), hint: String::new(), keywords: keywords.into(), target: Target::Action(a) };
-        out.push(action("Add a server", "enroll onboard new ssh", Action::AddServer));
+        let action = |label: &str, keywords: &str, a: Action| Entry { category: t!("app-palette-action"), label: label.into(), hint: String::new(), keywords: keywords.into(), target: Target::Action(a) };
+        out.push(action(t!("app-palette-add-a-server"), "enroll onboard new ssh", Action::AddServer));
         if let Some(label) = self.lab_label() {
             out.push(action(label, "multipass vm launch container podman lab", Action::LocalLab));
         }
-        out.push(action("Check posture now", "security sshd firewall ports scan", Action::CheckPosture));
+        out.push(action(t!("app-palette-check-posture-now"), "security sshd firewall ports scan", Action::CheckPosture));
         if current.is_some() {
-            out.push(action("Reconnect to this server", "ssh connection", Action::Reconnect));
+            out.push(action(t!("app-palette-reconnect-to-this-server"), "ssh connection", Action::Reconnect));
         }
-        out.push(action("Lock the vault", "lock secure", Action::LockVault));
+        out.push(action(t!("app-palette-lock-the-vault"), "lock secure", Action::LockVault));
         if current.is_some() && self.active_provider_actions().is_some_and(|p| p.snapshots) {
-            out.push(action("Take a snapshot", "backup provider image danger", Action::Snapshot));
+            out.push(action(t!("app-palette-take-a-snapshot"), "backup provider image danger", Action::Snapshot));
         }
-        out.push(action("Security stance (2FA)", "2fa password lock open locked vault", Action::Stance));
-        out.push(action("About Crow", "version update", Action::About));
+        out.push(action(t!("app-palette-security-stance-2fa"), "2fa password lock open locked vault", Action::Stance));
+        out.push(action(t!("app-palette-about-crow"), "version update", Action::About));
         for k in &self.keys.enrolled {
-            out.push(Entry { category: "KEY", label: k.name.clone(), hint: k.fingerprint.clone(), keywords: format!("{} {}", k.algorithm, k.comment.clone().unwrap_or_default()), target: Target::Key(k.name.clone()) });
+            out.push(Entry { category: t!("app-palette-key"), label: k.name.clone(), hint: k.fingerprint.clone(), keywords: format!("{} {}", k.algorithm, k.comment.clone().unwrap_or_default()), target: Target::Key(k.name.clone()) });
         }
         out
     }
@@ -99,14 +99,14 @@ impl CrowApp {
     fn current_server_entries(&self) -> Vec<Entry> {
         let mut out = Vec::new();
         for f in &self.configs.files {
-            out.push(Entry { category: "CONFIG", label: f.name.clone(), hint: f.full_path.display().to_string(), keywords: f.schema_pack.unwrap_or_default().to_string(), target: Target::ConfigFile(f.name.clone()) });
+            out.push(Entry { category: t!("app-palette-config"), label: f.name.clone(), hint: f.full_path.display().to_string(), keywords: f.schema_pack.unwrap_or_default().to_string(), target: Target::ConfigFile(f.name.clone()) });
         }
         for svc in &self.overview.services {
-            out.push(Entry { category: "SERVICE", label: svc.name.clone(), hint: svc.description.clone(), keywords: svc.status.to_lowercase(), target: Target::Service(svc.name.clone()) });
+            out.push(Entry { category: t!("app-palette-service"), label: svc.name.clone(), hint: svc.description.clone(), keywords: svc.status.to_lowercase(), target: Target::Service(svc.name.clone()) });
         }
         for p in self.overview.processes.iter().filter(|p| !p.is_kernel) {
             let cmd: String = p.command.chars().take(80).collect();
-            out.push(Entry { category: "PROCESS", label: cmd, hint: format!("pid {} · {}", p.pid, p.user), keywords: p.pid.to_string(), target: Target::Process(p.pid) });
+            out.push(Entry { category: t!("app-palette-process"), label: cmd, hint: t!("app-palette-pid", pid = p.pid, user = p.user), keywords: p.pid.to_string(), target: Target::Process(p.pid) });
         }
         out
     }
@@ -118,9 +118,9 @@ impl CrowApp {
         let mut out: Vec<Entry> = nav_items()
             .iter()
             .filter(|i| i.view_id.is_none_or(|v| crate::components::sidebar::page_shown(v, &self.plugins.enabled)))
-            .filter_map(|item| item.view_id.map(|view| Entry { category: "PAGE", label: item.label.to_string(), hint: srv.name.clone(), keywords: view.into(), target: Target::Server { id: srv.id.clone(), view } }))
+            .filter_map(|item| item.view_id.map(|view| Entry { category: t!("app-palette-page"), label: crate::i18n::tx(item.label).to_string(), hint: srv.name.clone(), keywords: view.into(), target: Target::Server { id: srv.id.clone(), view } }))
             .collect();
-        out.push(Entry { category: "PAGE", label: "Danger Zone".into(), hint: srv.name.clone(), keywords: "danger reboot snapshot".into(), target: Target::Server { id: srv.id.clone(), view: "danger" } });
+        out.push(Entry { category: t!("app-palette-page"), label: t!("app-palette-danger-zone").into(), hint: srv.name.clone(), keywords: "danger reboot snapshot".into(), target: Target::Server { id: srv.id.clone(), view: "danger" } });
         if srv.id == self.fleet.active_tab_id {
             out.extend(self.current_server_entries());
         }
@@ -168,7 +168,7 @@ impl CrowApp {
         if self.palette.input.is_some() {
             return;
         }
-        let input = cx.new(|cx| InputState::new(window, cx).placeholder("Search servers, pages, config files, actions, keys…"));
+        let input = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-palette-search-servers-pages-config-files")));
         input.update(cx, |i, cx| i.focus(window, cx));
         let events = cx.subscribe(&input, |this, input, ev: &InputEvent, cx| match ev {
             InputEvent::Change => {

@@ -72,7 +72,7 @@ pub fn journald_editor(
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(if is_persistent { OK } else { CRIT })
-                                .child(if is_persistent { "CRASH-SAFE" } else { "VOLATILE RISK" }),
+                                .child(if is_persistent { t!("config-journald-editor-crash-safe") } else { t!("config-journald-editor-volatile-risk") }),
                         )
                         .child(
                             div()
@@ -90,7 +90,7 @@ pub fn journald_editor(
                                 .font_weight(FontWeight::BOLD)
                                 .px(px(6.0))
                                 .py(px(2.0))
-                                .child("UNSAVED EDITS")
+                                .child(t!("config-journald-editor-unsaved-edits"))
                         } else {
                             div()
                                 .bg(OK_BG)
@@ -100,7 +100,7 @@ pub fn journald_editor(
                                 .font_weight(FontWeight::BOLD)
                                 .px(px(6.0))
                                 .py(px(2.0))
-                                .child("IN SYNC")
+                                .child(t!("config-journald-editor-in-sync"))
                         }),
                 )
                 .child(
@@ -113,7 +113,7 @@ pub fn journald_editor(
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
                                 .text_color(TEXT_MUTED)
-                                .child(format!("Usage: {} / {}", telemetry.disk_usage_display(), config.max_use_display())),
+                                .child(t!("config-journald-editor-usage", disk_usage_display = telemetry.disk_usage_display(), max_use_display = config.max_use_display())),
                         )
                         .children(if is_modified {
                             Some(
@@ -136,7 +136,7 @@ pub fn journald_editor(
                                             this.revert_managed_config("journald.conf", cx);
                                         });
                                     })
-                                    .child("REVERT")
+                                    .child(t!("config-journald-editor-revert"))
                             )
                         } else {
                             None
@@ -159,7 +159,7 @@ pub fn journald_editor(
                                         this.apply_journal_boundaries(cx);
                                     });
                                 })
-                                .child("STAGE & APPLY CONFIG"),
+                                .child(t!("config-journald-editor-stage-apply-config")),
                         )
                         .child(
                             div()
@@ -180,7 +180,7 @@ pub fn journald_editor(
                                         this.toggle_config_history(cx);
                                     });
                                 })
-                                .child(format!("HISTORY · {}", rev_count)),
+                                .child(t!("config-journald-editor-history", rev_count = rev_count)),
                         ),
                 ),
         )
@@ -211,28 +211,28 @@ pub fn journald_editor(
                                 .text_size(px(11.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_PRIMARY)
-                                .child("WHY DEFAULT LINUX JOURNAL CONFIGS FAIL IN PRODUCTION"),
+                                .child(t!("config-journald-editor-why-default-linux-journal-configs")),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
                                 .text_color(TEXT_SECONDARY)
-                                .child("By default, systemd journal uses silent compile-time limits and Storage=auto. On busy servers or post-incident reboots, logs rotate out in 30 minutes or vanish completely. Crow-Config enforces explicit boundaries so you never lose evidence of a crash."),
+                                .child(t!("config-journald-editor-by-default-systemd-journal-uses")),
                         ),
                 )
                 // 1. Storage Mode Row
                 .child(
                     render_setting_row(
-                        "Storage",
-                        "Controls where journal files are stored. Volatile keeps logs in RAM (/run), which are permanently wiped on reboot. Persistent guarantees writes to /var/log/journal/.",
+                        t!("config-journald-editor-storage"),
+                        t!("config-journald-editor-controls-where-journal-files-are"),
                         div()
                             .flex()
                             .gap(px(8.0))
                             .child(render_choice_pill(
                                 "persistent",
-                                "PERSISTENT (Rec)",
-                                "Survives reboots",
+                                t!("config-journald-editor-persistent-rec"),
+                                t!("config-journald-editor-survives-reboots"),
                                 is_persistent,
                                 OK,
                                 "storage-persistent",
@@ -247,8 +247,8 @@ pub fn journald_editor(
                             ))
                             .child(render_choice_pill(
                                 "volatile",
-                                "VOLATILE",
-                                "RAM only · Wiped on reboot",
+                                t!("config-journald-editor-volatile"),
+                                t!("config-journald-editor-ram-only-wiped-on-reboot"),
                                 is_volatile,
                                 CRIT,
                                 "storage-volatile",
@@ -263,8 +263,8 @@ pub fn journald_editor(
                             ))
                             .child(render_choice_pill(
                                 "auto",
-                                "AUTO",
-                                "Default fallback",
+                                t!("config-journald-editor-auto"),
+                                t!("config-journald-editor-default-fallback"),
                                 is_auto,
                                 WARN,
                                 "storage-auto",
@@ -282,8 +282,8 @@ pub fn journald_editor(
                 // 2. SystemMaxUse (Hard Quota)
                 .child(
                     render_setting_row(
-                        "SystemMaxUse",
-                        "The maximum disk space journals may occupy on persistent storage. When exceeded, systemd removes the oldest archive files.",
+                        t!("config-journald-editor-systemmaxuse"),
+                        t!("config-journald-editor-the-maximum-disk-space-journals"),
                         div()
                             .flex()
                             .gap(px(8.0))
@@ -292,10 +292,10 @@ pub fn journald_editor(
                                 let label = match mb {
                                     512 => "500M",
                                     2048 => "2G",
-                                    4096 => "4G (Rec)",
+                                    4096 => t!("config-journald-editor-4g-rec"),
                                     8192 => "8G",
                                     16384 => "16G",
-                                    _ => "Custom",
+                                    _ => t!("config-journald-editor-custom"),
                                 };
                                 let app = app_quota.clone();
                                 div()
@@ -323,8 +323,8 @@ pub fn journald_editor(
                 // 3. MaxRetentionSec (Time Cutoff)
                 .child(
                     render_setting_row(
-                        "MaxRetentionSec",
-                        "The maximum time to store journal entries. Prevents older log archives from lingering indefinitely once log volume is low.",
+                        t!("config-journald-editor-maxretentionsec"),
+                        t!("config-journald-editor-the-maximum-time-to-store"),
                         div()
                             .flex()
                             .gap(px(8.0))
@@ -333,11 +333,11 @@ pub fn journald_editor(
                                 let label = match days {
                                     7 => "7day",
                                     14 => "14day",
-                                    30 => "30day (Rec)",
+                                    30 => t!("config-journald-editor-30day-rec"),
                                     90 => "90day",
                                     180 => "180day",
-                                    0 => "0 (Unlimited)",
-                                    _ => "Custom",
+                                    0 => t!("config-journald-editor-0-unlimited"),
+                                    _ => t!("config-journald-editor-custom"),
                                 };
                                 let app = app_time.clone();
                                 div()
@@ -365,18 +365,18 @@ pub fn journald_editor(
                 // 4. SystemKeepFree (Filesystem Protection)
                 .child(
                     render_setting_row(
-                        "SystemKeepFree",
-                        "Guarantees that at least this much disk space is left free on the root filesystem, preventing log-flood out-of-disk crashes.",
+                        t!("config-journald-editor-systemkeepfree"),
+                        t!("config-journald-editor-guarantees-that-at-least-this"),
                         div()
                             .flex()
                             .gap(px(8.0))
                             .children([1024, 2048, 5120].into_iter().enumerate().map(|(idx, mb)| {
                                 let is_sel = config.system_keep_free_mb == mb;
                                 let label = match mb {
-                                    1024 => "1.0 GB",
-                                    2048 => "2.0 GB (Rec)",
-                                    5120 => "5.0 GB",
-                                    _ => "Custom",
+                                    1024 => t!("config-journald-editor-1-0-gb"),
+                                    2048 => t!("config-journald-editor-2-0-gb-rec"),
+                                    5120 => t!("config-journald-editor-5-0-gb"),
+                                    _ => t!("config-journald-editor-custom"),
                                 };
                                 let app = app_keep.clone();
                                 div()
@@ -404,8 +404,8 @@ pub fn journald_editor(
                 // 5. Rate Limiting Protection
                 .child(
                     render_setting_row(
-                        "RateLimitBurst / RateLimitIntervalSec",
-                        "Suppresses runaway spam loops from flooding journals and choking the system (10,000 entries per 30 seconds default).",
+                        t!("config-journald-editor-ratelimitburst-ratelimitintervalsec"),
+                        t!("config-journald-editor-suppresses-runaway-spam-loops-from"),
                         div()
                             .flex()
                             .items_center()
@@ -420,14 +420,14 @@ pub fn journald_editor(
                                     .font_family(FONT_MONO)
                                     .text_size(px(10.0))
                                     .text_color(TEXT_PRIMARY)
-                                    .child(format!("{} entries / {}s", config.rate_limit_burst, config.rate_limit_interval_sec)),
+                                    .child(t!("config-journald-editor-entries-s", rate_limit_burst = config.rate_limit_burst, rate_limit_interval_sec = config.rate_limit_interval_sec)),
                             )
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
                                     .text_size(px(9.5))
                                     .text_color(OK)
-                                    .child("✓ Anti-flood enabled"),
+                                    .child(t!("config-journald-editor-anti-flood-enabled")),
                             ),
                     )
                 ),

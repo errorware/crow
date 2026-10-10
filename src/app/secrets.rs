@@ -46,7 +46,7 @@ impl CrowApp {
                         bytes.zeroize();
                         match key {
                             Some(k) => this.vault.set_keyring_key(Some(k)),
-                            None => this.vault.keyring_state = KeyringState::Unavailable("the key stored there is malformed".into()),
+                            None => this.vault.keyring_state = KeyringState::Unavailable(t!("app-secrets-the-key-stored-there-is").into()),
                         }
                     }
                     Ok(None) => this.vault.set_keyring_key(None),
@@ -92,14 +92,14 @@ impl CrowApp {
     /// vault setup follows, then the user saves again.
     pub fn choose_locked(&mut self, cx: &mut Context<Self>) {
         if let Some(PendingSecret(then)) = self.pending_secret.take() {
-            then(self, Err("not saved: set up the vault password first, then save again".into()), cx);
+            then(self, Err(t!("app-secrets-not-saved-set-up-the").into()), cx);
         }
         self.set_screen(super::Screen::VaultSetup, cx);
     }
 
     pub fn cancel_stance_choice(&mut self, cx: &mut Context<Self>) {
         if let Some(PendingSecret(then)) = self.pending_secret.take() {
-            then(self, Err("not saved".into()), cx);
+            then(self, Err(t!("app-secrets-not-saved").into()), cx);
         }
         cx.notify();
     }
@@ -125,7 +125,7 @@ impl CrowApp {
                     // the keyring no longer has, so it can't be read again.
                     let lost = this.purge_unreadable_secrets();
                     if lost > 0 {
-                        this.secrets_notice = Some(format!("The OS keyring no longer had Crow's encryption key, so {lost} saved secret(s) couldn't be read and were cleared. Enter them again."));
+                        this.secrets_notice = Some(t!("app-secrets-the-os-keyring-no-longer", lost = lost));
                     }
                     this.vault.set_keyring_key(Some(key));
                     this.on_data_key_ready(cx);
@@ -149,29 +149,29 @@ impl CrowApp {
         // holding it across branches would deadlock the next lock().
         let migrated = self.vault.key().cloned().map(|key| {
             let db = self.vault.db();
-            let db = db.lock().map_err(|_| "the vault is busy".to_string())?;
+            let db = db.lock().map_err(|_| t!("app-secrets-the-vault-is-busy").to_string())?;
             db.migrate_plaintext_clanker_keys(&key).map_err(|e| e.to_string())
         });
         let plaintext_waiting = || self.vault.db().lock().is_ok_and(|db| db.has_plaintext_clanker_keys());
         match migrated {
             Some(Ok(0)) => {}
-            Some(Ok(n)) => self.secrets_notice = Some(format!("Moved {n} AI API key(s) out of plain text into the encrypted vault.")),
-            Some(Err(e)) => self.secrets_notice = Some(format!("Couldn't move AI API keys into the vault: {e}")),
+            Some(Ok(n)) => self.secrets_notice = Some(t!("app-secrets-moved-ai-api-key-s", n = n)),
+            Some(Err(e)) => self.secrets_notice = Some(t!("app-secrets-couldnt-move-ai-api-keys", e = e)),
             None if self.vault.keyring_state == KeyringState::Empty && self.count_secret_entries() > 0 => {
-                self.secrets_notice = Some("The OS keyring no longer has Crow's encryption key, so saved provider tokens and AI keys can't be read. Enter them again.".into());
+                self.secrets_notice = Some(t!("app-secrets-the-os-keyring-no-longer-2").into());
             }
             None if self.vault.keyring_state == KeyringState::Empty && plaintext_waiting() => {
                 // First run after upgrading: plain-text AI keys are waiting,
                 // so make the data key now (this calls back here and moves them).
                 self.ensure_data_key(cx, |this, ready, cx| {
                     if let Err(why) = ready {
-                        this.secrets_notice = Some(format!("AI API keys are still stored in plain text: {why}."));
+                        this.secrets_notice = Some(t!("app-secrets-ai-api-keys-are-still", why = why));
                         cx.notify();
                     }
                 });
             }
             None if matches!(self.vault.keyring_state, KeyringState::Unavailable(_)) && plaintext_waiting() => {
-                self.secrets_notice = Some("AI API keys are still stored in plain text because no OS keyring is available. Turn on the vault password to encrypt them.".into());
+                self.secrets_notice = Some(t!("app-secrets-ai-api-keys-are-still-2").into());
             }
             None => {}
         }

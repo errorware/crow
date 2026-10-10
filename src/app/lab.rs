@@ -104,7 +104,7 @@ impl CrowApp {
         let key = match self.ensure_crow_key(cx) {
             Ok(k) => k,
             Err(e) => {
-                self.local_lab.vm_error = Some(format!("Crow's key: {e}"));
+                self.local_lab.vm_error = Some(t!("app-lab-crows-key", e = e));
                 cx.notify();
                 return;
             }
@@ -152,7 +152,7 @@ impl CrowApp {
                 match result {
                     Ok(record) => this.save_vm_server(record, cx),
                     Err(e) => {
-                        this.keys.toast = Some(format!("Multipass: {e}"));
+                        this.keys.toast = Some(t!("app-lab-multipass", e = e));
                         this.local_lab.vm_error = Some(e);
                     }
                 }
@@ -166,7 +166,7 @@ impl CrowApp {
     fn save_vm_server(&mut self, record: ServerRecord, cx: &mut Context<Self>) {
         if let Ok(db) = self.vault.db().lock() {
             if let Err(e) = db.upsert_server(&record) {
-                self.local_lab.vm_error = Some(format!("couldn't save {} in the vault: {e}", record.name));
+                self.local_lab.vm_error = Some(t!("app-lab-couldnt-save-in-the-vault", name = record.name, e = e));
                 return;
             }
             if let Some(kid) = &record.key_id {
@@ -174,7 +174,7 @@ impl CrowApp {
             }
         }
         self.refresh_keys(cx);
-        self.keys.toast = Some(format!("{} is in the fleet ({})", record.name, record.host));
+        self.keys.toast = Some(t!("app-lab-is-in-the-fleet", name = record.name, host = record.host));
         self.fleet.servers.retain(|s| s.id != record.id);
         self.local_lab.show_modal = false;
         self.open_enrolled_server(record);
@@ -188,7 +188,7 @@ impl CrowApp {
             cx.notify();
             return;
         }
-        let label = format!("Launching {}", spec.name);
+        let label = t!("app-lab-launching", name = spec.name);
         self.run_vm_enrollment(label, move |key, progress| multipass::launch_and_enroll(&spec, key, progress), cx);
         self.reroll_vm_name(cx);
     }
@@ -196,7 +196,7 @@ impl CrowApp {
     /// Adds Crow's key to a VM Crow didn't make and enrolls it.
     pub fn import_multipass_vm(&mut self, name: &str, cx: &mut Context<Self>) {
         let name = name.to_string();
-        self.run_vm_enrollment(format!("Importing {name}"), move |key, progress| multipass::import(&name, key, progress), cx);
+        self.run_vm_enrollment(t!("app-lab-importing", name = name), move |key, progress| multipass::import(&name, key, progress), cx);
     }
 
     /// Start, stop, restart, suspend; delete for good only after
@@ -226,9 +226,9 @@ impl CrowApp {
                         if let Some(id) = this.fleet.servers.iter().find(|s| multipass::vm_of(s) == Some(vm.as_str())).map(|s| s.id.clone()) {
                             this.archive_server(&id, cx);
                         }
-                        this.keys.toast = Some(format!("{vm} deleted"));
+                        this.keys.toast = Some(t!("app-lab-deleted", vm = vm));
                     }
-                    Ok(()) => this.keys.toast = Some(format!("{vm}: {} done", action.label().to_lowercase())),
+                    Ok(()) => this.keys.toast = Some(t!("app-lab-done", vm = vm, label = action.label().to_lowercase())),
                     Err(e) => {
                         let msg = format!("{} {vm}: {e}", action.label());
                         this.keys.toast = Some(msg.clone());

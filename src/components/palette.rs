@@ -22,7 +22,7 @@ fn category_color(category: &str) -> Rgba {
 /// `scope`: the server the search is narrowed to (Tab), if any.
 pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str, scope: Option<String>, input: Option<&Entity<InputState>>, results: &[Entry], selected: usize, query: &str) -> impl IntoElement {
     let (app_close1, app_close2, app_keys) = (app.clone(), app.clone(), app.clone());
-    let count = if query.trim().is_empty() { format!("{scope_label} · recent first") } else { format!("{scope_label} · {} result{}", results.len(), if results.len() == 1 { "" } else { "s" }) };
+    let count = if query.trim().is_empty() { t!("palette-recent-first", scope_label = scope_label) } else { t!("palette-text", scope_label = scope_label, count = results.len()) };
 
     div()
         .id("palette-scrim")
@@ -99,7 +99,7 @@ pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str, scope: Option<St
                         .flex_col()
                         .overflow_y_scrollbar()
                         .children(results.is_empty().then(|| {
-                            div().px(px(14.0)).py(px(14.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child("Nothing matches. Try a server name, a page (logs, firewall), a config file, or an action.")
+                            div().px(px(14.0)).py(px(14.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child(t!("palette-nothing-matches-try-a-server"))
                         }))
                         .children(results.iter().enumerate().map(|(idx, item)| {
                             let is_sel = idx == selected;
@@ -144,17 +144,17 @@ pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str, scope: Option<St
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_DIMMER)
-                        .child("↑↓ navigate")
-                        .child("⏎ open")
-                        .child("⇥ into a server")
-                        .child("⌫ back out")
+                        .child(t!("palette-navigate"))
+                        .child(t!("palette-open"))
+                        .child(t!("palette-into-a-server"))
+                        .child(t!("palette-back-out"))
                         .child(div().flex_1())
                         .child(
                             div()
                                 .id("palette-esc-dismiss")
                                 .cursor_pointer()
                                 .on_click(move |_ev, _window, cx| app_close2.update(cx, |this, cx| this.close_palette(cx)))
-                                .child("esc close"),
+                                .child(t!("palette-esc-close")),
                         ),
                 ),
         )

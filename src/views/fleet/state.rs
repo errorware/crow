@@ -138,15 +138,15 @@ impl FleetHealth {
         match (transport_kind(server), connection) {
             (TransportKind::Ssh, None) => FleetHealth::Checking,
             (TransportKind::Ssh, Some(ConnectionState::Connected)) => match metrics {
-                Some(m) if !m.reachable => FleetHealth::Down { label: "NO DATA", detail: "connected, but the metrics probe failed".into() },
+                Some(m) if !m.reachable => FleetHealth::Down { label: t!("fleet-state-no-data"), detail: t!("fleet-state-connected-but-the-metrics-probe").into() },
                 _ => FleetHealth::Ok,
             },
             (TransportKind::Ssh, Some(state)) => FleetHealth::Down { label: state.label(), detail: state.detail().unwrap_or_default().to_string() },
             (_, _) => match metrics {
                 None => FleetHealth::Checking,
                 Some(m) if m.reachable => FleetHealth::Ok,
-                Some(_) if transport_kind(server) == TransportKind::Container => FleetHealth::Down { label: "STOPPED", detail: "lab container isn't answering".into() },
-                Some(_) => FleetHealth::Down { label: "NO DATA", detail: "the metrics probe failed on this machine".into() },
+                Some(_) if transport_kind(server) == TransportKind::Container => FleetHealth::Down { label: t!("fleet-state-stopped"), detail: t!("fleet-state-lab-container-isnt-answering").into() },
+                Some(_) => FleetHealth::Down { label: t!("fleet-state-no-data"), detail: t!("fleet-state-the-metrics-probe-failed-on").into() },
             },
         }
     }

@@ -45,7 +45,7 @@ impl CrowApp {
     /// or closes it.
     pub fn toggle_new_group_prompt(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if self.fleet.new_group_input.take().is_none() {
-            let input = cx.new(|cx| InputState::new(window, cx).placeholder("group name (e.g. workers, edge, data)"));
+            let input = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-groups-group-name-e-g-workers")));
             input.update(cx, |i, cx| i.focus(window, cx));
             cx.subscribe(&input, |this, _, ev: &InputEvent, cx| {
                 if matches!(ev, InputEvent::PressEnter { .. }) {

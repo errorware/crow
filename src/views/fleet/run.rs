@@ -148,20 +148,20 @@ impl FleetRun {
     /// "3 done · 1 skipped · stopped at web-2 · 2 not run".
     pub fn summary(&self) -> String {
         let count = |f: fn(&StepStatus) -> bool| self.steps.iter().filter(|s| f(&s.status)).count();
-        let mut parts = vec![format!("{} done", count(|s| matches!(s, StepStatus::Done(_))))];
+        let mut parts = vec![t!("fleet-run-done", count = count(|s| matches!(s, StepStatus::Done(_))))];
         let skipped = count(|s| matches!(s, StepStatus::Skipped(_)));
         if skipped > 0 {
-            parts.push(format!("{skipped} already fine"));
+            parts.push(t!("fleet-run-already-fine", skipped = skipped));
         }
         let failed: Vec<&str> = self.steps.iter().filter(|s| matches!(s.status, StepStatus::Failed(_))).map(|s| s.server.as_str()).collect();
         if !failed.is_empty() {
-            parts.push(format!("stopped at {}", failed.join(", ")));
+            parts.push(t!("fleet-run-stopped-at", failed = failed.join(", ")));
         } else if self.stop_requested() && self.phase == RunPhase::Finished {
-            parts.push("stopped on request".into());
+            parts.push(t!("fleet-run-stopped-on-request").into());
         }
         let not_run = count(|s| matches!(s, StepStatus::NotRun));
         if not_run > 0 {
-            parts.push(format!("{not_run} not run"));
+            parts.push(t!("fleet-run-not-run", not_run = not_run));
         }
         parts.join(" · ")
     }

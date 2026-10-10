@@ -71,13 +71,13 @@ impl ProcessUnit {
         if self.stat.starts_with('R') {
             "RUN"
         } else if self.stat.starts_with('S') {
-            "SLEEP"
+            t!("overview-models-sleep")
         } else if self.stat.starts_with('D') {
-            "DISK"
+            t!("overview-models-disk")
         } else if self.stat.starts_with('Z') {
-            "ZOMBIE"
+            t!("overview-models-zombie")
         } else {
-            "IDLE"
+            t!("overview-models-idle")
         }
     }
 }
@@ -115,9 +115,9 @@ pub enum PeerCategory {
 impl PeerCategory {
     pub fn label(&self) -> &'static str {
         match self {
-            PeerCategory::Loopback => "LOOPBACK",
-            PeerCategory::Private => "PRIVATE NET",
-            PeerCategory::Public => "PUBLIC INTERNET",
+            PeerCategory::Loopback => t!("overview-models-loopback"),
+            PeerCategory::Private => t!("overview-models-private-net"),
+            PeerCategory::Public => t!("overview-models-public-internet"),
         }
     }
 

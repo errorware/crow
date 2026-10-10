@@ -254,8 +254,8 @@ impl CrowApp {
             move |this, rescan, result, summary, cx| {
                 this.containers.busy = None;
                 this.containers.result = Some(match result {
-                    Ok(()) => (true, format!("Done: {summary}")),
-                    Err(e) => (false, format!("{summary} failed: {e}")),
+                    Ok(()) => (true, t!("app-containers-done", summary = summary)),
+                    Err(e) => (false, t!("app-containers-failed", summary = summary, e = e)),
                 });
                 if let Ok(scan) = &rescan {
                     if let Some(id) = this.containers.server_id.clone() {
@@ -289,14 +289,14 @@ impl CrowApp {
             return;
         }
         let Some((primary, backup)) = self.ai_providers() else {
-            self.containers.eli5.insert(key, Err("No AI provider has a key yet. Add one in Settings → Clankers (AI).".into()));
+            self.containers.eli5.insert(key, Err(t!("app-containers-no-ai-provider-has-a").into()));
             cx.notify();
             return;
         };
         let ports: Vec<String> = c
             .published()
             .iter()
-            .map(|p| format!("{}->{} ({})", p.host_port, p.container, if p.exposed() { "every network" } else { "this machine only" }))
+            .map(|p| format!("{}->{} ({})", p.host_port, p.container, if p.exposed() { t!("app-containers-every-network") } else { t!("app-containers-this-machine-only") }))
             .collect();
         let (image, service, state) = (c.image.clone(), c.service().map(String::from), c.state.clone());
         self.containers.eli5.remove(&key);

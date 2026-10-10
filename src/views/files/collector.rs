@@ -46,7 +46,7 @@ pub fn read_preview(server: &ServerRecord, path: &str) -> Result<(String, bool),
 fn preview_text(mut text: String) -> Result<(String, bool), String> {
     let undecodable = text.chars().filter(|c| *c == '\u{FFFD}').count();
     if text.contains('\0') || undecodable * 100 > text.len().max(1) {
-        return Err("binary file: nothing to show as text".into());
+        return Err(t!("files-collector-binary-file-nothing-to-show").into());
     }
     let truncated = text.len() > PREVIEW_LIMIT;
     if truncated {
@@ -137,7 +137,7 @@ pub fn list_directory(host: &dyn Host, path: &str) -> Result<Vec<FileEntry>, Hos
 
 pub fn create_directory(server: &ServerRecord, parent: &str, name: &str) -> Result<(), String> {
     if name.trim().is_empty() || name.contains('/') {
-        return Err("Invalid folder name".to_string());
+        return Err(t!("files-collector-invalid-folder-name").to_string());
     }
     let host = host_for(server);
     host.create_dir(&join_path(parent, name)).map_err(|e| e.to_string())

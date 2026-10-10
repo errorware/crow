@@ -27,9 +27,9 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
 
     // A failed save outranks the standing read-only reason.
     let notice = match (&configs.save_error, file_state.and_then(|st| st.write_blocked.as_ref()), &configs.history_error) {
-        (Some(err), _, _) => Some((format!("SAVE FAILED · {err}"), CRIT, 0xef4444)),
-        (None, Some(reason), _) => Some((format!("READ-ONLY · {reason}"), WARN, 0xf59e0b)),
-        (None, None, Some(err)) => Some((format!("HISTORY · {err}"), WARN, 0xf59e0b)),
+        (Some(err), _, _) => Some((t!("config-pending-diff-rail-save-failed", err = err), CRIT, 0xef4444)),
+        (None, Some(reason), _) => Some((t!("config-pending-diff-rail-read-only", reason = reason), WARN, 0xf59e0b)),
+        (None, None, Some(err)) => Some((t!("config-pending-diff-rail-history", err = err), WARN, 0xf59e0b)),
         (None, None, None) => None,
     };
 
@@ -43,10 +43,10 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
         Some((v, lines)) => {
             let add = lines.iter().filter(|l| l.kind == DiffKind::Addition).count();
             let del = lines.iter().filter(|l| l.kind == DiffKind::Deletion).count();
-            (format!("RESTORE v{v}?"), if add + del == 0 { "same as host".to_string() } else { format!("+{add} −{del}") }, TEXT_SECONDARY)
+            (t!("config-pending-diff-rail-restore-v", v = v), if add + del == 0 { t!("config-pending-diff-rail-same-as-host").to_string() } else { format!("+{add} −{del}") }, TEXT_SECONDARY)
         }
-        None if is_modified => ("PENDING DIFF".to_string(), format!("+{} −{}", add_count, del_count), WARN),
-        None => ("PENDING DIFF".to_string(), "clean".to_string(), OK),
+        None if is_modified => (t!("config-pending-diff-rail-pending-diff").to_string(), format!("+{} −{}", add_count, del_count), WARN),
+        None => (t!("config-pending-diff-rail-pending-diff").to_string(), "clean".to_string(), OK),
     };
     let plan = apply_plan(configs, sel_file, file_state);
     let baseline_rev_id = file_state.and_then(|st| configs.baselines.get(st.path.to_string_lossy().as_ref())).map(|b| b.baseline.revision_id.clone());
@@ -93,7 +93,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_DIM)
-                        .child(format!("unified · {}", sel_file)),
+                        .child(t!("config-pending-diff-rail-unified", sel_file = sel_file)),
                 ),
         )
         // Author Attribution Banner
@@ -118,7 +118,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_MUTED)
-                        .child("Author:"),
+                        .child(t!("config-pending-diff-rail-author")),
                 )
                 .child(
                     div()
@@ -142,7 +142,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                 .child(
                     if let Some((v, lines)) = preview {
                         let sel = sel_file.clone();
-                        diff_block(format!("--- on host/{}", sel_file), format!("+++ v{v}/{}", sel_file), lines)
+                        diff_block(t!("config-pending-diff-rail-on-host", sel_file = sel_file), format!("+++ v{v}/{}", sel_file), lines)
                             .child(
                                 div()
                                     .id("btn-close-preview")
@@ -163,11 +163,11 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                             });
                                         }
                                     })
-                                    .child("← back to pending diff"),
+                                    .child(t!("config-pending-diff-rail-back-to-pending-diff")),
                             )
                             .into_any_element()
                     } else if is_modified && !diff_lines.is_empty() {
-                        diff_block(format!("--- baseline/{}", sel_file), format!("+++ staged/{} (unsaved)", sel_file), diff_lines).into_any_element()
+                        diff_block(t!("config-pending-diff-rail-baseline", sel_file = sel_file), t!("config-pending-diff-rail-staged-unsaved", sel_file = sel_file), diff_lines).into_any_element()
                     } else {
                         // Clean file notice
                         div()
@@ -183,7 +183,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                             .text_size(px(11.0))
                             .text_color(OK)
                             .child(tabler_icon(TablerIcon::Check).size(px(14.0)).text_color(OK))
-                            .child(div().child("No unsaved edits"))
+                            .child(div().child(t!("config-pending-diff-rail-no-unsaved-edits")))
                             .into_any_element()
                     }
                 )
@@ -204,7 +204,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                 .text_size(px(10.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_DIMMER)
-                                .child("ON SAVE"),
+                                .child(t!("config-pending-diff-rail-on-save")),
                         )
                         .children(plan.into_iter().map(|(ok, text)| {
                             let color = if ok { OK } else { WARN };
@@ -241,14 +241,14 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                         .text_size(px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_DIMMER)
-                                        .child(format!("VERSION HISTORY ({} REVISIONS)", revisions.len())),
+                                        .child(t!("config-pending-diff-rail-version-history-revisions", count = revisions.len())),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(px(9.5))
                                         .text_color(OK)
-                                        .child(if active_rev == 0 { "on host: not recorded".to_string() } else { format!("On host: v{}", active_rev) }),
+                                        .child(if active_rev == 0 { t!("config-pending-diff-rail-on-host-not-recorded").to_string() } else { t!("config-pending-diff-rail-on-host-v", active_rev = active_rev) }),
                                 ),
                         )
                         .children(revisions.into_iter().rev().map(|rev| {
@@ -314,7 +314,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                                     .font_family(FONT_MONO)
                                                     .text_size(px(9.0))
                                                     .text_color(TEXT_FAINT)
-                                                    .child("HASH ONLY")
+                                                    .child(t!("config-pending-diff-rail-hash-only"))
                                                     .into_any_element()
                                             )
                                         } else if !is_current {
@@ -337,7 +337,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                                             this.rollback_config_revision(&f, v, cx);
                                                         });
                                                     })
-                                                    .child("RESTORE")
+                                                    .child(t!("config-pending-diff-rail-restore"))
                                                     .into_any_element()
                                             )
                                         } else {
@@ -347,7 +347,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                                     .text_size(px(9.0))
                                                     .font_weight(FontWeight::BOLD)
                                                     .text_color(OK)
-                                                    .child("CURRENT")
+                                                    .child(t!("config-pending-diff-rail-current"))
                                                     .into_any_element()
                                             )
                                         }),
@@ -360,7 +360,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                         .font_family(FONT_MONO)
                                         .text_size(px(9.5))
                                         .text_color(TEXT_MUTED)
-                                        .child("by")
+                                        .child(t!("config-pending-diff-rail-by"))
                                         .child(
                                             div()
                                                 .text_color(TEXT_SECONDARY)
@@ -369,7 +369,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                         )
                                         .child(div().flex_1())
                                         .children(if is_baseline {
-                                            Some(div().text_color(OK).font_weight(FontWeight::BOLD).child("BASELINE").into_any_element())
+                                            Some(div().text_color(OK).font_weight(FontWeight::BOLD).child(t!("config-pending-diff-rail-baseline-2")).into_any_element())
                                         } else if restorable && !rev.id.is_empty() {
                                             let app_pin = app.clone();
                                             let f = sel_file.clone();
@@ -386,7 +386,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                                         let f = f.clone();
                                                         app_pin.update(cx, |this, cx| this.pin_config_baseline(&f, v, cx));
                                                     })
-                                                    .child("PIN AS BASELINE")
+                                                    .child(t!("config-pending-diff-rail-pin-as-baseline"))
                                                     .into_any_element(),
                                             )
                                         } else {
@@ -449,7 +449,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                 this.revert_managed_config(&s, cx);
                             });
                         })
-                        .child("REVERT")
+                        .child(t!("config-pending-diff-rail-revert"))
                 })
                 .child(div().flex_1())
                 .child({
@@ -472,7 +472,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                 this.stage_config_version(&s, "Staged via Pending Diff", cx);
                             });
                         })
-                        .child("STAGE & APPLY")
+                        .child(t!("config-pending-diff-rail-stage-apply"))
                 }),
         )
 }
@@ -505,25 +505,25 @@ fn diff_block(old: String, new: String, lines: Vec<crate::config::ConfigDiffLine
 /// how it's written, what checks it, and what history keeps.
 fn apply_plan(configs: &ConfigsState, file: &str, st: Option<&crate::config::ConfigFileState>) -> Vec<(bool, String)> {
     let Some(st) = st else { return Vec::new() };
-    let mut plan = vec![(true, "Written atomically: temp file, then rename".to_string())];
+    let mut plan = vec![(true, t!("config-pending-diff-rail-written-atomically-temp-file-then").to_string())];
     match configs.structured_format(file) {
         Some(format) => {
-            plan.push((true, "Structured edits keep comments and layout".to_string()));
+            plan.push((true, t!("config-pending-diff-rail-structured-edits-keep-comments-and").to_string()));
             let checks = crate::config::plugins::file_validators(format);
             if checks.is_empty() {
-                plan.push((false, "No host validator for this format".to_string()));
+                plan.push((false, t!("config-pending-diff-rail-no-host-validator-for-this").to_string()));
             } else {
                 let cmds = checks.iter().map(|c| format!("`{}`", c.replace("{file}", "<file>"))).collect::<Vec<_>>().join(", ");
-                plan.push((true, format!("Checked on the host first: {cmds}")));
+                plan.push((true, t!("config-pending-diff-rail-checked-on-the-host-first", cmds = cmds)));
             }
         }
-        None => plan.push((false, "Plain text: nothing checks it before it's written".to_string())),
+        None => plan.push((false, t!("config-pending-diff-rail-plain-text-nothing-checks-it").to_string())),
     }
     plan.push(match (st.read_from_host, configs.history_sealed) {
-        (false, _) => (false, "Not kept in history: Crow didn't read this file from the host".to_string()),
-        (true, Some(true)) => (true, "Every version kept in history, encrypted".to_string()),
-        (true, Some(false)) => (false, "History keeps hashes only: no encryption key available".to_string()),
-        (true, None) => (false, "History not loaded yet".to_string()),
+        (false, _) => (false, t!("config-pending-diff-rail-not-kept-in-history-crow").to_string()),
+        (true, Some(true)) => (true, t!("config-pending-diff-rail-every-version-kept-in-history").to_string()),
+        (true, Some(false)) => (false, t!("config-pending-diff-rail-history-keeps-hashes-only-no").to_string()),
+        (true, None) => (false, t!("config-pending-diff-rail-history-not-loaded-yet").to_string()),
     });
     plan
 }
@@ -550,18 +550,14 @@ fn baseline_section(configs: &ConfigsState, file: &str, st: &crate::config::Conf
     let mut body = div().flex().flex_col().gap(px(5.0)).text_size(px(10.5));
     match applied {
         None => {
-            body = body.child(div().text_color(TEXT_DIM).child(format!(
-                "None pinned. PIN AS BASELINE on a revision makes it the known-good {} for {}; servers that differ show as drift.",
-                st.filename,
-                scope_label(&configs.baseline_scope)
-            )));
+            body = body.child(div().text_color(TEXT_DIM).child(t!("config-pending-diff-rail-none-pinned-pin-as-baseline", filename = st.filename, scope_label = scope_label(&configs.baseline_scope))));
         }
         Some(b) => {
             let drift = b.drift(&path, &st.baseline_content);
             let (ok, headline) = match &drift {
-                Drift::Identical => (true, "Matches the baseline".to_string()),
-                Drift::Cosmetic => (true, "Same settings as the baseline; only comments or layout differ".to_string()),
-                Drift::Differs(_) => (false, "Drifted from the baseline".to_string()),
+                Drift::Identical => (true, t!("config-pending-diff-rail-matches-the-baseline").to_string()),
+                Drift::Cosmetic => (true, t!("config-pending-diff-rail-same-settings-as-the-baseline").to_string()),
+                Drift::Differs(_) => (false, t!("config-pending-diff-rail-drifted-from-the-baseline").to_string()),
             };
             body = body
                 .child(div().text_color(if ok { OK } else { WARN }).child(format!("{} {headline}", if ok { "✓" } else { "!" })))
@@ -570,18 +566,13 @@ fn baseline_section(configs: &ConfigsState, file: &str, st: &crate::config::Conf
                         let more = lines.len().saturating_sub(8);
                         let mut rows: Vec<AnyElement> = lines.into_iter().take(8).map(|l| div().pl(px(14.0)).text_color(TEXT_SECONDARY).child(l).into_any_element()).collect();
                         if more > 0 {
-                            rows.push(div().pl(px(14.0)).text_color(TEXT_FAINT).child(format!("… {more} more")).into_any_element());
+                            rows.push(div().pl(px(14.0)).text_color(TEXT_FAINT).child(t!("config-pending-diff-rail-more", more = more)).into_any_element());
                         }
                         rows
                     }
                     _ => Vec::new(),
                 })
-                .child(div().text_size(px(9.5)).text_color(TEXT_FAINT).child(format!(
-                    "pinned from {} for {} by {}",
-                    b.from_server,
-                    scope_label(&b.baseline.scope),
-                    b.baseline.set_by
-                )))
+                .child(div().text_size(px(9.5)).text_color(TEXT_FAINT).child(t!("config-pending-diff-rail-pinned-from-for-by", from_server = b.from_server, scope_label = scope_label(&b.baseline.scope), set_by = b.baseline.set_by)))
                 .child(
                     div()
                         .flex()
@@ -589,13 +580,13 @@ fn baseline_section(configs: &ConfigsState, file: &str, st: &crate::config::Conf
                         .children((!ok && b.content.is_some()).then(|| {
                             let app = app.clone();
                             let file = file.to_string();
-                            button("btn-load-baseline", "LOAD BASELINE INTO EDITOR")
+                            button("btn-load-baseline", t!("config-pending-diff-rail-load-baseline-into-editor"))
                                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.load_baseline_into_editor(&file, cx)))
                         }))
                         .child({
                             let app = app.clone();
                             let (path, scope) = (path.clone(), b.baseline.scope.clone());
-                            button("btn-unpin-baseline", "UNPIN")
+                            button("btn-unpin-baseline", t!("config-pending-diff-rail-unpin"))
                                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.unpin_config_baseline(&path, &scope, cx)))
                         }),
                 );
@@ -611,6 +602,6 @@ fn baseline_section(configs: &ConfigsState, file: &str, st: &crate::config::Conf
         .flex_col()
         .gap(px(7.0))
         .font_family(FONT_MONO)
-        .child(div().text_size(px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_DIMMER).child("BASELINE"))
+        .child(div().text_size(px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_DIMMER).child(t!("config-pending-diff-rail-baseline-2")))
         .child(body)
 }

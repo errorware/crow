@@ -23,11 +23,11 @@ impl FileEntry {
         if self.size_bytes < 1024 {
             format!("{} B", self.size_bytes)
         } else if self.size_bytes < 1024 * 1024 {
-            format!("{:.1} KB", self.size_bytes as f64 / 1024.0)
+            t!("files-models-kb", size_bytes = format!("{:.1}", self.size_bytes as f64 / 1024.0))
         } else if self.size_bytes < 1024 * 1024 * 1024 {
-            format!("{:.1} MB", self.size_bytes as f64 / (1024.0 * 1024.0))
+            t!("files-models-mb", size_bytes = format!("{:.1}", self.size_bytes as f64 / (1024.0 * 1024.0)))
         } else {
-            format!("{:.2} GB", self.size_bytes as f64 / (1024.0 * 1024.0 * 1024.0))
+            t!("files-models-gb", size_bytes = format!("{:.2}", self.size_bytes as f64 / (1024.0 * 1024.0 * 1024.0)))
         }
     }
 

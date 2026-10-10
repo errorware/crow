@@ -107,14 +107,14 @@ pub fn logs_explorer_view(
                                 .text_size(px(12.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_PRIMARY)
-                                .child("SYSTEMD JOURNAL LOGS"),
+                                .child(t!("logs-systemd-journal-logs")),
                         )
                         .child(
                             div()
                                 .font_family("JetBrains Mono")
                                 .text_size(px(10.5))
                                 .text_color(TEXT_DIMMER)
-                                .child("journalctl -o json --output-fields=*"),
+                                .child(t!("logs-journalctl-o-json-output-fields")),
                         )
                         .child(
                             div()
@@ -124,7 +124,7 @@ pub fn logs_explorer_view(
                                 .text_color(TEXT_SECONDARY)
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::BOLD)
-                                .child(format!("{}/{} entries", filtered_count, total_count)),
+                                .child(t!("logs-entries", filtered_count = filtered_count, total_count = total_count)),
                         ),
                 )
                 // Right controls: Live tail toggle, Retention boundaries, Clear
@@ -142,11 +142,11 @@ pub fn logs_explorer_view(
                         || journal.retention.storage != JournalStorageMode::Persistent;
                     let r = &journal.retention;
                     let bound_text = if is_warn {
-                        "⚠ VOLATILE — LOST ON REBOOT".to_string()
+                        t!("logs-volatile-lost-on-reboot").to_string()
                     } else {
-                        let days = if r.max_retention_days == 0 { "no age limit".to_string() } else { format!("{}d", r.max_retention_days) };
-                        let size = if r.system_max_use_mb == 0 { "no size cap".to_string() } else if r.system_max_use_mb >= 1024 { format!("{:.1}GB", r.system_max_use_mb as f32 / 1024.0) } else { format!("{}MB", r.system_max_use_mb) };
-                        format!("{days} · {size} PERSISTENT")
+                        let days = if r.max_retention_days == 0 { t!("logs-no-age-limit").to_string() } else { format!("{}d", r.max_retention_days) };
+                        let size = if r.system_max_use_mb == 0 { t!("logs-no-size-cap").to_string() } else if r.system_max_use_mb >= 1024 { format!("{:.1}GB", r.system_max_use_mb as f32 / 1024.0) } else { format!("{}MB", r.system_max_use_mb) };
+                        t!("logs-persistent", days = days, size = size)
                     };
                     let (bound_color, bound_bg) = if is_warn {
                         (CRIT, CRIT_BG)
@@ -176,7 +176,7 @@ pub fn logs_explorer_view(
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| app_ai.update(cx, |this, cx| this.toggle_ai_panel(cx)))
-                                .child("✦ EXPLAIN"),
+                                .child(t!("logs-explain")),
                         )
                         // Boundaries & Retention button
                         .child(
@@ -203,7 +203,7 @@ pub fn logs_explorer_view(
                                         .text_size(px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(bound_color)
-                                        .child(format!("⚙ BOUNDARIES: {}", bound_text)),
+                                        .child(t!("logs-boundaries", bound_text = bound_text)),
                                 ),
                         )
                         // Live tail toggle
@@ -236,7 +236,7 @@ pub fn logs_explorer_view(
                                         .text_size(px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(if is_tail { OK } else { WARN })
-                                        .child(if is_tail { "LIVE TAIL ON" } else { "PAUSED" }),
+                                        .child(if is_tail { t!("logs-live-tail-on") } else { t!("logs-paused") }),
                                 ),
                         )
                         // Export / copy visible window
@@ -257,7 +257,7 @@ pub fn logs_explorer_view(
                                     let text = export_snapshot.clone();
                                     app_export.update(cx, |this, cx| this.export_journal(text, export_lines, cx));
                                 })
-                                .child("EXPORT ⧉"),
+                                .child(t!("logs-export")),
                         )
                         .children(export_note.map(|n| div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_DIMMER).child(n)))
                         // Clear button
@@ -279,7 +279,7 @@ pub fn logs_explorer_view(
                                         this.clear_journal(cx);
                                     });
                                 })
-                                .child(if cleared { "SHOW ALL" } else { "CLEAR" }),
+                                .child(if cleared { t!("logs-show-all") } else { t!("logs-clear") }),
                         )
                 }),
         )
@@ -297,7 +297,7 @@ pub fn logs_explorer_view(
                 .border_color(BORDER_PANEL)
                 .font_family(FONT_MONO)
                 .text_size(px(9.5))
-                .child(div().text_color(TEXT_DIMMER).child("RANGE"))
+                .child(div().text_color(TEXT_DIMMER).child(t!("logs-range")))
                 .children({
                     let ranges = [
                         JournalTimeRange::Live,
@@ -329,7 +329,7 @@ pub fn logs_explorer_view(
                     })
                 })
                 .child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_PANEL).mx(px(6.0)))
-                .child(div().text_color(TEXT_DIMMER).child("BOOT"))
+                .child(div().text_color(TEXT_DIMMER).child(t!("logs-boot")))
                 .children({
                     let boots = [JournalBootScope::Current, JournalBootScope::Previous];
                     boots.into_iter().enumerate().map(|(idx, b)| {
@@ -370,11 +370,11 @@ pub fn logs_explorer_view(
                                 this.toggle_journal_dedupe(cx);
                             });
                         })
-                        .child("DEDUPE REPEATS")
+                        .child(t!("logs-dedupe-repeats"))
                 })
                 // Quick searches for what people most often look for.
                 .child(div().w(px(1.0)).h(px(12.0)).bg(BORDER_PANEL).mx(px(6.0)))
-                .child(div().text_color(TEXT_DIMMER).child("QUICK"))
+                .child(div().text_color(TEXT_DIMMER).child(t!("logs-quick")))
                 .children(JOURNAL_PRESETS.iter().enumerate().map(|(i, (label, unit, grep))| {
                     let app_p = app_clone.clone();
                     let on = journal.search == *grep && journal.unit_filter.as_deref() == *unit;
@@ -389,7 +389,7 @@ pub fn logs_explorer_view(
                         .hover(|s| s.text_color(TEXT_PRIMARY))
                         .cursor_pointer()
                         .on_click(move |_ev, _window, cx| app_p.update(cx, |this, cx| this.apply_journal_preset(i, cx)))
-                        .child(*label)
+                        .child(crate::i18n::tx(label))
                 }))
                 .child(div().flex_1())
                 .child({
@@ -406,7 +406,7 @@ pub fn logs_explorer_view(
                                 this.load_more_journal(cx);
                             });
                         })
-                        .child(format!("↑ load {} older", journal.limit))
+                        .child(t!("logs-load-older", limit = journal.limit))
                 }),
         )
         // 3. Filter Toolbar (Severity chips + Unit filters + Search)
@@ -446,7 +446,7 @@ pub fn logs_explorer_view(
                                         this.set_journal_severity(None, cx);
                                     });
                                 })
-                                .child("ALL")
+                                .child(t!("logs-all"))
                         })
                         // ERR / CRIT
                         .child({
@@ -470,7 +470,7 @@ pub fn logs_explorer_view(
                                         this.set_journal_severity(Some(JournalPriority::Err), cx);
                                     });
                                 })
-                                .child("ERR+")
+                                .child(t!("logs-err"))
                                 .children(if err_count > 0 {
                                     Some(
                                         div()
@@ -506,7 +506,7 @@ pub fn logs_explorer_view(
                                         this.set_journal_severity(Some(JournalPriority::Warning), cx);
                                     });
                                 })
-                                .child("WARN+")
+                                .child(t!("logs-warn"))
                                 .children(if warn_count > 0 {
                                     Some(
                                         div()
@@ -539,7 +539,7 @@ pub fn logs_explorer_view(
                                         this.set_journal_severity(Some(JournalPriority::Info), cx);
                                     });
                                 })
-                                .child("INFO+")
+                                .child(t!("logs-info"))
                         })
                         // Divider
                         .child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_PANEL).mx(px(4.0)))
@@ -547,7 +547,7 @@ pub fn logs_explorer_view(
                         // server (learned from the last unfiltered read), plus the
                         // selected unit if it isn't among them.
                         .child({
-                            let mut units: Vec<String> = vec!["ALL".into(), crate::journal::reader::KERNEL_UNIT.into()];
+                            let mut units: Vec<String> = vec![t!("logs-all").into(), crate::journal::reader::KERNEL_UNIT.into()];
                             units.extend(journal.known_units.iter().map(|(u, _)| u.clone()));
                             if let Some(sel) = journal.unit_filter.as_ref().filter(|u| !units.contains(u)) {
                                 units.push(sel.clone());
@@ -558,7 +558,7 @@ pub fn logs_explorer_view(
                                 .gap(px(4.0))
                                 .children(units.into_iter().enumerate().map(|(idx, u)| {
                                     let app_u = app_clone.clone();
-                                    let current_u = journal.unit_filter.as_deref().unwrap_or("ALL");
+                                    let current_u = journal.unit_filter.as_deref().unwrap_or(t!("logs-all"));
                                     let is_active = current_u == u.as_str();
                                     div()
                                         .id(ElementId::NamedInteger("journal-unit-pill".into(), idx as u64))
@@ -570,7 +570,7 @@ pub fn logs_explorer_view(
                                         .cursor_pointer()
                                         .font_family("JetBrains Mono")
                                         .text_size(px(9.5))
-                                        .child(if u == crate::journal::reader::KERNEL_UNIT { "KERNEL".to_string() } else { clean_unit_display(&u) })
+                                        .child(if u == crate::journal::reader::KERNEL_UNIT { t!("logs-kernel").to_string() } else { clean_unit_display(&u) })
                                         .on_click(move |_ev, _window, cx| {
                                             let target = if u == "ALL" { None } else { Some(u.clone()) };
                                             app_u.update(cx, |this, cx| this.set_journal_unit(target, cx));
@@ -594,7 +594,7 @@ pub fn logs_explorer_view(
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| app_act.update(cx, |this, cx| this.toggle_journal_actions(cx)))
-                                .child(if on { "✓ CROW ACTIONS" } else { "CROW ACTIONS" })
+                                .child(if on { t!("logs-crow-actions") } else { t!("logs-crow-actions-2") })
                         })
                         // Active PID filter chip + kill action
                         .children(if let Some(fpid) = journal.pid_filter {
@@ -624,7 +624,7 @@ pub fn logs_explorer_view(
                                             .text_size(px(9.5))
                                             .font_weight(FontWeight::BOLD)
                                             .text_color(hex_rgb(0x8ab4ff))
-                                            .child(format!("PID {}", fpid))
+                                            .child(t!("logs-pid", fpid = fpid))
                                             .child(
                                                 icon_button("journal-pid-filter-clear", TablerIcon::X, false)
                                                     .on_click(move |_ev, _window, cx| {
@@ -645,7 +645,7 @@ pub fn logs_explorer_view(
                                                         .font_family(FONT_MONO)
                                                         .text_size(px(9.5))
                                                         .text_color(CRIT_INK_DIM)
-                                                        .child(format!("terminate PID {}?", fpid)),
+                                                        .child(t!("logs-terminate-pid", fpid = fpid)),
                                                 )
                                                 .child(
                                                     div()
@@ -666,7 +666,7 @@ pub fn logs_explorer_view(
                                                                 this.execute_journal_pid_kill(cx);
                                                             });
                                                         })
-                                                        .child("KILL (SIGTERM) ⏎"),
+                                                        .child(t!("logs-kill-sigterm")),
                                                 )
                                                 .child(
                                                     div()
@@ -681,7 +681,7 @@ pub fn logs_explorer_view(
                                                                 this.toggle_journal_pid_kill_confirm(cx);
                                                             });
                                                         })
-                                                        .child("cancel"),
+                                                        .child(t!("logs-cancel")),
                                                 )
                                                 .into_any_element(),
                                         )
@@ -705,7 +705,7 @@ pub fn logs_explorer_view(
                                                         this.toggle_journal_pid_kill_confirm(cx);
                                                     });
                                                 })
-                                                .child("⏻ KILL PID")
+                                                .child(t!("logs-kill-pid"))
                                                 .into_any_element(),
                                         )
                                     }),
@@ -765,11 +765,11 @@ pub fn logs_explorer_view(
                 .text_size(px(9.5))
                 .font_weight(FontWeight::BOLD)
                 .text_color(TEXT_DIMMER)
-                .child(div().w(px(105.0)).child("TIMESTAMP"))
-                .child(div().w(px(70.0)).child("LEVEL"))
-                .child(div().w(px(170.0)).child("UNIT / IDENTIFIER"))
-                .child(div().w(px(60.0)).child("PID"))
-                .child(div().flex_1().child("MESSAGE")),
+                .child(div().w(px(105.0)).child(t!("logs-timestamp")))
+                .child(div().w(px(70.0)).child(t!("logs-level")))
+                .child(div().w(px(170.0)).child(t!("logs-unit-identifier")))
+                .child(div().w(px(60.0)).child(t!("logs-pid-2")))
+                .child(div().flex_1().child(t!("logs-message"))),
         )
         // 5. Log Entries Scrollable Body, with the AI panel beside it
         .child(
@@ -798,14 +798,14 @@ pub fn logs_explorer_view(
                                     .font_family(FONT_MONO)
                                     .text_size(px(12.0))
                                     .text_color(TEXT_MUTED)
-                                    .child("No journal log entries matched your filter"),
+                                    .child(t!("logs-no-journal-log-entries-matched")),
                             )
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
                                     .text_size(px(10.5))
                                     .text_color(TEXT_FAINT)
-                                    .child("Try clearing the search query or selecting 'ALL' levels"),
+                                    .child(t!("logs-try-clearing-the-search-query")),
                             )
                             .into_any_element()
                     ]
@@ -1168,7 +1168,7 @@ fn render_inspector_drawer(
                         .text_size(px(9.5))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_TERTIARY)
-                        .child("STRUCTURED SYSTEMD JOURNAL FIELDS"),
+                        .child(t!("logs-structured-systemd-journal-fields")),
                 )
                 .child(
                     div()
@@ -1191,7 +1191,7 @@ fn render_inspector_drawer(
                                 .on_click(move |_ev, _window, cx| {
                                     cx.write_to_clipboard(ClipboardItem::new_string(copy_msg_str.clone()));
                                 })
-                                .child("COPY MESSAGE"),
+                                .child(t!("logs-copy-message")),
                         )
                         .child(
                             div()
@@ -1209,7 +1209,7 @@ fn render_inspector_drawer(
                                 .on_click(move |_ev, _window, cx| {
                                     cx.write_to_clipboard(ClipboardItem::new_string(copy_json_str.clone()));
                                 })
-                                .child("COPY JSON"),
+                                .child(t!("logs-copy-json")),
                         ),
                 ),
         )
@@ -1269,7 +1269,7 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, lines_on_screen: usize,
     let accent = hex_rgb(0xa78bfa);
     let app_go = app.clone();
     let body: AnyElement = match (&ai.answer, ai.loading) {
-        (_, true) => div().p(px(14.0)).text_color(TEXT_DIM).child(format!("Asking {} about {} lines…", ai.provider, ai.lines_sent)).into_any_element(),
+        (_, true) => div().p(px(14.0)).text_color(TEXT_DIM).child(t!("logs-asking-about-lines", provider = ai.provider, lines_sent = ai.lines_sent)).into_any_element(),
         (Some(Ok(text)), _) => div()
             .p(px(14.0))
             .flex()
@@ -1279,10 +1279,10 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, lines_on_screen: usize,
                 let heading = l.starts_with('#') || (l.len() > 2 && l.as_bytes()[0].is_ascii_digit() && l.as_bytes()[1] == b'.');
                 div().text_color(if heading { TEXT_MAX } else { TEXT_SECONDARY }).font_weight(if heading { FontWeight::BOLD } else { FontWeight::NORMAL }).child(l.trim_start_matches('#').trim_start().to_string())
             }))
-            .child(div().pt(px(6.0)).text_size(px(9.0)).text_color(TEXT_FAINTER).child(format!("{} · {} lines sent", ai.provider, ai.lines_sent)))
+            .child(div().pt(px(6.0)).text_size(px(9.0)).text_color(TEXT_FAINTER).child(t!("logs-lines-sent", provider = ai.provider, lines_sent = ai.lines_sent)))
             .into_any_element(),
         (Some(Err(e)), _) => div().p(px(14.0)).text_color(CRIT).child(e.clone()).into_any_element(),
-        (None, false) => div().p(px(14.0)).text_color(TEXT_FAINT).child("Get a plain-English reading of the lines on screen: what's happening, what looks wrong, likely causes and what to check next.").into_any_element(),
+        (None, false) => div().p(px(14.0)).text_color(TEXT_FAINT).child(t!("logs-get-a-plain-english-reading")).into_any_element(),
     };
     div()
         .id("journal-ai-panel")
@@ -1306,7 +1306,7 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, lines_on_screen: usize,
                 .px(px(12.0))
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(div().text_color(accent).font_weight(FontWeight::BOLD).child("✦ EXPLAIN LOGS"))
+                .child(div().text_color(accent).font_weight(FontWeight::BOLD).child(t!("logs-explain-logs")))
                 .child(div().flex_1())
                 .child(match &provider {
                     Some(_) if !ai.loading => div()
@@ -1322,8 +1322,8 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, lines_on_screen: usize,
                         .on_click(move |_ev, _window, cx| app_go.update(cx, |this, cx| this.explain_logs_with_ai(cx)))
                         .child(format!("EXPLAIN {lines_on_screen} LINES"))
                         .into_any_element(),
-                    Some(_) => div().text_color(TEXT_FAINT).child("working…").into_any_element(),
-                    None => div().text_color(TEXT_FAINT).child("no provider").into_any_element(),
+                    Some(_) => div().text_color(TEXT_FAINT).child(t!("logs-working")).into_any_element(),
+                    None => div().text_color(TEXT_FAINT).child(t!("logs-no-provider")).into_any_element(),
                 }),
         )
         .child(div().id("journal-ai-body").flex_1().min_h(px(0.0)).overflow_y_scrollbar().child(body))
@@ -1337,8 +1337,8 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, lines_on_screen: usize,
                 .text_size(px(9.0))
                 .text_color(TEXT_FAINTER)
                 .child(match provider {
-                    Some(p) => format!("Sends the log lines on screen (not host names) to {p}. Nothing is sent until you click."),
-                    None => "Add an API key for a provider in Settings → Clankers to enable this.".to_string(),
+                    Some(p) => t!("logs-sends-the-log-lines-on", p = p),
+                    None => t!("logs-add-an-api-key-for").to_string(),
                 }),
         )
 }
