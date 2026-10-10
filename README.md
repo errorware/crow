@@ -48,7 +48,7 @@ Website: [crow.rs](https://crow.rs) · Community: [forum.errorware.net](https://
 - **Import from providers**: list your Linode / UpCloud instances, link the servers already in the fleet by IP, and add the rest through Add Server.
 
 ### Fleet Setup
-Work across many servers at once. Every run lists what it will do first, goes one server at a time and stops at the first failure.
+Work across many servers at once. Changes to many servers list what they will do first, go one server at a time and stop at the first failure.
 - **Groups & policies**, and a **fleet map** of how Crow reaches each server, with the risks the posture check found.
 - **Patching**: who's behind on updates (apt, dnf, apk), and applying them, with orderly reboots.
 - **Rollouts**: a command or a config file across a group, with each server's diff before anything runs.
