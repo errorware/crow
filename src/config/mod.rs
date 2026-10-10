@@ -108,8 +108,6 @@ impl CrowConfigManager {
 
     pub fn load() -> Self {
         let path = Self::config_path();
-        let plugin = CrowConfigPlugin::new();
-
         let text = if path.exists() {
             fs::read_to_string(&path).unwrap_or_else(|_| default_config_toml().to_string())
         } else {
@@ -120,7 +118,13 @@ impl CrowConfigManager {
             let _ = fs::write(&path, &default_text);
             default_text
         };
+        Self::from_text(path, text)
+    }
 
+    /// The config in `text`, brought up to date with keys added since it was
+    /// written. Nothing is read or written.
+    pub fn from_text(path: PathBuf, text: String) -> Self {
+        let plugin = CrowConfigPlugin::new();
         // Config files from before Personalisation get its section (written
         // out with the next save), and files from before archiving get theirs.
         let text = if text.lines().any(|l| l.trim() == "[appearance]") {

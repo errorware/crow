@@ -548,8 +548,8 @@ mod tests {
     }
 
     /// The remote code path (one scripted exec per batch) reads the same real
-    /// /etc as the local one, in two round trips (three with systemd drop-in
-    /// folders) instead of one per dir/file.
+    /// /etc as the local one, in two round trips (more with systemd drop-in
+    /// folders or PostgreSQL clusters) instead of one per dir/file.
     #[test]
     fn remote_style_crawl_matches_local_in_two_round_trips() {
         struct Counting(std::sync::atomic::AtomicUsize);
@@ -565,10 +565,14 @@ mod tests {
         let remote = Counting(Default::default());
         let files = crawl_configs(&remote, DistroFamily::Debian);
         let states = load_config_file_states(&remote, &files);
-        // One more when /etc/systemd/system has drop-in folders: their names
-        // are only known from the first listing.
-        let drop_ins = std::fs::read_dir("/etc/systemd/system").map(|d| d.flatten().any(|e| e.file_name().to_string_lossy().ends_with(".d") && e.path().is_dir())).unwrap_or(false);
-        assert_eq!(remote.0.load(std::sync::atomic::Ordering::SeqCst), 2 + drop_ins as usize);
+        // One more when the first listing finds folders to look inside:
+        // systemd drop-ins, or PostgreSQL version folders (with each one's
+        // `main` cluster guessed). Another for any cluster but `main`.
+        let subdirs = |path: &str| std::fs::read_dir(path).map(|d| d.flatten().filter(|e| e.path().is_dir()).map(|e| e.file_name().to_string_lossy().into_owned()).collect::<Vec<_>>()).unwrap_or_default();
+        let drop_ins = subdirs("/etc/systemd/system").iter().any(|n| n.ends_with(".d"));
+        let pg_versions: Vec<String> = subdirs("/etc/postgresql").into_iter().filter(|n| n.starts_with(|c: char| c.is_ascii_digit())).collect();
+        let other_clusters = pg_versions.iter().any(|v| subdirs(&format!("/etc/postgresql/{v}")).iter().any(|c| c != "main"));
+        assert_eq!(remote.0.load(std::sync::atomic::Ordering::SeqCst), 2 + (drop_ins || !pg_versions.is_empty()) as usize + other_clusters as usize);
 
         // Crow's own config.toml is only listed for the machine Crow runs on.
         let local_files: Vec<_> = crawl_configs(&LocalHost, DistroFamily::Debian).into_iter().filter(|f| f.name != "config.toml").collect();

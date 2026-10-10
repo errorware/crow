@@ -366,8 +366,11 @@ mod tests {
     #[test]
     fn window_falls_back_to_ninety_days_and_reads_never() {
         for (value, expected) in [("30", Some(30)), ("never", None), ("", Some(90)), ("junk", Some(90)), ("0", Some(90))] {
-            let mut config = crate::config::CrowConfigManager::load();
-            let _ = config.update_field(PURGE_DAYS_FIELD, serde_json::Value::String(value.to_string()));
+            // Built from text, not the user's config.toml: set straight in the
+            // file, since the editor rejects an empty or junk value.
+            let text = crate::config::default_config_toml().replace("archive_purge_days = \"90\"", &format!("archive_purge_days = {value:?}"));
+            assert!(text.contains(&format!("archive_purge_days = {value:?}")));
+            let config = crate::config::CrowConfigManager::from_text(std::path::PathBuf::new(), text);
             assert_eq!(purge_window_days(&config), expected, "value {value:?}");
         }
     }
