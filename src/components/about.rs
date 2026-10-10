@@ -1,4 +1,4 @@
-//! The About box (ERR-161): old-school and wide. The crow down the left,
+//! The About box (ERR-161): old-school and wide. A picture down the left,
 //! the app's name and build in a header, where to find the project, and
 //! the details in a dark scroll box.
 
@@ -18,8 +18,6 @@ const FORUM: &str = "https://forum.errorware.net";
 const ABOUT_HEIGHT: f32 = 440.0;
 const TITLE_HEIGHT: f32 = 30.0;
 const SIDE_WIDTH: f32 = 140.0;
-/// The side picture (505x901) scaled to the box's height under the title.
-const SIDE_PICTURE_WIDTH: f32 = (ABOUT_HEIGHT - TITLE_HEIGHT) * 505.0 / 901.0;
 
 fn png(cell: &'static OnceLock<Arc<Image>>, bytes: &'static [u8]) -> Arc<Image> {
     cell.get_or_init(|| Arc::new(Image::from_bytes(ImageFormat::Png, bytes.to_vec()))).clone()
@@ -99,12 +97,10 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                         .flex_1()
                         .min_h(px(0.0))
                         .flex()
-                        // The crow down the left, cropped from the left so its
-                        // beak always shows: the picture keeps its aspect at
-                        // the box's height and hangs from the right edge.
+                        // The picture down the left, filling the strip and
+                        // cropped evenly from both sides.
                         .child(
                             div()
-                                .relative()
                                 .w(px(SIDE_WIDTH))
                                 .h_full()
                                 .flex_none()
@@ -112,7 +108,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                 .border_r_1()
                                 .border_color(BORDER_STRONG)
                                 .bg(hex_rgb(0x000000))
-                                .child(img(side_picture()).absolute().top_0().right_0().h_full().w(px(SIDE_PICTURE_WIDTH))),
+                                .child(img(side_picture()).size_full().object_fit(ObjectFit::Cover)),
                         )
                         .child(
                             div()
