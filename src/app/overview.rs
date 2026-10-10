@@ -66,7 +66,7 @@ impl CrowApp {
                 TablePage::Services => (t!("app-overview-search-services"), self.overview.service_query.clone()),
                 TablePage::Processes => (t!("app-overview-search-command-user-pid"), self.overview.process_query.clone()),
                 TablePage::Users => (t!("app-overview-search-name-group-shell"), self.users.search_query.clone()),
-                TablePage::Logs => ("grep the journal (regex; lowercase ignores case)…  ( / )", self.journal.search.clone()),
+                TablePage::Logs => (t!("app-overview-search-journal"), self.journal.search.clone()),
                 TablePage::Firewall => (t!("app-overview-search-port-address-comment"), self.firewall.search_query.clone()),
             };
             let input = cx.new(|cx| InputState::new(window, cx).placeholder(placeholder).default_value(query));

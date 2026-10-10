@@ -66,6 +66,7 @@ pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::
                         .flex_col()
                         .gap(px(4.0))
                         .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child(run.title.clone()))
+                        .children(crate::components::english_beside::english_beside(run.title_en.clone()))
                         .child(div().text_color(if run.phase == RunPhase::Finished && run.steps.iter().any(|s| matches!(s.status, StepStatus::Failed(_))) { CRIT } else { TEXT_DIM }).child(status_line)),
                 )
                 .child(

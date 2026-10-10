@@ -860,7 +860,7 @@ pub fn fleet_overview_view(
                                                         .ml(px(8.0))
                                                         .text_size(px(9.0))
                                                         .text_color(TEXT_DIMMER)
-                                                        .child(format!("· {host_count} {}", if host_count == 1 { t!("fleet-overview-host") } else { t!("fleet-overview-hosts") })),
+                                                        .child(t!("fleet-overview-host-count", count = host_count)),
                                                 )
                                                 .into_any_element(),
                                         );

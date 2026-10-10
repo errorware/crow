@@ -237,7 +237,7 @@ impl CrowApp {
         self.drift_page.message = None;
         // After the run, read the files again so the alerts resolve.
         self.drift_page.last_check = 0;
-        self.open_fleet_run(FleetRun::new(t!("app-drift-bring-back", path = path, n = n), "RESTORE", steps, excluded), jobs, window, cx);
+        self.open_fleet_run(FleetRun::new(t!("app-drift-bring-back", path = path, n = n), "RESTORE", steps, excluded).english(t_beside!("app-drift-bring-back", path = path, n = n)), jobs, window, cx);
     }
 
     /// Accepts a server's copy: its latest revision becomes the baseline

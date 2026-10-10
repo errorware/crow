@@ -46,6 +46,7 @@ pub mod onboard;
 pub mod overview;
 pub mod keys;
 pub mod appearance;
+pub mod language;
 pub mod archive;
 pub mod configs;
 pub mod region;
@@ -356,6 +357,12 @@ impl CrowApp {
     pub fn new(window: &mut Window, cx: &mut Context<Self>) -> Self {
         let vault = Vault::open_default().expect("Failed to initialize vault storage");
         let config = CrowConfigManager::load();
+        // The language first: everything built from here on is in it.
+        let language_code = config.get_field(language::LANGUAGE).and_then(|f| f.value.as_str().map(str::to_string)).unwrap_or_default();
+        let language_error = crate::i18n::select(&language_code).err().map(|e| {
+            let _ = crate::i18n::select(crate::i18n::ENGLISH);
+            (false, t!("app-language-couldnt-load", code = language_code, e = e))
+        });
 
         // Vault records: servers, SSH key hub (with an initial disk scan), AI providers
         let (servers, archived, keys, clanker_providers) = match vault.db().lock() {
@@ -457,7 +464,7 @@ impl CrowApp {
             screen: Screen::Fleet,
             menu_open: false,
             audit_filter: Default::default(),
-            settings: SettingsState::default(),
+            settings: SettingsState { language: language::LanguageState { message: language_error, ..Default::default() }, ..Default::default() },
             fleet: {
                 let mut fleet = FleetState::new(servers, tabs, metrics_store, buffered_stores);
                 fleet.archived = archived;

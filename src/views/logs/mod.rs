@@ -1320,7 +1320,7 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, lines_on_screen: usize,
                         .cursor_pointer()
                         .hover(|s| s.bg(hex_rgba(0xa78bfa, 0.12)))
                         .on_click(move |_ev, _window, cx| app_go.update(cx, |this, cx| this.explain_logs_with_ai(cx)))
-                        .child(format!("EXPLAIN {lines_on_screen} LINES"))
+                        .child(t!("logs-explain-lines", count = lines_on_screen))
                         .into_any_element(),
                     Some(_) => div().text_color(TEXT_FAINT).child(t!("logs-working")).into_any_element(),
                     None => div().text_color(TEXT_FAINT).child(t!("logs-no-provider")).into_any_element(),

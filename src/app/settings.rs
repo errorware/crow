@@ -12,6 +12,9 @@ pub struct CustomSettingInput {
 impl CrowApp {
     pub fn set_settings_section(&mut self, section: SettingsSection, cx: &mut Context<Self>) {
         self.settings.section = section;
+        if section == SettingsSection::Personalisation {
+            self.list_language_packs(cx);
+        }
         // The Plugins page shows whether each works: look when it opens.
         if section == SettingsSection::Plugins {
             self.check_all_plugins(cx);

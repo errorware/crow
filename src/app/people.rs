@@ -107,7 +107,7 @@ impl CrowApp {
         cx.notify();
     }
 
-    fn people_run(&mut self, title: String, keyword: &'static str, kind: &'static str, plan: Vec<(ServerAccounts, Result<Vec<Argv>, String>)>, what: impl Fn(&[Argv]) -> String, window: &mut Window, cx: &mut Context<Self>) {
+    fn people_run(&mut self, (title, title_en): (String, Option<String>), keyword: &'static str, kind: &'static str, plan: Vec<(ServerAccounts, Result<Vec<Argv>, String>)>, what: impl Fn(&[Argv]) -> String, window: &mut Window, cx: &mut Context<Self>) {
         let (mut steps, mut jobs, mut excluded): (Vec<_>, Vec<RunJob>, Vec<(String, String)>) = (Vec::new(), Vec::new(), Vec::new());
         for (s, cmds) in plan {
             let Some(srv) = self.fleet.servers.iter().find(|x| x.id == s.server_id).cloned() else { continue };
@@ -125,7 +125,7 @@ impl CrowApp {
                 }
             }
         }
-        self.open_fleet_run(FleetRun::new(title, keyword, steps, excluded), jobs, window, cx);
+        self.open_fleet_run(FleetRun::new(title, keyword, steps, excluded).english(title_en), jobs, window, cx);
         // Read accounts again afterwards.
         self.people.last_read = 0;
     }
@@ -141,7 +141,7 @@ impl CrowApp {
             Offboard::Delete => t!("app-people-revoke-keys-delete-the-account"),
         };
         let n = plan.iter().filter(|(_, c)| c.is_ok()).count();
-        self.people_run(t!("app-people-offboard", user = user, n = n), "OFFBOARD", "people.offboard", plan, |c| t!("app-people-text", user = user, verb = verb, count = c.len()), window, cx);
+        self.people_run(t_pair!("app-people-offboard", user = user, n = n), "OFFBOARD", "people.offboard", plan, |c| t!("app-people-text", user = user, verb = verb, count = c.len()), window, cx);
     }
 
     /// Removes a key from every account on every server it opens.
@@ -151,7 +151,7 @@ impl CrowApp {
             (s, c)
         }).collect();
         let n = plan.iter().filter(|(_, c)| c.is_ok()).count();
-        self.people_run(t!("app-people-revoke-key", label = label, n = n), "REVOKE", "people.revoke_key", plan, |c| t!("app-people-remove-the-key-from", count = c.len()), window, cx);
+        self.people_run(t_pair!("app-people-revoke-key", label = label, n = n), "REVOKE", "people.revoke_key", plan, |c| t!("app-people-remove-the-key-from", count = c.len()), window, cx);
     }
 
     /// Gives a user a login with a key on the target's servers.
@@ -177,7 +177,7 @@ impl CrowApp {
         }
         self.people.message = None;
         let n = plan.iter().filter(|(_, c)| c.is_ok()).count();
-        self.people_run(t!("app-people-onboard", user = user, label = target.label().to_uppercase(), n = n), "ONBOARD", "people.onboard", plan, |c| if c.len() > 1 { t!("app-people-create-add-their-key", user = user, sudo = if sudo { " with sudo" } else { "" }) } else { t!("app-people-add-the-key-to", user = user) }, window, cx);
+        self.people_run(t_pair!("app-people-onboard", user = user, label = target.label().to_uppercase(), n = n), "ONBOARD", "people.onboard", plan, |c| if c.len() > 1 { t!("app-people-create-add-their-key", user = user, sudo = if sudo { "yes" } else { "no" }) } else { t!("app-people-add-the-key-to", user = user) }, window, cx);
     }
 
     pub fn people_tick(&mut self, cx: &mut Context<Self>) {

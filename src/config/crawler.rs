@@ -610,8 +610,8 @@ pub fn load_config_file_states(host: &dyn Host, files: &[DiscoveredConfigFile]) 
         .map(|(f, path)| {
             let (content, blocked) = match contents.remove(path.as_str()) {
                 Some(Ok(content)) => (content, None),
-                Some(Err(e)) => (String::new(), Some(format!("Could not read {} from {}: {}", f.name, host.label(), e))),
-                None => (String::new(), Some(format!("Could not read {} from {}", f.name, host.label()))),
+                Some(Err(e)) => (String::new(), Some(t!("config-crawler-could-not-read-from", name = f.name, host = host.label(), e = e))),
+                None => (String::new(), Some(t!("config-crawler-could-not-read", name = f.name, host = host.label()))),
             };
             let mut state = super::ConfigFileState::new(f.full_path.clone(), f.name.clone(), content);
             state.read_from_host = blocked.is_none();

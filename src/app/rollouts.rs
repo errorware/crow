@@ -313,9 +313,9 @@ impl CrowApp {
         let n = steps.len();
         let use_canary = st.use_canary && n > 1;
         let stages = rollout::stages(n, use_canary, st.batch);
-        let title = t!("app-rollouts-text", title = title, n = n);
+        let (title, title_en) = t_pair!("app-rollouts-text", title = title, n = n);
         self.rollouts.message = None;
-        let run = FleetRun::new(title, keyword, steps, excluded).staged(stages, use_canary.then_some(0));
+        let run = FleetRun::new(title, keyword, steps, excluded).english(title_en).staged(stages, use_canary.then_some(0));
         self.open_fleet_run(run, jobs, window, cx);
         // A config rollout can be undone where it wrote.
         if let (Some(path), Some(runner)) = (path, self.fleet_runner.as_mut()) {
@@ -352,7 +352,7 @@ impl CrowApp {
             }));
         }
         let n = steps.len();
-        self.open_fleet_run(FleetRun::new(t!("app-rollouts-roll-back", path = path, n = n), "ROLLBACK", steps, Vec::new()), jobs, window, cx);
+        self.open_fleet_run(FleetRun::new(t!("app-rollouts-roll-back", path = path, n = n), "ROLLBACK", steps, Vec::new()).english(t_beside!("app-rollouts-roll-back", path = path, n = n)), jobs, window, cx);
     }
 }
 

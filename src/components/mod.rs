@@ -25,3 +25,4 @@ pub mod stance;
 pub mod snapshot_offer;
 pub mod snapshots_panel;
 pub mod password_login;
+pub mod english_beside;

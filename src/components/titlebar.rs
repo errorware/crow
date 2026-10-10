@@ -602,7 +602,7 @@ pub fn burger_menu_overlay(
                 .id("burger-menu-dropdown")
                 .occlude()
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // keep clicks inside from reaching the backdrop (which closes)
-                .w(px(296.0))
+                .w(px(340.0))
                 .bg(BG_OVERLAY_PANEL)
                 .border_1()
                 .border_color(BORDER_STRONG)
@@ -721,6 +721,8 @@ pub fn burger_menu_overlay(
                         .child(
                             div()
                                 .flex_1()
+                                .min_w(px(0.0))
+                                .truncate()
                                 .font_family(FONT_MONO)
                                 .text_size(px(11.5))
                                 .font_weight(if item.is_featured || is_active { FontWeight::BOLD } else { FontWeight::NORMAL })

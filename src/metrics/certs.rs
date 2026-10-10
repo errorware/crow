@@ -79,7 +79,7 @@ pub fn cert_changes(open: &[Alert], server: &str, certs: &[CertInfo], now: i64) 
         let level = if days <= CERT_CRIT_DAYS { "CRIT" } else { "WARN" };
         let what = if c.name.is_empty() { "certificate".to_string() } else { t!("metrics-certs-certificate-for", name = c.name) };
         let when = match days {
-            d if d < 0 => t!("metrics-certs-expired-day-ago", d = -d, d2 = if d == -1 { "" } else { "s" }),
+            d if d < 0 => t!("metrics-certs-expired-day-ago", d = -d),
             0 => t!("metrics-certs-expires-today").to_string(),
             1 => t!("metrics-certs-expires-tomorrow").to_string(),
             d => t!("metrics-certs-expires-in-days", d = d),

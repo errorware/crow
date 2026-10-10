@@ -155,7 +155,10 @@ app-dr-saved = Saved.
 app-dr-save-the-plan-first = Save the plan first.
 app-dr-not-reachable-right-now-nothing = not reachable right now: nothing could be checked
 app-dr-drill-started-follow-the-runbook = Drill started: follow the runbook (restore to a Multipass VM or a scratch server), then FINISH DRILL.
-app-dr-drill-recorded-min-the-rto = Drill recorded: { $minutes } min, { $met } the RTO of { $rto_minutes } min.
+app-dr-drill-recorded-min-the-rto = Drill recorded: { $minutes } min, { $met ->
+        [yes] within
+       *[no] over
+    } the RTO of { $rto_minutes } min.
 app-dr-group = group { $g }
 app-dr-plan-written-to-keep-a = Plan written to { $path }: keep a copy where you can read it when Crow is down.
 app-dr-couldnt-write = Couldn't write { $path }: { $e }
@@ -179,8 +182,6 @@ app-firewall-not-applied = Not applied: { $e }
 ## app-fleet-run
 app-fleet-run-the-baselines-content-wasnt-kept = { $path }: the baseline's content wasn't kept (hash only), so there's nothing to push
 app-fleet-run-push-baseline = push baseline { $path }
-app-fleet-run-push-baseline-nothing-has-drifted = PUSH BASELINE · nothing has drifted
-app-fleet-run-push-baseline-to-all = PUSH BASELINE TO ALL
 app-fleet-run-rolling-reboot = ROLLING REBOOT · { $n } { $n ->
         [one] SERVER
        *[other] SERVERS
@@ -209,11 +210,9 @@ app-fleet-run-revoke-sessions = REVOKE SESSIONS · { $n } { $n ->
        *[other] SERVERS
     }
 app-fleet-run-crow-has-only-the-public = Crow has only the public half of this key, so it can't log in with it
-app-fleet-run-switch-to-key = SWITCH TO KEY { $name }
 app-fleet-run-no-server-logs-in-with = No server logs in with { $name }; nothing to rotate.
 app-fleet-run-couldnt-generate-the-new-key = Couldn't generate the new key: { $e }
 app-fleet-run-new-key-written-to-if = new key written to { $dir }; if you cancel it stays there, unused
-app-fleet-run-rotate = ROTATE { $name } → { $name2 }
 app-fleet-run-install-new-key-verify-switch = install new key, verify, switch, remove old key
 app-fleet-run-install-key-verify-switch = install key, verify, switch
 app-fleet-run-switched-old-key-removed = switched; old key removed
@@ -234,10 +233,6 @@ app-hardening-not-an-ssh-server-crow = not an SSH server (Crow proves every fix 
 app-hardening-not-reachable-right-now = not reachable right now
 app-hardening-neither-ufw-nor-firewalld-is = neither ufw nor firewalld is installed: install one (apt install ufw, dnf install firewalld), then fix it
 app-hardening-crow-logs-in-as-root = Crow logs in as root with a key: prohibit-password is already the safest setting it can keep
-app-hardening-harden = HARDEN · { $code } · { $n } { $n ->
-        [one] SERVER
-       *[other] SERVERS
-    }
 app-hardening-report-written-to = Report written to { $path }
 app-hardening-couldnt-write-the-report-to = Couldn't write the report to { $path }: { $e }
 
@@ -416,14 +411,6 @@ app-patching-no-pending = no { $label } pending
 app-patching-cant-be-rebooted-from-here = can't be rebooted from here ({ $why }), so it's left out of a run that reboots
 app-patching-then-reboot-if-needed = {" "}· then reboot if needed
 app-patching-rebooted = { $done }; rebooted: { $m }
-app-patching-apply = APPLY { $label } · { $label2 } · { $n } { $n ->
-        [one] SERVER
-       *[other] SERVERS
-    }
-app-patching-reboot-where-needed = REBOOT WHERE NEEDED · { $label } · { $n } { $n ->
-        [one] SERVER
-       *[other] SERVERS
-    }
 
 ## app-people
 app-people-failed-exit = `{ $cloned }` failed (exit { $status }): { $stderr }
@@ -432,29 +419,20 @@ app-people-username-e-g-alice = username, e.g. alice
 app-people-their-public-key-ssh-ed25519 = their public key: ssh-ed25519 AAAA… alice@laptop
 app-people-revoke-keys-lock-and-expire = revoke keys, lock and expire
 app-people-revoke-keys-delete-the-account = revoke keys, delete the account (home kept)
-app-people-offboard = OFFBOARD { $user } · { $n } { $n ->
-        [one] SERVER
-       *[other] SERVERS
-    }
 app-people-text = { $user }: { $verb } ({ $count } { $count ->
         [one] step
        *[other] steps
     })
-app-people-revoke-key = REVOKE KEY { $label } · { $n } { $n ->
-        [one] SERVER
-       *[other] SERVERS
-    }
 app-people-remove-the-key-from = remove the key from { $count } { $count ->
         [one] account
        *[other] accounts
     }
 app-people-fill-in-the-username-and = Fill in the username and their public key first.
 app-people-no-server-in-has-been = No server in { $label } has been read yet: READ AGAIN first.
-app-people-onboard = ONBOARD { $user } · { $label } · { $n } { $n ->
-        [one] SERVER
-       *[other] SERVERS
-    }
-app-people-create-add-their-key = create { $user }{ $sudo }, add their key
+app-people-create-add-their-key = create { $user }{ $sudo ->
+        [yes] {" "}with sudo
+       *[no] {""}
+    }, add their key
 app-people-add-the-key-to = add the key to { $user }
 
 ## app-plugins
@@ -524,10 +502,6 @@ app-rollouts-create = create { $path }
 app-rollouts-couldnt-read-its-copy = couldn't read its copy: { $e }
 app-rollouts-its-copy-hasnt-been-read = its copy hasn't been read yet
 app-rollouts-rollout = ROLLOUT · { $path }
-app-rollouts-text = { $title } · { $n } { $n ->
-        [one] SERVER
-       *[other] SERVERS
-    }
 app-rollouts-remove-it-didnt-exist = remove { $path } (it didn't exist)
 app-rollouts-put-back-as-it-was = put back { $path } as it was
 app-rollouts-roll-back = ROLL BACK { $path } · { $n } { $n ->
@@ -619,16 +593,6 @@ app-vault-manage-crow-is-open-now-no = Crow is OPEN now: no password, and the OS
 app-vault-manage-still-locked-couldnt-hand-the = Still LOCKED: couldn't hand the key to the OS keyring ({ $e }).
 
 ## about
-about-crow-v-platform-profile-repository =
-    Crow v{ $env }
-    Platform: { $std } ({ $std2 })
-    Profile: { $cfg }
-    Repository: { $repo }
-    Website: { $website }
-    Community: { $forum }
-    Engine: GPUI Kit (WGPU) + crow-config-core
-    Vault: Argon2id + ChaCha20-Poly1305 + TOTP
-    {""}
 about-debug-build = debug build
 about-release-build = release build
 about-about-crow = About Crow
@@ -1678,7 +1642,6 @@ fleet-overview-alerts = ALERTS
 fleet-overview-no-servers-enrolled-2 = NO SERVERS ENROLLED
 fleet-overview-connect-remote-linux-servers-via = Connect remote Linux servers via SSH or spin up local isolated lab nodes.
 fleet-overview-add-remote-server-ssh = + ADD REMOTE SERVER (SSH)
-fleet-overview-hosts = HOSTS
 fleet-overview-fleet-alerts = FLEET ALERTS
 fleet-overview-open = { $count } open
 fleet-overview-ack-all = ACK ALL
@@ -2214,7 +2177,10 @@ overview-dashboard-apply-security = APPLY { $security } SECURITY
 overview-dashboard-apply-all = APPLY ALL { $count }
 overview-dashboard-kernel = KERNEL
 overview-dashboard-running = running { $u }
-overview-dashboard-update-pending = { $is_security } update pending: { $change }
+overview-dashboard-update-pending = { $kind ->
+        [security] security
+       *[kernel] kernel
+    } update pending: { $change }
 overview-dashboard-reboot-required-to-finish-installed = reboot required to finish installed updates
 overview-dashboard-package-lists-refreshed-h-ago = package lists refreshed { $age_h }h ago
 overview-dashboard-package-lists-are-days-old = package lists are { $h } days old — run `apt update` for current results
@@ -3271,9 +3237,11 @@ patching-the-windows-start-and-end = the window's start and end are the same hou
 patching-outside-s-maintenance-window = outside { $group }'s maintenance window ({ $describe })
 patching-no-systemd-to-wait-for = no systemd to wait for
 patching-services-up = services up ({ $state })
-patching-a-unit = a unit
 patching-came-back-but-systemd-was = came back, but systemd was still starting after { $as_secs }s
-patching-came-back-but-failed = came back, but { $new } failed: { $new2 }
+patching-came-back-but-failed = came back, but { $count ->
+        [one] a unit
+       *[other] units
+    } failed: { $units }
 
 ## certs
 certs-certbots-timer-isnt-running-certificates = certbot's timer isn't running ({ $t }): certificates won't renew on their own
@@ -3424,7 +3392,10 @@ config-drift-drifted-from-the-baseline = { $path } drifted from the { $scope } b
 
 ## metrics-certs
 metrics-certs-certificate-for = certificate for { $name }
-metrics-certs-expired-day-ago = expired { $d } day{ $d2 } ago
+metrics-certs-expired-day-ago = expired { $d } { $d ->
+        [one] day
+       *[other] days
+    } ago
 metrics-certs-expires-today = expires today
 metrics-certs-expires-tomorrow = expires tomorrow
 metrics-certs-expires-in-days = expires in { $d } days
@@ -3507,3 +3478,129 @@ certs-acme-sh-is-installed-but = acme.sh is installed but its cron job is missin
 
 ## team
 team-env = env { $e }
+
+## Settings → Personalisation → Language
+app-language-couldnt-load = Couldn't load the { $code } language pack, so Crow is in English: { $e }
+app-language-couldnt-create = Couldn't create { $path }: { $e }
+app-language-template-written = English template written to { $path }. Rename it to your language's code (es.ftl, ja.ftl), translate the text after each =, then RELOAD.
+app-language-template-not-written = The template wasn't written: { $e }
+settings-language-title = LANGUAGE
+settings-language-about = The language of Crow's screens. Languages are .ftl files you make or download, kept in { $folder }. Each one is checked against English: whatever it lacks or gets wrong shows in English.
+settings-language-open-folder = OPEN LANGUAGES FOLDER
+settings-language-export-template = EXPORT ENGLISH TEMPLATE
+settings-language-reload = RELOAD
+settings-language-complete = complete
+settings-language-coverage = { $percent }% · { $missing } missing
+settings-language-by = by { $author }
+settings-language-refused = { $count ->
+        [one] { $count } message was refused
+       *[other] { $count } messages were refused
+    } ({ $errors } syntax errors); { $count ->
+        [one] it shows
+       *[other] they show
+    } in English:
+settings-language-more = …and { $count } more
+
+## Converted by hand
+fleet-rollouts-as-root-sudo = as root (through sudo -n)
+users-new-user-modal-executes-under-sudo = Executes useradd & usermod -aG under sudo
+fleet-overview-host-count = · { $count ->
+        [one] { $count } host
+       *[other] { $count } hosts
+    }
+settings-clankers-all-time = { $count } all-time
+logs-explain-lines = EXPLAIN { $count } { $count ->
+        [one] LINE
+       *[other] LINES
+    }
+
+app-configs-value-placeholder = value
+fleet-alert-lines-down-now = { $reason } · alerts if it's still down at the next check
+fleet-alert-lines-now = now
+fleet-alert-lines-resolved = resolved · { $detail } (lasted { $lasted })
+config-crawler-could-not-read-from = Could not read { $name } from { $host }: { $e }
+config-crawler-could-not-read = Could not read { $name } from { $host }
+config-pending-diff-rail-clean = clean
+app-overview-search-journal = grep the journal (regex; lowercase ignores case)…  ( / )
+
+## Danger Zone: what is about to happen (English shows beside a translation)
+danger-zone-what-poweroff = Power the server off
+danger-zone-what-reboot = Reboot the server
+danger-zone-what-boot = Boot the server
+danger-zone-what-snapshot = Take a snapshot of the server
+danger-zone-what-flush = Remove every firewall rule and turn the firewall off
+danger-zone-what-kill = Stop every lab container Crow created
+danger-zone-what-other = Run this action
+
+## Settings rows (from src/config/manifest.toml; Crow looks them up by their English text)
+setting-general-refresh-interval-label = Refresh Interval
+setting-general-refresh-interval-help = Frequency of background polling in seconds for services and telemetry.
+setting-connection-control-master-label = Control Master
+setting-connection-control-master-help = Reuse one TCP connection per host for all panels. Reduces handshakes from ~14 to 1.
+setting-connection-keepalive-interval-label = Keepalive Interval
+setting-connection-keepalive-interval-help = Seconds between keepalive probes. Lower detects dead hosts faster, costs more chatter.
+setting-connection-connect-timeout-label = Connect Timeout
+setting-connection-connect-timeout-help = Give up on a TCP handshake after this long.
+setting-security-auto-lock-minutes-label = Auto Lock Minutes
+setting-security-auto-lock-minutes-help = Lock vault and wipe decrypted keys from RAM after inactivity.
+setting-appearance-fleet-background-label = Fleet Background
+setting-appearance-fleet-background-help = Picture behind the Fleet server list (a copy kept in ~/.config/crow/backgrounds). Empty for none.
+setting-appearance-fleet-background-opacity-label = Fleet Background Opacity
+setting-appearance-fleet-background-opacity-help = How strongly the picture shows through. Low keeps the table easy to read.
+setting-appearance-fleet-background-opacity-option-5 = 5% · a hint
+setting-appearance-fleet-background-opacity-option-10 = 10% · subtle
+setting-appearance-fleet-background-opacity-option-15 = 15% · noticeable
+setting-appearance-fleet-background-opacity-option-25 = 25% · strong
+setting-appearance-fleet-background-opacity-option-35 = 35% · bold
+setting-appearance-fleet-background-blur-label = Fleet Background Blur
+setting-appearance-fleet-background-blur-help = Softens the picture so rows stay legible over it.
+setting-appearance-fleet-background-blur-option-0 = None
+setting-appearance-fleet-background-blur-option-4 = Light
+setting-appearance-fleet-background-blur-option-8 = Soft
+setting-appearance-fleet-background-blur-option-16 = Heavy
+setting-appearance-fleet-background-blur-option-32 = Frosted
+setting-servers-archive-purge-days-label = Archive Purge Days
+setting-servers-archive-purge-days-help = How long an archived server keeps its stored data before Crow deletes it. The server record itself is never deleted.
+setting-servers-archive-purge-days-option-30 = 30 days
+setting-servers-archive-purge-days-option-60 = 60 days
+setting-servers-archive-purge-days-option-90 = 90 days · default
+setting-servers-archive-purge-days-option-180 = 180 days
+setting-servers-archive-purge-days-option-never = Never purge
+setting-appearance-terminal-font-size-label = Terminal Font Size
+setting-appearance-terminal-font-size-help = Font size in server terminals, in points.
+setting-appearance-start-maximized-label = Start Maximized
+setting-appearance-start-maximized-help = Open Crow maximized. Takes effect the next time Crow starts.
+setting-appearance-language-label = Language
+setting-appearance-language-help = The language of Crow's screens: en, or the code of a pack in the languages folder (es for es.ftl).
+setting-servers-host-key-max-age-days-label = Host Key Max Age Days
+setting-servers-host-key-max-age-days-help = How old a server's SSH host key can get before FLEET ALERTS says it's due for rotation (Fleet → Danger Zone → Rotate all host keys).
+setting-servers-host-key-max-age-days-option-180 = 180 days
+setting-servers-host-key-max-age-days-option-365 = 1 year · default
+setting-servers-host-key-max-age-days-option-730 = 2 years
+setting-servers-host-key-max-age-days-option-never = Never warn
+setting-servers-geoip-regions-label = Geoip Regions
+setting-servers-geoip-regions-help = Find the country of servers without cloud metadata from their public IP, looked up on this machine in DB-IP's free country database (downloaded from db-ip.com about once a month; no server address is ever sent anywhere). IP geolocation by DB-IP (db-ip.com), CC BY 4.0.
+setting-general-update-check-label = Update Check
+setting-general-update-check-help = Check GitHub once a day for a newer Crow and say so next to the version. Only the release list is requested; nothing about you or your servers is sent.
+setting-general-update-prereleases-label = Update Prereleases
+setting-general-update-prereleases-help = Offer pre-releases (betas) too. Builds that are themselves pre-releases always see newer ones.
+setting-general-update-auto-install-label = Update Auto Install
+setting-general-update-auto-install-help = Download and install new versions by themselves, only after slsa-verifier confirms the release's signed provenance (it must be installed). Crow offers a restart and never restarts on its own.
+
+## Plugins (src/plugins.rs; looked up by their English text)
+plugin-multipass-name = Multipass
+plugin-multipass-about = Ubuntu VMs on this machine: launch one with Crow's key and it joins the fleet; import, power and delete them.
+plugin-podman-name = Podman
+plugin-podman-about = Lab containers on this machine, enrolled as test nodes.
+plugin-distrobox-name = Distrobox
+plugin-distrobox-about = Distrobox environments (Podman or Docker underneath), as lab containers.
+plugin-docker-name = Docker
+plugin-docker-about = Lab containers run by Docker.
+plugin-containers-name = Containers on servers
+plugin-containers-about = Docker and Podman on your servers, over SSH: containers, compose stacks, published ports, logs, start/stop/restart, and the wand. Adds Containers to each server's sidebar.
+plugin-linode-name = Linode
+plugin-linode-about = Your Linode instances: import them, read their regions, power them and take snapshots.
+plugin-upcloud-name = UpCloud
+plugin-upcloud-about = Your UpCloud servers: import them, read their zones, power them and take snapshots.
+plugin-email-name = Email
+plugin-email-about = Alerts by email through your own SMTP server: critical ones at once, warnings in one digest. Sent while Crow is running.

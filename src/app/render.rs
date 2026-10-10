@@ -160,7 +160,7 @@ impl Render for CrowApp {
         let vault_status = self.vault.status();
         let stance = self.stance_report();
 
-        let app_root = div()
+        let app_root = crate::theme::language_font(div())
             .track_focus(&self.focus_handle)
             .capture_key_down(cx.listener(|this, _ev: &KeyDownEvent, _window, _cx| {
                 this.last_activity = std::time::Instant::now();

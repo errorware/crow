@@ -179,7 +179,7 @@ impl CrowApp {
             if let Some(start) = p.drill_started.take() {
                 let minutes = ((now - start) as f64 / 60.0).ceil() as i64;
                 let met = p.rto_minutes == 0 || minutes <= p.rto_minutes;
-                msg = Some((met, t!("app-dr-drill-recorded-min-the-rto", minutes = minutes, met = if met { "within" } else { "over" }, rto_minutes = p.rto_minutes)));
+                msg = Some((met, t!("app-dr-drill-recorded-min-the-rto", minutes = minutes, met = if met { "yes" } else { "no" }, rto_minutes = p.rto_minutes)));
                 p.drills.push(Drill { started_at: start, minutes, met_rto: met, notes });
             }
         }

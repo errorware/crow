@@ -81,7 +81,7 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                             .cursor_pointer()
                             .on_click(move |_ev, _w, cx| app_root.update(cx, |this, cx| this.toggle_rollout_root(cx)))
                             .child(div().size(px(12.0)).border_1().border_color(if st.as_root { WARN } else { BORDER_STRONG }).bg(if st.as_root { WARN } else { BG_CONTROL }))
-                            .child(mono(10.5, TEXT_SECONDARY).child("as root (through sudo -n)")),
+                            .child(mono(10.5, TEXT_SECONDARY).child(t!("fleet-rollouts-as-root-sudo"))),
                     ),
             )
         })

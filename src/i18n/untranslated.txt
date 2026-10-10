@@ -1,0 +1,19 @@
+# Strings the screens show as they are, in every language: paths, file
+# names, commands, examples of input. `path | exact text` per line; see
+# src/i18n/guard.rs.
+src/app/checks.rs | https://example.com/health · db.lan:5432 · app.example.com
+src/app/clankers.rs | https://api.openai.com/v1
+src/app/files.rs | new-folder-name
+src/app/keys.rs | ~/.ssh
+src/app/rollouts.rs | # runs with sh on each server, e.g.\nsystemctl reload nginx
+src/app/rollouts.rs | /etc/ssh/sshd_config.d/50-crow.conf
+src/views/config/cron_editor.rs | crontab
+src/views/config/cron_editor.rs | /etc/crontab
+src/views/config/journald_editor.rs | journald.conf
+src/views/config/journald_editor.rs | /etc/systemd/journald.conf
+src/views/firewall/non_operational.rs | user.rules
+src/views/logs/mod.rs | journalctl -o json --output-fields=*
+src/views/overview/log_tail.rs | journalctl -f
+src/views/overview/log_tail.rs | root@{}
+src/views/overview/service_inspector.rs | systemctl
+src/views/users/passwd_inspector.rs | /etc/passwd

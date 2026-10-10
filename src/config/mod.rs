@@ -39,6 +39,7 @@ pub const WIRED_SETTINGS: &[&str] = &[
     "appearance.fleet_background_blur",
     "appearance.terminal_font_size",
     "appearance.start_maximized",
+    "appearance.language",
     "servers.geoip_regions",
     "general.update_check",
     "general.update_prereleases",
@@ -136,6 +137,7 @@ impl CrowConfigManager {
         // [appearance] header would make the file invalid TOML.
         let text = add_missing_key(&text, "appearance", "terminal_font_size", "terminal_font_size = 13");
         let text = add_missing_key(&text, "appearance", "start_maximized", "start_maximized = false");
+        let text = add_missing_key(&text, "appearance", "language", "language = \"en\"");
         let text = if text.lines().any(|l| l.trim() == "[servers]") {
             text
         } else {

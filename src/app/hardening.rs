@@ -145,8 +145,8 @@ impl CrowApp {
         let n = steps.len();
         // Read the posture again once it's done.
         self.topology.posture_checked_at = 0;
-        let title = t!("app-hardening-harden", code = code.to_uppercase(), n = n);
-        self.open_fleet_run(FleetRun::new(title, "HARDEN", steps, excluded), jobs, window, cx);
+        let (title, title_en) = t_pair!("app-hardening-harden", code = code.to_uppercase(), n = n);
+        self.open_fleet_run(FleetRun::new(title, "HARDEN", steps, excluded).english(title_en), jobs, window, cx);
     }
 
     /// Writes the posture report (Markdown) to the downloads folder.

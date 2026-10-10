@@ -46,7 +46,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
             (t!("config-pending-diff-rail-restore-v", v = v), if add + del == 0 { t!("config-pending-diff-rail-same-as-host").to_string() } else { format!("+{add} −{del}") }, TEXT_SECONDARY)
         }
         None if is_modified => (t!("config-pending-diff-rail-pending-diff").to_string(), format!("+{} −{}", add_count, del_count), WARN),
-        None => (t!("config-pending-diff-rail-pending-diff").to_string(), "clean".to_string(), OK),
+        None => (t!("config-pending-diff-rail-pending-diff").to_string(), t!("config-pending-diff-rail-clean").to_string(), OK),
     };
     let plan = apply_plan(configs, sel_file, file_state);
     let baseline_rev_id = file_state.and_then(|st| configs.baselines.get(st.path.to_string_lossy().as_ref())).map(|b| b.baseline.revision_id.clone());

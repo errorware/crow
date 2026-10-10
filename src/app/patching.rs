@@ -265,8 +265,8 @@ impl CrowApp {
         }
         let n = steps.len();
         self.patching.rescan_after_run = n > 0;
-        let title = t!("app-patching-apply", label = scope.label().to_uppercase(), label2 = target.label().to_uppercase(), n = n);
-        self.open_fleet_run(FleetRun::new(title, "PATCH", steps, excluded), jobs, window, cx);
+        let (title, title_en) = t_pair!("app-patching-apply", label = scope.label().to_uppercase(), label2 = target.label().to_uppercase(), n = n);
+        self.open_fleet_run(FleetRun::new(title, "PATCH", steps, excluded).english(title_en), jobs, window, cx);
     }
 
     /// Plans rebooting the target's servers that say they need it, in
@@ -292,8 +292,8 @@ impl CrowApp {
         }
         let n = steps.len();
         self.patching.rescan_after_run = n > 0;
-        let title = t!("app-patching-reboot-where-needed", label = target.label().to_uppercase(), n = n);
-        self.open_fleet_run(FleetRun::new(title, "REBOOT", steps, excluded), jobs, window, cx);
+        let (title, title_en) = t_pair!("app-patching-reboot-where-needed", label = target.label().to_uppercase(), n = n);
+        self.open_fleet_run(FleetRun::new(title, "REBOOT", steps, excluded).english(title_en), jobs, window, cx);
     }
 
     /// A single server's Updates card: apply its updates on the runner.

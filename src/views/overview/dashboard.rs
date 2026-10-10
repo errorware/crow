@@ -265,7 +265,7 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
             b = b.child(section_label(t!("overview-dashboard-kernel")));
             b = b.child(info_line(t!("overview-dashboard-running", u = if u.kernel.is_empty() { "—" } else { &u.kernel }), TEXT_SECONDARY));
             if let Some((change, is_security)) = u.kernel_update() {
-                b = b.child(info_line(t!("overview-dashboard-update-pending", is_security = if is_security { "security" } else { "kernel" }, change = change), if is_security { CRIT } else { WARN }));
+                b = b.child(info_line(t!("overview-dashboard-update-pending", kind = if is_security { "security" } else { "kernel" }, change = change), if is_security { CRIT } else { WARN }));
             }
             if u.reboot_required {
                 b = b.child(info_line(t!("overview-dashboard-reboot-required-to-finish-installed").into(), WARN));

@@ -51,6 +51,7 @@ pub fn password_login_dialog(flow: &PasswordLoginFlow, app: Entity<CrowApp>) -> 
             .gap(px(8.0))
             .child(line(t!("password-login-password-login-is-on-anyone"), TEXT_SECONDARY))
             .child(line(t!("password-login-what-crow-will-do-stopping"), TEXT_MUTED))
+            .children(crate::components::english_beside::english_beside(t_beside!("password-login-what-crow-will-do-stopping")))
             .children(
                 [
                     t!("password-login-1-check-that-a-fresh").to_string(),

@@ -9,6 +9,8 @@
 //! carries control or direction-override characters is ignored and English
 //! shows instead.
 
+#[cfg(test)]
+mod guard;
 pub mod pack;
 pub mod pseudo;
 
@@ -36,15 +38,17 @@ pub struct Language {
     /// of the program (`t!("id")` is a `&'static str`, like the literal it
     /// replaced). Bounded: one copy per message per language loaded.
     plain: RwLock<HashMap<&'static str, &'static str>>,
+    /// Translated text → message id, for `english_of`.
+    reverse: OnceLock<HashMap<String, &'static str>>,
 }
 
 impl Language {
     fn english() -> Self {
-        Language { info: LanguageInfo::english(), bundle: None, plain: RwLock::new(HashMap::new()) }
+        Language { info: LanguageInfo::english(), bundle: None, plain: RwLock::new(HashMap::new()), reverse: OnceLock::new() }
     }
 
     fn with_bundle(info: LanguageInfo, bundle: FluentBundle<FluentResource>) -> Self {
-        Language { info, bundle: Some(bundle), plain: RwLock::new(HashMap::new()) }
+        Language { info, bundle: Some(bundle), plain: RwLock::new(HashMap::new()), reverse: OnceLock::new() }
     }
 
     pub fn code(&self) -> &str {
@@ -151,6 +155,21 @@ pub fn english_beside(id: &str, args: Option<&FluentArgs>) -> Option<String> {
     (current().code() != ENGLISH).then(|| english(id, args)).filter(|en| *en != format(id, args))
 }
 
+/// The English of a text shown in the current language (a message without
+/// arguments), when that's another language: what a translated danger
+/// prompt also shows.
+pub fn english_of(text: &str) -> Option<String> {
+    let lang = current();
+    if lang.code() == ENGLISH {
+        return None;
+    }
+    let map = lang.reverse.get_or_init(|| {
+        let b = lang.bundle.as_ref();
+        english_ids().iter().filter_map(|id| b.and_then(|b| format_in(b, id, None)).map(|t| (t, id.as_str()))).collect()
+    });
+    map.get(text).map(|id| english(id, None)).filter(|en| en != text)
+}
+
 fn format_in(bundle: &FluentBundle<FluentResource>, id: &str, args: Option<&FluentArgs>) -> Option<String> {
     let msg = bundle.get_message(id)?;
     let pattern = msg.value()?;
@@ -163,17 +182,20 @@ fn format_in(bundle: &FluentBundle<FluentResource>, id: &str, args: Option<&Flue
 /// a label from a manifest): the English message with that exact text, or
 /// the text itself when there is none.
 pub fn tx(english_text: &str) -> &str {
-    static BY_TEXT: OnceLock<HashMap<String, &'static str>> = OnceLock::new();
-    let map = BY_TEXT.get_or_init(|| {
-        english_ids()
-            .iter()
-            .filter_map(|id| format_in(english_bundle(), id, None).map(|text| (text, id.as_str())))
-            .collect()
-    });
-    match map.get(english_text) {
+    match english_by_text().get(english_text) {
         Some(id) if current().code() != ENGLISH => plain(id),
         _ => english_text,
     }
+}
+
+fn english_by_text() -> &'static HashMap<String, &'static str> {
+    static BY_TEXT: OnceLock<HashMap<String, &'static str>> = OnceLock::new();
+    BY_TEXT.get_or_init(|| english_ids().iter().filter_map(|id| format_in(english_bundle(), id, None).map(|text| (text, id.as_str()))).collect())
+}
+
+/// Whether `tx` can translate this English text (a message has it).
+pub fn has_english_text(text: &str) -> bool {
+    english_by_text().contains_key(text)
 }
 
 /// An argument to a message: numbers stay numbers (plural rules select on
@@ -257,6 +279,15 @@ macro_rules! t_beside {
     }};
 }
 
+/// `(text, English beside it)` for a danger prompt's title: the text in the
+/// current language, and the English when that's another language.
+#[macro_export]
+macro_rules! t_pair {
+    ($id:literal $(, $name:ident = $value:expr)* $(,)?) => {
+        ($crate::t!($id $(, $name = $value)*).to_string(), $crate::t_beside!($id $(, $name = $value)*))
+    };
+}
+
 #[cfg(test)]
 mod tests {
     use super::{english_ids, format, ENGLISH_FTL};
@@ -271,6 +302,30 @@ mod tests {
         let mut seen = std::collections::HashSet::new();
         for id in ids {
             assert!(seen.insert(id), "{id} is defined twice");
+        }
+    }
+
+    #[test]
+    fn every_setting_shown_can_be_translated() {
+        let manifest = &*crate::config::CROW_CONFIG_MANIFEST;
+        for key in crate::config::WIRED_SETTINGS {
+            let f = manifest.fields.iter().find(|f| f.name == *key).unwrap();
+            let leaf = key.split('.').nth(1).unwrap();
+            let label = crate::views::settings::config_table::format_field_label(leaf);
+            assert!(super::has_english_text(&label), "en.ftl has no message for {key}'s label {label:?}");
+            if let Some(help) = &f.help {
+                assert!(super::has_english_text(help), "en.ftl has no message for {key}'s help");
+            }
+            for o in f.options.iter().flatten() {
+                assert!(super::has_english_text(&o.label), "en.ftl has no message for {key}'s option {:?}", o.label);
+            }
+        }
+    }
+
+    #[test]
+    fn every_plugin_card_can_be_translated() {
+        for p in crate::plugins::BUILTIN {
+            assert!(super::has_english_text(p.name) && super::has_english_text(p.about), "en.ftl has no message for plugin {}", p.id);
         }
     }
 

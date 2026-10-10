@@ -191,3 +191,13 @@ mod icon_guard {
         assert!(hits.is_empty(), "icons without a colour (invisible): {hits:?}");
     }
 }
+
+/// The language pack's own font (its `### font:` line), tried after Crow's
+/// for the characters JetBrains Mono doesn't have: CJK, Arabic, Thai…
+/// Without one the system's fallback fonts are used.
+pub fn language_font<E: Styled>(mut element: E) -> E {
+    if let Some(font) = crate::i18n::current().info.font.clone() {
+        element.text_style().font_fallbacks = Some(FontFallbacks::from_fonts(vec![font]));
+    }
+    element
+}

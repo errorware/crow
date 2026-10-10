@@ -223,6 +223,12 @@ required = false
 help = "Open Crow maximized. Takes effect the next time Crow starts."
 
 [[fields]]
+name = "appearance.language"
+type = "string"
+required = false
+help = "The language of Crow's screens: en, or the code of a pack in the languages folder (es for es.ftl)."
+
+[[fields]]
 name = "servers.host_key_max_age_days"
 type = "enum"
 required = false

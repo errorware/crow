@@ -385,7 +385,7 @@ pub fn new_user_modal(
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.5))
                                 .text_color(TEXT_FAINT)
-                                .child("Executes useradd & usermod -aG under sudo"),
+                                .child(t!("users-new-user-modal-executes-under-sudo")),
                         )
                         .child(
                             div()

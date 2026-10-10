@@ -61,8 +61,8 @@ impl CrowApp {
                 }));
             }
         }
-        let title = if steps.is_empty() && excluded.is_empty() { t!("app-fleet-run-push-baseline-nothing-has-drifted") } else { t!("app-fleet-run-push-baseline-to-all") };
-        self.open_fleet_run(FleetRun::new(title, "PUSH", steps, excluded), jobs, window, cx);
+        let (title, title_en) = if steps.is_empty() && excluded.is_empty() { t_pair!("app-fleet-run-push-baseline-nothing-has-drifted") } else { t_pair!("app-fleet-run-push-baseline-to-all") };
+        self.open_fleet_run(FleetRun::new(title, "PUSH", steps, excluded).english(title_en), jobs, window, cx);
     }
 
     /// Plans rebooting every reachable server, one at a time, each waiting
@@ -87,7 +87,7 @@ impl CrowApp {
             }
         }
         let n = steps.len();
-        self.open_fleet_run(FleetRun::new(t!("app-fleet-run-rolling-reboot", n = n), "REBOOT", steps, excluded), jobs, window, cx);
+        self.open_fleet_run(FleetRun::new(t!("app-fleet-run-rolling-reboot", n = n), "REBOOT", steps, excluded).english(t_beside!("app-fleet-run-rolling-reboot", n = n)), jobs, window, cx);
     }
 
     /// How `srv` would be rebooted, and the work: reboot, wait for a fresh
@@ -194,7 +194,7 @@ impl CrowApp {
         if n > 0 {
             excluded.push((t!("app-fleet-run-other-machines").into(), t!("app-fleet-run-anyone-else-who-sshes-to").into()));
         }
-        self.open_fleet_run(FleetRun::new(t!("app-fleet-run-rotate-host-keys", n = n), "ROTATE", steps, excluded), jobs, window, cx);
+        self.open_fleet_run(FleetRun::new(t!("app-fleet-run-rotate-host-keys", n = n), "ROTATE", steps, excluded).english(t_beside!("app-fleet-run-rotate-host-keys", n = n)), jobs, window, cx);
     }
 
     /// Plans ending every other SSH login on every reachable SSH server,
@@ -225,7 +225,7 @@ impl CrowApp {
             excluded.push(("keys".into(), t!("app-fleet-run-no-key-is-removed-anyone").into()));
         }
         let n = steps.len();
-        self.open_fleet_run(FleetRun::new(t!("app-fleet-run-revoke-sessions", n = n), "REVOKE", steps, excluded), jobs, window, cx);
+        self.open_fleet_run(FleetRun::new(t!("app-fleet-run-revoke-sessions", n = n), "REVOKE", steps, excluded).english(t_beside!("app-fleet-run-revoke-sessions", n = n)), jobs, window, cx);
     }
 
     /// Plans switching every server attached to `key_id` (that doesn't use
@@ -247,8 +247,8 @@ impl CrowApp {
             excluded.push((key.name.clone(), t!("app-fleet-run-crow-has-only-the-public").into()));
         }
         let targets = if key.private_key_path.is_some() { targets } else { Vec::new() };
-        let title = t!("app-fleet-run-switch-to-key", name = key.name);
-        self.plan_key_switch(title, key, targets, false, excluded, window, cx);
+        let (title, title_en) = t_pair!("app-fleet-run-switch-to-key", name = key.name);
+        self.plan_key_switch((title, title_en), key, targets, false, excluded, window, cx);
     }
 
     /// Generates a new key next to `key_id`'s, then for every server using
@@ -292,12 +292,12 @@ impl CrowApp {
         }
         self.refresh_keys(cx);
         let excluded = vec![(new_key.name.clone(), t!("app-fleet-run-new-key-written-to-if", dir = dir.display()))];
-        let title = t!("app-fleet-run-rotate", name = old.name, name2 = new_key.name);
-        self.plan_key_switch(title, new_key, targets, true, excluded, window, cx);
+        let (title, title_en) = t_pair!("app-fleet-run-rotate", name = old.name, name2 = new_key.name);
+        self.plan_key_switch((title, title_en), new_key, targets, true, excluded, window, cx);
     }
 
     #[allow(clippy::too_many_arguments)]
-    fn plan_key_switch(&mut self, title: String, key: crate::vault::SshKeyRecord, targets: Vec<crate::vault::ServerRecord>, revoke_old: bool, excluded: Vec<(String, String)>, window: &mut Window, cx: &mut Context<Self>) {
+    fn plan_key_switch(&mut self, (title, title_en): (String, Option<String>), key: crate::vault::SshKeyRecord, targets: Vec<crate::vault::ServerRecord>, revoke_old: bool, excluded: Vec<(String, String)>, window: &mut Window, cx: &mut Context<Self>) {
         // Verification resolves key paths through the SSH directory.
         self.sync_ssh_directory();
         let (mut steps, mut jobs): (Vec<_>, Vec<RunJob>) = (Vec::new(), Vec::new());
@@ -328,7 +328,7 @@ impl CrowApp {
                 step
             }));
         }
-        self.open_fleet_run(FleetRun::new(title, "SWITCH", steps, excluded), jobs, window, cx);
+        self.open_fleet_run(FleetRun::new(title, "SWITCH", steps, excluded).english(title_en), jobs, window, cx);
     }
 
     pub(crate) fn open_fleet_run(&mut self, mut run: FleetRun, jobs: Vec<RunJob>, window: &mut Window, cx: &mut Context<Self>) {

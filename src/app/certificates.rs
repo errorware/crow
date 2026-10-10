@@ -138,7 +138,8 @@ impl CrowApp {
         let step = FleetRun::step(server_id, &self.fleet.servers.iter().find(|s| s.id == server_id).map(|s| s.name.clone()).unwrap_or_default(), what);
         // Read the certificates again once it's done.
         self.certificates.last_check = 0;
-        self.open_fleet_run(FleetRun::new(t!("app-certificates-renew", label = if label.is_empty() { cert_path.to_string() } else { label }), "RENEW", vec![step], Vec::new()), vec![job], window, cx);
+        let label = if label.is_empty() { cert_path.to_string() } else { label };
+        self.open_fleet_run(FleetRun::new(t!("app-certificates-renew", label = label), "RENEW", vec![step], Vec::new()).english(t_beside!("app-certificates-renew", label = label)), vec![job], window, cx);
     }
 }
 

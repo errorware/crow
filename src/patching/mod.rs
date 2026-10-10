@@ -333,7 +333,7 @@ pub fn wait_for_services(host: &dyn Host, failed_before: &[String], timeout: Dur
                 return if new.is_empty() {
                     Ok(t!("patching-services-up", state = state))
                 } else {
-                    Err(t!("patching-came-back-but-failed", new = if new.len() == 1 { t!("patching-a-unit") } else { "units" }, new2 = new.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")))
+                    Err(t!("patching-came-back-but-failed", count = new.len(), units = new.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")))
                 };
             }
             _ => {}

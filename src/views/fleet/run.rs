@@ -47,6 +47,9 @@ pub enum RunPhase {
 #[derive(Clone, Debug)]
 pub struct FleetRun {
     pub title: String,
+    /// The title in English when Crow is in another language: a language
+    /// pack can't make a run read as something it isn't.
+    pub title_en: Option<String>,
     /// Typed to start the run.
     pub keyword: &'static str,
     pub steps: Vec<RunStep>,
@@ -66,7 +69,12 @@ pub struct FleetRun {
 
 impl FleetRun {
     pub fn new(title: impl Into<String>, keyword: &'static str, steps: Vec<RunStep>, excluded: Vec<(String, String)>) -> Self {
-        Self { title: title.into(), keyword, steps, excluded, phase: RunPhase::Confirming, stop: Arc::new(AtomicBool::new(false)), error: None, stages: Vec::new(), pause_after: None }
+        Self { title: title.into(), title_en: None, keyword, steps, excluded, phase: RunPhase::Confirming, stop: Arc::new(AtomicBool::new(false)), error: None, stages: Vec::new(), pause_after: None }
+    }
+
+    pub fn english(mut self, title_en: Option<String>) -> Self {
+        self.title_en = title_en;
+        self
     }
 
     /// Runs steps in stages: `stages[i]` is step i's stage, and the run

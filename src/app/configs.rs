@@ -321,7 +321,7 @@ impl CrowApp {
         }
         let spaced = self.structured_format_of(file).is_some_and(|f| f == StructuredFormat::Nginx || plugins::is_flat_directives(f));
         let key = cx.new(|cx| InputState::new(window, cx).placeholder(if spaced { "directive" } else { "key" }));
-        let value = cx.new(|cx| InputState::new(window, cx).placeholder("value"));
+        let value = cx.new(|cx| InputState::new(window, cx).placeholder(t!("app-configs-value-placeholder")));
         key.update(cx, |i, cx| i.focus(window, cx));
         let to_value = value.clone();
         let events = vec![

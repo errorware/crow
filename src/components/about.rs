@@ -35,9 +35,16 @@ fn app_icon() -> Arc<Image> {
     png(&CELL, include_bytes!("../../assets/about/crow-app-icon.png"))
 }
 
-/// What COPY SYSTEM INFO puts on the clipboard, for bug reports.
+/// What COPY SYSTEM INFO puts on the clipboard, for bug reports: English,
+/// whatever the language.
 fn system_report() -> String {
-    t!("about-crow-v-platform-profile-repository", env = env!("CARGO_PKG_VERSION"), std = std::env::consts::OS, std2 = std::env::consts::ARCH, cfg = if cfg!(debug_assertions) { "debug" } else { "release" }, repo = REPO, website = WEBSITE, forum = FORUM)
+    format!(
+        "Crow v{}\nPlatform: {} ({})\nProfile: {}\nRepository: {REPO}\nWebsite: {WEBSITE}\nCommunity: {FORUM}\nEngine: GPUI Kit (WGPU) + crow-config-core\nVault: Argon2id + ChaCha20-Poly1305 + TOTP\n",
+        env!("CARGO_PKG_VERSION"),
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        if cfg!(debug_assertions) { "debug" } else { "release" },
+    )
 }
 
 pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateState, auto_install: bool) -> impl IntoElement {

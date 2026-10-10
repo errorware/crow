@@ -137,11 +137,11 @@ fn card(p: &'static BuiltinPlugin, plugins: &PluginsState, accounts: &[crate::va
                                 .child(div().size(px(10.0)).rounded_full().bg(if on { OK } else { TEXT_DIM })),
                         ),
                 )
-                .child(div().font_family(FONT_MONO).text_size(px(12.5)).font_weight(FontWeight::BOLD).text_color(if on { TEXT_PRIMARY } else { TEXT_SECONDARY }).child(p.name))
+                .child(div().font_family(FONT_MONO).text_size(px(12.5)).font_weight(FontWeight::BOLD).text_color(if on { TEXT_PRIMARY } else { TEXT_SECONDARY }).child(crate::i18n::tx(p.name)))
                 .child(div().flex_1())
                 .child(div().flex().items_center().gap(px(6.0)).font_family(FONT_MONO).text_size(px(10.0)).child(div().size(px(6.0)).rounded_full().bg(color)).child(div().text_color(color).child(text))),
         )
-        .child(div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(TEXT_MUTED).child(p.about))
+        .child(div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(TEXT_MUTED).child(crate::i18n::tx(p.about)))
         .child(div().flex().flex_wrap().gap(px(4.0)).children(p.capabilities.iter().map(|c| {
             div().px(px(5.0)).py(px(1.0)).bg(BG_CHIP).font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_TERTIARY).child(*c)
         })))

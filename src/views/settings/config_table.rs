@@ -164,7 +164,7 @@ pub fn get_field_options(
                 (
                     opts.into_iter().map(|o| SettingOption {
                         value: o.value.clone(),
-                        label: o.label.clone(),
+                        label: crate::i18n::tx(&o.label).to_string(),
                         desc: t!("settings-config-table-risk", risk = format!("{:?}", o.risk)),
                     }).collect(),
                     None,
@@ -275,7 +275,7 @@ pub fn render_config_section(
         .rows
         .iter()
         .filter(|r| r.row_id.starts_with(&sec_prefix))
-        .filter(|r| r.row_id != crate::app::appearance::FLEET_BACKGROUND)
+        .filter(|r| r.row_id != crate::app::appearance::FLEET_BACKGROUND && r.row_id != crate::app::language::LANGUAGE)
         .filter(|r| crate::config::WIRED_SETTINGS.contains(&r.row_id.as_str()))
         .collect();
     let hidden_settings = config.ir.rows.iter().filter(|r| r.row_id.starts_with(&sec_prefix) && !crate::config::WIRED_SETTINGS.contains(&r.row_id.as_str())).count();
@@ -334,6 +334,7 @@ pub fn render_config_section(
                 .flex_1()
                 .overflow_y_scrollbar()
                 .children((section == SettingsSection::Personalisation).then(|| personalisation_block(&fleet_background, app.clone())))
+                .children((section == SettingsSection::Personalisation).then(|| crate::views::settings::language::language_block(&settings.language, crate::i18n::current().code(), app.clone())))
                 .children(if section == SettingsSection::Security {
                     if !is_auth_enabled {
                         Some(
@@ -520,8 +521,8 @@ pub fn render_config_section(
                     let is_even = idx % 2 == 0;
                     let field = row.get_field(&row.row_id);
                     let leaf = row.row_id.split_once('.').map(|(_, k)| k).unwrap_or(&row.row_id);
-                    let label = format_field_label(leaf);
-                    let desc = field.and_then(|f| f.help.clone()).unwrap_or_default();
+                    let label = crate::i18n::tx(&format_field_label(leaf)).to_string();
+                    let desc = field.and_then(|f| f.help.as_deref()).map(|h| crate::i18n::tx(h).to_string()).unwrap_or_default();
                     let is_changed = config.is_field_changed(&row.row_id);
 
                     let is_bool = matches!(field.map(|f| &f.field_type), Some(FieldType::Bool));

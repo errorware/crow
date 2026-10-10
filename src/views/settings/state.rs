@@ -8,10 +8,12 @@ pub struct SettingsState {
     pub custom_input: String,
     /// Why the last edit was refused (out of range, not a number, ...).
     pub edit_error: Option<String>,
+    /// Personalisation → Language.
+    pub language: crate::app::language::LanguageState,
 }
 
 impl Default for SettingsState {
     fn default() -> Self {
-        Self { section: SettingsSection::General, dropdown_open: None, custom_input: String::new(), edit_error: None }
+        Self { section: SettingsSection::General, dropdown_open: None, custom_input: String::new(), edit_error: None, language: Default::default() }
     }
 }

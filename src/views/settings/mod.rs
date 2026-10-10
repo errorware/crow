@@ -8,6 +8,7 @@ pub mod email_form;
 pub mod diff_rail;
 pub mod keys;
 pub mod keys_state;
+pub mod language;
 pub mod lab;
 pub mod plugins;
 pub mod providers;

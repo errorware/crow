@@ -411,7 +411,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                 .font_family(FONT_MONO)
                                 .text_size(px(9.0))
                                 .text_color(TEXT_FAINT)
-                                .child(format!("{} all-time", prov.total_calls)),
+                                .child(t!("settings-clankers-all-time", count = prov.total_calls)),
                         ),
                 )
                 .child(
