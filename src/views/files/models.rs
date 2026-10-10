@@ -8,6 +8,8 @@ pub struct FileEntry {
     pub is_symlink: bool,
     pub size_bytes: u64,
     pub mode_str: String,
+    /// Permission bits, setuid/setgid/sticky included.
+    pub mode: u32,
     pub owner: String,
     pub group: String,
     pub modified: String,

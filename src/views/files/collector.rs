@@ -5,19 +5,83 @@ use crate::host::{host_for, Host, HostError};
 use crate::vault::ServerRecord;
 use super::models::FileEntry;
 
-fn mode_to_string(mode: u32, is_dir: bool, is_symlink: bool) -> String {
+/// `ls -l`'s mode column, setuid/setgid/sticky included (s/S, t/T).
+pub fn mode_to_string(mode: u32, is_dir: bool, is_symlink: bool) -> String {
     let file_type = if is_symlink { 'l' } else if is_dir { 'd' } else { '-' };
-    let bits: [(u32, char); 9] = [
-        (0o400, 'r'), (0o200, 'w'), (0o100, 'x'),
-        (0o040, 'r'), (0o020, 'w'), (0o010, 'x'),
-        (0o004, 'r'), (0o002, 'w'), (0o001, 'x'),
-    ];
     let mut s = String::with_capacity(10);
     s.push(file_type);
-    for (bit, ch) in bits {
-        s.push(if mode & bit != 0 { ch } else { '-' });
+    // (read, write, exec, special bit, special letter) for user, group, other.
+    for (shift, special, letter) in [(6, 0o4000, 's'), (3, 0o2000, 's'), (0, 0o1000, 't')] {
+        let bits = (mode >> shift) & 0o7;
+        s.push(if bits & 4 != 0 { 'r' } else { '-' });
+        s.push(if bits & 2 != 0 { 'w' } else { '-' });
+        s.push(match (bits & 1 != 0, mode & special != 0) {
+            (true, true) => letter,
+            (false, true) => letter.to_ascii_uppercase(),
+            (true, false) => 'x',
+            (false, false) => '-',
+        });
     }
     s
+}
+
+/// The most of a file the viewer reads.
+pub const PREVIEW_LIMIT: usize = 256 * 1024;
+
+/// The start of a text file for the viewer: up to PREVIEW_LIMIT bytes, and
+/// whether there was more. As root (sudo -n) when the login can't read it.
+pub fn read_preview(server: &ServerRecord, path: &str) -> Result<(String, bool), String> {
+    let host = host_for(server);
+    let limit = (PREVIEW_LIMIT + 1).to_string();
+    let argv = ["head", "-c", limit.as_str(), "--", path];
+    let out = match host.exec(&argv, crate::host::DEFAULT_TIMEOUT) {
+        Ok(out) => out,
+        Err(HostError::Failed { .. }) => host.exec_privileged(&argv, b"", crate::host::DEFAULT_TIMEOUT).map_err(|e| e.to_string())?,
+        Err(e) => return Err(e.to_string()),
+    };
+    preview_text(out.stdout)
+}
+
+/// Text the viewer can show, or why not.
+fn preview_text(mut text: String) -> Result<(String, bool), String> {
+    let undecodable = text.chars().filter(|c| *c == '\u{FFFD}').count();
+    if text.contains('\0') || undecodable * 100 > text.len().max(1) {
+        return Err("binary file: nothing to show as text".into());
+    }
+    let truncated = text.len() > PREVIEW_LIMIT;
+    if truncated {
+        let mut end = PREVIEW_LIMIT;
+        while !text.is_char_boundary(end) {
+            end -= 1;
+        }
+        text.truncate(end);
+    }
+    Ok((text, truncated))
+}
+
+/// Sets a file's permission bits, as root (sudo -n) when the login can't.
+pub fn change_mode(server: &ServerRecord, path: &str, mode: u32) -> Result<(), String> {
+    let host = host_for(server);
+    let octal = format!("{:04o}", mode & 0o7777);
+    let argv = ["chmod", octal.as_str(), "--", path];
+    match host.exec(&argv, crate::host::DEFAULT_TIMEOUT) {
+        Ok(_) => Ok(()),
+        Err(HostError::Failed { .. }) => host.exec_privileged(&argv, b"", crate::host::DEFAULT_TIMEOUT).map(|_| ()).map_err(|e| e.to_string()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+/// What the terminal types to edit `path`: nano (else vim, else vi), through
+/// sudoedit when the login can't write the file. None for a path with
+/// control characters, which can't be typed safely.
+pub fn edit_command(path: &str) -> Option<String> {
+    if path.chars().any(char::is_control) {
+        return None;
+    }
+    let f = crate::host::ssh::shell_quote(path);
+    Some(format!(
+        "f={f}; e=$(command -v nano || command -v vim || command -v vi); if [ -w \"$f\" ] || [ \"$(id -u)\" = 0 ]; then \"$e\" \"$f\"; else SUDO_EDITOR=\"$e\" sudoedit \"$f\"; fi\r"
+    ))
 }
 
 /// Parses a `name:...:id:...`-shaped file (/etc/passwd or /etc/group) into an
@@ -48,6 +112,7 @@ pub fn list_directory(host: &dyn Host, path: &str) -> Result<Vec<FileEntry>, Hos
         .into_iter()
         .map(|e| FileEntry {
             mode_str: mode_to_string(e.mode, e.is_dir, e.is_symlink),
+            mode: e.mode & 0o7777,
             owner: users.get(&e.uid).cloned().unwrap_or_else(|| e.uid.to_string()),
             group: groups.get(&e.gid).cloned().unwrap_or_else(|| e.gid.to_string()),
             modified: chrono::Local
@@ -107,5 +172,26 @@ mod tests {
         assert_eq!(mode_to_string(0o755, true, false), "drwxr-xr-x");
         assert_eq!(mode_to_string(0o640, false, false), "-rw-r-----");
         assert_eq!(mode_to_string(0o777, false, true), "lrwxrwxrwx");
+        assert_eq!(mode_to_string(0o4755, false, false), "-rwsr-xr-x");
+        assert_eq!(mode_to_string(0o1777, true, false), "drwxrwxrwt");
+        assert_eq!(mode_to_string(0o2640, false, false), "-rw-r-S---");
+    }
+
+    #[test]
+    fn previews_are_text_and_capped() {
+        assert_eq!(preview_text("a\nb\n".into()), Ok(("a\nb\n".into(), false)));
+        assert!(preview_text("ELF\0\0".into()).is_err());
+        let (text, more) = preview_text("x".repeat(PREVIEW_LIMIT + 1)).unwrap();
+        assert!(more);
+        assert_eq!(text.len(), PREVIEW_LIMIT);
+    }
+
+    #[test]
+    fn the_edit_command_quotes_the_path() {
+        let cmd = edit_command("/etc/it's here.conf").unwrap();
+        assert!(cmd.starts_with("f='/etc/it'\\''s here.conf'; "));
+        assert!(cmd.ends_with("fi\r"));
+        assert!(cmd.contains("sudoedit"));
+        assert_eq!(edit_command("/tmp/a\nb"), None);
     }
 }

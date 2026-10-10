@@ -79,6 +79,8 @@ pub struct TerminalPane {
     /// A press reported to the program: its button code and the cell last
     /// reported, so drags report only cell changes.
     pub mouse_held: Option<(u8, Option<(usize, usize)>)>,
+    /// Typed into the shell once it starts (Files → edit in terminal).
+    pub pending_input: Option<Vec<u8>>,
 }
 
 pub struct TerminalTab {
@@ -142,7 +144,7 @@ fn next_pane_id() -> PaneId {
 
 impl CrowApp {
     fn new_pane(server_id: &str, cx: &mut Context<Self>) -> TerminalPane {
-        TerminalPane { id: next_pane_id(), server_id: server_id.into(), session: None, audit: None, error: None, focus: cx.focus_handle(), target: Rc::new(Cell::new(None)), focus_pending: true, grid: Rc::new(Cell::new(None)), selecting: false, mouse_held: None }
+        TerminalPane { id: next_pane_id(), server_id: server_id.into(), session: None, audit: None, error: None, focus: cx.focus_handle(), target: Rc::new(Cell::new(None)), focus_pending: true, grid: Rc::new(Cell::new(None)), selecting: false, mouse_held: None, pending_input: None }
     }
 
     /// The active server's workspace, created with one tab on first use.
@@ -332,6 +334,9 @@ impl CrowApp {
                     let Some(srv) = servers.iter().find(|s| s.id == pane.server_id) else { continue };
                     match launch_for(srv).and_then(|l| Session::spawn(&l, size).map_err(|e| format!("couldn't start a terminal: {e}"))) {
                         Ok(s) => {
+                            if let Some(bytes) = pane.pending_input.take() {
+                                s.write(bytes);
+                            }
                             pane.session = Some(s);
                             pane.audit = Some(TerminalAudit::open(db.clone(), srv, pane.id));
                         }
