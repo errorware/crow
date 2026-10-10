@@ -23,6 +23,9 @@
 
 ---
 
+> [!WARNING]
+> **Crow is in active development.** It's reshaped and debugged constantly: features change or move between releases, things break, and the vault format can change. Try it on servers you can afford to experiment with, not production, and expect rough edges. Bug reports are welcome.
+
 ## Overview
 
 **Crow** is a native desktop app for operators and SREs who manage Linux servers over SSH. It's inspired by the density and keyboard speed of `k9s` and `lazygit`, drawn as a hardware-accelerated GUI with **GPUI**.
