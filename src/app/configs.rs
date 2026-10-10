@@ -510,7 +510,8 @@ impl CrowApp {
                                 value: &a.value,
                                 typed: a.key.read(cx).value().trim().to_string(),
                             });
-                            return structured_editor(st, format, &ir, &self.configs, active, confirm, adding, app).into_any_element();
+                            let login_user = self.fleet.active_server().map(|s| s.login_user).unwrap_or_default();
+                            return structured_editor(st, format, &ir, &self.configs, active, confirm, adding, &login_user, app).into_any_element();
                         }
                         // Unparseable: fall through to the text editor.
                         Err(e) => self.configs.edit_error = Some(format!("{selected} could not be parsed: {e}")),
