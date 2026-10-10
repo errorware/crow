@@ -20,7 +20,7 @@ pub fn crow_logo(ink: Rgba) -> impl IntoElement {
     svg()
         .data(include_bytes!("../../assets/logo.svg").as_slice())
         .w(px(16.0))
-        .h(px(14.0))
+        .h(px(15.0))
         .text_color(ink)
         .flex_none()
 }
