@@ -334,7 +334,7 @@ impl CrowApp {
         let (mut steps, mut jobs): (Vec<_>, Vec<RunJob>) = (Vec::new(), Vec::new());
         for (srv, before) in entries {
             let what = match &before {
-                crate::config::push::Before::Missing => format!("remove {path} (it didn't exist)"),
+                crate::config::push::Before::Missing { .. } => format!("remove {path} (it didn't exist)"),
                 crate::config::push::Before::Content(_) => format!("put back {path} as it was"),
             };
             steps.push(FleetRun::step(&srv.id, &srv.name, what.clone()));
@@ -343,7 +343,7 @@ impl CrowApp {
                 let host = host_for(&srv);
                 let content = match &before {
                     crate::config::push::Before::Content(c) => c.as_str(),
-                    crate::config::push::Before::Missing => "",
+                    crate::config::push::Before::Missing { .. } => "",
                 };
                 let target = crate::config::push::PushTarget { server_id: &srv.id, server_name: &srv.name, path: &path, baseline: content, author: &author, login_user: &srv.login_user, message: "Rolled back", context: "rollout rollback" };
                 let result = crate::config::push::restore(host.as_ref(), &db, key.as_ref(), &target, &before);

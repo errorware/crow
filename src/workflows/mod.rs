@@ -13,3 +13,5 @@ mod harness;
 mod w01_enroll;
 #[cfg(test)]
 mod w02_bastion;
+#[cfg(test)]
+mod w03_push_configs;

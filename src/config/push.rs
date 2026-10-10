@@ -34,8 +34,9 @@ pub fn push_baseline(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKe
 /// What a file was before a push replaced it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Before {
-    /// It didn't exist: the push created it.
-    Missing,
+    /// It didn't exist: the push created it, and these folders on the way
+    /// (outermost first).
+    Missing { created_dirs: Vec<String> },
     Content(String),
 }
 
@@ -51,10 +52,11 @@ pub fn push_file(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKey>, 
 pub fn restore(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKey>, t: &PushTarget, before: &Before) -> StepResult {
     match before {
         Before::Content(_) => push_baseline(host, db, key, t),
-        Before::Missing => {
+        Before::Missing { created_dirs } => {
             let argv = ["rm", "-f", "--", t.path];
             host.exec(&argv, DEFAULT_TIMEOUT).or_else(|_| host.exec_privileged(&argv, &[], DEFAULT_TIMEOUT)).map_err(|e| format!("couldn't remove {}: {e}", t.path))?;
-            Ok(StepOutcome::Done("removed (it didn't exist before)".into()))
+            remove_dirs(host, created_dirs);
+            Ok(StepOutcome::Done(if created_dirs.is_empty() { "removed (it didn't exist before)".into() } else { format!("removed, with {} (none of it existed before)", created_dirs.join(", ")) }))
         }
     }
 }
@@ -63,11 +65,35 @@ fn exists(host: &dyn Host, path: &str) -> bool {
     host.exec(&["test", "-e", path], DEFAULT_TIMEOUT).is_ok() || host.exec_privileged(&["test", "-e", path], &[], DEFAULT_TIMEOUT).is_ok()
 }
 
+/// The folders on the way to `path` that don't exist yet, outermost first.
+fn missing_dirs(host: &dyn Host, path: &str) -> Vec<String> {
+    let mut missing = Vec::new();
+    let mut at = std::path::Path::new(path).parent();
+    while let Some(dir) = at.filter(|d| !d.as_os_str().is_empty() && *d != std::path::Path::new("/")) {
+        let d = dir.to_string_lossy().to_string();
+        if exists(host, &d) {
+            break;
+        }
+        missing.push(d);
+        at = dir.parent();
+    }
+    missing.reverse();
+    missing
+}
+
+/// Removes folders a push created, innermost first, only while empty.
+fn remove_dirs(host: &dyn Host, dirs: &[String]) {
+    for d in dirs.iter().rev() {
+        let argv = ["rmdir", "--", d.as_str()];
+        let _ = host.exec(&argv, DEFAULT_TIMEOUT).or_else(|_| host.exec_privileged(&argv, &[], DEFAULT_TIMEOUT));
+    }
+}
+
 fn push_inner(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKey>, t: &PushTarget, may_create: bool, previous: &mut Option<Before>) -> StepResult {
     let read = host.read_file(t.path).or_else(|_| host.exec_privileged(&["cat", "--", t.path], &[], DEFAULT_TIMEOUT).map(|o| o.stdout));
     let (current, before) = match read {
         Ok(c) => (c.clone(), Before::Content(c)),
-        Err(_) if may_create && !exists(host, t.path) => (String::new(), Before::Missing),
+        Err(_) if may_create && !exists(host, t.path) => (String::new(), Before::Missing { created_dirs: Vec::new() }),
         Err(e) => return Err(format!("couldn't read {}: {e}", t.path)),
     };
     let format = format_for_path(t.path);
@@ -75,22 +101,41 @@ fn push_inner(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKey>, t: 
         Drift::Identical | Drift::Cosmetic => return Ok(StepOutcome::Skipped("already matches the baseline".into())),
         Drift::Differs(d) => d.len(),
     };
-    if format == Some(plugins::StructuredFormat::Nginx) {
-        super::nginx::install_nginx(host, t.path, t.baseline).map_err(|e| format!("not written: {e}"))?;
-    } else if format == Some(plugins::StructuredFormat::Sudoers) {
-        // visudo and the keep-sudo guard run in the install itself.
-        super::sudoers::install_sudoers(host, t.path, t.baseline, t.login_user).map_err(|e| format!("not written: {e}"))?;
-    } else {
-        if let Some(f) = format {
-            plugins::validate_on_host(host, f, t.path, t.baseline).map_err(|e| format!("not written: the host's validator refused the baseline: {e}"))?;
+    // A new file may need its folders: created (as root when needed), and
+    // remembered so a rollback (or a failed write) takes them away again.
+    let mut before = before;
+    if let Before::Missing { created_dirs } = &mut before {
+        *created_dirs = missing_dirs(host, t.path);
+        if let Some(parent) = created_dirs.last() {
+            let argv = ["mkdir", "-p", "--", parent.as_str()];
+            host.exec(&argv, DEFAULT_TIMEOUT).or_else(|_| host.exec_privileged(&argv, &[], DEFAULT_TIMEOUT)).map_err(|e| format!("not written: couldn't create {parent}: {e}"))?;
         }
-        if format == Some(plugins::StructuredFormat::Fstab) {
-            super::fstab::check(host, &current, t.baseline).map_err(|e| format!("not written: {e}"))?;
+    }
+    let written = (|| -> Result<(), String> {
+        if format == Some(plugins::StructuredFormat::Nginx) {
+            super::nginx::install_nginx(host, t.path, t.baseline).map_err(|e| format!("not written: {e}"))?;
+        } else if format == Some(plugins::StructuredFormat::Sudoers) {
+            // visudo and the keep-sudo guard run in the install itself.
+            super::sudoers::install_sudoers(host, t.path, t.baseline, t.login_user).map_err(|e| format!("not written: {e}"))?;
+        } else {
+            if let Some(f) = format {
+                plugins::validate_on_host(host, f, t.path, t.baseline).map_err(|e| format!("not written: the host's validator refused the baseline: {e}"))?;
+            }
+            if format == Some(plugins::StructuredFormat::Fstab) {
+                super::fstab::check(host, &current, t.baseline).map_err(|e| format!("not written: {e}"))?;
+            }
+            host.write_file_privileged(t.path, t.baseline).map_err(|e| format!("not written: {e}"))?;
+            if format == Some(plugins::StructuredFormat::Fstab) {
+                super::fstab::reload_systemd(host);
+            }
         }
-        host.write_file_privileged(t.path, t.baseline).map_err(|e| format!("not written: {e}"))?;
-        if format == Some(plugins::StructuredFormat::Fstab) {
-            super::fstab::reload_systemd(host);
+        Ok(())
+    })();
+    if let Err(e) = written {
+        if let Before::Missing { created_dirs } = &before {
+            remove_dirs(host, created_dirs);
         }
+        return Err(e);
     }
 
     *previous = Some(before);
@@ -157,9 +202,19 @@ mod tests {
         let fresh = dir.join("new.conf");
         let fresh_path = fresh.to_str().unwrap();
         let (r, previous) = push_file(&LocalHost, &db, Some(&key), &target(fresh_path, "x = 1\n"));
-        assert!(r.is_ok() && previous == Some(Before::Missing), "{r:?}");
+        assert!(r.is_ok() && previous == Some(Before::Missing { created_dirs: Vec::new() }), "{r:?}");
         assert_eq!(std::fs::read_to_string(&fresh).unwrap(), "x = 1\n");
-        assert!(restore(&LocalHost, &db, Some(&key), &target(fresh_path, ""), &Before::Missing).is_ok());
+        assert!(restore(&LocalHost, &db, Some(&key), &target(fresh_path, ""), &Before::Missing { created_dirs: Vec::new() }).is_ok());
+        // A new file in folders that don't exist yet: they're created, and a
+        // rollback takes the file and those folders (only) away.
+        let nested = dir.join("app.d/conf.d/new.conf");
+        let nested_path = nested.to_str().unwrap();
+        let (r, previous) = push_file(&LocalHost, &db, Some(&key), &target(nested_path, "y = 2\n"));
+        let made = vec![dir.join("app.d").display().to_string(), dir.join("app.d/conf.d").display().to_string()];
+        assert!(r.is_ok() && previous == Some(Before::Missing { created_dirs: made.clone() }), "{r:?} {previous:?}");
+        assert_eq!(std::fs::read_to_string(&nested).unwrap(), "y = 2\n");
+        assert!(restore(&LocalHost, &db, Some(&key), &target(nested_path, ""), &previous.unwrap()).is_ok());
+        assert!(!dir.join("app.d").exists() && dir.exists(), "the folders it made are gone, the rest stays");
         assert!(!fresh.exists());
         // Trailing whitespace only: nothing to do, nothing written.
         std::fs::write(&file, "workers = 8   \n").unwrap();
