@@ -39,12 +39,14 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
         .flex()
         .flex_col()
         .bg(BG_APP)
-        // 1. Keys Subheader & Action Bar
+        // 1. Keys Subheader & Action Bar: wraps to two lines when narrow.
         .child(
             div()
-                .h(px(40.0))
+                .min_h(px(40.0))
+                .py(px(6.0))
                 .flex_none()
                 .flex()
+                .flex_wrap()
                 .items_center()
                 .px(px(14.0))
                 .bg(BG_PANEL)
@@ -55,6 +57,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                 .child(
                     div()
                         .flex()
+                        .flex_wrap()
                         .items_center()
                         .gap(px(4.0))
                         // "ALL" tab
@@ -307,8 +310,10 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                             .child(
                                 div()
                                     .flex()
+                                    .flex_wrap()
                                     .items_center()
                                     .justify_between()
+                                    .gap(px(6.0))
                                     .child(
                                         div()
                                             .flex()
@@ -349,11 +354,14 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                     .gap(px(12.0))
                                     .child(
                                         div()
+                                            .flex_1()
+                                            .min_w(px(0.0))
                                             .flex()
                                             .items_center()
                                             .gap(px(10.0))
                                             .child(
                                                 div()
+                                                    .flex_none()
                                                     .px(px(5.0))
                                                     .py(px(2.0))
                                                     .bg(BG_CONTROL)
@@ -367,11 +375,14 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                             )
                                             .child(
                                                 div()
+                                                    .flex_1()
+                                                    .min_w(px(0.0))
                                                     .flex()
                                                     .flex_col()
                                                     .gap(px(2.0))
                                                     .child(
                                                         div()
+                                                            .truncate()
                                                             .font_family(FONT_MONO)
                                                             .text_size(px(11.5))
                                                             .font_weight(FontWeight::BOLD)
@@ -380,11 +391,13 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                     )
                                                     .child(
                                                         div()
+                                                            .min_w(px(0.0))
                                                             .flex()
                                                             .items_center()
                                                             .gap(px(8.0))
                                                             .child(
                                                                 div()
+                                                                    .flex_none()
                                                                     .font_family(FONT_MONO)
                                                                     .text_size(px(10.0))
                                                                     .text_color(TEXT_DIMMER)
@@ -392,6 +405,8 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                             )
                                                             .child(
                                                                 div()
+                                                                    .min_w(px(0.0))
+                                                                    .truncate()
                                                                     .font_family(FONT_MONO)
                                                                     .text_size(px(9.5))
                                                                     .text_color(TEXT_FAINT)
@@ -404,6 +419,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                         let import_grp = target_grp.clone();
                                         div()
                                             .id(ElementId::NamedInteger("btn-import-disc".into(), idx as u64))
+                                            .flex_none()
                                             .px(px(10.0))
                                             .py(px(4.0))
                                             .bg(WARN_BG)
@@ -544,12 +560,12 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                         .child(
                             div()
                                 .flex()
-                                .items_center()
-                                .justify_between()
-                                .gap(px(10.0))
+                                .flex_col()
+                                .gap(px(8.0))
                                 .child(
                                     div()
                                         .flex()
+                                        .flex_wrap()
                                         .items_center()
                                         .gap(px(8.0))
                                         // Algo badge
@@ -614,10 +630,12 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                             )
                                         }),
                                 )
-                                // Attached Servers Chips
+                                // Attached servers: their own row, wrapping, so a key
+                                // used everywhere doesn't run under the right rail.
                                 .child(
                                     div()
                                         .flex()
+                                        .flex_wrap()
                                         .items_center()
                                         .gap(px(4.0))
                                         .child(
@@ -679,6 +697,8 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                 .border_color(BORDER_ROW)
                                 .child(
                                     div()
+                                        .flex_1()
+                                        .min_w(px(0.0))
                                         .flex()
                                         .flex_col()
                                         .gap(px(3.0))
@@ -689,6 +709,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                 .gap(px(8.0))
                                                 .child(
                                                     div()
+                                                        .flex_none()
                                                         .font_family(FONT_MONO)
                                                         .text_size(px(9.5))
                                                         .text_color(TEXT_FAINTER)
@@ -696,6 +717,8 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                 )
                                                 .child(
                                                     div()
+                                                        .min_w(px(0.0))
+                                                        .truncate()
                                                         .font_family(FONT_MONO)
                                                         .text_size(px(10.5))
                                                         .text_color(TEXT_PRIMARY)
@@ -704,12 +727,15 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                         )
                                         .child(
                                             div()
+                                                .min_w(px(0.0))
                                                 .flex()
                                                 .items_center()
                                                 .gap(px(12.0))
                                                 .children(if let Some(ref path) = key.private_key_path {
                                                     Some(
                                                         div()
+                                                            .min_w(px(0.0))
+                                                            .truncate()
                                                             .font_family(FONT_MONO)
                                                             .text_size(px(9.5))
                                                             .text_color(TEXT_DIM)
@@ -734,6 +760,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                 // Copy Actions
                                 .child(
                                     div()
+                                        .flex_none()
                                         .flex()
                                         .items_center()
                                         .gap(px(6.0))
@@ -791,8 +818,10 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                         .child(
                             div()
                                 .flex()
+                                .flex_wrap()
                                 .items_center()
                                 .justify_between()
+                                .gap(px(6.0))
                                 .pt(px(2.0))
                                 .child(
                                     div()

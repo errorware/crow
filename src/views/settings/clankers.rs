@@ -158,6 +158,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                         .child(
                             div()
                                 .flex_1()
+                                .min_w(px(0.0))
                                 .flex()
                                 .flex_col()
                                 .gap(px(3.0))
@@ -607,12 +608,14 @@ fn render_eli5_sandbox(
         .flex()
         .flex_col()
         .gap(px(12.0))
-        // Header
+        // Header: the presets drop under the title when the pane is narrow.
         .child(
             div()
                 .flex()
+                .flex_wrap()
                 .items_center()
                 .justify_between()
+                .gap(px(8.0))
                 .child(
                     div()
                         .flex()

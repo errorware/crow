@@ -318,18 +318,13 @@ pub fn render_config_section(
                 )
                 .child(
                     div()
+                        .flex_1()
+                        .min_w(px(0.0))
+                        .truncate()
                         .font_family(FONT_MONO)
                         .text_size(px(10.0))
                         .text_color(TEXT_DIMMER)
                         .child(sub),
-                )
-                .child(div().flex_1())
-                .child(
-                    div()
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.0))
-                        .text_color(TEXT_FAINT)
-                        .child("overrides apply per-server in Config view"),
                 ),
         )
         // Rows List
@@ -560,6 +555,7 @@ pub fn render_config_section(
                                 .child(
                                     div()
                                         .flex_1()
+                                        .min_w(px(0.0))
                                         .flex()
                                         .flex_col()
                                         .gap(px(2.0))
@@ -602,6 +598,7 @@ pub fn render_config_section(
                                 // Right Column: Interactive Dropdown Button and Reset Control
                                 .child(
                                     div()
+                                        .flex_none()
                                         .flex()
                                         .items_center()
                                         .gap(px(6.0))

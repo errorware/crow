@@ -175,11 +175,14 @@ pub fn settings_view(
                 .border_color(BORDER_PANEL)
                 .child(
                     div()
+                        .flex_1()
+                        .min_w(px(0.0))
                         .flex()
                         .items_baseline()
                         .gap(px(10.0))
                         .child(
                             div()
+                                .flex_none()
                                 .font_family(FONT_MONO)
                                 .text_size(px(16.0))
                                 .font_weight(FontWeight::BOLD)
@@ -188,16 +191,19 @@ pub fn settings_view(
                         )
                         .child(
                             div()
+                                .min_w(px(0.0))
+                                .truncate()
                                 .font_family(FONT_MONO)
                                 .text_size(px(11.5))
                                 .text_color(TEXT_DIM)
                                 .child(status_subtitle),
                         ),
                 )
-                .child(div().flex_1())
                 .child(
                     div()
                         .id("btn-close-settings")
+                        .flex_none()
+                        .ml(px(12.0))
                         .px(px(10.0))
                         .py(px(5.0))
                         .border_1()
