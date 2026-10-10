@@ -1,26 +1,52 @@
+//! The About box (ERR-161): old-school and wide. The crow down the left,
+//! the app's name and build in a header, where to find the project, and
+//! the details in a dark scroll box.
+
+use std::sync::{Arc, OnceLock};
+
+use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::*;
 use gpui_kit::prelude::FluentBuilder as _;
 use crate::theme::*;
 use crate::app::{CrowApp, UpdateState};
 use crate::components::icons::{TablerIcon, tabler_icon};
 
+const REPO: &str = "https://github.com/errorware/crow";
+const WEBSITE: &str = "https://crow.rs";
+const FORUM: &str = "https://forum.errorware.net";
+
+fn png(cell: &'static OnceLock<Arc<Image>>, bytes: &'static [u8]) -> Arc<Image> {
+    cell.get_or_init(|| Arc::new(Image::from_bytes(ImageFormat::Png, bytes.to_vec()))).clone()
+}
+
+fn side_picture() -> Arc<Image> {
+    static CELL: OnceLock<Arc<Image>> = OnceLock::new();
+    png(&CELL, include_bytes!("../../assets/about/crow-about-sidepic.png"))
+}
+
+fn app_icon() -> Arc<Image> {
+    static CELL: OnceLock<Arc<Image>> = OnceLock::new();
+    png(&CELL, include_bytes!("../../assets/about/crow-app-icon.png"))
+}
+
+/// What COPY SYSTEM INFO puts on the clipboard, for bug reports.
+fn system_report() -> String {
+    format!(
+        "Crow v{}\nPlatform: {} ({})\nProfile: {}\nRepository: {REPO}\nWebsite: {WEBSITE}\nCommunity: {FORUM}\nEngine: GPUI Kit (WGPU) + crow-config-core\nVault: Argon2id + ChaCha20-Poly1305 + TOTP\n",
+        env!("CARGO_PKG_VERSION"),
+        std::env::consts::OS,
+        std::env::consts::ARCH,
+        if cfg!(debug_assertions) { "debug" } else { "release" },
+    )
+}
+
 pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateState, auto_install: bool) -> impl IntoElement {
-    let app_close1 = app.clone();
-    let app_close2 = app.clone();
+    let app_scrim = app.clone();
+    let app_x = app.clone();
+    let app_close = app.clone();
     let app_copy = app.clone();
-
-    let os_str = std::env::consts::OS;
-    let arch_str = std::env::consts::ARCH;
-    let profile_str = if cfg!(debug_assertions) { "Debug (Dev)" } else { "Release" };
-    let version_str = env!("CARGO_PKG_VERSION");
-    let authors_str = "Nelson <nelson@errorware.net>";
-    let website_str = "https://errorware.net";
-    let repo_str = "https://github.com/errorware/crow";
-
-    let system_report = format!(
-        "Crow Server Manager\nVersion: v{}\nPlatform: {} ({})\nProfile: {}\nAuthor: {}\nWebsite: {}\nRepository: {}\nEngine: GPUI Kit (WGPU) + crow-config-core\nVault: Argon2id + ChaCha20-Poly1305 + TOTP\n",
-        version_str, os_str, arch_str, profile_str, authors_str, website_str, repo_str
-    );
+    let version = env!("CARGO_PKG_VERSION");
+    let profile = if cfg!(debug_assertions) { "debug build" } else { "release build" };
 
     div()
         .id("about-modal-scrim")
@@ -31,246 +57,208 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
         .flex()
         .items_center()
         .justify_center()
-        .on_click(move |_ev, _window, cx| {
-            app_close1.update(cx, |this, cx| {
-                this.close_about_modal(cx);
-            });
-        })
+        .on_click(move |_ev, _window, cx| app_scrim.update(cx, |this, cx| this.close_about_modal(cx)))
         .child(
             div()
                 .id("about-modal-panel")
                 .occlude()
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // keep clicks inside from reaching the backdrop (which closes)
-                .w(px(520.0))
+                .w(px(780.0))
+                .h(px(440.0))
                 .bg(BG_OVERLAY_PANEL)
                 .border_1()
                 .border_color(BORDER_STRONG)
                 .shadow_lg()
                 .flex()
-                .flex_col()
-                // 1. Header Bar
+                .font_family(FONT_MONO)
+                // The crow, down the whole left side.
                 .child(
                     div()
-                        .h(px(38.0))
-                        .bg(BG_PANEL)
-                        .border_b_1()
-                        .border_color(BORDER_PANEL)
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .px(px(14.0))
-                        .child(
-                            div()
-                                .flex()
-                                .items_center()
-                                .gap(px(8.0))
-                                .child(tabler_icon(TablerIcon::InfoCircle).size(px(14.0)).text_color(OK))
-                                .child(
-                                    div()
-                                        .font_family(FONT_MONO)
-                                        .font_weight(FontWeight::BOLD)
-                                        .text_size(px(11.5))
-                                        .text_color(TEXT_MAX)
-                                        .child("ABOUT CROW"),
-                                ),
-                        )
-                        .child(
-                            div()
-                                .id("about-close-btn")
-                                .size(px(24.0))
-                                .flex()
-                                .items_center()
-                                .justify_center()
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .on_click(move |_ev, _window, cx| {
-                                    app_close2.update(cx, |this, cx| {
-                                        this.close_about_modal(cx);
-                                    });
-                                })
-                                .child(tabler_icon(TablerIcon::X).size(px(13.0)).text_color(TEXT_MUTED)),
-                        ),
+                        .w(px(232.0))
+                        .h_full()
+                        .flex_none()
+                        .overflow_hidden()
+                        .border_r_1()
+                        .border_color(BORDER_STRONG)
+                        .bg(hex_rgb(0x000000))
+                        .child(img(side_picture()).size_full().object_fit(ObjectFit::Cover)),
                 )
-                // 2. Banner & Brand Identity
                 .child(
                     div()
-                        .p(px(20.0))
+                        .flex_1()
+                        .min_w(px(0.0))
+                        .h_full()
                         .flex()
                         .flex_col()
-                        .gap(px(18.0))
-                        // Title row
+                        // Title bar
                         .child(
                             div()
+                                .h(px(30.0))
+                                .flex_none()
                                 .flex()
                                 .items_center()
-                                .gap(px(14.0))
+                                .justify_between()
+                                .pl(px(14.0))
+                                .pr(px(6.0))
+                                .bg(BG_PANEL)
+                                .border_b_1()
+                                .border_color(BORDER_PANEL)
+                                .child(div().text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child("About Crow"))
+                                .child(crate::components::icon_button::icon_button("about-close-btn", TablerIcon::X, false).on_click(move |_ev, _window, cx| app_x.update(cx, |this, cx| this.close_about_modal(cx)))),
+                        )
+                        // Header: icon, name, version, what it is
+                        .child(
+                            div()
+                                .flex_none()
+                                .flex()
+                                .items_center()
+                                .gap(px(16.0))
+                                .px(px(20.0))
+                                .pt(px(18.0))
+                                .pb(px(14.0))
+                                .child(img(app_icon()).size(px(64.0)).flex_none())
                                 .child(
                                     div()
-                                        .size(px(46.0))
-                                        .bg(hex_rgb(0x10131a))
-                                        .border_1()
-                                        .border_color(BORDER_STRONG)
-                                        .flex()
-                                        .items_center()
-                                        .justify_center()
-                                        .child(tabler_icon(TablerIcon::Server).size(px(24.0)).text_color(OK)),
-                                )
-                                .child(
-                                    div()
+                                        .flex_1()
+                                        .min_w(px(0.0))
                                         .flex()
                                         .flex_col()
-                                        .gap(px(2.0))
+                                        .gap(px(3.0))
                                         .child(
                                             div()
                                                 .flex()
-                                                .items_center()
-                                                .gap(px(8.0))
-                                                .child(
-                                                    div()
-                                                        .font_family(FONT_MONO)
-                                                        .font_weight(FontWeight::EXTRA_BOLD)
-                                                        .text_size(px(18.0))
-                                                        .text_color(TEXT_MAX)
-                                                        .child("CROW"),
-                                                )
-                                                .child(
-                                                    div()
-                                                        .px(px(6.0))
-                                                        .py(px(1.5))
-                                                        .bg(hex_rgb(0x131d16))
-                                                        .border_1()
-                                                        .border_color(OK)
-                                                        .font_family(FONT_MONO)
-                                                        .text_size(px(10.0))
-                                                        .font_weight(FontWeight::BOLD)
-                                                        .text_color(OK)
-                                                        .child(format!("v{}", version_str)),
-                                                )
-                                                .child(
-                                                    div()
-                                                        .px(px(6.0))
-                                                        .py(px(1.5))
-                                                        .bg(BG_CHIP)
-                                                        .font_family(FONT_MONO)
-                                                        .text_size(px(10.0))
-                                                        .font_weight(FontWeight::BOLD)
-                                                        .text_color(TEXT_DIMMER)
-                                                        .child("OBSIDIAN EDGE"),
-                                                ),
+                                                .items_baseline()
+                                                .gap(px(10.0))
+                                                .child(div().text_size(px(22.0)).font_weight(FontWeight::EXTRA_BOLD).text_color(TEXT_MAX).child("Crow"))
+                                                .child(div().text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(OK).child(format!("v{version}"))),
                                         )
-                                        .child(
-                                            div()
-                                                .font_family(FONT_MONO)
-                                                .text_size(px(11.0))
-                                                .text_color(TEXT_SECONDARY)
-                                                .child("Modern Linux Server Management & Telemetry Hub"),
-                                        ),
+                                        .child(div().text_size(px(11.0)).text_color(TEXT_SECONDARY).child("Native Linux server manager over SSH"))
+                                        .child(div().text_size(px(10.0)).text_color(TEXT_FAINT).child(format!("{} · {} · {profile}", std::env::consts::OS, std::env::consts::ARCH))),
                                 ),
                         )
-                        // Specs Grid
+                        // Where to find the project
                         .child(
                             div()
-                                .bg(hex_rgb(0x0a0a0d))
-                                .border_1()
-                                .border_color(BORDER_PANEL)
-                                .p(px(12.0))
+                                .flex_none()
                                 .flex()
                                 .flex_col()
-                                .gap(px(8.0))
-                                .child(info_row("PLATFORM", &format!("{} ({})", os_str, arch_str)))
-                                .child(info_row("BUILD TARGET", "x86_64-unknown-linux-gnu"))
-                                .child(info_row("BUILD PROFILE", profile_str))
-                                .child(info_row("UI TOOLKIT", "GPUI Kit v0.6.1 · WGPU Native"))
-                                .child(info_row("SECURITY VAULT", "Argon2id · ChaCha20-Poly1305 · TOTP"))
-                                .child(info_row("CONFIG CORE", "crow-config-core · Schema IR"))
-                                .child(info_row("GEOIP DATA", crate::geoip::ATTRIBUTION))
-                                .child(info_row("DISTRO ICONS", "Dashboard Icons by homarr-labs · Apache-2.0")),
+                                .gap(px(3.0))
+                                .px(px(20.0))
+                                .pb(px(12.0))
+                                .child(link_row("about-link-website", "Website", WEBSITE))
+                                .child(link_row("about-link-repo", "Source", REPO))
+                                .child(link_row("about-link-forum", "Community", FORUM)),
                         )
-                        // A newer version (ERR-88).
-                        .children(update_panel(update, auto_install, app.clone()))
-                        // Author & Website metadata
+                        // The details, in a dark scroll box
                         .child(
                             div()
-                                .bg(hex_rgb(0x0a0a0d))
+                                .flex_1()
+                                .min_h(px(0.0))
+                                .mx(px(20.0))
+                                .bg(hex_rgb(0x08080a))
                                 .border_1()
                                 .border_color(BORDER_PANEL)
-                                .p(px(12.0))
-                                .flex()
-                                .flex_col()
-                                .gap(px(8.0))
-                                .child(info_row("AUTHOR", authors_str))
-                                .child(info_row("ORGANIZATION", "Errorware"))
-                                .child(info_row("DOCS WEBSITE", website_str))
-                                .child(info_row("SOURCE CODE", repo_str)),
-                        ),
-                )
-                // 3. Footer Actions
-                .child(
-                    div()
-                        .h(px(46.0))
-                        .bg(BG_PANEL)
-                        .border_t_1()
-                        .border_color(BORDER_PANEL)
-                        .px(px(16.0))
-                        .flex()
-                        .items_center()
-                        .justify_between()
-                        .child(
-                            div()
-                                .id("copy-sysinfo-btn")
-                                .flex()
-                                .items_center()
-                                .gap(px(6.0))
-                                .px(px(10.0))
-                                .py(px(5.0))
-                                .bg(BG_CONTROL)
-                                .border_1()
-                                .border_color(if copied_toast { OK } else { BORDER_DEFAULT })
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_CONTROL_ALT))
-                                .on_click(move |_ev, _window, cx| {
-                                    cx.write_to_clipboard(ClipboardItem::new_string(system_report.clone()));
-                                    app_copy.update(cx, |this, cx| {
-                                        this.about_copied_toast = true;
-                                        cx.notify();
-                                    });
-                                })
-                                .child(tabler_icon(TablerIcon::Copy).size(px(12.0)).text_color(if copied_toast { OK } else { TEXT_SECONDARY }))
                                 .child(
                                     div()
-                                        .font_family(FONT_MONO)
-                                        .font_weight(FontWeight::BOLD)
-                                        .text_size(px(10.5))
-                                        .text_color(if copied_toast { OK } else { TEXT_PRIMARY })
-                                        .child(if copied_toast { "✓ COPIED SYSTEM INFO" } else { "COPY SYSTEM INFO" }),
+                                        .id("about-details-scroll")
+                                        .size_full()
+                                        .overflow_y_scrollbar()
+                                        .flex()
+                                        .flex_col()
+                                        .gap(px(6.0))
+                                        .p(px(12.0))
+                                        // A newer version (ERR-88).
+                                        .children(update_panel(update, auto_install, app.clone()))
+                                        .child(heading("BUILD"))
+                                        .child(info_row("Platform", &format!("{} ({})", std::env::consts::OS, std::env::consts::ARCH)))
+                                        .child(info_row("Profile", profile))
+                                        .child(info_row("UI toolkit", "GPUI Kit 0.6.1 · WGPU"))
+                                        .child(info_row("Config engine", "crow-config-core · schema IR"))
+                                        .child(info_row("Vault", "Argon2id · ChaCha20-Poly1305 · TOTP"))
+                                        .child(heading("CREDITS"))
+                                        .child(info_row("Icons", "Tabler Icons · MIT"))
+                                        .child(info_row("Flags", "flag-icons · MIT"))
+                                        .child(info_row("Distro logos", "Dashboard Icons by homarr-labs · Apache-2.0"))
+                                        .child(info_row("GeoIP data", crate::geoip::ATTRIBUTION))
+                                        .child(info_row("Font", "JetBrains Mono · OFL-1.1"))
+                                        .child(heading("LICENSE"))
+                                        .child(div().text_size(px(10.0)).line_height(px(15.0)).text_color(TEXT_DIM).child("AEUPL-1.2. Free for any non-commercial use. See LICENSE in the repository.")),
                                 ),
                         )
+                        // Footer
                         .child(
                             div()
-                                .id("about-dismiss-btn")
-                                .px(px(16.0))
-                                .py(px(5.0))
-                                .bg(BG_CONTROL)
-                                .border_1()
-                                .border_color(BORDER_STRONG)
-                                .font_family(FONT_MONO)
-                                .font_weight(FontWeight::BOLD)
-                                .text_size(px(11.0))
-                                .text_color(TEXT_MAX)
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .on_click({
-                                    let app_close = app.clone();
-                                    move |_ev, _window, cx| {
-                                        app_close.update(cx, |this, cx| {
-                                            this.close_about_modal(cx);
-                                        });
-                                    }
-                                })
-                                .child("CLOSE"),
+                                .h(px(48.0))
+                                .flex_none()
+                                .flex()
+                                .items_center()
+                                .justify_between()
+                                .px(px(20.0))
+                                .child(
+                                    div()
+                                        .id("copy-sysinfo-btn")
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(6.0))
+                                        .px(px(10.0))
+                                        .py(px(5.0))
+                                        .bg(BG_CONTROL)
+                                        .border_1()
+                                        .border_color(if copied_toast { OK } else { BORDER_DEFAULT })
+                                        .cursor_pointer()
+                                        .hover(|s| s.bg(BG_CONTROL_ALT))
+                                        .on_click(move |_ev, _window, cx| {
+                                            cx.write_to_clipboard(ClipboardItem::new_string(system_report()));
+                                            app_copy.update(cx, |this, cx| {
+                                                this.about_copied_toast = true;
+                                                cx.notify();
+                                            });
+                                        })
+                                        .child(tabler_icon(TablerIcon::Copy).size(px(12.0)).text_color(if copied_toast { OK } else { TEXT_SECONDARY }))
+                                        .child(div().font_weight(FontWeight::BOLD).text_size(px(10.5)).text_color(if copied_toast { OK } else { TEXT_PRIMARY }).child(if copied_toast { "✓ COPIED SYSTEM INFO" } else { "COPY SYSTEM INFO" })),
+                                )
+                                .child(
+                                    div()
+                                        .id("about-dismiss-btn")
+                                        .px(px(20.0))
+                                        .py(px(5.0))
+                                        .bg(BG_CONTROL)
+                                        .border_1()
+                                        .border_color(BORDER_STRONG)
+                                        .font_weight(FontWeight::BOLD)
+                                        .text_size(px(11.0))
+                                        .text_color(TEXT_MAX)
+                                        .cursor_pointer()
+                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .on_click(move |_ev, _window, cx| app_close.update(cx, |this, cx| this.close_about_modal(cx)))
+                                        .child("OK"),
+                                ),
                         ),
                 ),
         )
+}
+
+/// A labelled link that opens in the browser.
+fn link_row(id: &'static str, label: &'static str, url: &'static str) -> impl IntoElement {
+    div()
+        .flex()
+        .items_center()
+        .gap(px(10.0))
+        .text_size(px(11.0))
+        .child(div().w(px(80.0)).flex_none().text_color(TEXT_MUTED).child(label))
+        .child(
+            div()
+                .id(id)
+                .text_color(hex_rgb(0x8ab4ff))
+                .cursor_pointer()
+                .hover(|s| s.underline().text_color(hex_rgb(0xb4ceff)))
+                .on_click(move |_ev, _window, cx| cx.open_url(url))
+                .child(url.trim_start_matches("https://")),
+        )
+}
+
+fn heading(title: &'static str) -> impl IntoElement {
+    div().pt(px(4.0)).text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(title)
 }
 
 /// The offered release: notes, skip, and install (when installing is on)
@@ -339,21 +327,8 @@ fn update_panel(update: &UpdateState, auto_install: bool, app: Entity<CrowApp>) 
 fn info_row(label: &'static str, value: &str) -> impl IntoElement {
     div()
         .flex()
-        .items_center()
-        .justify_between()
-        .child(
-            div()
-                .font_family(FONT_MONO)
-                .text_size(px(10.0))
-                .font_weight(FontWeight::BOLD)
-                .text_color(TEXT_MUTED)
-                .child(label),
-        )
-        .child(
-            div()
-                .font_family(FONT_MONO)
-                .text_size(px(11.0))
-                .text_color(TEXT_PRIMARY)
-                .child(value.to_string()),
-        )
+        .gap(px(12.0))
+        .text_size(px(10.5))
+        .child(div().w(px(110.0)).flex_none().text_color(TEXT_MUTED).child(label))
+        .child(div().flex_1().min_w(px(0.0)).text_color(TEXT_PRIMARY).child(value.to_string()))
 }
