@@ -15,47 +15,47 @@ pub enum Stance {
 impl Stance {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Open => "OPEN",
-            Self::Locked => "LOCKED",
+            Self::Open => t!("security-stance-open"),
+            Self::Locked => t!("security-stance-locked"),
         }
     }
 
-    pub fn protects(self) -> &'static [&'static str] {
+    pub fn protects(self) -> Vec<&'static str> {
         match self {
-            Self::Open => &[
-                "Secrets (provider tokens, AI keys) are encrypted in crow.db, so a copy of the file or a backup doesn't reveal them.",
-                "Tokens never appear on a command line or in logs.",
+            Self::Open => vec![
+                t!("security-stance-secrets-provider-tokens-ai-keys"),
+                t!("security-stance-tokens-never-appear-on-a"),
             ],
-            Self::Locked => &[
-                "Everything Open protects.",
-                "Nobody can open Crow or use its secrets without your password and a 2FA code, not even programs running as you.",
-                "The key is wiped from memory when Crow locks.",
-            ],
-        }
-    }
-
-    pub fn exposed(self) -> &'static [&'static str] {
-        match self {
-            Self::Open => &[
-                "Anyone at your unlocked computer can open Crow and use everything in it.",
-                "Any program running as you can ask the OS keyring for Crow's key while you're logged in (your login unlocks the keyring), then read every secret.",
-                "Provider tokens can power servers off and take snapshots; whoever has your session has that power.",
-                "Crow's SSH keys in ~/.ssh are files Crow doesn't encrypt: unless they have a passphrase, anything running as you can use them to reach your servers.",
-            ],
-            Self::Locked => &[
-                "While Crow is unlocked, anyone at your computer can use it, until it auto-locks.",
-                "Crow's SSH keys in ~/.ssh are files Crow doesn't encrypt: unless they have a passphrase, anything running as you can use them, locked or not.",
-                "Your server list, settings and change history are not encrypted in either stance.",
+            Self::Locked => vec![
+                t!("security-stance-everything-open-protects"),
+                t!("security-stance-nobody-can-open-crow-or"),
+                t!("security-stance-the-key-is-wiped-from"),
             ],
         }
     }
 
-    pub fn costs(self) -> &'static [&'static str] {
+    pub fn exposed(self) -> Vec<&'static str> {
         match self {
-            Self::Open => &["Nothing to type, nothing to lose. That convenience is the exposure above."],
-            Self::Locked => &[
-                "You unlock Crow with your password and a 2FA code on every launch and after auto-lock.",
-                "Lose the password or the authenticator and the stored secrets are gone for good. There is no reset and no recovery.",
+            Self::Open => vec![
+                t!("security-stance-anyone-at-your-unlocked-computer"),
+                t!("security-stance-any-program-running-as-you"),
+                t!("security-stance-provider-tokens-can-power-servers"),
+                t!("security-stance-crows-ssh-keys-in-ssh"),
+            ],
+            Self::Locked => vec![
+                t!("security-stance-while-crow-is-unlocked-anyone"),
+                t!("security-stance-crows-ssh-keys-in-ssh-2"),
+                t!("security-stance-your-server-list-settings-and"),
+            ],
+        }
+    }
+
+    pub fn costs(self) -> Vec<&'static str> {
+        match self {
+            Self::Open => vec![t!("security-stance-nothing-to-type-nothing-to")],
+            Self::Locked => vec![
+                t!("security-stance-you-unlock-crow-with-your"),
+                t!("security-stance-lose-the-password-or-the"),
             ],
         }
     }
@@ -89,26 +89,22 @@ pub fn assess(i: &StanceInputs) -> StanceReport {
     let mut findings = Vec::new();
     let mut weak = |text: String| findings.push(text);
     if i.plaintext_ai_keys {
-        weak("AI API keys are still stored in plain text (from an older version of Crow). They move into the vault as soon as an encryption key is available.".into());
+        weak(t!("security-stance-ai-api-keys-are-still").into());
     }
     match stance {
         Stance::Open => {
             if let KeyringState::Unavailable(why) = &i.keyring {
-                weak(format!("No OS keyring is available ({why}), so Crow can't store secrets at all. Switch to Locked to store them."));
+                weak(t!("security-stance-no-os-keyring-is-available", why = why));
             }
             if i.action_capable_accounts > 0 {
-                weak(format!(
-                    "{} provider account{} can power servers or take snapshots, usable by anyone at this session.",
-                    i.action_capable_accounts,
-                    if i.action_capable_accounts == 1 { "" } else { "s" }
-                ));
+                weak(t!("security-stance-provider-can-power-servers-or", action_capable_accounts = i.action_capable_accounts));
             }
         }
         Stance::Locked => {
             if i.auto_lock_minutes == 0 {
-                weak("Auto-lock is off: once unlocked, Crow stays unlocked until you lock it or quit.".into());
+                weak(t!("security-stance-auto-lock-is-off-once").into());
             } else if i.auto_lock_minutes > LONG_AUTO_LOCK_MINUTES {
-                weak(format!("Auto-lock is {} minutes: an unattended, unlocked Crow stays usable that long.", i.auto_lock_minutes));
+                weak(t!("security-stance-auto-lock-is-minutes-an", auto_lock_minutes = i.auto_lock_minutes));
             }
         }
     }

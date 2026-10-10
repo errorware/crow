@@ -18,11 +18,11 @@ pub enum EventKind {
 impl EventKind {
     pub fn label(self) -> &'static str {
         match self {
-            EventKind::AlertOpened => "ALERT",
-            EventKind::AlertResolved => "RESOLVED",
-            EventKind::Change => "CHANGE",
-            EventKind::CheckFailed => "CHECK",
-            EventKind::Log => "LOG",
+            EventKind::AlertOpened => t!("incident-alert"),
+            EventKind::AlertResolved => t!("incident-resolved"),
+            EventKind::Change => t!("incident-change"),
+            EventKind::CheckFailed => t!("incident-check"),
+            EventKind::Log => t!("incident-log"),
         }
     }
 }

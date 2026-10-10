@@ -65,18 +65,18 @@ impl Inventory {
             if !timer_ok && !cron_ok {
                 let state = self.auto.iter().find(|a| a.contains(".timer")).cloned();
                 return Some(match state {
-                    Some(t) => format!("certbot's timer isn't running ({t}): certificates won't renew on their own"),
-                    None => "certbot is installed but nothing runs it (no timer, no cron): certificates won't renew on their own".into(),
+                    Some(t) => t!("certs-certbots-timer-isnt-running-certificates", t = t),
+                    None => t!("certs-certbot-is-installed-but-nothing").into(),
                 });
             }
             if let Some(last) = self.log.last() {
                 if last.contains("ERROR") || last.to_lowercase().contains("failed") {
-                    return Some(format!("certbot's last renewal failed: {last}"));
+                    return Some(t!("certs-certbots-last-renewal-failed", last = last));
                 }
             }
         }
         if self.acme_sh.is_some() && !self.certbot && !self.auto.iter().any(|a| a == "cron acme.sh") {
-            return Some("acme.sh is installed but its cron job is missing: certificates won't renew on their own".into());
+            return Some(t!("certs-acme-sh-is-installed-but").into());
         }
         None
     }
@@ -147,7 +147,7 @@ pub fn read_inventory(host: &dyn Host) -> Result<Inventory, String> {
 fn root(host: &dyn Host, script: &str, timeout: std::time::Duration) -> Result<String, String> {
     let full = format!("PATH=\"$PATH:/usr/sbin:/sbin:/snap/bin\"; ( {script} ) 2>&1");
     host.exec_privileged(&["sh", "-c", &full], &[], timeout).map(|o| o.stdout).map_err(|e| match e {
-        HostError::Failed { stderr, status } => format!("exit {status}: {}", stderr.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").trim()),
+        HostError::Failed { stderr, status } => t!("certs-exit", status = status, stderr = stderr.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("").trim()),
         other => other.to_string(),
     })
 }
@@ -171,41 +171,41 @@ pub fn renew(host: &dyn Host, what: &Renewal, nginx: bool, apache: bool, confirm
     match what {
         Renewal::Certbot { name } => {
             if name.is_empty() || name.starts_with('-') || name.contains(char::is_whitespace) {
-                return Err(vec![format!("✕ {name:?} isn't a certificate name.")]);
+                return Err(vec![t!("certs-isnt-a-certificate-name", name = format!("{:?}", name))]);
             }
             let q = crate::host::ssh::shell_quote(name);
             match root(host, &format!("certbot renew --cert-name {q} --dry-run --non-interactive"), RENEW_TIMEOUT) {
-                Ok(out) => log.push(format!("✓ Dry run passed: {}", tail(&out))),
+                Ok(out) => log.push(t!("certs-dry-run-passed", tail = tail(&out))),
                 Err(e) => {
-                    log.push(format!("✕ The dry run failed, so nothing was renewed: {e}"));
+                    log.push(t!("certs-the-dry-run-failed-so", e = e));
                     return Err(log);
                 }
             }
             match root(host, &format!("certbot renew --cert-name {q} --non-interactive"), RENEW_TIMEOUT) {
                 Ok(out) if out.contains("not due for renewal") || out.contains("not yet due") => {
-                    log.push("= Not due yet: certbot renews within 30 days of expiry, and Let's Encrypt limits how often a certificate can be issued.".into());
+                    log.push(t!("certs-not-due-yet-certbot-renews").into());
                     return Ok(log);
                 }
-                Ok(out) => log.push(format!("✓ Renewed: {}", tail(&out))),
+                Ok(out) => log.push(t!("certs-renewed", tail = tail(&out))),
                 Err(e) => {
-                    log.push(format!("✕ Renewal failed: {e}"));
+                    log.push(t!("certs-renewal-failed", e = e));
                     return Err(log);
                 }
             }
         }
         Renewal::AcmeSh { script, domain } => {
             if domain.is_empty() || domain.starts_with('-') || domain.contains(char::is_whitespace) {
-                return Err(vec![format!("✕ {domain:?} isn't a domain.")]);
+                return Err(vec![t!("certs-isnt-a-domain", domain = format!("{:?}", domain))]);
             }
-            log.push("· acme.sh has no dry run: renewing directly.".into());
+            log.push(t!("certs-acme-sh-has-no-dry").into());
             match root(host, &format!("{} --renew -d {}", crate::host::ssh::shell_quote(script), crate::host::ssh::shell_quote(domain)), RENEW_TIMEOUT) {
                 Ok(out) if out.contains("Skip, Next renewal time") => {
-                    log.push("= Not due yet (acme.sh renews 60 days after issue).".into());
+                    log.push(t!("certs-not-due-yet-acme-sh").into());
                     return Ok(log);
                 }
-                Ok(out) => log.push(format!("✓ Renewed: {}", tail(&out))),
+                Ok(out) => log.push(t!("certs-renewed", tail = tail(&out))),
                 Err(e) => {
-                    log.push(format!("✕ Renewal failed: {e}"));
+                    log.push(t!("certs-renewal-failed", e = e));
                     return Err(log);
                 }
             }
@@ -215,25 +215,25 @@ pub fn renew(host: &dyn Host, what: &Renewal, nginx: bool, apache: bool, confirm
     // must not be reloaded.
     if nginx {
         match root(host, "nginx -t && (systemctl reload nginx || nginx -s reload)", crate::host::DEFAULT_TIMEOUT) {
-            Ok(_) => log.push("✓ nginx config checked and reloaded.".into()),
+            Ok(_) => log.push(t!("certs-nginx-config-checked-and-reloaded").into()),
             Err(e) => {
-                log.push(format!("✕ nginx wasn't reloaded ({e}): it still serves the old certificate until it is."));
+                log.push(t!("certs-nginx-wasnt-reloaded-it-still", e = e));
                 return Err(log);
             }
         }
     }
     if apache {
         match root(host, "(apachectl configtest || apache2ctl configtest) && (systemctl reload apache2 || systemctl reload httpd || apachectl graceful)", crate::host::DEFAULT_TIMEOUT) {
-            Ok(_) => log.push("✓ Apache config checked and reloaded.".into()),
+            Ok(_) => log.push(t!("certs-apache-config-checked-and-reloaded").into()),
             Err(e) => {
-                log.push(format!("✕ Apache wasn't reloaded ({e}): it still serves the old certificate until it is."));
+                log.push(t!("certs-apache-wasnt-reloaded-it-still", e = e));
                 return Err(log);
             }
         }
     }
     match confirm() {
-        Some(expiry) => log.push(format!("✓ The certificate now expires {expiry}.")),
-        None => log.push("· Couldn't re-read the certificate to confirm its new expiry.".into()),
+        Some(expiry) => log.push(t!("certs-the-certificate-now-expires", expiry = expiry)),
+        None => log.push(t!("certs-couldnt-re-read-the-certificate").into()),
     }
     Ok(log)
 }

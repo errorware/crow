@@ -19,12 +19,12 @@ pub fn backgrounds_dir() -> PathBuf {
 /// Copies `source` into the backgrounds folder, shrunk and as PNG, and
 /// returns the stored path.
 pub fn store_background(source: &Path) -> Result<PathBuf, String> {
-    let img = image::open(source).map_err(|e| format!("{} isn't a picture Crow can read: {e}", source.display()))?;
+    let img = image::open(source).map_err(|e| t!("appearance-isnt-a-picture-crow-can", source = source.display(), e = e))?;
     let img = if img.width() > MAX_WIDTH { img.resize(MAX_WIDTH, MAX_WIDTH * 4, image::imageops::FilterType::Triangle) } else { img };
     let dir = backgrounds_dir();
-    std::fs::create_dir_all(&dir).map_err(|e| format!("can't create {}: {e}", dir.display()))?;
+    std::fs::create_dir_all(&dir).map_err(|e| t!("appearance-cant-create", dir = dir.display(), e = e))?;
     let dest = dir.join(format!("fleet-{}.png", chrono::Utc::now().timestamp_millis()));
-    img.save(&dest).map_err(|e| format!("can't save {}: {e}", dest.display()))?;
+    img.save(&dest).map_err(|e| t!("appearance-cant-save", dest = dest.display(), e = e))?;
     Ok(dest)
 }
 
@@ -39,13 +39,13 @@ pub fn rendered_background(stored: &Path, blur: u32) -> Result<PathBuf, String> 
     if cached.exists() {
         return Ok(cached);
     }
-    let img = image::open(stored).map_err(|e| format!("can't read {}: {e}", stored.display()))?;
+    let img = image::open(stored).map_err(|e| t!("appearance-cant-read", stored = stored.display(), e = e))?;
     // Blur a half-size copy (four times less work; a blurred picture loses
     // nothing), then scale back up.
     let (w, h) = (img.width(), img.height());
     let small = img.resize_exact((w / 2).max(1), (h / 2).max(1), image::imageops::FilterType::Triangle);
     let blurred = small.blur(blur as f32 / 2.0).resize_exact(w, h, image::imageops::FilterType::Triangle);
-    blurred.save(&cached).map_err(|e| format!("can't save {}: {e}", cached.display()))?;
+    blurred.save(&cached).map_err(|e| t!("appearance-cant-save-2", cached = cached.display(), e = e))?;
     Ok(cached)
 }
 

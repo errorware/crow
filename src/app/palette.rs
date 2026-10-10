@@ -40,7 +40,7 @@ impl CrowApp {
                 // "this server", not its name: typing a server's name should
                 // find the server, not every page of the open one.
                 if let Some(view) = item.view_id {
-                    out.push(Entry { category: t!("app-palette-page"), label: crate::i18n::tx(item.label).to_string(), hint: t!("app-palette-this-server").into(), keywords: view.into(), target: Target::Page(view) });
+                    out.push(Entry { category: t!("app-palette-page"), label: item.label.to_string(), hint: t!("app-palette-this-server").into(), keywords: view.into(), target: Target::Page(view) });
                 }
             }
             out.push(Entry { category: t!("app-palette-page"), label: t!("app-palette-danger-zone").into(), hint: t!("app-palette-this-server").into(), keywords: "danger reboot snapshot".into(), target: Target::Page("danger") });
@@ -118,7 +118,7 @@ impl CrowApp {
         let mut out: Vec<Entry> = nav_items()
             .iter()
             .filter(|i| i.view_id.is_none_or(|v| crate::components::sidebar::page_shown(v, &self.plugins.enabled)))
-            .filter_map(|item| item.view_id.map(|view| Entry { category: t!("app-palette-page"), label: crate::i18n::tx(item.label).to_string(), hint: srv.name.clone(), keywords: view.into(), target: Target::Server { id: srv.id.clone(), view } }))
+            .filter_map(|item| item.view_id.map(|view| Entry { category: t!("app-palette-page"), label: item.label.to_string(), hint: srv.name.clone(), keywords: view.into(), target: Target::Server { id: srv.id.clone(), view } }))
             .collect();
         out.push(Entry { category: t!("app-palette-page"), label: t!("app-palette-danger-zone").into(), hint: srv.name.clone(), keywords: "danger reboot snapshot".into(), target: Target::Server { id: srv.id.clone(), view: "danger" } });
         if srv.id == self.fleet.active_tab_id {

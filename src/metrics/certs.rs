@@ -77,12 +77,12 @@ pub fn cert_changes(open: &[Alert], server: &str, certs: &[CertInfo], now: i64) 
             continue;
         }
         let level = if days <= CERT_CRIT_DAYS { "CRIT" } else { "WARN" };
-        let what = if c.name.is_empty() { "certificate".to_string() } else { format!("certificate for {}", c.name) };
+        let what = if c.name.is_empty() { "certificate".to_string() } else { t!("metrics-certs-certificate-for", name = c.name) };
         let when = match days {
-            d if d < 0 => format!("expired {} day{} ago", -d, if d == -1 { "" } else { "s" }),
-            0 => "expires today".to_string(),
-            1 => "expires tomorrow".to_string(),
-            d => format!("expires in {d} days"),
+            d if d < 0 => t!("metrics-certs-expired-day-ago", d = -d, d2 = if d == -1 { "" } else { "s" }),
+            0 => t!("metrics-certs-expires-today").to_string(),
+            1 => t!("metrics-certs-expires-tomorrow").to_string(),
+            d => t!("metrics-certs-expires-in-days", d = d),
         };
         let detail = format!("{what} {when} ({})", c.path);
         let kind = format!("cert:{}", c.path);

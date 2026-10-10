@@ -16,10 +16,10 @@ pub enum VaultForm {
 
 impl VaultForm {
     /// (key, placeholder, masked) for each input.
-    fn fields(self) -> &'static [(&'static str, &'static str, bool)] {
+    fn fields(self) -> Vec<(&'static str, &'static str, bool)> {
         match self {
-            Self::ChangePassword => &[("current", "current password", true), ("code", "2FA code", false), ("new", "new password (8+ characters)", true), ("confirm", "new password again", true)],
-            Self::GoOpen => &[("current", "current password", true), ("code", "2FA code", false)],
+            Self::ChangePassword => vec![("current", t!("app-vault-manage-current-password"), true), ("code", t!("app-vault-manage-2fa-code"), false), ("new", t!("app-vault-manage-new-password-8-characters"), true), ("confirm", t!("app-vault-manage-new-password-again"), true)],
+            Self::GoOpen => vec![("current", t!("app-vault-manage-current-password"), true), ("code", t!("app-vault-manage-2fa-code"), false)],
         }
     }
 }
@@ -61,7 +61,7 @@ impl CrowApp {
         let inputs: Vec<(&'static str, Entity<InputState>)> = form
             .fields()
             .iter()
-            .map(|(key, placeholder, masked)| (*key, cx.new(|cx| InputState::new(window, cx).placeholder(crate::i18n::tx(placeholder)).masked(*masked))))
+            .map(|(key, placeholder, masked)| (*key, cx.new(|cx| InputState::new(window, cx).placeholder(*placeholder).masked(*masked))))
             .collect();
         let events = inputs
             .iter()

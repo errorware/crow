@@ -48,17 +48,17 @@ pub fn parse_systemctl_services(stdout: &str) -> Vec<ServiceUnit> {
         };
 
         let (status, color_hex) = if active_state == "active" && sub_state == "running" {
-            (t!("overview-collector-active"), 0x4ade80)
+            ("ACTIVE", 0x4ade80)
         } else if active_state == "active" && sub_state == "exited" {
-            (t!("overview-collector-inactive"), 0x71717a)
+            ("INACTIVE", 0x71717a)
         } else if active_state == "active" {
-            (t!("overview-collector-active"), 0x4ade80)
+            ("ACTIVE", 0x4ade80)
         } else if sub_state == "failed" {
-            (t!("overview-collector-failed"), 0xf87171)
+            ("FAILED", 0xf87171)
         } else if sub_state == "degraded" {
-            (t!("overview-collector-degraded"), 0xfacc15)
+            ("DEGRADED", 0xfacc15)
         } else {
-            (t!("overview-collector-inactive"), 0x71717a)
+            ("INACTIVE", 0x71717a)
         };
 
         units.push(ServiceUnit {

@@ -131,16 +131,16 @@ pub const WORKLOADS_PER_SERVER: usize = 12;
 pub fn workload_risks(c: &crate::containers::Container) -> Vec<Risk> {
     let mut out = Vec::new();
     if c.health.as_deref() == Some("unhealthy") && c.is_running() {
-        out.push(risk(Level::Crit, "container", "its health check fails"));
+        out.push(risk(Level::Crit, "container", t!("topology-its-health-check-fails")));
     }
     if c.state == "exited" && !c.status.starts_with("Exited (0)") {
-        out.push(risk(Level::Warn, "container", format!("stopped with an error: {}", c.status)));
+        out.push(risk(Level::Warn, "container", t!("topology-stopped-with-an-error", status = c.status)));
     }
     if let Some(n) = c.restarts.filter(|n| *n >= 5) {
-        out.push(risk(Level::Warn, "container", format!("restarted {n} times")));
+        out.push(risk(Level::Warn, "container", t!("topology-restarted-times", n = n)));
     }
     for p in c.published().iter().filter(|p| p.exposed()) {
-        out.push(risk(Level::Warn, "container", format!("port {} (→ {}) published to every network", p.host_port, p.container)));
+        out.push(risk(Level::Warn, "container", t!("topology-port-published-to-every-network", host_port = p.host_port, container = p.container)));
     }
     out
 }
@@ -175,10 +175,10 @@ fn kind_of(s: &ServerRecord) -> NodeKind {
 pub fn key_strength_risk(public_key: &str) -> Option<Risk> {
     let key = ssh_key::PublicKey::from_openssh(public_key.trim()).ok()?;
     match key.key_data() {
-        ssh_key::public::KeyData::Dsa(_) => Some(risk(Level::Crit, "key", "DSA key: broken, and refused by current OpenSSH")),
+        ssh_key::public::KeyData::Dsa(_) => Some(risk(Level::Crit, "key", t!("topology-dsa-key-broken-and-refused"))),
         ssh_key::public::KeyData::Rsa(rsa) => {
             let bits = rsa.n.as_positive_bytes().map_or(0, |b| b.len() * 8);
-            (bits < 3072).then(|| risk(Level::Warn, "key", format!("RSA {bits}-bit: under the 3072 bits current guidance asks for")))
+            (bits < 3072).then(|| risk(Level::Warn, "key", t!("topology-rsa-bit-under-the-3072", bits = bits)))
         }
         _ => None,
     }
@@ -202,9 +202,9 @@ pub fn build(i: &Inputs) -> Graph {
     g.nodes.push(Node {
         id: "crow".into(),
         kind: NodeKind::Crow,
-        label: "Crow".into(),
-        detail: "this machine".into(),
-        lane: "CROW".into(),
+        label: t!("topology-crow-2").into(),
+        detail: t!("topology-this-machine").into(),
+        lane: t!("topology-crow").into(),
         health: Health::Ok,
         risks: Vec::new(),
         server_id: None,
@@ -226,16 +226,16 @@ pub fn build(i: &Inputs) -> Graph {
             risks.push(risk(level, "alert", if a.detail.is_empty() { a.kind.clone() } else { a.detail.clone() }));
         }
         if s.host_key_fingerprint.is_none() && kind_of(s) != NodeKind::Container {
-            risks.push(risk(Level::Warn, "server", "host key not pinned: Crow never recorded which key this server should have"));
+            risks.push(risk(Level::Warn, "server", t!("topology-host-key-not-pinned-crow")));
         }
         if s.auth_method == "password" {
-            risks.push(risk(Level::Warn, "server", "Crow logs in with a password, not a key"));
+            risks.push(risk(Level::Warn, "server", t!("topology-crow-logs-in-with-a")));
         }
         if let Some(p) = i.posture.get(&s.id) {
             risks.extend(posture_risks(&s.id, p, i.accepted));
         }
         if let Some(&n) = through.get(s.id.as_str()).filter(|n| **n >= 2) {
-            risks.push(risk(Level::Warn, "fleet", format!("jump host for {n} servers: if it's down, Crow can't reach them")));
+            risks.push(risk(Level::Warn, "fleet", t!("topology-jump-host-for-servers-if", n = n)));
         }
         let addr = if s.login_user.is_empty() { format!("{}:{}", s.host, s.port) } else { format!("{}@{}:{}", s.login_user, s.host, s.port) };
         g.nodes.push(Node {
@@ -243,7 +243,7 @@ pub fn build(i: &Inputs) -> Graph {
             kind: kind_of(s),
             label: s.name.clone(),
             detail: addr,
-            lane: if s.env.is_empty() { "SERVERS".into() } else { s.env.to_uppercase() },
+            lane: if s.env.is_empty() { t!("topology-servers").into() } else { s.env.to_uppercase() },
             health: i.health.get(&s.id).copied().unwrap_or(Health::Unknown),
             risks,
             server_id: Some(s.id.clone()),
@@ -265,7 +265,7 @@ pub fn build(i: &Inputs) -> Graph {
                 kind: NodeKind::Workload,
                 label: c.name.clone(),
                 detail: c.image.clone(),
-                lane: if s.env.is_empty() { "SERVERS".into() } else { s.env.to_uppercase() },
+                lane: if s.env.is_empty() { t!("topology-servers").into() } else { s.env.to_uppercase() },
                 health: if c.is_running() { Health::Ok } else { Health::Unknown },
                 risks,
                 server_id: Some(s.id.clone()),
@@ -281,17 +281,17 @@ pub fn build(i: &Inputs) -> Graph {
         }
         let mut risks: Vec<Risk> = key_strength_risk(&k.public_key).into_iter().collect();
         if let Some(days) = age_days(&k.created_at, i.now).filter(|d| *d > KEY_MAX_AGE_DAYS) {
-            risks.push(risk(Level::Warn, "key", format!("{days} days old: past the {KEY_MAX_AGE_DAYS}-day rotation guidance")));
+            risks.push(risk(Level::Warn, "key", t!("topology-days-old-past-the-day", days = days, key_max_age_days = KEY_MAX_AGE_DAYS)));
         }
         if k.private_key_path.is_none() {
-            risks.push(risk(Level::Warn, "key", "no private key file recorded on this machine"));
+            risks.push(risk(Level::Warn, "key", t!("topology-no-private-key-file-recorded")));
         }
         g.nodes.push(Node {
             id: key_node_id(&k.id),
             kind: NodeKind::Key,
             label: k.name.clone(),
             detail: k.algorithm.clone(),
-            lane: "KEYS".into(),
+            lane: t!("topology-keys").into(),
             health: Health::Ok,
             risks,
             server_id: None,

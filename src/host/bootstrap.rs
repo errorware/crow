@@ -113,7 +113,7 @@ pub fn askpass_main(sock: &str, prompt: &str) -> i32 {
 /// The ssh arguments for one password login to `server` running `remote`.
 pub fn bootstrap_args(server: &ServerRecord, proxy: Option<&str>, remote: &str) -> Result<Vec<String>, BootstrapError> {
     if server.host.is_empty() || server.host.starts_with('-') {
-        return Err(BootstrapError::Failed(format!("{:?} is not a valid host", server.host)));
+        return Err(BootstrapError::Failed(t!("host-bootstrap-is-not-a-valid-host", host = format!("{:?}", server.host))));
     }
     let mut args: Vec<String> = [
         "-o", "BatchMode=no",
@@ -145,7 +145,7 @@ pub fn bootstrap_args(server: &ServerRecord, proxy: Option<&str>, remote: &str) 
 /// Logs in to `server` with `password` once and appends `public_key` (an
 /// OpenSSH public key line) to the login user's authorized_keys.
 pub fn install_key_with_password(server: &ServerRecord, proxy: Option<&str>, password: Zeroizing<String>, public_key: &str) -> Result<(), BootstrapError> {
-    let exe = std::env::current_exe().map_err(|e| BootstrapError::Failed(format!("can't locate the Crow binary for askpass: {e}")))?;
+    let exe = std::env::current_exe().map_err(|e| BootstrapError::Failed(t!("host-bootstrap-cant-locate-the-crow-binary", e = e)))?;
     // Under `cargo test` the current binary is the test runner, which can't
     // answer ssh; workflow tests point this at a real Crow binary.
     #[cfg(test)]
@@ -161,13 +161,13 @@ fn install_key_via(ssh: &str, askpass_program: &str, server: &ServerRecord, prox
         .unwrap_or_default();
     match parse_openssh_version(&version) {
         Some(v) if v < (8, 4) => return Err(BootstrapError::SshTooOld(version.trim().to_string())),
-        None => return Err(BootstrapError::Failed(format!("couldn't run ssh: {}", version.trim()))),
+        None => return Err(BootstrapError::Failed(t!("host-bootstrap-couldnt-run-ssh", version = version.trim()))),
         _ => {}
     }
 
     let remote = format!("sh -c {}", shell_quote(INSTALL_KEY_SCRIPT));
     let args = bootstrap_args(server, proxy, &remote)?;
-    let askpass = AskpassServer::start(password).map_err(|e| BootstrapError::Failed(format!("askpass socket: {e}")))?;
+    let askpass = AskpassServer::start(password).map_err(|e| BootstrapError::Failed(t!("host-bootstrap-askpass-socket", e = e)))?;
     let sock = askpass.sock.to_string_lossy().into_owned();
 
     let mut argv: Vec<&str> = vec![ssh];
@@ -179,13 +179,13 @@ fn install_key_via(ssh: &str, askpass_program: &str, server: &ServerRecord, prox
 
     match result {
         Ok(out) if out.stdout.contains("crow-key-installed") => Ok(()),
-        Ok(out) => Err(BootstrapError::Failed(format!("the key install script didn't finish: {}", out.stderr.trim()))),
+        Ok(out) => Err(BootstrapError::Failed(t!("host-bootstrap-the-key-install-script-didnt", stderr = out.stderr.trim()))),
         Err(HostError::Failed { status: 255, stderr }) => match classify_ssh_failure(&stderr) {
             ConnectionState::AuthFailed(d) => Err(BootstrapError::PasswordRejected(d)),
             other => Err(BootstrapError::Failed(format!("{}: {}", other.label().to_lowercase(), other.detail().unwrap_or_default()))),
         },
-        Err(HostError::Failed { stderr, .. }) => Err(BootstrapError::Failed(format!("installing the key failed: {}", stderr.trim()))),
-        Err(HostError::Timeout) => Err(BootstrapError::Failed("timed out logging in with the password".into())),
+        Err(HostError::Failed { stderr, .. }) => Err(BootstrapError::Failed(t!("host-bootstrap-installing-the-key-failed", stderr = stderr.trim()))),
+        Err(HostError::Timeout) => Err(BootstrapError::Failed(t!("host-bootstrap-timed-out-logging-in-with").into())),
         Err(e) => Err(BootstrapError::Failed(e.to_string())),
     }
 }

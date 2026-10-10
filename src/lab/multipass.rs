@@ -86,20 +86,20 @@ pub fn platform() -> Platform {
 /// machine has now, so done steps aren't repeated.
 pub fn install_steps(platform: Platform, has_snap: bool, has_nobody: bool) -> Vec<InstallStep> {
     match platform {
-        Platform::MacOs => vec![step("Install Multipass with Homebrew", "brew install --cask multipass")],
-        Platform::Other => vec![step("Install Multipass from Canonical", "https://canonical.com/multipass/install")],
+        Platform::MacOs => vec![step(t!("lab-multipass-install-multipass-with-homebrew"), "brew install --cask multipass")],
+        Platform::Other => vec![step(t!("lab-multipass-install-multipass-from-canonical"), "https://canonical.com/multipass/install")],
         Platform::Linux | Platform::LinuxOstree => {
             let mut steps = Vec::new();
             if !has_snap {
                 if platform == Platform::LinuxOstree {
-                    steps.push(step("Multipass ships as a snap; add snapd to the system image, then reboot", "rpm-ostree install snapd && systemctl reboot"));
+                    steps.push(step(t!("lab-multipass-multipass-ships-as-a-snap"), "rpm-ostree install snapd && systemctl reboot"));
                 } else {
-                    steps.push(step("Multipass ships as a snap; install snapd with your package manager", "sudo dnf install snapd   # or: sudo apt install snapd"));
+                    steps.push(step(t!("lab-multipass-multipass-ships-as-a-snap-2"), "sudo dnf install snapd   # or: sudo apt install snapd"));
                 }
-                steps.push(step("Start snapd", "sudo systemctl enable --now snapd.socket"));
+                steps.push(step(t!("lab-multipass-start-snapd"), "sudo systemctl enable --now snapd.socket"));
             }
             steps.extend(daemon_fixes(platform, has_nobody));
-            steps.push(step("Install Multipass", "sudo snap install multipass"));
+            steps.push(step(t!("lab-multipass-install-multipass"), "sudo snap install multipass"));
             steps
         }
     }
@@ -111,7 +111,7 @@ pub fn install_steps(platform: Platform, has_snap: bool, has_nobody: bool) -> Ve
 fn daemon_fixes(platform: Platform, has_nobody: bool) -> Vec<InstallStep> {
     if platform == Platform::LinuxOstree && !has_nobody {
         vec![step(
-            "Let Multipass's DNS server find the nobody user (system users live in /usr/lib on this system)",
+            t!("lab-multipass-let-multipasss-dns-server-find"),
             "grep '^nobody:' /usr/lib/passwd | sudo tee -a /etc/passwd; grep '^nobody:' /usr/lib/group | sudo tee -a /etc/group",
         )]
     } else {
@@ -126,7 +126,7 @@ fn daemon_fixes(platform: Platform, has_nobody: bool) -> Vec<InstallStep> {
 pub fn bridge_fix(firewalld_active: bool, zone: Option<&str>) -> Option<InstallStep> {
     (firewalld_active && zone != Some("trusted")).then(|| {
         step(
-            "Let VMs get an address: firewalld blocks DHCP and DNS on Multipass's private bridge",
+            t!("lab-multipass-let-vms-get-an-address"),
             &format!("sudo firewall-cmd --permanent --zone=trusted --add-interface={BRIDGE} && sudo firewall-cmd --reload"),
         )
     })
@@ -170,9 +170,9 @@ pub fn detect() -> MultipassStatus {
         parsed => {
             let mut steps = daemon_fixes(p, has_nobody_in_etc());
             if matches!(p, Platform::Linux | Platform::LinuxOstree) {
-                steps.push(step("Restart the Multipass daemon", "sudo snap restart multipass"));
+                steps.push(step(t!("lab-multipass-restart-the-multipass-daemon"), "sudo snap restart multipass"));
             }
-            let detail = err.lines().find(|l| !l.trim().is_empty()).unwrap_or("the daemon didn't answer").trim().to_string();
+            let detail = err.lines().find(|l| !l.trim().is_empty()).unwrap_or(t!("lab-multipass-the-daemon-didnt-answer")).trim().to_string();
             MultipassStatus::DaemonDown { client: parsed.map(|p| p.0).unwrap_or_default(), detail, steps }
         }
     }
@@ -205,7 +205,7 @@ pub fn check_name(name: &str) -> Result<(), String> {
     if ok {
         Ok(())
     } else {
-        Err(format!("{name:?}: a VM name is a letter, then letters, digits and hyphens (not ending in one)"))
+        Err(t!("lab-multipass-a-vm-name-is-a", name = format!("{:?}", name)))
     }
 }
 
@@ -213,10 +213,10 @@ impl LaunchSpec {
     pub fn check(&self) -> Result<(), String> {
         check_name(&self.name)?;
         if self.cpus == 0 || self.memory_gb == 0 || self.disk_gb < 5 {
-            return Err("a VM needs at least 1 CPU, 1 GB of memory and 5 GB of disk".into());
+            return Err(t!("lab-multipass-a-vm-needs-at-least").into());
         }
         if self.image.is_empty() || !self.image.chars().all(|c| c.is_ascii_alphanumeric() || matches!(c, '.' | '-' | ':')) {
-            return Err(format!("{:?} isn't an image name Multipass knows", self.image));
+            return Err(t!("lab-multipass-isnt-an-image-name-multipass", image = format!("{:?}", self.image)));
         }
         Ok(())
     }
@@ -246,7 +246,7 @@ impl LaunchSpec {
 /// user (`ubuntu`, with passwordless sudo) from the first boot.
 pub fn cloud_init(public_key: &str) -> Result<String, String> {
     let key = public_key.trim();
-    ssh_key::PublicKey::from_openssh(key).map_err(|_| "Crow's public key isn't a valid OpenSSH key".to_string())?;
+    ssh_key::PublicKey::from_openssh(key).map_err(|_| t!("lab-multipass-crows-public-key-isnt-a").to_string())?;
     // A YAML double-quoted scalar; an OpenSSH key line has no quotes or
     // backslashes, but the comment is escaped all the same.
     let quoted = key.replace('\\', "\\\\").replace('"', "\\\"");
@@ -309,7 +309,7 @@ pub fn launch_with_progress(spec: &LaunchSpec, public_key: &str, progress: &(dyn
         .stderr(Stdio::piped())
         .spawn()
         .map_err(|e| format!("couldn't run multipass: {e}"))?;
-    child.stdin.take().map(|mut i| i.write_all(user_data.as_bytes())).transpose().map_err(|e| format!("couldn't pass the cloud-init: {e}"))?;
+    child.stdin.take().map(|mut i| i.write_all(user_data.as_bytes())).transpose().map_err(|e| t!("lab-multipass-couldnt-pass-the-cloud-init", e = e))?;
     let (mut out, mut err) = (child.stdout.take().expect("piped"), child.stderr.take().expect("piped"));
     let last_error = std::sync::Mutex::new(String::new());
     let started = std::time::Instant::now();
@@ -337,7 +337,7 @@ pub fn launch_with_progress(spec: &LaunchSpec, public_key: &str, progress: &(dyn
                 Ok(None) if started.elapsed() > LAUNCH => {
                     let _ = child.kill();
                     let _ = child.wait();
-                    break Err(format!("multipass launch didn't finish in {} minutes", LAUNCH.as_secs() / 60));
+                    break Err(t!("lab-multipass-multipass-launch-didnt-finish-in", launch = LAUNCH.as_secs() / 60));
                 }
                 Ok(None) => std::thread::sleep(Duration::from_millis(200)),
                 Err(e) => break Err(e.to_string()),
@@ -348,14 +348,14 @@ pub fn launch_with_progress(spec: &LaunchSpec, public_key: &str, progress: &(dyn
         Ok(())
     } else {
         let e = last_error.into_inner().unwrap_or_default();
-        Err(if e.is_empty() { format!("multipass launch failed ({status})") } else { e })
+        Err(if e.is_empty() { t!("lab-multipass-multipass-launch-failed", status = status) } else { e })
     }
 }
 
 /// A Multipass error, as one line (its progress spinner and blank lines dropped).
 fn cli_error(e: HostError) -> String {
     match e {
-        HostError::Failed { stderr, .. } => stderr.split(['\r', '\n']).map(str::trim).filter(|l| !l.is_empty()).last().unwrap_or("multipass failed").to_string(),
+        HostError::Failed { stderr, .. } => stderr.split(['\r', '\n']).map(str::trim).filter(|l| !l.is_empty()).last().unwrap_or(t!("lab-multipass-multipass-failed")).to_string(),
         other => other.to_string(),
     }
 }
@@ -401,14 +401,14 @@ pub fn parse_list(json: &str) -> Result<Vec<Instance>, String> {
     struct List {
         list: Vec<Item>,
     }
-    let l: List = serde_json::from_str(json).map_err(|e| format!("unexpected `multipass list` output: {e}"))?;
+    let l: List = serde_json::from_str(json).map_err(|e| t!("lab-multipass-unexpected-multipass-list-output", e = e))?;
     Ok(l.list.into_iter().map(|i| Instance { name: i.name, state: i.state, ipv4: i.ipv4, release: i.release, ..Default::default() }).collect())
 }
 
 /// `multipass info <name> --format json`. Sizes are numbers for memory and
 /// strings for disks; both are missing while a VM isn't running.
 pub fn parse_info(json: &str, name: &str) -> Result<Instance, String> {
-    let v: serde_json::Value = serde_json::from_str(json).map_err(|e| format!("unexpected `multipass info` output: {e}"))?;
+    let v: serde_json::Value = serde_json::from_str(json).map_err(|e| t!("lab-multipass-unexpected-multipass-info-output", e = e))?;
     let i = v.get("info").and_then(|i| i.get(name)).ok_or_else(|| format!("multipass has no VM named {name}"))?;
     let text = |k: &str| i.get(k).and_then(|x| x.as_str()).unwrap_or_default().to_string();
     let number = |x: Option<&serde_json::Value>| x.and_then(|x| x.as_u64().or_else(|| x.as_str().and_then(|s| s.parse().ok())));
@@ -449,7 +449,7 @@ pub fn host_key_lines(name: &str, address: &str) -> Result<Vec<String>, String> 
     let out = exec_in(name, "cat /etc/ssh/ssh_host_*_key.pub", &[])?;
     let lines = known_hosts_lines(&out, address);
     if lines.is_empty() {
-        return Err(format!("{name} has no SSH host keys yet; is it still booting?"));
+        return Err(t!("lab-multipass-has-no-ssh-host-keys", name = name));
     }
     Ok(lines)
 }
@@ -471,7 +471,7 @@ pub fn known_hosts_lines(pub_files: &str, address: &str) -> Vec<String> {
 /// (once), so an existing VM can be imported.
 pub fn authorize_key(name: &str, public_key: &str) -> Result<(), String> {
     let key = public_key.trim();
-    ssh_key::PublicKey::from_openssh(key).map_err(|_| "not a valid OpenSSH public key".to_string())?;
+    ssh_key::PublicKey::from_openssh(key).map_err(|_| t!("lab-multipass-not-a-valid-openssh-public").to_string())?;
     exec_in(name, r#"umask 077; mkdir -p "$HOME/.ssh"; f="$HOME/.ssh/authorized_keys"; touch "$f"; grep -qxF -- "$1" "$f" || printf '%s
 ' "$1" >> "$f""#, &[key]).map(|_| ())
 }
@@ -490,11 +490,11 @@ pub enum Lifecycle {
 impl Lifecycle {
     pub fn label(self) -> &'static str {
         match self {
-            Self::Start => "Start",
-            Self::Stop => "Stop",
-            Self::Restart => "Restart",
-            Self::Suspend => "Suspend",
-            Self::Purge => "Delete for good",
+            Self::Start => t!("lab-multipass-start"),
+            Self::Stop => t!("lab-multipass-stop"),
+            Self::Restart => t!("lab-multipass-restart"),
+            Self::Suspend => t!("lab-multipass-suspend"),
+            Self::Purge => t!("lab-multipass-delete-for-good"),
         }
     }
 
@@ -529,7 +529,7 @@ pub fn vm_of(server: &ServerRecord) -> Option<&str> {
 /// Waits for a VM to be running with an address and SSH host keys.
 pub fn wait_until_up(name: &str, timeout: Duration) -> Result<(Instance, Vec<String>), String> {
     let deadline = std::time::Instant::now() + timeout;
-    let mut last = String::from("not running yet");
+    let mut last = String::from(t!("lab-multipass-not-running-yet"));
     while std::time::Instant::now() < deadline {
         match info(name) {
             Ok(i) if i.is_running() => match i.address().map(str::to_string) {
@@ -537,14 +537,14 @@ pub fn wait_until_up(name: &str, timeout: Duration) -> Result<(Instance, Vec<Str
                     Ok(keys) => return Ok((i, keys)),
                     Err(e) => last = e,
                 },
-                None => last = "no address yet".into(),
+                None => last = t!("lab-multipass-no-address-yet").into(),
             },
-            Ok(i) => last = format!("state {}", i.state),
+            Ok(i) => last = t!("lab-multipass-state", state = i.state),
             Err(e) => last = e,
         }
         std::thread::sleep(Duration::from_secs(2));
     }
-    Err(format!("{name} didn't come up in {}s ({last})", timeout.as_secs()))
+    Err(t!("lab-multipass-didnt-come-up-in-s", name = name, as_secs = timeout.as_secs(), last = last))
 }
 
 /// The fleet record for a VM that's up: reached on its bridge address as
@@ -585,7 +585,7 @@ pub fn server_record(inst: &Instance, host_keys: &[String], key: &SshKeyRecord) 
 /// other keys (a deleted VM's, as Multipass hands addresses out again) is
 /// replaced; one that already matches is left alone.
 pub fn pin_host_keys(lines: &[String]) -> Result<(), String> {
-    let Some(address) = lines.first().and_then(|l| l.split_whitespace().next()) else { return Err("no host keys to pin".into()) };
+    let Some(address) = lines.first().and_then(|l| l.split_whitespace().next()) else { return Err(t!("lab-multipass-no-host-keys-to-pin").into()) };
     let known = LocalHost.exec(&["ssh-keygen", "-F", address], QUICK).map(|o| o.stdout).unwrap_or_default();
     let blobs: Vec<&str> = lines.iter().filter_map(|l| l.split_whitespace().nth(2)).collect();
     let known_blobs: Vec<&str> = known.lines().filter(|l| !l.starts_with('#')).filter_map(|l| l.split_whitespace().nth(2)).collect();
@@ -595,7 +595,7 @@ pub fn pin_host_keys(lines: &[String]) -> Result<(), String> {
     if !known_blobs.is_empty() {
         LocalHost.exec(&["ssh-keygen", "-R", address], QUICK).map_err(|e| format!("couldn't drop the old host key for {address}: {e}"))?;
     }
-    crate::views::onboard::probe::trust_host_keys(lines).map_err(|e| format!("couldn't write ~/.ssh/known_hosts: {e}"))
+    crate::views::onboard::probe::trust_host_keys(lines).map_err(|e| t!("lab-multipass-couldnt-write-ssh-known-hosts", e = e))
 }
 
 /// Brings a running VM into the fleet: waits for it, pins its host keys,
@@ -606,15 +606,15 @@ pub fn enroll(name: &str, key: &SshKeyRecord) -> Result<ServerRecord, String> {
 }
 
 pub fn enroll_with_progress(name: &str, key: &SshKeyRecord, progress: &(dyn Fn(String) + Sync)) -> Result<ServerRecord, String> {
-    progress("Waiting for an address and host keys".into());
+    progress(t!("lab-multipass-waiting-for-an-address-and").into());
     let (inst, host_keys) = wait_until_up(name, Duration::from_secs(180))?;
-    progress(format!("Pinning host keys for {}", inst.address().unwrap_or_default()));
+    progress(t!("lab-multipass-pinning-host-keys-for", address = inst.address().unwrap_or_default()));
     pin_host_keys(&host_keys)?;
     let mut record = server_record(&inst, &host_keys, key);
     let host = crate::host::host_for(&record);
-    progress("Logging in as ubuntu with Crow's key".into());
+    progress(t!("lab-multipass-logging-in-as-ubuntu-with").into());
     host.exec(&["true"], QUICK).map_err(|e| format!("Crow's key doesn't log in to {name} as ubuntu: {e}"))?;
-    progress("Reading its facts".into());
+    progress(t!("lab-multipass-reading-its-facts").into());
     let (facts, _) = crate::views::onboard::probe::gather_facts(host.as_ref());
     let known = |v: &str| (v != "—").then(|| v.to_string());
     record.os_distro = known(&facts.distro).unwrap_or(record.os_distro);
@@ -633,7 +633,7 @@ pub fn launch_and_enroll(spec: &LaunchSpec, key: &SshKeyRecord, progress: &(dyn 
 
 /// Adds Crow's key to a VM Crow didn't make, then enrolls it.
 pub fn import(name: &str, key: &SshKeyRecord, progress: &(dyn Fn(String) + Sync)) -> Result<ServerRecord, String> {
-    progress(format!("Adding Crow's key to {name}"));
+    progress(t!("lab-multipass-adding-crows-key-to", name = name));
     authorize_key(name, &key.public_key)?;
     enroll_with_progress(name, key, progress)
 }

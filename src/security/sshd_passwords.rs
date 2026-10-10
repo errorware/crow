@@ -80,71 +80,71 @@ pub fn turn_off(host: &dyn Host, fresh_login: &dyn Fn() -> Result<(), String>) -
         }};
     }
     if let Err(e) = fresh_login() {
-        fail!("✕ A fresh key login doesn't work ({e}). Nothing was changed: turning passwords off now could lock you out.");
+        fail!("{}", t!("security-sshd-passwords-a-fresh-key-login-doesnt-2", e = e));
     }
-    log.push("✓ A fresh key login works.".into());
+    log.push(t!("security-sshd-passwords-a-fresh-key-login-works").into());
 
     let pre = match preflight(host) {
         Ok(p) => p,
-        Err(e) => fail!("✕ Couldn't read sshd's settings: {e}. Nothing was changed."),
+        Err(e) => fail!("{}", t!("security-sshd-passwords-couldnt-read-sshds-settings-nothing", e = e)),
     };
     if !pre.password_login_on {
-        log.push("✓ Password login is already off. Nothing to do.".into());
+        log.push(t!("security-sshd-passwords-password-login-is-already-off").into());
         return Ok(log);
     }
     if !pre.reads_dropins {
-        fail!("✕ This sshd_config doesn't include sshd_config.d, so a drop-in wouldn't apply. Nothing was changed; set PasswordAuthentication to no in the sshd_config sheet instead.");
+        fail!("{}", t!("security-sshd-passwords-this-sshd-config-doesnt-include"));
     }
 
     let undo = |log: &mut Vec<String>, reload: bool| {
         let removed = root(host, &["rm", "-f", "--", DROPIN]).is_ok();
         let reloaded = !reload || root(host, &["sh", "-c", RELOAD]).is_ok();
-        log.push(if removed && reloaded { format!("↺ Undone: removed {DROPIN}{}.", if reload { " and reloaded sshd" } else { "" }) } else { format!("⚠ Undo didn't finish: remove {DROPIN} by hand and reload sshd.") });
+        log.push(if removed && reloaded { t!("security-sshd-passwords-undone-removed", dropin = DROPIN, reload = if reload { t!("security-sshd-passwords-and-reloaded-sshd") } else { "" }) } else { t!("security-sshd-passwords-undo-didnt-finish-remove-by", dropin = DROPIN) });
     };
 
     if let Err(e) = root(host, &["mkdir", "-p", "/etc/ssh/sshd_config.d"]) {
-        fail!("✕ Couldn't create /etc/ssh/sshd_config.d: {e}. Nothing was changed.");
+        fail!("{}", t!("security-sshd-passwords-couldnt-create-etc-ssh-sshd-2", e = e));
     }
     if let Err(e) = host.write_file_privileged(DROPIN, DROPIN_CONTENT) {
-        fail!("✕ Couldn't write {DROPIN}: {e}. Nothing was changed.");
+        fail!("{}", t!("security-sshd-passwords-couldnt-write-nothing-was-changed", dropin = DROPIN, e = e));
     }
-    log.push(format!("✓ Wrote {DROPIN}."));
+    log.push(t!("security-sshd-passwords-wrote", dropin = DROPIN));
 
     if let Err(e) = root(host, &["sshd", "-t"]) {
-        log.push(format!("✕ sshd rejected the change: {e}"));
+        log.push(t!("security-sshd-passwords-sshd-rejected-the-change", e = e));
         undo(&mut log, false);
         return Err(log);
     }
-    log.push("✓ sshd -t accepts it.".into());
+    log.push(t!("security-sshd-passwords-sshd-t-accepts-it").into());
 
     match root(host, &["sshd", "-T"]).map(|out| effective_password_login(&out)) {
-        Ok(Some(false)) => log.push("✓ sshd will refuse passwords.".into()),
+        Ok(Some(false)) => log.push(t!("security-sshd-passwords-sshd-will-refuse-passwords").into()),
         Ok(_) => {
             let who = root(host, &["sh", "-c", "grep -ril '^ *passwordauthentication' /etc/ssh/sshd_config.d/ /etc/ssh/sshd_config 2>/dev/null"]).unwrap_or_default();
-            log.push(format!("✕ Something else still turns password login on{}.", if who.trim().is_empty() { String::new() } else { format!(" (set in: {})", who.split_whitespace().collect::<Vec<_>>().join(", ")) }));
+            log.push(t!("security-sshd-passwords-something-else-still-turns-password", who = if who.trim().is_empty() { String::new() } else { t!("security-sshd-passwords-set-in", who = who.split_whitespace().collect::<Vec<_>>().join(", ")) }));
             undo(&mut log, false);
             return Err(log);
         }
         Err(e) => {
-            log.push(format!("✕ Couldn't check the result: {e}"));
+            log.push(t!("security-sshd-passwords-couldnt-check-the-result", e = e));
             undo(&mut log, false);
             return Err(log);
         }
     }
 
     if let Err(e) = root(host, &["sh", "-c", RELOAD]) {
-        log.push(format!("✕ Couldn't reload sshd: {e}"));
+        log.push(t!("security-sshd-passwords-couldnt-reload-sshd", e = e));
         undo(&mut log, false);
         return Err(log);
     }
-    log.push("✓ Reloaded sshd.".into());
+    log.push(t!("security-sshd-passwords-reloaded-sshd").into());
 
     if let Err(e) = fresh_login() {
-        log.push(format!("✕ A fresh key login failed after the reload ({e})."));
+        log.push(t!("security-sshd-passwords-a-fresh-key-login-failed", e = e));
         undo(&mut log, true);
         return Err(log);
     }
-    log.push("✓ A fresh key login still works. Password login is off.".into());
+    log.push(t!("security-sshd-passwords-a-fresh-key-login-still").into());
     Ok(log)
 }
 

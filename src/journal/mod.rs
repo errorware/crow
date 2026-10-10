@@ -40,14 +40,14 @@ impl JournalPriority {
 
     pub fn label(&self) -> &'static str {
         match self {
-            JournalPriority::Emerg => "EMERG",
-            JournalPriority::Alert => "ALERT",
+            JournalPriority::Emerg => t!("journal-emerg"),
+            JournalPriority::Alert => t!("journal-alert"),
             JournalPriority::Crit => "CRIT",
             JournalPriority::Err => "ERROR",
             JournalPriority::Warning => "WARN",
-            JournalPriority::Notice => "NOTICE",
+            JournalPriority::Notice => t!("journal-notice"),
             JournalPriority::Info => "INFO",
-            JournalPriority::Debug => "DEBUG",
+            JournalPriority::Debug => t!("journal-debug"),
         }
     }
 
@@ -108,13 +108,13 @@ pub enum JournalTimeRange {
 impl JournalTimeRange {
     pub fn label(&self) -> &'static str {
         match self {
-            JournalTimeRange::Live => "LIVE",
+            JournalTimeRange::Live => t!("journal-live"),
             JournalTimeRange::Last15m => "15M",
             JournalTimeRange::Last1h => "1H",
             JournalTimeRange::Last6h => "6H",
             JournalTimeRange::Last24h => "24H",
             JournalTimeRange::Last7d => "7D",
-            JournalTimeRange::AllTime => "ALL TIME",
+            JournalTimeRange::AllTime => t!("journal-all-time"),
         }
     }
 
@@ -143,8 +143,8 @@ pub enum JournalBootScope {
 impl JournalBootScope {
     pub fn label(&self) -> &'static str {
         match self {
-            JournalBootScope::Current => "THIS BOOT",
-            JournalBootScope::Previous => "PREVIOUS BOOT",
+            JournalBootScope::Current => t!("journal-this-boot"),
+            JournalBootScope::Previous => t!("journal-previous-boot"),
         }
     }
 
@@ -225,15 +225,15 @@ impl JournalEntry {
         let now_secs = Local::now().timestamp();
         let diff = (now_secs - secs).max(0);
         let relative = if diff < 5 {
-            "just now".to_string()
+            t!("journal-just-now").to_string()
         } else if diff < 60 {
-            format!("{}s ago", diff)
+            t!("journal-s-ago", diff = diff)
         } else if diff < 3600 {
-            format!("{}m ago", diff / 60)
+            t!("journal-m-ago", diff = diff / 60)
         } else if diff < 86400 {
-            format!("{}h ago", diff / 3600)
+            t!("journal-h-ago", diff = diff / 3600)
         } else {
-            format!("{}d ago", diff / 86400)
+            t!("journal-d-ago", diff = diff / 86400)
         };
 
         (ts_str, relative)

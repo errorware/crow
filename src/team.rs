@@ -38,12 +38,12 @@ impl Permission {
     pub fn label(self) -> &'static str {
         match self {
             Permission::View => "view",
-            Permission::Restart => "restart services",
-            Permission::EditConfig => "edit configs",
-            Permission::RunFleet => "fleet runs",
-            Permission::Users => "users & firewall",
-            Permission::Keys => "SSH keys",
-            Permission::Vault => "vault & settings",
+            Permission::Restart => t!("team-restart-services"),
+            Permission::EditConfig => t!("team-edit-configs"),
+            Permission::RunFleet => t!("team-fleet-runs"),
+            Permission::Users => t!("team-users-firewall"),
+            Permission::Keys => t!("team-ssh-keys"),
+            Permission::Vault => t!("team-vault-settings"),
             Permission::Team => "team",
         }
     }
@@ -60,9 +60,9 @@ pub enum Role {
 impl Role {
     pub fn name(&self) -> String {
         match self {
-            Role::Viewer => "Viewer".into(),
-            Role::Operator => "Operator".into(),
-            Role::Admin => "Admin".into(),
+            Role::Viewer => t!("team-viewer").into(),
+            Role::Operator => t!("team-operator").into(),
+            Role::Admin => t!("team-admin").into(),
             Role::Custom { name, .. } => name.clone(),
         }
     }
@@ -98,9 +98,9 @@ impl Scope {
 
     pub fn describe(&self) -> String {
         match self {
-            Scope::Fleet => "the whole fleet".into(),
-            Scope::Groups(g) => format!("group{} {}", if g.len() == 1 { "" } else { "s" }, g.join(", ")),
-            Scope::Envs(e) => format!("env {}", e.join(", ")),
+            Scope::Fleet => t!("team-the-whole-fleet").into(),
+            Scope::Groups(g) => t!("team-text", count = g.len(), g = g.join(", ")),
+            Scope::Envs(e) => t!("team-env", e = e.join(", ")),
         }
     }
 }
@@ -138,13 +138,13 @@ impl TeamConfig {
         if !self.enabled() {
             return Ok(());
         }
-        let m = member.ok_or("sign in first: this Crow has a team")?;
+        let m = member.ok_or(t!("team-sign-in-first-this-crow"))?;
         if !m.role.allows(perm) {
-            return Err(format!("{} is a {}: {} needs a role that allows {}", m.name, m.role.name(), perm.label(), perm.label()));
+            return Err(t!("team-is-a-needs-a-role", name = m.name, name2 = m.role.name(), label = perm.label()));
         }
         if let Some(s) = server {
             if !m.scope.covers(s) {
-                return Err(format!("{} isn't in {}'s scope ({})", s.name, m.name, m.scope.describe()));
+                return Err(t!("team-isnt-in-s-scope", name = s.name, name2 = m.name, describe = m.scope.describe()));
             }
         }
         Ok(())
@@ -158,7 +158,7 @@ impl TeamConfig {
 
 pub fn hash_passphrase(p: &str) -> Result<String, String> {
     if p.chars().count() < 8 {
-        return Err("a passphrase needs at least 8 characters".into());
+        return Err(t!("team-a-passphrase-needs-at-least").into());
     }
     crate::vault::crypto::hash_password_verifier(p).map_err(|e| e.to_string())
 }

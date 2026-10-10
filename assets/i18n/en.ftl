@@ -1230,21 +1230,6 @@ files-text = { $lines } { $lines ->
 files-edit-in-terminal = EDIT IN TERMINAL
 files-reading-the-file = Reading the file…
 
-## firewall-commands
-firewall-commands-service-ingress = { $label } Service Ingress
-firewall-commands-is-not-a-port-range = { $port } is not a port, range (a:b) or list (a,b)
-firewall-commands-is-not-an-address-or = { $source } is not an address or network
-firewall-commands-forward-rules-are-managed-with = forward rules are managed with `ufw route`, which Crow doesn't write yet
-firewall-commands-this-rule-isnt-from-a = this rule isn't from a firewalld zone
-firewall-commands-zone-accepts-everything-through-its = zone { $name } accepts everything through its target, not a rule; change it with firewall-cmd --permanent --zone={ $name } --set-target=default
-firewall-commands-crow-doesnt-know-which-zone = Crow doesn't know which zone entry this rule came from
-firewall-commands-firewalld-zones-filter-incoming-traffic = firewalld zones filter incoming traffic; outgoing and forwarded traffic need a policy, which Crow doesn't write yet
-firewall-commands-is-not-an-address-or-2 = { $s } is not an address or network
-firewall-commands-accept-limit-value-12-m = accept limit value="12/m"
-firewall-commands-give-a-port-or-a = give a port, or a source to apply this to everything from
-firewall-commands-rule-family-source-address = rule family="{ $s }" source address="{ $s2 }"
-firewall-commands-add-rich-rule-port-port = --add-rich-rule={ $head } port port="{ $p }" protocol="{ $proto }" { $verdict }
-
 ## firewall-detector
 firewall-detector-ufw-is-active-but-its = ufw is active but its status output could not be parsed.
 firewall-detector-ufw-is-installed-but-inactive = UFW is installed but inactive. System netfilter packet filtering is disabled.
@@ -1253,11 +1238,8 @@ firewall-detector-firewalld-is-installed-but-not = firewalld is installed but no
 firewall-detector-firewalld-is-running-but-crow = firewalld is running, but Crow couldn't read its zones as root: { $e }
 firewall-detector-nftables-iptables-are-here-but = nftables/iptables are here, but Crow couldn't read the ruleset as root: { $e }
 firewall-detector-no-firewall-tooling-ufw-firewalld = No firewall tooling (ufw, firewalld, nftables, iptables) was found on this host.
-firewall-detector-anywhere = Anywhere
 
 ## firewalld
-firewalld-not = not { $a }
-firewalld-anywhere = Anywhere
 firewalld-from = from { $z }
 firewalld-on = on { $z }
 firewalld-every-interface-not-in-another = every interface not in another zone
@@ -1268,24 +1250,16 @@ firewalld-port-zone = port · zone { $name }
 firewalld-rich-rule-zone = rich rule · zone { $name }
 firewalld-rich-rule-service-zone = rich rule, service { $svc } · zone { $name }
 firewalld-rich-rule-not-interpreted = rich rule (not interpreted): { $raw_rule }
-firewalld-accept = ACCEPT
-firewalld-drop = DROP
 firewalld-the-running-firewall-differs-from = The running firewall differs from its saved (permanent) config: a reload or reboot will drop the runtime-only changes.
 
 ## firewall-lockout
 firewall-lockout-crow-cant-see-which-rules = Crow can't see which rules will apply after this, so it can't check that port { $port }/tcp, the SSH port it's connected through, stays allowed.
 firewall-lockout-after-this-port-tcp-crows = After this, port { $port }/tcp (Crow's SSH connection) is only allowed from { $value }. If Crow doesn't connect from there, the next login is refused.
 firewall-lockout-this-stops-port-tcp-the = This stops port { $port }/tcp, the SSH port Crow is connected through, from being allowed. The next SSH login, Crow's included, would be refused.
-firewall-lockout-anywhere = Anywhere
 
 ## firewall-models
 firewall-models-ufw-uncomplicated-firewall = UFW (Uncomplicated Firewall)
 firewall-models-unmanaged-none-detected = Unmanaged / None Detected
-firewall-models-ufw = UFW
-firewall-models-firewalld = FIREWALLD
-firewall-models-nftables = NFTABLES
-firewall-models-iptables = IPTABLES
-firewall-models-none = NONE
 firewall-models-in = IN
 firewall-models-out = OUT
 firewall-models-fwd = FWD
@@ -1304,12 +1278,6 @@ firewall-models-firewall-allow-default = FIREWALL: ALLOW (DEFAULT)
 firewall-models-firewall-no-inbound-rule = FIREWALL: NO INBOUND RULE
 firewall-models-firewall-inactive = FIREWALL: INACTIVE
 firewall-models-firewall-not-read = FIREWALL: NOT READ
-firewall-models-openssh-secure-shell = OpenSSH Secure Shell
-firewall-models-web-server-http = Web Server (HTTP)
-firewall-models-secure-web-server-https = Secure Web Server (HTTPS)
-firewall-models-postgresql-db-cluster = PostgreSQL DB Cluster
-firewall-models-redis-key-value-cache = Redis Key-Value Cache
-firewall-models-docker-cluster-management = Docker Cluster Management
 
 ## firewall
 firewall-firewall-is-currently-disabled-by = Firewall is currently disabled by administrator.
@@ -1351,12 +1319,6 @@ firewall-cancel = CANCEL
 
 ## firewall-new-rule-modal
 firewall-new-rule-modal-anywhere = Anywhere
-firewall-new-rule-modal-proto-tcp = proto tcp{" "}
-firewall-new-rule-modal-proto-udp = proto udp{" "}
-firewall-new-rule-modal-from = from { $source_input }{" "}
-firewall-new-rule-modal-to-any-port = to any port { $port_clean }
-firewall-new-rule-modal-comment = {" "}comment '{ $comment_input }'
-firewall-new-rule-modal-ufw = ufw { $action_str } { $proto_str }{ $from_str }{ $port_str }{ $comment_str }
 firewall-new-rule-modal-will-run-running-saved-config = WILL RUN (running + saved config)
 firewall-new-rule-modal-not-valid-for-firewalld = NOT VALID FOR FIREWALLD
 firewall-new-rule-modal-will-run = WILL RUN
@@ -1385,62 +1347,6 @@ firewall-non-operational-no-standard-packet-filter-binaries = No standard packet
 firewall-non-operational-to-turn-it-on = TO TURN IT ON:
 firewall-non-operational-to-set-one-up-ufw = TO SET ONE UP (ufw):
 firewall-non-operational-turn-the-firewall-on = TURN THE FIREWALL ON
-
-## firewall-raw
-firewall-raw-on = on { $i }
-firewall-raw-connections = { $ct } connections
-firewall-raw-not = not { $right }
-firewall-raw-iptables-match = iptables match { $body }
-firewall-raw-nfts-json-couldnt-be-read = nft's JSON couldn't be read: { $e }
-firewall-raw-nfts-json-has-no-nftables = nft's JSON has no "nftables" list
-firewall-raw-not-2 = not { $arg }
-firewall-raw-ipv6 = IPv6
-firewall-raw-ipv4 = IPv4
-firewall-raw-chain = chain { $path }
-firewall-raw-anywhere = Anywhere
-firewall-raw-no-chain-is-hooked-on = No chain is hooked on input: nothing filters incoming traffic.
-firewall-raw-only-ipv4-is-filtered-no = Only IPv4 is filtered: no input chain covers IPv6, so every port is open over IPv6.
-firewall-raw-input-chains-run-one-after = { $count } input chains run one after another ({ $stacked }); a packet any of them drops is dropped.
-firewall-raw-ip6tables-save =
-    { $v4 }
-    # ---- ip6tables-save ----
-    { $v6 }
-firewall-raw-no-nft-or-iptables-to = no nft or iptables to read
-
-## firewall-rules-format
-firewall-rules-format-etc-ufw-user-rules-managed =
-    # /etc/ufw/user.rules - Managed by Crow Unified Engine
-    {""}
-firewall-rules-format-auditable-reversible-source-controlled-firewall =
-    # Auditable, reversible, source-controlled firewall rules.
-    {""}
-firewall-rules-format-ufw-user-input-0-0 =
-    :ufw-user-input - [0:0]
-    {""}
-firewall-rules-format-ufw-user-output-0-0 =
-    :ufw-user-output - [0:0]
-    {""}
-firewall-rules-format-ufw-user-forward-0-0 =
-    :ufw-user-forward - [0:0]
-    {""}
-    {""}
-firewall-rules-format-rules =
-    ### RULES ###
-    {""}
-firewall-rules-format-p-tcp = {" "}-p tcp
-firewall-rules-format-p-udp = {" "}-p udp
-firewall-rules-format-p-tcp-udp = {" "}-p tcp,udp
-firewall-rules-format-j-accept = {" "}-j ACCEPT
-firewall-rules-format-j-drop = {" "}-j DROP
-firewall-rules-format-j-reject = {" "}-j REJECT
-firewall-rules-format-m-limit-limit-3-minute = {" "}-m limit --limit 3/minute -j ACCEPT
-firewall-rules-format-m-comment-comment = {" "}-m comment --comment "{ $clean_comment }"
-firewall-rules-format-m-comment-comment-rule = {" "}-m comment --comment "rule_{ $idx }"
-firewall-rules-format-commit =
-    {""}
-    COMMIT
-    {""}
-firewall-rules-format-anywhere = Anywhere
 
 ## fleet-archived
 fleet-archived-active-fleet = ACTIVE FLEET ({ $active_n })
@@ -2053,7 +1959,6 @@ lock-setup-activate-password-2fa = ACTIVATE PASSWORD & 2FA
 
 ## logs
 logs-systemd-journal-logs = SYSTEMD JOURNAL LOGS
-logs-journalctl-o-json-output-fields = journalctl -o json --output-fields=*
 logs-entries = { $filtered_count }/{ $total_count } entries
 logs-volatile-lost-on-reboot = ⚠ VOLATILE — LOST ON REBOOT
 logs-no-age-limit = no age limit
@@ -2250,21 +2155,6 @@ onboard-probe-no-ssh-banner-is-this = no SSH banner — is this an SSH port?
 onboard-probe-host-key = host key { $host_key_fingerprint }
 onboard-probe-could-not-fetch-the-servers = could not fetch the server's host keys (ssh-keyscan)
 onboard-probe-couldnt-make-a-scratch-known = couldn't make a scratch known_hosts: { $e }
-onboard-probe-userknownhostsfile = UserKnownHostsFile={ $kh }
-onboard-probe-proxycommand = ProxyCommand={ $proxy }
-onboard-probe-batchmode-yes = BatchMode=yes
-onboard-probe-globalknownhostsfile-dev-null = GlobalKnownHostsFile=/dev/null
-onboard-probe-stricthostkeychecking-no = StrictHostKeyChecking=no
-onboard-probe-hashknownhosts-no = HashKnownHosts=no
-onboard-probe-updatehostkeys-no = UpdateHostKeys=no
-onboard-probe-pubkeyauthentication-no = PubkeyAuthentication=no
-onboard-probe-passwordauthentication-no = PasswordAuthentication=no
-onboard-probe-kbdinteractiveauthentication-no = KbdInteractiveAuthentication=no
-onboard-probe-gssapiauthentication-no = GSSAPIAuthentication=no
-onboard-probe-hostbasedauthentication-no = HostbasedAuthentication=no
-onboard-probe-controlmaster-no = ControlMaster=no
-onboard-probe-controlpath-none = ControlPath=none
-onboard-probe-connecttimeout-10 = ConnectTimeout=10
 onboard-probe-no-answer = no answer
 onboard-probe-let-crow-in-but-couldnt = { $via } let Crow in but couldn't reach { $host }:{ $port }, or { $via } refused Crow
 onboard-probe-through = through { $via }: { $why }
@@ -2284,10 +2174,6 @@ onboard-probe-ufw-installed = ufw installed
 onboard-probe-read-os-release-uname-meminfo = read os-release, uname, meminfo, df, listening ports
 
 ## overview-collector
-overview-collector-active = ACTIVE
-overview-collector-inactive = INACTIVE
-overview-collector-failed = FAILED
-overview-collector-degraded = DEGRADED
 overview-collector-unit-on = { $action } unit { $unit } on { $label }
 overview-collector-sent-signal-to-pid-on = Sent signal { $signal } to PID { $pid } on { $label }
 
@@ -2344,13 +2230,11 @@ overview-dashboard-cve-data-osv-dev-crow = CVE data: OSV.dev · Crow sends packa
 
 ## overview-log-tail
 overview-log-tail-log-tail = LOG TAIL
-overview-log-tail-journalctl-f = journalctl -f
 overview-log-tail-expand = EXPAND ↗
 overview-log-tail-error = ERROR { $err_count }
 overview-log-tail-warn = WARN { $warn_count }
 overview-log-tail-info = INFO { $info_count }
 overview-log-tail-stream-active = stream active
-overview-log-tail-port = port { $port_str }
 overview-log-tail-this-server = this server
 overview-log-tail-socket-log-tail = SOCKET LOG TAIL
 overview-log-tail-pid = PID { $p }
@@ -2362,7 +2246,6 @@ overview-log-tail-level = LEVEL
 overview-log-tail-unit = UNIT
 overview-log-tail-pid-2 = PID
 overview-log-tail-message = MESSAGE
-overview-log-tail-journalctl-f-u-service = journalctl -f -u { $process }.service
 overview-log-tail-lines-live-stream = { $count } lines · live stream
 
 ## overview-models
@@ -2568,11 +2451,8 @@ settings-clankers-make-primary = Make primary
 settings-clankers-ai-usability-sandbox-wtf-is = AI USABILITY SANDBOX: "WTF IS THIS LOG TRYING TO SAY?"
 settings-clankers-eli5-assistant-preview = ELI5 ASSISTANT PREVIEW
 settings-clankers-load-presets = Load Presets:
-settings-clankers-kernel-129-412033-out-of = kernel: [  129.412033] Out of memory: Kill process 28419 (mysqld) score 812 or sacrifice child
 settings-clankers-oom-killer = OOM Killer
-settings-clankers-nginx-1482-segfault-at-0 = nginx[1482]: segfault at 0 ip 00007f3b48201a08 sp 00007ffe3410 error 4 in libc.so.6
 settings-clankers-segfault-in-libc = Segfault in Libc
-settings-clankers-systemd-1-postgresql-16-main = systemd[1]: postgresql@16-main.service: Main process exited, code=exited, status=1/FAILURE
 settings-clankers-systemd-failure = Systemd Failure
 settings-clankers-sample-raw-journal-kernel-panic = Sample Raw Journal / Kernel Panic Log Line:
 settings-clankers-asking = ASKING…
@@ -2584,9 +2464,6 @@ settings-clankers-configure-clanker-api-key = Configure { $p_name } Clanker API 
 settings-clankers-api-key-stored-encrypted-in = API Key (stored encrypted in Crow's vault; never shown again):
 settings-clankers-custom-api-endpoint-proxy-optional = Custom API Endpoint / Proxy (optional):
 settings-clankers-save-config = SAVE CONFIG ↵
-
-## settings-clankers-state
-settings-clankers-state-kernel-129-412033-out-of = kernel: [  129.412033] Out of memory: Kill process 28419 (mysqld) score 812 or sacrifice child
 
 ## settings-config-table
 settings-config-table-yes = YES
@@ -3095,3 +2972,538 @@ users-ssh-attach-modal-enrolled-vault-keys = { $count } ENROLLED VAULT KEYS
 users-ssh-attach-modal-no-enrolled-keys-found-in = No enrolled keys found in Crow Vault. Go to Settings > SSH Keys to generate or scan keys.
 users-ssh-attach-modal-attached-2 = ✓ ATTACHED
 users-ssh-attach-modal-attach-key = + ATTACH KEY
+
+## host-diagnose
+host-diagnose-asks-to-approve-each-use = { $agent } (asks to approve each use of a key)
+host-diagnose-is-the-ssh-agent-here = { $agent } is the SSH agent here, and it asks you to approve each new connection. Crow connects in the background, so an approval nobody gives looks like a timeout or a refusal. Approve it when { $agent } asks, or set { $agent } to remember approvals for Crow.
+host-diagnose-for-no-prompts-at-all = For no prompts at all, switch this server to Crow's own key (Keys → switch server to a key): Crow then leaves { $agent } out of it.
+host-diagnose-ssh-said = ssh said
+host-diagnose-jump-host = jump host { $j }
+host-diagnose-missing-on-this-machine = { $path } (missing on this machine)
+host-diagnose-your-ssh-agent-ssh-config = your SSH agent / ~/.ssh/config
+host-diagnose-connected = CONNECTED
+host-diagnose-crow-reaches = Crow reaches { $addr }.
+host-diagnose-key-tried = key tried
+host-diagnose-server-accepts = server accepts
+host-diagnose-the-key-file-isnt-on = The key file { $path } isn't on this machine any more: restore it, or switch this server to another key.
+host-diagnose-the-server-doesnt-accept-that = The server doesn't accept that key for { $login_user }: it isn't in ~{ $login_user }/.ssh/authorized_keys there, or sshd ignores the file (permissions, AuthorizedKeysFile).
+host-diagnose-the-server-doesnt-offer-key = The server doesn't offer key login at all (PubkeyAuthentication no): Crow only logs in with keys.
+host-diagnose-it-accepts-a-password-log = It accepts a password: log in once with it and Crow installs its key, without storing the password.
+host-diagnose-login-refused = LOGIN REFUSED
+host-diagnose-answered-but-refused-crows-login = { $addr } answered, but refused Crow's login.
+host-diagnose-presents-now = presents now
+host-diagnose-cant-fetch-through-a-jump = can't fetch through a jump host
+host-diagnose-host-key-changed = HOST KEY CHANGED
+host-diagnose-presents-a-different-host-key = { $addr } presents a different host key than the one Crow trusted. Either the server was reinstalled or its keys regenerated, or something between you and it is pretending to be it.
+host-diagnose-dont-trust-the-new-key = Don't trust the new key until you know why it changed.
+host-diagnose-check-it-on-the-server = Check it on the server itself (console, provider's web shell): ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub, and compare with "presents now".
+host-diagnose-host-key-not-trusted = HOST KEY NOT TRUSTED
+host-diagnose-ssh-known-hosts-has-no = ~/.ssh/known_hosts has no key for { $addr }, so ssh refuses to connect (strict checking).
+host-diagnose-compare-the-fingerprint-with-the = Compare the fingerprint with the one on the server's console before trusting it.
+host-diagnose-this-server-is-behind-a = This server is behind a jump host, so Crow can't fetch its key directly: verify on the server, then add it to known_hosts yourself.
+host-diagnose-once-it-checks-out-trust = Once it checks out: trust the new key (you type the server's name to confirm).
+host-diagnose-jump-host-failed = JUMP HOST FAILED
+host-diagnose-the-connection-through-failed-before = The connection through { $j } failed before reaching { $addr }.
+host-diagnose-open-in-crow-if-its = Open { $j } in Crow: if it's unreachable too, fix that first.
+host-diagnose-check-the-jump-host-can = Check the jump host can reach this server's address and port.
+host-diagnose-name-not-found = NAME NOT FOUND
+host-diagnose-doesnt-resolve-to-an-address = { $host } doesn't resolve to an address from this machine.
+host-diagnose-check-the-spelling-or-use = Check the spelling, or use the IP address.
+host-diagnose-a-vpn-or-private-dns = A VPN or private DNS may be needed for internal names.
+host-diagnose-connection-refused = CONNECTION REFUSED
+host-diagnose-answered-but-nothing-accepts-connections = { $host } answered, but nothing accepts connections on port { $server }.
+host-diagnose-a-firewall-rejecting-the-port = A firewall rejecting the port looks the same.
+host-diagnose-timed-out = TIMED OUT
+host-diagnose-didnt-answer-at-all = { $host } didn't answer at all.
+host-diagnose-the-server-may-be-off = The server may be off or rebooting; check it at its provider.
+host-diagnose-a-firewall-dropping-the-port = A firewall dropping the port, or a wrong address, looks the same.
+host-diagnose-no-route = NO ROUTE
+host-diagnose-this-machine-has-no-route = This machine has no route to { $host }.
+host-diagnose-check-your-network-vpn-or = Check your network, VPN, or the address.
+host-diagnose-unreachable = UNREACHABLE
+host-diagnose-crow-couldnt-open-a-connection = Crow couldn't open a connection to { $addr }.
+host-diagnose-try-again-if-it-persists = Try again; if it persists, ssh to it from a terminal for the full error.
+host-diagnose-direct-probe = direct probe
+host-diagnose-no-ssh-banner = no ssh banner
+host-diagnose-no-answer = no answer
+host-diagnose-port-open-ms = port open ({ $p }ms) · { $p2 }
+
+## host-ssh
+host-ssh-connected = CONNECTED
+host-ssh-auth-failed = AUTH FAILED
+host-ssh-host-key = HOST KEY
+host-ssh-unreachable = UNREACHABLE
+host-ssh-1password = 1Password
+host-ssh-secretive = Secretive
+host-ssh-login-failed = login failed
+host-ssh-isnt-a-private-folder-of = { $dir } isn't a private folder of this user
+host-ssh-the-bastions-loop-back-to = the bastions loop back to { $id }: fix one of them in its settings
+host-ssh-more-than-bastions-deep = more than { $max_hops } bastions deep
+host-ssh-its-bastion-is-no-longer = its bastion ({ $id }) is no longer in the fleet
+host-ssh-bastion-has-an-invalid-address = bastion { $name } has an invalid address
+host-ssh-bastion-logs-in-with-a = bastion { $name } logs in with a password; Crow goes through bastions with keys
+host-ssh-bastion-s-key-has-no = bastion { $name }'s key has no private key file
+host-ssh-no-bastion = no bastion
+host-ssh-holds-a-which-ssh-would = { $bad } holds a '%', which ssh would read as a token
+host-ssh-the-server-directory-is-busy = the server directory is busy
+host-ssh-the-bastion = the bastion
+host-ssh-bastion-cant-reach = bastion { $via } can't reach { $target }: { $why }
+host-ssh-bastion-refused-crows-key = bastion { $name } refused Crow's key: { $line }
+host-ssh-bastion = bastion { $name }: { $line }
+host-ssh-this-server-is-set-to = This server is set to password login; Crow connects with keys, installed once with the password.
+host-ssh-the-enrolled-key-for-this = the enrolled key for this server has no private key file
+host-ssh-invalid-host-address = invalid host address { $host }
+host-ssh-via = {" "}via { $name }
+host-ssh-bastion-2 = bastion { $name }:{" "}
+host-ssh-bastion-refused-crows-key-2 = bastion { $name } refused Crow's key: { $d }
+host-ssh-ssh-failed = ssh failed
+
+## security-hardening
+security-hardening-root-can-log-in-over = root can log in over SSH with a password (PermitRootLogin yes)
+security-hardening-root-can-log-in-over-2 = root can log in over SSH with a key (PermitRootLogin { $v })
+security-hardening-no-firewall-filters-incoming-traffic = no firewall filters incoming traffic
+security-hardening-no-firewall-and-open-to = no firewall, and { $count ->
+        [one] port
+       *[other] ports
+    } { $p } open to every network
+security-hardening-permitrootlogin-prohibit-password-crow-logs = PermitRootLogin prohibit-password (Crow logs in as root with a key, so not "no")
+security-hardening-permitrootlogin-prohibit-password = PermitRootLogin prohibit-password
+security-hardening-permitrootlogin-no = PermitRootLogin no
+security-hardening-passwordauthentication-no-once-a-key = PasswordAuthentication no (once a key login is proven)
+security-hardening-and-the-listening = {" "}and the listening { $count ->
+        [one] port
+       *[other] ports
+    } { $p }
+security-hardening-crow-logs-in-to-this = ✕ Crow logs in to this server as root: PermitRootLogin no would lock Crow out. Nothing was changed.
+security-hardening-a-fresh-key-login-works = ✓ A fresh key login works.
+security-hardening-this-sshd-config-doesnt-include = ✕ This sshd_config doesn't include sshd_config.d, so a drop-in wouldn't apply. Nothing was changed; set PermitRootLogin in the sshd_config sheet instead.
+security-hardening-and-reloaded-sshd = {" "}and reloaded sshd
+security-hardening-undo-didnt-finish-remove-by = ⚠ Undo didn't finish: remove { $root_dropin } by hand and reload sshd.
+security-hardening-wrote = ✓ Wrote { $root_dropin }.
+security-hardening-sshd-rejected-the-change = ✕ sshd rejected the change: { $e }
+security-hardening-sshd-t-accepts-it = ✓ sshd -t accepts it.
+security-hardening-sshd-will-use-permitrootlogin = ✓ sshd will use PermitRootLogin { $value }.
+security-hardening-something-earlier-in-the-config = ✕ Something earlier in the config still sets PermitRootLogin ({ $other }).
+security-hardening-couldnt-check-the-result = ✕ Couldn't check the result: { $e }
+security-hardening-couldnt-reload-sshd = ✕ Couldn't reload sshd: { $e }
+security-hardening-reloaded-sshd = ✓ Reloaded sshd.
+security-hardening-a-fresh-key-login-failed = ✕ A fresh key login failed after the reload ({ $e }).
+security-hardening-a-fresh-key-login-still = ✓ A fresh key login still works. PermitRootLogin is { $value }.
+security-hardening-a-fresh-key-login-doesnt-2 = ✕ A fresh key login doesn't work ({ $e }). Nothing was changed.
+security-hardening-neither-ufw-nor-firewalld-is = ✕ Neither ufw nor firewalld is installed. Install one (apt install ufw, dnf install firewalld), then try again. Nothing was changed.
+security-hardening-undone = ↺ Undone: { $off }.
+security-hardening-undo-didnt-finish-run-by = ⚠ Undo didn't finish: run { $off } by hand.
+security-hardening-a-fresh-key-login-failed-2 = ✕ A fresh key login failed with the firewall on ({ $e }).
+security-hardening-a-fresh-key-login-still-2 = ✓ A fresh key login still works. { $tool } is on, allowing { $ports }.
+security-hardening-accepted-by = accepted by { $by } ({ $a }): { $a2 }
+security-hardening-open-critical = {"*"}*open, critical**
+security-hardening-turn-a-firewall-on-that = turn a firewall on that allows SSH{ $p }
+security-hardening-undone-removed = ↺ Undone: removed { $root_dropin }{ $reload }.
+
+## security-stance
+security-stance-open = OPEN
+security-stance-locked = LOCKED
+security-stance-secrets-provider-tokens-ai-keys = Secrets (provider tokens, AI keys) are encrypted in crow.db, so a copy of the file or a backup doesn't reveal them.
+security-stance-tokens-never-appear-on-a = Tokens never appear on a command line or in logs.
+security-stance-everything-open-protects = Everything Open protects.
+security-stance-nobody-can-open-crow-or = Nobody can open Crow or use its secrets without your password and a 2FA code, not even programs running as you.
+security-stance-the-key-is-wiped-from = The key is wiped from memory when Crow locks.
+security-stance-anyone-at-your-unlocked-computer = Anyone at your unlocked computer can open Crow and use everything in it.
+security-stance-any-program-running-as-you = Any program running as you can ask the OS keyring for Crow's key while you're logged in (your login unlocks the keyring), then read every secret.
+security-stance-provider-tokens-can-power-servers = Provider tokens can power servers off and take snapshots; whoever has your session has that power.
+security-stance-crows-ssh-keys-in-ssh = Crow's SSH keys in ~/.ssh are files Crow doesn't encrypt: unless they have a passphrase, anything running as you can use them to reach your servers.
+security-stance-while-crow-is-unlocked-anyone = While Crow is unlocked, anyone at your computer can use it, until it auto-locks.
+security-stance-crows-ssh-keys-in-ssh-2 = Crow's SSH keys in ~/.ssh are files Crow doesn't encrypt: unless they have a passphrase, anything running as you can use them, locked or not.
+security-stance-your-server-list-settings-and = Your server list, settings and change history are not encrypted in either stance.
+security-stance-nothing-to-type-nothing-to = Nothing to type, nothing to lose. That convenience is the exposure above.
+security-stance-you-unlock-crow-with-your = You unlock Crow with your password and a 2FA code on every launch and after auto-lock.
+security-stance-lose-the-password-or-the = Lose the password or the authenticator and the stored secrets are gone for good. There is no reset and no recovery.
+security-stance-ai-api-keys-are-still = AI API keys are still stored in plain text (from an older version of Crow). They move into the vault as soon as an encryption key is available.
+security-stance-no-os-keyring-is-available = No OS keyring is available ({ $why }), so Crow can't store secrets at all. Switch to Locked to store them.
+security-stance-provider-can-power-servers-or = { $action_capable_accounts } provider { $action_capable_accounts ->
+        [one] account
+       *[other] accounts
+    } can power servers or take snapshots, usable by anyone at this session.
+security-stance-auto-lock-is-off-once = Auto-lock is off: once unlocked, Crow stays unlocked until you lock it or quit.
+security-stance-auto-lock-is-minutes-an = Auto-lock is { $auto_lock_minutes } minutes: an unattended, unlocked Crow stays usable that long.
+
+## security-sshd-passwords
+security-sshd-passwords-a-fresh-key-login-works = ✓ A fresh key login works.
+security-sshd-passwords-password-login-is-already-off = ✓ Password login is already off. Nothing to do.
+security-sshd-passwords-this-sshd-config-doesnt-include = ✕ This sshd_config doesn't include sshd_config.d, so a drop-in wouldn't apply. Nothing was changed; set PasswordAuthentication to no in the sshd_config sheet instead.
+security-sshd-passwords-and-reloaded-sshd = {" "}and reloaded sshd
+security-sshd-passwords-undo-didnt-finish-remove-by = ⚠ Undo didn't finish: remove { $dropin } by hand and reload sshd.
+security-sshd-passwords-wrote = ✓ Wrote { $dropin }.
+security-sshd-passwords-sshd-rejected-the-change = ✕ sshd rejected the change: { $e }
+security-sshd-passwords-sshd-t-accepts-it = ✓ sshd -t accepts it.
+security-sshd-passwords-sshd-will-refuse-passwords = ✓ sshd will refuse passwords.
+security-sshd-passwords-set-in = {" "}(set in: { $who })
+security-sshd-passwords-couldnt-check-the-result = ✕ Couldn't check the result: { $e }
+security-sshd-passwords-couldnt-reload-sshd = ✕ Couldn't reload sshd: { $e }
+security-sshd-passwords-reloaded-sshd = ✓ Reloaded sshd.
+security-sshd-passwords-a-fresh-key-login-failed = ✕ A fresh key login failed after the reload ({ $e }).
+security-sshd-passwords-a-fresh-key-login-still = ✓ A fresh key login still works. Password login is off.
+security-sshd-passwords-undone-removed = ↺ Undone: removed { $dropin }{ $reload }.
+security-sshd-passwords-something-else-still-turns-password = ✕ Something else still turns password login on{ $who }.
+
+## security-host-keys
+security-host-keys-this-server-uses-host-certificates = this server uses host certificates; rotate them with the CA that signs them
+security-host-keys-couldnt-read-sshds-settings = couldn't read sshd's settings: { $e }
+security-host-keys-couldnt-generate-new-keys = couldn't generate new keys: { $e }
+security-host-keys-none-of-sshds-host-keys = none of sshd's host keys exist on disk
+security-host-keys-the-server-returned-a-public = the server returned a public key Crow couldn't read; nothing was changed
+security-host-keys-the-new-keys-werent-put = the new keys weren't put in place: { $e }
+security-host-keys-rolled-back-the-old-host = { $why }. Rolled back: the old host keys are back and known_hosts is as it was.
+security-host-keys-server = server: { $e }
+security-host-keys-known-hosts-couldnt-be-updated = known_hosts couldn't be updated ({ $e })
+security-host-keys-a-fresh-login-with-the = a fresh login with the new key failed ({ $e })
+security-host-keys-rollback-didnt-finish-the-old = { $why }. Rollback didn't finish ({ $r }{ $l }); the old keys are kept in { $backup } on the server.
+
+## security-osv
+security-osv-osv-answered-with-something-unexpected = OSV answered with something unexpected: { $e }
+security-osv-an-unknown-os = an unknown OS
+security-osv-cve-lookup-covers-debian-and = CVE lookup covers Debian and Ubuntu; this server runs { $report }
+
+## security-sessions
+security-sessions-crow-couldnt-find-its-own = Crow couldn't find its own connection among sshd's, so it ended nothing
+security-sessions-no-other-ssh-logins = no other SSH logins
+security-sessions-ended-other-ssh = ended { $count } other SSH { $count ->
+        [one] login
+       *[other] logins
+    }: { $who }
+
+## lab-multipass
+lab-multipass-install-multipass-with-homebrew = Install Multipass with Homebrew
+lab-multipass-install-multipass-from-canonical = Install Multipass from Canonical
+lab-multipass-multipass-ships-as-a-snap = Multipass ships as a snap; add snapd to the system image, then reboot
+lab-multipass-multipass-ships-as-a-snap-2 = Multipass ships as a snap; install snapd with your package manager
+lab-multipass-start-snapd = Start snapd
+lab-multipass-install-multipass = Install Multipass
+lab-multipass-let-multipasss-dns-server-find = Let Multipass's DNS server find the nobody user (system users live in /usr/lib on this system)
+lab-multipass-let-vms-get-an-address = Let VMs get an address: firewalld blocks DHCP and DNS on Multipass's private bridge
+lab-multipass-restart-the-multipass-daemon = Restart the Multipass daemon
+lab-multipass-the-daemon-didnt-answer = the daemon didn't answer
+lab-multipass-a-vm-name-is-a = { $name }: a VM name is a letter, then letters, digits and hyphens (not ending in one)
+lab-multipass-a-vm-needs-at-least = a VM needs at least 1 CPU, 1 GB of memory and 5 GB of disk
+lab-multipass-isnt-an-image-name-multipass = { $image } isn't an image name Multipass knows
+lab-multipass-crows-public-key-isnt-a = Crow's public key isn't a valid OpenSSH key
+lab-multipass-couldnt-pass-the-cloud-init = couldn't pass the cloud-init: { $e }
+lab-multipass-unexpected-multipass-list-output = unexpected `multipass list` output: { $e }
+lab-multipass-unexpected-multipass-info-output = unexpected `multipass info` output: { $e }
+lab-multipass-has-no-ssh-host-keys = { $name } has no SSH host keys yet; is it still booting?
+lab-multipass-not-a-valid-openssh-public = not a valid OpenSSH public key
+lab-multipass-start = Start
+lab-multipass-stop = Stop
+lab-multipass-restart = Restart
+lab-multipass-suspend = Suspend
+lab-multipass-delete-for-good = Delete for good
+lab-multipass-not-running-yet = not running yet
+lab-multipass-no-address-yet = no address yet
+lab-multipass-state = state { $state }
+lab-multipass-didnt-come-up-in-s = { $name } didn't come up in { $as_secs }s ({ $last })
+lab-multipass-no-host-keys-to-pin = no host keys to pin
+lab-multipass-couldnt-write-ssh-known-hosts = couldn't write ~/.ssh/known_hosts: { $e }
+lab-multipass-waiting-for-an-address-and = Waiting for an address and host keys
+lab-multipass-pinning-host-keys-for = Pinning host keys for { $address }
+lab-multipass-logging-in-as-ubuntu-with = Logging in as ubuntu with Crow's key
+lab-multipass-reading-its-facts = Reading its facts
+lab-multipass-adding-crows-key-to = Adding Crow's key to { $name }
+
+## lab
+lab-distrobox = Distrobox
+lab-podman = Podman
+lab-multipass = Multipass
+lab-docker = Docker
+
+## journal
+journal-emerg = EMERG
+journal-alert = ALERT
+journal-notice = NOTICE
+journal-debug = DEBUG
+journal-live = LIVE
+journal-all-time = ALL TIME
+journal-this-boot = THIS BOOT
+journal-previous-boot = PREVIOUS BOOT
+journal-just-now = just now
+journal-s-ago = { $diff }s ago
+journal-m-ago = { $diff }m ago
+journal-h-ago = { $diff }h ago
+journal-d-ago = { $diff }d ago
+
+## dr
+dr-min = { $s } min
+dr-days = { $s } days
+dr-no-backup-found-at = no backup found at { $path }
+dr-last-ran = , last ran { $last }
+dr-not-found = not found
+dr-exists = { $p } exists
+dr-isnt-there-the-plan-may = { $p } isn't there: the plan may be out of date
+dr-config-pinned-as-baselines-rebuildable = { $baselines } config { $baselines ->
+        [one] file
+       *[other] files
+    } pinned as baselines (rebuildable from Crow)
+dr-no-config-file-pinned-as = no config file pinned as a baseline: pin the ones a rebuild needs
+dr-can-snapshot-it-danger-zone = { $p } can snapshot it (Danger Zone → SNAPSHOTS)
+dr-the-plan-names-no-backups = the plan names no backups
+dr-is-active = { $t } is active{ $last }
+dr-isnt-running-backups-wont-be = { $t } isn't running ({ $state }): backups won't be made
+
+## patching
+patching-security-updates = security updates
+patching-all-updates = all updates
+patching-s-package-index-was-never = { $manager }'s package index was never downloaded, so pending updates are unknown: run `{ $manager } update` there
+patching-nothing-to-upgrade = nothing to upgrade
+patching-isnt-a-package-name = { $bad } isn't a package name
+patching-no-package-manager-crow-knows = no package manager Crow knows (apt, dnf, apk)
+patching-isnt-a-package-manager-crow = { $other } isn't a package manager Crow can patch with
+patching-upgraded = { $count } upgraded
+patching-still-pending = , { $count } still pending ({ $still_pending })
+patching-reboot-required = {" "}· reboot required
+patching-failed-exit = { $manager } failed (exit { $status }): { $last_lines }
+patching-a-window-looks-like-sun = a window looks like "Sun 02-05" or "Mon-Fri 22-06"
+patching-isnt-a-day = { $a } isn't a day
+patching-isnt-a-day-2 = { $b } isn't a day
+patching-isnt-a-day-3 = { $part } isn't a day
+patching-no-days-in-the-window = no days in the window
+patching-hours-look-like-02-05 = hours look like 02-05
+patching-hours-are-0-to-24 = hours are 0 to 24
+patching-the-windows-start-and-end = the window's start and end are the same hour
+patching-outside-s-maintenance-window = outside { $group }'s maintenance window ({ $describe })
+patching-no-systemd-to-wait-for = no systemd to wait for
+patching-services-up = services up ({ $state })
+patching-a-unit = a unit
+patching-came-back-but-systemd-was = came back, but systemd was still starting after { $as_secs }s
+patching-came-back-but-failed = came back, but { $new } failed: { $new2 }
+
+## certs
+certs-certbots-timer-isnt-running-certificates = certbot's timer isn't running ({ $t }): certificates won't renew on their own
+certs-certbots-last-renewal-failed = certbot's last renewal failed: { $last }
+certs-exit = exit { $status }: { $stderr }
+certs-isnt-a-certificate-name = ✕ { $name } isn't a certificate name.
+certs-dry-run-passed = ✓ Dry run passed: { $tail }
+certs-the-dry-run-failed-so = ✕ The dry run failed, so nothing was renewed: { $e }
+certs-not-due-yet-certbot-renews = = Not due yet: certbot renews within 30 days of expiry, and Let's Encrypt limits how often a certificate can be issued.
+certs-renewed = ✓ Renewed: { $tail }
+certs-renewal-failed = ✕ Renewal failed: { $e }
+certs-isnt-a-domain = ✕ { $domain } isn't a domain.
+certs-acme-sh-has-no-dry = · acme.sh has no dry run: renewing directly.
+certs-not-due-yet-acme-sh = = Not due yet (acme.sh renews 60 days after issue).
+certs-nginx-config-checked-and-reloaded = ✓ nginx config checked and reloaded.
+certs-nginx-wasnt-reloaded-it-still = ✕ nginx wasn't reloaded ({ $e }): it still serves the old certificate until it is.
+certs-apache-config-checked-and-reloaded = ✓ Apache config checked and reloaded.
+certs-apache-wasnt-reloaded-it-still = ✕ Apache wasn't reloaded ({ $e }): it still serves the old certificate until it is.
+certs-the-certificate-now-expires = ✓ The certificate now expires { $expiry }.
+certs-couldnt-re-read-the-certificate = · Couldn't re-read the certificate to confirm its new expiry.
+
+## containers
+containers-docker = Docker
+containers-podman = Podman
+
+## keys
+keys-ed25519-recommended = Ed25519 (Recommended)
+keys-rsa-4096-bit = RSA 4096-bit
+keys-failed-to-create-destination-directory = Failed to create destination directory '{ $target_dir }': { $e }
+keys-failed-to-generate-ed25519-key = Failed to generate Ed25519 key: { $e }
+keys-failed-to-generate-rsa-4096 = Failed to generate RSA 4096 key: { $e }
+keys-failed-to-format-public-key = Failed to format public key: { $e }
+keys-failed-to-format-private-key = Failed to format private key: { $e }
+keys-the-keys-file-name-cant = The key's file name can't contain / or be . or ..
+keys-public-key-file-already-exists = Public key file already exists at '{ $pub_path }'
+keys-private-key-file-already-exists = Private key file already exists at '{ $priv_path }'
+keys-failed-to-write-private-key = Failed to write private key to '{ $priv_path }': { $e }
+keys-failed-to-write-public-key = Failed to write public key to '{ $pub_path }': { $e }
+
+## keys-deploy
+keys-deploy-the-new-key-isnt-an = the new key isn't an OpenSSH public key
+keys-deploy-has-no-home-directory-on = { $user } has no home directory on the server
+keys-deploy-the-new-key-didnt-log = the new key didn't log in ({ $e }); it was removed again and nothing switched
+
+## host-bootstrap
+host-bootstrap-is-not-a-valid-host = { $host } is not a valid host
+host-bootstrap-cant-locate-the-crow-binary = can't locate the Crow binary for askpass: { $e }
+host-bootstrap-couldnt-run-ssh = couldn't run ssh: { $version }
+host-bootstrap-askpass-socket = askpass socket: { $e }
+host-bootstrap-the-key-install-script-didnt = the key install script didn't finish: { $stderr }
+host-bootstrap-installing-the-key-failed = installing the key failed: { $stderr }
+host-bootstrap-timed-out-logging-in-with = timed out logging in with the password
+
+## topology
+topology-its-health-check-fails = its health check fails
+topology-stopped-with-an-error = stopped with an error: { $status }
+topology-restarted-times = restarted { $n } times
+topology-port-published-to-every-network = port { $host_port } (→ { $container }) published to every network
+topology-dsa-key-broken-and-refused = DSA key: broken, and refused by current OpenSSH
+topology-rsa-bit-under-the-3072 = RSA { $bits }-bit: under the 3072 bits current guidance asks for
+topology-crow-2 = Crow
+topology-this-machine = this machine
+topology-host-key-not-pinned-crow = host key not pinned: Crow never recorded which key this server should have
+topology-crow-logs-in-with-a = Crow logs in with a password, not a key
+topology-jump-host-for-servers-if = jump host for { $n } servers: if it's down, Crow can't reach them
+topology-servers = SERVERS
+topology-days-old-past-the-day = { $days } days old: past the { $key_max_age_days }-day rotation guidance
+topology-no-private-key-file-recorded = no private key file recorded on this machine
+topology-keys = KEYS
+
+## team
+team-restart-services = restart services
+team-edit-configs = edit configs
+team-fleet-runs = fleet runs
+team-users-firewall = users & firewall
+team-ssh-keys = SSH keys
+team-vault-settings = vault & settings
+team-viewer = Viewer
+team-operator = Operator
+team-admin = Admin
+team-the-whole-fleet = the whole fleet
+team-text = { $count ->
+        [one] group
+       *[other] groups
+    } { $g }
+team-sign-in-first-this-crow = sign in first: this Crow has a team
+team-is-a-needs-a-role = { $name } is a { $name2 }: { $label } needs a role that allows { $label }
+team-isnt-in-s-scope = { $name } isn't in { $name2 }'s scope ({ $describe })
+team-a-passphrase-needs-at-least = a passphrase needs at least 8 characters
+
+## update
+update-this-crow-runs-from-rather = this Crow runs from { $exe } rather than an installed Crow.app, so it isn't replaced
+update-no-home-directory = no home directory
+update-this-crow-runs-from-rather-2 = this Crow runs from { $exe } rather than the installed { $installed }, so it isn't replaced (update your build from source instead)
+update-theres-no-release-build-for = there's no release build for this platform
+update-has-no = { $tag } has no { $name }
+update-has-no-provenance-intoto-jsonl = { $tag } has no provenance (.intoto.jsonl), so it can't be verified
+update-installing-updates-needs-slsa-verifier = installing updates needs slsa-verifier (github.com/slsa-framework/slsa-verifier) to check the release's signed provenance; it isn't on PATH. Nothing was installed
+update-verification-failed = verification failed
+update-crow-is-installed-verified-restart = Crow { $version } is installed (verified). Restart Crow to use it.
+update-couldnt-move-the-old-crow = couldn't move the old Crow.app aside: { $e }
+update-the-release-didnt-verify-so = the release didn't verify, so nothing was installed: { $from_utf8_lossy }
+
+## providers
+providers-isnt-compiled-into-this-build = { $plugin } isn't compiled into this build
+providers-required = { $names } { $count ->
+        [one] is
+       *[other] are
+    } required
+providers-provider-secrets-are-only-stored = provider secrets are only stored encrypted, and no encryption key is available
+providers-the-stored-isnt-text = the stored { $field } isn't text
+providers-cant-power-instances = { $name } can't power instances
+providers-accepted-boot = { $name } accepted: boot { $id }
+providers-accepted-reboot = { $name } accepted: reboot { $id }
+providers-accepted-shut-down = { $name } accepted: shut down { $id }
+providers-cant-take-snapshots = { $name } can't take snapshots
+providers-snapshot-started-for = { $name } snapshot { $id } ({ $status }) started for { $id2 }
+
+## incident
+incident-alert = ALERT
+incident-resolved = RESOLVED
+incident-change = CHANGE
+incident-check = CHECK
+incident-log = LOG
+
+## config-push
+config-push-removed-it-didnt-exist-before = removed (it didn't exist before)
+config-push-removed-with-none-of-it = removed, with { $created_dirs } (none of it existed before)
+config-push-couldnt-read = couldn't read { $path }: { $e }
+config-push-already-matches-the-baseline = already matches the baseline
+config-push-not-written = not written: { $e }
+config-push-not-written-the-hosts-validator = not written: the host's validator refused the baseline: { $e }
+config-push-the-vault-is-busy = the vault is busy
+config-push-written = written ({ $differences } { $differences ->
+        [one] difference
+       *[other] differences
+    })
+config-push-history-not-recorded = { $what }; history not recorded: { $e }
+
+## config-drift
+config-drift-missing = missing: { $r }
+config-drift-extra = extra: { $r }
+config-drift-same-lines-in-a-different = same lines in a different order (order matters in this file)
+config-drift-differs-from-the-baseline-only = differs from the baseline (only hashes kept, so Crow can't say how)
+config-drift-group = { $scope } group
+config-drift-more = {" "}(+{ $d } more)
+config-drift-drifted-from-the-baseline = { $path } drifted from the { $scope } baseline: { $first }{ $more }
+
+## metrics-certs
+metrics-certs-certificate-for = certificate for { $name }
+metrics-certs-expired-day-ago = expired { $d } day{ $d2 } ago
+metrics-certs-expires-today = expires today
+metrics-certs-expires-tomorrow = expires tomorrow
+metrics-certs-expires-in-days = expires in { $d } days
+
+## host-reboot
+host-reboot-not-rebooted-couldnt-read-the = not rebooted: couldn't read the boot marker first: { $e }
+host-reboot-back-after-s = back after { $as_secs }s
+host-reboot-the-reboot-request-failed-and = the reboot request failed ({ $e }) and the server didn't restart
+host-reboot-not-back-after-s = not back after { $as_secs }s
+
+## rollout
+rollout-couldnt-run-it-exit = couldn't run it (exit { $status }): { $last_lines }
+rollout-done-no-output = done (no output)
+rollout-ended-without-an-exit-code = ended without an exit code: { $tail }
+rollout-exit = exit { $n }: { $tail }
+
+## people
+people-no-comment = no comment
+people-crow-logs-in-to-as = Crow logs in to { $server } as { $user }: offboarding it would lock Crow out
+people-root-isnt-offboarded-turn-off = root isn't offboarded: turn off root's SSH login in HARDENING instead
+people-no-account-on = no { $user } account on { $server }
+people-its-the-key-crow-logs = it's the key Crow logs in to { $server } with: switch Crow to another key first (Keys → switch)
+people-not-on = not on { $server }
+people-that-isnt-an-openssh-public = that isn't an OpenSSH public key (ssh-ed25519 AAAA… comment)
+
+## terminal-session
+terminal-session-session-ended = session ended
+terminal-session-session-ended-exit-status = session ended (exit status { $code })
+terminal-session-session-ended-killed-by-a = session ended (killed by a signal)
+
+## geoip
+geoip-the-geoip-database-couldnt-be = the GeoIP database couldn't be read: { $e }
+geoip-the-geoip-database-has-no = the GeoIP database has no country data
+geoip-no-data-directory = no data directory
+geoip-bad-database-path = bad database path
+geoip-the-geoip-database-couldnt-be-2 = the GeoIP database couldn't be downloaded ({ $last })
+
+## appearance
+appearance-isnt-a-picture-crow-can = { $source } isn't a picture Crow can read: { $e }
+appearance-cant-create = can't create { $dir }: { $e }
+appearance-cant-save = can't save { $dest }: { $e }
+appearance-cant-read = can't read { $stored }: { $e }
+appearance-cant-save-2 = can't save { $cached }: { $e }
+
+## vault
+vault-the-vault-is-locked = the vault is locked
+vault-still-reading-the-os-keyring = still reading the OS keyring; try again in a moment
+vault-no-os-keyring-is-available = no OS keyring is available to hold the encryption key ({ $why }); turn on the vault password in Vault & Security instead
+vault-db-lock-poisoned = DB lock poisoned
+
+## security-hardening
+security-hardening-isnt-a-setting-crow-applies = ✕ { $value } isn't a setting Crow applies.
+security-hardening-couldnt-read-sshd-config-nothing = ✕ Couldn't read sshd_config: { $e }. Nothing was changed.
+security-hardening-couldnt-write-nothing-was-changed = ✕ Couldn't write { $root_dropin }: { $e }. Nothing was changed.
+
+## security-sshd-passwords
+security-sshd-passwords-a-fresh-key-login-doesnt-2 = ✕ A fresh key login doesn't work ({ $e }). Nothing was changed: turning passwords off now could lock you out.
+security-sshd-passwords-couldnt-read-sshds-settings-nothing = ✕ Couldn't read sshd's settings: { $e }. Nothing was changed.
+security-sshd-passwords-couldnt-create-etc-ssh-sshd-2 = ✕ Couldn't create /etc/ssh/sshd_config.d: { $e }. Nothing was changed.
+security-sshd-passwords-couldnt-write-nothing-was-changed = ✕ Couldn't write { $dropin }: { $e }. Nothing was changed.
+
+## host-diagnose
+host-diagnose-sshd-may-be-stopped-or = sshd may be stopped, or listening on another port.
+
+## security-hardening
+security-hardening-sshd-accepts-passwords-passwordauthentication-yes = sshd accepts passwords (PasswordAuthentication yes)
+
+## lab-multipass
+lab-multipass-multipass-launch-didnt-finish-in = multipass launch didn't finish in { $launch } minutes
+lab-multipass-multipass-launch-failed = multipass launch failed ({ $status })
+lab-multipass-multipass-failed = multipass failed
+
+## dr
+dr-last-backup-is-old-more = last backup { $name } is { $age } old: more than the RPO of { $rpo_minutes } min
+dr-last-backup-is-old = last backup { $name } is { $age } old
+
+## certs
+certs-certbot-is-installed-but-nothing = certbot is installed but nothing runs it (no timer, no cron): certificates won't renew on their own
+certs-acme-sh-is-installed-but = acme.sh is installed but its cron job is missing: certificates won't renew on their own
+
+## team
+team-env = env { $e }

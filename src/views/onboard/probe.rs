@@ -178,10 +178,10 @@ pub fn probe_via_bastion(host: &str, port: u16, user: &str, proxy: &str, via: &s
         return (result, logs);
     }
     let port_s = port.to_string();
-    let kh_opt = t!("onboard-probe-userknownhostsfile", kh = kh.display());
-    let proxy_opt = t!("onboard-probe-proxycommand", proxy = proxy);
-    let mut argv: Vec<&str> = vec!["ssh", "-v", "-o", t!("onboard-probe-batchmode-yes"), "-o", &kh_opt, "-o", t!("onboard-probe-globalknownhostsfile-dev-null"), "-o", t!("onboard-probe-stricthostkeychecking-no"), "-o", t!("onboard-probe-hashknownhosts-no"), "-o", t!("onboard-probe-updatehostkeys-no")];
-    for off in [t!("onboard-probe-pubkeyauthentication-no"), t!("onboard-probe-passwordauthentication-no"), t!("onboard-probe-kbdinteractiveauthentication-no"), t!("onboard-probe-gssapiauthentication-no"), t!("onboard-probe-hostbasedauthentication-no"), t!("onboard-probe-controlmaster-no"), t!("onboard-probe-controlpath-none"), t!("onboard-probe-connecttimeout-10")] {
+    let kh_opt = format!("UserKnownHostsFile={}", kh.display());
+    let proxy_opt = format!("ProxyCommand={proxy}");
+    let mut argv: Vec<&str> = vec!["ssh", "-v", "-o", "BatchMode=yes", "-o", &kh_opt, "-o", "GlobalKnownHostsFile=/dev/null", "-o", "StrictHostKeyChecking=no", "-o", "HashKnownHosts=no", "-o", "UpdateHostKeys=no"];
+    for off in ["PubkeyAuthentication=no", "PasswordAuthentication=no", "KbdInteractiveAuthentication=no", "GSSAPIAuthentication=no", "HostbasedAuthentication=no", "ControlMaster=no", "ControlPath=none", "ConnectTimeout=10"] {
         argv.extend(["-o", off]);
     }
     argv.extend(["-o", &proxy_opt, "-p", &port_s]);

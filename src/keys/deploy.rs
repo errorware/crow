@@ -39,13 +39,13 @@ pub fn deploy_and_switch(
     verify: impl FnOnce(&ServerRecord) -> Result<(), String>,
 ) -> Result<Switched, String> {
     let user = server.login_user.as_str();
-    let new_blob = key_blob(&new_key.public_key).ok_or("the new key isn't an OpenSSH public key")?;
+    let new_blob = key_blob(&new_key.public_key).ok_or(t!("keys-deploy-the-new-key-isnt-an"))?;
     let home = host
         .exec(&["sh", "-c", "getent passwd \"$1\" | cut -d: -f6", "crow-home", user], DEFAULT_TIMEOUT)
         .map(|o| o.stdout.trim().to_string())
         .map_err(|e| format!("couldn't find {user}'s home: {e}"))?;
     if home.is_empty() {
-        return Err(format!("{user} has no home directory on the server"));
+        return Err(t!("keys-deploy-has-no-home-directory-on", user = user));
     }
     let argv = authorize_key(user, &home, &new_key.public_key)?;
     let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
@@ -60,7 +60,7 @@ pub fn deploy_and_switch(
             let undo: Vec<&str> = undo.iter().map(String::as_str).collect();
             let _ = host.exec_privileged(&undo, &[], DEFAULT_TIMEOUT);
         }
-        return Err(format!("the new key didn't log in ({e}); it was removed again and nothing switched"));
+        return Err(t!("keys-deploy-the-new-key-didnt-log", e = e));
     }
 
     let removed_old = match old_blob.filter(|b| *b != new_blob) {

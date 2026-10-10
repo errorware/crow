@@ -113,7 +113,7 @@ pub fn served_keys(sshd_t: &str) -> Result<Vec<String>, String> {
     for line in sshd_t.lines() {
         let mut parts = line.split_whitespace();
         match parts.next() {
-            Some("hostcertificate") => return Err("this server uses host certificates; rotate them with the CA that signs them".into()),
+            Some("hostcertificate") => return Err(t!("security-host-keys-this-server-uses-host-certificates").into()),
             Some("hostkey") => keys.extend(parts.next().map(str::to_string)),
             _ => {}
         }
@@ -140,13 +140,13 @@ fn parse_prepared(out: &str) -> Vec<(String, String)> {
 /// Rotates one server's host keys. `fresh_login` makes a brand-new
 /// connection with strict host key checking.
 pub fn rotate(host: &dyn Host, address: &str, port: u16, known: &dyn KnownHosts, fresh_login: &dyn Fn() -> Result<(), String>) -> Result<Rotated, String> {
-    let keys = served_keys(&root(host, &["sshd", "-T"]).map_err(|e| format!("couldn't read sshd's settings: {e}"))?)?;
+    let keys = served_keys(&root(host, &["sshd", "-T"]).map_err(|e| t!("security-host-keys-couldnt-read-sshds-settings", e = e))?)?;
 
     let mut argv = vec!["sh", "-c", PREPARE, "crow-hostkeys"];
     argv.extend(keys.iter().map(String::as_str));
-    let prepared = parse_prepared(&root(host, &argv).map_err(|e| format!("couldn't generate new keys: {e}"))?);
+    let prepared = parse_prepared(&root(host, &argv).map_err(|e| t!("security-host-keys-couldnt-generate-new-keys", e = e))?);
     if prepared.is_empty() {
-        return Err("none of sshd's host keys exist on disk".into());
+        return Err(t!("security-host-keys-none-of-sshds-host-keys").into());
     }
     let paths: Vec<&str> = prepared.iter().map(|(p, _)| p.as_str()).collect();
 
@@ -158,7 +158,7 @@ pub fn rotate(host: &dyn Host, address: &str, port: u16, known: &dyn KnownHosts,
     }).collect();
     let fps: Vec<(String, String)> = lines.iter().filter_map(|l| crate::views::onboard::probe::key_fingerprint(l)).collect();
     if fps.len() != lines.len() {
-        return Err("the server returned a public key Crow couldn't read; nothing was changed".into());
+        return Err(t!("security-host-keys-the-server-returned-a-public").into());
     }
     let (alg, fp) = fps.iter().find(|(a, _)| a == "ssh-ed25519").or(fps.first()).cloned().expect("checked non-empty");
     let rotated = Rotated {
@@ -181,7 +181,7 @@ pub fn rotate(host: &dyn Host, address: &str, port: u16, known: &dyn KnownHosts,
     };
     if let Err(e) = with_keys(SWAP) {
         cleanup_new();
-        return Err(format!("the new keys weren't put in place: {e}"));
+        return Err(t!("security-host-keys-the-new-keys-werent-put", e = e));
     }
 
     let old_lines = known.lines(&pat);
@@ -193,19 +193,15 @@ pub fn rotate(host: &dyn Host, address: &str, port: u16, known: &dyn KnownHosts,
         }
         let local = known.replace(&pat, &old_lines);
         match (remote, local) {
-            (Ok(_), Ok(())) => format!("{why}. Rolled back: the old host keys are back and known_hosts is as it was."),
-            (r, l) => format!(
-                "{why}. Rollback didn't finish ({}{}); the old keys are kept in {backup} on the server.",
-                r.err().map(|e| format!("server: {e}")).unwrap_or_default(),
-                l.err().map(|e| format!(" known_hosts: {e}")).unwrap_or_default()
-            ),
+            (Ok(_), Ok(())) => t!("security-host-keys-rolled-back-the-old-host", why = why),
+            (r, l) => t!("security-host-keys-rollback-didnt-finish-the-old", why = why, r = r.err().map(|e| t!("security-host-keys-server", e = e)).unwrap_or_default(), l = l.err().map(|e| format!(" known_hosts: {e}")).unwrap_or_default(), backup = backup),
         }
     };
     if let Err(e) = known.replace(&pat, &lines) {
-        return Err(undo(format!("known_hosts couldn't be updated ({e})")));
+        return Err(undo(t!("security-host-keys-known-hosts-couldnt-be-updated", e = e)));
     }
     if let Err(e) = fresh_login() {
-        return Err(undo(format!("a fresh login with the new key failed ({e})")));
+        return Err(undo(t!("security-host-keys-a-fresh-login-with-the", e = e)));
     }
     // Proven: the old private keys aren't needed any more.
     let _ = root(host, &["rm", "-rf", "--", &backup]);

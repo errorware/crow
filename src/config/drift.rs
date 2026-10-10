@@ -73,13 +73,13 @@ fn row_differences(mut base: Vec<String>, mut act: Vec<String>, ordered: bool) -
     let mut out = Vec::new();
     let missing: Vec<String> = base.iter().filter(|r| !act.contains(r)).cloned().collect();
     let extra: Vec<String> = act.iter().filter(|r| !base.contains(r)).cloned().collect();
-    out.extend(missing.iter().map(|r| format!("missing: {r}")));
-    out.extend(extra.iter().map(|r| format!("extra: {r}")));
+    out.extend(missing.iter().map(|r| t!("config-drift-missing", r = r)));
+    out.extend(extra.iter().map(|r| t!("config-drift-extra", r = r)));
     if out.is_empty() && ordered {
         base.retain(|r| !missing.contains(r));
         act.retain(|r| !extra.contains(r));
         if base != act {
-            out.push("same lines in a different order (order matters in this file)".into());
+            out.push(t!("config-drift-same-lines-in-a-different").into());
         }
     }
     out
@@ -134,7 +134,7 @@ pub fn fleet_drift(db: &VaultDb, key: Option<&MasterKey>, servers: &[ServerRecor
             } else {
                 match (open_content(&base, key), open_content(&rev, key)) {
                     (Some(b), Some(a)) => compare(format_for_path(path), &b, &a),
-                    _ => Drift::Differs(vec!["differs from the baseline (only hashes kept, so Crow can't say how)".into()]),
+                    _ => Drift::Differs(vec![t!("config-drift-differs-from-the-baseline-only").into()]),
                 }
             };
             out.push(DriftEntry { server_id: rev.server_id, path: path.to_string(), scope: b.scope.clone(), drift, as_of: rev.created_at });
@@ -205,10 +205,10 @@ pub fn alert_changes(open: &[crate::metrics::alerts::Alert], entries: &[DriftEnt
         let existing = open.iter().find(|a| a.server_id == e.server_id && a.kind == kind && a.resolved_at.is_none());
         match (&e.drift, existing) {
             (Drift::Differs(d), existing) => {
-                let scope = if e.scope == BASELINE_FLEET { "fleet".to_string() } else { format!("{} group", e.scope) };
+                let scope = if e.scope == BASELINE_FLEET { "fleet".to_string() } else { t!("config-drift-group", scope = e.scope) };
                 let first = d.first().cloned().unwrap_or_default();
-                let more = if d.len() > 1 { format!(" (+{} more)", d.len() - 1) } else { String::new() };
-                let detail = format!("{} drifted from the {scope} baseline: {first}{more}", e.path);
+                let more = if d.len() > 1 { t!("config-drift-more", d = d.len() - 1) } else { String::new() };
+                let detail = t!("config-drift-drifted-from-the-baseline", path = e.path, scope = scope, first = first, more = more);
                 match existing {
                     Some(a) => changes.updated.push((a.id.clone(), "WARN".into(), detail, now)),
                     None => changes.opened.push(Alert {

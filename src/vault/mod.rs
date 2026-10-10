@@ -110,18 +110,18 @@ impl Vault {
     /// Whether a secret can be stored right now, and if not, why.
     pub fn secrets_blocker(&self) -> Option<String> {
         if self.initialized {
-            return self.session.is_none().then(|| "the vault is locked".to_string());
+            return self.session.is_none().then(|| t!("vault-the-vault-is-locked").to_string());
         }
         match &self.keyring_state {
             KeyringState::Ready | KeyringState::Empty => None,
-            KeyringState::Loading => Some("still reading the OS keyring; try again in a moment".into()),
-            KeyringState::Unavailable(why) => Some(format!("no OS keyring is available to hold the encryption key ({why}); turn on the vault password in Vault & Security instead")),
+            KeyringState::Loading => Some(t!("vault-still-reading-the-os-keyring").into()),
+            KeyringState::Unavailable(why) => Some(t!("vault-no-os-keyring-is-available", why = why)),
         }
     }
 
     /// Initializes password and mandatory 2FA TOTP protection.
     pub fn initialize(&mut self, password: &str, totp_secret: &str) -> Result<(), VaultError> {
-        let mut db = self.db.lock().map_err(|_| VaultError::Crypto("DB lock poisoned".into()))?;
+        let mut db = self.db.lock().map_err(|_| VaultError::Crypto(t!("vault-db-lock-poisoned").into()))?;
         // Keep the data key secrets already use; it moves from the keyring
         // into the vault, wrapped by the password.
         let key = db.init_vault(password, Some(totp_secret), self.keyring_key.as_ref())?;
@@ -138,7 +138,7 @@ impl Vault {
 
     /// Authenticates with master password and mandatory 2FA code.
     pub fn unlock(&mut self, password: &str, totp_code: &str) -> Result<(), VaultError> {
-        let db = self.db.lock().map_err(|_| VaultError::Crypto("DB lock poisoned".into()))?;
+        let db = self.db.lock().map_err(|_| VaultError::Crypto(t!("vault-db-lock-poisoned").into()))?;
         let key = db.unlock(password, Some(totp_code))?;
         let meta = db.get_meta().ok();
         let auto_lock_minutes = meta.map(|m| m.auto_lock_minutes).unwrap_or(15);
@@ -153,7 +153,7 @@ impl Vault {
 
     /// Changes the vault password (Locked stays Locked; same data key).
     pub fn change_password(&mut self, current: &str, totp_code: &str, new_password: &str) -> Result<(), VaultError> {
-        let db = self.db.lock().map_err(|_| VaultError::Crypto("DB lock poisoned".into()))?;
+        let db = self.db.lock().map_err(|_| VaultError::Crypto(t!("vault-db-lock-poisoned").into()))?;
         db.change_password(current, Some(totp_code), new_password)?;
         Ok(())
     }
@@ -162,13 +162,13 @@ impl Vault {
     /// password and code. The caller puts it in the OS keyring, then calls
     /// [`Self::finish_password_removal`].
     pub fn data_key_for_removal(&self, password: &str, totp_code: &str) -> Result<MasterKey, VaultError> {
-        let db = self.db.lock().map_err(|_| VaultError::Crypto("DB lock poisoned".into()))?;
+        let db = self.db.lock().map_err(|_| VaultError::Crypto(t!("vault-db-lock-poisoned").into()))?;
         db.data_key_for_removal(password, Some(totp_code))
     }
 
     /// Going back to Open, step two, once the keyring holds `key`.
     pub fn finish_password_removal(&mut self, key: MasterKey) -> Result<(), VaultError> {
-        self.db.lock().map_err(|_| VaultError::Crypto("DB lock poisoned".into()))?.remove_password()?;
+        self.db.lock().map_err(|_| VaultError::Crypto(t!("vault-db-lock-poisoned").into()))?.remove_password()?;
         self.initialized = false;
         self.totp_enabled = false;
         self.session = None;

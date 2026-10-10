@@ -23,7 +23,7 @@ impl ClankersState {
         Self {
             providers,
             editing: None,
-            demo_log: t!("settings-clankers-state-kernel-129-412033-out-of").to_string(),
+            demo_log: "kernel: [  129.412033] Out of memory: Kill process 28419 (mysqld) score 812 or sacrifice child".to_string(),
             demo_output: None,
             demo_loading: false,
             key_checks: Default::default(),

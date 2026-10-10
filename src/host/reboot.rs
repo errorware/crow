@@ -27,20 +27,20 @@ pub fn reboot_and_wait(
     timeout: Duration,
     poll: Duration,
 ) -> StepResult {
-    let before = boot_marker(host).map_err(|e| format!("not rebooted: couldn't read the boot marker first: {e}"))?;
+    let before = boot_marker(host).map_err(|e| t!("host-reboot-not-rebooted-couldnt-read-the", e = e))?;
     let started = Instant::now();
     let trigger_error = trigger().err();
     loop {
         std::thread::sleep(poll);
         if let Ok(now) = boot_marker(host) {
             if now != before {
-                return Ok(StepOutcome::Done(format!("back after {}s", started.elapsed().as_secs())));
+                return Ok(StepOutcome::Done(t!("host-reboot-back-after-s", as_secs = started.elapsed().as_secs())));
             }
         }
         if started.elapsed() >= timeout {
             return Err(match trigger_error {
-                Some(e) => format!("the reboot request failed ({e}) and the server didn't restart"),
-                None => format!("not back after {}s", timeout.as_secs()),
+                Some(e) => t!("host-reboot-the-reboot-request-failed-and", e = e),
+                None => t!("host-reboot-not-back-after-s", as_secs = timeout.as_secs()),
             });
         }
     }

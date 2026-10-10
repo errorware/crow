@@ -49,7 +49,7 @@ pub struct Ended {
 
 pub fn parse(out: &str) -> Result<Vec<Ended>, String> {
     if out.lines().any(|l| l.trim() == "@@nomine") {
-        return Err("Crow couldn't find its own connection among sshd's, so it ended nothing".into());
+        return Err(t!("security-sessions-crow-couldnt-find-its-own").into());
     }
     Ok(out
         .lines()
@@ -66,7 +66,7 @@ pub fn parse(out: &str) -> Result<Vec<Ended>, String> {
 /// "ended 3 other SSH logins: alice, bob ×2", or that there were none.
 pub fn summary(ended: &[Ended]) -> String {
     if ended.is_empty() {
-        return "no other SSH logins".into();
+        return t!("security-sessions-no-other-ssh-logins").into();
     }
     let mut users: Vec<(String, usize)> = Vec::new();
     for e in ended {
@@ -76,7 +76,7 @@ pub fn summary(ended: &[Ended]) -> String {
         }
     }
     let who = users.iter().map(|(u, n)| if *n > 1 { format!("{u} ×{n}") } else { u.clone() }).collect::<Vec<_>>().join(", ");
-    format!("ended {} other SSH login{}: {who}", ended.len(), if ended.len() == 1 { "" } else { "s" })
+    t!("security-sessions-ended-other-ssh", count = ended.len(), who = who)
 }
 
 /// Ends every SSH connection to the server but Crow's own.

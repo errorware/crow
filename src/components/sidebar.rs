@@ -12,21 +12,21 @@ pub struct NavItemDef {
     pub hint: &'static str,
 }
 
-pub fn nav_items() -> &'static [NavItemDef] {
-    &[
-        NavItemDef { icon: TablerIcon::LayoutDashboard, label: "Overview", view_id: Some("overview"), hint: "" },
-        NavItemDef { icon: TablerIcon::Activity, label: "History", view_id: Some("history"), hint: "" },
-        NavItemDef { icon: TablerIcon::Server, label: "Services", view_id: Some("services"), hint: "" },
-        NavItemDef { icon: TablerIcon::Cpu, label: "Processes", view_id: Some("processes"), hint: "" },
-        NavItemDef { icon: TablerIcon::Network, label: "Sockets", view_id: Some("sockets"), hint: "" },
-        NavItemDef { icon: TablerIcon::Box, label: "Containers", view_id: Some("containers"), hint: "" },
-        NavItemDef { icon: TablerIcon::AdjustmentsHorizontal, label: "Config", view_id: Some("config"), hint: "" },
-        NavItemDef { icon: TablerIcon::FileText, label: "Logs", view_id: Some("logs"), hint: "" },
-        NavItemDef { icon: TablerIcon::Folder, label: "Files", view_id: Some("files"), hint: "" },
-        NavItemDef { icon: TablerIcon::Clock, label: "Cron", view_id: Some("cron"), hint: "" },
-        NavItemDef { icon: TablerIcon::Users, label: "Users", view_id: Some("users"), hint: "" },
-        NavItemDef { icon: TablerIcon::ShieldCheck, label: "Firewall", view_id: Some("firewall"), hint: "" },
-        NavItemDef { icon: TablerIcon::Terminal2, label: "Terminal", view_id: Some("terminal"), hint: "⌘T" },
+pub fn nav_items() -> Vec<NavItemDef> {
+    vec![
+        NavItemDef { icon: TablerIcon::LayoutDashboard, label: t!("sidebar-overview"), view_id: Some("overview"), hint: "" },
+        NavItemDef { icon: TablerIcon::Activity, label: t!("sidebar-history"), view_id: Some("history"), hint: "" },
+        NavItemDef { icon: TablerIcon::Server, label: t!("sidebar-services"), view_id: Some("services"), hint: "" },
+        NavItemDef { icon: TablerIcon::Cpu, label: t!("sidebar-processes"), view_id: Some("processes"), hint: "" },
+        NavItemDef { icon: TablerIcon::Network, label: t!("sidebar-sockets"), view_id: Some("sockets"), hint: "" },
+        NavItemDef { icon: TablerIcon::Box, label: t!("sidebar-containers"), view_id: Some("containers"), hint: "" },
+        NavItemDef { icon: TablerIcon::AdjustmentsHorizontal, label: t!("sidebar-config"), view_id: Some("config"), hint: "" },
+        NavItemDef { icon: TablerIcon::FileText, label: t!("sidebar-logs"), view_id: Some("logs"), hint: "" },
+        NavItemDef { icon: TablerIcon::Folder, label: t!("sidebar-files"), view_id: Some("files"), hint: "" },
+        NavItemDef { icon: TablerIcon::Clock, label: t!("sidebar-cron"), view_id: Some("cron"), hint: "" },
+        NavItemDef { icon: TablerIcon::Users, label: t!("sidebar-users"), view_id: Some("users"), hint: "" },
+        NavItemDef { icon: TablerIcon::ShieldCheck, label: t!("sidebar-firewall"), view_id: Some("firewall"), hint: "" },
+        NavItemDef { icon: TablerIcon::Terminal2, label: t!("sidebar-terminal"), view_id: Some("terminal"), hint: "⌘T" },
     ]
 }
 
@@ -103,7 +103,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                             .text_size(px(11.5))
                             .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                             .text_color(if is_active { TEXT_PRIMARY } else { TEXT_TERTIARY })
-                            .child(crate::i18n::tx(item.label)),
+                            .child(item.label),
                     )
                     .child(
                         div()

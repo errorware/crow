@@ -77,11 +77,11 @@ pub struct GeoIp {
 
 impl GeoIp {
     pub fn open(path: &std::path::Path) -> Result<Self, String> {
-        let reader = maxminddb::Reader::open_readfile(path).map_err(|e| format!("the GeoIP database couldn't be read: {e}"))?;
+        let reader = maxminddb::Reader::open_readfile(path).map_err(|e| t!("geoip-the-geoip-database-couldnt-be", e = e))?;
         let db = Self { reader };
         // A country database knows where a well-known address is.
         if db.country(IpAddr::V4(Ipv4Addr::new(8, 8, 8, 8))).is_none() {
-            return Err("the GeoIP database has no country data".into());
+            return Err(t!("geoip-the-geoip-database-has-no").into());
         }
         Ok(db)
     }
@@ -96,7 +96,7 @@ impl GeoIp {
     /// The database on disk, downloaded first when missing or a month old.
     /// A failed refresh keeps using the old copy.
     pub fn load() -> Result<Self, String> {
-        let path = db_path().ok_or("no data directory")?;
+        let path = db_path().ok_or(t!("geoip-no-data-directory"))?;
         let fresh = std::fs::metadata(&path).and_then(|m| m.modified()).is_ok_and(|t| SystemTime::now().duration_since(t).unwrap_or_default() < MAX_AGE);
         if !fresh {
             if let Err(e) = download(&path) {
@@ -113,7 +113,7 @@ impl GeoIp {
 /// unpacks it, checks it opens, then moves it into place.
 fn download(path: &std::path::Path) -> Result<(), String> {
     use std::io::Read;
-    let dir = path.parent().ok_or("bad database path")?;
+    let dir = path.parent().ok_or(t!("geoip-bad-database-path"))?;
     std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     let gz = dir.join("download.mmdb.gz");
     let tmp = dir.join("download.mmdb");
@@ -140,7 +140,7 @@ fn download(path: &std::path::Path) -> Result<(), String> {
         }
         return std::fs::rename(&tmp, path).map_err(|e| e.to_string());
     }
-    Err(format!("the GeoIP database couldn't be downloaded ({last})"))
+    Err(t!("geoip-the-geoip-database-couldnt-be-2", last = last))
 }
 
 #[cfg(test)]

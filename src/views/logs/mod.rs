@@ -114,7 +114,7 @@ pub fn logs_explorer_view(
                                 .font_family("JetBrains Mono")
                                 .text_size(px(10.5))
                                 .text_color(TEXT_DIMMER)
-                                .child(t!("logs-journalctl-o-json-output-fields")),
+                                .child("journalctl -o json --output-fields=*"),
                         )
                         .child(
                             div()

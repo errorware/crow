@@ -56,7 +56,7 @@ pub fn restore(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKey>, t:
             let argv = ["rm", "-f", "--", t.path];
             host.exec(&argv, DEFAULT_TIMEOUT).or_else(|_| host.exec_privileged(&argv, &[], DEFAULT_TIMEOUT)).map_err(|e| format!("couldn't remove {}: {e}", t.path))?;
             remove_dirs(host, created_dirs);
-            Ok(StepOutcome::Done(if created_dirs.is_empty() { "removed (it didn't exist before)".into() } else { format!("removed, with {} (none of it existed before)", created_dirs.join(", ")) }))
+            Ok(StepOutcome::Done(if created_dirs.is_empty() { t!("config-push-removed-it-didnt-exist-before").into() } else { t!("config-push-removed-with-none-of-it", created_dirs = created_dirs.join(", ")) }))
         }
     }
 }
@@ -94,11 +94,11 @@ fn push_inner(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKey>, t: 
     let (current, before) = match read {
         Ok(c) => (c.clone(), Before::Content(c)),
         Err(_) if may_create && !exists(host, t.path) => (String::new(), Before::Missing { created_dirs: Vec::new() }),
-        Err(e) => return Err(format!("couldn't read {}: {e}", t.path)),
+        Err(e) => return Err(t!("config-push-couldnt-read", path = t.path, e = e)),
     };
     let format = format_for_path(t.path);
     let differences = match compare(format, t.baseline, &current) {
-        Drift::Identical | Drift::Cosmetic => return Ok(StepOutcome::Skipped("already matches the baseline".into())),
+        Drift::Identical | Drift::Cosmetic => return Ok(StepOutcome::Skipped(t!("config-push-already-matches-the-baseline").into())),
         Drift::Differs(d) => d.len(),
     };
     // A new file may need its folders: created (as root when needed), and
@@ -113,18 +113,18 @@ fn push_inner(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKey>, t: 
     }
     let written = (|| -> Result<(), String> {
         if format == Some(plugins::StructuredFormat::Nginx) {
-            super::nginx::install_nginx(host, t.path, t.baseline).map_err(|e| format!("not written: {e}"))?;
+            super::nginx::install_nginx(host, t.path, t.baseline).map_err(|e| t!("config-push-not-written", e = e))?;
         } else if format == Some(plugins::StructuredFormat::Sudoers) {
             // visudo and the keep-sudo guard run in the install itself.
-            super::sudoers::install_sudoers(host, t.path, t.baseline, t.login_user).map_err(|e| format!("not written: {e}"))?;
+            super::sudoers::install_sudoers(host, t.path, t.baseline, t.login_user).map_err(|e| t!("config-push-not-written", e = e))?;
         } else {
             if let Some(f) = format {
-                plugins::validate_on_host(host, f, t.path, t.baseline).map_err(|e| format!("not written: the host's validator refused the baseline: {e}"))?;
+                plugins::validate_on_host(host, f, t.path, t.baseline).map_err(|e| t!("config-push-not-written-the-hosts-validator", e = e))?;
             }
             if format == Some(plugins::StructuredFormat::Fstab) {
-                super::fstab::check(host, &current, t.baseline).map_err(|e| format!("not written: {e}"))?;
+                super::fstab::check(host, &current, t.baseline).map_err(|e| t!("config-push-not-written", e = e))?;
             }
-            host.write_file_privileged(t.path, t.baseline).map_err(|e| format!("not written: {e}"))?;
+            host.write_file_privileged(t.path, t.baseline).map_err(|e| t!("config-push-not-written", e = e))?;
             if format == Some(plugins::StructuredFormat::Fstab) {
                 super::fstab::reload_systemd(host);
             }
@@ -140,7 +140,7 @@ fn push_inner(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKey>, t: 
 
     *previous = Some(before);
     // Written. Recording can still fail; say so without calling the push a failure.
-    let recorded = db.lock().map_err(|_| "the vault is busy".to_string()).and_then(|db| {
+    let recorded = db.lock().map_err(|_| t!("config-push-the-vault-is-busy").to_string()).and_then(|db| {
         let rev = history::record(&db, key, t.server_id, t.path, t.baseline, t.author, t.message, SOURCE_CROW).map_err(|e| e.to_string())?;
         let now = chrono::Utc::now().to_rfc3339();
         db.insert_change_record(&ChangeRecord {
@@ -158,10 +158,10 @@ fn push_inner(host: &dyn Host, db: &Mutex<VaultDb>, key: Option<&MasterKey>, t: 
         })
         .map_err(|e| e.to_string())
     });
-    let what = format!("written ({differences} difference{})", if differences == 1 { "" } else { "s" });
+    let what = t!("config-push-written", differences = differences);
     Ok(StepOutcome::Done(match recorded {
         Ok(()) => what,
-        Err(e) => format!("{what}; history not recorded: {e}"),
+        Err(e) => t!("config-push-history-not-recorded", what = what, e = e),
     }))
 }
 

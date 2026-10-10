@@ -669,7 +669,7 @@ fn render_eli5_sandbox(
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
                                     app_preset1.update(cx, |this, cx| {
-                                        this.clankers.demo_log = t!("settings-clankers-kernel-129-412033-out-of").into();
+                                        this.clankers.demo_log = "kernel: [  129.412033] Out of memory: Kill process 28419 (mysqld) score 812 or sacrifice child".into();
                                         this.clankers.demo_output = None;
                                         cx.notify();
                                     });
@@ -691,7 +691,7 @@ fn render_eli5_sandbox(
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
                                     app_preset2.update(cx, |this, cx| {
-                                        this.clankers.demo_log = t!("settings-clankers-nginx-1482-segfault-at-0").into();
+                                        this.clankers.demo_log = "nginx[1482]: segfault at 0 ip 00007f3b48201a08 sp 00007ffe3410 error 4 in libc.so.6".into();
                                         this.clankers.demo_output = None;
                                         cx.notify();
                                     });
@@ -713,7 +713,7 @@ fn render_eli5_sandbox(
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
                                     app_preset3.update(cx, |this, cx| {
-                                        this.clankers.demo_log = t!("settings-clankers-systemd-1-postgresql-16-main").into();
+                                        this.clankers.demo_log = "systemd[1]: postgresql@16-main.service: Main process exited, code=exited, status=1/FAILURE".into();
                                         this.clankers.demo_output = None;
                                         cx.notify();
                                     });

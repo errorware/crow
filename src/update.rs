@@ -107,15 +107,15 @@ pub fn installed_target(exe: &Path) -> Result<PathBuf, String> {
             .ancestors()
             .find(|p| p.extension().is_some_and(|e| e == "app"))
             .map(Path::to_path_buf)
-            .ok_or_else(|| format!("this Crow runs from {} rather than an installed Crow.app, so it isn't replaced", exe.display()));
+            .ok_or_else(|| t!("update-this-crow-runs-from-rather", exe = exe.display()));
     }
-    let bin = std::env::var_os("XDG_BIN_HOME").map(PathBuf::from).or_else(|| dirs::home_dir().map(|h| h.join(".local/bin"))).ok_or("no home directory")?;
+    let bin = std::env::var_os("XDG_BIN_HOME").map(PathBuf::from).or_else(|| dirs::home_dir().map(|h| h.join(".local/bin"))).ok_or(t!("update-no-home-directory"))?;
     let exe = exe.canonicalize().unwrap_or_else(|_| exe.to_path_buf());
     let installed = bin.join("crow");
     if installed.canonicalize().ok().as_deref() == Some(exe.as_path()) {
         Ok(installed)
     } else {
-        Err(format!("this Crow runs from {} rather than the installed {}, so it isn't replaced (update your build from source instead)", exe.display(), installed.display()))
+        Err(t!("update-this-crow-runs-from-rather-2", exe = exe.display(), installed = installed.display()))
     }
 }
 
@@ -124,11 +124,11 @@ pub fn installed_target(exe: &Path) -> Result<PathBuf, String> {
 pub fn install(release: &Release) -> Result<String, String> {
     let exe = std::env::current_exe().map_err(|e| e.to_string())?;
     let target = installed_target(&exe)?;
-    let name = asset_name().ok_or("there's no release build for this platform")?;
+    let name = asset_name().ok_or(t!("update-theres-no-release-build-for"))?;
     let find = |pred: &dyn Fn(&str) -> bool| release.assets.iter().find(|(n, _)| pred(n)).map(|(_, u)| u.clone());
-    let archive_url = find(&|n| n == name).ok_or_else(|| format!("{} has no {name}", release.tag))?;
-    let provenance_url = find(&|n| n.ends_with(".intoto.jsonl")).ok_or_else(|| format!("{} has no provenance (.intoto.jsonl), so it can't be verified", release.tag))?;
-    let verifier = which("slsa-verifier").ok_or("installing updates needs slsa-verifier (github.com/slsa-framework/slsa-verifier) to check the release's signed provenance; it isn't on PATH. Nothing was installed")?;
+    let archive_url = find(&|n| n == name).ok_or_else(|| t!("update-has-no", tag = release.tag, name = name))?;
+    let provenance_url = find(&|n| n.ends_with(".intoto.jsonl")).ok_or_else(|| t!("update-has-no-provenance-intoto-jsonl", tag = release.tag))?;
+    let verifier = which("slsa-verifier").ok_or(t!("update-installing-updates-needs-slsa-verifier"))?;
 
     let dir = std::env::temp_dir().join(format!("crow-update-{}", std::process::id()));
     let _ = std::fs::remove_dir_all(&dir);
@@ -144,7 +144,7 @@ pub fn install(release: &Release) -> Result<String, String> {
             .output()
             .map_err(|e| format!("slsa-verifier couldn't run: {e}"))?;
         if !out.status.success() {
-            return Err(format!("the release didn't verify, so nothing was installed: {}", String::from_utf8_lossy(&out.stderr).trim().lines().last().unwrap_or("verification failed")));
+            return Err(t!("update-the-release-didnt-verify-so", from_utf8_lossy = String::from_utf8_lossy(&out.stderr).trim().lines().last().unwrap_or(t!("update-verification-failed"))));
         }
         let unpacked = dir.join("unpacked");
         std::fs::create_dir_all(&unpacked).map_err(|e| e.to_string())?;
@@ -158,7 +158,7 @@ pub fn install(release: &Release) -> Result<String, String> {
         }
     })();
     let _ = std::fs::remove_dir_all(&dir);
-    result.map(|()| format!("Crow {} is installed (verified). Restart Crow to use it.", release.version))
+    result.map(|()| t!("update-crow-is-installed-verified-restart", version = release.version))
 }
 
 /// Replaces `target` (an .app) with `new`: the old bundle is moved aside
@@ -166,7 +166,7 @@ pub fn install(release: &Release) -> Result<String, String> {
 fn swap_app(new: &Path, target: &Path) -> Result<(), String> {
     let aside = target.with_extension("app.old");
     let _ = std::fs::remove_dir_all(&aside);
-    std::fs::rename(target, &aside).map_err(|e| format!("couldn't move the old Crow.app aside: {e}"))?;
+    std::fs::rename(target, &aside).map_err(|e| t!("update-couldnt-move-the-old-crow", e = e))?;
     if let Err(e) = run(Command::new("mv").arg(new).arg(target)) {
         let _ = std::fs::rename(&aside, target);
         return Err(e);

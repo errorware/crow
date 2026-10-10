@@ -16,8 +16,8 @@ pub enum KeyAlgorithm {
 impl KeyAlgorithm {
     pub fn display_name(&self) -> &'static str {
         match self {
-            KeyAlgorithm::Ed25519 => "Ed25519 (Recommended)",
-            KeyAlgorithm::Rsa4096 => "RSA 4096-bit",
+            KeyAlgorithm::Ed25519 => t!("keys-ed25519-recommended"),
+            KeyAlgorithm::Rsa4096 => t!("keys-rsa-4096-bit"),
         }
     }
 
@@ -306,16 +306,16 @@ pub fn generate_keypair(
 ) -> Result<(SshKeyRecord, String, PathBuf, PathBuf), String> {
     if !target_dir.exists() {
         std::fs::create_dir_all(target_dir)
-            .map_err(|e| format!("Failed to create destination directory '{}': {}", target_dir.display(), e))?;
+            .map_err(|e| t!("keys-failed-to-create-destination-directory", target_dir = target_dir.display(), e = e))?;
     }
 
     let mut rng = ssh_key::rand_core::OsRng;
     let mut priv_key = match algo {
         KeyAlgorithm::Ed25519 => PrivateKey::random(&mut rng, Algorithm::Ed25519)
-            .map_err(|e| format!("Failed to generate Ed25519 key: {}", e))?,
+            .map_err(|e| t!("keys-failed-to-generate-ed25519-key", e = e))?,
         KeyAlgorithm::Rsa4096 => {
             let rsa_pair = ssh_key::private::RsaKeypair::random(&mut rng, 4096)
-                .map_err(|e| format!("Failed to generate RSA 4096 key: {}", e))?;
+                .map_err(|e| t!("keys-failed-to-generate-rsa-4096", e = e))?;
             PrivateKey::from(rsa_pair)
         }
     };
@@ -328,15 +328,15 @@ pub fn generate_keypair(
     let pub_key = priv_key.public_key();
     let fingerprint = pub_key.fingerprint(HashAlg::Sha256).to_string();
     let pub_key_openssh = pub_key.to_openssh()
-        .map_err(|e| format!("Failed to format public key: {}", e))?;
+        .map_err(|e| t!("keys-failed-to-format-public-key", e = e))?;
     let priv_key_openssh = priv_key.to_openssh(LineEnding::LF)
-        .map_err(|e| format!("Failed to format private key: {}", e))?;
+        .map_err(|e| t!("keys-failed-to-format-private-key", e = e))?;
 
     let base_name = if let Some(custom) = filename_override.filter(|s| !s.trim().is_empty()) {
         // A file name, not a path: nothing outside the folder (ERR-115).
         let custom = custom.trim();
         if custom.contains(['/', '\\']) || custom == "." || custom == ".." {
-            return Err("The key's file name can't contain / or be . or ..".to_string());
+            return Err(t!("keys-the-keys-file-name-cant").to_string());
         }
         custom.to_string()
     } else {
@@ -347,17 +347,17 @@ pub fn generate_keypair(
     let pub_path = target_dir.join(format!("{}.pub", base_name));
 
     if pub_path.exists() {
-        return Err(format!("Public key file already exists at '{}'", pub_path.display()));
+        return Err(t!("keys-public-key-file-already-exists", pub_path = pub_path.display()));
     }
 
     // The private key is created 0600 in one step, and never over an
     // existing file (ERR-108): it's not readable by anyone else even for a
     // moment, and an existing key isn't replaced.
     write_new_file(&priv_path, priv_key_openssh.as_bytes(), 0o600).map_err(|e| match e.kind() {
-        std::io::ErrorKind::AlreadyExists => format!("Private key file already exists at '{}'", priv_path.display()),
-        _ => format!("Failed to write private key to '{}': {}", priv_path.display(), e),
+        std::io::ErrorKind::AlreadyExists => t!("keys-private-key-file-already-exists", priv_path = priv_path.display()),
+        _ => t!("keys-failed-to-write-private-key", priv_path = priv_path.display(), e = e),
     })?;
-    write_new_file(&pub_path, pub_key_openssh.as_bytes(), 0o644).map_err(|e| format!("Failed to write public key to '{}': {}", pub_path.display(), e))?;
+    write_new_file(&pub_path, pub_key_openssh.as_bytes(), 0o644).map_err(|e| t!("keys-failed-to-write-public-key", pub_path = pub_path.display(), e = e))?;
 
     let record = SshKeyRecord {
         id: format!("key-{}", &fingerprint.replace("SHA256:", "").chars().take(12).collect::<String>()),

@@ -97,7 +97,7 @@ pub fn keys(scans: &[ServerAccounts], known: &[(String, String)]) -> Vec<KeyRow>
                     fingerprint: k.fingerprint.clone(),
                     blob: blob.clone(),
                     enrolled: name.is_some(),
-                    label: name.unwrap_or_else(|| k.comment.clone().unwrap_or_else(|| "no comment".into())),
+                    label: name.unwrap_or_else(|| k.comment.clone().unwrap_or_else(|| t!("people-no-comment").into())),
                     opens: Vec::new(),
                 });
                 let crow = u.username == s.crow_user && s.crow_key_blob.as_deref() == Some(blob.as_str());
@@ -133,12 +133,12 @@ pub enum Offboard {
 pub fn offboard_commands(s: &ServerAccounts, user: &str, mode: Offboard) -> Result<Vec<Argv>, String> {
     host_data::check_name("user", user)?;
     if user == s.crow_user {
-        return Err(format!("Crow logs in to {} as {user}: offboarding it would lock Crow out", s.server));
+        return Err(t!("people-crow-logs-in-to-as", server = s.server, user = user));
     }
     if user == "root" {
-        return Err("root isn't offboarded: turn off root's SSH login in HARDENING instead".into());
+        return Err(t!("people-root-isnt-offboarded-turn-off").into());
     }
-    let u = s.users.iter().find(|u| u.username == user).ok_or_else(|| format!("no {user} account on {}", s.server))?;
+    let u = s.users.iter().find(|u| u.username == user).ok_or_else(|| t!("people-no-account-on", user = user, server = s.server))?;
     // Keys first, while the account can still run things as itself.
     let mut cmds: Vec<Argv> = u.authorized_keys.iter().filter_map(|k| blob_of(&k.key_preview)).map(|b| host_data::revoke_key_blob(user, &u.home_dir, &b)).collect::<Result<_, _>>()?;
     match mode {
@@ -154,12 +154,12 @@ pub fn revoke_key_commands(s: &ServerAccounts, blob: &str) -> Result<Vec<Argv>, 
     let mut cmds = Vec::new();
     for u in s.users.iter().filter(|u| u.authorized_keys.iter().any(|k| blob_of(&k.key_preview).as_deref() == Some(blob))) {
         if u.username == s.crow_user && s.crow_key_blob.as_deref() == Some(blob) {
-            return Err(format!("it's the key Crow logs in to {} with: switch Crow to another key first (Keys → switch)", s.server));
+            return Err(t!("people-its-the-key-crow-logs", server = s.server));
         }
         cmds.push(host_data::revoke_key_blob(&u.username, &u.home_dir, blob)?);
     }
     if cmds.is_empty() {
-        return Err(format!("not on {}", s.server));
+        return Err(t!("people-not-on", server = s.server));
     }
     Ok(cmds)
 }
@@ -169,7 +169,7 @@ pub fn revoke_key_commands(s: &ServerAccounts, blob: &str) -> Result<Vec<Argv>, 
 /// authorize the key (as the user, its home looked up there).
 pub fn onboard_commands(s: &ServerAccounts, user: &str, key: &str, sudo: bool) -> Result<Vec<Argv>, String> {
     host_data::check_name("user", user)?;
-    ssh_key::PublicKey::from_openssh(key.trim()).map_err(|_| "that isn't an OpenSSH public key (ssh-ed25519 AAAA… comment)".to_string())?;
+    ssh_key::PublicKey::from_openssh(key.trim()).map_err(|_| t!("people-that-isnt-an-openssh-public").to_string())?;
     let mut cmds = Vec::new();
     if !s.users.iter().any(|u| u.username == user) {
         let form = crate::views::users::new_user_modal::NewUserState { username: user.into(), shell: "/bin/bash".into(), create_home: true, grant_sudo: sudo, ..Default::default() };

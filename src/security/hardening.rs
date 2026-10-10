@@ -37,22 +37,22 @@ impl Finding {
 
     pub fn describe(&self) -> String {
         match self {
-            Finding::RootPasswordLogin => "root can log in over SSH with a password (PermitRootLogin yes)".into(),
-            Finding::RootKeyLogin(v) => format!("root can log in over SSH with a key (PermitRootLogin {v})"),
-            Finding::PasswordLogin => "sshd accepts passwords (PasswordAuthentication yes)".into(),
-            Finding::NoFirewall(p) if p.is_empty() => "no firewall filters incoming traffic".into(),
-            Finding::NoFirewall(p) => format!("no firewall, and port{} {} open to every network", if p.len() == 1 { "" } else { "s" }, p.iter().map(u16::to_string).collect::<Vec<_>>().join(", ")),
+            Finding::RootPasswordLogin => t!("security-hardening-root-can-log-in-over").into(),
+            Finding::RootKeyLogin(v) => t!("security-hardening-root-can-log-in-over-2", v = v),
+            Finding::PasswordLogin => t!("security-hardening-sshd-accepts-passwords-passwordauthentication-yes").into(),
+            Finding::NoFirewall(p) if p.is_empty() => t!("security-hardening-no-firewall-filters-incoming-traffic").into(),
+            Finding::NoFirewall(p) => t!("security-hardening-no-firewall-and-open-to", count = p.len(), p = p.iter().map(u16::to_string).collect::<Vec<_>>().join(", ")),
         }
     }
 
     /// What the fix does, in a line.
     pub fn fix(&self, login_user: &str) -> String {
         match self {
-            Finding::RootPasswordLogin | Finding::RootKeyLogin(_) if login_user == "root" => "PermitRootLogin prohibit-password (Crow logs in as root with a key, so not \"no\")".into(),
-            Finding::RootPasswordLogin => "PermitRootLogin prohibit-password".into(),
-            Finding::RootKeyLogin(_) => "PermitRootLogin no".into(),
-            Finding::PasswordLogin => "PasswordAuthentication no (once a key login is proven)".into(),
-            Finding::NoFirewall(p) => format!("turn a firewall on that allows SSH{}", if p.is_empty() { String::new() } else { format!(" and the listening port{} {}", if p.len() == 1 { "" } else { "s" }, p.iter().map(u16::to_string).collect::<Vec<_>>().join(", ")) }),
+            Finding::RootPasswordLogin | Finding::RootKeyLogin(_) if login_user == "root" => t!("security-hardening-permitrootlogin-prohibit-password-crow-logs").into(),
+            Finding::RootPasswordLogin => t!("security-hardening-permitrootlogin-prohibit-password").into(),
+            Finding::RootKeyLogin(_) => t!("security-hardening-permitrootlogin-no").into(),
+            Finding::PasswordLogin => t!("security-hardening-passwordauthentication-no-once-a-key").into(),
+            Finding::NoFirewall(p) => t!("security-hardening-turn-a-firewall-on-that", p = if p.is_empty() { String::new() } else { t!("security-hardening-and-the-listening", count = p.len(), p = p.iter().map(u16::to_string).collect::<Vec<_>>().join(", ")) }),
         }
     }
 
@@ -127,63 +127,63 @@ pub fn set_root_login(host: &dyn Host, value: &str, login_user: &str, fresh_logi
         }};
     }
     if !matches!(value, "no" | "prohibit-password") {
-        fail!("✕ {value:?} isn't a setting Crow applies.");
+        fail!("{}", t!("security-hardening-isnt-a-setting-crow-applies", value = format!("{:?}", value)));
     }
     if value == "no" && login_user == "root" {
-        fail!("✕ Crow logs in to this server as root: PermitRootLogin no would lock Crow out. Nothing was changed.");
+        fail!("{}", t!("security-hardening-crow-logs-in-to-this"));
     }
     if let Err(e) = fresh_login() {
-        fail!("✕ A fresh key login doesn't work ({e}). Nothing was changed.");
+        fail!("{}", t!("security-hardening-a-fresh-key-login-doesnt-2", e = e));
     }
-    log.push("✓ A fresh key login works.".into());
+    log.push(t!("security-hardening-a-fresh-key-login-works").into());
     let main = match root(host, &["cat", "/etc/ssh/sshd_config"]) {
         Ok(m) => m,
-        Err(e) => fail!("✕ Couldn't read sshd_config: {e}. Nothing was changed."),
+        Err(e) => fail!("{}", t!("security-hardening-couldnt-read-sshd-config-nothing", e = e)),
     };
     if !super::sshd_passwords::reads_dropins(&main) {
-        fail!("✕ This sshd_config doesn't include sshd_config.d, so a drop-in wouldn't apply. Nothing was changed; set PermitRootLogin in the sshd_config sheet instead.");
+        fail!("{}", t!("security-hardening-this-sshd-config-doesnt-include"));
     }
     let undo = |log: &mut Vec<String>, reload: bool| {
         let removed = root(host, &["rm", "-f", "--", ROOT_DROPIN]).is_ok();
         let reloaded = !reload || root(host, &["sh", "-c", RELOAD_SSHD]).is_ok();
-        log.push(if removed && reloaded { format!("↺ Undone: removed {ROOT_DROPIN}{}.", if reload { " and reloaded sshd" } else { "" }) } else { format!("⚠ Undo didn't finish: remove {ROOT_DROPIN} by hand and reload sshd.") });
+        log.push(if removed && reloaded { t!("security-hardening-undone-removed", root_dropin = ROOT_DROPIN, reload = if reload { t!("security-hardening-and-reloaded-sshd") } else { "" }) } else { t!("security-hardening-undo-didnt-finish-remove-by", root_dropin = ROOT_DROPIN) });
     };
     let content = format!("# Written by Crow (hardening): who may log in as root.\n# Delete this file and reload sshd to undo.\nPermitRootLogin {value}\n");
     if let Err(e) = root(host, &["mkdir", "-p", "/etc/ssh/sshd_config.d"]).and_then(|_| host.write_file_privileged(ROOT_DROPIN, &content).map_err(|e| e.to_string())) {
-        fail!("✕ Couldn't write {ROOT_DROPIN}: {e}. Nothing was changed.");
+        fail!("{}", t!("security-hardening-couldnt-write-nothing-was-changed", root_dropin = ROOT_DROPIN, e = e));
     }
-    log.push(format!("✓ Wrote {ROOT_DROPIN}."));
+    log.push(t!("security-hardening-wrote", root_dropin = ROOT_DROPIN));
     if let Err(e) = root(host, &["sshd", "-t"]) {
-        log.push(format!("✕ sshd rejected the change: {e}"));
+        log.push(t!("security-hardening-sshd-rejected-the-change", e = e));
         undo(&mut log, false);
         return Err(log);
     }
-    log.push("✓ sshd -t accepts it.".into());
+    log.push(t!("security-hardening-sshd-t-accepts-it").into());
     match root(host, &["sshd", "-T"]).map(|o| effective_root_login(&o)) {
-        Ok(Some(v)) if v == value || (value == "prohibit-password" && v == "without-password") => log.push(format!("✓ sshd will use PermitRootLogin {value}.")),
+        Ok(Some(v)) if v == value || (value == "prohibit-password" && v == "without-password") => log.push(t!("security-hardening-sshd-will-use-permitrootlogin", value = value)),
         Ok(other) => {
-            log.push(format!("✕ Something earlier in the config still sets PermitRootLogin ({}).", other.unwrap_or_else(|| "unreadable".into())));
+            log.push(t!("security-hardening-something-earlier-in-the-config", other = other.unwrap_or_else(|| "unreadable".into())));
             undo(&mut log, false);
             return Err(log);
         }
         Err(e) => {
-            log.push(format!("✕ Couldn't check the result: {e}"));
+            log.push(t!("security-hardening-couldnt-check-the-result", e = e));
             undo(&mut log, false);
             return Err(log);
         }
     }
     if let Err(e) = root(host, &["sh", "-c", RELOAD_SSHD]) {
-        log.push(format!("✕ Couldn't reload sshd: {e}"));
+        log.push(t!("security-hardening-couldnt-reload-sshd", e = e));
         undo(&mut log, false);
         return Err(log);
     }
-    log.push("✓ Reloaded sshd.".into());
+    log.push(t!("security-hardening-reloaded-sshd").into());
     if let Err(e) = fresh_login() {
-        log.push(format!("✕ A fresh key login failed after the reload ({e})."));
+        log.push(t!("security-hardening-a-fresh-key-login-failed", e = e));
         undo(&mut log, true);
         return Err(log);
     }
-    log.push(format!("✓ A fresh key login still works. PermitRootLogin is {value}."));
+    log.push(t!("security-hardening-a-fresh-key-login-still", value = value));
     Ok(log)
 }
 
@@ -222,12 +222,12 @@ pub fn firewall_commands(tool: &str, ports: &[u16]) -> (Vec<String>, Vec<String>
 pub fn enable_firewall(host: &dyn Host, ssh_ports: &[u16], also: &[u16], fresh_login: &dyn Fn() -> Result<(), String>) -> Result<Vec<String>, Vec<String>> {
     let mut log = Vec::new();
     if let Err(e) = fresh_login() {
-        log.push(format!("✕ A fresh key login doesn't work ({e}). Nothing was changed."));
+        log.push(t!("security-hardening-a-fresh-key-login-doesnt-2", e = e));
         return Err(log);
     }
-    log.push("✓ A fresh key login works.".into());
+    log.push(t!("security-hardening-a-fresh-key-login-works").into());
     let Some(tool) = firewall_tool(host) else {
-        log.push("✕ Neither ufw nor firewalld is installed. Install one (apt install ufw, dnf install firewalld), then try again. Nothing was changed.".into());
+        log.push(t!("security-hardening-neither-ufw-nor-firewalld-is").into());
         return Err(log);
     };
     let mut ports: Vec<u16> = if ssh_ports.is_empty() { vec![22] } else { ssh_ports.to_vec() };
@@ -235,7 +235,7 @@ pub fn enable_firewall(host: &dyn Host, ssh_ports: &[u16], also: &[u16], fresh_l
     let (on, off) = firewall_commands(tool, &ports);
     let undo = |log: &mut Vec<String>| {
         let ok = off.iter().all(|c| root(host, &["sh", "-c", &format!("PATH=\"$PATH:/usr/sbin:/sbin\"; {c}")]).is_ok());
-        log.push(if ok { format!("↺ Undone: {}.", off.join("; ")) } else { format!("⚠ Undo didn't finish: run {} by hand.", off.join("; ")) });
+        log.push(if ok { t!("security-hardening-undone", off = off.join("; ")) } else { t!("security-hardening-undo-didnt-finish-run-by", off = off.join("; ")) });
     };
     for c in &on {
         if let Err(e) = root(host, &["sh", "-c", &format!("PATH=\"$PATH:/usr/sbin:/sbin\"; {c}")]) {
@@ -246,11 +246,11 @@ pub fn enable_firewall(host: &dyn Host, ssh_ports: &[u16], also: &[u16], fresh_l
         log.push(format!("✓ {c}"));
     }
     if let Err(e) = fresh_login() {
-        log.push(format!("✕ A fresh key login failed with the firewall on ({e})."));
+        log.push(t!("security-hardening-a-fresh-key-login-failed-2", e = e));
         undo(&mut log);
         return Err(log);
     }
-    log.push(format!("✓ A fresh key login still works. {tool} is on, allowing {}.", ports.iter().map(|p| format!("{p}/tcp")).collect::<Vec<_>>().join(", ")));
+    log.push(t!("security-hardening-a-fresh-key-login-still-2", tool = tool, ports = ports.iter().map(|p| format!("{p}/tcp")).collect::<Vec<_>>().join(", ")));
     Ok(log)
 }
 
@@ -272,8 +272,8 @@ pub fn report_markdown(rows: &[(String, Option<Posture>, Vec<(Finding, Option<Ac
         }
         for (f, a) in found {
             let status = match a {
-                Some(a) => format!("accepted by {} ({}): {}", a.by, a.at.get(..10).unwrap_or(&a.at), a.reason.replace('|', "/")),
-                None if f.critical() => "**open, critical**".into(),
+                Some(a) => t!("security-hardening-accepted-by", by = a.by, a = a.at.get(..10).unwrap_or(&a.at), a2 = a.reason.replace('|', "/")),
+                None if f.critical() => t!("security-hardening-open-critical").into(),
                 None => "open".into(),
             };
             md.push_str(&format!("| {server} | {} | {status} |\n", f.describe()));

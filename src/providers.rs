@@ -41,7 +41,7 @@ pub fn field_label(manifest: &PluginManifest, key: &str) -> String {
 /// passes, saves them: plain values in the account row, secrets as encrypted
 /// vault entries. Required fields must end up set.
 pub fn save_form(db: &VaultDb, key: Option<&MasterKey>, account: &mut ProviderAccount, edits: Vec<SettingsEdit>) -> Result<(), String> {
-    let manifest = factory(&account.plugin).ok_or_else(|| format!("{} isn't compiled into this build", account.plugin))?.manifest;
+    let manifest = factory(&account.plugin).ok_or_else(|| t!("providers-isnt-compiled-into-this-build", plugin = account.plugin))?.manifest;
     let manifest = manifest();
     let secrets = db.provider_secret_keys(&account.id).map_err(|e| e.to_string())?;
     let mut doc = SettingsDocument::new(manifest, account.settings.clone(), secrets);
@@ -52,10 +52,10 @@ pub fn save_form(db: &VaultDb, key: Option<&MasterKey>, account: &mut ProviderAc
     let missing = doc.missing_required();
     if !missing.is_empty() {
         let names: Vec<String> = missing.iter().map(|k| field_label(manifest, k)).collect();
-        return Err(format!("{} {} required", names.join(", "), if names.len() == 1 { "is" } else { "are" }));
+        return Err(t!("providers-required", names = names.join(", "), count = names.len()));
     }
     if changes.iter().any(|c| matches!(c, SettingsChange::StoreSecret { .. })) && key.is_none() {
-        return Err("provider secrets are only stored encrypted, and no encryption key is available".into());
+        return Err(t!("providers-provider-secrets-are-only-stored").into());
     }
     for change in &changes {
         match change {
@@ -90,7 +90,7 @@ pub fn load_settings(db: &VaultDb, key: &MasterKey, account: &ProviderAccount) -
     let mut settings = ProviderSettings { values: account.settings.clone().into_iter().collect(), ..Default::default() };
     for field in db.provider_secret_keys(&account.id).map_err(|e| e.to_string())? {
         let bytes = db.load_entry(key, &provider_secret_id(&account.id, &field)).map_err(|e| e.to_string())?;
-        let text = String::from_utf8(bytes).map_err(|_| format!("the stored {field} isn't text"))?;
+        let text = String::from_utf8(bytes).map_err(|_| t!("providers-the-stored-isnt-text", field = field))?;
         settings.secrets.insert(field, SecretValue::new(text));
     }
     Ok(settings)
@@ -98,7 +98,7 @@ pub fn load_settings(db: &VaultDb, key: &MasterKey, account: &ProviderAccount) -
 
 /// Builds the provider for `account`, talking HTTP through the system curl.
 pub fn connect(account: &ProviderAccount, settings: ProviderSettings) -> Result<Box<dyn Provider>, ProviderError> {
-    let f = factory(&account.plugin).ok_or_else(|| ProviderError::Unsupported(format!("{} isn't compiled into this build", account.plugin)))?;
+    let f = factory(&account.plugin).ok_or_else(|| ProviderError::Unsupported(t!("providers-isnt-compiled-into-this-build", plugin = account.plugin)))?;
     (f.build)(settings, Arc::new(CurlHttp::default()))
 }
 
@@ -136,15 +136,15 @@ impl ProviderAction {
 pub fn run_action(provider: &dyn Provider, id: &str, action: ProviderAction) -> Result<String, String> {
     let id = crow_provider_core::hosts::InstanceId(id.to_string());
     let name = provider.manifest().display_name().to_string();
-    let power = || provider.as_power_control().ok_or_else(|| format!("{name} can't power instances"));
+    let power = || provider.as_power_control().ok_or_else(|| t!("providers-cant-power-instances", name = name));
     match action {
-        ProviderAction::Boot => power()?.boot(&id).map(|()| format!("{name} accepted: boot {id}")),
-        ProviderAction::Reboot => power()?.reboot(&id).map(|()| format!("{name} accepted: reboot {id}")),
-        ProviderAction::Shutdown => power()?.shutdown(&id).map(|()| format!("{name} accepted: shut down {id}")),
+        ProviderAction::Boot => power()?.boot(&id).map(|()| t!("providers-accepted-boot", name = name, id = id)),
+        ProviderAction::Reboot => power()?.reboot(&id).map(|()| t!("providers-accepted-reboot", name = name, id = id)),
+        ProviderAction::Shutdown => power()?.shutdown(&id).map(|()| t!("providers-accepted-shut-down", name = name, id = id)),
         ProviderAction::Snapshot => {
-            let snaps = provider.as_snapshots().ok_or_else(|| format!("{name} can't take snapshots"))?;
+            let snaps = provider.as_snapshots().ok_or_else(|| t!("providers-cant-take-snapshots", name = name))?;
             let label = format!("crow-{}", chrono::Utc::now().format("%Y%m%d-%H%M"));
-            snaps.snapshot(&id, &label).map(|s| format!("{name} snapshot {} ({}) started for {id}", s.id.0, s.status))
+            snaps.snapshot(&id, &label).map(|s| t!("providers-snapshot-started-for", name = name, id = s.id.0, status = s.status, id2 = id))
         }
     }
     .map_err(|e| e.to_string())
@@ -153,7 +153,7 @@ pub fn run_action(provider: &dyn Provider, id: &str, action: ProviderAction) -> 
 /// The instance's snapshots, as the provider lists them.
 pub fn list_snapshots(provider: &dyn Provider, id: &str) -> Result<Vec<crow_provider_core::hosts::Snapshot>, String> {
     let name = provider.manifest().display_name().to_string();
-    let snaps = provider.as_snapshots().ok_or_else(|| format!("{name} can't take snapshots"))?;
+    let snaps = provider.as_snapshots().ok_or_else(|| t!("providers-cant-take-snapshots", name = name))?;
     snaps.snapshots(&crow_provider_core::hosts::InstanceId(id.to_string())).map_err(|e| e.to_string())
 }
 

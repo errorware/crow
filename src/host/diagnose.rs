@@ -53,14 +53,12 @@ pub fn offered_methods(detail: &str) -> Vec<String> {
 pub fn diagnose(server: &ServerRecord, state: &ConnectionState, probe: Option<&ProbeResult>, key: &KeyTried, jump: Option<&str>, approval_agent: Option<&str>) -> Diagnosis {
     let mut d = diagnose_state(server, state, probe, key, jump);
     if let (Some(agent), false) = (approval_agent, matches!(state, ConnectionState::Connected)) {
-        d.facts.push(("agent".into(), format!("{agent} (asks to approve each use of a key)")));
+        d.facts.push(("agent".into(), t!("host-diagnose-asks-to-approve-each-use", agent = agent)));
         d.steps.insert(
             0,
-            format!(
-                "{agent} is the SSH agent here, and it asks you to approve each new connection. Crow connects in the background, so an approval nobody gives looks like a timeout or a refusal. Approve it when {agent} asks, or set {agent} to remember approvals for Crow."
-            ),
+            t!("host-diagnose-is-the-ssh-agent-here", agent = agent),
         );
-        d.steps.push(format!("For no prompts at all, switch this server to Crow's own key (Keys → switch server to a key): Crow then leaves {agent} out of it."));
+        d.steps.push(t!("host-diagnose-for-no-prompts-at-all", agent = agent));
     }
     d
 }
@@ -68,76 +66,76 @@ pub fn diagnose(server: &ServerRecord, state: &ConnectionState, probe: Option<&P
 pub fn diagnose_state(server: &ServerRecord, state: &ConnectionState, probe: Option<&ProbeResult>, key: &KeyTried, jump: Option<&str>) -> Diagnosis {
     let detail = state.detail().unwrap_or_default().to_string();
     let addr = format!("{}@{}:{}", server.login_user, server.host, if server.port == 0 { 22 } else { server.port });
-    let mut facts = vec![("ssh said".to_string(), if detail.is_empty() { "—".into() } else { detail.clone() })];
+    let mut facts = vec![(t!("host-diagnose-ssh-said").to_string(), if detail.is_empty() { "—".into() } else { detail.clone() })];
     if let Some(j) = jump {
-        facts.push(("through".into(), format!("jump host {j}")));
+        facts.push(("through".into(), t!("host-diagnose-jump-host", j = j)));
     }
     let key_fact = match key {
         KeyTried::File { path, exists: true } => path.clone(),
-        KeyTried::File { path, exists: false } => format!("{path} (missing on this machine)"),
-        KeyTried::Agent => "your SSH agent / ~/.ssh/config".into(),
+        KeyTried::File { path, exists: false } => t!("host-diagnose-missing-on-this-machine", path = path),
+        KeyTried::Agent => t!("host-diagnose-your-ssh-agent-ssh-config").into(),
     };
 
     match state {
         ConnectionState::Connected => Diagnosis {
-            title: "CONNECTED".into(),
-            what: format!("Crow reaches {addr}."),
+            title: t!("host-diagnose-connected").into(),
+            what: t!("host-diagnose-crow-reaches", addr = addr),
             facts,
             steps: Vec::new(),
             actions: Vec::new(),
         },
         ConnectionState::AuthFailed(_) => {
             let offered = offered_methods(&detail);
-            facts.push(("key tried".into(), key_fact));
-            facts.push(("server accepts".into(), if offered.is_empty() { "—".into() } else { offered.join(", ") }));
+            facts.push((t!("host-diagnose-key-tried").into(), key_fact));
+            facts.push((t!("host-diagnose-server-accepts").into(), if offered.is_empty() { "—".into() } else { offered.join(", ") }));
             let takes_password = offered.iter().any(|m| m == "password" || m == "keyboard-interactive");
             let mut steps = Vec::new();
             if let KeyTried::File { path, exists: false } = key {
-                steps.push(format!("The key file {path} isn't on this machine any more: restore it, or switch this server to another key."));
+                steps.push(t!("host-diagnose-the-key-file-isnt-on", path = path));
             } else {
-                steps.push(format!("The server doesn't accept that key for {}: it isn't in ~{}/.ssh/authorized_keys there, or sshd ignores the file (permissions, AuthorizedKeysFile).", server.login_user, server.login_user));
+                steps.push(t!("host-diagnose-the-server-doesnt-accept-that", login_user = server.login_user));
             }
             if !offered.iter().any(|m| m == "publickey") && !offered.is_empty() {
-                steps.push("The server doesn't offer key login at all (PubkeyAuthentication no): Crow only logs in with keys.".into());
+                steps.push(t!("host-diagnose-the-server-doesnt-offer-key").into());
             }
             if takes_password {
-                steps.push("It accepts a password: log in once with it and Crow installs its key, without storing the password.".into());
+                steps.push(t!("host-diagnose-it-accepts-a-password-log").into());
             }
             let mut actions = Vec::new();
             if takes_password {
                 actions.push(RecoveryAction::InstallKeyWithPassword);
             }
             actions.push(RecoveryAction::Retry);
-            Diagnosis { title: "LOGIN REFUSED".into(), what: format!("{addr} answered, but refused Crow's login."), facts, steps, actions }
+            Diagnosis { title: t!("host-diagnose-login-refused").into(), what: t!("host-diagnose-answered-but-refused-crows-login", addr = addr), facts, steps, actions }
         }
         ConnectionState::HostKeyRejected(_) => {
             let pinned = server.host_key_fingerprint.clone().filter(|f| !f.trim().is_empty()).unwrap_or_else(|| "—".into());
             facts.push(("pinned".into(), pinned));
             let now = probe.map(|p| p.host_key_fingerprint.clone()).filter(|f| !f.is_empty());
-            facts.push(("presents now".into(), now.clone().unwrap_or_else(|| if jump.is_some() { "can't fetch through a jump host".into() } else { "—".into() })));
+            facts.push((t!("host-diagnose-presents-now").into(), now.clone().unwrap_or_else(|| if jump.is_some() { t!("host-diagnose-cant-fetch-through-a-jump").into() } else { "—".into() })));
             let changed = probe.is_some_and(|p| p.host_key_mismatch);
             let (title, what, mut steps) = if changed {
                 (
-                    "HOST KEY CHANGED",
-                    format!("{addr} presents a different host key than the one Crow trusted. Either the server was reinstalled or its keys regenerated, or something between you and it is pretending to be it."),
+                    t!("host-diagnose-host-key-changed"),
+                    t!("host-diagnose-presents-a-different-host-key", addr = addr),
                     vec![
-                        "Don't trust the new key until you know why it changed.".to_string(),
-                        format!("Check it on the server itself (console, provider's web shell): ssh-keygen -lf /etc/ssh/ssh_host_ed25519_key.pub, and compare with \"presents now\"."),
+                        t!("host-diagnose-dont-trust-the-new-key").to_string(),
+                        t!("host-diagnose-check-it-on-the-server").to_string(),
                     ],
                 )
             } else {
                 (
-                    "HOST KEY NOT TRUSTED",
-                    format!("~/.ssh/known_hosts has no key for {addr}, so ssh refuses to connect (strict checking)."),
-                    vec!["Compare the fingerprint with the one on the server's console before trusting it.".to_string()],
+                    t!("host-diagnose-host-key-not-trusted"),
+                    t!("host-diagnose-ssh-known-hosts-has-no", addr = addr),
+                    vec![t!("host-diagnose-compare-the-fingerprint-with-the").to_string()],
                 )
             };
             if jump.is_some() {
-                steps.push("This server is behind a jump host, so Crow can't fetch its key directly: verify on the server, then add it to known_hosts yourself.".into());
+                steps.push(t!("host-diagnose-this-server-is-behind-a").into());
             }
             let mut actions = Vec::new();
             if now.is_some() && jump.is_none() {
-                steps.push("Once it checks out: trust the new key (you type the server's name to confirm).".into());
+                steps.push(t!("host-diagnose-once-it-checks-out-trust").into());
                 actions.push(RecoveryAction::TrustNewHostKey);
             }
             actions.push(RecoveryAction::Retry);
@@ -146,20 +144,20 @@ pub fn diagnose_state(server: &ServerRecord, state: &ConnectionState, probe: Opt
         ConnectionState::Unreachable(_) => {
             let lower = detail.to_lowercase();
             let (title, what, steps): (&str, String, Vec<String>) = if let Some(j) = jump.filter(|_| lower.contains("jump") || lower.contains("proxy") || lower.contains("kex_exchange") || lower.contains("closed by")) {
-                ("JUMP HOST FAILED", format!("The connection through {j} failed before reaching {addr}."), vec![format!("Open {j} in Crow: if it's unreachable too, fix that first."), "Check the jump host can reach this server's address and port.".into()])
+                (t!("host-diagnose-jump-host-failed"), t!("host-diagnose-the-connection-through-failed-before", j = j, addr = addr), vec![t!("host-diagnose-open-in-crow-if-its", j = j), t!("host-diagnose-check-the-jump-host-can").into()])
             } else if lower.contains("could not resolve") || probe.and_then(|p| p.error.as_deref()).is_some_and(|e| e.contains("could not resolve")) {
-                ("NAME NOT FOUND", format!("{} doesn't resolve to an address from this machine.", server.host), vec!["Check the spelling, or use the IP address.".into(), "A VPN or private DNS may be needed for internal names.".into()])
+                (t!("host-diagnose-name-not-found"), t!("host-diagnose-doesnt-resolve-to-an-address", host = server.host), vec![t!("host-diagnose-check-the-spelling-or-use").into(), t!("host-diagnose-a-vpn-or-private-dns").into()])
             } else if lower.contains("refused") {
-                ("CONNECTION REFUSED", format!("{} answered, but nothing accepts connections on port {}.", server.host, if server.port == 0 { 22 } else { server.port }), vec!["sshd may be stopped, or listening on another port.".into(), "A firewall rejecting the port looks the same.".into()])
+                (t!("host-diagnose-connection-refused"), t!("host-diagnose-answered-but-nothing-accepts-connections", host = server.host, server = if server.port == 0 { 22 } else { server.port }), vec![t!("host-diagnose-sshd-may-be-stopped-or").into(), t!("host-diagnose-a-firewall-rejecting-the-port").into()])
             } else if lower.contains("timed out") || lower.contains("timeout") {
-                ("TIMED OUT", format!("{} didn't answer at all.", server.host), vec!["The server may be off or rebooting; check it at its provider.".into(), "A firewall dropping the port, or a wrong address, looks the same.".into()])
+                (t!("host-diagnose-timed-out"), t!("host-diagnose-didnt-answer-at-all", host = server.host), vec![t!("host-diagnose-the-server-may-be-off").into(), t!("host-diagnose-a-firewall-dropping-the-port").into()])
             } else if lower.contains("no route") || lower.contains("unreachable") {
-                ("NO ROUTE", format!("This machine has no route to {}.", server.host), vec!["Check your network, VPN, or the address.".into()])
+                (t!("host-diagnose-no-route"), t!("host-diagnose-this-machine-has-no-route", host = server.host), vec![t!("host-diagnose-check-your-network-vpn-or").into()])
             } else {
-                ("UNREACHABLE", format!("Crow couldn't open a connection to {addr}."), vec!["Try again; if it persists, ssh to it from a terminal for the full error.".into()])
+                (t!("host-diagnose-unreachable"), t!("host-diagnose-crow-couldnt-open-a-connection", addr = addr), vec![t!("host-diagnose-try-again-if-it-persists").into()])
             };
             if let Some(p) = probe.filter(|_| jump.is_none()) {
-                facts.push(("direct probe".into(), if p.is_reachable { format!("port open ({}ms) · {}", p.latency_ms.unwrap_or(0), p.ssh_banner.clone().unwrap_or_else(|| "no ssh banner".into())) } else { p.error.clone().unwrap_or_else(|| "no answer".into()) }));
+                facts.push((t!("host-diagnose-direct-probe").into(), if p.is_reachable { t!("host-diagnose-port-open-ms", p = p.latency_ms.unwrap_or(0), p2 = p.ssh_banner.clone().unwrap_or_else(|| t!("host-diagnose-no-ssh-banner").into())) } else { p.error.clone().unwrap_or_else(|| t!("host-diagnose-no-answer").into()) }));
             }
             Diagnosis { title: title.into(), what, facts, steps, actions: vec![RecoveryAction::Retry] }
         }

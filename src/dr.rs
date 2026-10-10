@@ -103,9 +103,9 @@ fn read_lines(host: &dyn Host, mode: &str, items: &[String]) -> Vec<String> {
 
 fn age(secs: i64) -> String {
     match secs {
-        s if s < 3600 => format!("{} min", s / 60),
+        s if s < 3600 => t!("dr-min", s = s / 60),
         s if s < 2 * 86_400 => format!("{} h", s / 3600),
-        s => format!("{} days", s / 86_400),
+        s => t!("dr-days", s = s / 86_400),
     }
 }
 
@@ -119,12 +119,12 @@ pub fn check(host: &dyn Host, plan: &Plan, baselines: usize, snapshots: Option<&
             Some((t, name)) => {
                 let since = now - t;
                 if plan.rpo_minutes > 0 && since > plan.rpo_minutes * 60 {
-                    out.push(bad(format!("last backup {} is {} old: more than the RPO of {} min", name, age(since), plan.rpo_minutes)));
+                    out.push(bad(t!("dr-last-backup-is-old-more", name = name, age = age(since), rpo_minutes = plan.rpo_minutes)));
                 } else {
-                    out.push(ok(format!("last backup {} is {} old", name, age(since))));
+                    out.push(ok(t!("dr-last-backup-is-old", name = name, age = age(since))));
                 }
             }
-            None => out.push(bad(format!("no backup found at {}", b.path))),
+            None => out.push(bad(t!("dr-no-backup-found-at", path = b.path))),
         }
     }
     let timers: Vec<String> = plan.backups.iter().map(|b| b.timer.clone()).filter(|t| !t.is_empty()).collect();
@@ -132,25 +132,25 @@ pub fn check(host: &dyn Host, plan: &Plan, baselines: usize, snapshots: Option<&
         let (state, last) = line.split_once(' ').unwrap_or((line.as_str(), ""));
         let last = last.trim();
         if state == "active" {
-            out.push(ok(format!("{t} is active{}", if last.is_empty() || last == "n/a" { String::new() } else { format!(", last ran {last}") })));
+            out.push(ok(t!("dr-is-active", t = t, last = if last.is_empty() || last == "n/a" { String::new() } else { t!("dr-last-ran", last = last) })));
         } else {
-            out.push(bad(format!("{t} isn't running ({}): backups won't be made", if state.is_empty() { "not found" } else { state })));
+            out.push(bad(t!("dr-isnt-running-backups-wont-be", t = t, state = if state.is_empty() { t!("dr-not-found") } else { state })));
         }
     }
     let matters: Vec<String> = plan.matters.lines().map(str::trim).filter(|l| l.starts_with('/')).map(String::from).collect();
     for (p, line) in matters.iter().zip(read_lines(host, "path", &matters)) {
         if line.trim() == "yes" {
-            out.push(ok(format!("{p} exists")));
+            out.push(ok(t!("dr-exists", p = p)));
         } else {
-            out.push(bad(format!("{p} isn't there: the plan may be out of date")));
+            out.push(bad(t!("dr-isnt-there-the-plan-may", p = p)));
         }
     }
-    out.push(if baselines > 0 { ok(format!("{baselines} config file{} pinned as baselines (rebuildable from Crow)", if baselines == 1 { "" } else { "s" })) } else { bad("no config file pinned as a baseline: pin the ones a rebuild needs") });
+    out.push(if baselines > 0 { ok(t!("dr-config-pinned-as-baselines-rebuildable", baselines = baselines)) } else { bad(t!("dr-no-config-file-pinned-as")) });
     if let Some(p) = snapshots {
-        out.push(ok(format!("{p} can snapshot it (Danger Zone → SNAPSHOTS)")));
+        out.push(ok(t!("dr-can-snapshot-it-danger-zone", p = p)));
     }
     if plan.backups.is_empty() {
-        out.push(bad("the plan names no backups"));
+        out.push(bad(t!("dr-the-plan-names-no-backups")));
     }
     out
 }

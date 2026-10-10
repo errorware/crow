@@ -41,31 +41,31 @@ impl NewRuleState {
         };
 
         let proto_str = match self.protocol {
-            RuleProtocol::Tcp => t!("firewall-new-rule-modal-proto-tcp"),
-            RuleProtocol::Udp => t!("firewall-new-rule-modal-proto-udp"),
+            RuleProtocol::Tcp => "proto tcp ",
+            RuleProtocol::Udp => "proto udp ",
             _ => "",
         };
 
         let from_str = if self.is_anywhere || self.source_input.trim().is_empty() {
             "".to_string()
         } else {
-            t!("firewall-new-rule-modal-from", source_input = self.source_input.trim())
+            format!("from {} ", self.source_input.trim())
         };
 
         let port_clean = self.port_input.trim();
         let port_str = if port_clean.is_empty() {
             "any".to_string()
         } else {
-            t!("firewall-new-rule-modal-to-any-port", port_clean = port_clean)
+            format!("to any port {}", port_clean)
         };
 
         let comment_str = if self.comment_input.trim().is_empty() {
             "".to_string()
         } else {
-            t!("firewall-new-rule-modal-comment", comment_input = self.comment_input.trim())
+            format!(" comment '{}'", self.comment_input.trim())
         };
 
-        t!("firewall-new-rule-modal-ufw", action_str = action_str, proto_str = proto_str, from_str = from_str, port_str = port_str, comment_str = comment_str)
+        format!("ufw {} {}{}{}{}", action_str, proto_str, from_str, port_str, comment_str)
     }
 }
 

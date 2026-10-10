@@ -83,7 +83,7 @@ fn curl_json(url: &str, body: Option<&str>) -> Result<Value, String> {
     let out = LocalHost
         .exec_stdin(&argv, body.unwrap_or("").as_bytes(), Duration::from_secs(40))
         .map_err(|e| format!("OSV request failed: {e}"))?;
-    serde_json::from_str(&out.stdout).map_err(|e| format!("OSV answered with something unexpected: {e}"))
+    serde_json::from_str(&out.stdout).map_err(|e| t!("security-osv-osv-answered-with-something-unexpected", e = e))
 }
 
 /// The per-CVE records in a result (`UBUNTU-CVE-…`, `DEBIAN-CVE-…`). OSV
@@ -157,7 +157,7 @@ pub fn is_kernel_source(name: &str) -> bool {
 
 /// Looks up the CVEs that matter for `report` (Debian/Ubuntu only).
 pub fn lookup(report: &UpdatesReport) -> Result<CveReport, String> {
-    let ecosystem = report.osv_ecosystem().ok_or_else(|| format!("CVE lookup covers Debian and Ubuntu; this server runs {}", if report.os_id.is_empty() { "an unknown OS" } else { &report.os_id }))?;
+    let ecosystem = report.osv_ecosystem().ok_or_else(|| t!("security-osv-cve-lookup-covers-debian-and", report = if report.os_id.is_empty() { t!("security-osv-an-unknown-os") } else { &report.os_id }))?;
 
     // Pending upgrades as (source at installed, source at candidate). The
     // candidate's source version is only known when the binary shares it.

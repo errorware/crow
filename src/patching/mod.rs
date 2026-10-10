@@ -29,8 +29,8 @@ pub enum Scope {
 impl Scope {
     pub fn label(self) -> &'static str {
         match self {
-            Scope::Security => "security updates",
-            Scope::All => "all updates",
+            Scope::Security => t!("patching-security-updates"),
+            Scope::All => t!("patching-all-updates"),
         }
     }
 }
@@ -62,7 +62,7 @@ impl Summary {
             }
         }
         // An index never downloaded: "nothing pending" would be a guess.
-        let error = r.index_missing.then(|| format!("{}'s package index was never downloaded, so pending updates are unknown: run `{} update` there", r.manager, r.manager));
+        let error = r.index_missing.then(|| t!("patching-s-package-index-was-never", manager = r.manager));
         Summary { checked_at: now, manager: r.manager.clone(), security, other, reboot_required: r.reboot_required, kernel: r.kernel_update().map(|(k, _)| k), error }
     }
 
@@ -93,10 +93,10 @@ pub fn valid_package(name: &str) -> bool {
 /// names are passed as arguments, never pasted into the script.
 pub fn apply_argv(manager: &str, packages: &[String]) -> Result<Vec<String>, String> {
     if packages.is_empty() {
-        return Err("nothing to upgrade".into());
+        return Err(t!("patching-nothing-to-upgrade").into());
     }
     if let Some(bad) = packages.iter().find(|p| !valid_package(p)) {
-        return Err(format!("{bad:?} isn't a package name"));
+        return Err(t!("patching-isnt-a-package-name", bad = format!("{:?}", bad)));
     }
     let script = match manager {
         // Refresh the lists first: the plan names packages, apt picks the
@@ -104,8 +104,8 @@ pub fn apply_argv(manager: &str, packages: &[String]) -> Result<Vec<String>, Str
         "apt" => "export DEBIAN_FRONTEND=noninteractive NEEDRESTART_MODE=l; apt-get update -q >/dev/null && apt-get install -y -q --only-upgrade -o Dpkg::Options::=--force-confdef -o Dpkg::Options::=--force-confold -- \"$@\"",
         "dnf" => "dnf -y -q upgrade -- \"$@\"",
         "apk" => "apk update -q && apk add -q --upgrade -- \"$@\"",
-        "" => return Err("no package manager Crow knows (apt, dnf, apk)".into()),
-        other => return Err(format!("{other} isn't a package manager Crow can patch with")),
+        "" => return Err(t!("patching-no-package-manager-crow-knows").into()),
+        other => return Err(t!("patching-isnt-a-package-manager-crow", other = other)),
     };
     let mut argv: Vec<String> = vec!["sh".into(), "-c".into(), format!("PATH=\"$PATH:/usr/sbin:/sbin\"; {script} 2>&1"), "crow-patch".into()];
     argv.extend(packages.iter().cloned());
@@ -135,12 +135,12 @@ pub struct Applied {
 
 impl Applied {
     pub fn describe(&self) -> String {
-        let mut s = format!("{} upgraded", self.upgraded.len());
+        let mut s = t!("patching-upgraded", count = self.upgraded.len());
         if !self.still_pending.is_empty() {
-            s.push_str(&format!(", {} still pending ({})", self.still_pending.len(), self.still_pending.iter().take(4).cloned().collect::<Vec<_>>().join(", ")));
+            s.push_str(&t!("patching-still-pending", count = self.still_pending.len(), still_pending = self.still_pending.iter().take(4).cloned().collect::<Vec<_>>().join(", ")));
         }
         if self.reboot_required {
-            s.push_str(" · reboot required");
+            s.push_str(t!("patching-reboot-required"));
         }
         s
     }
@@ -158,7 +158,7 @@ pub fn apply(host: &dyn Host, manager: &str, packages: &[String]) -> Result<Appl
     let argv = apply_argv(manager, packages)?;
     let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
     let output = host.exec_privileged(&argv, &[], APPLY_TIMEOUT).map_err(|e| match e {
-        crate::host::HostError::Failed { stderr, status } => format!("{manager} failed (exit {status}): {}", last_lines(&stderr, 3)),
+        crate::host::HostError::Failed { stderr, status } => t!("patching-failed-exit", manager = manager, status = status, last_lines = last_lines(&stderr, 3)),
         other => other.to_string(),
     })?;
     let after = read_report(host)?;
@@ -193,7 +193,7 @@ impl Window {
     /// "Sun 02-05", "Mon-Fri 22-06", "Sat,Sun 01-04", "daily 03-05".
     pub fn parse(s: &str) -> Result<Window, String> {
         let s = s.trim();
-        let (days, hours) = s.rsplit_once(' ').ok_or("a window looks like \"Sun 02-05\" or \"Mon-Fri 22-06\"")?;
+        let (days, hours) = s.rsplit_once(' ').ok_or(t!("patching-a-window-looks-like-sun"))?;
         let mut mask = 0u8;
         for part in days.split(',').map(str::trim).filter(|p| !p.is_empty()) {
             if matches!(part.to_lowercase().as_str(), "daily" | "every" | "everyday" | "all") {
@@ -202,7 +202,7 @@ impl Window {
             }
             match part.split_once('-') {
                 Some((a, b)) => {
-                    let (a, b) = (day_index(a).ok_or(format!("{a:?} isn't a day"))?, day_index(b).ok_or(format!("{b:?} isn't a day"))?);
+                    let (a, b) = (day_index(a).ok_or(t!("patching-isnt-a-day", a = format!("{:?}", a)))?, day_index(b).ok_or(t!("patching-isnt-a-day-2", b = format!("{:?}", b)))?);
                     let mut d = a;
                     loop {
                         mask |= 1 << d;
@@ -212,17 +212,17 @@ impl Window {
                         d = (d + 1) % 7;
                     }
                 }
-                None => mask |= 1 << day_index(part).ok_or(format!("{part:?} isn't a day"))?,
+                None => mask |= 1 << day_index(part).ok_or(t!("patching-isnt-a-day-3", part = format!("{:?}", part)))?,
             }
         }
         if mask == 0 {
-            return Err("no days in the window".into());
+            return Err(t!("patching-no-days-in-the-window").into());
         }
-        let (a, b) = hours.split_once('-').ok_or("hours look like 02-05")?;
+        let (a, b) = hours.split_once('-').ok_or(t!("patching-hours-look-like-02-05"))?;
         let hour = |h: &str| h.trim().trim_end_matches(":00").parse::<u8>().ok().filter(|h| *h <= 24);
-        let (start, end) = (hour(a).ok_or("hours are 0 to 24")?, hour(b).ok_or("hours are 0 to 24")?);
+        let (start, end) = (hour(a).ok_or(t!("patching-hours-are-0-to-24"))?, hour(b).ok_or(t!("patching-hours-are-0-to-24"))?);
         if start == end {
-            return Err("the window's start and end are the same hour".into());
+            return Err(t!("patching-the-windows-start-and-end").into());
         }
         Ok(Window { days: mask, start: start % 24, end: if end == 24 { 0 } else { end } })
     }
@@ -269,7 +269,7 @@ pub const SUMMARIES_FLAG: &str = "patching.summaries";
 /// Why a server is left out of a run right now, if it is.
 pub fn outside_window(group: &str, windows: &BTreeMap<String, Window>) -> Option<String> {
     let w = windows.get(group)?;
-    (!w.contains_now()).then(|| format!("outside {group}'s maintenance window ({})", w.describe()))
+    (!w.contains_now()).then(|| t!("patching-outside-s-maintenance-window", group = group, describe = w.describe()))
 }
 
 // ---------------------------------------------------------------------------
@@ -327,19 +327,19 @@ pub fn wait_for_services(host: &dyn Host, failed_before: &[String], timeout: Dur
     let started = std::time::Instant::now();
     loop {
         match system_state(host) {
-            Ok(None) => return Ok("no systemd to wait for".into()),
+            Ok(None) => return Ok(t!("patching-no-systemd-to-wait-for").into()),
             Ok(Some((state, failed))) if state != "starting" && state != "initializing" => {
                 let new: Vec<&String> = failed.iter().filter(|f| !failed_before.contains(f)).collect();
                 return if new.is_empty() {
-                    Ok(format!("services up ({state})"))
+                    Ok(t!("patching-services-up", state = state))
                 } else {
-                    Err(format!("came back, but {} failed: {}", if new.len() == 1 { "a unit" } else { "units" }, new.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")))
+                    Err(t!("patching-came-back-but-failed", new = if new.len() == 1 { t!("patching-a-unit") } else { "units" }, new2 = new.iter().map(|s| s.as_str()).collect::<Vec<_>>().join(", ")))
                 };
             }
             _ => {}
         }
         if started.elapsed() >= timeout {
-            return Err(format!("came back, but systemd was still starting after {}s", timeout.as_secs()));
+            return Err(t!("patching-came-back-but-systemd-was", as_secs = timeout.as_secs()));
         }
         std::thread::sleep(poll);
     }

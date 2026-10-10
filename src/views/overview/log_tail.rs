@@ -49,7 +49,7 @@ pub fn log_tail(
                         .font_family("JetBrains Mono")
                         .text_size(px(10.0))
                         .text_color(TEXT_DIMMER)
-                        .child(t!("overview-log-tail-journalctl-f")),
+                        .child("journalctl -f"),
                 )
                 .child(div().flex_1())
                 // Expand to full view button
@@ -205,7 +205,7 @@ pub fn log_tail(
                 .child(
                     div()
                         .text_color(TEXT_SECONDARY)
-                        .child(t!("overview-log-tail-journalctl-f")),
+                        .child("journalctl -f"),
                 )
                 .child(
                     div()
@@ -251,7 +251,7 @@ pub fn socket_log_drawer(
                 let m_lower = e.message.to_lowercase();
                 let sys_lower = e.syslog_identifier.to_lowercase();
                 (!p_lower.is_empty() && (u_lower.contains(&p_lower) || m_lower.contains(&p_lower) || sys_lower.contains(&p_lower)))
-                    || (!port_str.is_empty() && (m_lower.contains(&format!(":{}", port_str)) || m_lower.contains(&t!("overview-log-tail-port", port_str = port_str))))
+                    || (!port_str.is_empty() && (m_lower.contains(&format!(":{}", port_str)) || m_lower.contains(&format!("port {}", port_str))))
             })
             .collect();
         if matching.is_empty() {
@@ -618,9 +618,9 @@ pub fn socket_log_drawer(
                     div()
                         .text_color(TEXT_SECONDARY)
                         .child(if let (true, Some(sock)) = (filter_active, &focused_socket) {
-                            t!("overview-log-tail-journalctl-f-u-service", process = sock.process)
+                            format!("journalctl -f -u {}.service", sock.process)
                         } else {
-                            t!("overview-log-tail-journalctl-f").to_string()
+                            "journalctl -f".to_string()
                         }),
                 )
                 .child(

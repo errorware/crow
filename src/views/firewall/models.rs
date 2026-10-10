@@ -158,7 +158,7 @@ impl FirewallRule {
         }
         match self.protocol {
             RuleProtocol::Any => self.port.clone(),
-            RuleProtocol::Both => format!("{}/tcp,udp", self.port),
+            RuleProtocol::Both => t!("firewall-models-tcp-udp-2", port = self.port),
             RuleProtocol::Tcp => format!("{}/tcp", self.port),
             RuleProtocol::Udp => format!("{}/udp", self.port),
         }

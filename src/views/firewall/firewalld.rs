@@ -145,7 +145,7 @@ pub fn parse_rich_rule(rule: &str) -> Option<RichRule> {
         _ => None,
     })?;
     let action = if action == RuleAction::Allow && rule.contains(" limit value=") { RuleAction::Limit } else { action };
-    let source = rule.contains("source ").then(|| attr("address")).flatten().map(|a| if rule.contains("source NOT ") { t!("firewalld-not", a = a) } else { a });
+    let source = rule.contains("source ").then(|| attr("address")).flatten().map(|a| if rule.contains("source NOT ") { format!("not {a}") } else { a });
     let port = rule.contains(" port port=").then(|| Some((attr("port")?, attr("protocol")?))).flatten();
     let service = rule.contains("service name=").then(|| attr("name")).flatten();
     Some(RichRule { source, port, service, action, ipv6: attr("family").as_deref() == Some("ipv6") })

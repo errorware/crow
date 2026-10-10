@@ -221,14 +221,14 @@ impl Session {
                 Event::TextAreaSizeRequest(format) => self.write(format(self.size.window()).into_bytes()),
                 Event::ChildExit(status) => {
                     self.exited = Some(match status.code() {
-                        Some(0) => "session ended".to_string(),
-                        Some(code) => format!("session ended (exit status {code})"),
-                        None => "session ended (killed by a signal)".to_string(),
+                        Some(0) => t!("terminal-session-session-ended").to_string(),
+                        Some(code) => t!("terminal-session-session-ended-exit-status", code = code),
+                        None => t!("terminal-session-session-ended-killed-by-a").to_string(),
                     });
                     dirty = true;
                 }
                 Event::Exit => {
-                    self.exited.get_or_insert_with(|| "session ended".to_string());
+                    self.exited.get_or_insert_with(|| t!("terminal-session-session-ended").to_string());
                     dirty = true;
                 }
                 // Clipboard access from programs (OSC 52) is refused.

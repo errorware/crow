@@ -30,10 +30,10 @@ pub enum ConnectionState {
 impl ConnectionState {
     pub fn label(&self) -> &'static str {
         match self {
-            ConnectionState::Connected => "CONNECTED",
-            ConnectionState::AuthFailed(_) => "AUTH FAILED",
-            ConnectionState::HostKeyRejected(_) => "HOST KEY",
-            ConnectionState::Unreachable(_) => "UNREACHABLE",
+            ConnectionState::Connected => t!("host-ssh-connected"),
+            ConnectionState::AuthFailed(_) => t!("host-ssh-auth-failed"),
+            ConnectionState::HostKeyRejected(_) => t!("host-ssh-host-key"),
+            ConnectionState::Unreachable(_) => t!("host-ssh-unreachable"),
         }
     }
 
@@ -129,9 +129,9 @@ pub fn approval_agent_name(ssh_g: &str, auth_sock: Option<&str>) -> Option<&'sta
     };
     let s = socket.to_lowercase();
     if s.contains("1password") || s.contains("2bua8c4s2c") {
-        Some("1Password")
+        Some(t!("host-ssh-1password"))
     } else if s.contains("secretive") {
-        Some("Secretive")
+        Some(t!("host-ssh-secretive"))
     } else {
         None
     }
@@ -177,7 +177,7 @@ pub fn fresh_key_login(server: &ServerRecord) -> Result<(), String> {
     argv.push("true".into());
     let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
     run_command(&argv, &[], Duration::from_secs(20)).map(|_| ()).map_err(|e| match e {
-        HostError::Failed { stderr, .. } => stderr.trim().lines().last().unwrap_or("login failed").to_string(),
+        HostError::Failed { stderr, .. } => stderr.trim().lines().last().unwrap_or(t!("host-ssh-login-failed")).to_string(),
         other => other.to_string(),
     })
 }
@@ -254,7 +254,7 @@ fn private_dir(dir: &std::path::Path, uid: u32) -> std::io::Result<()> {
     use std::os::unix::fs::{DirBuilderExt, MetadataExt};
     match std::fs::symlink_metadata(dir) {
         Ok(m) if m.file_type().is_dir() && m.uid() == uid && m.mode() & 0o077 == 0 => Ok(()),
-        Ok(_) => Err(std::io::Error::other(format!("{} isn't a private folder of this user", dir.display()))),
+        Ok(_) => Err(std::io::Error::other(t!("host-ssh-isnt-a-private-folder-of", dir = dir.display()))),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => {
             if let Some(parent) = dir.parent() {
                 std::fs::create_dir_all(parent)?;
@@ -312,19 +312,19 @@ pub fn chain_for(server: &ServerRecord, servers: &HashMap<String, ServerRecord>,
     let mut next = server.jump_host_id.clone().filter(|j| !j.is_empty());
     while let Some(id) = next {
         if seen.contains(&id) {
-            return Err(format!("the bastions loop back to {id}: fix one of them in its settings"));
+            return Err(t!("host-ssh-the-bastions-loop-back-to", id = id));
         }
         if chain.len() >= MAX_HOPS {
-            return Err(format!("more than {MAX_HOPS} bastions deep"));
+            return Err(t!("host-ssh-more-than-bastions-deep", max_hops = MAX_HOPS));
         }
-        let b = servers.get(&id).ok_or_else(|| format!("its bastion ({id}) is no longer in the fleet"))?;
+        let b = servers.get(&id).ok_or_else(|| t!("host-ssh-its-bastion-is-no-longer", id = id))?;
         if b.host.trim().is_empty() || b.host.starts_with('-') {
-            return Err(format!("bastion {} has an invalid address", b.name));
+            return Err(t!("host-ssh-bastion-has-an-invalid-address", name = b.name));
         }
         let key_path = match b.auth_method.as_str() {
-            "password" => return Err(format!("bastion {} logs in with a password; Crow goes through bastions with keys", b.name)),
+            "password" => return Err(t!("host-ssh-bastion-logs-in-with-a", name = b.name)),
             "publickey" => match b.key_id.as_ref() {
-                Some(k) => Some(key_paths.get(k).cloned().ok_or_else(|| format!("bastion {}'s key has no private key file", b.name))?),
+                Some(k) => Some(key_paths.get(k).cloned().ok_or_else(|| t!("host-ssh-bastion-s-key-has-no", name = b.name))?),
                 None => None,
             },
             _ => None,
@@ -352,7 +352,7 @@ fn forward_target(host: &str, port: u16) -> String {
 /// security options and its own user and key; ssh's `-J` would use only
 /// what ~/.ssh/config says. No `%` anywhere: ssh would expand it.
 pub fn proxy_command(program: &str, settings: &SshSettings, chain: &[Hop], host: &str, port: u16) -> Result<String, String> {
-    let Some((last, before)) = chain.split_last() else { return Err("no bastion".into()) };
+    let Some((last, before)) = chain.split_last() else { return Err(t!("host-ssh-no-bastion").into()) };
     let mut argv: Vec<String> = vec![program.to_string()];
     for a in base_options(settings) {
         argv.push(match a.as_str() {
@@ -377,14 +377,14 @@ pub fn proxy_command(program: &str, settings: &SshSettings, chain: &[Hop], host:
     }
     argv.extend(["-W".into(), forward_target(host, port), "--".into(), last.host.clone()]);
     if let Some(bad) = argv.iter().find(|a| a.contains('%') && !a.starts_with("ProxyCommand=")) {
-        return Err(format!("{bad:?} holds a '%', which ssh would read as a token"));
+        return Err(t!("host-ssh-holds-a-which-ssh-would", bad = format!("{:?}", bad)));
     }
     Ok(argv.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" "))
 }
 
 /// The bastions on the way to `server`, from what the app has synced.
 pub fn chain_of(server: &ServerRecord) -> Result<Vec<Hop>, String> {
-    let dir = directory().read().map_err(|_| "the server directory is busy".to_string())?;
+    let dir = directory().read().map_err(|_| t!("host-ssh-the-server-directory-is-busy").to_string())?;
     chain_for(server, &dir.servers, &dir.key_paths)
 }
 
@@ -403,20 +403,20 @@ pub fn proxy_for(server: &ServerRecord) -> Result<Option<String>, String> {
 pub fn classify_hop_failure(stderr: &str, chain: &[Hop], target: &str) -> Option<ConnectionState> {
     let last_line = |pred: &dyn Fn(&str) -> bool| stderr.lines().rev().find(|l| pred(l)).map(|l| l.trim().to_string());
     if let Some(line) = last_line(&|l: &str| l.contains("open failed")).or_else(|| last_line(&|l: &str| l.contains("stdio forwarding failed"))) {
-        let via = chain.last().map(|h| h.name.as_str()).unwrap_or("the bastion");
+        let via = chain.last().map(|h| h.name.as_str()).unwrap_or(t!("host-ssh-the-bastion"));
         let why = line.rsplit(": ").next().unwrap_or(&line).trim().to_string();
-        return Some(ConnectionState::Unreachable(format!("bastion {via} can't reach {target}: {why}")));
+        return Some(ConnectionState::Unreachable(t!("host-ssh-bastion-cant-reach", via = via, target = target, why = why)));
     }
     for hop in chain {
         let mentions = |l: &str| l.contains(&format!("host {} ", hop.host)) || l.contains(&format!("@{}:", hop.host)) || l.contains(&format!(" {} port", hop.host)) || l.starts_with(&format!("{}:", hop.host));
         if let Some(line) = last_line(&|l: &str| mentions(l)) {
             let lower = line.to_lowercase();
             return Some(if lower.contains("permission denied") {
-                ConnectionState::AuthFailed(format!("bastion {} refused Crow's key: {line}", hop.name))
+                ConnectionState::AuthFailed(t!("host-ssh-bastion-refused-crows-key", name = hop.name, line = line))
             } else if lower.contains("host key") {
-                ConnectionState::HostKeyRejected(format!("bastion {}: {line}", hop.name))
+                ConnectionState::HostKeyRejected(t!("host-ssh-bastion", name = hop.name, line = line))
             } else {
-                ConnectionState::Unreachable(format!("bastion {}: {line}", hop.name))
+                ConnectionState::Unreachable(t!("host-ssh-bastion", name = hop.name, line = line))
             });
         }
     }
@@ -466,7 +466,7 @@ impl SshHost {
         let mut unsupported = None;
         match server.auth_method.as_str() {
             "password" => {
-                unsupported = Some("This server is set to password login; Crow connects with keys, installed once with the password.".to_string());
+                unsupported = Some(t!("host-ssh-this-server-is-set-to").to_string());
             }
             "publickey" => match &key_path {
                 Some(path) => {
@@ -479,7 +479,7 @@ impl SshHost {
                     }
                 }
                 None if server.key_id.is_some() => {
-                    unsupported = Some("the enrolled key for this server has no private key file".to_string());
+                    unsupported = Some(t!("host-ssh-the-enrolled-key-for-this").to_string());
                 }
                 None => {}
             },
@@ -490,9 +490,9 @@ impl SshHost {
         // be read by ssh as an option (e.g. -oProxyCommand=...). Refuse it, and
         // end option parsing before the destination regardless.
         if server.host.starts_with('-') || server.host.trim().is_empty() {
-            unsupported = Some(format!("invalid host address {:?}", server.host));
+            unsupported = Some(t!("host-ssh-invalid-host-address", host = format!("{:?}", server.host)));
         }
-        let via = chain.last().map(|h| format!(" via {}", h.name)).unwrap_or_default();
+        let via = chain.last().map(|h| t!("host-ssh-via", name = h.name)).unwrap_or_default();
         let mut host = Self {
             server_id: server.id.clone(),
             chain,
@@ -555,9 +555,9 @@ impl SshHost {
             argv.push("true");
             if let Err(HostError::Failed { status: 255, stderr }) = run_command(&argv, &[], Duration::from_secs(20)) {
                 let state = classify_hop_failure(&stderr, &self.chain[..i], &hop.host).unwrap_or_else(|| classify_ssh_failure(&stderr));
-                let prefix = format!("bastion {}: ", hop.name);
+                let prefix = t!("host-ssh-bastion-2", name = hop.name);
                 return Some(match state {
-                    ConnectionState::AuthFailed(d) => ConnectionState::AuthFailed(format!("bastion {} refused Crow's key: {d}", hop.name)),
+                    ConnectionState::AuthFailed(d) => ConnectionState::AuthFailed(t!("host-ssh-bastion-refused-crows-key-2", name = hop.name, d = d)),
                     ConnectionState::HostKeyRejected(d) if !d.starts_with("bastion ") => ConnectionState::HostKeyRejected(prefix + &d),
                     ConnectionState::Unreachable(d) if !d.starts_with("bastion ") => ConnectionState::Unreachable(prefix + &d),
                     other => other,
@@ -605,7 +605,7 @@ fn expand_home(path: &str) -> String {
 /// Maps an ssh client failure (exit 255) to a connection state.
 pub fn classify_ssh_failure(stderr: &str) -> ConnectionState {
     let s = stderr.to_lowercase();
-    let first_line = stderr.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or("ssh failed").trim().to_string();
+    let first_line = stderr.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or(t!("host-ssh-ssh-failed")).trim().to_string();
     if s.contains("host key verification failed") || s.contains("remote host identification has changed") || s.contains("no matching host key") {
         ConnectionState::HostKeyRejected(first_line)
     } else if s.contains("permission denied") || s.contains("too many authentication failures") || s.contains("no more authentication methods") {

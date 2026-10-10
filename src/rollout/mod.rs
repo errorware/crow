@@ -121,7 +121,7 @@ pub fn run_command(host: &dyn Host, script: &str, as_root: bool) -> StepResult {
     let out = if as_root { host.exec_privileged(&argv, &[], COMMAND_TIMEOUT) } else { host.exec(&argv, COMMAND_TIMEOUT) };
     let stdout = match out {
         Ok(o) => o.stdout,
-        Err(HostError::Failed { status, stderr }) => return Err(format!("couldn't run it (exit {status}): {}", last_lines(&stderr, 3))),
+        Err(HostError::Failed { status, stderr }) => return Err(t!("rollout-couldnt-run-it-exit", status = status, last_lines = last_lines(&stderr, 3))),
         Err(e) => return Err(e.to_string()),
     };
     let (output, code) = match stdout.rfind(EXIT_MARK) {
@@ -130,9 +130,9 @@ pub fn run_command(host: &dyn Host, script: &str, as_root: bool) -> StepResult {
     };
     let tail = last_lines(output, 5);
     match code {
-        0 => Ok(StepOutcome::Done(if tail.is_empty() { "done (no output)".into() } else { tail })),
-        -1 => Err(format!("ended without an exit code: {tail}")),
-        n => Err(format!("exit {n}: {tail}")),
+        0 => Ok(StepOutcome::Done(if tail.is_empty() { t!("rollout-done-no-output").into() } else { tail })),
+        -1 => Err(t!("rollout-ended-without-an-exit-code", tail = tail)),
+        n => Err(t!("rollout-exit", n = n, tail = tail)),
     }
 }
 
