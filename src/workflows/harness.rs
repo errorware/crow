@@ -14,7 +14,8 @@ pub fn root() -> Option<PathBuf> {
 }
 
 /// Points Crow at the scratch profile: its own HOME (config.toml, ~/.ssh),
-/// XDG dirs (crow.db), no keyring, no agent, and an `ssh` that reads the
+/// XDG dirs (crow.db), no agent (gpui's test platform already stands in
+/// for the OS keyring: reads find nothing, writes go nowhere), and an `ssh` that reads the
 /// profile's known_hosts (ssh itself reads the passwd home, not $HOME).
 /// Must run before Crow reads any of them.
 pub fn isolate() -> PathBuf {

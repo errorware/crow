@@ -25,3 +25,5 @@ mod w06_hardening;
 mod w07_key_rotation;
 #[cfg(test)]
 mod w08_host_keys;
+#[cfg(test)]
+mod w09_drift;
