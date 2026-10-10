@@ -18,6 +18,8 @@ const FORUM: &str = "https://forum.errorware.net";
 const ABOUT_HEIGHT: f32 = 440.0;
 const TITLE_HEIGHT: f32 = 30.0;
 const SIDE_WIDTH: f32 = 140.0;
+/// How much black lies over the side picture.
+const SIDE_DIMMING: f32 = 0.55;
 
 fn png(cell: &'static OnceLock<Arc<Image>>, bytes: &'static [u8]) -> Arc<Image> {
     cell.get_or_init(|| Arc::new(Image::from_bytes(ImageFormat::Png, bytes.to_vec()))).clone()
@@ -101,6 +103,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                         // cropped evenly from both sides.
                         .child(
                             div()
+                                .relative()
                                 .w(px(SIDE_WIDTH))
                                 .h_full()
                                 .flex_none()
@@ -108,7 +111,9 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                 .border_r_1()
                                 .border_color(BORDER_STRONG)
                                 .bg(hex_rgb(0x000000))
-                                .child(img(side_picture()).size_full().object_fit(ObjectFit::Cover)),
+                                .child(img(side_picture()).size_full().object_fit(ObjectFit::Cover))
+                                // Darkened to sit with the rest of the box.
+                                .child(div().absolute().inset_0().bg(hex_rgba(0x000000, SIDE_DIMMING))),
                         )
                         .child(
                             div()
