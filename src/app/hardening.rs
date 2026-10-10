@@ -112,6 +112,11 @@ impl CrowApp {
                 excluded.push((srv.name.clone(), "not reachable right now".into()));
                 continue;
             }
+            // Turning a firewall on needs ufw or firewalld there (ERR-167).
+            if matches!(finding, Finding::NoFirewall(_)) && self.topology.posture.get(&srv.id).is_some_and(|p| p.firewall_tools.is_empty()) {
+                excluded.push((srv.name.clone(), "neither ufw nor firewalld is installed: install one (apt install ufw, dnf install firewalld), then fix it".into()));
+                continue;
+            }
             if !finding.fixable(&srv.login_user) {
                 excluded.push((srv.name.clone(), "Crow logs in as root with a key: prohibit-password is already the safest setting it can keep".into()));
                 continue;

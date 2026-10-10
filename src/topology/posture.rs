@@ -17,6 +17,7 @@ elif command -v nft >/dev/null 2>&1 && nft list ruleset 2>/dev/null | grep -q 'h
 elif command -v iptables >/dev/null 2>&1 && iptables -S INPUT 2>/dev/null | grep -qvx -- '-P INPUT ACCEPT'; then echo iptables
 elif [ "$(id -u)" = 0 ]; then echo none
 else echo unknown; fi
+echo "@@tools"; for t in ufw firewall-cmd; do command -v "$t" >/dev/null 2>&1 && echo "$t"; done
 echo "@@listen"; ss -Hltn 2>/dev/null | awk '{print $4}'
 true"#;
 
@@ -33,6 +34,9 @@ pub struct Posture {
     pub firewall: Option<String>,
     /// TCP ports listening on every interface (0.0.0.0, [::], *).
     pub exposed_ports: Vec<u16>,
+    /// Firewall tools Crow can turn on here (ufw, firewall-cmd), installed
+    /// whether or not they're running.
+    pub firewall_tools: Vec<String>,
 }
 
 impl Posture {
@@ -72,7 +76,12 @@ pub fn parse(stdout: &str, checked_at: i64) -> Posture {
     let mut section = "";
     for line in stdout.lines().map(str::trim).filter(|l| !l.is_empty()) {
         if let Some(s) = line.strip_prefix("@@") {
-            section = if s == "sshd" { "sshd" } else if s == "firewall" { "firewall" } else { "listen" };
+            section = match s {
+                "sshd" => "sshd",
+                "firewall" => "firewall",
+                "tools" => "tools",
+                _ => "listen",
+            };
             continue;
         }
         match section {
@@ -92,6 +101,7 @@ pub fn parse(stdout: &str, checked_at: i64) -> Posture {
                     fw => Some(fw.to_string()),
                 }
             }
+            "tools" => p.firewall_tools.push(line.to_string()),
             _ => p.exposed_ports.extend(exposed_port(line)),
         }
     }
@@ -122,6 +132,9 @@ mod tests {
         assert!(p.no_firewall());
         assert_eq!(p.exposed_ports, [22, 80, 9100], "loopback-only ports aren't exposed");
         assert_eq!(p.unfiltered_ports(), [80, 9100], "ssh itself is expected");
+        assert!(p.firewall_tools.is_empty(), "no @@tools section: none known");
+        let with_tools = parse("@@firewall\nnone\n@@tools\nufw\n@@listen\n0.0.0.0:22\n", 1);
+        assert_eq!((with_tools.firewall_tools, with_tools.exposed_ports), (vec!["ufw".to_string()], vec![22]));
     }
 
     #[test]

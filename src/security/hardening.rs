@@ -296,7 +296,7 @@ mod tests {
     use crate::topology::posture::Posture;
 
     fn posture(root: &str, pw: bool, fw: Option<&str>, exposed: Vec<u16>) -> Posture {
-        Posture { checked_at: 1, root_login: Some(root.into()), password_auth: Some(pw), ssh_ports: vec![22], firewall: fw.map(String::from), exposed_ports: exposed }
+        Posture { checked_at: 1, root_login: Some(root.into()), password_auth: Some(pw), ssh_ports: vec![22], firewall_tools: vec!["ufw".into()], firewall: fw.map(String::from), exposed_ports: exposed }
     }
 
     #[test]

@@ -17,3 +17,7 @@ mod w02_bastion;
 mod w03_push_configs;
 #[cfg(test)]
 mod w04_detach_bastion;
+#[cfg(test)]
+mod w05_users;
+#[cfg(test)]
+mod w06_hardening;
