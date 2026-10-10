@@ -195,8 +195,8 @@ mod tests {
         let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
         let port = listener.local_addr().unwrap().port();
         assert!(run(&check(Kind::Tcp { host: "127.0.0.1".into(), port })).ok);
-        drop(listener);
-        let closed = run(&check(Kind::Tcp { host: "127.0.0.1".into(), port }));
+        // Not the port just freed: a parallel test can bind it again.
+        let closed = run(&check(Kind::Tcp { host: "127.0.0.1".into(), port: 1 }));
         assert!(!closed.ok, "{}", closed.detail);
         assert!(run(&check(Kind::Dns { name: "localhost".into(), expect: String::new() })).ok);
         assert!(!run(&check(Kind::Dns { name: "localhost".into(), expect: "10.9.9.9".into() })).ok);
