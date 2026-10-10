@@ -28,6 +28,8 @@
 
 ## Overview
 
+<img width="1494" height="911" alt="image" src="https://github.com/user-attachments/assets/24f12684-14eb-4a80-8943-8dc8f730ff36" />
+
 **Crow** is a native desktop app for operators and SREs who manage Linux servers over SSH. It's inspired by the density and keyboard speed of `k9s` and `lazygit`, drawn as a hardware-accelerated GUI with **GPUI**.
 
 Crow is **agentless**: it talks to your servers over plain SSH, reusing one connection per server, and never installs anything on them.
