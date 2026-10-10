@@ -694,10 +694,12 @@ mod tests {
         let key = cols.iter().find(|c| c.name == "key").unwrap().fixed_width().unwrap();
         assert!(key >= "net.ipv4.conf.all.accept_source_route".len() as f32 * 7.0, "key column {key}px");
         assert_eq!(cols.last().unwrap().fixed_width(), None, "the last column takes what's left");
-        // Option meanings count: "ignores them" next to a switch isn't cut.
-        let pg = to_ir(StructuredFormat::PgHba, "local all postgres peer\n").unwrap();
+        // A pick-list column fits the values in the file, not its options'
+        // meanings, which pushed every other column out of sight (pg_hba's
+        // type took ~430px).
+        let pg = to_ir(StructuredFormat::PgHba, "local all postgres peer\nhostssl all all 10.0.0.0/8 scram-sha-256\n").unwrap();
         let ty = table_columns(&pg).unwrap().into_iter().find(|c| c.name == "type").unwrap().fixed_width().unwrap();
-        assert!(ty > "hostnogssenc".len() as f32 * 7.0, "type column {ty}px fits its longest option");
+        assert!(ty >= "hostssl".len() as f32 * 7.0 && ty < 80.0, "type column {ty}px");
     }
 
     #[test]

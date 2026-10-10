@@ -267,7 +267,7 @@ pub fn structured_editor(
             .flex_none()
             .flex()
             .items_center()
-            .gap(px(14.0))
+            .gap(px(TABLE_GAP))
             .px(px(14.0))
             .py(px(6.0))
             .bg(BG_PANEL)
@@ -277,8 +277,8 @@ pub fn structured_editor(
             .text_size(px(9.0))
             .font_weight(FontWeight::BOLD)
             .text_color(TEXT_FAINT)
-            .child(div().w(px(34.0)).flex_none().child("LINE"))
-            .children(cols.iter().map(|c| column_cell(c.width).child(c.name.to_uppercase())))
+            .child(div().w(px(LINE_W)).flex_none().child("LINE"))
+            .child(div().flex_1().min_w(px(0.0)).flex().items_center().gap(px(TABLE_GAP)).children(cols.iter().map(|c| column_cell(c).px(px(4.0)).truncate().child(c.name.to_uppercase()))))
     });
 
     // systemd, nginx, INI: a new key belongs in a particular section, so
@@ -360,9 +360,12 @@ fn notice(text: String, color: Rgba, tint: u32) -> Div {
 /// How wide a column is on screen.
 #[derive(Clone, Copy, PartialEq)]
 enum ColWidth {
+    /// Starts this wide, shrinks with the pane (values end in "…").
     Fixed(f32),
-    /// Takes the remaining space (lists, trailing comments).
-    Grow,
+    /// Exactly this wide: a short pick-list value (pg_hba's type, method).
+    Snug(f32),
+    /// Starts this wide and takes the remaining space (the last column).
+    Grow(f32),
 }
 
 /// One column of a multi-field table (hosts, pg_hba).
@@ -376,18 +379,22 @@ impl Column {
     #[cfg(test)]
     pub(crate) fn fixed_width(&self) -> Option<f32> {
         match self.width {
-            ColWidth::Fixed(w) => Some(w),
-            ColWidth::Grow => None,
+            ColWidth::Fixed(w) | ColWidth::Snug(w) => Some(w),
+            ColWidth::Grow(_) => None,
         }
     }
 }
 
 /// Width of one character of a field value (JetBrains Mono at 11.5px).
 const CHAR_W: f32 = 7.0;
+/// Space between table columns.
+const TABLE_GAP: f32 = 8.0;
+/// A table row's line number ("L128").
+const LINE_W: f32 = 28.0;
 
 fn width_for(name: &str, field_type: &FieldType) -> ColWidth {
     match field_type {
-        _ if name == "comment" => ColWidth::Grow,
+        _ if name == "comment" => ColWidth::Grow(80.0),
         FieldType::IpAddress => ColWidth::Fixed(150.0),
         FieldType::Cidr => ColWidth::Fixed(170.0),
         FieldType::Enum => ColWidth::Fixed(130.0),
@@ -413,40 +420,46 @@ pub(crate) fn table_columns(ir: &ConfigDocumentIr) -> Option<Vec<Column>> {
             cols.push(Column { name: field.name.clone(), width: width_for(&field.name, &field.field_type) });
         }
     }
-    // Each column is as wide as its longest value (or its header), so a
-    // long key never runs under the next column; very long ones are clipped.
+    // Each column starts as wide as its longest value (or its header) and
+    // shrinks with the pane; what doesn't fit ends in "…". A pick-list
+    // column (pg_hba's type, method) holds short words, so it keeps its width
+    // and the free-text columns shrink instead. Its options' meanings show in
+    // the list that opens under the row, so they don't count; a two-value
+    // switch shows its meaning beside it, so that does.
     for col in cols.iter_mut().filter(|c| matches!(c.width, ColWidth::Fixed(_))) {
-        // A field with options shows its option's meaning too (a switch
-        // and "ignores them"), so those count.
-        let longest = ir
-            .rows
-            .iter()
-            .filter_map(|r| r.get_field(&col.name))
-            .flat_map(|f| {
-                let labels = f.options.iter().flatten().map(|o| o.value.chars().count() + o.label.chars().count() + 6);
-                std::iter::once(value_text(&f.value).chars().count()).chain(labels)
-            })
-            .chain([col.name.len()])
-            .max()
-            .unwrap_or(0);
-        col.width = ColWidth::Fixed((longest as f32 * CHAR_W + 24.0).clamp(56.0, 460.0));
+        let fields: Vec<&FieldIr> = ir.rows.iter().filter_map(|r| r.get_field(&col.name)).collect();
+        let options = fields.iter().find_map(|f| f.options.as_ref());
+        let chars = |n: usize| (n.max(col.name.len()) as f32 * CHAR_W + 14.0).clamp(44.0, 280.0);
+        col.width = match options {
+            Some(o) if o.len() == 2 => ColWidth::Snug(chars(o.iter().map(|o| o.label.chars().count() + 5).max().unwrap_or(0))),
+            Some(_) => ColWidth::Snug(chars(fields.iter().map(|f| value_text(&f.value).chars().count()).max().unwrap_or(0))),
+            None => ColWidth::Fixed(chars(fields.iter().map(|f| value_text(&f.value).chars().count()).max().unwrap_or(0))),
+        };
     }
     // The comment always trails.
     if let Some(i) = cols.iter().position(|c| c.name == "comment") {
         let c = cols.remove(i);
         cols.push(c);
     }
-    // The last column takes what's left, so nothing in it is ever cut.
+    // The last column takes what's left, starting from its own width so it
+    // shrinks no sooner than the others (pg_hba's address was cut first).
     if let Some(last) = cols.last_mut() {
-        last.width = ColWidth::Grow;
+        last.width = ColWidth::Grow(match last.width {
+            ColWidth::Fixed(w) | ColWidth::Snug(w) | ColWidth::Grow(w) => w,
+        });
     }
     Some(cols)
 }
 
-fn column_cell(width: ColWidth) -> Div {
-    match width {
-        ColWidth::Fixed(w) => div().w(px(w)).flex_none().min_w(px(0.0)).overflow_hidden(),
-        ColWidth::Grow => div().flex_1().min_w(px(0.0)),
+fn column_cell(c: &Column) -> Div {
+    // Never narrower than its header (9px bold mono, ~5.6px a letter).
+    let header = c.name.len() as f32 * 5.6 + 10.0;
+    match c.width {
+        // Short columns (ext4, 0, peer) stay whole; long ones give way.
+        ColWidth::Fixed(w) if w <= 72.0 => div().w(px(w.max(header))).flex_none().overflow_hidden(),
+        ColWidth::Fixed(w) => div().flex_basis(px(w)).flex_grow(0.0).flex_shrink(1.0).min_w(px(header.min(w).max(56.0))).overflow_hidden(),
+        ColWidth::Snug(w) => div().w(px(w)).flex_none().overflow_hidden(),
+        ColWidth::Grow(w) => div().flex_basis(px(w)).flex_grow(1.0).flex_shrink(1.0).min_w(px(header.max(56.0))).overflow_hidden(),
     }
 }
 
@@ -511,31 +524,51 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
     };
     let fields_el: Div = match columns {
         // One cell per column, in column order; a field the row lacks is an empty cell.
-        Some(cols) => div().flex_1().min_w(px(0.0)).flex().items_start().gap(px(14.0)).children(cols.iter().map(|c| {
-            column_cell(c.width).children(row.fields.iter().find(|f| f.name == c.name).map(|f| field_el(f, FieldLayout::Column)))
+        Some(cols) => div().flex_1().min_w(px(0.0)).flex().items_start().gap(px(TABLE_GAP)).children(cols.iter().map(|c| {
+            column_cell(c).children(row.fields.iter().find(|f| f.name == c.name).map(|f| field_el(f, FieldLayout::Column)))
         })),
         None => div().flex_1().min_w(px(0.0)).flex().flex_wrap().items_start().gap(px(14.0)).children(row.fields.iter().map(|f| {
             field_el(f, if is_table || row.fields.len() > 1 { FieldLayout::Labeled } else { FieldLayout::KeyValue })
         })),
     };
 
+    let table_cols = columns.is_some();
     let actions = (!locked).then(|| {
-        let mut bar = div().flex().items_center().gap(px(4.0)).flex_none();
+        let mut bar = div().flex().items_center().gap(px(2.0)).flex_none().when(table_cols, |d| {
+            d.absolute().right(px(8.0)).top(px(3.0)).px(px(4.0)).py(px(1.0)).bg(BG_PANEL).border_1().border_color(BORDER_PANEL).invisible().group_hover("structured-row", |s| s.visible())
+        });
         if is_table {
-            if let Some(prev) = prev_id.clone() {
-                let (app_up, f, r) = (app.clone(), file.to_string(), row_id.clone());
-                bar = bar.child(small_button(ElementId::NamedInteger("row-up".into(), index as u64), "↑", TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
-                    let (f, r, p) = (f.clone(), r.clone(), prev.clone());
-                    app_up.update(cx, |this, cx| this.move_structured_row(&f, &r, None, Some(p), cx));
-                }));
-            }
-            if let Some(next) = next_id.clone() {
-                let (app_down, f, r) = (app.clone(), file.to_string(), row_id.clone());
-                bar = bar.child(small_button(ElementId::NamedInteger("row-down".into(), index as u64), "↓", TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
-                    let (f, r, n) = (f.clone(), r.clone(), next.clone());
-                    app_down.update(cx, |this, cx| this.move_structured_row(&f, &r, Some(n), None, cx));
-                }));
-            }
+            use crate::components::icons::TablerIcon;
+            let slot = || div().size(px(20.0)).flex_none();
+            bar = bar.child(match prev_id.clone() {
+                Some(prev) => {
+                    let (app_up, f, r) = (app.clone(), file.to_string(), row_id.clone());
+                    crate::components::icon_button::icon_button(ElementId::NamedInteger("row-up".into(), index as u64), TablerIcon::ChevronUp, false)
+                        .invisible()
+                        .group_hover("structured-row", |s| s.visible())
+                        .tooltip(|window, cx| gpui_kit::component::tooltip::Tooltip::new("Move up: rules are read top to bottom").build(window, cx))
+                        .on_click(move |_ev, _window, cx| {
+                            let (f, r, p) = (f.clone(), r.clone(), prev.clone());
+                            app_up.update(cx, |this, cx| this.move_structured_row(&f, &r, None, Some(p), cx));
+                        })
+                        .into_any_element()
+                }
+                None => slot().into_any_element(),
+            });
+            bar = bar.child(match next_id.clone() {
+                Some(next) => {
+                    let (app_down, f, r) = (app.clone(), file.to_string(), row_id.clone());
+                    crate::components::icon_button::icon_button(ElementId::NamedInteger("row-down".into(), index as u64), TablerIcon::ChevronDown, false)
+                        .invisible()
+                        .group_hover("structured-row", |s| s.visible())
+                        .on_click(move |_ev, _window, cx| {
+                            let (f, r, n) = (f.clone(), r.clone(), next.clone());
+                            app_down.update(cx, |this, cx| this.move_structured_row(&f, &r, Some(n), None, cx));
+                        })
+                        .into_any_element()
+                }
+                None => slot().into_any_element(),
+            });
         }
         if can_add {
             let (app_add, f, r) = (app.clone(), file.to_string(), row_id.clone());
@@ -561,12 +594,13 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
     div()
         .id(ElementId::NamedInteger("structured-row".into(), index as u64))
         .group("structured-row")
+        .relative()
         .flex()
         .flex_col()
         .gap(px(3.0))
         .pr(px(14.0))
         .pl(px(14.0 + 20.0 * match nest { Nest::Flat => 0, Nest::Heading(d) | Nest::Inside(d) => d } as f32))
-        .py(px(7.0))
+        .py(px(if table_cols { 4.0 } else { 7.0 }))
         .when(index % 2 == 1 && !matches!(nest, Nest::Heading(_)), |d| d.bg(hex_rgba(0xffffff, 0.018)))
         .when(matches!(nest, Nest::Heading(_)), |d| d.bg(BG_SUBHEAD).mt(px(6.0)).border_t_1().border_color(BORDER_PANEL))
         .border_b_1()
@@ -576,11 +610,12 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
             div()
                 .flex()
                 .items_start()
-                .gap(px(14.0))
+                .gap(px(if table_cols { TABLE_GAP } else { 14.0 }))
                 .child(
                     div()
-                        .w(px(34.0))
+                        .w(px(if table_cols { LINE_W } else { 34.0 }))
                         .flex_none()
+                        .pt(px(if table_cols { 3.0 } else { 0.0 }))
                         .font_family(FONT_MONO)
                         .text_size(px(9.5))
                         .text_color(TEXT_FAINTER)
@@ -589,6 +624,10 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
                 .child(fields_el)
                 .children(actions),
         )
+        // A table cell is narrow: its options open under the whole row.
+        .children(columns.and(opened.as_ref()).and_then(|name| row.fields.iter().find(|f| &f.name == name)).filter(|_| !locked).map(|f| {
+            div().pl(px(LINE_W + TABLE_GAP)).pb(px(4.0)).child(render_options(file, &row_id, f, app.clone()))
+        }))
         .children(scope.map(|s| {
             div()
                 .pl(px(48.0))
@@ -703,11 +742,12 @@ fn render_field(ctx: FieldCtx) -> impl IntoElement {
             .rounded_sm()
             .border_1()
             .border_color(if locked { hex_rgba(0, 0.0) } else { BORDER_DEFAULT })
+            .when(layout == FieldLayout::Column, |d| d.min_w(px(0.0)).max_w_full().truncate().px(px(4.0)).border_color(hex_rgba(0, 0.0)))
             .font_family(FONT_MONO)
             .text_size(px(11.5))
             .text_color(color)
             .when(!locked, |d| {
-                d.cursor_pointer().hover(|s| s.bg(BG_CONTROL)).on_click(move |_ev, window, cx| {
+                d.cursor_pointer().hover(move |s| s.bg(BG_CONTROL).border_color(BORDER_DEFAULT)).on_click(move |_ev, window, cx| {
                     let (f, r, n, v) = (f.clone(), r.clone(), name.clone(), current.clone());
                     app_click.update(cx, |this, cx| {
                         if is_enum {
@@ -735,7 +775,40 @@ fn render_field(ctx: FieldCtx) -> impl IntoElement {
             .into_any_element()
     };
 
-    let options = (is_open && !locked).then(|| {
+    let options = (is_open && !locked && layout != FieldLayout::Column).then(|| render_options(file, row_id, field, app.clone()));
+    let in_column = layout == FieldLayout::Column;
+
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(1.0))
+        .when(in_column, |d| d.min_w(px(0.0)))
+        .children(show_label.then(|| {
+            div().font_family(FONT_MONO).text_size(px(8.5)).text_color(TEXT_FAINTER).child(field.name.to_uppercase())
+        }))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(6.0))
+                .when(in_column, |d| d.min_w(px(0.0)))
+                .children((layout == FieldLayout::KeyValue).then(|| {
+                    div().min_w(px(170.0)).font_family(FONT_MONO).text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(field.name.clone())
+                }))
+                .child(value_el)
+                .children(risk_label(current_risk.as_ref()).filter(|_| current_risk != Some(RiskLevel::Recommended) && !in_column).map(|l| {
+                    div().font_family(FONT_MONO).text_size(px(8.5)).font_weight(FontWeight::BOLD).text_color(color).child(l)
+                })),
+        )
+        .children(field.validation_error.clone().map(|e| div().font_family(FONT_MONO).text_size(px(9.5)).text_color(CRIT).child(e)))
+        .children(options)
+}
+
+/// The values a field can take, each with its meaning and risk.
+fn render_options(file: &str, row_id: &str, field: &FieldIr, app: Entity<CrowApp>) -> Div {
+    let text = value_text(&field.value);
+    let id_base = format!("{row_id}:{}", field.name);
+    {
         let opts = field.options.clone().unwrap_or_default();
         div().flex().flex_col().gap(px(2.0)).pt(px(3.0)).children(opts.into_iter().enumerate().map(|(i, opt)| {
             let (app_pick, f, r, n, v) = (app.clone(), file.to_string(), row_id.to_string(), field.name.clone(), opt.value.clone());
@@ -761,30 +834,7 @@ fn render_field(ctx: FieldCtx) -> impl IntoElement {
                 }))
                 .child(div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_TERTIARY).child(opt.label.clone()))
         }))
-    });
-
-    div()
-        .flex()
-        .flex_col()
-        .gap(px(1.0))
-        .children(show_label.then(|| {
-            div().font_family(FONT_MONO).text_size(px(8.5)).text_color(TEXT_FAINTER).child(field.name.to_uppercase())
-        }))
-        .child(
-            div()
-                .flex()
-                .items_center()
-                .gap(px(6.0))
-                .children((layout == FieldLayout::KeyValue).then(|| {
-                    div().min_w(px(170.0)).font_family(FONT_MONO).text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(field.name.clone())
-                }))
-                .child(value_el)
-                .children(risk_label(current_risk.as_ref()).filter(|_| current_risk != Some(RiskLevel::Recommended)).map(|l| {
-                    div().font_family(FONT_MONO).text_size(px(8.5)).font_weight(FontWeight::BOLD).text_color(color).child(l)
-                })),
-        )
-        .children(field.validation_error.clone().map(|e| div().font_family(FONT_MONO).text_size(px(9.5)).text_color(CRIT).child(e)))
-        .children(options)
+    }
 }
 
 /// "+ ADD" section. Keyed formats (sshd) offer the plugin's known directives
