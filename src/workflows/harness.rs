@@ -33,6 +33,18 @@ pub fn isolate() -> PathBuf {
     let crow = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("target/debug/crow");
     assert!(crow.exists(), "build Crow first (cargo build): password logins need it as askpass");
     std::env::set_var("CROW_TEST_ASKPASS", crow);
+    // ssh and ssh-keygen read known_hosts from the passwd home, not $HOME:
+    // wrappers point them at the profile's (a normal machine has one home).
+    let kh = root.join("home/.ssh/known_hosts");
+    let wrappers = [
+        ("ssh", format!("#!/bin/sh\ncase \"$*\" in *UserKnownHostsFile=*) exec /usr/bin/ssh -F /dev/null \"$@\";; esac\nexec /usr/bin/ssh -F /dev/null -o UserKnownHostsFile={} \"$@\"\n", kh.display())),
+        ("ssh-keygen", format!("#!/bin/sh\ncase \" $* \" in *\" -F \"*) case \" $* \" in *\" -f \"*) ;; *) exec /usr/bin/ssh-keygen -f {} \"$@\";; esac;; esac\nexec /usr/bin/ssh-keygen \"$@\"\n", kh.display())),
+    ];
+    for (name, script) in wrappers {
+        let path = root.join("bin").join(name);
+        std::fs::write(&path, script).unwrap();
+        std::fs::set_permissions(&path, std::os::unix::fs::PermissionsExt::from_mode(0o755)).unwrap();
+    }
     let path = std::env::var("PATH").unwrap_or_default();
     let bin = root.join("bin").display().to_string();
     if !path.starts_with(&bin) {

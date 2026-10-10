@@ -101,6 +101,14 @@ impl CrowApp {
     /// its stored data is purged once the window closes.
     pub fn archive_server(&mut self, server_id: &str, cx: &mut Context<Self>) {
         let Some(srv) = self.fleet.servers.iter().find(|s| s.id == server_id || s.name == server_id).cloned() else { return };
+        // A bastion still in use: the servers behind it would lose their way in.
+        let users: Vec<String> = crate::app::bastions::dependents(&srv.id, &self.fleet.servers).iter().map(|s| s.name.clone()).collect();
+        if !users.is_empty() {
+            self.fleet.notice = Some(format!("{} is the bastion for {}: move them first, then archive it", srv.name, users.join(", ")));
+            self.fleet.pending_archive = None;
+            cx.notify();
+            return;
+        }
 
         let archived = match self.vault.db().lock() {
             Ok(db) => match db.archive_server(&srv.id) {

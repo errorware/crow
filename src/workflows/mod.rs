@@ -15,3 +15,5 @@ mod w01_enroll;
 mod w02_bastion;
 #[cfg(test)]
 mod w03_push_configs;
+#[cfg(test)]
+mod w04_detach_bastion;
