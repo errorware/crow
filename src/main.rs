@@ -36,6 +36,7 @@ pub mod team;
 pub mod update;
 pub mod vault;
 mod views;
+mod workflows;
 
 use app::CrowApp;
 

@@ -146,6 +146,10 @@ pub fn bootstrap_args(server: &ServerRecord, proxy: Option<&str>, remote: &str) 
 /// OpenSSH public key line) to the login user's authorized_keys.
 pub fn install_key_with_password(server: &ServerRecord, proxy: Option<&str>, password: Zeroizing<String>, public_key: &str) -> Result<(), BootstrapError> {
     let exe = std::env::current_exe().map_err(|e| BootstrapError::Failed(format!("can't locate the Crow binary for askpass: {e}")))?;
+    // Under `cargo test` the current binary is the test runner, which can't
+    // answer ssh; workflow tests point this at a real Crow binary.
+    #[cfg(test)]
+    let exe = std::env::var_os("CROW_TEST_ASKPASS").map(std::path::PathBuf::from).unwrap_or(exe);
     install_key_via("ssh", &exe.to_string_lossy(), server, proxy, password, public_key)
 }
 

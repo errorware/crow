@@ -27,6 +27,8 @@ provider-upcloud = ["dep:crow-provider-upcloud"]
 
 [dev-dependencies]
 crow-provider-core = { path = "crates/crow-provider-core", version = "0.1.0", features = ["testing"] }
+# Headless UI tests: open Crow in a test window, click by element id (src/workflows).
+gpui-kit = { version = "0.6.1", features = ["test-support"] }
 
 [dependencies]
 crow-provider-core = { path = "crates/crow-provider-core", version = "0.1.0" }

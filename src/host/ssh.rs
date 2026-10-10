@@ -284,6 +284,22 @@ pub struct Hop {
     pub key_path: Option<String>,
 }
 
+/// Names the way to a server in its control socket: `%C` covers the
+/// address, port and user but not a ProxyCommand, so without this a server
+/// moved behind a bastion (or out from behind one) would keep using the
+/// connection it had, the old way, for up to ControlPersist.
+fn route_tag(chain: &[Hop]) -> String {
+    use sha2::{Digest, Sha256};
+    if chain.is_empty() {
+        return "direct".into();
+    }
+    let mut h = Sha256::new();
+    for hop in chain {
+        h.update(format!("{}@{}:{}:{}|", hop.user, hop.host, hop.port, hop.key_path.as_deref().unwrap_or("")));
+    }
+    h.finalize()[..4].iter().map(|b| format!("{b:02x}")).collect()
+}
+
 /// How many bastions deep a server may sit.
 pub const MAX_HOPS: usize = 8;
 
@@ -442,7 +458,7 @@ impl SshHost {
         let settings = ssh_settings().read().map(|s| *s).unwrap_or_default();
         let mut args = base_options(&settings);
         args.push("-o".into());
-        args.push(format!("ControlPath={}/%C", control_dir.display()));
+        args.push(format!("ControlPath={}/%C-{}", control_dir.display(), route_tag(&chain)));
         args.extend(["-p".into(), port.to_string()]);
         if !server.login_user.is_empty() {
             args.extend(["-l".into(), server.login_user.clone()]);
@@ -664,12 +680,25 @@ mod tests {
     }
 
     #[test]
+    fn each_route_to_a_server_gets_its_own_connection() {
+        let control = |chain: Vec<Hop>| SshHost::new(&server("publickey", Some("k1")), Some("/keys/id".into()), chain, "/run/crow".into()).args.into_iter().find(|a| a.starts_with("ControlPath=")).unwrap();
+        let hop = |host: &str| Hop { name: "b".into(), host: host.into(), port: 22, user: "root".into(), key_path: Some("/keys/b".into()) };
+        let direct = control(vec![]);
+        let via_a = control(vec![hop("a.lan")]);
+        let via_b = control(vec![hop("b.lan")]);
+        assert_eq!(direct, "ControlPath=/run/crow/%C-direct");
+        assert!(via_a != direct && via_b != direct && via_a != via_b, "{via_a} {via_b}");
+        assert_eq!(via_a, control(vec![hop("a.lan")]), "the same route shares a connection");
+        assert!(!via_a.contains("a.lan"), "no addresses in socket names");
+    }
+
+    #[test]
     fn builds_batch_multiplexed_args_with_key_and_jump() {
         let hop = Hop { name: "bastion".into(), host: "bastion.lan".into(), port: 22, user: "root".into(), key_path: Some("/keys/bastion".into()) };
         let h = SshHost::new(&server("publickey", Some("k1")), Some("/keys/id".into()), vec![hop], "/run/crow".into());
         let a = h.args.join(" ");
         assert!(a.contains("BatchMode=yes") && a.contains("StrictHostKeyChecking=yes"));
-        assert!(a.contains("ControlMaster=auto") && a.contains("ControlPath=/run/crow/%C"));
+        assert!(a.contains("ControlMaster=auto") && a.contains("ControlPath=/run/crow/%C-") && !a.contains("%C-direct"));
         assert!(a.contains("-p 2222") && a.contains("-l ops"));
         assert!(a.contains("-i /keys/id -o IdentitiesOnly=yes"));
         let proxy = h.args.iter().find(|a| a.starts_with("ProxyCommand=")).expect("a bastion means a ProxyCommand");

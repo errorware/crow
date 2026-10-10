@@ -115,3 +115,6 @@ ehthumbs_vista.db
 *.tmp
 .cache/
 tmp/
+
+# Workflow test plans and results (src/workflows runs them)
+/workflows/
