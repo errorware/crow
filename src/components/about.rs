@@ -15,6 +15,12 @@ const REPO: &str = "https://github.com/errorware/crow";
 const WEBSITE: &str = "https://crow.rs";
 const FORUM: &str = "https://forum.errorware.net";
 
+const ABOUT_HEIGHT: f32 = 440.0;
+const TITLE_HEIGHT: f32 = 30.0;
+const SIDE_WIDTH: f32 = 140.0;
+/// The side picture (505x901) scaled to the box's height under the title.
+const SIDE_PICTURE_WIDTH: f32 = (ABOUT_HEIGHT - TITLE_HEIGHT) * 505.0 / 901.0;
+
 fn png(cell: &'static OnceLock<Arc<Image>>, bytes: &'static [u8]) -> Arc<Image> {
     cell.get_or_init(|| Arc::new(Image::from_bytes(ImageFormat::Png, bytes.to_vec()))).clone()
 }
@@ -64,174 +70,184 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                 .occlude()
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // keep clicks inside from reaching the backdrop (which closes)
                 .w(px(780.0))
-                .h(px(440.0))
+                .h(px(ABOUT_HEIGHT))
                 .bg(BG_OVERLAY_PANEL)
                 .border_1()
                 .border_color(BORDER_STRONG)
                 .shadow_lg()
                 .flex()
+                .flex_col()
                 .font_family(FONT_MONO)
-                // The crow, down the whole left side.
+                // Title bar
                 .child(
                     div()
-                        .w(px(232.0))
-                        .h_full()
+                        .h(px(TITLE_HEIGHT))
                         .flex_none()
-                        .overflow_hidden()
-                        .border_r_1()
-                        .border_color(BORDER_STRONG)
-                        .bg(hex_rgb(0x000000))
-                        .child(img(side_picture()).size_full().object_fit(ObjectFit::Cover)),
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .pl(px(14.0))
+                        .pr(px(6.0))
+                        .bg(BG_PANEL)
+                        .border_b_1()
+                        .border_color(BORDER_PANEL)
+                        .child(div().text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child("About Crow"))
+                        .child(crate::components::icon_button::icon_button("about-close-btn", TablerIcon::X, false).on_click(move |_ev, _window, cx| app_x.update(cx, |this, cx| this.close_about_modal(cx)))),
                 )
                 .child(
                     div()
                         .flex_1()
-                        .min_w(px(0.0))
-                        .h_full()
+                        .min_h(px(0.0))
                         .flex()
-                        .flex_col()
-                        // Title bar
+                        // The crow down the left, cropped from the left so its
+                        // beak always shows: the picture keeps its aspect at
+                        // the box's height and hangs from the right edge.
                         .child(
                             div()
-                                .h(px(30.0))
+                                .relative()
+                                .w(px(SIDE_WIDTH))
+                                .h_full()
                                 .flex_none()
-                                .flex()
-                                .items_center()
-                                .justify_between()
-                                .pl(px(14.0))
-                                .pr(px(6.0))
-                                .bg(BG_PANEL)
-                                .border_b_1()
-                                .border_color(BORDER_PANEL)
-                                .child(div().text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child("About Crow"))
-                                .child(crate::components::icon_button::icon_button("about-close-btn", TablerIcon::X, false).on_click(move |_ev, _window, cx| app_x.update(cx, |this, cx| this.close_about_modal(cx)))),
+                                .overflow_hidden()
+                                .border_r_1()
+                                .border_color(BORDER_STRONG)
+                                .bg(hex_rgb(0x000000))
+                                .child(img(side_picture()).absolute().top_0().right_0().h_full().w(px(SIDE_PICTURE_WIDTH))),
                         )
-                        // Header: icon, name, version, what it is
-                        .child(
-                            div()
-                                .flex_none()
-                                .flex()
-                                .items_center()
-                                .gap(px(16.0))
-                                .px(px(20.0))
-                                .pt(px(18.0))
-                                .pb(px(14.0))
-                                .child(img(app_icon()).size(px(64.0)).flex_none())
-                                .child(
-                                    div()
-                                        .flex_1()
-                                        .min_w(px(0.0))
-                                        .flex()
-                                        .flex_col()
-                                        .gap(px(3.0))
-                                        .child(
-                                            div()
-                                                .flex()
-                                                .items_baseline()
-                                                .gap(px(10.0))
-                                                .child(div().text_size(px(22.0)).font_weight(FontWeight::EXTRA_BOLD).text_color(TEXT_MAX).child("Crow"))
-                                                .child(div().text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(OK).child(format!("v{version}"))),
-                                        )
-                                        .child(div().text_size(px(11.0)).text_color(TEXT_SECONDARY).child("Native Linux server manager over SSH"))
-                                        .child(div().text_size(px(10.0)).text_color(TEXT_FAINT).child(format!("{} · {} · {profile}", std::env::consts::OS, std::env::consts::ARCH))),
-                                ),
-                        )
-                        // Where to find the project
-                        .child(
-                            div()
-                                .flex_none()
-                                .flex()
-                                .flex_col()
-                                .gap(px(3.0))
-                                .px(px(20.0))
-                                .pb(px(12.0))
-                                .child(link_row("about-link-website", "Website", WEBSITE))
-                                .child(link_row("about-link-repo", "Source", REPO))
-                                .child(link_row("about-link-forum", "Community", FORUM)),
-                        )
-                        // The details, in a dark scroll box
                         .child(
                             div()
                                 .flex_1()
-                                .min_h(px(0.0))
-                                .mx(px(20.0))
-                                .bg(hex_rgb(0x08080a))
-                                .border_1()
-                                .border_color(BORDER_PANEL)
-                                .child(
-                                    div()
-                                        .id("about-details-scroll")
-                                        .size_full()
-                                        .overflow_y_scrollbar()
-                                        .flex()
-                                        .flex_col()
-                                        .gap(px(6.0))
-                                        .p(px(12.0))
-                                        // A newer version (ERR-88).
-                                        .children(update_panel(update, auto_install, app.clone()))
-                                        .child(heading("BUILD"))
-                                        .child(info_row("Platform", &format!("{} ({})", std::env::consts::OS, std::env::consts::ARCH)))
-                                        .child(info_row("Profile", profile))
-                                        .child(info_row("UI toolkit", "GPUI Kit 0.6.1 · WGPU"))
-                                        .child(info_row("Config engine", "crow-config-core · schema IR"))
-                                        .child(info_row("Vault", "Argon2id · ChaCha20-Poly1305 · TOTP"))
-                                        .child(heading("CREDITS"))
-                                        .child(info_row("Icons", "Tabler Icons · MIT"))
-                                        .child(info_row("Flags", "flag-icons · MIT"))
-                                        .child(info_row("Distro logos", "Dashboard Icons by homarr-labs · Apache-2.0"))
-                                        .child(info_row("GeoIP data", crate::geoip::ATTRIBUTION))
-                                        .child(info_row("Font", "JetBrains Mono · OFL-1.1"))
-                                        .child(heading("LICENSE"))
-                                        .child(div().text_size(px(10.0)).line_height(px(15.0)).text_color(TEXT_DIM).child("AEUPL-1.2. Free for any non-commercial use. See LICENSE in the repository.")),
-                                ),
-                        )
-                        // Footer
-                        .child(
-                            div()
-                                .h(px(48.0))
-                                .flex_none()
+                                .min_w(px(0.0))
+                                .h_full()
                                 .flex()
-                                .items_center()
-                                .justify_between()
-                                .px(px(20.0))
+                                .flex_col()
+                                // Header: icon, name, version, what it is
                                 .child(
                                     div()
-                                        .id("copy-sysinfo-btn")
+                                        .flex_none()
                                         .flex()
                                         .items_center()
-                                        .gap(px(6.0))
-                                        .px(px(10.0))
-                                        .py(px(5.0))
-                                        .bg(BG_CONTROL)
-                                        .border_1()
-                                        .border_color(if copied_toast { OK } else { BORDER_DEFAULT })
-                                        .cursor_pointer()
-                                        .hover(|s| s.bg(BG_CONTROL_ALT))
-                                        .on_click(move |_ev, _window, cx| {
-                                            cx.write_to_clipboard(ClipboardItem::new_string(system_report()));
-                                            app_copy.update(cx, |this, cx| {
-                                                this.about_copied_toast = true;
-                                                cx.notify();
-                                            });
-                                        })
-                                        .child(tabler_icon(TablerIcon::Copy).size(px(12.0)).text_color(if copied_toast { OK } else { TEXT_SECONDARY }))
-                                        .child(div().font_weight(FontWeight::BOLD).text_size(px(10.5)).text_color(if copied_toast { OK } else { TEXT_PRIMARY }).child(if copied_toast { "✓ COPIED SYSTEM INFO" } else { "COPY SYSTEM INFO" })),
+                                        .gap(px(16.0))
+                                        .px(px(20.0))
+                                        .pt(px(18.0))
+                                        .pb(px(14.0))
+                                        .child(img(app_icon()).size(px(64.0)).flex_none())
+                                        .child(
+                                            div()
+                                                .flex_1()
+                                                .min_w(px(0.0))
+                                                .flex()
+                                                .flex_col()
+                                                .gap(px(3.0))
+                                                .child(
+                                                    div()
+                                                        .flex()
+                                                        .items_baseline()
+                                                        .gap(px(10.0))
+                                                        .child(div().text_size(px(22.0)).font_weight(FontWeight::EXTRA_BOLD).text_color(TEXT_MAX).child("Crow"))
+                                                        .child(div().text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(OK).child(format!("v{version}"))),
+                                                )
+                                                .child(div().text_size(px(11.0)).text_color(TEXT_SECONDARY).child("Native Linux server manager over SSH"))
+                                                .child(div().text_size(px(10.0)).text_color(TEXT_FAINT).child(format!("{} · {} · {profile}", std::env::consts::OS, std::env::consts::ARCH))),
+                                        ),
                                 )
+                                // Where to find the project
                                 .child(
                                     div()
-                                        .id("about-dismiss-btn")
+                                        .flex_none()
+                                        .flex()
+                                        .flex_col()
+                                        .gap(px(3.0))
                                         .px(px(20.0))
-                                        .py(px(5.0))
-                                        .bg(BG_CONTROL)
+                                        .pb(px(12.0))
+                                        .child(link_row("about-link-website", "Website", WEBSITE))
+                                        .child(link_row("about-link-repo", "Source", REPO))
+                                        .child(link_row("about-link-forum", "Community", FORUM)),
+                                )
+                                // The details, in a dark scroll box
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_h(px(0.0))
+                                        .mx(px(20.0))
+                                        .bg(hex_rgb(0x08080a))
                                         .border_1()
-                                        .border_color(BORDER_STRONG)
-                                        .font_weight(FontWeight::BOLD)
-                                        .text_size(px(11.0))
-                                        .text_color(TEXT_MAX)
-                                        .cursor_pointer()
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
-                                        .on_click(move |_ev, _window, cx| app_close.update(cx, |this, cx| this.close_about_modal(cx)))
-                                        .child("OK"),
+                                        .border_color(BORDER_PANEL)
+                                        .child(
+                                            div()
+                                                .id("about-details-scroll")
+                                                .size_full()
+                                                .overflow_y_scrollbar()
+                                                .flex()
+                                                .flex_col()
+                                                .gap(px(6.0))
+                                                .p(px(12.0))
+                                                // A newer version (ERR-88).
+                                                .children(update_panel(update, auto_install, app.clone()))
+                                                .child(heading("BUILD"))
+                                                .child(info_row("Platform", &format!("{} ({})", std::env::consts::OS, std::env::consts::ARCH)))
+                                                .child(info_row("Profile", profile))
+                                                .child(info_row("UI toolkit", "GPUI Kit 0.6.1 · WGPU"))
+                                                .child(info_row("Config engine", "crow-config-core · schema IR"))
+                                                .child(info_row("Vault", "Argon2id · ChaCha20-Poly1305 · TOTP"))
+                                                .child(heading("CREDITS"))
+                                                .child(info_row("Icons", "Tabler Icons · MIT"))
+                                                .child(info_row("Flags", "flag-icons · MIT"))
+                                                .child(info_row("Distro logos", "Dashboard Icons by homarr-labs · Apache-2.0"))
+                                                .child(info_row("GeoIP data", crate::geoip::ATTRIBUTION))
+                                                .child(info_row("Font", "JetBrains Mono · OFL-1.1"))
+                                                .child(heading("LICENSE"))
+                                                .child(div().text_size(px(10.0)).line_height(px(15.0)).text_color(TEXT_DIM).child("AEUPL-1.2. Free for any non-commercial use. See LICENSE in the repository.")),
+                                        ),
+                                )
+                                // Footer
+                                .child(
+                                    div()
+                                        .h(px(48.0))
+                                        .flex_none()
+                                        .flex()
+                                        .items_center()
+                                        .justify_between()
+                                        .px(px(20.0))
+                                        .child(
+                                            div()
+                                                .id("copy-sysinfo-btn")
+                                                .flex()
+                                                .items_center()
+                                                .gap(px(6.0))
+                                                .px(px(10.0))
+                                                .py(px(5.0))
+                                                .bg(BG_CONTROL)
+                                                .border_1()
+                                                .border_color(if copied_toast { OK } else { BORDER_DEFAULT })
+                                                .cursor_pointer()
+                                                .hover(|s| s.bg(BG_CONTROL_ALT))
+                                                .on_click(move |_ev, _window, cx| {
+                                                    cx.write_to_clipboard(ClipboardItem::new_string(system_report()));
+                                                    app_copy.update(cx, |this, cx| {
+                                                        this.about_copied_toast = true;
+                                                        cx.notify();
+                                                    });
+                                                })
+                                                .child(tabler_icon(TablerIcon::Copy).size(px(12.0)).text_color(if copied_toast { OK } else { TEXT_SECONDARY }))
+                                                .child(div().font_weight(FontWeight::BOLD).text_size(px(10.5)).text_color(if copied_toast { OK } else { TEXT_PRIMARY }).child(if copied_toast { "✓ COPIED SYSTEM INFO" } else { "COPY SYSTEM INFO" })),
+                                        )
+                                        .child(
+                                            div()
+                                                .id("about-dismiss-btn")
+                                                .px(px(20.0))
+                                                .py(px(5.0))
+                                                .bg(BG_CONTROL)
+                                                .border_1()
+                                                .border_color(BORDER_STRONG)
+                                                .font_weight(FontWeight::BOLD)
+                                                .text_size(px(11.0))
+                                                .text_color(TEXT_MAX)
+                                                .cursor_pointer()
+                                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                                .on_click(move |_ev, _window, cx| app_close.update(cx, |this, cx| this.close_about_modal(cx)))
+                                                .child("OK"),
+                                        ),
                                 ),
                         ),
                 ),
