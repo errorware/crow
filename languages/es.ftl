@@ -3635,3 +3635,15 @@ audit-model-brought-back-on = devuelto a la línea base en { $target }
 audit-model-permissions-changed = permisos cambiados: { $target }
 identity-bar-kernel = kernel
 identity-bar-role = rol
+
+## Audit log filters
+audit-all = todo
+audit-kind-config = config.
+audit-kind-service = servicio
+audit-kind-process = proceso
+audit-kind-firewall = cortafuegos
+audit-kind-user = usuario
+audit-kind-power = energía
+audit-kind-ssh = ssh
+audit-kind-enroll = alta
+audit-kind-crow = crow

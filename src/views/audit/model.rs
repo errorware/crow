@@ -48,15 +48,15 @@ impl KindGroup {
 
     pub fn label(self) -> &'static str {
         match self {
-            KindGroup::Config => "config",
-            KindGroup::Service => "service",
-            KindGroup::Process => "process",
-            KindGroup::Firewall => "firewall",
-            KindGroup::User => "user",
-            KindGroup::Power => "power",
-            KindGroup::Ssh => "ssh",
-            KindGroup::Enroll => "enroll",
-            KindGroup::Crow => "crow",
+            KindGroup::Config => t!("audit-kind-config"),
+            KindGroup::Service => t!("audit-kind-service"),
+            KindGroup::Process => t!("audit-kind-process"),
+            KindGroup::Firewall => t!("audit-kind-firewall"),
+            KindGroup::User => t!("audit-kind-user"),
+            KindGroup::Power => t!("audit-kind-power"),
+            KindGroup::Ssh => t!("audit-kind-ssh"),
+            KindGroup::Enroll => t!("audit-kind-enroll"),
+            KindGroup::Crow => t!("audit-kind-crow"),
         }
     }
 }

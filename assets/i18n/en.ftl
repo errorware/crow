@@ -3537,6 +3537,18 @@ audit-model-permissions-changed = permissions changed: { $target }
 identity-bar-kernel = kernel
 identity-bar-role = role
 
+## Audit log filters
+audit-all = all
+audit-kind-config = config
+audit-kind-service = service
+audit-kind-process = process
+audit-kind-firewall = firewall
+audit-kind-user = user
+audit-kind-power = power
+audit-kind-ssh = ssh
+audit-kind-enroll = enroll
+audit-kind-crow = crow
+
 ## Settings rows (from src/config/manifest.toml; Crow looks them up by their English text)
 setting-general-refresh-interval-label = Refresh Interval
 setting-general-refresh-interval-help = Frequency of background polling in seconds for services and telemetry.

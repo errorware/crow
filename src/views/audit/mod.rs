@@ -100,7 +100,7 @@ fn filter_row(label: &'static str, all_selected: bool, chips: Vec<(String, bool,
         .border_color(BORDER_ROW)
         .text_size(px(10.5))
         .child(div().w(px(56.0)).text_color(TEXT_DIMMER).child(label))
-        .child(chip(format!("audit-{label}-all").into(), "all".into(), all_selected, all, app.clone()))
+        .child(chip(format!("audit-{label}-all").into(), t!("audit-all").into(), all_selected, all, app.clone()))
         .children(chips.into_iter().enumerate().map(|(n, (text, selected, next))| chip(format!("audit-{label}-{n}").into(), text, selected, next, app.clone())))
 }
 

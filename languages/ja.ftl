@@ -3572,3 +3572,15 @@ audit-model-brought-back-on = { $target } をベースラインに戻した
 audit-model-permissions-changed = 権限を変更: { $target }
 identity-bar-kernel = カーネル
 identity-bar-role = 役割
+
+## Audit log filters
+audit-all = すべて
+audit-kind-config = 設定
+audit-kind-service = サービス
+audit-kind-process = プロセス
+audit-kind-firewall = ファイアウォール
+audit-kind-user = ユーザー
+audit-kind-power = 電源
+audit-kind-ssh = ssh
+audit-kind-enroll = 登録
+audit-kind-crow = crow
