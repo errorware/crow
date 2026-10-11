@@ -76,6 +76,12 @@ pub fn english_ids() -> &'static [String] {
     IDS.get_or_init(|| pack::message_ids(ENGLISH_FTL))
 }
 
+/// English, for `in_english` (its own cache of `plain` texts).
+fn english_language() -> Arc<Language> {
+    static EN: OnceLock<Arc<Language>> = OnceLock::new();
+    EN.get_or_init(|| Arc::new(Language::english())).clone()
+}
+
 fn current_slot() -> &'static RwLock<Arc<Language>> {
     static CURRENT: OnceLock<RwLock<Arc<Language>>> = OnceLock::new();
     CURRENT.get_or_init(|| RwLock::new(Arc::new(Language::english())))
@@ -120,9 +126,30 @@ pub fn select(code: &str) -> Result<PackReport, String> {
     Ok(report)
 }
 
+thread_local! {
+    static IN_ENGLISH: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Runs `f` with every message in English on this thread: for documents
+/// Crow writes out (reports, exports), which are shared with people who may
+/// not read the language Crow is in.
+pub fn in_english<R>(f: impl FnOnce() -> R) -> R {
+    let was = IN_ENGLISH.with(|c| c.replace(true));
+    let r = f();
+    IN_ENGLISH.with(|c| c.set(was));
+    r
+}
+
+fn forced_english() -> bool {
+    IN_ENGLISH.with(|c| c.get())
+}
+
 /// The text of `id` with `args` in the current language, English when the
 /// pack lacks it, the id itself when English does too (a bug: tests catch it).
 pub fn format(id: &str, args: Option<&FluentArgs>) -> String {
+    if forced_english() {
+        return english(id, args);
+    }
     let lang = current();
     lang.bundle
         .as_ref()
@@ -133,7 +160,7 @@ pub fn format(id: &str, args: Option<&FluentArgs>) -> String {
 
 /// `t!("id")`: a message without arguments, as a `&'static str`.
 pub fn plain(id: &'static str) -> &'static str {
-    let lang = current();
+    let lang = if forced_english() { english_language() } else { current() };
     if let Some(s) = lang.plain.read().ok().and_then(|m| m.get(id).copied()) {
         return s;
     }

@@ -90,8 +90,8 @@ impl UpdatesReport {
     /// OSV ecosystem for this OS, when CVE lookups are supported.
     pub fn osv_ecosystem(&self) -> Option<String> {
         match self.os_id.as_str() {
-            "ubuntu" if !self.os_version.is_empty() => Some(t!("overview-updates-ubuntu", os_version = self.os_version)),
-            "debian" if !self.os_version.is_empty() => Some(t!("overview-updates-debian", os_version = self.os_version)),
+            "ubuntu" if !self.os_version.is_empty() => Some(format!("Ubuntu:{}", self.os_version)),
+            "debian" if !self.os_version.is_empty() => Some(format!("Debian:{}", self.os_version)),
             _ => None,
         }
     }

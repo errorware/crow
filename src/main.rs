@@ -50,6 +50,13 @@ fn main() {
         std::process::exit(host::bootstrap::askpass_main(&sock, &prompt));
     }
 
+    // `crow --check-language es.ftl`: how a language pack fares against
+    // English, for the people who write them.
+    let args: Vec<String> = std::env::args().collect();
+    if args.get(1).map(String::as_str) == Some("--check-language") {
+        std::process::exit(i18n::pack::check_file_main(args.get(2).map(String::as_str)));
+    }
+
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
         crate::theme::init_obsidian_theme(cx);

@@ -157,6 +157,11 @@ pub fn check(host: &dyn Host, plan: &Plan, baselines: usize, snapshots: Option<&
 
 /// The plan as a document that's readable without Crow.
 pub fn markdown(plan: &Plan, target: &str, findings: &[(String, Vec<Finding>)], now: &str) -> String {
+    // A document shared with others: English, whatever the language.
+    crate::i18n::in_english(|| markdown_inner(plan, target, findings, now))
+}
+
+fn markdown_inner(plan: &Plan, target: &str, findings: &[(String, Vec<Finding>)], now: &str) -> String {
     let mut md = format!("# Disaster recovery plan: {}\n\nFor {target}. Exported from Crow, {now}.\n\n", plan.name);
     md.push_str(&format!("- **RTO** (back within): {} min\n- **RPO** (data loss at most): {} min\n\n", plan.rto_minutes, plan.rpo_minutes));
     md.push_str("## What matters\n\n");

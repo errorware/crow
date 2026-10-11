@@ -104,6 +104,11 @@ pub fn as_lines(events: &[Event], max: usize) -> String {
 
 /// The timeline as a Markdown post-mortem draft.
 pub fn markdown(title: &str, from: i64, to: i64, events: &[Event], summary: Option<&str>) -> String {
+    // A document shared with others: English, whatever the language.
+    crate::i18n::in_english(|| markdown_inner(title, from, to, events, summary))
+}
+
+fn markdown_inner(title: &str, from: i64, to: i64, events: &[Event], summary: Option<&str>) -> String {
     let mut md = format!("# Incident: {title}\n\nWindow: {} → {}\n\n", when(from), when(to));
     let count = |k: EventKind| events.iter().filter(|e| e.kind == k).count();
     md.push_str(&format!("- Alerts opened: {}\n- Alerts resolved: {}\n- Changes by Crow: {}\n- Check failures: {}\n- Error log lines: {}\n\n", count(EventKind::AlertOpened), count(EventKind::AlertResolved), count(EventKind::Change), count(EventKind::CheckFailed), count(EventKind::Log)));

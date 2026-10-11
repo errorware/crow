@@ -242,7 +242,7 @@ fn entry_source(text: &str, id: &str, term: bool) -> Option<String> {
         return None;
     }
     for line in lines {
-        if line.starts_with(' ') || line.trim().is_empty() {
+        if line.starts_with(' ') || line.starts_with('}') || line.trim().is_empty() {
             out.push_str(line);
             out.push('\n');
         } else {
@@ -342,6 +342,40 @@ fn clean(s: &str) -> String {
     s.chars().filter(|&c| forbidden_char(&c.to_string()).is_none()).collect()
 }
 
+/// `crow --check-language FILE`: prints the pack's coverage and what was
+/// refused; exits 1 when anything was.
+pub fn check_file_main(path: Option<&str>) -> i32 {
+    let Some(path) = path else {
+        eprintln!("usage: crow --check-language es.ftl");
+        return 2;
+    };
+    let loaded = match load(Path::new(path)) {
+        Ok(l) => l,
+        Err(e) => {
+            eprintln!("{e}");
+            return 2;
+        }
+    };
+    let r = &loaded.report;
+    println!("{} · {}% · {} of {} messages translated, {} missing", loaded.info.display_name(), r.percent(), r.translated, r.total, r.missing);
+    if r.unknown > 0 {
+        println!("{} messages English doesn't have (ignored; renamed or removed in this Crow?)", r.unknown);
+    }
+    if r.syntax_errors > 0 {
+        println!("{} syntax errors (the lines around them are skipped)", r.syntax_errors);
+    }
+    for (id, why) in &r.refused {
+        println!("refused {id}: {why}");
+    }
+    if std::env::args().any(|a| a == "--missing") {
+        let have: BTreeSet<String> = message_ids(&check(&std::fs::read_to_string(path).unwrap_or_default()).0).into_iter().collect();
+        for id in super::english_ids().iter().filter(|id| !have.contains(*id)) {
+            println!("missing {id}");
+        }
+    }
+    i32::from(!r.refused.is_empty() || r.syntax_errors > 0)
+}
+
 /// The English messages as a pack to translate from, with a header to fill.
 pub fn template() -> String {
     let body = ENGLISH_FTL.lines().skip_while(|l| l.starts_with("###") || l.trim().is_empty()).collect::<Vec<_>>().join("\n");
@@ -376,6 +410,7 @@ mod tests {
             not-in-english = ignorado\n";
         let (kept, report) = check(pack);
         assert!(kept.contains("servidores"));
+        assert_eq!(super::message_ids(&kept), ["i18n-test-args"], "a select's closing brace at column 0 is kept");
         assert!(!kept.contains("Hola"), "a direction override is refused");
         assert_eq!(report.translated, 1);
         assert_eq!(report.unknown, 1);

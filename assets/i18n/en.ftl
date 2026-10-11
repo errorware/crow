@@ -1893,7 +1893,6 @@ lock-tab-to-switch-to-unlock = Tab to switch · ↵ to unlock
 lock-unlock-vault = UNLOCK VAULT
 
 ## lock-setup
-lock-setup-setupstate = SetupState
 lock-setup-security-notice-enabling-password-logon = SECURITY NOTICE · ENABLING PASSWORD LOGON
 lock-setup-mandatory-2fa = MANDATORY 2FA
 lock-setup-you-are-about-to-activate = You are about to activate local encrypted vault protection for Crow. Before proceeding, please review these essential security rules:
@@ -2019,15 +2018,10 @@ logs-retention-modal-apply-to-etc-systemd-journald = APPLY TO /etc/systemd/journ
 
 ## logs-state
 logs-state-oom-kills = OOM KILLS
-logs-state-out-of-memory-oom-kill = out of memory|oom-kill|killed process
 logs-state-segfaults = SEGFAULTS
-logs-state-segfault-general-protection-traps = segfault|general protection|traps:
 logs-state-firewall-blocks = FIREWALL BLOCKS
-logs-state-ufw-block-ufw-audit-drop = ufw block|ufw audit|drop
 logs-state-disk-errors = DISK ERRORS
-logs-state-i-o-error-blk-update = i/o error|blk_update_request|ext4-fs error|xfs.*error|medium error
 logs-state-ssh-login-failures = SSH LOGIN FAILURES
-logs-state-failed-password-invalid-user-authentication = failed password|invalid user|authentication failure|maximum authentication attempts
 
 ## onboard
 onboard-connect = Connect
@@ -2378,10 +2372,6 @@ overview-summary-interface = INTERFACE
 overview-summary-local = LOCAL
 overview-summary-failed = FAILED
 overview-summary-degraded = DEGRADED
-
-## overview-updates
-overview-updates-ubuntu = Ubuntu:{ $os_version }
-overview-updates-debian = Debian:{ $os_version }
 
 ## settings-clankers
 settings-clankers-clankers-llm-providers-keys = CLANKERS · LLM PROVIDERS & KEYS
@@ -2823,7 +2813,6 @@ users-host-data-is-not-a-valid-name = { $name } is not a valid { $kind } name
 users-host-data-the-password-is-empty = the password is empty
 users-host-data-the-password-cant-contain-line = the password can't contain line breaks
 users-host-data-the-password-is-longer-than = the password is longer than 256 characters
-users-host-data-ag = -aG
 users-host-data-is-not-an-absolute-shell = { $shell } is not an absolute shell path
 users-host-data-the-full-name-cant-contain = the full name can't contain ':' or line breaks
 users-host-data-the-root-account-cant-be = the root account can't be deleted
@@ -3061,8 +3050,6 @@ security-hardening-undone = ↺ Undone: { $off }.
 security-hardening-undo-didnt-finish-run-by = ⚠ Undo didn't finish: run { $off } by hand.
 security-hardening-a-fresh-key-login-failed-2 = ✕ A fresh key login failed with the firewall on ({ $e }).
 security-hardening-a-fresh-key-login-still-2 = ✓ A fresh key login still works. { $tool } is on, allowing { $ports }.
-security-hardening-accepted-by = accepted by { $by } ({ $a }): { $a2 }
-security-hardening-open-critical = {"*"}*open, critical**
 security-hardening-turn-a-firewall-on-that = turn a firewall on that allows SSH{ $p }
 security-hardening-undone-removed = ↺ Undone: removed { $root_dropin }{ $reload }.
 

@@ -204,7 +204,7 @@ pub fn set_password(user: &str, password: &str) -> Result<(Argv, Vec<u8>), Strin
 pub fn add_to_group(user: &str, group: &str) -> Result<Argv, String> {
     check_name("user", user)?;
     check_name("group", group)?;
-    Ok(argv(&["usermod", t!("users-host-data-ag"), group, user]))
+    Ok(argv(&["usermod", "-aG", group, user]))
 }
 
 pub fn remove_from_group(user: &str, group: &str) -> Result<Argv, String> {

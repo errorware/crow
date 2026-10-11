@@ -39,7 +39,7 @@ impl Default for SetupState {
 
 impl std::fmt::Debug for SetupState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        f.debug_struct(t!("lock-setup-setupstate")).field("step", &self.step).field("secrets", &"[secret]").field("error_message", &self.error_message).finish()
+        f.debug_struct("SetupState").field("step", &self.step).field("secrets", &"[secret]").field("error_message", &self.error_message).finish()
     }
 }
 
