@@ -132,7 +132,7 @@ pub fn action_row(title: &'static str, detail: impl Into<SharedString>, buttons:
                 .flex_col()
                 .gap(px(3.0))
                 .child(div().text_size(px(12.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(title))
-                .children(crate::components::english_beside::english_beside(crate::i18n::english_of(title)))
+                .children(crate::components::english_beside::english_beside(crate::i18n::english_of(title, "danger-zone-")))
                 .child(div().text_size(px(11.0)).text_color(TEXT_DIM).child(detail.into())),
         )
         .child(div().flex().flex_none().gap(px(8.0)).children(buttons))
@@ -260,7 +260,7 @@ fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<Cro
                 .flex_col()
                 .gap(px(2.0))
                 .child(div().font_family(FONT_MONO).text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(CRIT_INK).child(danger_action_title(action)))
-                .children(crate::components::english_beside::english_beside(crate::i18n::english_of(danger_action_title(action)))),
+                .children(crate::components::english_beside::english_beside(crate::i18n::english_of(danger_action_title(action), "danger-zone-what-"))),
         )
         .child(
             div()

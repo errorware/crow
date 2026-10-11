@@ -73,7 +73,10 @@ Work across many servers at once. Changes to many servers list what they will do
 - Connection and SSH timeouts, auto-lock, archive retention, appearance. Only settings that change something are shown.
 - **Providers**: connect cloud accounts (Linode, UpCloud).
 - **Clankers**: AI providers for the Logs explanation (Anthropic, OpenAI-compatible).
-- **Personalisation**: a picture behind the Fleet list, the terminal font size, and starting maximized.
+- **Personalisation**: a picture behind the Fleet list, the terminal font size, starting maximized, and the language.
+
+### Languages
+Crow is in English, and can be in any language someone writes a pack for. A pack is one `.ftl` file in `~/.config/crow/languages/`; pick it in Settings → Personalisation → Language. Spanish and Japanese packs are in [`languages/`](languages/), and [`languages/README.md`](languages/README.md) explains how to make one. Commands, config files and the audit log's action names stay as they are in every language.
 
 ---
 
@@ -123,7 +126,8 @@ crow/
 │   ├── crow-provider-core/      # provider contracts: Provider, ListInstances, PowerControl, Snapshots; curl-based HTTP
 │   ├── crow-provider-linode/    # Linode API v4
 │   └── crow-provider-upcloud/   # UpCloud API 1.3
-├── assets/                      # icons, flags, distro logos, fonts (each with its license)
+├── assets/                      # icons, flags, distro logos, fonts (each with its license), i18n/en.ftl
+├── languages/                   # language packs (Spanish, Japanese) and how to write one
 └── docs/
 ```
 

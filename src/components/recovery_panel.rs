@@ -60,7 +60,7 @@ pub fn recovery_panel(panel: &RecoveryPanel, server_name: &str, app: Entity<Crow
                                 .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child(d.map(|d| d.title.clone()).unwrap_or_else(|| t!("recovery-panel-checking").into())))
                                 .child(div().text_size(px(13.0)).text_color(TEXT_MAX).child(server_name.to_string())),
                         )
-                        .children(d.and_then(|d| crate::components::english_beside::english_beside(crate::i18n::english_of(&d.title))))
+                        .children(d.and_then(|d| crate::components::english_beside::english_beside(crate::i18n::english_of(&d.title, "host-diagnose-"))))
                         .child(div().text_color(TEXT_SECONDARY).child(d.map(|d| d.what.clone()).unwrap_or_default())),
                 )
                 .children(d.map(|d| {

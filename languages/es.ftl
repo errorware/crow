@@ -3617,3 +3617,21 @@ i18n-test-args = { $server }: { $count ->
    *[other] { $count } servidores
 }
 i18n-test-plain = Hola
+
+## Audit log: what a fleet run's records mean
+audit-model-offboarded-on = baja en { $target }
+audit-model-key-revoked-on = clave revocada en { $target }
+audit-model-account-set-up-on = cuenta creada en { $target }
+audit-model-certificate-renewed-on = certificado renovado en { $target }
+audit-model-hardening-fix-on = corrección de endurecimiento en { $target }
+audit-model-risk-accepted-on = riesgo aceptado en { $target }
+audit-model-command-run-on = comando ejecutado en { $target }
+audit-model-config-rolled-out-to = configuración desplegada en { $target }
+audit-model-rollout-undone-on = despliegue revertido en { $target }
+audit-model-updates-applied-on = actualizaciones aplicadas en { $target }
+audit-model-host-keys-rotated-on = claves de host rotadas en { $target }
+audit-model-sessions-ended-on = sesiones SSH cerradas en { $target }
+audit-model-brought-back-on = devuelto a la línea base en { $target }
+audit-model-permissions-changed = permisos cambiados: { $target }
+identity-bar-kernel = kernel
+identity-bar-role = rol

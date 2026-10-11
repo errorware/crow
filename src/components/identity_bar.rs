@@ -156,8 +156,8 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         .child(div().text_color(TEXT_SECONDARY).child(d))
                         .when(!distro_family.is_supported(), |el| el.child(div().text_size(px(9.5)).text_color(WARN).child(t!("identity-bar-unverified"))))
                 }))
-                .children(kernel.map(|k| fact("kernel", k)))
-                .children(role.map(|r| fact("role", r)))
+                .children(kernel.map(|k| fact(t!("identity-bar-kernel"), k)))
+                .children(role.map(|r| fact(t!("identity-bar-role"), r)))
                 .children(server.map(|s| {
                     let app = app.clone();
                     let s_id = s.id.clone();

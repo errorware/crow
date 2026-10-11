@@ -38,8 +38,8 @@ pub struct Language {
     /// of the program (`t!("id")` is a `&'static str`, like the literal it
     /// replaced). Bounded: one copy per message per language loaded.
     plain: RwLock<HashMap<&'static str, &'static str>>,
-    /// Translated text → message id, for `english_of`.
-    reverse: OnceLock<HashMap<String, &'static str>>,
+    /// Translated text → the ids with that text, for `english_of`.
+    reverse: OnceLock<HashMap<String, Vec<&'static str>>>,
 }
 
 impl Language {
@@ -184,17 +184,26 @@ pub fn english_beside(id: &str, args: Option<&FluentArgs>) -> Option<String> {
 
 /// The English of a text shown in the current language (a message without
 /// arguments), when that's another language: what a translated danger
-/// prompt also shows.
-pub fn english_of(text: &str) -> Option<String> {
+/// prompt also shows. Two messages can share a translation, so the one
+/// whose id starts with `area` (the caller's own, like "danger-zone-") wins.
+pub fn english_of(text: &str, area: &str) -> Option<String> {
     let lang = current();
     if lang.code() == ENGLISH {
         return None;
     }
     let map = lang.reverse.get_or_init(|| {
         let b = lang.bundle.as_ref();
-        english_ids().iter().filter_map(|id| b.and_then(|b| format_in(b, id, None)).map(|t| (t, id.as_str()))).collect()
+        let mut map: HashMap<String, Vec<&'static str>> = HashMap::new();
+        for id in english_ids() {
+            if let Some(t) = b.and_then(|b| format_in(b, id, None)) {
+                map.entry(t).or_default().push(id.as_str());
+            }
+        }
+        map
     });
-    map.get(text).map(|id| english(id, None)).filter(|en| en != text)
+    let ids = map.get(text)?;
+    let id = ids.iter().find(|id| id.starts_with(area)).or(ids.first())?;
+    Some(english(id, None)).filter(|en| en != text)
 }
 
 fn format_in(bundle: &FluentBundle<FluentResource>, id: &str, args: Option<&FluentArgs>) -> Option<String> {

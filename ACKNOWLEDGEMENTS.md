@@ -14,6 +14,7 @@ Licenses for the bundled graphic assets and fonts are kept beside the files, in 
 | [gpui-kit](https://github.com/longbridge/gpui-kit) (Longbridge), with gpui-component | Inputs, scroll areas, tooltips and other components | Apache-2.0 |
 | [wgpu](https://github.com/gfx-rs/wgpu) | GPU rendering under GPUI | MIT or Apache-2.0 |
 | [image](https://github.com/image-rs/image) | The Fleet background picture | MIT or Apache-2.0 |
+| [Fluent](https://projectfluent.org/) (`fluent-bundle`, `fluent-syntax`, `unic-langid`; Mozilla) | Translations: language packs, plurals, placeholders | Apache-2.0 or MIT |
 
 ### Terminal
 
@@ -67,6 +68,8 @@ Crow doesn't link these; it calls the copies already on your machine.
 | Country flags | [flag-icons](https://github.com/lipis/flag-icons) by Panayiotis Lipiridis and contributors | MIT |
 | Linux distribution logos | [Dashboard Icons](https://github.com/homarr-labs/dashboard-icons) by homarr-labs | Apache-2.0; the logos are their owners' trademarks |
 | JetBrains Mono | [JetBrains](https://github.com/JetBrains/JetBrainsMono) | SIL Open Font License 1.1 |
+
+Crow bundles no font for scripts JetBrains Mono lacks (Chinese, Japanese, Korean, Arabic, Thai…): those come from the system's own fonts, or the one a language pack names.
 
 ## Data and services
 

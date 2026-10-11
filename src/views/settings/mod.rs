@@ -293,6 +293,8 @@ pub fn settings_view(
                                 .child(
                                     div()
                                         .flex_1()
+                                        .min_w(px(0.0))
+                                        .truncate()
                                         .font_family(FONT_MONO)
                                         .text_size(px(11.5))
                                         .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })

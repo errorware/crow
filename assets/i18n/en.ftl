@@ -3519,6 +3519,24 @@ danger-zone-what-flush = Remove every firewall rule and turn the firewall off
 danger-zone-what-kill = Stop every lab container Crow created
 danger-zone-what-other = Run this action
 
+## Audit log: what a fleet run's records mean
+audit-model-offboarded-on = offboarding on { $target }
+audit-model-key-revoked-on = key revoked on { $target }
+audit-model-account-set-up-on = account set up on { $target }
+audit-model-certificate-renewed-on = certificate renewed on { $target }
+audit-model-hardening-fix-on = hardening fix on { $target }
+audit-model-risk-accepted-on = risk accepted on { $target }
+audit-model-command-run-on = command run on { $target }
+audit-model-config-rolled-out-to = config rolled out to { $target }
+audit-model-rollout-undone-on = rollout undone on { $target }
+audit-model-updates-applied-on = updates applied on { $target }
+audit-model-host-keys-rotated-on = host keys rotated on { $target }
+audit-model-sessions-ended-on = SSH sessions ended on { $target }
+audit-model-brought-back-on = brought back to the baseline on { $target }
+audit-model-permissions-changed = permissions changed: { $target }
+identity-bar-kernel = kernel
+identity-bar-role = role
+
 ## Settings rows (from src/config/manifest.toml; Crow looks them up by their English text)
 setting-general-refresh-interval-label = Refresh Interval
 setting-general-refresh-interval-help = Frequency of background polling in seconds for services and telemetry.
