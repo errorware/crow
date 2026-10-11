@@ -26,7 +26,7 @@ language, in one [Fluent](https://projectfluent.org/fluent/guide/) file.
    ### name: German
    ### native: Deutsch
    ### author: your name
-   ### crow: 0.9.0
+   ### crow: 0.8.2
    ### font: (only if JetBrains Mono lacks your script, e.g. Noto Sans CJK JP)
    ```
 

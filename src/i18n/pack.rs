@@ -15,7 +15,7 @@ const MAX_PACK_BYTES: u64 = 4 * 1024 * 1024;
 
 /// What a pack says about itself, in `### key: value` lines at the top:
 /// `### name: Spanish`, `### native: Español`, `### author: …`,
-/// `### crow: 0.9.0`, `### font: Noto Sans CJK JP`.
+/// `### crow: 0.8.2`, `### font: Noto Sans CJK JP`.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct LanguageInfo {
     /// The file's stem: `es` for `es.ftl`.

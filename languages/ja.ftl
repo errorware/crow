@@ -1,7 +1,7 @@
 ### name: Japanese
 ### native: 日本語
 ### author: Crow (first translation; corrections welcome)
-### crow: 0.9.0
+### crow: 0.8.2
 ### font: Noto Sans CJK JP
 
 ## appearance

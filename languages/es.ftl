@@ -1,7 +1,7 @@
 ### name: Spanish
 ### native: Español
 ### author: Crow (first translation; corrections welcome)
-### crow: 0.9.0
+### crow: 0.8.2
 
 ## appearance
 appearance-choose-a-picture-for-the = Elige una imagen para la página Flota
