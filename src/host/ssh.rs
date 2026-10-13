@@ -639,7 +639,27 @@ impl Host for SshHost {
         // args end with `-- <destination>`; everything after is the command.
         full.extend(self.args.iter().map(String::as_str));
         full.push(&remote);
-        match run_command(&full, stdin, timeout) {
+        self.settle(run_command(&full, stdin, timeout))
+    }
+
+    fn exec_streaming(&self, argv: &[&str], stdin: &[u8], timeout: Duration, sink: &mut dyn FnMut(bool, &str), stop: &std::sync::atomic::AtomicBool) -> Result<ExecOutput, HostError> {
+        if let Some(why) = &self.unsupported {
+            record_state(&self.server_id, ConnectionState::AuthFailed(why.clone()));
+            return Err(HostError::Unreachable(why.clone()));
+        }
+        let remote = argv.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" ");
+        let mut full: Vec<&str> = vec![self.program.as_str()];
+        full.extend(self.args.iter().map(String::as_str));
+        full.push(&remote);
+        self.settle(super::local::run_command_streaming(&full, stdin, timeout, &[], sink, stop))
+    }
+}
+
+impl SshHost {
+    /// What an ssh run came to: its own failures become the connection's
+    /// state; anything else is the remote command's result.
+    fn settle(&self, result: Result<ExecOutput, HostError>) -> Result<ExecOutput, HostError> {
+        match result {
             // ssh exits 255 for its own failures; anything else is the remote command's status.
             Err(HostError::Failed { status: 255, stderr }) => {
                 let state = classify_hop_failure(&stderr, &self.chain, &self.dest.0)

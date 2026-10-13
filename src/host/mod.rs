@@ -230,6 +230,26 @@ pub trait Host: Send + Sync {
         })
     }
 
+    /// `exec_stdin`, handing each output line to `sink` as it arrives
+    /// (`true` for stderr) and killing the command when `stop` is set. A
+    /// transport that can't stream hands over every line at the end.
+    fn exec_streaming(&self, argv: &[&str], stdin: &[u8], timeout: Duration, sink: &mut dyn FnMut(bool, &str), stop: &std::sync::atomic::AtomicBool) -> Result<ExecOutput, HostError> {
+        let _ = stop;
+        let out = self.exec_stdin(argv, stdin, timeout);
+        if let Ok(o) = &out {
+            o.stdout.lines().for_each(|l| sink(false, l));
+            o.stderr.lines().for_each(|l| sink(true, l));
+        }
+        out
+    }
+
+    /// `exec_streaming` as root, like `exec_privileged`.
+    fn exec_privileged_streaming(&self, argv: &[&str], stdin: &[u8], timeout: Duration, sink: &mut dyn FnMut(bool, &str), stop: &std::sync::atomic::AtomicBool) -> Result<ExecOutput, HostError> {
+        let mut full: Vec<&str> = vec!["sh", "-c", PRIVILEGED_WRAPPER, "crow-priv"];
+        full.extend_from_slice(argv);
+        self.exec_streaming(&full, stdin, timeout, sink, stop)
+    }
+
     fn read_file(&self, path: &str) -> Result<String, HostError> {
         Ok(self.exec(&["cat", "--", path], DEFAULT_TIMEOUT)?.stdout)
     }

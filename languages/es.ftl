@@ -450,6 +450,11 @@ app-user-plugins-not-accepted-now = Los archivos de este plugin cambiaron desde 
 app-user-plugins-later-stage = Las acciones que cambian un servidor, o que se ejecutan en esta máquina, llegarán en una versión posterior.
 app-user-plugins-needs-settings = Faltan ajustes: { $names }
 app-user-plugins-needs-input = Falta un valor para { $name }
+app-user-plugins-dry-run-first = Haz primero el ensayo, con estos valores.
+app-user-plugins-dry-run-still-going = El ensayo sigue en marcha.
+app-user-plugins-dry-run-failed = El ensayo falló: mira su salida antes de ejecutar esto.
+app-user-plugins-type-keyword = Escribe { $keyword } para ejecutarlo.
+app-user-plugins-stopped = detenido
 
 ## app-providers
 app-providers-set-type-to-replace = configurado · escribe para sustituirlo
@@ -2808,6 +2813,18 @@ plugin-page-truncated = Salida cortada en 1 MB.
 plugin-page-from = { $name } { $version } · un plugin
 plugin-page-refresh = ACTUALIZAR
 plugin-page-not-accepted = Este plugin no está aceptado, o sus archivos cambiaron desde entonces. Revísalo en Ajustes → Plugins.
+plugin-page-dry-run-chip = ENSAYO
+plugin-page-stopped-chip = DETENIDO
+plugin-page-running-now = En marcha…
+plugin-page-stopping = DETENIENDO…
+plugin-page-stop = DETENER
+plugin-page-danger-title = { $label }: puede cortar el acceso o perder datos
+plugin-page-change-title = { $label }: esto cambia el servidor
+plugin-page-dry-run = ENSAYO · { $label }
+plugin-page-dry-run-needed = Hazlo primero; EJECUTAR usa los mismos valores.
+plugin-page-type-to-confirm = Escribe { $keyword } para confirmar
+plugin-page-run = EJECUTAR · { $label }
+plugin-page-cancel = CANCELAR
 
 ## settings-providers
 settings-providers-providers-where-your-servers-live = PROVEEDORES · DÓNDE VIVEN TUS SERVIDORES

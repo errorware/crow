@@ -457,6 +457,11 @@ app-user-plugins-not-accepted-now = This plugin's files changed since you accept
 app-user-plugins-later-stage = Actions that change a server, or run on this machine, come in a later version.
 app-user-plugins-needs-settings = Needs settings: { $names }
 app-user-plugins-needs-input = Needs a value for { $name }
+app-user-plugins-dry-run-first = Run the dry run first, with these values.
+app-user-plugins-dry-run-still-going = The dry run is still going.
+app-user-plugins-dry-run-failed = The dry run failed: look at its output before running this.
+app-user-plugins-type-keyword = Type { $keyword } to run it.
+app-user-plugins-stopped = stopped
 
 ## app-providers
 app-providers-set-type-to-replace = set · type to replace
@@ -2797,6 +2802,18 @@ plugin-page-truncated = Output cut at 1 MB.
 plugin-page-from = { $name } { $version } · a plugin
 plugin-page-refresh = REFRESH
 plugin-page-not-accepted = This plugin isn't accepted, or its files changed since. Review it in Settings → Plugins.
+plugin-page-dry-run-chip = DRY RUN
+plugin-page-stopped-chip = STOPPED
+plugin-page-running-now = Running…
+plugin-page-stopping = STOPPING…
+plugin-page-stop = STOP
+plugin-page-danger-title = { $label }: this could cut access or lose data
+plugin-page-change-title = { $label }: this changes the server
+plugin-page-dry-run = DRY RUN · { $label }
+plugin-page-dry-run-needed = Run it first; RUN uses the same values.
+plugin-page-type-to-confirm = Type { $keyword } to confirm
+plugin-page-run = RUN · { $label }
+plugin-page-cancel = CANCEL
 
 ## settings-providers
 settings-providers-providers-where-your-servers-live = PROVIDERS · WHERE YOUR SERVERS LIVE

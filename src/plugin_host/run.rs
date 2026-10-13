@@ -162,11 +162,14 @@ pub fn remote_program(a: &Action, requires: &[String], plugin_dir: &Path, v: &Va
     for (k, t) in &a.env {
         p.push_str(&format!("export {k}={}\n", quote(&fill(t, v)?)));
     }
+    // The action runs in its own session (setsid, where there is one), so
+    // STOP can end it and everything it started; its pid is reported first.
+    p.push_str("if command -v setsid >/dev/null 2>&1; then crow_own=setsid; else crow_own=; fi\n");
     match (&a.command, &a.script) {
         (Some(argv), _) => {
             let words = argv.iter().map(|t| fill(t, v).map(|s| quote(&s))).collect::<Result<Vec<_>, _>>()?;
             // stdin is this program; the action mustn't read the rest of it.
-            p.push_str(&format!("{} </dev/null\n", words.join(" ")));
+            p.push_str(&format!("$crow_own {} </dev/null &\n", words.join(" ")));
         }
         (None, Some(script)) => {
             let body = std::fs::read_to_string(plugin_dir.join(script)).map_err(|e| format!("{script}: {e}"))?;
@@ -181,21 +184,41 @@ pub fn remote_program(a: &Action, requires: &[String], plugin_dir: &Path, v: &Va
                 Interpreter::Python3 => "python3 -",
             };
             let args = if args.is_empty() { String::new() } else { format!(" {}", args.join(" ")) };
-            p.push_str(&format!("{run}{args} <<'{delim}'\n{body}{}{delim}\n", if body.ends_with('\n') { "" } else { "\n" }));
+            p.push_str(&format!("$crow_own {run}{args} <<'{delim}' &\n{body}{}{delim}\n", if body.ends_with('\n') { "" } else { "\n" }));
         }
         (None, None) => return Err("nothing to run".into()),
     }
-    p.push_str(&format!("crow_rc=$?\nprintf '%s%s\\n' {} \"$crow_rc\" >&2\nexit 0\n", quote(&exit_marker(nonce))));
+    p.push_str(&format!("crow_pid=$!\nprintf '%s%s\\n' {} \"$crow_pid\" >&2\nwait \"$crow_pid\"\ncrow_rc=$?\nprintf '%s%s\\n' {} \"$crow_rc\" >&2\nexit 0\n", quote(&pid_marker(nonce)), quote(&exit_marker(nonce))));
     Ok(p)
 }
 
-/// Splits the exit marker off stderr: (stderr without it, the exit code).
+pub fn pid_marker(nonce: &str) -> String {
+    format!("CROW_PID_{nonce}=")
+}
+
+/// The `sh` program that ends a run started with pid `pid`: its whole
+/// session if it has one, else the process, then a kill if it lingers.
+pub fn stop_program(pid: u32) -> String {
+    format!("kill -TERM -- -{pid} 2>/dev/null || kill -TERM {pid} 2>/dev/null\nsleep 2\nkill -KILL -- -{pid} 2>/dev/null || kill -KILL {pid} 2>/dev/null\nexit 0\n")
+}
+
+/// Splits the markers off stderr: (stderr without them, the exit code).
+/// Only the last exit marker counts; one the action printed itself can't
+/// end its run early.
 pub fn split_exit(stderr: &str, nonce: &str) -> (String, Option<i32>) {
-    let marker = exit_marker(nonce);
-    match stderr.trim_end().rsplit_once('\n').map_or(("", stderr.trim_end()), |(a, b)| (a, b)) {
-        (rest, last) if last.starts_with(&marker) => (rest.to_string(), last[marker.len()..].trim().parse().ok()),
-        _ => (stderr.to_string(), None),
-    }
+    let (exit, pid) = (exit_marker(nonce), pid_marker(nonce));
+    let lines: Vec<&str> = stderr.trim_end().lines().collect();
+    let code = match lines.last() {
+        Some(last) if last.starts_with(&exit) => last[exit.len()..].trim().parse().ok(),
+        _ => None,
+    };
+    let keep = if code.is_some() { &lines[..lines.len() - 1] } else { &lines[..] };
+    (keep.iter().filter(|l| !l.starts_with(&pid)).copied().collect::<Vec<_>>().join("\n"), code)
+}
+
+/// Whether a stderr line is one of Crow's own markers.
+pub fn is_marker(line: &str, nonce: &str) -> bool {
+    line.starts_with(&exit_marker(nonce)) || line.starts_with(&pid_marker(nonce))
 }
 
 /// How one run ended.
@@ -210,6 +233,8 @@ pub struct RunResult {
     pub error: Option<String>,
     pub started_at: i64,
     pub finished_at: i64,
+    /// Ended by STOP.
+    pub stopped: bool,
 }
 
 impl RunResult {
@@ -235,10 +260,41 @@ fn cap(mut s: String) -> (String, bool) {
     (s, true)
 }
 
-/// Runs `program` on `host`; blocking, so call it off the UI thread.
-pub fn run_program(host: &dyn Host, program: &str, root: bool, timeout: Duration, nonce: &str) -> RunResult {
+/// Runs `program` on `host`, handing each line it prints to `sink` (Crow's
+/// markers left out). Setting `stop` ends it there and on the server.
+/// Blocking: call it off the UI thread.
+pub fn run_streaming(host: &dyn Host, program: &str, root: bool, timeout: Duration, nonce: &str, sink: &mut dyn FnMut(bool, &str), stop: &std::sync::atomic::AtomicBool) -> RunResult {
     let started_at = chrono::Utc::now().timestamp();
-    let result = if root { host.exec_privileged(&["sh", "-s"], program.as_bytes(), timeout) } else { host.exec_stdin(&["sh", "-s"], program.as_bytes(), timeout) };
+    let mut pid: Option<u32> = None;
+    let pid_m = pid_marker(nonce);
+    // What arrived, kept for a run that ends early (stopped, timed out).
+    let (mut so_far_out, mut so_far_err) = (String::new(), String::new());
+    let mut on_line = |is_err: bool, line: &str| {
+        if is_err && line.starts_with(&pid_m) {
+            pid = line[pid_m.len()..].trim().parse().ok();
+        }
+        if !(is_err && is_marker(line, nonce)) {
+            sink(is_err, line);
+            let into = if is_err { &mut so_far_err } else { &mut so_far_out };
+            if into.len() < MAX_OUTPUT_BYTES {
+                into.push_str(line);
+                into.push('\n');
+            }
+        }
+    };
+    let result = if root {
+        host.exec_privileged_streaming(&["sh", "-s"], program.as_bytes(), timeout, &mut on_line, stop)
+    } else {
+        host.exec_streaming(&["sh", "-s"], program.as_bytes(), timeout, &mut on_line, stop)
+    };
+    let stopped = stop.load(std::sync::atomic::Ordering::Relaxed) || matches!(result, Err(HostError::Timeout));
+    // Ending the connection may leave the action running there: end it too.
+    if stopped {
+        if let Some(pid) = pid {
+            let kill = stop_program(pid);
+            let _ = if root { host.exec_privileged(&["sh", "-s"], kill.as_bytes(), Duration::from_secs(15)) } else { host.exec_stdin(&["sh", "-s"], kill.as_bytes(), Duration::from_secs(15)) };
+        }
+    }
     let finished_at = chrono::Utc::now().timestamp();
     match result {
         Ok(out) => {
@@ -246,18 +302,26 @@ pub fn run_program(host: &dyn Host, program: &str, root: bool, timeout: Duration
             let (stdout, t1) = cap(out.stdout);
             let (stderr, t2) = cap(stderr);
             let error = exit_code.is_none().then(|| "the action didn't report how it ended".to_string());
-            RunResult { ok: exit_code == Some(0), exit_code, stdout, stderr, truncated: t1 || t2, error, started_at, finished_at }
+            RunResult { ok: exit_code == Some(0), exit_code, stdout, stderr, truncated: t1 || t2, error, started_at, finished_at, stopped: false }
         }
         Err(e) => {
             let error = match e {
-                HostError::Failed { stderr, .. } => stderr.trim().to_string(),
+                _ if stop.load(std::sync::atomic::Ordering::Relaxed) => "stopped".to_string(),
+                HostError::Failed { stderr, .. } => split_exit(&stderr, nonce).0.trim().to_string(),
                 HostError::Unreachable(why) => why,
-                HostError::Timeout => format!("timed out after {}s", timeout.as_secs()),
+                HostError::Timeout => format!("timed out after {}s, and was stopped", timeout.as_secs()),
                 other => other.to_string(),
             };
-            RunResult { error: Some(error), started_at, finished_at, ..Default::default() }
+            let (stdout, t1) = cap(so_far_out);
+            let (stderr, t2) = cap(so_far_err);
+            RunResult { error: Some(error), stdout, stderr, truncated: t1 || t2, started_at, finished_at, stopped, ..Default::default() }
         }
     }
+}
+
+/// `run_streaming` with nobody watching the lines.
+pub fn run_program(host: &dyn Host, program: &str, root: bool, timeout: Duration, nonce: &str) -> RunResult {
+    run_streaming(host, program, root, timeout, nonce, &mut |_, _| {}, &std::sync::atomic::AtomicBool::new(false))
 }
 
 /// A fresh nonce for one run.
@@ -433,7 +497,7 @@ mod tests {
         let m = manifest("[[action]]\nid = \"env\"\nlabel = \"E\"\non = \"server\"\neffect = \"read\"\ncommand = [\"sh\", \"-c\", \"printf %s \\\"$TOKEN\\\"\"]\nenv = { TOKEN = \"{secret.token}\" }\n");
         let v = Values { secrets: BTreeMap::from([("token".into(), "hunter2".into())]), ..Default::default() };
         let program = remote_program(&m.actions[0], &[], Path::new("/nonexistent"), &v, "n2").unwrap();
-        let command_line = program.lines().find(|l| l.starts_with("'sh'")).unwrap();
+        let command_line = program.lines().find(|l| l.contains("'sh' '-c'")).unwrap();
         assert!(!command_line.contains("hunter2"), "{command_line}");
         assert_eq!(run_sh(&program).0, "hunter2");
     }
@@ -468,6 +532,40 @@ mod tests {
         assert_eq!(split_exit(&stderr, "n6"), ("needs crow-no-such-tool on this server".to_string(), Some(127)));
         // A marker with another nonce isn't believed.
         assert_eq!(split_exit("CROW_EXIT_zz=0\n", "n5").1, None);
+    }
+
+    /// Processes whose command line is exactly `argv`.
+    fn running(argv: &[&str]) -> usize {
+        let want = argv.join("\0") + "\0";
+        std::fs::read_dir("/proc").unwrap().filter_map(Result::ok).filter(|e| std::fs::read(e.path().join("cmdline")).is_ok_and(|c| c == want.as_bytes())).count()
+    }
+
+    #[test]
+    fn stop_ends_the_action_and_what_it_started() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        // A parent that started a child: both must go.
+        let m = manifest("[[action]]\nid = \"slow\"\nlabel = \"S\"\non = \"server\"\neffect = \"change\"\ncommand = [\"sh\", \"-c\", \"sleep 299.5 & sleep 299.6\"]\n");
+        let program = remote_program(&m.actions[0], &[], Path::new("/x"), &Values::default(), "n7").unwrap();
+        let stop = AtomicBool::new(false);
+        let host = crate::host::LocalHost;
+        let watcher = std::thread::scope(|scope| {
+            let stop = &stop;
+            scope.spawn(move || {
+                for _ in 0..100 {
+                    if running(&["sleep", "299.6"]) == 1 {
+                        break;
+                    }
+                    std::thread::sleep(std::time::Duration::from_millis(50));
+                }
+                stop.store(true, Ordering::Relaxed);
+            });
+            super::run_streaming(&host, &program, false, std::time::Duration::from_secs(60), "n7", &mut |_, _| {}, stop)
+        });
+        assert!(watcher.stopped, "{watcher:?}");
+        assert!(watcher.stdout.is_empty(), "nothing printed before STOP: {watcher:?}");
+        assert_eq!(watcher.error.as_deref(), Some("stopped"));
+        std::thread::sleep(std::time::Duration::from_millis(300));
+        assert_eq!((running(&["sleep", "299.5"]), running(&["sleep", "299.6"])), (0, 0), "the action outlived STOP");
     }
 
     #[test]
@@ -539,3 +637,4 @@ mod tests {
         assert_eq!(quote("it's"), "'it'\\''s'");
     }
 }
+
