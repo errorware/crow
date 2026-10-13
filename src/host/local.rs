@@ -171,16 +171,44 @@ pub(super) fn run_command_streaming(
     sink: &mut dyn FnMut(bool, &str),
     stop: &std::sync::atomic::AtomicBool,
 ) -> Result<ExecOutput, HostError> {
+    let env: Vec<(String, String)> = env.iter().map(|(k, v)| (k.to_string(), v.to_string())).collect();
+    run_streaming_with(argv, stdin, timeout, &|c: &mut Command| {
+        c.envs(env.iter().map(|(k, v)| (k.as_str(), v.as_str())));
+    }, sink, stop)
+}
+
+/// `run_command_streaming` in its own process group, so STOP and the
+/// timeout end everything it started; `prepare` sets its environment and
+/// working directory (ERR-180: plugins' local actions).
+pub fn run_streaming_with(
+    argv: &[&str],
+    stdin: &[u8],
+    timeout: Duration,
+    prepare: &dyn Fn(&mut Command),
+    sink: &mut dyn FnMut(bool, &str),
+    stop: &std::sync::atomic::AtomicBool,
+) -> Result<ExecOutput, HostError> {
     use std::io::BufRead;
+    use std::os::unix::process::CommandExt;
     use std::sync::atomic::Ordering;
     let (program, args) = argv.split_first().ok_or_else(|| HostError::Io("empty command".into()))?;
-    let mut child = Command::new(program)
-        .args(args)
-        .envs(env.iter().copied())
-        .stdin(if stdin.is_empty() { Stdio::null() } else { Stdio::piped() })
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()?;
+    let mut command = Command::new(program);
+    command.args(args).process_group(0).stdin(if stdin.is_empty() { Stdio::null() } else { Stdio::piped() }).stdout(Stdio::piped()).stderr(Stdio::piped());
+    prepare(&mut command);
+    let mut child = command.spawn()?;
+    let group = child.id() as i32;
+    let end_group = |child: &mut std::process::Child| {
+        // SAFETY: kill(2) on our own child's process group.
+        unsafe {
+            libc::kill(-group, libc::SIGTERM);
+        }
+        std::thread::sleep(Duration::from_millis(200));
+        unsafe {
+            libc::kill(-group, libc::SIGKILL);
+        }
+        let _ = child.kill();
+        let _ = child.wait();
+    };
     let stdin_writer = child.stdin.take().map(|mut pipe| {
         let data = stdin.to_vec();
         std::thread::spawn(move || {
@@ -232,12 +260,10 @@ pub(super) fn run_command_streaming(
         }
         if ended.is_none() {
             if stop.load(Ordering::Relaxed) {
-                let _ = child.kill();
-                let _ = child.wait();
+                end_group(&mut child);
                 ended = Some(Err(HostError::Io("stopped".into())));
             } else if Instant::now() >= deadline {
-                let _ = child.kill();
-                let _ = child.wait();
+                end_group(&mut child);
                 ended = Some(Err(HostError::Timeout));
             } else if let Some(status) = child.try_wait()? {
                 ended = Some(Ok(status));

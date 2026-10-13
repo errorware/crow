@@ -21,7 +21,7 @@ use std::time::Duration;
 use crate::vault::ServerRecord;
 
 pub use container::ContainerHost;
-pub use local::LocalHost;
+pub use local::{run_streaming_with, LocalHost};
 
 /// Runs a program on this machine (no shell), for callers outside `host`.
 pub fn run_local(argv: &[&str], stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {

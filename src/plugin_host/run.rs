@@ -26,6 +26,8 @@ pub struct Values {
     pub settings: BTreeMap<String, String>,
     pub secrets: BTreeMap<String, String>,
     pub server: Option<ServerValues>,
+    /// For actions on this machine and setup.
+    pub local: Option<super::local::LocalPaths>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -131,7 +133,11 @@ pub fn fill(t: &Template, v: &Values) -> Result<String, String> {
                         super::manifest::ServerField::User => s.user.clone(),
                         super::manifest::ServerField::Port => s.port.to_string(),
                     }),
-                    _ => None,
+                    Var::PluginDir => v.local.as_ref().map(|l| l.plugin_dir.display().to_string()),
+                    Var::DataDir => v.local.as_ref().map(|l| l.data_dir.display().to_string()),
+                    Var::Inventory => v.local.as_ref().map(|l| l.inventory.display().to_string()),
+                    Var::SshConfig => v.local.as_ref().map(|l| l.ssh_config.display().to_string()),
+                    Var::Results => v.local.as_ref().map(|l| l.results.display().to_string()),
                 };
                 out.push_str(&value.ok_or_else(|| format!("{var} has no value"))?);
             }
@@ -235,6 +241,8 @@ pub struct RunResult {
     pub finished_at: i64,
     /// Ended by STOP.
     pub stopped: bool,
+    /// A local action's per-server results, from `{results}`.
+    pub per_host: Vec<serde_json::Value>,
 }
 
 impl RunResult {
@@ -302,7 +310,7 @@ pub fn run_streaming(host: &dyn Host, program: &str, root: bool, timeout: Durati
             let (stdout, t1) = cap(out.stdout);
             let (stderr, t2) = cap(stderr);
             let error = exit_code.is_none().then(|| "the action didn't report how it ended".to_string());
-            RunResult { ok: exit_code == Some(0), exit_code, stdout, stderr, truncated: t1 || t2, error, started_at, finished_at, stopped: false }
+            RunResult { ok: exit_code == Some(0), exit_code, stdout, stderr, truncated: t1 || t2, error, started_at, finished_at, ..Default::default() }
         }
         Err(e) => {
             let error = match e {

@@ -612,7 +612,7 @@ command = ["ls", "-l"]
 
     #[test]
     fn the_examples_pass() {
-        for id in ["devsec-hardening", "restic-check", "server-facts", "motd-note"] {
+        for id in ["devsec-hardening", "restic-check", "server-facts", "motd-note", "local-reach"] {
             let r = check_dir(&fixtures().join(id));
             assert!(r.ok(), "{id}: {:?}", r.refusals);
             assert!(r.warnings.is_empty(), "{id}: {:?}", r.warnings);
