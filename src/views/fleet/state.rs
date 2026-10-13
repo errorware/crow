@@ -27,7 +27,10 @@ pub struct FleetState {
     /// Which Fleet tab is showing: the active fleet or the archive.
     /// Which page of the Fleet screen is showing.
     pub page: FleetPage,
+    /// Fleet configuration's page.
     pub setup_page: SetupPage,
+    /// Topology & DR's page.
+    pub topology_page: TopologyPage,
     /// One-line feedback after an archive, restore or purge.
     pub notice: Option<String>,
     /// Server awaiting archive confirmation.
@@ -86,6 +89,7 @@ impl FleetState {
             archived: Vec::new(),
             page: FleetPage::Active,
             setup_page: SetupPage::Policies,
+            topology_page: TopologyPage::Map,
             notice: None,
             pending_archive: None,
         }
@@ -244,13 +248,12 @@ pub enum FleetPage {
     Danger,
 }
 
-/// Fleet Setup & Policies' tabs.
+/// Fleet configuration's pages, in its side menu: the things that change
+/// how the fleet is run or what happens to its servers.
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SetupPage {
     #[default]
     Policies,
-    /// The fleet map (ERR-120).
-    Map,
     /// Updates, windows and patch runs (ERR-141).
     Patching,
     /// A command or config file across a group (ERR-142).
@@ -269,10 +272,18 @@ pub enum SetupPage {
     Checks,
     /// Incident timelines (ERR-149).
     Incidents,
-    /// Disaster recovery plans (ERR-151).
-    Dr,
     /// Members, roles, scopes (ERR-150).
     Team,
     /// Every change Crow made, on every server (ERR-75).
     Audit,
+}
+
+/// Topology & DR: views of what the fleet is, not settings for it.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum TopologyPage {
+    /// The fleet map (ERR-120).
+    #[default]
+    Map,
+    /// Disaster recovery plans (ERR-151).
+    Dr,
 }

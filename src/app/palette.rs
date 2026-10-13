@@ -61,6 +61,7 @@ impl CrowApp {
         let place = |label: &str, keywords: &str, p: Place| Entry { category: t!("app-palette-place"), label: label.into(), hint: String::new(), keywords: keywords.into(), target: Target::Screen(p) };
         out.push(place(t!("app-palette-fleet"), "dashboard servers alerts", Place::Fleet));
         out.push(place(t!("app-palette-fleet-map"), "topology graph risks posture", Place::FleetMap));
+        out.push(place(t!("app-palette-dr-plans"), "disaster recovery backup restore failover", Place::Dr));
         out.push(place(t!("app-palette-fleet-setup-policies"), "groups tags host key policy", Place::FleetSetup));
         out.push(place(t!("app-palette-patching"), "updates upgrade apt dnf apk reboot maintenance window", Place::Patching));
         out.push(place(t!("app-palette-rollouts"), "run command config every server canary batch", Place::Rollouts));
@@ -219,15 +220,15 @@ impl CrowApp {
                 self.select_managed_file(&name, cx);
             }
             Target::Screen(Place::Fleet) => self.set_screen(Screen::Fleet, cx),
-            Target::Screen(Place::FleetSetup) => {
-                self.set_screen(Screen::FleetSetup, cx);
-                self.set_setup_page(crate::views::fleet::state::SetupPage::Policies, cx);
+            Target::Screen(Place::FleetSetup) => self.set_setup_page(crate::views::fleet::state::SetupPage::Policies, cx),
+            Target::Screen(Place::Dr) => {
+                self.fleet.topology_page = crate::views::fleet::state::TopologyPage::Dr;
+                self.open_topology(cx);
             }
             Target::Screen(Place::FleetMap) => self.open_topology(cx),
             Target::Screen(Place::Audit) => self.open_audit(cx),
             Target::Screen(p @ (Place::Patching | Place::Rollouts | Place::Drift)) => {
                 use crate::views::fleet::state::SetupPage;
-                self.set_screen(Screen::FleetSetup, cx);
                 self.set_setup_page(match p { Place::Patching => SetupPage::Patching, Place::Rollouts => SetupPage::Rollouts, _ => SetupPage::Drift }, cx);
             }
             Target::FleetConfig { server_id, path } => {

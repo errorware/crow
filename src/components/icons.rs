@@ -63,6 +63,11 @@ pub enum TablerIcon {
     GitBranch,
     GitCommit,
     Cloud,
+    Rocket,
+    GitCompare,
+    Certificate,
+    History,
+    Tags,
 }
 
 impl TablerIcon {
@@ -124,6 +129,11 @@ impl TablerIcon {
             Self::GitBranch => include_bytes!("../../assets/icons/git-branch.svg"),
             Self::GitCommit => include_bytes!("../../assets/icons/git-commit.svg"),
             Self::Cloud => include_bytes!("../../assets/icons/cloud.svg"),
+            Self::Rocket => include_bytes!("../../assets/icons/rocket.svg"),
+            Self::GitCompare => include_bytes!("../../assets/icons/git-compare.svg"),
+            Self::Certificate => include_bytes!("../../assets/icons/certificate.svg"),
+            Self::History => include_bytes!("../../assets/icons/history.svg"),
+            Self::Tags => include_bytes!("../../assets/icons/tags.svg"),
         }
     }
 }

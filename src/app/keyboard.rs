@@ -316,7 +316,9 @@ impl CrowApp {
             self.table_search_focus_pending = true;
             cx.notify();
         } else if key == "f" && is_mod && is_shift {
-            self.set_screen(Screen::FleetSetup, cx);
+            self.open_fleet_setup(cx);
+        } else if key == "m" && is_mod && is_shift {
+            self.open_topology(cx);
         }
         false
     }

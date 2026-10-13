@@ -29,6 +29,7 @@ pub enum Place {
     Fleet,
     FleetSetup,
     FleetMap,
+    Dr,
     /// Fleet Setup → PATCHING / ROLLOUTS / DRIFT & SEARCH.
     Patching,
     Rollouts,

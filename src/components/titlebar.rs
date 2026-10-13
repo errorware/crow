@@ -455,7 +455,16 @@ pub fn burger_menu_overlay(
     });
     items.push(MenuItem {
         icon: Some(TablerIcon::Network),
-        label: t!("titlebar-fleet-setup-topology-policy").to_string(),
+        label: t!("titlebar-topology-dr").to_string(),
+        shortcut: "⌘⇧M",
+        action: Some(MenuAction::NavigateScreen(Screen::Topology)),
+        is_danger: false,
+        is_header: false,
+        is_featured: false,
+    });
+    items.push(MenuItem {
+        icon: Some(TablerIcon::AdjustmentsHorizontal),
+        label: t!("titlebar-fleet-configuration").to_string(),
         shortcut: "⌘⇧F",
         action: Some(MenuAction::NavigateScreen(Screen::FleetSetup)),
         is_danger: false,
@@ -685,7 +694,11 @@ pub fn burger_menu_overlay(
                                 Some(MenuAction::NavigateScreen(scr)) => {
                                     app_item.update(cx, |this, cx| {
                                         this.close_menu(cx);
-                                        this.set_screen(scr, cx);
+                                        match scr {
+                                            Screen::Topology => this.open_topology(cx),
+                                            Screen::FleetSetup => this.open_fleet_setup(cx),
+                                            _ => this.set_screen(scr, cx),
+                                        }
                                     });
                                 }
                                 Some(MenuAction::NavigateServerView(view)) => {

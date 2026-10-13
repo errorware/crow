@@ -7,10 +7,9 @@ use crate::app::{CrowApp, Screen};
 use crate::views::fleet::FleetState;
 use crate::components::icons::{TablerIcon, tabler_icon};
 
-/// Fleet groups, tag taxonomy, and host key lifecycle policies.
-/// `map`: the FLEET MAP tab's content, built only while that tab shows.
+/// Fleet configuration: a side menu of the pages that change how the fleet
+/// runs. `map`: the chosen page's content; None draws GROUPS & POLICIES.
 pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity<CrowApp>) -> impl IntoElement {
-    let app_close = app.clone();
     let on_map = map.is_some();
     let servers = &fleet.servers;
     let total_servers = servers.len();
@@ -42,65 +41,13 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
     let missing_keys = total_servers - pinned_keys;
     let ages = crate::views::fleet::state::host_key_ages(servers, chrono::Utc::now().timestamp());
 
-    div()
-        .size_full()
+    // The page's own content, or GROUPS & POLICIES' KPI strip and columns.
+    let content = div()
+        .flex_1()
+        .min_w(px(0.0))
+        .min_h(px(0.0))
         .flex()
         .flex_col()
-        .bg(BG_APP)
-        // 1. Top Header
-        .child(
-            div()
-                .h(px(52.0))
-                .flex_none()
-                .flex()
-                .items_center()
-                .px(px(16.0))
-                .bg(BG_PANEL)
-                .border_b_1()
-                .border_color(BORDER_PANEL)
-                .child(
-                    div()
-                        .flex()
-                        .items_baseline()
-                        .gap(px(10.0))
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(16.0))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MAX)
-                                .child(t!("fleet-setup-fleet-setup-policies")),
-                        )
-                        .child(
-                            div()
-                                .font_family(FONT_MONO)
-                                .text_size(px(11.5))
-                                .text_color(TEXT_DIM)
-                                .child(t!("fleet-setup-groups-tag-taxonomy-host-key")),
-                        ),
-                )
-                .child(div().flex_1())
-                .child(
-                    div()
-                        .id("btn-close-fleet-setup")
-                        .px(px(10.0))
-                        .py(px(5.0))
-                        .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.5))
-                        .text_color(TEXT_TERTIARY)
-                        .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
-                        .on_click(move |_ev, _window, cx| {
-                            app_close.update(cx, |this, cx| {
-                                this.set_screen(Screen::Fleet, cx);
-                            });
-                        })
-                        .child(t!("fleet-setup-close-esc")),
-                ),
-        )
-        .child(setup_tabs(fleet.setup_page, app.clone()))
         .children(map)
         // 2. Metrics / KPI Strip
         .when(!on_map, |d| d.child(
@@ -530,7 +477,15 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
                                 ),
                         ),
                 ),
-        ))
+        ));
+
+    div()
+        .size_full()
+        .flex()
+        .flex_col()
+        .bg(BG_APP)
+        .child(screen_header(t!("fleet-setup-fleet-configuration"), t!("fleet-setup-fleet-configuration-about"), app.clone()))
+        .child(div().flex_1().min_h(px(0.0)).flex().child(setup_nav(fleet.setup_page, app)).child(content))
 }
 
 fn render_policy_row(label: &'static str, count: usize, color: Rgba) -> impl IntoElement {
@@ -557,10 +512,119 @@ fn render_policy_row(label: &'static str, count: usize, color: Rgba) -> impl Int
         )
 }
 
-/// GROUPS & POLICIES / FLEET MAP.
-fn setup_tabs(page: crate::views::fleet::state::SetupPage, app: Entity<CrowApp>) -> impl IntoElement {
+/// Title, one line on what the screen is for, and CLOSE.
+fn screen_header(title: &'static str, about: &'static str, app: Entity<CrowApp>) -> impl IntoElement {
+    div()
+        .h(px(52.0))
+        .flex_none()
+        .flex()
+        .items_center()
+        .gap(px(12.0))
+        .px(px(16.0))
+        .bg(BG_PANEL)
+        .border_b_1()
+        .border_color(BORDER_PANEL)
+        .child(
+            div()
+                .flex_1()
+                .min_w(px(0.0))
+                .flex()
+                .items_baseline()
+                .gap(px(10.0))
+                .child(div().flex_none().font_family(FONT_MONO).text_size(px(16.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child(title))
+                .child(div().min_w(px(0.0)).truncate().font_family(FONT_MONO).text_size(px(11.5)).text_color(TEXT_DIM).child(about)),
+        )
+        .child(
+            div()
+                .id("btn-close-fleet-setup")
+                .flex_none()
+                .px(px(10.0))
+                .py(px(5.0))
+                .border_1()
+                .border_color(BORDER_DEFAULT)
+                .font_family(FONT_MONO)
+                .text_size(px(10.5))
+                .text_color(TEXT_TERTIARY)
+                .cursor_pointer()
+                .hover(|s| s.bg(BG_ROW_HOVER))
+                .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_screen(Screen::Fleet, cx)))
+                .child(t!("fleet-setup-close-esc")),
+        )
+}
+
+/// Fleet configuration's side menu, in groups.
+fn setup_nav(page: crate::views::fleet::state::SetupPage, app: Entity<CrowApp>) -> impl IntoElement {
     use crate::views::fleet::state::SetupPage;
-    let tab = |id: &'static str, label: &'static str, to: SetupPage| {
+    let groups: [(&'static str, Vec<(&'static str, TablerIcon, &'static str, SetupPage)>); 4] = [
+        (t!("fleet-setup-nav-change"), vec![
+            ("setup-tab-rollouts", TablerIcon::Rocket, t!("fleet-setup-rollouts"), SetupPage::Rollouts),
+            ("setup-tab-patching", TablerIcon::Refresh, t!("fleet-setup-patching"), SetupPage::Patching),
+            ("setup-tab-drift", TablerIcon::GitCompare, t!("fleet-setup-drift-search"), SetupPage::Drift),
+        ]),
+        (t!("fleet-setup-nav-security"), vec![
+            ("setup-tab-hardening", TablerIcon::ShieldCheck, t!("fleet-setup-hardening"), SetupPage::Hardening),
+            ("setup-tab-certificates", TablerIcon::Certificate, t!("fleet-setup-certificates"), SetupPage::Certificates),
+            ("setup-tab-people", TablerIcon::Key, t!("fleet-setup-people"), SetupPage::People),
+        ]),
+        (t!("fleet-setup-nav-watch"), vec![
+            ("setup-tab-checks", TablerIcon::Activity, t!("fleet-setup-checks"), SetupPage::Checks),
+            ("setup-tab-logsearch", TablerIcon::FileText, t!("fleet-setup-log-search"), SetupPage::LogSearch),
+            ("setup-tab-incidents", TablerIcon::AlertTriangle, t!("fleet-setup-incidents"), SetupPage::Incidents),
+            ("setup-tab-audit", TablerIcon::History, t!("fleet-setup-audit-log"), SetupPage::Audit),
+        ]),
+        (t!("fleet-setup-nav-organisation"), vec![
+            ("setup-tab-policies", TablerIcon::Tags, t!("fleet-setup-groups-policies"), SetupPage::Policies),
+            ("setup-tab-team", TablerIcon::Users, t!("fleet-setup-team"), SetupPage::Team),
+        ]),
+    ];
+    let item = |id: &'static str, icon: TablerIcon, label: &'static str, to: SetupPage| {
+        let (app, on) = (app.clone(), page == to);
+        div()
+            .id(id)
+            .h(px(30.0))
+            .flex()
+            .items_center()
+            .gap(px(9.0))
+            .px(px(14.0))
+            .border_l_2()
+            .border_color(if on { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
+            .when(on, |d| d.bg(BG_ROW_SELECTED))
+            .text_size(px(11.0))
+            .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
+            .text_color(if on { TEXT_PRIMARY } else { TEXT_TERTIARY })
+            .cursor_pointer()
+            .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+            .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_setup_page(to, cx)))
+            .child(tabler_icon(icon).size(px(14.0)).flex_none().text_color(if on { TEXT_PRIMARY } else { TEXT_DIMMER }))
+            .child(div().min_w(px(0.0)).truncate().child(label))
+    };
+    div()
+        .id("fleet-setup-nav")
+        .w(px(200.0))
+        .flex_none()
+        .h_full()
+        .overflow_y_scrollbar()
+        .bg(BG_RAIL)
+        .border_r_1()
+        .border_color(BORDER_PANEL)
+        .flex()
+        .flex_col()
+        .py(px(6.0))
+        .font_family(FONT_MONO)
+        .children(groups.into_iter().map(|(heading, items)| {
+            div()
+                .flex()
+                .flex_col()
+                .pb(px(8.0))
+                .child(div().px(px(14.0)).pt(px(8.0)).pb(px(4.0)).truncate().text_size(px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(heading))
+                .children(items.into_iter().map(|(id, icon, label, to)| item(id, icon, label, to)))
+        }))
+}
+
+/// Topology & DR: the fleet map and recovery plans, as two tabs.
+pub fn topology_view(page: crate::views::fleet::state::TopologyPage, content: Option<AnyElement>, app: Entity<CrowApp>) -> impl IntoElement {
+    use crate::views::fleet::state::TopologyPage;
+    let tab = |id: &'static str, label: &'static str, to: TopologyPage| {
         let (app, on) = (app.clone(), page == to);
         div()
             .id(id)
@@ -578,32 +642,28 @@ fn setup_tabs(page: crate::views::fleet::state::SetupPage, app: Entity<CrowApp>)
             .text_color(if on { TEXT_PRIMARY } else { TEXT_TERTIARY })
             .cursor_pointer()
             .hover(|s| s.text_color(TEXT_PRIMARY))
-            .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_setup_page(to, cx)))
+            .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_topology_page(to, cx)))
             .child(label)
     };
-    // Wraps onto a second row when the labels are long (a translation).
     div()
-        .min_h(px(34.0))
-        .flex_none()
+        .size_full()
         .flex()
-        .flex_wrap()
-        .items_end()
-        .px(px(8.0))
-        .bg(BG_PANEL)
-        .border_b_1()
-        .border_color(BORDER_PANEL)
-        .child(tab("setup-tab-policies", t!("fleet-setup-groups-policies"), SetupPage::Policies))
-        .child(tab("setup-tab-patching", t!("fleet-setup-patching"), SetupPage::Patching))
-        .child(tab("setup-tab-rollouts", t!("fleet-setup-rollouts"), SetupPage::Rollouts))
-        .child(tab("setup-tab-drift", t!("fleet-setup-drift-search"), SetupPage::Drift))
-        .child(tab("setup-tab-hardening", t!("fleet-setup-hardening"), SetupPage::Hardening))
-        .child(tab("setup-tab-certificates", t!("fleet-setup-certificates"), SetupPage::Certificates))
-        .child(tab("setup-tab-people", t!("fleet-setup-people"), SetupPage::People))
-        .child(tab("setup-tab-logsearch", t!("fleet-setup-log-search"), SetupPage::LogSearch))
-        .child(tab("setup-tab-checks", t!("fleet-setup-checks"), SetupPage::Checks))
-        .child(tab("setup-tab-incidents", t!("fleet-setup-incidents"), SetupPage::Incidents))
-        .child(tab("setup-tab-dr", t!("fleet-setup-dr-plans"), SetupPage::Dr))
-        .child(tab("setup-tab-team", t!("fleet-setup-team"), SetupPage::Team))
-        .child(tab("setup-tab-audit", t!("fleet-setup-audit-log"), SetupPage::Audit))
-        .child(tab("setup-tab-map", t!("fleet-setup-fleet-map"), SetupPage::Map))
+        .flex_col()
+        .bg(BG_APP)
+        .child(screen_header(t!("fleet-setup-topology-dr"), t!("fleet-setup-topology-dr-about"), app.clone()))
+        .child(
+            div()
+                .min_h(px(34.0))
+                .flex_none()
+                .flex()
+                .flex_wrap()
+                .items_end()
+                .px(px(8.0))
+                .bg(BG_PANEL)
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .child(tab("topology-tab-map", t!("fleet-setup-fleet-map"), TopologyPage::Map))
+                .child(tab("topology-tab-dr", t!("fleet-setup-dr-plans"), TopologyPage::Dr)),
+        )
+        .child(div().flex_1().min_h(px(0.0)).flex().flex_col().children(content))
 }

@@ -102,7 +102,10 @@ pub enum Screen {
     Fleet,
     Settings,
     Onboard,
+    /// Fleet configuration: the side-menu pages that change how the fleet runs.
     FleetSetup,
+    /// Topology & DR: the fleet map and recovery plans.
+    Topology,
     VaultSetup,
 }
 

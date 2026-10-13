@@ -370,7 +370,7 @@ app-palette-terminal-on = Terminal on { $name }
 app-palette-place = PLACE
 app-palette-fleet = Fleet
 app-palette-fleet-map = Fleet Map
-app-palette-fleet-setup-policies = Fleet Setup & Policies
+app-palette-fleet-setup-policies = Groups & Policies
 app-palette-patching = Patching
 app-palette-rollouts = Rollouts
 app-palette-drift-config-search = Drift & config search
@@ -839,7 +839,6 @@ titlebar-overview = { $name } · Overview
 titlebar-server-overview = Server Overview
 titlebar-fleet-overview = Fleet Overview
 titlebar-enroll-new-server = Enroll New Server…
-titlebar-fleet-setup-topology-policy = Fleet Setup — Topology & Policy
 titlebar-this-server = THIS SERVER
 titlebar-managed-configs = Managed Configs
 titlebar-systemd-journal-logs = Systemd Journal Logs
@@ -1786,15 +1785,13 @@ fleet-run-not-run = { $not_run } not run
 
 ## fleet-setup
 fleet-setup-default-unassigned = default / unassigned
-fleet-setup-fleet-setup-policies = FLEET SETUP & POLICIES
-fleet-setup-groups-tag-taxonomy-host-key = groups, tag taxonomy, host key lifecycle, and the fleet map
 fleet-setup-close-esc = CLOSE esc
 fleet-setup-enrolled-servers = ENROLLED SERVERS:
 fleet-setup-fleet-groups = FLEET GROUPS:
 fleet-setup-unique-tags = UNIQUE TAGS:
 fleet-setup-host-keys-pinned = HOST KEYS PINNED:
 fleet-setup-none-enrolled = NONE ENROLLED
-fleet-setup-fleet-topology-group-assignments = FLEET TOPOLOGY & GROUP ASSIGNMENTS
+fleet-setup-fleet-topology-group-assignments = GROUP ASSIGNMENTS
 fleet-setup-manage-new-group = + MANAGE / NEW GROUP
 fleet-setup-no-servers-currently-enrolled-in = No servers currently enrolled in fleet.
 fleet-setup-text = { $member_count } { $member_count ->
@@ -1818,20 +1815,31 @@ fleet-setup-text-2 = { $count } { $count ->
         [one] server
        *[other] servers
     }
-fleet-setup-groups-policies = GROUPS & POLICIES
-fleet-setup-patching = PATCHING
-fleet-setup-rollouts = ROLLOUTS
-fleet-setup-drift-search = DRIFT & SEARCH
-fleet-setup-hardening = HARDENING
-fleet-setup-certificates = CERTIFICATES
-fleet-setup-people = PEOPLE
-fleet-setup-log-search = LOG SEARCH
-fleet-setup-checks = CHECKS
-fleet-setup-incidents = INCIDENTS
+fleet-setup-groups-policies = Groups & policies
+fleet-setup-patching = Patching
+fleet-setup-rollouts = Rollouts
+fleet-setup-drift-search = Drift & search
+fleet-setup-hardening = Hardening
+fleet-setup-certificates = Certificates
+fleet-setup-people = People & keys
+fleet-setup-log-search = Log search
+fleet-setup-checks = Checks
+fleet-setup-incidents = Incidents
 fleet-setup-dr-plans = DR PLANS
-fleet-setup-team = TEAM
-fleet-setup-audit-log = AUDIT LOG
+fleet-setup-team = Team
+fleet-setup-audit-log = Audit log
 fleet-setup-fleet-map = FLEET MAP
+fleet-setup-nav-change = CHANGE
+fleet-setup-nav-security = SECURITY
+fleet-setup-nav-watch = WATCH
+fleet-setup-nav-organisation = ORGANISATION
+fleet-setup-fleet-configuration = FLEET CONFIGURATION
+fleet-setup-fleet-configuration-about = what changes how the fleet runs, and what happens to its servers
+fleet-setup-topology-dr = TOPOLOGY & DR
+fleet-setup-topology-dr-about = the fleet as it stands, and how it comes back after a disaster
+titlebar-topology-dr = Topology & DR
+titlebar-fleet-configuration = Fleet Configuration
+app-palette-dr-plans = DR Plans
 
 ## fleet-state
 fleet-state-no-data = NO DATA

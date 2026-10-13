@@ -4,7 +4,7 @@ use gpui_kit::*;
 
 use super::CrowApp;
 use crate::topology::{self, posture, Graph, Health};
-use crate::views::fleet::state::{FleetHealth, SetupPage};
+use crate::views::fleet::state::{FleetHealth, SetupPage, TopologyPage};
 use crate::views::topology::state::zoom_around;
 
 // ==========================================
@@ -39,10 +39,21 @@ impl CrowApp {
         })
     }
 
-    /// Fleet Setup & Policies, on its FLEET MAP tab.
+    /// Topology & DR, on whichever page was showing last.
     pub fn open_topology(&mut self, cx: &mut Context<Self>) {
-        self.set_screen(super::Screen::FleetSetup, cx);
-        self.fleet.setup_page = SetupPage::Map;
+        self.set_screen(super::Screen::Topology, cx);
+        self.set_topology_page(self.fleet.topology_page, cx);
+    }
+
+    pub fn set_topology_page(&mut self, page: TopologyPage, cx: &mut Context<Self>) {
+        self.fleet.topology_page = page;
+        if page == TopologyPage::Map {
+            self.refresh_topology(cx);
+        }
+        cx.notify();
+    }
+
+    fn refresh_topology(&mut self, cx: &mut Context<Self>) {
         self.reload_topology_alerts();
         if chrono::Utc::now().timestamp() - self.topology.posture_checked_at >= posture::POSTURE_EVERY_SECS {
             self.check_posture(cx);
@@ -88,16 +99,18 @@ impl CrowApp {
         .detach();
     }
 
-    /// The audit log lives on Fleet Setup (ERR-156).
+    /// The audit log lives on Fleet configuration (ERR-156).
     pub fn open_audit(&mut self, cx: &mut Context<Self>) {
-        self.set_screen(super::Screen::FleetSetup, cx);
         self.set_setup_page(SetupPage::Audit, cx);
     }
 
+    /// Fleet configuration, on whichever page was showing last.
+    pub fn open_fleet_setup(&mut self, cx: &mut Context<Self>) {
+        self.set_setup_page(self.fleet.setup_page, cx);
+    }
+
     pub fn set_setup_page(&mut self, page: SetupPage, cx: &mut Context<Self>) {
-        if page == SetupPage::Map {
-            return self.open_topology(cx);
-        }
+        self.set_screen(super::Screen::FleetSetup, cx);
         if page == SetupPage::Patching {
             self.scan_fleet_updates(false, cx);
         }

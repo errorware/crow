@@ -52,7 +52,7 @@ impl Render for CrowApp {
         if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Patching {
             self.ensure_window_inputs(window, cx);
         }
-        if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Dr {
+        if self.screen == Screen::Topology && self.fleet.topology_page == crate::views::fleet::state::TopologyPage::Dr {
             self.ensure_dr_inputs(window, cx);
         }
         if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Checks {
@@ -121,13 +121,17 @@ impl Render for CrowApp {
             self.ensure_team_inputs(window, cx);
         }
         let app_view = cx.entity();
-        // The fleet map is built only while it's showing (ERR-120).
+        // Topology & DR's page; the fleet map is built only while it's showing (ERR-120).
+        let topology_page = match (self.screen, self.fleet.topology_page) {
+            (Screen::Topology, crate::views::fleet::state::TopologyPage::Map) => Some(crate::views::topology::topology_page(self, app_view.clone()).into_any_element()),
+            (Screen::Topology, crate::views::fleet::state::TopologyPage::Dr) => Some(crate::views::fleet::dr::dr_page(&self.fleet, &self.dr, self.dr_inputs.as_ref(), app_view.clone()).into_any_element()),
+            _ => None,
+        };
+        // Fleet configuration's page; GROUPS & POLICIES is drawn by the screen itself.
         let map_page = match (self.screen, self.fleet.setup_page) {
-            (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Map) => Some(crate::views::topology::topology_page(self, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Patching) => Some(crate::views::fleet::patching::patching_page(&self.fleet, &self.patching, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Audit) => Some(crate::views::audit::audit_view(&audit, &self.audit_filter, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Team) => Some(crate::views::fleet::team::team_page(&self.fleet, &self.team, app_view.clone()).into_any_element()),
-            (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Dr) => Some(crate::views::fleet::dr::dr_page(&self.fleet, &self.dr, self.dr_inputs.as_ref(), app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Incidents) => {
                 let since = chrono::Utc::now().timestamp() - 7 * 86_400;
                 let mut recent: Vec<_> = self.vault.db().lock().ok().and_then(|db| db.list_alerts(since).ok()).unwrap_or_default().into_iter().filter(|a| a.opened_at >= since || a.resolved_at.is_none()).collect();
@@ -600,6 +604,11 @@ impl Render for CrowApp {
                                         div()
                                             .size_full()
                                             .child(fleet_setup_view(&self.fleet, map_page, app_view.clone())),
+                                    ),
+                                    Screen::Topology => Some(
+                                        div()
+                                            .size_full()
+                                            .child(crate::views::fleet::setup::topology_view(self.fleet.topology_page, topology_page, app_view.clone())),
                                     ),
                                     Screen::VaultSetup => Some(
                                         div()

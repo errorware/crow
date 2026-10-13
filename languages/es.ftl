@@ -362,7 +362,7 @@ app-palette-terminal-on = Terminal en { $name }
 app-palette-place = LUGAR
 app-palette-fleet = Flota
 app-palette-fleet-map = Mapa de la flota
-app-palette-fleet-setup-policies = Configuración y políticas de la flota
+app-palette-fleet-setup-policies = Grupos y políticas
 app-palette-patching = Parches
 app-palette-rollouts = Despliegues
 app-palette-drift-config-search = Desviación y búsqueda de configuración
@@ -835,7 +835,6 @@ titlebar-overview = { $name } · Resumen
 titlebar-server-overview = Resumen del servidor
 titlebar-fleet-overview = Resumen de la flota
 titlebar-enroll-new-server = Añadir servidor nuevo…
-titlebar-fleet-setup-topology-policy = Configuración de la flota — topología y políticas
 titlebar-this-server = ESTE SERVIDOR
 titlebar-managed-configs = Configuraciones gestionadas
 titlebar-systemd-journal-logs = Registros del journal de systemd
@@ -1789,15 +1788,13 @@ fleet-run-not-run = { $not_run } sin ejecutar
 
 ## fleet-setup
 fleet-setup-default-unassigned = por defecto / sin asignar
-fleet-setup-fleet-setup-policies = CONFIGURACIÓN Y POLÍTICAS DE LA FLOTA
-fleet-setup-groups-tag-taxonomy-host-key = grupos, taxonomía de etiquetas, ciclo de vida de las claves de host y el mapa de la flota
 fleet-setup-close-esc = CERRAR esc
 fleet-setup-enrolled-servers = SERVIDORES AÑADIDOS:
 fleet-setup-fleet-groups = GRUPOS DE LA FLOTA:
 fleet-setup-unique-tags = ETIQUETAS ÚNICAS:
 fleet-setup-host-keys-pinned = CLAVES DE HOST FIJADAS:
 fleet-setup-none-enrolled = NINGUNO AÑADIDO
-fleet-setup-fleet-topology-group-assignments = TOPOLOGÍA DE LA FLOTA Y ASIGNACIÓN DE GRUPOS
+fleet-setup-fleet-topology-group-assignments = ASIGNACIÓN DE GRUPOS
 fleet-setup-manage-new-group = + GESTIONAR / GRUPO NUEVO
 fleet-setup-no-servers-currently-enrolled-in = Ahora mismo no hay servidores en la flota.
 fleet-setup-text = { $member_count } { $member_count ->
@@ -1821,21 +1818,32 @@ fleet-setup-text-2 = { $count } { $count ->
         [one] servidor
        *[other] servidores
     }
-fleet-setup-groups-policies = GRUPOS Y POLÍTICAS
-fleet-setup-patching = PARCHES
-fleet-setup-rollouts = DESPLIEGUES
-fleet-setup-drift-search = DESVIACIÓN Y BÚSQUEDA
+fleet-setup-groups-policies = Grupos y políticas
+fleet-setup-patching = Parches
+fleet-setup-rollouts = Despliegues
+fleet-setup-drift-search = Desviación y búsqueda
 
-fleet-setup-hardening = ENDURECIMIENTO
-fleet-setup-certificates = CERTIFICADOS
-fleet-setup-people = PERSONAS
-fleet-setup-log-search = BÚSQUEDA EN REGISTROS
-fleet-setup-checks = COMPROBACIONES
-fleet-setup-incidents = INCIDENTES
+fleet-setup-hardening = Endurecimiento
+fleet-setup-certificates = Certificados
+fleet-setup-people = Personas y claves
+fleet-setup-log-search = Búsqueda en registros
+fleet-setup-checks = Comprobaciones
+fleet-setup-incidents = Incidentes
 fleet-setup-dr-plans = PLANES DE RECUPERACIÓN
-fleet-setup-team = EQUIPO
-fleet-setup-audit-log = AUDITORÍA
+fleet-setup-team = Equipo
+fleet-setup-audit-log = Auditoría
 fleet-setup-fleet-map = MAPA DE LA FLOTA
+fleet-setup-nav-change = CAMBIOS
+fleet-setup-nav-security = SEGURIDAD
+fleet-setup-nav-watch = VIGILANCIA
+fleet-setup-nav-organisation = ORGANIZACIÓN
+fleet-setup-fleet-configuration = CONFIGURACIÓN DE LA FLOTA
+fleet-setup-fleet-configuration-about = lo que cambia cómo funciona la flota y lo que les pasa a sus servidores
+fleet-setup-topology-dr = TOPOLOGÍA Y DR
+fleet-setup-topology-dr-about = la flota tal como está, y cómo se recupera tras un desastre
+titlebar-topology-dr = Topología y DR
+titlebar-fleet-configuration = Configuración de la flota
+app-palette-dr-plans = Planes de recuperación
 
 ## fleet-state
 fleet-state-no-data = SIN DATOS
