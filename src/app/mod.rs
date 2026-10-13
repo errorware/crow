@@ -688,6 +688,8 @@ impl CrowApp {
         } else if view == "containers" {
             self.active_view = view.to_string();
             self.refresh_containers(cx);
+        } else if view.starts_with("plugin:") {
+            self.open_plugin_page(view, cx);
         } else {
             self.active_view = view.to_string();
         }

@@ -453,6 +453,10 @@ app-user-plugins-state-accepted = ACCEPTED
 app-user-plugins-state-changed = CHANGED · REVIEW AGAIN
 app-user-plugins-state-refused = REFUSED
 app-user-plugins-state-invalid = CAN'T LOAD
+app-user-plugins-not-accepted-now = This plugin's files changed since you accepted it, so it's off. Review it in Settings → Plugins.
+app-user-plugins-later-stage = Actions that change a server, or run on this machine, come in a later version.
+app-user-plugins-needs-settings = Needs settings: { $names }
+app-user-plugins-needs-input = Needs a value for { $name }
 
 ## app-providers
 app-providers-set-type-to-replace = set · type to replace
@@ -762,6 +766,7 @@ sidebar-firewall = Firewall
 sidebar-terminal = Terminal
 sidebar-collapse = Collapse
 sidebar-danger-zone = Danger Zone
+sidebar-plugins = PLUGINS
 
 ## snapshot-offer
 snapshot-offer-snapshot-the-whole-server-at = Snapshot the whole server at { $provider } first?
@@ -2777,6 +2782,21 @@ settings-user-plugins-accept = ACCEPT
 settings-user-plugins-refuse = REFUSE
 settings-user-plugins-revoke = TAKE BACK
 settings-user-plugins-confirm-explain = Accepting lets this plugin run the commands above on your servers, as root where it says so, whenever you or a fleet run starts them. Press CONFIRM: ACCEPT to accept.
+plugin-page-just-now = just now
+plugin-page-minutes-ago = { $n }m ago
+plugin-page-hours-ago = { $n }h ago
+plugin-page-not-read-yet = Not read yet: press REFRESH.
+plugin-page-reading = Reading…
+plugin-page-exit = exit code { $code }
+plugin-page-unreadable = The output can't be read: { $why }
+plugin-page-no-rows = Nothing to show.
+plugin-page-runs = RUNS ON THIS SERVER
+plugin-page-no-runs = No runs yet.
+plugin-page-running = { $label }…
+plugin-page-truncated = Output cut at 1 MB.
+plugin-page-from = { $name } { $version } · a plugin
+plugin-page-refresh = REFRESH
+plugin-page-not-accepted = This plugin isn't accepted, or its files changed since. Review it in Settings → Plugins.
 
 ## settings-providers
 settings-providers-providers-where-your-servers-live = PROVIDERS · WHERE YOUR SERVERS LIVE
@@ -3599,6 +3619,7 @@ audit-model-permissions-changed = permissions changed: { $target }
 audit-model-plugin-accepted = plugin { $target } accepted
 audit-model-plugin-refused = plugin { $target } refused
 audit-model-plugin-revoked = plugin { $target } no longer accepted
+audit-model-plugin-ran = { $target }: ran { $action }
 identity-bar-kernel = kernel
 identity-bar-role = role
 

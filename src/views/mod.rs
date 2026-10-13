@@ -9,6 +9,7 @@ pub mod lock;
 pub mod logs;
 pub mod onboard;
 pub mod overview;
+pub mod plugin_page;
 pub mod settings;
 pub mod terminal;
 pub mod topology;
