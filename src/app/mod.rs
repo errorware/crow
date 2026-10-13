@@ -59,6 +59,7 @@ pub mod plugins;
 pub mod user_plugins;
 pub mod user_plugin_fleet;
 pub mod user_plugin_settings;
+pub mod user_plugin_badges;
 pub mod notify;
 pub mod containers;
 pub mod bastions;

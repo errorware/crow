@@ -92,3 +92,7 @@ actions = ["disks", "facts", "mark"]
 
 [[page.block]]
 kind = "runs"
+
+[badge]
+action = "status"
+every = "1m"

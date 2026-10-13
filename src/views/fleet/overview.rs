@@ -1381,6 +1381,8 @@ fn render_fleet_host_row(
                         })
                         .child(host.name.clone()),
                 )
+                // User plugins' badges (ERR-182).
+                .children(crate::plugin_host::badges::for_server(&host.id).iter().map(|b| crate::components::plugin_badge::badge_chip(b, 8.5)))
                 .child(
                     div()
                         .px(px(4.0))

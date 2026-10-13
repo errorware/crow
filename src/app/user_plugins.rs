@@ -106,6 +106,7 @@ pub struct UserPluginsState {
     pub pending: Option<PendingRun>,
     /// The settings form under a review.
     pub settings: super::user_plugin_settings::SettingsForm,
+    pub badge_clock: super::user_plugin_badges::BadgeClock,
     /// Where fleet pages' actions go.
     pub fleet: super::user_plugin_fleet::PluginFleetState,
     pub pending_inputs: Vec<(String, Entity<InputState>)>,

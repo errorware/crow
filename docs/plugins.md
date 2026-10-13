@@ -225,6 +225,8 @@ every = "1h"           # how often; at least 1m
 last_run = "apply"     # optional: adds "· Oct 12", that action's last success
 ```
 
+Crow reads the badge on every reachable server when it's due, in the background; an action on this machine runs once for all of them and gives each server's status as a `{results}` line with `state` and `label`. A badge that can't be read shows nothing rather than a guess. Badge reads don't go in the run history.
+
 ## Translations
 
 A plugin can ship `i18n/<language>.ftl` for its own labels. Without it, the plugin shows its English. The details come with the stage that adds them ([ERR-182](https://linear.app/errorware/issue/ERR-182)).
