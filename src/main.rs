@@ -12,6 +12,7 @@ pub mod palette;
 pub mod patching;
 pub mod people;
 pub mod plugins;
+pub mod plugin_host;
 pub mod topology;
 pub mod certs;
 pub mod checks;
