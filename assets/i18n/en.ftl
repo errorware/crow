@@ -462,6 +462,8 @@ app-user-plugins-dry-run-still-going = The dry run is still going.
 app-user-plugins-dry-run-failed = The dry run failed: look at its output before running this.
 app-user-plugins-type-keyword = Type { $keyword } to run it.
 app-user-plugins-stopped = stopped
+app-user-plugins-needs-install = Install this plugin first (INSTALL): its setup hasn't run with these files.
+app-user-plugins-missing-here = Needs on this machine: { $names }
 
 ## app-providers
 app-providers-set-type-to-replace = set · type to replace
@@ -2787,6 +2789,12 @@ settings-user-plugins-accept = ACCEPT
 settings-user-plugins-refuse = REFUSE
 settings-user-plugins-revoke = TAKE BACK
 settings-user-plugins-confirm-explain = Accepting lets this plugin run the commands above on your servers, as root where it says so, whenever you or a fleet run starts them. Press CONFIRM: ACCEPT to accept.
+settings-user-plugins-install = INSTALL
+settings-user-plugins-reinstall = REINSTALL
+settings-user-plugins-installing = INSTALLING…
+settings-user-plugins-setup-heading = SETUP ON THIS MACHINE
+settings-user-plugins-installed-for-these = Installed for these files.
+settings-user-plugins-not-installed = Not installed: its actions on this machine wait for INSTALL.
 plugin-page-just-now = just now
 plugin-page-minutes-ago = { $n }m ago
 plugin-page-hours-ago = { $n }h ago
@@ -2814,6 +2822,8 @@ plugin-page-dry-run-needed = Run it first; RUN uses the same values.
 plugin-page-type-to-confirm = Type { $keyword } to confirm
 plugin-page-run = RUN · { $label }
 plugin-page-cancel = CANCEL
+plugin-page-needs-install = This plugin runs things on this machine and needs its setup first.
+plugin-local-lab-container = { $name } is a lab container: actions on this machine reach servers over SSH, and it has none.
 
 ## settings-providers
 settings-providers-providers-where-your-servers-live = PROVIDERS · WHERE YOUR SERVERS LIVE

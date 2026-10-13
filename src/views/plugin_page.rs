@@ -10,7 +10,7 @@ use gpui_kit::*;
 use crate::app::user_plugins::{RunSlot, UserPluginsState};
 use crate::app::CrowApp;
 use crate::plugin_host::folder::Installed;
-use crate::plugin_host::manifest::{Action, Block, BlockKind, Effect, FieldKind, Page, Runs};
+use crate::plugin_host::manifest::{Action, Block, BlockKind, Effect, FieldKind, Page};
 use crate::plugin_host::run::{self, State};
 use crate::theme::*;
 use crate::vault::PluginRun;
@@ -21,6 +21,8 @@ pub struct PageData<'a> {
     pub server_id: &'a str,
     pub state: &'a UserPluginsState,
     pub runs: Vec<PluginRun>,
+    /// It has a setup that hasn't succeeded with these files.
+    pub needs_install: bool,
 }
 
 fn title(text: String) -> Div {
@@ -155,7 +157,7 @@ fn block_view(i: usize, b: &Block, d: &PageData, app: &Entity<CrowApp>) -> AnyEl
 
 fn action_button(n: usize, a: &Action, d: &PageData, app: Entity<CrowApp>) -> impl IntoElement {
     let running = d.state.slot(&d.plugin.id, &a.id, d.server_id).is_some_and(|s| s.running);
-    let usable = a.on == Runs::Server;
+    let usable = true;
     let (plugin, action) = (d.plugin.id.clone(), a.id.clone());
     let color = match a.effect {
         Effect::Read => TEXT_SECONDARY,
@@ -173,11 +175,11 @@ fn action_button(n: usize, a: &Action, d: &PageData, app: Entity<CrowApp>) -> im
         .text_color(if usable { color } else { TEXT_FAINT })
         .when(usable && !running, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.press_plugin_action(&plugin, &action, cx))))
         .child(if running { t!("plugin-page-running", label = a.label) } else { a.label.to_uppercase() })
-        .when(!usable, |d| d.tooltip(|window, cx| gpui_kit::component::tooltip::Tooltip::new(t!("app-user-plugins-later-stage")).build(window, cx)))
+
 }
 
 /// The run going (its lines as they arrive, with STOP), or the last one.
-fn console(plugin: &str, action: &str, server: &str, slot: &RunSlot, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn console(plugin: &str, action: &str, server: &str, slot: &RunSlot, app: Entity<CrowApp>) -> impl IntoElement {
     let lines: Vec<(bool, String)> = if slot.running {
         slot.live.lock().map(|l| l.clone()).unwrap_or_default()
     } else {
@@ -227,7 +229,7 @@ fn console(plugin: &str, action: &str, server: &str, slot: &RunSlot, app: Entity
                     )
                 }),
         )
-        .child(
+        .when(!lines.is_empty() || slot.running, |d| d.child(
             div()
                 .id("plugin-console")
                 .max_h(px(320.0))
@@ -238,7 +240,7 @@ fn console(plugin: &str, action: &str, server: &str, slot: &RunSlot, app: Entity
                 .border_color(BORDER_ROW)
                 .text_size(px(10.5))
                 .children(lines.into_iter().skip(tail).map(|(is_err, l)| div().text_color(if is_err { TEXT_DIM } else { TEXT_PRIMARY }).child(l)).collect::<Vec<_>>()),
-        )
+        ))
         .when(truncated, |d| d.child(div().text_size(px(9.5)).text_color(WARN).child(t!("plugin-page-truncated"))))
 }
 
@@ -424,6 +426,41 @@ pub fn plugin_page(d: PageData, app: Entity<CrowApp>) -> impl IntoElement {
                         .child(t!("plugin-page-refresh")),
                 ),
         )
+        .children(d.needs_install.then(|| {
+            let (app_install, app_console, id) = (app.clone(), app.clone(), d.plugin.id.clone());
+            let slot = d.state.slot(&d.plugin.id, crate::app::user_plugins::SETUP, crate::app::user_plugins::HERE);
+            let running = slot.is_some_and(|s| s.running);
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(6.0))
+                .px(px(14.0))
+                .py(px(8.0))
+                .bg(WARN_BG)
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(10.0))
+                        .child(div().flex_1().text_size(px(10.5)).text_color(WARN_INK).child(t!("plugin-page-needs-install")))
+                        .child(
+                            div()
+                                .id("btn-plugin-install-page")
+                                .px(px(10.0))
+                                .py(px(4.0))
+                                .border_1()
+                                .border_color(WARN)
+                                .text_color(WARN)
+                                .text_size(px(10.5))
+                                .font_weight(FontWeight::BOLD)
+                                .when(!running, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _w, cx| app_install.update(cx, |this, cx| this.run_plugin_setup(&id, cx))))
+                                .child(if running { t!("settings-user-plugins-installing") } else { t!("settings-user-plugins-install") }),
+                        ),
+                )
+                .children(slot.map(|s| console(&d.plugin.id, crate::app::user_plugins::SETUP, crate::app::user_plugins::HERE, s, app_console.clone())))
+        }))
         .child(
             div()
                 .id("plugin-page-scroll")

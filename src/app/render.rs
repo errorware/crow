@@ -503,7 +503,8 @@ impl Render for CrowApp {
                                                                 match (plugin, page) {
                                                                     (Some(plugin), Some(page)) => {
                                                                         let runs = self.vault.db().lock().ok().and_then(|db| db.list_plugin_runs(pid, Some(&server_id), 20).ok()).unwrap_or_default();
-                                                                        let data = crate::views::plugin_page::PageData { plugin, page, server_id: &server_id, state: &self.plugins.user, runs };
+                                                                        let needs_install = plugin.report.manifest.as_ref().is_some_and(|m| m.setup.is_some()) && self.user_plugin_setup_hash(pid).as_deref() != Some(plugin.hash.as_str());
+                                                                        let data = crate::views::plugin_page::PageData { plugin, page, server_id: &server_id, state: &self.plugins.user, runs, needs_install };
                                                                         Some(div().size_full().child(crate::views::plugin_page::plugin_page(data, app_view.clone())))
                                                                     }
                                                                     _ => Some(div().size_full().p(px(20.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_DIM).child(t!("plugin-page-not-accepted"))),

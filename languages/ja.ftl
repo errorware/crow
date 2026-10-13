@@ -449,6 +449,8 @@ app-user-plugins-dry-run-still-going = ドライランはまだ実行中です�
 app-user-plugins-dry-run-failed = ドライランが失敗しました。実行する前に出力を確認してください。
 app-user-plugins-type-keyword = 実行するには { $keyword } と入力してください。
 app-user-plugins-stopped = 停止
+app-user-plugins-needs-install = まずこのプラグインをインストールしてください (インストール)。このファイルでセットアップがまだ実行されていません。
+app-user-plugins-missing-here = このマシンに必要: { $names }
 
 ## app-providers
 app-providers-set-type-to-replace = 設定済み · 入力すると置き換え
@@ -2756,6 +2758,12 @@ settings-user-plugins-accept = 承認
 settings-user-plugins-refuse = 拒否
 settings-user-plugins-revoke = 承認を取り消す
 settings-user-plugins-confirm-explain = 承認すると、このプラグインは上のコマンドをサーバーで実行できるようになります (記載があれば root として)。実行するのは、あなたかフリート実行が開始したときです。承認するには「確定: 承認」を押してください。
+settings-user-plugins-install = インストール
+settings-user-plugins-reinstall = 再インストール
+settings-user-plugins-installing = インストール中…
+settings-user-plugins-setup-heading = このマシンでのセットアップ
+settings-user-plugins-installed-for-these = このファイルでインストール済み。
+settings-user-plugins-not-installed = 未インストール: このマシンでのアクションはインストールを待っています。
 plugin-page-just-now = たった今
 plugin-page-minutes-ago = { $n } 分前
 plugin-page-hours-ago = { $n } 時間前
@@ -2783,6 +2791,8 @@ plugin-page-dry-run-needed = 先に実行してください。「実行」は同
 plugin-page-type-to-confirm = 確認するには { $keyword } と入力
 plugin-page-run = 実行 · { $label }
 plugin-page-cancel = キャンセル
+plugin-page-needs-install = このプラグインはこのマシンで実行するため、先にセットアップが必要です。
+plugin-local-lab-container = { $name } はラボコンテナーです。このマシンでのアクションは SSH でサーバーに接続しますが、このコンテナーにはありません。
 
 ## settings-providers
 settings-providers-providers-where-your-servers-live = プロバイダー · サーバーの所在地

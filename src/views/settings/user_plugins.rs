@@ -72,7 +72,10 @@ pub fn user_plugins_section(state: &UserPluginsState, app: Entity<CrowApp>) -> i
                 .border_1()
                 .border_color(if open { BORDER_STRONG } else { BORDER_PANEL })
                 .child(row(i, p, open, app.clone()))
-                .when(open, |d| d.child(review(p, confirming, app.clone())))
+                .when(open, |d| {
+                    let setup = (state.slot(&p.id, crate::app::user_plugins::SETUP, crate::app::user_plugins::HERE), state.setup_hashes.get(&p.id) == Some(&p.hash));
+                    d.child(review(p, confirming, setup, app.clone()))
+                })
         }))
 }
 
@@ -227,7 +230,35 @@ fn manifest_parts(m: &Manifest) -> Vec<AnyElement> {
     out
 }
 
-fn review(p: &Installed, confirming: bool, app: Entity<CrowApp>) -> impl IntoElement {
+/// INSTALL / REINSTALL for a plugin's setup, whether it's done for these
+/// files, and its console while it runs.
+fn install_row(p: &Installed, setup: (Option<&crate::app::user_plugins::RunSlot>, bool), app: Entity<CrowApp>) -> impl IntoElement {
+    let (slot, installed) = setup;
+    let running = slot.is_some_and(|s| s.running);
+    let id = p.id.clone();
+    let app_console = app.clone();
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(6.0))
+        .child(heading(t!("settings-user-plugins-setup-heading")))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(10.0))
+                .child(div().text_size(px(10.5)).text_color(if installed { OK } else { WARN }).child(if installed { t!("settings-user-plugins-installed-for-these") } else { t!("settings-user-plugins-not-installed") }))
+                .child(div().flex_1())
+                .child(
+                    button("btn-install-plugin", if running { t!("settings-user-plugins-installing") } else if installed { t!("settings-user-plugins-reinstall") } else { t!("settings-user-plugins-install") }, if installed { TEXT_SECONDARY } else { WARN })
+                        .when(!running, |d| d.on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.run_plugin_setup(&id, cx)))),
+                ),
+        )
+        .children(slot.map(|s| crate::views::plugin_page::console(&p.id, crate::app::user_plugins::SETUP, crate::app::user_plugins::HERE, s, app_console.clone())))
+}
+
+fn review(p: &Installed, confirming: bool, state_setup: (Option<&crate::app::user_plugins::RunSlot>, bool), app: Entity<CrowApp>) -> impl IntoElement {
+    let app_install = app.clone();
     let r = &p.report;
     let (app_accept, app_refuse, app_revoke, app_open) = (app.clone(), app.clone(), app.clone(), app);
     let (id_accept, id_refuse, id_revoke) = (p.id.clone(), p.id.clone(), p.id.clone());
@@ -258,6 +289,7 @@ fn review(p: &Installed, confirming: bool, app: Entity<CrowApp>) -> impl IntoEle
         .when(!r.refusals.is_empty(), |d| {
             d.child(heading(t!("settings-user-plugins-refused-heading"))).children(r.refusals.iter().map(|w| div().text_size(px(10.0)).text_color(CRIT).child(w.clone())))
         })
+        .when(p.trust == Trust::Accepted && r.manifest.as_ref().is_some_and(|m| m.setup.is_some()), |d| d.child(install_row(p, state_setup, app_install)))
         .child(heading(t!("settings-user-plugins-files")))
         .child(div().text_size(px(10.0)).text_color(TEXT_DIM).child(files))
         .child(div().text_size(px(9.5)).text_color(TEXT_FAINT).child(p.hash.clone()))

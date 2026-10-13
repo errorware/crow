@@ -12,7 +12,16 @@ use gpui_kit::*;
 use super::CrowApp;
 use crate::plugin_host::folder::{self, Installed, Pin, Trust};
 use crate::plugin_host::manifest::{BlockKind, Effect, FieldKind, Place, Runs};
+use crate::plugin_host::local;
 use crate::plugin_host::run::{self, RunResult, ServerValues, Values};
+
+/// One run, ready to go on a background thread: lines to the sink, stops
+/// when the flag is set.
+type Job = Box<dyn FnOnce(&mut dyn FnMut(bool, &str), &AtomicBool) -> RunResult + Send>;
+
+/// The run slot a plugin's setup uses.
+pub const SETUP: &str = "__setup";
+pub const HERE: &str = "__here";
 use crate::vault::{ChangeRecord, PluginRun, AUDIT_SERVER_ID};
 
 /// The last run of one action on one server, and the one going, if any.
@@ -90,6 +99,8 @@ pub struct UserPluginsState {
     pub runs: HashMap<RunKey, RunSlot>,
     /// The action whose output is shown under a page's buttons.
     pub shown_output: Option<RunKey>,
+    /// Per plugin, the files its setup last succeeded with (their hash).
+    pub setup_hashes: HashMap<String, String>,
     pub pending: Option<PendingRun>,
     pub pending_inputs: Vec<(String, Entity<InputState>)>,
     pub keyword_input: Option<Entity<InputState>>,
@@ -314,11 +325,6 @@ impl CrowApp {
         }
         let Some(m) = now.report.manifest.clone() else { return };
         let Some(action) = m.actions.iter().find(|a| a.id == action_id).cloned() else { return };
-        if action.on != Runs::Server {
-            fail(self, t!("app-user-plugins-later-stage").to_string());
-            cx.notify();
-            return;
-        }
         // Only a confirmed run changes anything: never a page's own read.
         if action.effect != Effect::Read && mode != RunMode::Pressed {
             return;
@@ -358,14 +364,66 @@ impl CrowApp {
                 _ => {}
             }
         }
-        let values = Values { inputs: values_in.clone(), settings, secrets, server: Some(ServerValues { name: server.name.clone(), host: server.host.clone(), user: server.login_user.clone(), port: server.port }) };
         let nonce = run::nonce();
-        let program = match run::remote_program(&action, &m.requires.server, &now.dir, &values, &nonce) {
-            Ok(p) => p,
-            Err(e) => {
-                fail(self, e);
-                cx.notify();
-                return;
+        let timeout = std::time::Duration::from_secs(action.timeout.0);
+        let job: Job = match action.on {
+            Runs::Server => {
+                let values = Values { inputs: values_in.clone(), settings, secrets, server: Some(ServerValues { name: server.name.clone(), host: server.host.clone(), user: server.login_user.clone(), port: server.port }), local: None };
+                let program = match run::remote_program(&action, &m.requires.server, &now.dir, &values, &nonce) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        fail(self, e);
+                        cx.notify();
+                        return;
+                    }
+                };
+                let host = crate::host::host_for(&server);
+                let root = action.root;
+                Box::new(move |sink, stop| run::run_streaming(host.as_ref(), &program, root, timeout, &nonce, sink, stop))
+            }
+            Runs::Local => {
+                if m.setup.is_some() && self.user_plugin_setup_hash(plugin_id).as_deref() != Some(now.hash.as_str()) {
+                    fail(self, t!("app-user-plugins-needs-install").to_string());
+                    cx.notify();
+                    return;
+                }
+                let missing = local::missing_here(&m.requires.local);
+                if !missing.is_empty() {
+                    fail(self, t!("app-user-plugins-missing-here", names = missing.join(", ")));
+                    cx.notify();
+                    return;
+                }
+                let data_dir = local::data_dir(plugin_id);
+                let prepared = local::run_dir(&data_dir, &nonce).and_then(|rd| {
+                    let (inventory, ssh_config) = local::write_targets(&rd, std::slice::from_ref(&server))?;
+                    let paths = local::LocalPaths { plugin_dir: now.dir.clone(), data_dir: data_dir.clone(), inventory, ssh_config, results: rd.join("results") };
+                    let values = Values { inputs: values_in.clone(), settings, secrets, server: None, local: Some(paths.clone()) };
+                    let env = local::environment(&data_dir, &rd, &action.env, &values)?;
+                    let argv = local::argv(action.command.as_deref(), action.script.as_deref(), action.interpreter, &action.args, &now.dir, &values)?;
+                    Ok((rd, paths, env, argv))
+                });
+                let (rd, paths, env, argv) = match prepared {
+                    Ok(p) => p,
+                    Err(e) => {
+                        let _ = std::fs::remove_dir_all(local::data_dir(plugin_id).join("runs").join(&nonce));
+                        fail(self, e);
+                        cx.notify();
+                        return;
+                    }
+                };
+                let host_alias = local::alias(&server);
+                Box::new(move |sink, stop| {
+                    let mut r = local::run(&argv, &paths.data_dir, &env, timeout, sink, stop);
+                    // What the program said about this server, if it wrote results.
+                    r.per_host = local::read_results(&paths.results);
+                    if let Some(mine) = r.per_host.iter().find(|h| h["host"] == host_alias.as_str()) {
+                        if mine.get("ok").and_then(|o| o.as_bool()) == Some(false) {
+                            r.ok = false;
+                        }
+                    }
+                    let _ = std::fs::remove_dir_all(&rd);
+                    r
+                })
             }
         };
         let live: Arc<Mutex<Vec<(bool, String)>>> = Arc::default();
@@ -373,9 +431,7 @@ impl CrowApp {
         let previous = self.plugins.user.runs.remove(&key).and_then(|s| s.last);
         self.plugins.user.runs.insert(key.clone(), RunSlot { running: true, last: previous, pressed: mode != RunMode::Auto, live: live.clone(), stop: stop.clone() });
         cx.notify();
-        let host = crate::host::host_for(&server);
-        let timeout = std::time::Duration::from_secs(action.timeout.0);
-        let (root, hash, plugin_name) = (action.root, now.hash.clone(), now.name().to_string());
+        let (hash, plugin_name) = (now.hash.clone(), now.name().to_string());
         let output = action.output.clone();
         let keeps_log = action.effect != Effect::Read;
         let detail = if values_in.is_empty() { String::new() } else { values_in.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join(" ") };
@@ -411,7 +467,7 @@ impl CrowApp {
                             }
                         }
                     };
-                    run::run_streaming(host.as_ref(), &program, root, timeout, &nonce, &mut sink, &run_stop)
+                    job(&mut sink, &run_stop)
                 })
                 .await;
             let _ = entity.update(cx, |this, cx| {
@@ -457,6 +513,132 @@ impl CrowApp {
         .detach();
     }
 
+    /// The plugin files whose setup last succeeded (their hash).
+    pub fn user_plugin_setup_hash(&self, id: &str) -> Option<String> {
+        let db = self.vault.db();
+        let db = db.lock().ok()?;
+        db.flag(&format!("user_plugin.{id}.setup")).filter(|s| !s.is_empty())
+    }
+
+    /// INSTALL: the plugin's setup, on this machine, in its data folder.
+    /// Its actions on this machine wait until it succeeds with these files.
+    pub fn run_plugin_setup(&mut self, plugin_id: &str, cx: &mut Context<Self>) {
+        if !self.allowed(crate::team::Permission::Vault, None, cx) {
+            return;
+        }
+        let key: RunKey = (plugin_id.to_string(), SETUP.to_string(), HERE.to_string());
+        if self.plugins.user.runs.get(&key).is_some_and(|s| s.running) {
+            return;
+        }
+        let fail = |this: &mut CrowApp, why: String, cx: &mut Context<Self>| {
+            this.plugins.user.runs.insert(key.clone(), RunSlot { last: Some(RunResult::failed(why)), ..Default::default() });
+            cx.notify();
+        };
+        let Some(shown) = self.plugins.user.get(plugin_id).cloned() else { return };
+        let now = folder::load(&shown.dir, &self.user_plugin_pin(plugin_id));
+        if now.trust != Trust::Accepted {
+            return fail(self, t!("app-user-plugins-not-accepted-now").to_string(), cx);
+        }
+        let Some(setup) = now.report.manifest.as_ref().and_then(|m| m.setup.clone()) else { return };
+        let missing = local::missing_here(&now.report.manifest.as_ref().map(|m| m.requires.local.clone()).unwrap_or_default());
+        if !missing.is_empty() {
+            return fail(self, t!("app-user-plugins-missing-here", names = missing.join(", ")), cx);
+        }
+        let (settings, secrets, _) = run::settings_values(&now.report.manifest.as_ref().map(|m| m.settings.clone()).unwrap_or_default(), &BTreeMap::new());
+        let nonce = run::nonce();
+        let data_dir = local::data_dir(plugin_id);
+        let prepared = local::run_dir(&data_dir, &nonce).and_then(|rd| {
+            let paths = local::LocalPaths { plugin_dir: now.dir.clone(), data_dir: data_dir.clone(), ..Default::default() };
+            let values = Values { settings, secrets, local: Some(paths), ..Default::default() };
+            let env = local::environment(&data_dir, &rd, &setup.env, &values)?;
+            let argv = local::argv(setup.command.as_deref(), setup.script.as_deref(), setup.interpreter, &setup.args, &now.dir, &values)?;
+            Ok((rd, env, argv))
+        });
+        let (rd, env, argv) = match prepared {
+            Ok(p) => p,
+            Err(e) => return fail(self, e, cx),
+        };
+        let live: Arc<Mutex<Vec<(bool, String)>>> = Arc::default();
+        let stop: Arc<AtomicBool> = Arc::default();
+        self.plugins.user.runs.insert(key.clone(), RunSlot { running: true, pressed: true, live: live.clone(), stop: stop.clone(), ..Default::default() });
+        cx.notify();
+        let timeout = std::time::Duration::from_secs(setup.timeout.0);
+        let (hash, name, id) = (now.hash.clone(), now.name().to_string(), plugin_id.to_string());
+        let pump = live.clone();
+        cx.spawn(async move |entity, cx| loop {
+            cx.background_executor().timer(std::time::Duration::from_millis(200)).await;
+            let going = entity.update(cx, |this, cx| {
+                cx.notify();
+                this.plugins.user.runs.values().any(|s| s.running && Arc::ptr_eq(&s.live, &pump))
+            });
+            if !going.unwrap_or(false) {
+                break;
+            }
+        })
+        .detach();
+        cx.spawn(async move |entity, cx| {
+            let (sink_live, run_stop, dir) = (live.clone(), stop.clone(), data_dir.clone());
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    let mut sink = |is_err: bool, line: &str| {
+                        if let Ok(mut l) = sink_live.lock() {
+                            if l.len() < 20_000 {
+                                l.push((is_err, line.to_string()));
+                            }
+                        }
+                    };
+                    let r = local::run(&argv, &dir, &env, timeout, &mut sink, &run_stop);
+                    let _ = std::fs::remove_dir_all(&rd);
+                    r
+                })
+                .await;
+            let _ = entity.update(cx, |this, cx| {
+                if let Ok(db) = this.vault.db().lock() {
+                    if result.ok {
+                        let _ = db.set_flag(&format!("user_plugin.{id}.setup"), &hash);
+                    }
+                }
+                if result.ok {
+                    this.plugins.user.setup_hashes.insert(id.clone(), hash.clone());
+                }
+                if let Ok(db) = this.vault.db().lock() {
+                    let _ = db.insert_plugin_run(&PluginRun {
+                        plugin_id: id.clone(),
+                        action_id: SETUP.into(),
+                        server_id: HERE.into(),
+                        started_at: result.started_at,
+                        finished_at: result.finished_at,
+                        ok: result.ok,
+                        exit_code: result.exit_code,
+                        summary: if result.stopped { t!("app-user-plugins-stopped").to_string() } else { run::summary(&Default::default(), &result) },
+                        output_bytes: result.output_bytes(),
+                        plugin_hash: hash.clone(),
+                        dry_run: false,
+                        stopped: result.stopped,
+                        log: cap_log(&result),
+                    });
+                    let _ = db.insert_change_record(&ChangeRecord {
+                        id: format!("chg_{}", chrono::Local::now().timestamp_micros()),
+                        server_id: AUDIT_SERVER_ID.to_string(),
+                        server_name: "Crow".to_string(),
+                        action_kind: "plugin.setup".into(),
+                        target: name.clone(),
+                        before_state: hash.clone(),
+                        after_state: result.error.clone(),
+                        blast_radius: None,
+                        outcome: if result.ok { "success" } else { "failed" }.to_string(),
+                        started_at: chrono::Utc::now().to_rfc3339(),
+                        completed_at: None,
+                    });
+                }
+                this.plugins.user.runs.insert(key, RunSlot { last: Some(result), ..Default::default() });
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
     fn user_plugin_pin(&self, id: &str) -> Pin {
         let db = self.vault.db();
         let Ok(db) = db.lock() else { return Pin::default() };
@@ -478,6 +660,9 @@ impl CrowApp {
                 let mut found = found;
                 for p in &mut found {
                     p.trust = folder::trust(&p.report, &p.hash, &this.user_plugin_pin(&p.id));
+                    if let Some(h) = this.user_plugin_setup_hash(&p.id) {
+                        this.plugins.user.setup_hashes.insert(p.id.clone(), h);
+                    }
                 }
                 this.plugins.user.installed = found;
                 this.plugins.user.scanning = false;

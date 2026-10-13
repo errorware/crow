@@ -455,6 +455,8 @@ app-user-plugins-dry-run-still-going = El ensayo sigue en marcha.
 app-user-plugins-dry-run-failed = El ensayo falló: mira su salida antes de ejecutar esto.
 app-user-plugins-type-keyword = Escribe { $keyword } para ejecutarlo.
 app-user-plugins-stopped = detenido
+app-user-plugins-needs-install = Instala primero este plugin (INSTALAR): su instalación no se ha ejecutado con estos archivos.
+app-user-plugins-missing-here = Necesita en esta máquina: { $names }
 
 ## app-providers
 app-providers-set-type-to-replace = configurado · escribe para sustituirlo
@@ -2798,6 +2800,12 @@ settings-user-plugins-accept = ACEPTAR
 settings-user-plugins-refuse = RECHAZAR
 settings-user-plugins-revoke = RETIRAR
 settings-user-plugins-confirm-explain = Aceptarlo permite que este plugin ejecute los comandos de arriba en tus servidores, como root donde lo indica, cuando tú o una ejecución en la flota los inicie. Pulsa CONFIRMAR: ACEPTAR para aceptarlo.
+settings-user-plugins-install = INSTALAR
+settings-user-plugins-reinstall = REINSTALAR
+settings-user-plugins-installing = INSTALANDO…
+settings-user-plugins-setup-heading = INSTALACIÓN EN ESTA MÁQUINA
+settings-user-plugins-installed-for-these = Instalado para estos archivos.
+settings-user-plugins-not-installed = Sin instalar: sus acciones en esta máquina esperan a INSTALAR.
 plugin-page-just-now = ahora mismo
 plugin-page-minutes-ago = hace { $n } min
 plugin-page-hours-ago = hace { $n } h
@@ -2825,6 +2833,8 @@ plugin-page-dry-run-needed = Hazlo primero; EJECUTAR usa los mismos valores.
 plugin-page-type-to-confirm = Escribe { $keyword } para confirmar
 plugin-page-run = EJECUTAR · { $label }
 plugin-page-cancel = CANCELAR
+plugin-page-needs-install = Este plugin ejecuta cosas en esta máquina y necesita su instalación primero.
+plugin-local-lab-container = { $name } es un contenedor de laboratorio: las acciones en esta máquina llegan a los servidores por SSH, y no tiene.
 
 ## settings-providers
 settings-providers-providers-where-your-servers-live = PROVEEDORES · DÓNDE VIVEN TUS SERVIDORES

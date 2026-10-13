@@ -527,6 +527,35 @@ impl SshHost {
         self.args.push(self.dest.0.clone());
     }
 
+    /// This connection as an `ssh_config` block named `alias`, for a program
+    /// on this machine that reaches the server itself (ERR-180): the same
+    /// options, key file, port, user and bastions Crow uses. The key's path
+    /// is written, never its contents.
+    pub fn ssh_config_block(&self, alias: &str) -> Result<String, String> {
+        if let Some(why) = &self.unsupported {
+            return Err(why.clone());
+        }
+        let q = |v: &str| if v.contains([' ', '\t', '"']) { format!("\"{}\"", v.replace('"', "\\\"")) } else { v.to_string() };
+        let mut out = format!("Host {alias}\n    HostName {}\n", self.dest.0);
+        let mut it = self.args.iter();
+        while let Some(a) = it.next() {
+            match a.as_str() {
+                "--" => break,
+                "-p" => out.push_str(&format!("    Port {}\n", it.next().cloned().unwrap_or_default())),
+                "-l" => out.push_str(&format!("    User {}\n", q(it.next().map(String::as_str).unwrap_or_default()))),
+                "-i" => out.push_str(&format!("    IdentityFile {}\n", q(it.next().map(String::as_str).unwrap_or_default()))),
+                "-o" => {
+                    let Some((k, v)) = it.next().and_then(|o| o.split_once('=')) else { continue };
+                    // A command line goes in as written; ssh_config takes the rest of the line.
+                    let v = if k == "ProxyCommand" { v.to_string() } else { q(v) };
+                    out.push_str(&format!("    {k} {v}\n"));
+                }
+                _ => {}
+            }
+        }
+        Ok(out)
+    }
+
     /// The bastions on the way to this server, nearest first.
     pub fn chain(&self) -> &[Hop] {
         &self.chain
