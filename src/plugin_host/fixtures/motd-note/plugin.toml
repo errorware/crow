@@ -85,3 +85,16 @@ actions = ["current", "write", "count"]
 
 [[page.block]]
 kind = "runs"
+
+[[page]]
+id = "note-fleet"
+label = "Login note"
+icon = "file-text"
+where = "fleet"
+
+[[page.block]]
+kind = "actions"
+actions = ["current", "write"]
+
+[[page.block]]
+kind = "runs"

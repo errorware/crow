@@ -22,7 +22,7 @@ type Job = Box<dyn FnOnce(&mut dyn FnMut(bool, &str), &AtomicBool) -> RunResult 
 /// The run slot a plugin's setup uses.
 pub const SETUP: &str = "__setup";
 pub const HERE: &str = "__here";
-use crate::vault::{ChangeRecord, PluginRun, AUDIT_SERVER_ID};
+use crate::vault::{ChangeRecord, PluginRun, ServerRecord, AUDIT_SERVER_ID};
 
 /// The last run of one action on one server, and the one going, if any.
 #[derive(Debug, Clone, Default)]
@@ -55,6 +55,8 @@ pub struct PendingRun {
     /// The values the dry run last ran with: RUN needs the same.
     pub dry_ran_with: Option<BTreeMap<String, String>>,
     pub error: Option<String>,
+    /// From a fleet page: RUN plans a fleet run; the dry run is on the canary.
+    pub fleet: bool,
 }
 
 /// The log kept with a change: its output, at most 256 KB.
@@ -102,6 +104,8 @@ pub struct UserPluginsState {
     /// Per plugin, the files its setup last succeeded with (their hash).
     pub setup_hashes: HashMap<String, String>,
     pub pending: Option<PendingRun>,
+    /// Where fleet pages' actions go.
+    pub fleet: super::user_plugin_fleet::PluginFleetState,
     pub pending_inputs: Vec<(String, Entity<InputState>)>,
     pub keyword_input: Option<Entity<InputState>>,
 }
@@ -115,6 +119,16 @@ impl UserPluginsState {
 impl UserPluginsState {
     pub fn slot(&self, plugin: &str, action: &str, server: &str) -> Option<&RunSlot> {
         self.runs.get(&(plugin.to_string(), action.to_string(), server.to_string()))
+    }
+
+    /// Fleet pages of accepted plugins: (plugin id, page id, label, icon name).
+    pub fn fleet_pages(&self) -> Vec<(String, String, String, Option<String>)> {
+        self.installed
+            .iter()
+            .filter(|p| p.usable())
+            .filter_map(|p| p.report.manifest.as_ref().map(|m| (p, m)))
+            .flat_map(|(p, m)| m.pages.iter().filter(|pg| pg.place == Place::Fleet).map(move |pg| (p.id.clone(), pg.id.clone(), pg.label.clone(), pg.icon.clone())))
+            .collect()
     }
 
     /// Server pages of accepted plugins: (view id, label, icon name).
@@ -168,7 +182,7 @@ impl CrowApp {
             return;
         }
         let picked = action.inputs.iter().filter(|f| !matches!(f.kind, FieldKind::Text | FieldKind::Number)).filter_map(|f| run::default_value(f).map(|d| (f.key.clone(), d))).collect();
-        self.plugins.user.pending = Some(PendingRun { key: (plugin_id.to_string(), action_id.to_string(), server.id.clone()), picked, dry_ran_with: None, error: None });
+        self.plugins.user.pending = Some(PendingRun { key: (plugin_id.to_string(), action_id.to_string(), server.id.clone()), picked, dry_ran_with: None, error: None, fleet: false });
         self.plugins.user.pending_inputs.clear();
         self.plugins.user.keyword_input = None;
         cx.notify();
@@ -241,17 +255,19 @@ impl CrowApp {
                 return;
             }
         };
-        let plugin = self.plugins.user.pending.as_ref().map(|p| p.key.0.clone()).unwrap_or_default();
+        let (plugin, server_id) = self.plugins.user.pending.as_ref().map(|p| (p.key.0.clone(), p.key.2.clone())).unwrap_or_default();
         if let Some(p) = self.plugins.user.pending.as_mut() {
             p.dry_ran_with = Some(values.clone());
             p.error = None;
         }
-        self.start_plugin_run(&plugin, &dry, values, RunMode::DryRun, cx);
+        if let Some(server) = self.fleet.servers.iter().find(|s| s.id == server_id).cloned() {
+            self.start_plugin_run_on(server, &plugin, &dry, values, RunMode::DryRun, cx);
+        }
     }
 
     /// RUN on the confirm panel: after the dry run (if there is one) with
     /// these same values, and the keyword for a danger action.
-    pub fn confirm_plugin_run(&mut self, cx: &mut Context<Self>) {
+    pub fn confirm_plugin_run(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(action) = self.pending_action() else { return };
         let Some(p) = self.plugins.user.pending.clone() else { return };
         let fail = |this: &mut CrowApp, e: String, cx: &mut Context<Self>| {
@@ -284,7 +300,11 @@ impl CrowApp {
             }
         }
         self.cancel_plugin_run(cx);
-        self.start_plugin_run(&p.key.0, &p.key.1, values, RunMode::Pressed, cx);
+        if p.fleet {
+            self.plan_plugin_fleet_run(&p.key.0, &p.key.1, values, window, cx);
+        } else {
+            self.start_plugin_run(&p.key.0, &p.key.1, values, RunMode::Pressed, cx);
+        }
     }
 
     pub fn stop_plugin_run(&mut self, plugin: &str, action: &str, server: &str, cx: &mut Context<Self>) {
@@ -299,6 +319,12 @@ impl CrowApp {
     /// run history only; pressed runs and dry runs go in the audit log too.
     pub fn start_plugin_run(&mut self, plugin_id: &str, action_id: &str, inputs: BTreeMap<String, String>, mode: RunMode, cx: &mut Context<Self>) {
         let Some(server) = self.fleet.active_server() else { return };
+        self.start_plugin_run_on(server, plugin_id, action_id, inputs, mode, cx);
+    }
+
+    /// `start_plugin_run` on a given server (a fleet action's dry run goes
+    /// to its canary).
+    pub fn start_plugin_run_on(&mut self, server: ServerRecord, plugin_id: &str, action_id: &str, inputs: BTreeMap<String, String>, mode: RunMode, cx: &mut Context<Self>) {
         let key: RunKey = (plugin_id.to_string(), action_id.to_string(), server.id.clone());
         if mode != RunMode::Auto {
             self.plugins.user.shown_output = Some(key.clone());
@@ -639,7 +665,7 @@ impl CrowApp {
         .detach();
     }
 
-    fn user_plugin_pin(&self, id: &str) -> Pin {
+    pub(crate) fn user_plugin_pin(&self, id: &str) -> Pin {
         let db = self.vault.db();
         let Ok(db) = db.lock() else { return Pin::default() };
         Pin { accepted: db.flag(&folder::accepted_flag(id)).filter(|s| !s.is_empty()), refused: db.flag(&folder::refused_flag(id)).filter(|s| !s.is_empty()) }

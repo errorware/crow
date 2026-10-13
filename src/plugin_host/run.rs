@@ -352,13 +352,21 @@ pub fn summary(out: &Output, r: &RunResult) -> String {
         .and_then(|p| r.stdout.lines().find(|l| l.trim_start().starts_with(p)))
         .or_else(|| (out.format == OutputFormat::Lines).then(|| r.stdout.lines().find(|l| !l.trim().is_empty())).flatten())
         .map(|l| l.trim().to_string());
+    let last_err = r.stderr.lines().rev().find(|l| !l.trim().is_empty()).map(|l| l.trim().to_string());
     let text = match (&r.error, line) {
         (Some(e), _) => e.lines().next().unwrap_or_default().to_string(),
+        // A failure is better told by what it said went wrong.
+        (None, _) if !r.ok && out_named_no_line(out, r) && last_err.is_some() => last_err.unwrap_or_default(),
         (None, Some(l)) => l,
         (None, None) if r.ok => String::new(),
         (None, None) => r.stderr.lines().rev().find(|l| !l.trim().is_empty()).unwrap_or_default().trim().to_string(),
     };
     text.chars().take(200).collect()
+}
+
+/// The plugin didn't name a summary line that appears in this output.
+fn out_named_no_line(out: &Output, r: &RunResult) -> bool {
+    out.summary_prefix.as_deref().is_none_or(|p| !r.stdout.lines().any(|l| l.trim_start().starts_with(p)))
 }
 
 fn at_path<'a>(v: &'a serde_json::Value, path: Option<&str>) -> Option<&'a serde_json::Value> {
@@ -642,6 +650,9 @@ mod tests {
         assert_eq!(summary(&m.actions[0].output, &r), "host unreachable: timed out");
         let r = RunResult { exit_code: Some(1), stderr: "Fatal: wrong password\n".into(), ..Default::default() };
         assert_eq!(summary(&m.actions[0].output, &r), "Fatal: wrong password");
+        let lines = manifest::Output::default();
+        let r = RunResult { exit_code: Some(1), stdout: "making /etc/motd.d\n".into(), stderr: "mkdir: can't create directory '/etc/motd.d': File exists\n".into(), ..Default::default() };
+        assert_eq!(summary(&lines, &r), "mkdir: can't create directory '/etc/motd.d': File exists");
         assert_eq!(quote("it's"), "'it'\\''s'");
     }
 }

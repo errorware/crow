@@ -9,7 +9,7 @@ use crate::components::icons::{TablerIcon, tabler_icon};
 
 /// Fleet configuration: a side menu of the pages that change how the fleet
 /// runs. `map`: the chosen page's content; None draws GROUPS & POLICIES.
-pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_pages: Vec<(String, String, String, Option<String>)>, app: Entity<CrowApp>) -> impl IntoElement {
     let on_map = map.is_some();
     let servers = &fleet.servers;
     let total_servers = servers.len();
@@ -485,7 +485,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, app: Entity
         .flex_col()
         .bg(BG_APP)
         .child(screen_header(t!("fleet-setup-fleet-configuration"), t!("fleet-setup-fleet-configuration-about"), app.clone()))
-        .child(div().flex_1().min_h(px(0.0)).flex().child(setup_nav(fleet.setup_page, app)).child(content))
+        .child(div().flex_1().min_h(px(0.0)).flex().child(setup_nav(fleet.setup_page, fleet.plugin_page.as_ref(), plugin_pages, app)).child(content))
 }
 
 fn render_policy_row(label: &'static str, count: usize, color: Rgba) -> impl IntoElement {
@@ -553,7 +553,7 @@ fn screen_header(title: &'static str, about: &'static str, app: Entity<CrowApp>)
 }
 
 /// Fleet configuration's side menu, in groups.
-fn setup_nav(page: crate::views::fleet::state::SetupPage, app: Entity<CrowApp>) -> impl IntoElement {
+fn setup_nav(page: crate::views::fleet::state::SetupPage, plugin_page: Option<&(String, String)>, plugin_pages: Vec<(String, String, String, Option<String>)>, app: Entity<CrowApp>) -> impl IntoElement {
     use crate::views::fleet::state::SetupPage;
     let groups: [(&'static str, Vec<(&'static str, TablerIcon, &'static str, SetupPage)>); 4] = [
         (t!("fleet-setup-nav-change"), vec![
@@ -619,6 +619,32 @@ fn setup_nav(page: crate::views::fleet::state::SetupPage, app: Entity<CrowApp>) 
                 .child(div().px(px(14.0)).pt(px(8.0)).pb(px(4.0)).truncate().text_size(px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(heading))
                 .children(items.into_iter().map(|(id, icon, label, to)| item(id, icon, label, to)))
         }))
+        // User plugins' fleet pages (ERR-181).
+        .when(!plugin_pages.is_empty(), |d| {
+            d.child(div().px(px(14.0)).pt(px(8.0)).pb(px(4.0)).truncate().text_size(px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(t!("fleet-setup-nav-plugins")))
+                .children(plugin_pages.into_iter().enumerate().map(|(i, (plugin, pg, label, icon))| {
+                    let on = page == SetupPage::Plugin && plugin_page.is_some_and(|(p, g)| *p == plugin && *g == pg);
+                    let app = app.clone();
+                    div()
+                        .id(("setup-plugin-page", i))
+                        .h(px(30.0))
+                        .flex()
+                        .items_center()
+                        .gap(px(9.0))
+                        .px(px(14.0))
+                        .border_l_2()
+                        .border_color(if on { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
+                        .when(on, |d| d.bg(BG_ROW_SELECTED))
+                        .text_size(px(11.0))
+                        .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
+                        .text_color(if on { TEXT_PRIMARY } else { TEXT_TERTIARY })
+                        .cursor_pointer()
+                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                        .on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.open_plugin_fleet_page(&plugin, &pg, cx)))
+                        .child(tabler_icon(icon.as_deref().map_or(TablerIcon::Box, TablerIcon::from_name)).size(px(14.0)).flex_none().text_color(if on { TEXT_PRIMARY } else { TEXT_DIMMER }))
+                        .child(div().min_w(px(0.0)).truncate().child(label))
+                }))
+        })
 }
 
 /// Topology & DR: the fleet map and recovery plans, as two tabs.

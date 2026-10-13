@@ -46,3 +46,16 @@ actions = ["reach"]
 
 [[page.block]]
 kind = "runs"
+
+[[page]]
+id = "reach-fleet"
+label = "Reach over SSH"
+icon = "network"
+where = "fleet"
+
+[[page.block]]
+kind = "actions"
+actions = ["reach"]
+
+[[page.block]]
+kind = "runs"
