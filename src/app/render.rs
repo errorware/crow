@@ -49,6 +49,9 @@ impl Render for CrowApp {
         if self.screen == Screen::Settings && self.settings.section == super::SettingsSection::Plugins && self.plugin_enabled("email") {
             self.ensure_email_inputs(window, cx);
         }
+        if self.plugins.user.pending.is_some() {
+            self.ensure_plugin_inputs(window, cx);
+        }
         if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Patching {
             self.ensure_window_inputs(window, cx);
         }

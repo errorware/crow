@@ -444,6 +444,11 @@ app-user-plugins-not-accepted-now = 承認後にこのプラグインのファ�
 app-user-plugins-later-stage = サーバーを変更するアクションや、このマシンで実行するアクションは、今後のバージョンで使えるようになります。
 app-user-plugins-needs-settings = 設定が必要です: { $names }
 app-user-plugins-needs-input = { $name } の値が必要です
+app-user-plugins-dry-run-first = まずこの値でドライランを実行してください。
+app-user-plugins-dry-run-still-going = ドライランはまだ実行中です。
+app-user-plugins-dry-run-failed = ドライランが失敗しました。実行する前に出力を確認してください。
+app-user-plugins-type-keyword = 実行するには { $keyword } と入力してください。
+app-user-plugins-stopped = 停止
 
 ## app-providers
 app-providers-set-type-to-replace = 設定済み · 入力すると置き換え
@@ -2766,6 +2771,18 @@ plugin-page-truncated = 出力は 1 MB で切り詰められました。
 plugin-page-from = { $name } { $version } · プラグイン
 plugin-page-refresh = 更新
 plugin-page-not-accepted = このプラグインは承認されていないか、承認後にファイルが変更されました。設定 → プラグインで確認してください。
+plugin-page-dry-run-chip = ドライラン
+plugin-page-stopped-chip = 停止
+plugin-page-running-now = 実行中…
+plugin-page-stopping = 停止中…
+plugin-page-stop = 停止
+plugin-page-danger-title = { $label }: アクセスを失ったりデータを失ったりする可能性があります
+plugin-page-change-title = { $label }: サーバーを変更します
+plugin-page-dry-run = ドライラン · { $label }
+plugin-page-dry-run-needed = 先に実行してください。「実行」は同じ値を使います。
+plugin-page-type-to-confirm = 確認するには { $keyword } と入力
+plugin-page-run = 実行 · { $label }
+plugin-page-cancel = キャンセル
 
 ## settings-providers
 settings-providers-providers-where-your-servers-live = プロバイダー · サーバーの所在地

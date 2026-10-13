@@ -22,6 +22,10 @@ impl Host for LocalHost {
         run_command(argv, stdin, timeout)
     }
 
+    fn exec_streaming(&self, argv: &[&str], stdin: &[u8], timeout: Duration, sink: &mut dyn FnMut(bool, &str), stop: &std::sync::atomic::AtomicBool) -> Result<ExecOutput, HostError> {
+        run_command_streaming(argv, stdin, timeout, &[], sink, stop)
+    }
+
     fn read_file(&self, path: &str) -> Result<String, HostError> {
         Ok(std::fs::read_to_string(path)?)
     }
@@ -156,9 +160,146 @@ pub(super) fn run_command_env(argv: &[&str], stdin: &[u8], timeout: Duration, en
     }
 }
 
+/// `run_command_env`, handing each output line to `sink` as it arrives
+/// (`true` for stderr). Setting `stop` kills the command; it then ends as
+/// `HostError::Io("stopped")`.
+pub(super) fn run_command_streaming(
+    argv: &[&str],
+    stdin: &[u8],
+    timeout: Duration,
+    env: &[(&str, &str)],
+    sink: &mut dyn FnMut(bool, &str),
+    stop: &std::sync::atomic::AtomicBool,
+) -> Result<ExecOutput, HostError> {
+    use std::io::BufRead;
+    use std::sync::atomic::Ordering;
+    let (program, args) = argv.split_first().ok_or_else(|| HostError::Io("empty command".into()))?;
+    let mut child = Command::new(program)
+        .args(args)
+        .envs(env.iter().copied())
+        .stdin(if stdin.is_empty() { Stdio::null() } else { Stdio::piped() })
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()?;
+    let stdin_writer = child.stdin.take().map(|mut pipe| {
+        let data = stdin.to_vec();
+        std::thread::spawn(move || {
+            let _ = pipe.write_all(&data);
+        })
+    });
+    let (tx, rx) = std::sync::mpsc::channel::<(bool, String)>();
+    let reader = |pipe: Option<Box<dyn Read + Send>>, is_err: bool, tx: std::sync::mpsc::Sender<(bool, String)>| {
+        std::thread::spawn(move || {
+            if let Some(p) = pipe {
+                let mut r = std::io::BufReader::new(p);
+                let mut buf = Vec::new();
+                while r.read_until(b'\n', &mut buf).map(|n| n > 0).unwrap_or(false) {
+                    let line = String::from_utf8_lossy(&buf).trim_end_matches(['\n', '\r']).to_string();
+                    if tx.send((is_err, line)).is_err() {
+                        break;
+                    }
+                    buf.clear();
+                }
+            }
+        })
+    };
+    let out_reader = reader(child.stdout.take().map(|p| Box::new(p) as Box<dyn Read + Send>), false, tx.clone());
+    let err_reader = reader(child.stderr.take().map(|p| Box::new(p) as Box<dyn Read + Send>), true, tx);
+
+    let (mut stdout, mut stderr) = (String::new(), String::new());
+    let mut take = |(is_err, line): (bool, String)| {
+        sink(is_err, &line);
+        let into = if is_err { &mut stderr } else { &mut stdout };
+        into.push_str(&line);
+        into.push('\n');
+    };
+    let deadline = Instant::now() + timeout;
+    let mut ended = None;
+    let mut ended_at: Option<Instant> = None;
+    loop {
+        match rx.recv_timeout(Duration::from_millis(20)) {
+            Ok(item) => take(item),
+            Err(std::sync::mpsc::RecvTimeoutError::Disconnected) => break,
+            Err(std::sync::mpsc::RecvTimeoutError::Timeout) => {}
+        }
+        // A child of the command can hold the pipes open after it's gone;
+        // past a short grace, stop waiting for them.
+        if ended_at.is_some_and(|t| t.elapsed() > Duration::from_secs(2)) {
+            break;
+        }
+        if ended.is_some() && ended_at.is_none() {
+            ended_at = Some(Instant::now());
+        }
+        if ended.is_none() {
+            if stop.load(Ordering::Relaxed) {
+                let _ = child.kill();
+                let _ = child.wait();
+                ended = Some(Err(HostError::Io("stopped".into())));
+            } else if Instant::now() >= deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                ended = Some(Err(HostError::Timeout));
+            } else if let Some(status) = child.try_wait()? {
+                ended = Some(Ok(status));
+            }
+        }
+    }
+    for r in [out_reader, err_reader] {
+        if r.is_finished() {
+            let _ = r.join();
+        }
+    }
+    if let Some(w) = stdin_writer {
+        let _ = w.join();
+    }
+    let status = match ended {
+        Some(r) => r?,
+        None => child.wait()?,
+    };
+    if status.success() {
+        Ok(ExecOutput { stdout, stderr })
+    } else {
+        Err(HostError::Failed { status: status.code().unwrap_or(-1), stderr })
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn streaming_hands_over_lines_as_they_come_and_stops() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let stop = AtomicBool::new(false);
+        let mut seen = Vec::new();
+        let out = run_command_streaming(&["sh", "-c", "echo one; echo two >&2; echo three"], &[], Duration::from_secs(5), &[], &mut |e, l| seen.push((e, l.to_string())), &stop).unwrap();
+        assert_eq!(out.stdout, "one\nthree\n");
+        assert!(seen.contains(&(true, "two".to_string())) && seen.len() == 3, "{seen:?}");
+
+        let started = Instant::now();
+        let mut n = 0;
+        let r = run_command_streaming(&["sh", "-c", "while true; do echo tick; sleep 0.05; done"], &[], Duration::from_secs(20), &[], &mut |_, _| {
+            n += 1;
+            if n == 3 {
+                stop.store(true, Ordering::Relaxed);
+            }
+        }, &stop);
+        assert_eq!(r.unwrap_err(), HostError::Io("stopped".into()));
+        assert!(started.elapsed() < Duration::from_secs(5));
+
+        // A grandchild keeping the pipe open doesn't hold Crow past the grace.
+        let stop = AtomicBool::new(false);
+        let started = Instant::now();
+        let mut first = true;
+        let r = run_command_streaming(&["sh", "-c", "sleep 30 & echo started; wait"], &[], Duration::from_secs(60), &[], &mut |_, _| {
+            if first {
+                stop.store(true, Ordering::Relaxed);
+                first = false;
+            }
+        }, &stop);
+        assert_eq!(r.unwrap_err(), HostError::Io("stopped".into()));
+        assert!(started.elapsed() < Duration::from_secs(6), "{:?}", started.elapsed());
+    }
 
     #[test]
     fn exec_captures_output_and_stdin() {

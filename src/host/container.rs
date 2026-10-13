@@ -21,16 +21,28 @@ impl Host for ContainerHost {
         format!("{}:{}", self.engine, self.name)
     }
 
+    fn exec_streaming(&self, argv: &[&str], stdin: &[u8], timeout: Duration, sink: &mut dyn FnMut(bool, &str), stop: &std::sync::atomic::AtomicBool) -> Result<ExecOutput, HostError> {
+        let mut full: Vec<&str> = vec![self.engine.as_str(), "exec", "-i", self.name.as_str()];
+        full.extend_from_slice(argv);
+        super::local::run_command_streaming(&full, stdin, timeout, &[], sink, stop).map_err(|e| self.engine_error(e))
+    }
+
     fn exec_stdin(&self, argv: &[&str], stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {
         let mut full: Vec<&str> = vec![self.engine.as_str(), "exec", "-i", self.name.as_str()];
         full.extend_from_slice(argv);
-        run_command(&full, stdin, timeout).map_err(|e| match e {
+        run_command(&full, stdin, timeout).map_err(|e| self.engine_error(e))
+    }
+}
+
+impl ContainerHost {
+    fn engine_error(&self, e: HostError) -> HostError {
+        match e {
             // The engine itself failing to find the container is a reachability
             // problem, not the inner command failing.
             HostError::Failed { stderr, .. } if stderr.contains("no such container") || stderr.contains("No such container") => {
                 HostError::Unreachable(format!("{} container {} is not running", self.engine, self.name))
             }
             other => other,
-        })
+        }
     }
 }

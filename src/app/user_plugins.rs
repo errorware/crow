@@ -3,22 +3,66 @@
 //! this stage; accepting only pins its files.
 
 use std::collections::{BTreeMap, HashMap};
+use std::sync::atomic::AtomicBool;
+use std::sync::{Arc, Mutex};
 
+use gpui_kit::component::input::InputState;
 use gpui_kit::*;
 
 use super::CrowApp;
 use crate::plugin_host::folder::{self, Installed, Pin, Trust};
-use crate::plugin_host::manifest::{BlockKind, Effect, Place, Runs};
+use crate::plugin_host::manifest::{BlockKind, Effect, FieldKind, Place, Runs};
 use crate::plugin_host::run::{self, RunResult, ServerValues, Values};
 use crate::vault::{ChangeRecord, PluginRun, AUDIT_SERVER_ID};
 
-/// The last run of one action on one server, and whether one is going.
+/// The last run of one action on one server, and the one going, if any.
 #[derive(Debug, Clone, Default)]
 pub struct RunSlot {
     pub running: bool,
     pub last: Option<RunResult>,
     /// Someone pressed its button: the run goes in the audit log too.
     pub pressed: bool,
+    /// Lines of the run going, as they arrive (true: stderr).
+    pub live: Arc<Mutex<Vec<(bool, String)>>>,
+    pub stop: Arc<AtomicBool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RunMode {
+    /// A page reading what it shows.
+    Auto,
+    /// A button, or RUN on the confirm panel.
+    Pressed,
+    /// Another action's dry run.
+    DryRun,
+}
+
+/// A change or danger action waiting on its confirm panel.
+#[derive(Debug, Clone)]
+pub struct PendingRun {
+    pub key: RunKey,
+    /// Values of choice and bool inputs.
+    pub picked: BTreeMap<String, String>,
+    /// The values the dry run last ran with: RUN needs the same.
+    pub dry_ran_with: Option<BTreeMap<String, String>>,
+    pub error: Option<String>,
+}
+
+/// The log kept with a change: its output, at most 256 KB.
+fn cap_log(r: &RunResult) -> String {
+    let mut log = r.stdout.clone();
+    if !r.stderr.trim().is_empty() {
+        log.push_str("\n--- stderr ---\n");
+        log.push_str(&r.stderr);
+    }
+    if log.len() > 256 * 1024 {
+        let mut end = 256 * 1024;
+        while !log.is_char_boundary(end) {
+            end -= 1;
+        }
+        log.truncate(end);
+    }
+    log
 }
 
 /// (plugin id, action id, server id).
@@ -46,6 +90,9 @@ pub struct UserPluginsState {
     pub runs: HashMap<RunKey, RunSlot>,
     /// The action whose output is shown under a page's buttons.
     pub shown_output: Option<RunKey>,
+    pub pending: Option<PendingRun>,
+    pub pending_inputs: Vec<(String, Entity<InputState>)>,
+    pub keyword_input: Option<Entity<InputState>>,
 }
 
 impl UserPluginsState {
@@ -91,30 +138,168 @@ impl CrowApp {
         let mut seen = Vec::new();
         for a in actions {
             if !seen.contains(&a) {
-                self.run_plugin_action(&plugin, &a, true, cx);
+                self.start_plugin_run(&plugin, &a, BTreeMap::new(), RunMode::Auto, cx);
                 seen.push(a);
             }
         }
         cx.notify();
     }
 
-    /// Runs one action of an accepted plugin on the active server. `auto`:
-    /// a page reading what it shows, kept in the run history but not the
-    /// audit log; a button press is both.
-    pub fn run_plugin_action(&mut self, plugin_id: &str, action_id: &str, auto: bool, cx: &mut Context<Self>) {
+    /// A page's button. A read runs at once; a change or danger action opens
+    /// its confirm panel: inputs, the dry run, then confirm.
+    pub fn press_plugin_action(&mut self, plugin_id: &str, action_id: &str, cx: &mut Context<Self>) {
+        let Some(server) = self.fleet.active_server() else { return };
+        let action = self.plugins.user.get(plugin_id).and_then(|p| p.report.manifest.as_ref()).and_then(|m| m.actions.iter().find(|a| a.id == action_id)).cloned();
+        let Some(action) = action else { return };
+        if action.effect == Effect::Read {
+            let inputs = action.inputs.iter().filter_map(|f| run::default_value(f).map(|d| (f.key.clone(), d))).collect();
+            self.start_plugin_run(plugin_id, action_id, inputs, RunMode::Pressed, cx);
+            return;
+        }
+        let picked = action.inputs.iter().filter(|f| !matches!(f.kind, FieldKind::Text | FieldKind::Number)).filter_map(|f| run::default_value(f).map(|d| (f.key.clone(), d))).collect();
+        self.plugins.user.pending = Some(PendingRun { key: (plugin_id.to_string(), action_id.to_string(), server.id.clone()), picked, dry_ran_with: None, error: None });
+        self.plugins.user.pending_inputs.clear();
+        self.plugins.user.keyword_input = None;
+        cx.notify();
+    }
+
+    pub fn cancel_plugin_run(&mut self, cx: &mut Context<Self>) {
+        self.plugins.user.pending = None;
+        self.plugins.user.pending_inputs.clear();
+        self.plugins.user.keyword_input = None;
+        cx.notify();
+    }
+
+    /// Text boxes for the confirm panel's text and number inputs and its keyword.
+    pub fn ensure_plugin_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(action) = self.pending_action() else { return };
+        if self.plugins.user.pending_inputs.is_empty() {
+            for f in action.inputs.iter().filter(|f| matches!(f.kind, FieldKind::Text | FieldKind::Number)) {
+                let default = run::default_value(f).unwrap_or_default();
+                let state = cx.new(|cx| InputState::new(window, cx).placeholder(f.label.clone()).default_value(default));
+                self.plugins.user.pending_inputs.push((f.key.clone(), state));
+            }
+        }
+        if action.effect == Effect::Danger && self.plugins.user.keyword_input.is_none() {
+            self.plugins.user.keyword_input = Some(cx.new(|cx| InputState::new(window, cx).placeholder(action.keyword.clone().unwrap_or_else(|| "CONFIRM".into()))));
+        }
+    }
+
+    pub fn pending_action(&self) -> Option<crate::plugin_host::manifest::Action> {
+        let p = self.plugins.user.pending.as_ref()?;
+        self.plugins.user.get(&p.key.0)?.report.manifest.as_ref()?.actions.iter().find(|a| a.id == p.key.1).cloned()
+    }
+
+    pub fn pick_plugin_input(&mut self, key: &str, value: String, cx: &mut Context<Self>) {
+        if let Some(p) = self.plugins.user.pending.as_mut() {
+            p.picked.insert(key.to_string(), value);
+            p.error = None;
+        }
+        cx.notify();
+    }
+
+    /// The confirm panel's values, checked.
+    fn pending_values(&self, cx: &App) -> Result<BTreeMap<String, String>, String> {
+        let p = self.plugins.user.pending.as_ref().ok_or_else(String::new)?;
+        let action = self.pending_action().ok_or_else(String::new)?;
+        let mut out = BTreeMap::new();
+        for f in &action.inputs {
+            let raw = match self.plugins.user.pending_inputs.iter().find(|(k, _)| k == &f.key) {
+                Some((_, input)) => input.read(cx).value().to_string(),
+                None => p.picked.get(&f.key).cloned().unwrap_or_default(),
+            };
+            let v = run::check_value(f, &raw)?;
+            if !v.is_empty() {
+                out.insert(f.key.clone(), v);
+            }
+        }
+        Ok(out)
+    }
+
+    /// DRY RUN: the action's dry run, with the values on screen.
+    pub fn dry_run_pending(&mut self, cx: &mut Context<Self>) {
+        let Some(action) = self.pending_action() else { return };
+        let Some(dry) = action.dry_run.clone() else { return };
+        let values = match self.pending_values(cx) {
+            Ok(v) => v,
+            Err(e) => {
+                if let Some(p) = self.plugins.user.pending.as_mut() {
+                    p.error = Some(e);
+                }
+                cx.notify();
+                return;
+            }
+        };
+        let plugin = self.plugins.user.pending.as_ref().map(|p| p.key.0.clone()).unwrap_or_default();
+        if let Some(p) = self.plugins.user.pending.as_mut() {
+            p.dry_ran_with = Some(values.clone());
+            p.error = None;
+        }
+        self.start_plugin_run(&plugin, &dry, values, RunMode::DryRun, cx);
+    }
+
+    /// RUN on the confirm panel: after the dry run (if there is one) with
+    /// these same values, and the keyword for a danger action.
+    pub fn confirm_plugin_run(&mut self, cx: &mut Context<Self>) {
+        let Some(action) = self.pending_action() else { return };
+        let Some(p) = self.plugins.user.pending.clone() else { return };
+        let fail = |this: &mut CrowApp, e: String, cx: &mut Context<Self>| {
+            if let Some(p) = this.plugins.user.pending.as_mut() {
+                p.error = Some(e);
+            }
+            cx.notify();
+        };
+        let values = match self.pending_values(cx) {
+            Ok(v) => v,
+            Err(e) => return fail(self, e, cx),
+        };
+        if let Some(dry) = &action.dry_run {
+            let dry_slot = self.plugins.user.slot(&p.key.0, dry, &p.key.2);
+            if p.dry_ran_with.as_ref() != Some(&values) {
+                return fail(self, t!("app-user-plugins-dry-run-first").to_string(), cx);
+            }
+            if dry_slot.is_some_and(|s| s.running) {
+                return fail(self, t!("app-user-plugins-dry-run-still-going").to_string(), cx);
+            }
+            if !dry_slot.and_then(|s| s.last.as_ref()).is_some_and(|r| r.ok) {
+                return fail(self, t!("app-user-plugins-dry-run-failed").to_string(), cx);
+            }
+        }
+        if action.effect == Effect::Danger {
+            let want = action.keyword.clone().unwrap_or_else(|| "CONFIRM".into());
+            let typed = self.plugins.user.keyword_input.as_ref().map(|i| i.read(cx).value().trim().to_string()).unwrap_or_default();
+            if typed != want {
+                return fail(self, t!("app-user-plugins-type-keyword", keyword = want), cx);
+            }
+        }
+        self.cancel_plugin_run(cx);
+        self.start_plugin_run(&p.key.0, &p.key.1, values, RunMode::Pressed, cx);
+    }
+
+    pub fn stop_plugin_run(&mut self, plugin: &str, action: &str, server: &str, cx: &mut Context<Self>) {
+        if let Some(slot) = self.plugins.user.runs.get(&(plugin.to_string(), action.to_string(), server.to_string())) {
+            slot.stop.store(true, std::sync::atomic::Ordering::Relaxed);
+        }
+        cx.notify();
+    }
+
+    /// Runs one action of an accepted plugin on the active server, streaming
+    /// its output into the run's slot. Reads a page does by itself go in the
+    /// run history only; pressed runs and dry runs go in the audit log too.
+    pub fn start_plugin_run(&mut self, plugin_id: &str, action_id: &str, inputs: BTreeMap<String, String>, mode: RunMode, cx: &mut Context<Self>) {
         let Some(server) = self.fleet.active_server() else { return };
         let key: RunKey = (plugin_id.to_string(), action_id.to_string(), server.id.clone());
-        if !auto {
+        if mode != RunMode::Auto {
             self.plugins.user.shown_output = Some(key.clone());
         }
         // Already going (the page reading it): a press makes it a pressed run.
         if let Some(slot) = self.plugins.user.runs.get_mut(&key).filter(|s| s.running) {
-            slot.pressed |= !auto;
+            slot.pressed |= mode != RunMode::Auto;
             cx.notify();
             return;
         }
         let fail = |this: &mut CrowApp, why: String| {
-            this.plugins.user.runs.insert(key.clone(), RunSlot { running: false, last: Some(RunResult::failed(why)), pressed: false });
+            this.plugins.user.runs.insert(key.clone(), RunSlot { last: Some(RunResult::failed(why)), ..Default::default() });
         };
         let Some(shown) = self.plugins.user.get(plugin_id).cloned() else { return };
         // The files must still be the ones accepted, checked at every run.
@@ -129,9 +314,13 @@ impl CrowApp {
         }
         let Some(m) = now.report.manifest.clone() else { return };
         let Some(action) = m.actions.iter().find(|a| a.id == action_id).cloned() else { return };
-        if action.effect != Effect::Read || action.on != Runs::Server {
+        if action.on != Runs::Server {
             fail(self, t!("app-user-plugins-later-stage").to_string());
             cx.notify();
+            return;
+        }
+        // Only a confirmed run changes anything: never a page's own read.
+        if action.effect != Effect::Read && mode != RunMode::Pressed {
             return;
         }
         let (settings, secrets, missing) = run::settings_values(&m.settings, &BTreeMap::new());
@@ -149,11 +338,17 @@ impl CrowApp {
             cx.notify();
             return;
         }
-        let mut inputs = BTreeMap::new();
+        // An action gets the inputs it declares; a required one must be there.
+        let mut values_in = BTreeMap::new();
         for f in &action.inputs {
-            match run::default_value(f).map(|d| run::check_value(f, &d)) {
-                Some(Ok(v)) => {
-                    inputs.insert(f.key.clone(), v);
+            match inputs.get(&f.key).cloned().or_else(|| run::default_value(f)).map(|raw| run::check_value(f, &raw)) {
+                Some(Ok(v)) if !v.is_empty() => {
+                    values_in.insert(f.key.clone(), v);
+                }
+                Some(Err(e)) => {
+                    fail(self, e);
+                    cx.notify();
+                    return;
                 }
                 _ if f.required => {
                     fail(self, t!("app-user-plugins-needs-input", name = f.label));
@@ -163,7 +358,7 @@ impl CrowApp {
                 _ => {}
             }
         }
-        let values = Values { inputs, settings, secrets, server: Some(ServerValues { name: server.name.clone(), host: server.host.clone(), user: server.login_user.clone(), port: server.port }) };
+        let values = Values { inputs: values_in.clone(), settings, secrets, server: Some(ServerValues { name: server.name.clone(), host: server.host.clone(), user: server.login_user.clone(), port: server.port }) };
         let nonce = run::nonce();
         let program = match run::remote_program(&action, &m.requires.server, &now.dir, &values, &nonce) {
             Ok(p) => p,
@@ -173,19 +368,56 @@ impl CrowApp {
                 return;
             }
         };
-        let slot = self.plugins.user.runs.entry(key.clone()).or_default();
-        slot.running = true;
-        slot.pressed = !auto;
+        let live: Arc<Mutex<Vec<(bool, String)>>> = Arc::default();
+        let stop: Arc<AtomicBool> = Arc::default();
+        let previous = self.plugins.user.runs.remove(&key).and_then(|s| s.last);
+        self.plugins.user.runs.insert(key.clone(), RunSlot { running: true, last: previous, pressed: mode != RunMode::Auto, live: live.clone(), stop: stop.clone() });
         cx.notify();
         let host = crate::host::host_for(&server);
         let timeout = std::time::Duration::from_secs(action.timeout.0);
         let (root, hash, plugin_name) = (action.root, now.hash.clone(), now.name().to_string());
         let output = action.output.clone();
+        let keeps_log = action.effect != Effect::Read;
+        let detail = if values_in.is_empty() { String::new() } else { values_in.iter().map(|(k, v)| format!("{k}={v}")).collect::<Vec<_>>().join(" ") };
+        // Redraw while lines arrive.
+        let pump_live = live.clone();
         cx.spawn(async move |entity, cx| {
-            let result = cx.background_executor().spawn(async move { run::run_program(host.as_ref(), &program, root, timeout, &nonce) }).await;
+            let mut seen = 0;
+            loop {
+                cx.background_executor().timer(std::time::Duration::from_millis(150)).await;
+                let n = pump_live.lock().map(|l| l.len()).unwrap_or(0);
+                let going = entity.update(cx, |this, cx| {
+                    if n != seen {
+                        cx.notify();
+                    }
+                    this.plugins.user.runs.values().any(|s| s.running && Arc::ptr_eq(&s.live, &pump_live))
+                });
+                seen = n;
+                if !going.unwrap_or(false) {
+                    break;
+                }
+            }
+        })
+        .detach();
+        cx.spawn(async move |entity, cx| {
+            let (sink_live, run_stop) = (live.clone(), stop.clone());
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    let mut sink = |is_err: bool, line: &str| {
+                        if let Ok(mut l) = sink_live.lock() {
+                            if l.len() < 20_000 {
+                                l.push((is_err, line.to_string()));
+                            }
+                        }
+                    };
+                    run::run_streaming(host.as_ref(), &program, root, timeout, &nonce, &mut sink, &run_stop)
+                })
+                .await;
             let _ = entity.update(cx, |this, cx| {
-                let summary = run::summary(&output, &result);
+                let summary = if result.stopped { t!("app-user-plugins-stopped").to_string() } else { run::summary(&output, &result) };
                 let pressed = this.plugins.user.runs.get(&key).is_some_and(|s| s.pressed);
+                let log = if keeps_log { cap_log(&result) } else { String::new() };
                 if let Ok(db) = this.vault.db().lock() {
                     let _ = db.insert_plugin_run(&PluginRun {
                         plugin_id: key.0.clone(),
@@ -198,6 +430,9 @@ impl CrowApp {
                         summary: summary.clone(),
                         output_bytes: result.output_bytes(),
                         plugin_hash: hash.clone(),
+                        dry_run: mode == RunMode::DryRun,
+                        stopped: result.stopped,
+                        log,
                     });
                     if pressed {
                         let _ = db.insert_change_record(&ChangeRecord {
@@ -206,7 +441,7 @@ impl CrowApp {
                             server_name: server.name.clone(),
                             action_kind: format!("plugin.{}.{}", key.0, key.1),
                             target: plugin_name.clone(),
-                            before_state: summary,
+                            before_state: [summary, detail].into_iter().filter(|s| !s.is_empty()).collect::<Vec<_>>().join(" · "),
                             after_state: result.error.clone(),
                             blast_radius: None,
                             outcome: if result.ok { "success" } else { "failed" }.to_string(),
@@ -215,7 +450,7 @@ impl CrowApp {
                         });
                     }
                 }
-                this.plugins.user.runs.insert(key, RunSlot { running: false, last: Some(result), pressed: false });
+                this.plugins.user.runs.insert(key, RunSlot { last: Some(result), ..Default::default() });
                 cx.notify();
             });
         })
