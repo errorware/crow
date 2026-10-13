@@ -1,0 +1,94 @@
+# A read-only plugin with no settings: what a server is, and how full its disks are.
+
+format = 1
+
+[plugin]
+id = "server-facts"
+name = "Server facts"
+version = "0.1.0"
+author = "Errorware"
+about = "Shows what a server is (OS, kernel, uptime) and how full its disks are, and warns when one is nearly full."
+crow = ">=0.8.3"
+license = "MIT"
+category = "inventory"
+capabilities = ["facts.read"]
+
+[requires]
+server = ["df"]
+
+[[action]]
+id = "facts"
+label = "Facts"
+on = "server"
+effect = "read"
+script = "facts.sh"
+interpreter = "sh"
+timeout = "30s"
+
+[action.output]
+format = "json"
+
+[[action]]
+id = "disks"
+label = "Disks"
+on = "server"
+effect = "read"
+command = ["df", "-P", "-h", "-x", "tmpfs", "-x", "devtmpfs", "-x", "squashfs"]
+timeout = "30s"
+
+[action.output]
+format = "table"
+columns = [
+  { key = "Mounted", label = "Mounted on" },
+  { key = "Size", label = "Size" },
+  { key = "Used", label = "Used" },
+  { key = "Use%", label = "Use" },
+  { key = "Filesystem", label = "Filesystem" },
+]
+
+[[action]]
+id = "status"
+label = "Disk space"
+on = "server"
+effect = "read"
+script = "status.sh"
+interpreter = "sh"
+args = ["90"]
+timeout = "30s"
+
+[action.output]
+format = "json"
+
+[[action]]
+id = "mark"
+label = "Leave a marker"
+help = "Writes /tmp/crow-plugin-was-here, to show a change action."
+on = "server"
+effect = "change"
+command = ["touch", "/tmp/crow-plugin-was-here"]
+
+[[page]]
+id = "facts"
+label = "Facts"
+icon = "server"
+where = "server"
+
+[[page.block]]
+kind = "status"
+action = "status"
+
+[[page.block]]
+kind = "kv"
+action = "facts"
+title = "This server"
+
+[[page.block]]
+kind = "table"
+action = "disks"
+
+[[page.block]]
+kind = "actions"
+actions = ["disks", "facts", "mark"]
+
+[[page.block]]
+kind = "runs"

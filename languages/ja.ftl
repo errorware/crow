@@ -440,6 +440,10 @@ app-user-plugins-state-accepted = 承認済み
 app-user-plugins-state-changed = 変更あり · 再確認
 app-user-plugins-state-refused = 拒否
 app-user-plugins-state-invalid = 読み込めません
+app-user-plugins-not-accepted-now = 承認後にこのプラグインのファイルが変更されたため、無効になっています。設定 → プラグインで確認してください。
+app-user-plugins-later-stage = サーバーを変更するアクションや、このマシンで実行するアクションは、今後のバージョンで使えるようになります。
+app-user-plugins-needs-settings = 設定が必要です: { $names }
+app-user-plugins-needs-input = { $name } の値が必要です
 
 ## app-providers
 app-providers-set-type-to-replace = 設定済み · 入力すると置き換え
@@ -749,6 +753,7 @@ sidebar-firewall = ファイアウォール
 sidebar-terminal = ターミナル
 sidebar-collapse = 折りたたむ
 sidebar-danger-zone = 危険ゾーン
+sidebar-plugins = プラグイン
 
 ## snapshot-offer
 snapshot-offer-snapshot-the-whole-server-at = 先に { $provider } でサーバー全体のスナップショットを作成しますか？
@@ -2746,6 +2751,21 @@ settings-user-plugins-accept = 承認
 settings-user-plugins-refuse = 拒否
 settings-user-plugins-revoke = 承認を取り消す
 settings-user-plugins-confirm-explain = 承認すると、このプラグインは上のコマンドをサーバーで実行できるようになります (記載があれば root として)。実行するのは、あなたかフリート実行が開始したときです。承認するには「確定: 承認」を押してください。
+plugin-page-just-now = たった今
+plugin-page-minutes-ago = { $n } 分前
+plugin-page-hours-ago = { $n } 時間前
+plugin-page-not-read-yet = まだ読み込んでいません。「更新」を押してください。
+plugin-page-reading = 読み込み中…
+plugin-page-exit = 終了コード { $code }
+plugin-page-unreadable = 出力を読み取れません: { $why }
+plugin-page-no-rows = 表示するものはありません。
+plugin-page-runs = このサーバーでの実行
+plugin-page-no-runs = まだ実行されていません。
+plugin-page-running = { $label }…
+plugin-page-truncated = 出力は 1 MB で切り詰められました。
+plugin-page-from = { $name } { $version } · プラグイン
+plugin-page-refresh = 更新
+plugin-page-not-accepted = このプラグインは承認されていないか、承認後にファイルが変更されました。設定 → プラグインで確認してください。
 
 ## settings-providers
 settings-providers-providers-where-your-servers-live = プロバイダー · サーバーの所在地
@@ -3635,6 +3655,7 @@ audit-model-permissions-changed = 権限を変更: { $target }
 audit-model-plugin-accepted = プラグイン { $target } を承認
 audit-model-plugin-refused = プラグイン { $target } を拒否
 audit-model-plugin-revoked = プラグイン { $target } の承認を取り消し
+audit-model-plugin-ran = { $target }: { $action } を実行
 identity-bar-kernel = カーネル
 identity-bar-role = 役割
 

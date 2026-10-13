@@ -446,6 +446,10 @@ app-user-plugins-state-accepted = ACEPTADO
 app-user-plugins-state-changed = CAMBIADO · REVISAR DE NUEVO
 app-user-plugins-state-refused = RECHAZADO
 app-user-plugins-state-invalid = NO SE PUEDE CARGAR
+app-user-plugins-not-accepted-now = Los archivos de este plugin cambiaron desde que lo aceptaste, así que está desactivado. Revísalo en Ajustes → Plugins.
+app-user-plugins-later-stage = Las acciones que cambian un servidor, o que se ejecutan en esta máquina, llegarán en una versión posterior.
+app-user-plugins-needs-settings = Faltan ajustes: { $names }
+app-user-plugins-needs-input = Falta un valor para { $name }
 
 ## app-providers
 app-providers-set-type-to-replace = configurado · escribe para sustituirlo
@@ -757,6 +761,7 @@ sidebar-firewall = Cortafuegos
 sidebar-terminal = Terminal
 sidebar-collapse = Contraer
 sidebar-danger-zone = Zona de peligro
+sidebar-plugins = PLUGINS
 
 ## snapshot-offer
 snapshot-offer-snapshot-the-whole-server-at = ¿Hacer antes una instantánea del servidor entero en { $provider }?
@@ -2788,6 +2793,21 @@ settings-user-plugins-accept = ACEPTAR
 settings-user-plugins-refuse = RECHAZAR
 settings-user-plugins-revoke = RETIRAR
 settings-user-plugins-confirm-explain = Aceptarlo permite que este plugin ejecute los comandos de arriba en tus servidores, como root donde lo indica, cuando tú o una ejecución en la flota los inicie. Pulsa CONFIRMAR: ACEPTAR para aceptarlo.
+plugin-page-just-now = ahora mismo
+plugin-page-minutes-ago = hace { $n } min
+plugin-page-hours-ago = hace { $n } h
+plugin-page-not-read-yet = Aún sin leer: pulsa ACTUALIZAR.
+plugin-page-reading = Leyendo…
+plugin-page-exit = código de salida { $code }
+plugin-page-unreadable = No se puede leer la salida: { $why }
+plugin-page-no-rows = Nada que mostrar.
+plugin-page-runs = EJECUCIONES EN ESTE SERVIDOR
+plugin-page-no-runs = Aún no hay ejecuciones.
+plugin-page-running = { $label }…
+plugin-page-truncated = Salida cortada en 1 MB.
+plugin-page-from = { $name } { $version } · un plugin
+plugin-page-refresh = ACTUALIZAR
+plugin-page-not-accepted = Este plugin no está aceptado, o sus archivos cambiaron desde entonces. Revísalo en Ajustes → Plugins.
 
 ## settings-providers
 settings-providers-providers-where-your-servers-live = PROVEEDORES · DÓNDE VIVEN TUS SERVIDORES
@@ -3698,6 +3718,7 @@ audit-model-permissions-changed = permisos cambiados: { $target }
 audit-model-plugin-accepted = plugin { $target } aceptado
 audit-model-plugin-refused = plugin { $target } rechazado
 audit-model-plugin-revoked = plugin { $target } ya no aceptado
+audit-model-plugin-ran = { $target }: se ejecutó { $action }
 identity-bar-kernel = kernel
 identity-bar-role = rol
 

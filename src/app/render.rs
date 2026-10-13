@@ -344,7 +344,7 @@ impl Render for CrowApp {
                                                         .flex()
                                                         .w_full()
                                                         // Sidebar
-                                                        .child(sidebar(&self.active_view, self.sidebar_collapsed, &self.nav_badges(), &self.plugins.enabled, app_view.clone()))
+                                                        .child(sidebar(&self.active_view, self.sidebar_collapsed, &self.nav_badges(), &self.plugins.enabled, &self.plugins.user.server_pages(), app_view.clone()))
                                                         // Content Area (Overview or Config or other server view)
                                                         .child(
                                                             div()
@@ -493,6 +493,18 @@ impl Render for CrowApp {
                                                             } else if self.active_view == "containers" {
                                                                 let name = self.fleet.active_server().map(|s| s.name).unwrap_or_default();
                                                                 Some(div().size_full().child(crate::views::containers::containers_view(&self.containers, &name, app_view.clone())))
+                                                            } else if let Some((pid, page_id)) = crate::app::user_plugins::parse_page_view(&self.active_view) {
+                                                                let server_id = self.fleet.active_server().map(|s| s.id).unwrap_or_default();
+                                                                let plugin = self.plugins.user.get(pid).filter(|p| p.usable());
+                                                                let page = plugin.and_then(|p| p.report.manifest.as_ref()).and_then(|m| m.pages.iter().find(|pg| pg.id == page_id));
+                                                                match (plugin, page) {
+                                                                    (Some(plugin), Some(page)) => {
+                                                                        let runs = self.vault.db().lock().ok().and_then(|db| db.list_plugin_runs(pid, Some(&server_id), 20).ok()).unwrap_or_default();
+                                                                        let data = crate::views::plugin_page::PageData { plugin, page, server_id: &server_id, state: &self.plugins.user, runs };
+                                                                        Some(div().size_full().child(crate::views::plugin_page::plugin_page(data, app_view.clone())))
+                                                                    }
+                                                                    _ => Some(div().size_full().p(px(20.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_DIM).child(t!("plugin-page-not-accepted"))),
+                                                                }
                                                             } else if self.active_view == "danger" {
                                                                 Some(div().size_full().child(danger_zone(&self.danger, self.active_provider_actions().as_ref(), app_view.clone())))
                                                             } else if self.active_view == "firewall" {

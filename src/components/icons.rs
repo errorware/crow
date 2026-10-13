@@ -71,6 +71,41 @@ pub enum TablerIcon {
 }
 
 impl TablerIcon {
+    /// The icon a plugin names in its manifest (Tabler's file name, e.g.
+    /// "shield-check"); a plain box for anything else.
+    pub fn from_name(name: &str) -> TablerIcon {
+        match name {
+            "layout-dashboard" => Self::LayoutDashboard,
+            "cpu" => Self::Cpu,
+            "server" => Self::Server,
+            "adjustments-horizontal" => Self::AdjustmentsHorizontal,
+            "file-text" => Self::FileText,
+            "folder" => Self::Folder,
+            "clock" => Self::Clock,
+            "users" => Self::Users,
+            "shield-check" => Self::ShieldCheck,
+            "terminal" | "terminal-2" => Self::Terminal2,
+            "network" => Self::Network,
+            "database" => Self::Database,
+            "activity" => Self::Activity,
+            "key" => Self::Key,
+            "lock" => Self::Lock,
+            "settings" => Self::Settings,
+            "bell" => Self::Bell,
+            "cloud" => Self::Cloud,
+            "rocket" => Self::Rocket,
+            "git-compare" => Self::GitCompare,
+            "git-branch" => Self::GitBranch,
+            "certificate" => Self::Certificate,
+            "history" => Self::History,
+            "tags" => Self::Tags,
+            "refresh" => Self::Refresh,
+            "search" => Self::Search,
+            "alert-triangle" => Self::AlertTriangle,
+            _ => Self::Box,
+        }
+    }
+
     pub const fn bytes(self) -> &'static [u8] {
         match self {
             Self::LayoutDashboard => include_bytes!("../../assets/icons/layout-dashboard.svg"),

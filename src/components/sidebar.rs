@@ -1,4 +1,5 @@
 use gpui_kit::*;
+use gpui_kit::prelude::FluentBuilder as _;
 use crate::theme::*;
 use crate::app::CrowApp;
 
@@ -41,7 +42,10 @@ pub fn page_shown(view: &str, enabled: &std::collections::HashSet<String>) -> bo
 /// Live badge per view id: (text, color). Views without an entry show none.
 pub type NavBadges = Vec<(&'static str, String, Rgba)>;
 
-pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: &std::collections::HashSet<String>, app: Entity<CrowApp>) -> impl IntoElement {
+/// (view id, label, icon name) of each accepted user plugin's server page.
+pub type PluginPages = [(String, String, Option<String>)];
+
+pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: &std::collections::HashSet<String>, plugin_pages: &PluginPages, app: Entity<CrowApp>) -> impl IntoElement {
     let sidebar_w = if collapsed { px(44.0) } else { px(184.0) };
 
     div()
@@ -124,6 +128,58 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                 row
             }
         }))
+        // User plugins' pages (ERR-178), under their own divider.
+        .when(!plugin_pages.is_empty(), |d| {
+            d.child(
+                div()
+                    .mt(px(6.0))
+                    .pt(px(8.0))
+                    .pb(px(2.0))
+                    .px(px(12.0))
+                    .border_t_1()
+                    .border_color(BORDER_PANEL)
+                    .font_family(FONT_MONO)
+                    .text_size(px(9.0))
+                    .font_weight(FontWeight::BOLD)
+                    .text_color(TEXT_FAINT)
+                    .when(!collapsed, |d| d.child(t!("sidebar-plugins"))),
+            )
+            .children(plugin_pages.iter().enumerate().map(|(i, (view, label, icon))| {
+                let is_active = active_view == view;
+                let (app, view) = (app.clone(), view.clone());
+                div()
+                    .id(ElementId::NamedInteger("nav-plugin".into(), i as u64))
+                    .relative()
+                    .flex()
+                    .items_center()
+                    .gap(px(10.0))
+                    .h(px(30.0))
+                    .px(if collapsed { px(14.0) } else { px(12.0) })
+                    .bg(if is_active { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
+                    .children(is_active.then(|| left_indicator(TEXT_PRIMARY)))
+                    .cursor_pointer()
+                    .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.open_plugin_page(&view, cx)))
+                    .child(
+                        tabler_icon(icon.as_deref().map_or(TablerIcon::Box, TablerIcon::from_name))
+                            .size(px(14.0))
+                            .flex_none()
+                            .text_color(if is_active { TEXT_PRIMARY } else { TEXT_DIMMER }),
+                    )
+                    .when(!collapsed, |d| {
+                        d.child(
+                            div()
+                                .flex_1()
+                                .min_w(px(0.0))
+                                .truncate()
+                                .font_family(FONT_MONO)
+                                .text_size(px(11.5))
+                                .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+                                .text_color(if is_active { TEXT_PRIMARY } else { TEXT_TERTIARY })
+                                .child(label.clone()),
+                        )
+                    })
+            }))
+        })
         // Spacer: pushes Danger Zone all the way down, separated from functional navigation
         .child(div().flex_1())
         // Danger Zone: flushed to the bottom, red whether active or not.
