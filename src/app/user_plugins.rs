@@ -104,6 +104,8 @@ pub struct UserPluginsState {
     /// Per plugin, the files its setup last succeeded with (their hash).
     pub setup_hashes: HashMap<String, String>,
     pub pending: Option<PendingRun>,
+    /// The settings form under a review.
+    pub settings: super::user_plugin_settings::SettingsForm,
     /// Where fleet pages' actions go.
     pub fleet: super::user_plugin_fleet::PluginFleetState,
     pub pending_inputs: Vec<(String, Entity<InputState>)>,
@@ -355,7 +357,9 @@ impl CrowApp {
         if action.effect != Effect::Read && mode != RunMode::Pressed {
             return;
         }
-        let (settings, secrets, missing) = run::settings_values(&m.settings, &BTreeMap::new());
+        let stored = self.user_plugin_settings(plugin_id, &m.settings);
+        let (settings, secrets, missing) = run::settings_values(&m.settings, &stored);
+        let hide = secrets.clone();
         let needs: Vec<String> = action
             .templates()
             .flat_map(|(t, _)| t.vars().cloned().collect::<Vec<_>>())
@@ -482,18 +486,22 @@ impl CrowApp {
         })
         .detach();
         cx.spawn(async move |entity, cx| {
-            let (sink_live, run_stop) = (live.clone(), stop.clone());
+            let (sink_live, run_stop, hide_live) = (live.clone(), stop.clone(), hide.clone());
             let result = cx
                 .background_executor()
                 .spawn(async move {
                     let mut sink = |is_err: bool, line: &str| {
                         if let Ok(mut l) = sink_live.lock() {
                             if l.len() < 20_000 {
-                                l.push((is_err, line.to_string()));
+                                l.push((is_err, super::user_plugin_settings::redact(line, &hide_live)));
                             }
                         }
                     };
-                    job(&mut sink, &run_stop)
+                    let mut r = job(&mut sink, &run_stop);
+                    r.stdout = super::user_plugin_settings::redact(&r.stdout, &hide_live);
+                    r.stderr = super::user_plugin_settings::redact(&r.stderr, &hide_live);
+                    r.error = r.error.map(|e| super::user_plugin_settings::redact(&e, &hide_live));
+                    r
                 })
                 .await;
             let _ = entity.update(cx, |this, cx| {
@@ -570,7 +578,10 @@ impl CrowApp {
         if !missing.is_empty() {
             return fail(self, t!("app-user-plugins-missing-here", names = missing.join(", ")), cx);
         }
-        let (settings, secrets, _) = run::settings_values(&now.report.manifest.as_ref().map(|m| m.settings.clone()).unwrap_or_default(), &BTreeMap::new());
+        let fields = now.report.manifest.as_ref().map(|m| m.settings.clone()).unwrap_or_default();
+        let stored = self.user_plugin_settings(plugin_id, &fields);
+        let (settings, secrets, _) = run::settings_values(&fields, &stored);
+        let hide = secrets.clone();
         let nonce = run::nonce();
         let data_dir = local::data_dir(plugin_id);
         let prepared = local::run_dir(&data_dir, &nonce).and_then(|rd| {
@@ -610,12 +621,14 @@ impl CrowApp {
                     let mut sink = |is_err: bool, line: &str| {
                         if let Ok(mut l) = sink_live.lock() {
                             if l.len() < 20_000 {
-                                l.push((is_err, line.to_string()));
+                                l.push((is_err, super::user_plugin_settings::redact(line, &hide)));
                             }
                         }
                     };
-                    let r = local::run(&argv, &dir, &env, timeout, &mut sink, &run_stop);
+                    let mut r = local::run(&argv, &dir, &env, timeout, &mut sink, &run_stop);
                     let _ = std::fs::remove_dir_all(&rd);
+                    r.stdout = super::user_plugin_settings::redact(&r.stdout, &hide);
+                    r.stderr = super::user_plugin_settings::redact(&r.stderr, &hide);
                     r
                 })
                 .await;

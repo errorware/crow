@@ -101,6 +101,8 @@ type = "secret"
 | `charset` | For text: `name` (letters, digits, `.` `_` `-`; the default), `path` (a name plus `/ : @ ~ + = ,`) or `any` (any printable text). Anything else is refused before it reaches a command. |
 | `default`, `choices`, `min`, `max`, `required`, `help` | As you'd expect. A secret can't have a default. |
 
+Plain settings are kept in Crow's vault as you enter them; secrets are sealed with the vault's key, the same as provider tokens, and are never shown again (an empty box keeps the saved one). Whatever a run prints is cleared of secret values (shown as •••) before it reaches the console, the run history or the audit log.
+
 ### actions
 
 An action is one thing the plugin can do.
