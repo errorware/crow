@@ -18,6 +18,7 @@ impl CrowApp {
         // The Plugins page shows whether each works: look when it opens.
         if section == SettingsSection::Plugins {
             self.check_all_plugins(cx);
+            self.scan_user_plugins(cx);
         }
         cx.notify();
     }

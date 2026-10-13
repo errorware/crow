@@ -2,8 +2,9 @@
 //! stages; this one only reads `plugin.toml` (ERR-175). The built-in
 //! integrations in `crate::plugins` are separate and stay as they are.
 
-// Nothing calls into this until the plugins folder is read (ERR-177).
+// Parts are used by later stages (running actions, ERR-178 on).
 #![allow(dead_code)]
 
 pub mod manifest;
 pub mod check;
+pub mod folder;
