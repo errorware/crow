@@ -1,0 +1,135 @@
+# A small recipe plugin: restic backups on each server, read over SSH.
+
+format = 1
+
+[plugin]
+id = "restic-check"
+name = "Restic backups"
+version = "0.1.0"
+author = "Errorware"
+about = "Lists restic snapshots on each server, checks the repository, and flags servers whose last backup is old."
+crow = ">=0.8.3"
+license = "MIT"
+category = "backup"
+capabilities = ["backup.list", "backup.check", "backup.run"]
+
+[requires]
+server = ["restic"]
+
+[[setting]]
+key = "repository"
+label = "Repository"
+type = "text"
+charset = "path"
+required = true
+help = "As restic takes it in RESTIC_REPOSITORY, e.g. /srv/restic or sftp:backup@nas:/restic."
+
+[[setting]]
+key = "password"
+label = "Repository password"
+type = "secret"
+required = true
+
+[[setting]]
+key = "max_age_hours"
+label = "Warn when the last backup is older than (hours)"
+type = "number"
+default = 26
+min = 1
+max = 720
+
+[[action]]
+id = "snapshots"
+label = "Snapshots"
+on = "server"
+effect = "read"
+root = true
+command = ["restic", "snapshots", "--json"]
+env = { RESTIC_REPOSITORY = "{setting.repository}", RESTIC_PASSWORD = "{secret.password}" }
+timeout = "2m"
+
+[action.output]
+format = "json"
+columns = [
+  { key = "time", label = "Time" },
+  { key = "hostname", label = "Host" },
+  { key = "paths", label = "Paths" },
+  { key = "short_id", label = "ID" },
+]
+
+[[action]]
+id = "status"
+label = "Last backup"
+on = "server"
+effect = "read"
+root = true
+script = "status.sh"
+interpreter = "sh"
+args = ["{setting.max_age_hours}"]
+env = { RESTIC_REPOSITORY = "{setting.repository}", RESTIC_PASSWORD = "{secret.password}" }
+timeout = "2m"
+
+[action.output]
+format = "json"
+
+[[action]]
+id = "check"
+label = "Check repository"
+on = "server"
+effect = "read"
+root = true
+command = ["restic", "check"]
+env = { RESTIC_REPOSITORY = "{setting.repository}", RESTIC_PASSWORD = "{secret.password}" }
+timeout = "30m"
+
+[action.output]
+format = "lines"
+summary_prefix = "no errors were found"
+
+[[action]]
+id = "backup"
+label = "Back up now"
+on = "server"
+effect = "change"
+root = true
+command = ["restic", "backup", "{input.path}"]
+env = { RESTIC_REPOSITORY = "{setting.repository}", RESTIC_PASSWORD = "{secret.password}" }
+timeout = "2h"
+
+[[action.input]]
+key = "path"
+label = "Path to back up"
+type = "text"
+charset = "path"
+default = "/etc"
+required = true
+
+[action.output]
+format = "lines"
+summary_prefix = "snapshot "
+
+[[page]]
+id = "backups"
+label = "Backups"
+icon = "database"
+where = "server"
+
+[[page.block]]
+kind = "status"
+action = "status"
+
+[[page.block]]
+kind = "table"
+action = "snapshots"
+title = "Snapshots"
+
+[[page.block]]
+kind = "actions"
+actions = ["check", "backup"]
+
+[[page.block]]
+kind = "runs"
+
+[badge]
+action = "status"
+every = "1h"
