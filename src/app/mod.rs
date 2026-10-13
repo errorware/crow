@@ -382,15 +382,18 @@ impl CrowApp {
 
         let onboard_state = OnboardState::new(&keys.enrolled);
 
-        let (metrics_store, mut buffered_stores) = seed_metrics(&servers);
-
-        let initial_journal = if let Some(first_srv) = servers.first() {
-            read_journal_for_server(first_srv, &JournalQuery::default())
-        } else {
-            Vec::new()
-        };
+        // Only this machine is sampled before the first frame: a remote server
+        // means ssh, and one that doesn't answer held the window black for its
+        // whole connect timeout. The first poll tick fetches the rest.
+        let local: Vec<crate::vault::db::ServerRecord> = servers.iter().filter(|s| crate::host::is_this_machine(s)).cloned().collect();
+        let (metrics_store, mut buffered_stores) = seed_metrics(&local);
 
         let is_first_local = servers.first().map(crate::host::is_this_machine).unwrap_or(false);
+
+        let initial_journal = match servers.first() {
+            Some(first_srv) if is_first_local => read_journal_for_server(first_srv, &JournalQuery::default()),
+            _ => Vec::new(),
+        };
 
         let (journal_retention, journal_telemetry) = if is_first_local {
             servers.first().map(read_retention_for_server).unwrap_or_else(|| read_retention(&LocalHost))
@@ -578,11 +581,12 @@ impl CrowApp {
         app.load_dr();
         app.load_team();
         app.load_keyring_key(cx);
-        // A remote first server's configs and firewall weren't read above, so
-        // the window didn't wait on SSH; read them now, in the background.
+        // A remote first server's configs, firewall and journal weren't read
+        // above, so the window didn't wait on SSH; read them now, in the background.
         if !is_first_local {
             app.reload_configs_for_active_server(cx);
             app.refresh_firewall_for_active_server(cx);
+            app.run_journal_query(cx);
         }
         app
     }

@@ -157,7 +157,8 @@ impl CrowApp {
     pub(super) fn spawn_metrics_poll(cx: &mut Context<Self>) -> Task<()> {
         cx.spawn(async move |entity, cx| {
                 let mut local_prev = CollectorStates::default();
-                let mut interval = std::time::Duration::from_secs(2);
+                // The first tick runs at once: startup only sampled this machine.
+                let mut interval = std::time::Duration::ZERO;
                 loop {
                     cx.background_executor().timer(interval).await;
                     if let Ok(secs) = entity.update(cx, |this, _cx| this.refresh_interval_secs()) {
