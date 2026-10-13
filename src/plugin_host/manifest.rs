@@ -495,6 +495,16 @@ impl Duration {
     }
 }
 
+impl fmt::Display for Duration {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self.0 {
+            s if s % 3600 == 0 && s > 0 => write!(f, "{}h", s / 3600),
+            s if s % 60 == 0 && s > 0 => write!(f, "{}m", s / 60),
+            s => write!(f, "{s}s"),
+        }
+    }
+}
+
 impl<'de> Deserialize<'de> for Duration {
     fn deserialize<D: Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
         Duration::parse(&String::deserialize(d)?).map_err(serde::de::Error::custom)

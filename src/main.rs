@@ -57,6 +57,11 @@ fn main() {
     if args.get(1).map(String::as_str) == Some("--check-language") {
         std::process::exit(i18n::pack::check_file_main(args.get(2).map(String::as_str)));
     }
+    // `crow --check-plugin DIR`: what a plugin declares, and whether Crow
+    // would load it (ERR-176).
+    if args.get(1).map(String::as_str) == Some("--check-plugin") {
+        std::process::exit(plugin_host::check::check_dir_main(args.get(2).map(String::as_str)));
+    }
 
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
