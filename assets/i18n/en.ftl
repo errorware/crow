@@ -464,6 +464,12 @@ app-user-plugins-type-keyword = Type { $keyword } to run it.
 app-user-plugins-stopped = stopped
 app-user-plugins-needs-install = Install this plugin first (INSTALL): its setup hasn't run with these files.
 app-user-plugins-missing-here = Needs on this machine: { $names }
+app-user-plugin-fleet-done = done
+app-user-plugin-fleet-failed = failed
+app-user-plugin-fleet-no-ssh = a lab container: actions on this machine need SSH
+app-user-plugin-fleet-no-servers = No server to run it on: change where it goes.
+app-user-plugin-fleet-no-result = the plugin wrote no result for this server
+app-user-plugin-fleet-title = { $label } · { $plugin }
 
 ## app-providers
 app-providers-set-type-to-replace = set · type to replace
@@ -1855,6 +1861,7 @@ fleet-setup-nav-change = CHANGE
 fleet-setup-nav-security = SECURITY
 fleet-setup-nav-watch = WATCH
 fleet-setup-nav-organisation = ORGANISATION
+fleet-setup-nav-plugins = PLUGINS
 fleet-setup-fleet-configuration = FLEET CONFIGURATION
 fleet-setup-fleet-configuration-about = what changes how the fleet runs, and what happens to its servers
 fleet-setup-topology-dr = TOPOLOGY & DR
@@ -2823,6 +2830,11 @@ plugin-page-type-to-confirm = Type { $keyword } to confirm
 plugin-page-run = RUN · { $label }
 plugin-page-cancel = CANCEL
 plugin-page-needs-install = This plugin runs things on this machine and needs its setup first.
+plugin-fleet-where = WHERE
+plugin-fleet-count = { $count ->
+    [one] 1 server
+   *[other] { $count } servers
+}
 plugin-local-lab-container = { $name } is a lab container: actions on this machine reach servers over SSH, and it has none.
 
 ## settings-providers

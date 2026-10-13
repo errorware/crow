@@ -31,6 +31,8 @@ pub struct FleetState {
     pub setup_page: SetupPage,
     /// Topology & DR's page.
     pub topology_page: TopologyPage,
+    /// With `SetupPage::Plugin`: (plugin id, page id).
+    pub plugin_page: Option<(String, String)>,
     /// One-line feedback after an archive, restore or purge.
     pub notice: Option<String>,
     /// Server awaiting archive confirmation.
@@ -90,6 +92,7 @@ impl FleetState {
             page: FleetPage::Active,
             setup_page: SetupPage::Policies,
             topology_page: TopologyPage::Map,
+            plugin_page: None,
             notice: None,
             pending_archive: None,
         }
@@ -276,6 +279,8 @@ pub enum SetupPage {
     Team,
     /// Every change Crow made, on every server (ERR-75).
     Audit,
+    /// A user plugin's fleet page (ERR-181): which one is in `plugin_page`.
+    Plugin,
 }
 
 /// Topology & DR: views of what the fleet is, not settings for it.

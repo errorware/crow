@@ -23,6 +23,10 @@ pub struct PageData<'a> {
     pub runs: Vec<PluginRun>,
     /// It has a setup that hasn't succeeded with these files.
     pub needs_install: bool,
+    /// A fleet page: buttons plan fleet runs, runs list every server.
+    pub fleet: bool,
+    /// Server names by id, for the fleet page's runs.
+    pub server_names: std::collections::HashMap<String, String>,
 }
 
 fn title(text: String) -> Div {
@@ -125,7 +129,7 @@ fn block_view(i: usize, b: &Block, d: &PageData, app: &Entity<CrowApp>) -> AnyEl
         BlockKind::Actions => {
             let buttons = b.actions.iter().filter_map(|id| m.actions.iter().find(|a| &a.id == id)).enumerate().map(|(j, a)| action_button(i * 100 + j, a, d, app.clone()));
             let shown = d.state.shown_output.as_ref().filter(|(p, a, s)| p == &d.plugin.id && s == d.server_id && b.actions.contains(a));
-            let pending = d.state.pending.as_ref().filter(|p| p.key.0 == d.plugin.id && p.key.2 == d.server_id && b.actions.contains(&p.key.1));
+            let pending = d.state.pending.as_ref().filter(|p| p.key.0 == d.plugin.id && p.fleet == d.fleet && (d.fleet || p.key.2 == d.server_id) && b.actions.contains(&p.key.1));
             panel()
                 .child(div().flex().flex_wrap().gap(px(8.0)).children(buttons))
                 .children(pending.and_then(|p| m.actions.iter().find(|a| a.id == p.key.1)).map(|a| confirm_panel(a, d, app.clone())))
@@ -145,6 +149,7 @@ fn block_view(i: usize, b: &Block, d: &PageData, app: &Entity<CrowApp>) -> AnyEl
                         .text_size(px(10.5))
                         .child(div().w(px(110.0)).flex_none().text_color(TEXT_FAINT).child(when_ago(r.started_at)))
                         .child(div().w(px(14.0)).flex_none().text_color(if r.ok { OK } else { CRIT }).child(if r.ok { "✓" } else { "✗" }))
+                        .when(d.fleet, |row| row.child(div().w(px(130.0)).flex_none().truncate().text_color(TEXT_PRIMARY).child(d.server_names.get(&r.server_id).cloned().unwrap_or_else(|| r.server_id.clone()))))
                         .child(div().w(px(160.0)).flex_none().truncate().text_color(TEXT_SECONDARY).child(label(&r.action_id)))
                         .when(r.dry_run, |row| row.child(div().flex_none().px(px(4.0)).bg(BG_CHIP).text_size(px(9.0)).text_color(TEXT_TERTIARY).child(t!("plugin-page-dry-run-chip"))))
                         .when(r.stopped, |row| row.child(div().flex_none().px(px(4.0)).bg(WARN_BG).text_size(px(9.0)).text_color(WARN_INK).child(t!("plugin-page-stopped-chip"))))
@@ -158,7 +163,7 @@ fn block_view(i: usize, b: &Block, d: &PageData, app: &Entity<CrowApp>) -> AnyEl
 fn action_button(n: usize, a: &Action, d: &PageData, app: Entity<CrowApp>) -> impl IntoElement {
     let running = d.state.slot(&d.plugin.id, &a.id, d.server_id).is_some_and(|s| s.running);
     let usable = true;
-    let (plugin, action) = (d.plugin.id.clone(), a.id.clone());
+    let (plugin, action, fleet) = (d.plugin.id.clone(), a.id.clone(), d.fleet);
     let color = match a.effect {
         Effect::Read => TEXT_SECONDARY,
         Effect::Change => WARN,
@@ -173,7 +178,7 @@ fn action_button(n: usize, a: &Action, d: &PageData, app: Entity<CrowApp>) -> im
         .text_size(px(10.5))
         .font_weight(FontWeight::BOLD)
         .text_color(if usable { color } else { TEXT_FAINT })
-        .when(usable && !running, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.press_plugin_action(&plugin, &action, cx))))
+        .when(usable && !running, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, window, cx| app.update(cx, |this, cx| if fleet { this.press_fleet_plugin_action(&plugin, &action, window, cx) } else { this.press_plugin_action(&plugin, &action, cx) })))
         .child(if running { t!("plugin-page-running", label = a.label) } else { a.label.to_uppercase() })
 
 }
@@ -246,7 +251,7 @@ pub fn console(plugin: &str, action: &str, server: &str, slot: &RunSlot, app: En
 
 /// A change or danger action about to run: what it will run, its inputs,
 /// its dry run, then RUN (and the keyword for danger).
-fn confirm_panel(a: &Action, d: &PageData, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn confirm_panel(a: &Action, d: &PageData, app: Entity<CrowApp>) -> impl IntoElement {
     let pending = d.state.pending.as_ref().expect("a pending run");
     let danger = a.effect == Effect::Danger;
     let color = if danger { CRIT } else { WARN };
@@ -368,7 +373,7 @@ fn confirm_panel(a: &Action, d: &PageData, app: Entity<CrowApp>) -> impl IntoEle
                         .text_size(px(10.5))
                         .font_weight(FontWeight::BOLD)
                         .cursor_pointer()
-                        .on_click(move |_ev, _w, cx| app_run.update(cx, |this, cx| this.confirm_plugin_run(cx)))
+                        .on_click(move |_ev, window, cx| app_run.update(cx, |this, cx| this.confirm_plugin_run(window, cx)))
                         .child(t!("plugin-page-run", label = a.label.to_uppercase())),
                 )
                 .child(
@@ -471,6 +476,110 @@ pub fn plugin_page(d: PageData, app: Entity<CrowApp>) -> impl IntoElement {
                 .flex()
                 .flex_col()
                 .gap(px(12.0))
+                .children(d.page.blocks.iter().enumerate().map(|(i, b)| block_view(i, b, &d, &app))),
+        )
+}
+
+/// Fleet configuration's page for a plugin (ERR-181): where its actions go
+/// (every server or a group), the canary, the batch size, then its blocks.
+pub fn plugin_fleet_page(d: PageData, targets: (&crate::app::user_plugin_fleet::PluginFleetState, &[String], &[crate::vault::ServerRecord], &[(String, String)]), app: Entity<CrowApp>) -> impl IntoElement {
+    use crate::app::patching::Target;
+    let (st, groups, servers, left_out) = targets;
+    let chip = |id: String, text: String, on: bool| {
+        div()
+            .id(ElementId::Name(id.into()))
+            .px(px(9.0))
+            .py(px(4.0))
+            .border_1()
+            .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
+            .bg(if on { BG_CONTROL_ALT } else { BG_CONTROL })
+            .text_size(px(10.0))
+            .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
+            .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+            .cursor_pointer()
+            .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+            .child(text)
+    };
+    let canary = servers.first().map(|s| s.id.clone()).filter(|_| st.use_canary);
+    let m = d.plugin.report.manifest.as_ref();
+    let label = |t: &'static str| div().text_size(px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(t);
+    div()
+        .size_full()
+        .flex()
+        .flex_col()
+        .bg(BG_APP)
+        .font_family(FONT_MONO)
+        .child(
+            div()
+                .h(px(40.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap(px(10.0))
+                .px(px(14.0))
+                .bg(BG_PANEL)
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .child(div().text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(d.page.label.to_uppercase()))
+                .child(div().text_size(px(10.0)).text_color(TEXT_FAINT).child(t!("plugin-page-from", name = d.plugin.name(), version = m.map(|m| m.plugin.version.clone()).unwrap_or_default()))),
+        )
+        .child(
+            div()
+                .id("plugin-fleet-scroll")
+                .flex_1()
+                .min_h(px(0.0))
+                .overflow_y_scrollbar()
+                .p(px(14.0))
+                .flex()
+                .flex_col()
+                .gap(px(12.0))
+                .child(
+                    panel()
+                        .child(label(t!("plugin-fleet-where")))
+                        .child(
+                            div()
+                                .flex()
+                                .flex_wrap()
+                                .gap(px(6.0))
+                                .child({
+                                    let app = app.clone();
+                                    chip("pf-target-all".into(), t!("fleet-rollouts-every-server").to_string(), st.target == Target::All).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_plugin_fleet_target(Target::All, cx)))
+                                })
+                                .children(groups.iter().map(|g| {
+                                    let (app, name) = (app.clone(), g.clone());
+                                    chip(format!("pf-target-{g}"), t!("fleet-rollouts-group", g = g), st.target == Target::Group(g.clone())).on_click(move |_ev, _w, cx| {
+                                        let name = name.clone();
+                                        app.update(cx, |this, cx| this.set_plugin_fleet_target(Target::Group(name), cx))
+                                    })
+                                })),
+                        )
+                        .child(div().text_size(px(10.0)).text_color(TEXT_DIM).child(t!("plugin-fleet-count", count = servers.len())))
+                        .children(left_out.iter().take(8).map(|(name, why)| div().text_size(px(9.5)).text_color(TEXT_FAINT).child(format!("{name} · {why}"))))
+                        .child(label(t!("fleet-rollouts-canary-runs-first-alone")))
+                        .child(
+                            div()
+                                .flex()
+                                .flex_wrap()
+                                .gap(px(6.0))
+                                .child({
+                                    let app = app.clone();
+                                    chip("pf-canary-none".into(), t!("fleet-rollouts-no-canary").to_string(), !st.use_canary).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_plugin_fleet_canary(None, cx)))
+                                })
+                                .children(servers.iter().map(|s| {
+                                    let (app, id) = (app.clone(), s.id.clone());
+                                    chip(format!("pf-canary-{}", s.id), s.name.clone(), canary.as_deref() == Some(s.id.as_str())).on_click(move |_ev, _w, cx| {
+                                        let id = id.clone();
+                                        app.update(cx, |this, cx| this.set_plugin_fleet_canary(Some(id), cx))
+                                    })
+                                })),
+                        )
+                        .child(label(t!("fleet-rollouts-then-at-a-time")))
+                        .child(div().flex().gap(px(6.0)).children([1usize, 2, 5, 10].into_iter().map(|n| {
+                            let app = app.clone();
+                            chip(format!("pf-batch-{n}"), n.to_string(), st.batch == n).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_plugin_fleet_batch(n, cx)))
+                        }))),
+                )
+                .children(d.state.message.clone().filter(|(ok, _)| !ok).map(|(_, m)| div().text_size(px(10.5)).text_color(CRIT).child(m)))
                 .children(d.page.blocks.iter().enumerate().map(|(i, b)| block_view(i, b, &d, &app))),
         )
 }

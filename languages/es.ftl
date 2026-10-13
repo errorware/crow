@@ -457,6 +457,12 @@ app-user-plugins-type-keyword = Escribe { $keyword } para ejecutarlo.
 app-user-plugins-stopped = detenido
 app-user-plugins-needs-install = Instala primero este plugin (INSTALAR): su instalación no se ha ejecutado con estos archivos.
 app-user-plugins-missing-here = Necesita en esta máquina: { $names }
+app-user-plugin-fleet-done = hecho
+app-user-plugin-fleet-failed = falló
+app-user-plugin-fleet-no-ssh = un contenedor de laboratorio: las acciones en esta máquina necesitan SSH
+app-user-plugin-fleet-no-servers = No hay servidor donde ejecutarlo: cambia a dónde va.
+app-user-plugin-fleet-no-result = el plugin no escribió ningún resultado para este servidor
+app-user-plugin-fleet-title = { $label } · { $plugin }
 
 ## app-providers
 app-providers-set-type-to-replace = configurado · escribe para sustituirlo
@@ -1859,6 +1865,7 @@ fleet-setup-nav-change = CAMBIOS
 fleet-setup-nav-security = SEGURIDAD
 fleet-setup-nav-watch = VIGILANCIA
 fleet-setup-nav-organisation = ORGANIZACIÓN
+fleet-setup-nav-plugins = PLUGINS
 fleet-setup-fleet-configuration = CONFIGURACIÓN DE LA FLOTA
 fleet-setup-fleet-configuration-about = lo que cambia cómo funciona la flota y lo que les pasa a sus servidores
 fleet-setup-topology-dr = TOPOLOGÍA Y DR
@@ -2834,6 +2841,11 @@ plugin-page-type-to-confirm = Escribe { $keyword } para confirmar
 plugin-page-run = EJECUTAR · { $label }
 plugin-page-cancel = CANCELAR
 plugin-page-needs-install = Este plugin ejecuta cosas en esta máquina y necesita su instalación primero.
+plugin-fleet-where = DÓNDE
+plugin-fleet-count = { $count ->
+    [one] 1 servidor
+   *[other] { $count } servidores
+}
 plugin-local-lab-container = { $name } es un contenedor de laboratorio: las acciones en esta máquina llegan a los servidores por SSH, y no tiene.
 
 ## settings-providers

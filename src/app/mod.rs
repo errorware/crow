@@ -57,6 +57,7 @@ pub mod topology;
 pub mod palette;
 pub mod plugins;
 pub mod user_plugins;
+pub mod user_plugin_fleet;
 pub mod notify;
 pub mod containers;
 pub mod bastions;

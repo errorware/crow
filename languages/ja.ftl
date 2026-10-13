@@ -451,6 +451,12 @@ app-user-plugins-type-keyword = 実行するには { $keyword } と入力して�
 app-user-plugins-stopped = 停止
 app-user-plugins-needs-install = まずこのプラグインをインストールしてください (インストール)。このファイルでセットアップがまだ実行されていません。
 app-user-plugins-missing-here = このマシンに必要: { $names }
+app-user-plugin-fleet-done = 完了
+app-user-plugin-fleet-failed = 失敗
+app-user-plugin-fleet-no-ssh = ラボコンテナー: このマシンでのアクションには SSH が必要です
+app-user-plugin-fleet-no-servers = 実行するサーバーがありません。対象を変更してください。
+app-user-plugin-fleet-no-result = プラグインはこのサーバーの結果を書きませんでした
+app-user-plugin-fleet-title = { $label } · { $plugin }
 
 ## app-providers
 app-providers-set-type-to-replace = 設定済み · 入力すると置き換え
@@ -1832,6 +1838,7 @@ fleet-setup-nav-change = 変更
 fleet-setup-nav-security = セキュリティ
 fleet-setup-nav-watch = 監視
 fleet-setup-nav-organisation = 組織
+fleet-setup-nav-plugins = プラグイン
 fleet-setup-fleet-configuration = フリート設定
 fleet-setup-fleet-configuration-about = フリートの運用方法と、サーバーに起きることを決める設定
 fleet-setup-topology-dr = 構成と DR
@@ -2792,6 +2799,8 @@ plugin-page-type-to-confirm = 確認するには { $keyword } と入力
 plugin-page-run = 実行 · { $label }
 plugin-page-cancel = キャンセル
 plugin-page-needs-install = このプラグインはこのマシンで実行するため、先にセットアップが必要です。
+plugin-fleet-where = 対象
+plugin-fleet-count = { $count } 台のサーバー
 plugin-local-lab-container = { $name } はラボコンテナーです。このマシンでのアクションは SSH でサーバーに接続しますが、このコンテナーにはありません。
 
 ## settings-providers
