@@ -11,6 +11,8 @@ pub struct PluginsState {
     pub enabled: HashSet<String>,
     pub status: HashMap<String, PluginStatus>,
     pub checking: HashSet<String>,
+    /// Plugins from the plugins folder (ERR-177).
+    pub user: super::user_plugins::UserPluginsState,
 }
 
 /// The first enabled set, for a vault from before plugins: whatever was

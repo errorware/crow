@@ -75,6 +75,7 @@ pub fn render_plugins_view(app: Entity<CrowApp>, plugins: &PluginsState, provide
                 .child(div().p(px(12.0)).bg(BG_OVERLAY_PANEL).border_1().border_color(BORDER_PANEL).font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(TEXT_MUTED).child(
                     t!("settings-plugins-crow-does-nothing-with-these"),
                 ))
+                .child(super::user_plugins::user_plugins_section(&plugins.user, app.clone()))
                 .children(GROUPS.iter().map(|(category, title)| {
                     div()
                         .flex()
