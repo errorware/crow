@@ -383,5 +383,5 @@ fn settings_form(p: &Installed, form: &crate::app::user_plugin_settings::Setting
                 .children(f.help.clone().map(|h| div().pl(px(230.0)).text_size(px(9.5)).text_color(TEXT_FAINT).child(h)))
         }))
         .children(form.message.clone().map(|(ok, m)| div().text_size(px(10.0)).text_color(if ok { OK } else { CRIT }).child(m)))
-        .child(div().child(button("btn-save-plugin-settings", t!("settings-user-plugins-save"), OK).on_click(move |_ev, _w, cx| app_save.update(cx, |this, cx| this.save_plugin_settings(&id_save, cx)))))
+        .child(div().flex().child(button("btn-save-plugin-settings", t!("settings-user-plugins-save"), OK).on_click(move |_ev, _w, cx| app_save.update(cx, |this, cx| this.save_plugin_settings(&id_save, cx)))))
 }

@@ -78,8 +78,11 @@ with open(a.results, "w") as out:
         changed = c.get("changed", 0)
         line = {"host": host, "ok": failed == 0, "changed": changed}
         if a.status:
-            if failed:
-                line.update(state="bad", label="DevSec check failed")
+            # A check that couldn't run says nothing about the server: unknown.
+            if c.get("unreachable"):
+                line.update(state="unknown", label="DevSec: unreachable")
+            elif failed:
+                line.update(state="unknown", label="DevSec: couldn't check")
             elif changed:
                 line.update(state="warn", label=f"DevSec: {changed} changes pending")
             else:

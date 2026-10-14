@@ -12,7 +12,7 @@ use super::CrowApp;
 use crate::plugin_host::badges::{self, BadgeView};
 use crate::plugin_host::local;
 use crate::plugin_host::manifest::{Action, Runs};
-use crate::plugin_host::run::{self, ServerValues, State, Status, Values};
+use crate::plugin_host::run::{self, ServerValues, Status, Values};
 use crate::vault::ServerRecord;
 
 /// When each (plugin, server) badge was last read.
@@ -20,17 +20,6 @@ use crate::vault::ServerRecord;
 pub struct BadgeClock {
     pub read_at: HashMap<(String, String), i64>,
     pub busy: std::collections::HashSet<String>,
-}
-
-/// The status a local action's `{results}` line gives.
-fn status_of_line(l: &serde_json::Value) -> Option<Status> {
-    let state = match l.get("state").and_then(|s| s.as_str())? {
-        "ok" => State::Ok,
-        "warn" => State::Warn,
-        "bad" => State::Bad,
-        _ => State::Unknown,
-    };
-    Some(Status { state, label: l.get("label").and_then(|s| s.as_str()).unwrap_or_default().chars().filter(|c| !c.is_control()).take(80).collect() })
 }
 
 impl CrowApp {
@@ -151,7 +140,7 @@ fn read_badges(plugin_id: &str, dir: &std::path::Path, action: &Action, requires
                 .iter()
                 .map(|s| {
                     let alias = local::alias(s);
-                    let st = lines.iter().find(|l| l["host"] == alias.as_str()).and_then(status_of_line).ok_or_else(|| "no status".to_string());
+                    let st = lines.iter().find(|l| l["host"] == alias.as_str()).and_then(run::status_of_line).ok_or_else(|| "no status".to_string());
                     (s.id.clone(), st)
                 })
                 .collect()
@@ -163,7 +152,8 @@ fn read_badges(plugin_id: &str, dir: &std::path::Path, action: &Action, requires
 mod tests {
     use std::collections::BTreeMap;
 
-    use super::{read_badges, status_of_line};
+    use super::read_badges;
+    use crate::plugin_host::run::status_of_line;
     use crate::plugin_host::manifest;
     use crate::plugin_host::run::State;
     use crate::vault::ServerRecord;

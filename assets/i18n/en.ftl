@@ -2817,6 +2817,7 @@ plugin-page-exit = exit code { $code }
 plugin-page-unreadable = The output can't be read: { $why }
 plugin-page-no-rows = Nothing to show.
 plugin-page-runs = RUNS ON THIS SERVER
+plugin-page-runs-fleet = RUNS ACROSS THE FLEET
 plugin-page-no-runs = No runs yet.
 plugin-page-running = { $label }…
 plugin-page-truncated = Output cut at 1 MB.
@@ -2836,6 +2837,8 @@ plugin-page-type-to-confirm = Type { $keyword } to confirm
 plugin-page-run = RUN · { $label }
 plugin-page-cancel = CANCEL
 plugin-page-needs-install = This plugin runs things on this machine and needs its setup first.
+plugin-page-installed = Installed: its setup ran with these files.
+plugin-page-close = CLOSE
 plugin-fleet-where = WHERE
 plugin-fleet-count = { $count ->
     [one] 1 server
