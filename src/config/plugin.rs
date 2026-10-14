@@ -65,12 +65,14 @@ fleet_background_blur = "8"
 terminal_font_size = 13
 start_maximized = false
 language = "en"
+time_zones = ""
+time_zone = ""
 "#
 }
 
 /// The [appearance] section with defaults, appended to config files written
 /// before Personalisation existed.
-pub const APPEARANCE_DEFAULTS: &str = "\n[appearance]\nfleet_background = \"\"\nfleet_background_opacity = \"10\"\nfleet_background_blur = \"8\"\nterminal_font_size = 13\nstart_maximized = false\nlanguage = \"en\"\n";
+pub const APPEARANCE_DEFAULTS: &str = "\n[appearance]\nfleet_background = \"\"\nfleet_background_opacity = \"10\"\nfleet_background_blur = \"8\"\nterminal_font_size = 13\nstart_maximized = false\nlanguage = \"en\"\ntime_zones = \"\"\ntime_zone = \"\"\n";
 
 /// The [servers] section with defaults, appended to config files written
 /// before archiving existed (ERR-32).

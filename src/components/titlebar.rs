@@ -52,6 +52,7 @@ pub fn titlebar(
     server_count: usize,
     session: String,
     stance: &crate::security::stance::StanceReport,
+    clock: crate::app::clock::ClockLine,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
     let mut bar = div()
@@ -262,8 +263,7 @@ pub fn titlebar(
     } else {
         session
     };
-    let server_time_text = chrono::Utc::now().format("%H:%M:%S").to_string();
-    let local_time_text = chrono::Local::now().format("%H:%M:%S").to_string();
+    let app_clock = app.clone();
 
     bar = bar.child(
         div()
@@ -280,37 +280,37 @@ pub fn titlebar(
             .on_mouse_down(MouseButton::Left, |ev, window, _cx| crate::components::window_frame::titlebar_mouse_down(ev, window))
             .child(crate::components::stance::stance_badge(stance, app.clone()))
             .child(div().child(meta_text))
-            .children(if current_screen == Screen::Server {
-                Some(
-                    div()
-                        .flex()
-                        .items_center()
-                        .gap(px(5.0))
-                        .child(div().text_color(TEXT_DIMMER).child(t!("titlebar-srv")))
-                        .child(
-                            div()
-                                .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(TEXT_SECONDARY)
-                                .child(server_time_text),
-                        )
-                        .child(div().text_color(TEXT_DIMMER).child(t!("titlebar-utc"))),
-                )
-            } else {
-                None
-            })
+            // Your time first, in the zone you picked here.
             .child(
+                div()
+                    .id("titlebar-clock-zone")
+                    .flex()
+                    .items_center()
+                    .gap(px(5.0))
+                    .px(px(6.0))
+                    .py(px(2.0))
+                    .rounded_sm()
+                    .cursor_pointer()
+                    .bg(if clock.menu_open { BG_ROW_HOVER } else { hex_rgba(0, 0.0) })
+                    .hover(|s| s.bg(BG_ROW_HOVER))
+                    .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
+                    .on_click(move |_ev, _window, cx| app_clock.update(cx, |this, cx| this.toggle_clock_menu(cx)))
+                    .child(div().text_color(TEXT_DIMMER).child(t!("titlebar-you")))
+                    .child(div().font_weight(FontWeight::SEMIBOLD).text_color(TEXT_SECONDARY).child(clock.local_time))
+                    .child(div().text_color(TEXT_DIMMER).child(clock.zone))
+                    .child(tabler_icon(TablerIcon::ChevronDown).size(px(10.0)).text_color(TEXT_DIMMER)),
+            )
+            // Then the server's, with how far it is from you.
+            .children(clock.server.filter(|_| current_screen == Screen::Server).map(|(time, abbr, delta)| {
                 div()
                     .flex()
                     .items_center()
                     .gap(px(5.0))
-                    .child(div().text_color(TEXT_DIMMER).child(t!("titlebar-you")))
-                    .child(
-                        div()
-                            .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(TEXT_SECONDARY)
-                            .child(local_time_text),
-                    ),
-            ),
+                    .child(div().text_color(TEXT_DIMMER).child(t!("titlebar-srv")))
+                    .child(div().font_weight(FontWeight::SEMIBOLD).text_color(TEXT_SECONDARY).child(time))
+                    .child(div().text_color(TEXT_DIMMER).child(abbr))
+                    .children(delta.map(|(d, ahead)| div().font_weight(FontWeight::SEMIBOLD).text_color(if ahead { OK } else { CRIT }).child(d)))
+            })),
     );
 
     // 5. Linux / Windows platform window controls
@@ -767,5 +767,98 @@ pub fn burger_menu_overlay(
                             None
                         })
                 })),
+        )
+}
+
+/// The titlebar clock's zone picker: this computer's zone, then yours from
+/// Settings → Personalisation; the pick is remembered.
+pub fn clock_menu_overlay(app: Entity<CrowApp>, zones: &[chrono_tz::Tz], selected: crate::app::clock::Zone) -> impl IntoElement {
+    use crate::app::clock::{local_name, utc_label, Zone};
+    let now = chrono::Utc::now();
+    let app_backdrop = app.clone();
+    let app_manage = app.clone();
+    let mut rows: Vec<(Zone, String, String)> = vec![(Zone::Local, t!("titlebar-clock-this-computer").to_string(), local_name().unwrap_or_default())];
+    rows.extend(zones.iter().map(|z| (Zone::Named(*z), crate::app::clock::city(z.name()), z.name().to_string())));
+    let row = |idx: usize, (zone, label, name): (Zone, String, String)| {
+        let app_pick = app.clone();
+        let on = zone == selected;
+        div()
+            .id(ElementId::NamedInteger("clock-zone".into(), idx as u64))
+            .h(px(30.0))
+            .flex_none()
+            .flex()
+            .items_center()
+            .gap(px(8.0))
+            .px(px(12.0))
+            .bg(if on { BG_KEY } else { hex_rgba(0, 0.0) })
+            .cursor_pointer()
+            .hover(|s| s.bg(BG_KEY))
+            .on_click(move |_ev, _window, cx| {
+                app_pick.update(cx, |this, cx| this.select_time_zone(match zone { Zone::Named(tz) => Some(tz), Zone::Local => None }, cx));
+            })
+            .child(div().w(px(12.0)).flex_none().children(on.then(|| tabler_icon(TablerIcon::Check).size(px(12.0)).text_color(OK))))
+            .child(div().flex_1().min_w(px(0.0)).truncate().text_color(if on { TEXT_MAX } else { TEXT_PRIMARY }).child(label))
+            .child(div().text_color(TEXT_DIMMER).child(name))
+            .child(div().w(px(76.0)).flex_none().text_right().text_color(TEXT_DIM).child(utc_label(zone.offset_at(now))))
+    };
+    div()
+        .id("clock-menu-backdrop")
+        .absolute()
+        .top(px(36.0))
+        .left_0()
+        .right_0()
+        .bottom_0()
+        .occlude()
+        .flex()
+        .justify_end()
+        .on_click(move |_ev, _window, cx| app_backdrop.update(cx, |this, cx| this.toggle_clock_menu(cx)))
+        .child(
+            div()
+                .id("clock-menu-dropdown")
+                .occlude()
+                .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
+                .mr(px(120.0))
+                .w(px(380.0))
+                .bg(BG_OVERLAY_PANEL)
+                .border_1()
+                .border_color(BORDER_STRONG)
+                .border_t_0()
+                .shadow_lg()
+                .flex()
+                .flex_col()
+                .font_family(FONT_MONO)
+                .text_size(px(11.0))
+                .child(
+                    div()
+                        .h(px(24.0))
+                        .flex_none()
+                        .flex()
+                        .items_center()
+                        .px(px(12.0))
+                        .bg(BG_PANEL)
+                        .text_size(px(9.5))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(TEXT_DIMMER)
+                        .child(t!("titlebar-clock-your-time-in")),
+                )
+                .child(div().flex().flex_col().children(rows.into_iter().enumerate().map(|(i, r)| row(i, r))))
+                .child(
+                    div()
+                        .id("clock-menu-manage")
+                        .h(px(30.0))
+                        .flex_none()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .px(px(12.0))
+                        .border_t_1()
+                        .border_color(BORDER_DEFAULT)
+                        .cursor_pointer()
+                        .text_color(TEXT_DIM)
+                        .hover(|s| s.bg(BG_KEY).text_color(TEXT_PRIMARY))
+                        .on_click(move |_ev, _window, cx| app_manage.update(cx, |this, cx| this.open_time_zone_settings(cx)))
+                        .child(crate::components::icons::inherited_icon(TablerIcon::Settings, px(12.0)).size(px(12.0)))
+                        .child(if zones.is_empty() { t!("titlebar-clock-add-zones") } else { t!("titlebar-clock-manage-zones") }),
+                ),
         )
 }

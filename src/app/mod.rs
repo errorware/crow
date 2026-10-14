@@ -47,6 +47,7 @@ pub mod overview;
 pub mod keys;
 pub mod appearance;
 pub mod language;
+pub mod clock;
 pub mod archive;
 pub mod configs;
 pub mod region;
@@ -262,6 +263,8 @@ pub struct CrowApp {
     pub firewall_search: Option<overview::TableSearch>,
     /// Servers whose distro/kernel Crow has tried to read this run.
     pub server_facts_tried: std::collections::HashSet<String>,
+    /// The titlebar's clocks: your zone and each server's offset.
+    pub clock: clock::ClockState,
     /// The add-rule dialog's text fields, while it's open.
     pub firewall_rule_inputs: Option<firewall::FirewallRuleInputs>,
     pub logs_search: Option<overview::TableSearch>,
@@ -520,6 +523,7 @@ impl CrowApp {
             users_search: None,
             firewall_search: None,
             server_facts_tried: std::collections::HashSet::new(),
+            clock: Default::default(),
             firewall_rule_inputs: None,
             logs_search: None,
             new_user_inputs: None,

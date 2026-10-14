@@ -40,6 +40,8 @@ pub const WIRED_SETTINGS: &[&str] = &[
     "appearance.terminal_font_size",
     "appearance.start_maximized",
     "appearance.language",
+    "appearance.time_zones",
+    "appearance.time_zone",
     "servers.geoip_regions",
     "general.update_check",
     "general.update_prereleases",
@@ -138,6 +140,8 @@ impl CrowConfigManager {
         let text = add_missing_key(&text, "appearance", "terminal_font_size", "terminal_font_size = 13");
         let text = add_missing_key(&text, "appearance", "start_maximized", "start_maximized = false");
         let text = add_missing_key(&text, "appearance", "language", "language = \"en\"");
+        let text = add_missing_key(&text, "appearance", "time_zones", "time_zones = \"\"");
+        let text = add_missing_key(&text, "appearance", "time_zone", "time_zone = \"\"");
         let text = if text.lines().any(|l| l.trim() == "[servers]") {
             text
         } else {

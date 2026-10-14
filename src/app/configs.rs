@@ -581,6 +581,7 @@ impl CrowApp {
     /// it loaded.
     pub fn reload_configs_for_active_server(&mut self, cx: &mut Context<Self>) {
         self.backfill_server_facts(cx);
+        self.read_server_clock(cx);
         let server = self.fleet.active_server();
         let target = server.as_ref().map(|s| s.id.clone());
         if self.configs.has_unsaved_changes() || target == self.configs.server_id {
