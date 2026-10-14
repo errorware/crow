@@ -350,6 +350,8 @@ fn node_card(i: usize, n: &Node, (x, y): (f32, f32), zoom: f32, selected: bool, 
                         .items_center()
                         .gap(z(6.0))
                         .child(div().flex_1().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(z(9.5)).text_color(TEXT_DIM).child(n.detail.clone()))
+                        // User plugins' badges (ERR-182), as dots.
+                        .children(n.server_id.as_deref().map(crate::plugin_host::badges::for_server).unwrap_or_default().into_iter().map(|b| div().flex_none().size(z(7.0)).rounded_full().bg(crate::components::plugin_badge::color(b.state))))
                         .children((!n.risks.is_empty()).then(|| {
                             div().flex_none().px(z(4.0)).bg(hex_rgba(if worst == Some(Level::Crit) { 0xef4444 } else { 0xf59e0b }, 0.15)).font_family(FONT_MONO).text_size(z(9.0)).font_weight(FontWeight::BOLD).text_color(level_color(worst)).child(t!("topology-text", count = n.risks.len()))
                         })),

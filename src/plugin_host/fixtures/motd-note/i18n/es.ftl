@@ -1,0 +1,11 @@
+plugin-name = Nota de inicio
+plugin-about = Pone una nota en el mensaje que se ve al iniciar sesión en un servidor (/etc/motd.d/50-crow-note) y muestra lo que hay ahora.
+action-current = Nota actual
+action-preview = Vista previa
+action-write = Escribir la nota
+action-write-help = Reemplaza /etc/motd.d/50-crow-note con la nota; todos la verán en su próximo inicio de sesión.
+input-write-note = Nota
+input-preview-note = Nota
+action-count = Contar despacio
+page-note = Nota de inicio
+page-note-fleet = Nota de inicio

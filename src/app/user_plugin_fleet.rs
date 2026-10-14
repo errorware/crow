@@ -161,7 +161,8 @@ impl CrowApp {
             cx.notify();
             return;
         }
-        let (settings, secrets, missing) = run::settings_values(&m.settings, &BTreeMap::new());
+        let stored = self.user_plugin_settings(plugin_id, &m.settings);
+        let (settings, secrets, missing) = run::settings_values(&m.settings, &stored);
         if let Some((_, why)) = missing.first() {
             self.plugins.user.message = Some((false, t!("app-user-plugins-needs-settings", names = why)));
             cx.notify();
@@ -238,7 +239,7 @@ impl JobCtx {
         let program = run::remote_program(&self.action, &self.manifest.requires.server, &self.dir, &values, &nonce)?;
         let host = crate::host::host_for(srv);
         let r = run::run_program(host.as_ref(), &program, self.action.root, std::time::Duration::from_secs(self.action.timeout.0), &nonce);
-        let summary = run::summary(&self.action.output, &r);
+        let summary = super::user_plugin_settings::redact(&run::summary(&self.action.output, &r), &self.secrets);
         record(&self.db, (&self.plugin_id, &self.action.id, &self.hash), srv, &r, &summary, &self.detail);
         step_result(&r, summary)
     }
@@ -271,14 +272,14 @@ impl JobCtx {
         let r = local::run(&argv, &data_dir, &env, std::time::Duration::from_secs(self.action.timeout.0), &mut |_, _| {}, &Default::default());
         let lines = local::read_results(&paths.results);
         let _ = std::fs::remove_dir_all(&rd);
-        let overall = run::summary(&self.action.output, &r);
+        let overall = super::user_plugin_settings::redact(&run::summary(&self.action.output, &r), &self.secrets);
         members
             .iter()
             .map(|s| {
                 let alias = local::alias(s);
                 let mine = lines.iter().find(|l| l["host"] == alias.as_str());
                 let (ok, summary) = match mine {
-                    Some(l) => (l.get("ok").and_then(|o| o.as_bool()).unwrap_or(r.ok), l.get("summary").and_then(|v| v.as_str()).unwrap_or(&overall).to_string()),
+                    Some(l) => (l.get("ok").and_then(|o| o.as_bool()).unwrap_or(r.ok), super::user_plugin_settings::redact(l.get("summary").and_then(|v| v.as_str()).unwrap_or(&overall), &self.secrets)),
                     None => (r.ok, overall.clone()),
                 };
                 let mut own = r.clone();

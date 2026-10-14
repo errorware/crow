@@ -139,6 +139,13 @@ pub fn check_dir(dir: &Path) -> Report {
     for f in r.files.iter().filter(|f| f.binary) {
         r.warnings.push(format!("{}: binary, so it can't be reviewed here", f.rel));
     }
+    // Translations: plain text only; anything else is ignored (ERR-182).
+    for f in r.files.iter().filter(|f| !f.binary && f.rel.starts_with("i18n/") && f.rel.ends_with(".ftl")) {
+        let (_, refused) = super::i18n::messages(&std::fs::read_to_string(dir.join(&f.rel)).unwrap_or_default());
+        for id in refused {
+            r.warnings.push(format!("{}: {id} isn't plain text, so it's ignored", f.rel));
+        }
+    }
     r.manifest = Some(m);
     r
 }
@@ -742,6 +749,13 @@ command = ["ls", "-l"]
         let mut manifest = BASE.to_string();
         manifest.push_str(&format!("# {}\n", "x".repeat(super::MAX_MANIFEST_BYTES as usize)));
         refused("big-manifest", &[("plugin.toml", manifest.as_bytes())], "(at most 256.0 KB)");
+    }
+
+    #[test]
+    fn translations_that_arent_plain_are_a_warning() {
+        let r = check_dir(&plugin("i18n", "demo", &[("plugin.toml", BASE.as_bytes()), ("i18n/es.ftl", b"plugin-name = Demostraci\xc3\xb3n\naction-list = Lista { $n }\n")]));
+        assert!(r.ok(), "{:?}", r.refusals);
+        assert_eq!(r.warnings, vec!["i18n/es.ftl: action-list isn't plain text, so it's ignored".to_string()]);
     }
 
     #[test]

@@ -75,6 +75,7 @@ pub fn user_plugins_section(state: &UserPluginsState, app: Entity<CrowApp>) -> i
                 .when(open, |d| {
                     let setup = (state.slot(&p.id, crate::app::user_plugins::SETUP, crate::app::user_plugins::HERE), state.setup_hashes.get(&p.id) == Some(&p.hash));
                     d.child(review(p, confirming, setup, app.clone()))
+                        .when(p.usable() && p.report.manifest.as_ref().is_some_and(|m| !m.settings.is_empty()), |d| d.child(settings_form(p, &state.settings, app.clone())))
                 })
         }))
 }
@@ -318,4 +319,69 @@ fn review(p: &Installed, confirming: bool, state_setup: (Option<&crate::app::use
             d.child(div().text_size(px(10.0)).text_color(CRIT).child(t!("settings-user-plugins-confirm-explain")))
                 .children(crate::components::english_beside::english_beside(t_beside!("settings-user-plugins-confirm-explain")))
         })
+}
+
+/// The plugin's settings, under its review once it's accepted.
+fn settings_form(p: &Installed, form: &crate::app::user_plugin_settings::SettingsForm, app: Entity<CrowApp>) -> impl IntoElement {
+    let fields = p.report.manifest.as_ref().map(|m| m.settings.clone()).unwrap_or_default();
+    let (app_save, id_save) = (app.clone(), p.id.clone());
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(8.0))
+        .px(px(12.0))
+        .pb(px(12.0))
+        .border_t_1()
+        .border_color(BORDER_ROW)
+        .child(div().pt(px(8.0)).child(heading(t!("settings-user-plugins-settings-form"))))
+        .children(fields.iter().map(|f| {
+            let k = (p.id.clone(), f.key.clone());
+            let field: AnyElement = match f.kind {
+                FieldKind::Text | FieldKind::Number | FieldKind::Secret => match form.inputs.get(&k) {
+                    Some(input) => div().w(px(360.0)).child(gpui_kit::component::input::Input::new(input).font_family(FONT_MONO).bg(BG_APP)).into_any_element(),
+                    None => div().into_any_element(),
+                },
+                FieldKind::Bool | FieldKind::Choice | FieldKind::Choices => {
+                    let options: Vec<String> = if f.kind == FieldKind::Bool { vec!["true".into(), "false".into()] } else { f.choices.clone() };
+                    let current = form.picked.get(&k).cloned().unwrap_or_default();
+                    div()
+                        .flex()
+                        .flex_wrap()
+                        .gap(px(6.0))
+                        .children(options.into_iter().enumerate().map(|(i, o)| {
+                            let on = if f.kind == FieldKind::Choices { current.split(',').any(|c| c == o) } else { current == o };
+                            let next = if f.kind == FieldKind::Choices {
+                                let mut set: Vec<&str> = current.split(',').filter(|c| !c.is_empty() && *c != o).collect();
+                                if !on {
+                                    set.push(&o);
+                                }
+                                set.join(",")
+                            } else {
+                                o.clone()
+                            };
+                            let (app, id, key) = (app.clone(), p.id.clone(), f.key.clone());
+                            div()
+                                .id(ElementId::Name(format!("plugin-setting-{}-{}-{i}", p.id, f.key).into()))
+                                .px(px(8.0))
+                                .py(px(3.0))
+                                .border_1()
+                                .border_color(if on { TEXT_PRIMARY } else { BORDER_ROW })
+                                .text_size(px(10.5))
+                                .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+                                .cursor_pointer()
+                                .on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.pick_plugin_setting(&id, &key, next.clone(), cx)))
+                                .child(o)
+                        }))
+                        .into_any_element()
+                }
+            };
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(3.0))
+                .child(div().flex().items_center().gap(px(10.0)).child(div().w(px(220.0)).flex_none().text_size(px(10.5)).text_color(TEXT_SECONDARY).child(if f.kind == FieldKind::Secret { t!("settings-user-plugins-setting-secret", label = f.label) } else { f.label.clone() })).child(field))
+                .children(f.help.clone().map(|h| div().pl(px(230.0)).text_size(px(9.5)).text_color(TEXT_FAINT).child(h)))
+        }))
+        .children(form.message.clone().map(|(ok, m)| div().text_size(px(10.0)).text_color(if ok { OK } else { CRIT }).child(m)))
+        .child(div().child(button("btn-save-plugin-settings", t!("settings-user-plugins-save"), OK).on_click(move |_ev, _w, cx| app_save.update(cx, |this, cx| this.save_plugin_settings(&id_save, cx)))))
 }

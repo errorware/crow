@@ -44,11 +44,20 @@ pub struct Installed {
     pub report: Report,
     pub hash: String,
     pub trust: Trust,
+    /// The manifest with its labels in the current language, when the
+    /// plugin has that language (ERR-182). Pages and menus show it; the
+    /// review shows the English.
+    pub display: Option<super::manifest::Manifest>,
 }
 
 impl Installed {
     pub fn name(&self) -> &str {
-        self.report.manifest.as_ref().map_or(&self.id, |m| &m.plugin.name)
+        self.shown().map_or(&self.id, |m| &m.plugin.name)
+    }
+
+    /// The manifest to show: translated if it can be, else as written.
+    pub fn shown(&self) -> Option<&super::manifest::Manifest> {
+        self.display.as_ref().or(self.report.manifest.as_ref())
     }
 
     /// Accepted and unchanged: the only state in which anything of it may run.
@@ -91,7 +100,8 @@ pub fn load(dir: &Path, pin: &Pin) -> Installed {
     let hash = hash(&report);
     let trust = trust(&report, &hash, pin);
     let id = dir.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    Installed { id, dir: dir.to_path_buf(), report, hash, trust }
+    let display = report.manifest.as_ref().and_then(|m| super::i18n::localized(dir, m, &crate::i18n::current().info.code));
+    Installed { id, dir: dir.to_path_buf(), report, hash, trust, display }
 }
 
 /// Every plugin folder in `root`, sorted by name. Files at the top level,

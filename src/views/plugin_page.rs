@@ -62,7 +62,7 @@ fn pending_or_error(slot: Option<&RunSlot>) -> Option<Div> {
 }
 
 fn block_view(i: usize, b: &Block, d: &PageData, app: &Entity<CrowApp>) -> AnyElement {
-    let m = d.plugin.report.manifest.as_ref().expect("an accepted plugin has a manifest");
+    let m = d.plugin.shown().expect("an accepted plugin has a manifest");
     let action = b.action.as_deref().and_then(|id| m.actions.iter().find(|a| a.id == id));
     let slot = action.and_then(|a| d.state.slot(&d.plugin.id, &a.id, d.server_id));
     let heading = b.title.clone().or_else(|| action.map(|a| a.label.clone()));
@@ -255,7 +255,10 @@ pub fn confirm_panel(a: &Action, d: &PageData, app: Entity<CrowApp>) -> impl Int
     let pending = d.state.pending.as_ref().expect("a pending run");
     let danger = a.effect == Effect::Danger;
     let color = if danger { CRIT } else { WARN };
-    let dry = a.dry_run.as_ref().and_then(|id| d.plugin.report.manifest.as_ref()?.actions.iter().find(|x| &x.id == id));
+    let dry = a.dry_run.as_ref().and_then(|id| d.plugin.shown()?.actions.iter().find(|x| &x.id == id));
+    // A translated label keeps its English beside it: a translation can't
+    // make an action read as something it isn't.
+    let english = d.plugin.report.manifest.as_ref().and_then(|m| m.actions.iter().find(|x| x.id == a.id)).map(|x| x.label.clone()).filter(|l| *l != a.label);
     let dry_slot = dry.and_then(|x| d.state.slot(&d.plugin.id, &x.id, d.server_id));
     let (app_dry, app_run, app_cancel) = (app.clone(), app.clone(), app.clone());
     let command = crate::plugin_host::check::command_line(a.command.as_deref().unwrap_or_default());
@@ -273,6 +276,7 @@ pub fn confirm_panel(a: &Action, d: &PageData, app: Entity<CrowApp>) -> impl Int
         .border_color(color)
         .bg(if danger { CRIT_STRIP_BG } else { BG_OVERLAY_PANEL })
         .child(div().text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(color).child(if danger { t!("plugin-page-danger-title", label = a.label) } else { t!("plugin-page-change-title", label = a.label) }))
+        .children(crate::components::english_beside::english_beside(english))
         .children(a.help.clone().map(|h| div().text_size(px(10.0)).text_color(TEXT_DIM).child(h)))
         .child(div().px(px(8.0)).py(px(5.0)).bg(BG_WINDOW).border_1().border_color(BORDER_ROW).text_size(px(10.5)).text_color(TEXT_PRIMARY).child(format!("{}{runs}", if a.root { "# " } else { "$ " })))
         .children(a.inputs.iter().map(|f| {
@@ -395,7 +399,7 @@ pub fn confirm_panel(a: &Action, d: &PageData, app: Entity<CrowApp>) -> impl Int
 
 pub fn plugin_page(d: PageData, app: Entity<CrowApp>) -> impl IntoElement {
     let app_refresh = app.clone();
-    let m = d.plugin.report.manifest.as_ref();
+    let m = d.plugin.shown();
     div()
         .size_full()
         .flex()

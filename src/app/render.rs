@@ -52,6 +52,9 @@ impl Render for CrowApp {
         if self.plugins.user.pending.is_some() {
             self.ensure_plugin_inputs(window, cx);
         }
+        if self.screen == Screen::Settings && self.plugins.user.reviewing.is_some() {
+            self.ensure_plugin_settings_inputs(window, cx);
+        }
         if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Patching {
             self.ensure_window_inputs(window, cx);
         }
@@ -136,7 +139,7 @@ impl Render for CrowApp {
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Plugin) => {
                 let found = self.fleet.plugin_page.as_ref().and_then(|(pid, pg)| {
                     let plugin = self.plugins.user.get(pid).filter(|p| p.usable())?;
-                    let page = plugin.report.manifest.as_ref()?.pages.iter().find(|p| &p.id == pg && p.place == crate::plugin_host::manifest::Place::Fleet)?;
+                    let page = plugin.shown()?.pages.iter().find(|p| &p.id == pg && p.place == crate::plugin_host::manifest::Place::Fleet)?;
                     Some((plugin, page))
                 });
                 Some(match found {
@@ -519,7 +522,7 @@ impl Render for CrowApp {
                                                             } else if let Some((pid, page_id)) = crate::app::user_plugins::parse_page_view(&self.active_view) {
                                                                 let server_id = self.fleet.active_server().map(|s| s.id).unwrap_or_default();
                                                                 let plugin = self.plugins.user.get(pid).filter(|p| p.usable());
-                                                                let page = plugin.and_then(|p| p.report.manifest.as_ref()).and_then(|m| m.pages.iter().find(|pg| pg.id == page_id));
+                                                                let page = plugin.and_then(|p| p.shown()).and_then(|m| m.pages.iter().find(|pg| pg.id == page_id));
                                                                 match (plugin, page) {
                                                                     (Some(plugin), Some(page)) => {
                                                                         let runs = self.vault.db().lock().ok().and_then(|db| db.list_plugin_runs(pid, Some(&server_id), 20).ok()).unwrap_or_default();

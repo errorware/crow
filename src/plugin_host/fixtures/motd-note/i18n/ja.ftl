@@ -1,0 +1,11 @@
+plugin-name = ログインメモ
+plugin-about = サーバーにログインしたときに表示されるメッセージ (/etc/motd.d/50-crow-note) にメモを書き、現在の内容を表示します。
+action-current = 現在のメモ
+action-preview = プレビュー
+action-write = メモを書く
+action-write-help = /etc/motd.d/50-crow-note をこのメモで置き換えます。次のログインから全員に表示されます。
+input-write-note = メモ
+input-preview-note = メモ
+action-count = ゆっくり数える
+page-note = ログインメモ
+page-note-fleet = ログインメモ

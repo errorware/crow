@@ -50,6 +50,8 @@ impl CrowApp {
             }
             Err(e) => self.settings.language.message = Some((false, e)),
         }
+        // Plugins' own translations follow (ERR-182).
+        self.scan_user_plugins(cx);
         // Every window draws its text again in the new language.
         cx.refresh_windows();
         cx.notify();
