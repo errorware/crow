@@ -129,7 +129,7 @@ impl UserPluginsState {
         self.installed
             .iter()
             .filter(|p| p.usable())
-            .filter_map(|p| p.report.manifest.as_ref().map(|m| (p, m)))
+            .filter_map(|p| p.shown().map(|m| (p, m)))
             .flat_map(|(p, m)| m.pages.iter().filter(|pg| pg.place == Place::Fleet).map(move |pg| (p.id.clone(), pg.id.clone(), pg.label.clone(), pg.icon.clone())))
             .collect()
     }
@@ -139,7 +139,7 @@ impl UserPluginsState {
         self.installed
             .iter()
             .filter(|p| p.usable())
-            .filter_map(|p| p.report.manifest.as_ref().map(|m| (p, m)))
+            .filter_map(|p| p.shown().map(|m| (p, m)))
             .flat_map(|(p, m)| m.pages.iter().filter(|pg| pg.place == Place::Server).map(move |pg| (page_view(&p.id, &pg.id), pg.label.clone(), pg.icon.clone())))
             .collect()
     }

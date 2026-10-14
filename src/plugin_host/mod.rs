@@ -11,3 +11,4 @@ pub mod folder;
 pub mod run;
 pub mod local;
 pub mod badges;
+pub mod i18n;

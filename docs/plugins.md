@@ -229,7 +229,25 @@ Crow reads the badge on every reachable server when it's due, in the background;
 
 ## Translations
 
-A plugin can ship `i18n/<language>.ftl` for its own labels. Without it, the plugin shows its English. The details come with the stage that adds them ([ERR-182](https://linear.app/errorware/issue/ERR-182)).
+A plugin can ship `i18n/<language>.ftl` (the same codes as Crow's language packs: `es`, `ja`…) for its own labels. Messages are plain text: no `{ placeholders }` and no references; a message that isn't plain is ignored, and anything missing stays in the plugin's English.
+
+| id | translates |
+|---|---|
+| `plugin-name`, `plugin-about` | the plugin's name and about |
+| `action-<id>`, `action-<id>-help` | an action's label and help |
+| `input-<action>-<key>`, `input-<action>-<key>-help` | an input |
+| `setting-<key>`, `setting-<key>-help` | a setting |
+| `page-<id>` | a page's label |
+| `page-<id>-block-<n>` | the title of a page's block n (from 1) |
+| `column-<action>-<key>` | a table column's label |
+
+Translations change labels only: commands, effects and keywords are the plugin's, the review screen always shows the English, and a translated action in a confirm panel shows its English beside it.
+
+```
+plugin-name = Nota de inicio
+action-write = Escribir la nota
+input-write-note = Nota
+```
 
 ## Examples
 
