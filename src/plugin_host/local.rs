@@ -52,7 +52,10 @@ pub fn write_targets(run_dir: &Path, servers: &[ServerRecord]) -> Result<(PathBu
         let a = alias(s);
         let block = SshHost::for_server(s).ssh_config_block(&a).map_err(|e| format!("{}: {e}", s.name))?;
         config.push_str(&block);
-        hosts.push_str(&format!("{a} ansible_host={a} ansible_user={} crow_server_id={} crow_server_name={}\n", ini_value(&s.login_user), ini_value(&s.id), ini_value(&s.name)));
+        // A bastion: other servers are reached through it (a plugin that
+        // hardens ssh must keep its forwarding on).
+        let bastion = if crate::host::ssh::is_jump_target(&s.id) { "yes" } else { "no" };
+        hosts.push_str(&format!("{a} ansible_host={a} ansible_user={} crow_server_id={} crow_server_name={} crow_bastion={bastion}\n", ini_value(&s.login_user), ini_value(&s.id), ini_value(&s.name)));
     }
     hosts.push_str(&format!("\n[all:vars]\nansible_ssh_common_args=\"-F {}\"\n", ssh_config.display()));
     write_private(&ssh_config, &config)?;
@@ -263,7 +266,7 @@ mod tests {
         assert!(config.contains("Host web-1\n    HostName 10.0.0.5\n") && config.contains("    Port 2222\n") && config.contains("    User deploy\n") && config.contains("    StrictHostKeyChecking yes\n"), "{config}");
         assert!(!config.contains("SECRETKEYBYTES"));
         let inventory = std::fs::read_to_string(&inv).unwrap();
-        assert!(inventory.contains("web-1 ansible_host=web-1 ansible_user=deploy crow_server_id=s1 crow_server_name=web-1"), "{inventory}");
+        assert!(inventory.contains("web-1 ansible_host=web-1 ansible_user=deploy crow_server_id=s1 crow_server_name=web-1 crow_bastion=no"), "{inventory}");
         assert!(inventory.contains(&format!("ansible_ssh_common_args=\"-F {}\"", cfg.display())));
         use std::os::unix::fs::PermissionsExt;
         assert_eq!(std::fs::metadata(&cfg).unwrap().permissions().mode() & 0o777, 0o600);

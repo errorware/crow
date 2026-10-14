@@ -219,6 +219,12 @@ pub fn update_directory(servers: &[ServerRecord], keys: &[SshKeyRecord]) {
     }
 }
 
+/// Whether another server is reached through `id` (it's a bastion), from
+/// the servers Crow knows.
+pub fn is_jump_target(id: &str) -> bool {
+    directory().read().is_ok_and(|d| d.servers.values().any(|s| s.jump_host_id.as_deref() == Some(id)))
+}
+
 /// Where ssh keeps its multiplexing sockets. Unix socket paths are short
 /// (~104 bytes), so this stays near the root and ssh hashes the rest (%C).
 /// Where ssh keeps Crow's ControlMaster sockets: a folder only this user

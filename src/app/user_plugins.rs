@@ -409,8 +409,11 @@ impl CrowApp {
                     }
                 };
                 let host = crate::host::host_for(&server);
-                let root = action.root;
-                Box::new(move |sink, stop| run::run_streaming(host.as_ref(), &program, root, timeout, &nonce, sink, stop))
+                let (root, guard, target) = (action.root, action.login_check, server.clone());
+                Box::new(move |sink, stop| {
+                    let go = |sink: &mut dyn FnMut(bool, &str)| run::run_streaming(host.as_ref(), &program, root, timeout, &nonce, sink, stop);
+                    if guard { run::guarded(std::slice::from_ref(&target), || go(sink)) } else { go(sink) }
+                })
             }
             Runs::Local => {
                 if m.setup.is_some() && self.user_plugin_setup_hash(plugin_id).as_deref() != Some(now.hash.as_str()) {
@@ -443,8 +446,10 @@ impl CrowApp {
                     }
                 };
                 let host_alias = local::alias(&server);
+                let (guard, target) = (action.login_check, server.clone());
                 Box::new(move |sink, stop| {
-                    let mut r = local::run(&argv, &paths.data_dir, &env, timeout, sink, stop);
+                    let go = |sink: &mut dyn FnMut(bool, &str)| local::run(&argv, &paths.data_dir, &env, timeout, sink, stop);
+                    let mut r = if guard { run::guarded(std::slice::from_ref(&target), || go(sink)) } else { go(sink) };
                     // What the program said about this server, if it wrote results.
                     r.per_host = local::read_results(&paths.results);
                     if let Some(mine) = r.per_host.iter().find(|h| h["host"] == host_alias.as_str()) {

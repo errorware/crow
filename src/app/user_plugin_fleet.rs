@@ -238,7 +238,8 @@ impl JobCtx {
         let nonce = run::nonce();
         let program = run::remote_program(&self.action, &self.manifest.requires.server, &self.dir, &values, &nonce)?;
         let host = crate::host::host_for(srv);
-        let r = run::run_program(host.as_ref(), &program, self.action.root, std::time::Duration::from_secs(self.action.timeout.0), &nonce);
+        let go = || run::run_program(host.as_ref(), &program, self.action.root, std::time::Duration::from_secs(self.action.timeout.0), &nonce);
+        let r = if self.action.login_check { run::guarded(std::slice::from_ref(srv), go) } else { go() };
         let summary = super::user_plugin_settings::redact(&run::summary(&self.action.output, &r), &self.secrets);
         record(&self.db, (&self.plugin_id, &self.action.id, &self.hash), srv, &r, &summary, &self.detail);
         step_result(&r, summary)
@@ -269,7 +270,8 @@ impl JobCtx {
             Ok(p) => p,
             Err(e) => return all(Err(e)),
         };
-        let r = local::run(&argv, &data_dir, &env, std::time::Duration::from_secs(self.action.timeout.0), &mut |_, _| {}, &Default::default());
+        let go = || local::run(&argv, &data_dir, &env, std::time::Duration::from_secs(self.action.timeout.0), &mut |_, _| {}, &Default::default());
+        let r = if self.action.login_check { run::guarded(members, go) } else { go() };
         let lines = local::read_results(&paths.results);
         let _ = std::fs::remove_dir_all(&rd);
         let overall = super::user_plugin_settings::redact(&run::summary(&self.action.output, &r), &self.secrets);
