@@ -237,6 +237,8 @@ impl JobCtx {
         let values = Values { inputs: self.inputs.clone(), settings: self.settings.clone(), secrets: self.secrets.clone(), server: Some(ServerValues { name: srv.name.clone(), host: srv.host.clone(), user: srv.login_user.clone(), port: srv.port }), local: None };
         let nonce = run::nonce();
         let program = run::remote_program(&self.action, &self.manifest.requires.server, &self.dir, &values, &nonce)?;
+        // The script read into the program must be the planned one.
+        self.unchanged()?;
         let host = crate::host::host_for(srv);
         let go = || run::run_program(host.as_ref(), &program, self.action.root, std::time::Duration::from_secs(self.action.timeout.0), &nonce);
         let r = if self.action.login_check { run::guarded(std::slice::from_ref(srv), go) } else { go() };
@@ -323,7 +325,7 @@ mod lab {
         let key = SshKeyRecord { id: "hk".into(), private_key_path: Some(lab.join("harden-lab/key").display().to_string()), ..Default::default() };
         crate::host::update_directory(&servers, &[key]);
         let db = Arc::new(Mutex::new(VaultDb::open_in_memory().unwrap()));
-        let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/plugin_host/fixtures");
+        let fixtures = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("plugins");
 
         // A server action: the write fails where /etc/motd.d is a file.
         let dir = fixtures.join("motd-note");
@@ -351,6 +353,30 @@ mod lab {
         assert_eq!(runs.len(), 2);
         assert!(runs.iter().any(|r| r.server_id == "ssh1" && r.ok) && runs.iter().any(|r| r.server_id == "d1" && !r.ok));
 
+        // restic, with its settings and a secret, on crow-ssh-1.
+        let dir = fixtures.join("restic-check");
+        let m = manifest::parse(&std::fs::read_to_string(dir.join("plugin.toml")).unwrap()).unwrap();
+        let hash = crate::plugin_host::folder::hash(&crate::plugin_host::check::check_dir(&dir));
+        let restic = |action: &str, inputs: BTreeMap<String, String>| JobCtx {
+            plugin_id: "restic-check".into(),
+            action: m.actions.iter().find(|a| a.id == action).unwrap().clone(),
+            manifest: m.clone(),
+            dir: dir.clone(),
+            hash: hash.clone(),
+            inputs,
+            settings: BTreeMap::from([("repository".to_string(), "/srv/restic".to_string()), ("max_age_hours".to_string(), "26".to_string())]),
+            secrets: BTreeMap::from([("password".to_string(), "lab-pass-123".to_string())]),
+            db: Arc::clone(&db),
+            detail: String::new(),
+        };
+        for (action, inputs) in [("snapshots", BTreeMap::new()), ("status", BTreeMap::new()), ("backup", BTreeMap::from([("path".to_string(), "/etc/apk".to_string())])), ("check", BTreeMap::new())] {
+            let r = restic(action, inputs).run_on(&servers[2]);
+            eprintln!("restic {action}: {r:?}");
+            assert!(r.is_ok(), "restic {action}");
+        }
+        let runs = db.lock().unwrap().list_plugin_runs("restic-check", None, 10).unwrap();
+        assert!(runs.iter().all(|r| !r.summary.contains("lab-pass-123")), "the secret never lands in history");
+
         // A local action, once for a batch of two (one behind the bastion).
         let dir = fixtures.join("local-reach");
         let m = manifest::parse(&std::fs::read_to_string(dir.join("plugin.toml")).unwrap()).unwrap();
@@ -376,7 +402,7 @@ mod lab {
         let vm = ServerRecord { id: "vm1".into(), name: "crow-devsec-1".into(), host: ip, port: 22, login_user: "ubuntu".into(), auth_method: "publickey".into(), key_id: Some("hk".into()), ..Default::default() };
         let key = SshKeyRecord { id: "hk".into(), private_key_path: Some(lab.join("harden-lab/key").display().to_string()), ..Default::default() };
         crate::host::update_directory(std::slice::from_ref(&vm), &[key]);
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/plugin_host/fixtures/devsec-hardening");
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("plugins/devsec-hardening");
         let m = manifest::parse(&std::fs::read_to_string(dir.join("plugin.toml")).unwrap()).unwrap();
         let data = crate::plugin_host::local::data_dir("devsec-hardening");
 

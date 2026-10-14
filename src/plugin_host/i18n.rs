@@ -111,7 +111,7 @@ mod tests {
 
     #[test]
     fn labels_are_replaced_and_the_rest_stays() {
-        let m = manifest::parse(include_str!("fixtures/motd-note/plugin.toml")).unwrap();
+        let m = manifest::parse(include_str!("../../plugins/motd-note/plugin.toml")).unwrap();
         let (msgs, _) = messages("plugin-name = ログインメモ\naction-write = メモを書く\ninput-write-note = メモ\npage-note = ログインメモ\n");
         let t = apply(&m, &msgs);
         assert_eq!(t.plugin.name, "ログインメモ");

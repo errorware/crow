@@ -851,8 +851,8 @@ fn check_secret_ref(at: &str, k: &str, in_env: bool, s: Option<&Field>, bad: &mu
 mod tests {
     use super::{parse, Duration, Effect, Part, Runs, Template, Var, FORMAT};
 
-    const DEVSEC: &str = include_str!("fixtures/devsec-hardening/plugin.toml");
-    const RESTIC: &str = include_str!("fixtures/restic-check/plugin.toml");
+    const DEVSEC: &str = include_str!("../../plugins/devsec-hardening/plugin.toml");
+    const RESTIC: &str = include_str!("../../plugins/restic-check/plugin.toml");
 
     /// A valid manifest with one server action, to break one thing at a time.
     const BASE: &str = r#"

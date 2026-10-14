@@ -164,9 +164,13 @@ pub fn run(argv: &[String], cwd: &Path, env: &[(String, String)], timeout: Durat
 /// The per-server lines a local action wrote to `{results}`: one JSON
 /// object each, with at least `"host"`.
 pub fn read_results(path: &Path) -> Vec<serde_json::Value> {
-    std::fs::read_to_string(path)
-        .unwrap_or_default()
-        .lines()
+    use std::io::Read;
+    // At most 4 MB: a plugin can't make Crow read a file of any size.
+    let mut text = String::new();
+    if let Ok(f) = std::fs::File::open(path) {
+        let _ = f.take(4 * 1024 * 1024).read_to_string(&mut text);
+    }
+    text.lines()
         .take(10_000)
         .filter_map(|l| serde_json::from_str::<serde_json::Value>(l.trim()).ok())
         .filter(|v| v.get("host").and_then(|h| h.as_str()).is_some())
@@ -286,5 +290,9 @@ mod tests {
         let r = read_results(&p);
         assert_eq!(r.len(), 2);
         assert_eq!(r[1]["host"], "web-2");
+        // A huge file is read only so far.
+        let big = format!("{}\n", "{\"host\":\"x\",\"pad\":\"".to_string() + &"a".repeat(100) + "\"}").repeat(60_000);
+        std::fs::write(&p, big).unwrap();
+        assert!(read_results(&p).len() < 60_000);
     }
 }

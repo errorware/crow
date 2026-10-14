@@ -408,6 +408,13 @@ impl CrowApp {
                         return;
                     }
                 };
+                // The script read into the program must be the accepted one:
+                // a file swapped since the check above would change the hash.
+                if folder::hash(&crate::plugin_host::check::check_dir(&now.dir)) != now.hash {
+                    fail(self, t!("app-user-plugins-not-accepted-now").to_string());
+                    cx.notify();
+                    return;
+                }
                 let host = crate::host::host_for(&server);
                 let (root, guard, target) = (action.root, action.login_check, server.clone());
                 Box::new(move |sink, stop| {

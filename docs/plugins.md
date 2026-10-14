@@ -1,7 +1,5 @@
 # Writing a Crow plugin
 
-> **Draft.** The plugin system is being built in stages ([ERR-173](https://linear.app/errorware/issue/ERR-173)). This page describes the format as it is designed. Until the stages that load and run plugins land, Crow reads none of this.
-
 A Crow plugin is a folder: a `plugin.toml` that says what the plugin can do, plus the scripts it uses. There is no compiled code. Crow runs the plugin's commands over its own SSH connections, asks before anything changes, records every run, and shows the results with the same tables, badges and consoles as its built-in pages.
 
 ```
@@ -251,5 +249,14 @@ input-write-note = Nota
 
 ## Examples
 
-- `src/plugin_host/fixtures/restic-check/`: server actions, a secret, an input, a table, a badge.
-- `src/plugin_host/fixtures/devsec-hardening/`: a local Ansible action with setup, a dry run, a danger action with a login check, and per-server results ([ERR-170](https://linear.app/errorware/issue/ERR-170)).
+In [`plugins/`](../plugins). Copy one into `~/.config/crow/plugins/`, press RELOAD in Settings → Plugins, review it, accept it.
+
+- `devsec-hardening/`: hardens servers with the [devsec.hardening](https://github.com/dev-sec/ansible-collection-hardening) Ansible collection. INSTALL sets up Ansible in the plugin's folder; Check, Harden (with a dry run, a keyword and Crow proving its login before and after) and a "DevSec hardened" badge.
+- `restic-check/`: restic backups on each server: snapshots as a table, a last-backup badge, a repository check and BACK UP NOW. Settings include the repository password, kept in the vault.
+- `server-facts/`: what a server is and how full its disks are; reads only, with a badge.
+- `motd-note/`: a note in the login message; a danger action with a dry run, and Spanish and Japanese labels.
+- `local-reach/`: an action on this machine that reaches each server through the `ssh_config` Crow writes, bastions included.
+
+## What a plugin can still do
+
+Accepting a plugin trusts its commands. Crow refuses shell built from inputs, pins the files, asks before changes and records everything, but an action that runs on this machine runs as you, and an action with `root = true` runs as root on your servers. Read the commands on the review screen before you accept, the same as you would a script you found online.

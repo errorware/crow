@@ -180,7 +180,7 @@ mod tests {
     #[test]
     #[ignore]
     fn badge_lab() {
-        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/plugin_host/fixtures/server-facts");
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("plugins/server-facts");
         let m = manifest::parse(&std::fs::read_to_string(dir.join("plugin.toml")).unwrap()).unwrap();
         let action = m.actions.iter().find(|a| a.id == m.badge.as_ref().unwrap().action).unwrap();
         let srv = ServerRecord { id: "d1".into(), name: "crow-dr-1".into(), host: "crow-dr-1".into(), tags: vec!["test-node".into(), "podman".into()], ..Default::default() };
