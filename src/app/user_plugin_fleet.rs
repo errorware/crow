@@ -364,4 +364,58 @@ mod lab {
         eprintln!("batch: {results:?}");
         assert!(results["ssh1"].is_ok() && results["ssh2"].is_ok());
     }
+
+    /// DevSec on a throwaway VM, by hand:
+    /// `CROW_PLUGIN_LAB=<scratch> CROW_DEVSEC_VM=<ip> cargo test devsec_lab -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn devsec_lab() {
+        let lab = std::path::PathBuf::from(std::env::var("CROW_PLUGIN_LAB").expect("CROW_PLUGIN_LAB"));
+        let ip = std::env::var("CROW_DEVSEC_VM").expect("CROW_DEVSEC_VM");
+        std::env::set_var("PATH", format!("{}:{}", lab.join("bin").display(), std::env::var("PATH").unwrap()));
+        let vm = ServerRecord { id: "vm1".into(), name: "crow-devsec-1".into(), host: ip, port: 22, login_user: "ubuntu".into(), auth_method: "publickey".into(), key_id: Some("hk".into()), ..Default::default() };
+        let key = SshKeyRecord { id: "hk".into(), private_key_path: Some(lab.join("harden-lab/key").display().to_string()), ..Default::default() };
+        crate::host::update_directory(std::slice::from_ref(&vm), &[key]);
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/plugin_host/fixtures/devsec-hardening");
+        let m = manifest::parse(&std::fs::read_to_string(dir.join("plugin.toml")).unwrap()).unwrap();
+        let data = crate::plugin_host::local::data_dir("devsec-hardening");
+
+        // INSTALL, the way Crow runs it.
+        if !data.join("venv/bin/ansible-playbook").exists() {
+            let setup = m.setup.clone().unwrap();
+            let rd = crate::plugin_host::local::run_dir(&data, "setup").unwrap();
+            let paths = crate::plugin_host::local::LocalPaths { plugin_dir: dir.clone(), data_dir: data.clone(), ..Default::default() };
+            let values = crate::plugin_host::run::Values { local: Some(paths), ..Default::default() };
+            let env = crate::plugin_host::local::environment(&data, &rd, &setup.env, &values).unwrap();
+            let argv = crate::plugin_host::local::argv(None, setup.script.as_deref(), setup.interpreter, &[], &dir, &values).unwrap();
+            let r = crate::plugin_host::local::run(&argv, &data, &env, std::time::Duration::from_secs(900), &mut |_, l| eprintln!("setup | {l}"), &Default::default());
+            let _ = std::fs::remove_dir_all(&rd);
+            assert!(r.ok, "setup failed: {r:?}");
+        }
+
+        let db = Arc::new(Mutex::new(VaultDb::open_in_memory().unwrap()));
+        let hash = crate::plugin_host::folder::hash(&crate::plugin_host::check::check_dir(&dir));
+        let roles = "os_hardening,ssh_hardening".to_string();
+        let ctx = |action: &str| JobCtx {
+            plugin_id: "devsec-hardening".into(),
+            action: m.actions.iter().find(|a| a.id == action).unwrap().clone(),
+            manifest: m.clone(),
+            dir: dir.clone(),
+            hash: hash.clone(),
+            inputs: BTreeMap::new(),
+            settings: BTreeMap::from([("roles".to_string(), roles.clone())]),
+            secrets: BTreeMap::new(),
+            db: Arc::clone(&db),
+            detail: String::new(),
+        };
+        let vms = [vm.clone()];
+        let steps: &[(&str, &str)] = if std::env::var("CROW_DEVSEC_STATUS_ONLY").is_ok() { &[("status", "status")] } else { &[("plan", "plan"), ("apply", "apply"), ("apply again", "apply"), ("status", "status")] };
+        for &(step, action) in steps {
+            let r = ctx(action).run_batch(&vms);
+            eprintln!("{step}: {:?}", r["vm1"]);
+            assert!(r["vm1"].is_ok(), "{step}");
+        }
+        // Crow still gets in with a fresh key login.
+        crate::plugin_host::run::prove_logins(&vms).expect("Crow's login after hardening");
+    }
 }

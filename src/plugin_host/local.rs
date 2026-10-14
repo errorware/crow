@@ -99,6 +99,9 @@ pub fn environment(data_dir: &Path, run_dir: &Path, declared: &BTreeMap<String, 
         ("ANSIBLE_NOCOLOR".to_string(), "1".to_string()),
         ("ANSIBLE_FORCE_COLOR".to_string(), "0".to_string()),
         ("PYTHONUNBUFFERED".to_string(), "1".to_string()),
+        // Ansible's ssh sockets go in Crow's own short, private folder: under
+        // HOME (the data folder) the path can pass the 108-byte limit.
+        ("ANSIBLE_SSH_CONTROL_PATH_DIR".to_string(), crate::host::ssh::control_dir().join("ansible").display().to_string()),
     ];
     for (k, t) in declared {
         env.retain(|(name, _)| name != k);

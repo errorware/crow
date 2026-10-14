@@ -232,7 +232,7 @@ pub fn is_jump_target(id: &str) -> bool {
 /// /tmp, where another user could create it first; the folder is per uid,
 /// made 0700, and refused if it exists with another owner, other modes or
 /// as a symlink (then the cache dir is tried).
-fn control_dir() -> PathBuf {
+pub(crate) fn control_dir() -> PathBuf {
     #[cfg(unix)]
     {
         let uid = unsafe { libc::geteuid() };
