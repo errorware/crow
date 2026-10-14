@@ -17,7 +17,7 @@ category = "security.hardening"
 capabilities = ["hardening.check", "hardening.apply"]
 
 [requires]
-local = ["python3"]
+local = ["python3", "ssh"]
 os = ["debian", "ubuntu", "rhel", "fedora", "amazon", "arch", "suse"]
 
 # The one-time controller install: a venv with pinned ansible-core and the
@@ -25,7 +25,7 @@ os = ["debian", "ubuntu", "rhel", "fedora", "amazon", "arch", "suse"]
 [setup]
 script = "setup.sh"
 interpreter = "sh"
-env = { ANSIBLE_CORE = "2.17.4", DEVSEC_HARDENING = "10.1.0", VENV = "{data_dir}/venv" }
+env = { ANSIBLE_CORE = "2.21.5", DEVSEC_HARDENING = "11.0.0", VENV = "{data_dir}/venv", COLLECTIONS = "{data_dir}/collections" }
 timeout = "15m"
 
 [[setting]]

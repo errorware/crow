@@ -2853,6 +2853,8 @@ plugin-fleet-count = { $count ->
    *[other] { $count } servidores
 }
 plugin-local-lab-container = { $name } es un contenedor de laboratorio: las acciones en esta máquina llegan a los servidores por SSH, y no tiene.
+plugin-run-login-before = Crow no puede iniciar sesión en este servidor antes del cambio, así que no se ejecutó nada: { $why }
+plugin-run-login-after = El cambio se ejecutó, pero Crow no puede iniciar sesión después: { $why }. Vuelve a entrar con la consola de tu proveedor o restaura una instantánea.
 
 ## settings-providers
 settings-providers-providers-where-your-servers-live = PROVEEDORES · DÓNDE VIVEN TUS SERVIDORES

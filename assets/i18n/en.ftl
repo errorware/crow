@@ -2842,6 +2842,8 @@ plugin-fleet-count = { $count ->
    *[other] { $count } servers
 }
 plugin-local-lab-container = { $name } is a lab container: actions on this machine reach servers over SSH, and it has none.
+plugin-run-login-before = Crow can't log in to this server before the change, so nothing ran: { $why }
+plugin-run-login-after = The change ran, but Crow can't log in afterwards: { $why }. Get back in through your provider's console, or restore a snapshot.
 
 ## settings-providers
 settings-providers-providers-where-your-servers-live = PROVIDERS · WHERE YOUR SERVERS LIVE

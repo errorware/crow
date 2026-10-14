@@ -2808,6 +2808,8 @@ plugin-page-needs-install = このプラグインはこのマシンで実行す�
 plugin-fleet-where = 対象
 plugin-fleet-count = { $count } 台のサーバー
 plugin-local-lab-container = { $name } はラボコンテナーです。このマシンでのアクションは SSH でサーバーに接続しますが、このコンテナーにはありません。
+plugin-run-login-before = 変更前に Crow がこのサーバーにログインできないため、何も実行していません: { $why }
+plugin-run-login-after = 変更は実行されましたが、その後 Crow がログインできません: { $why }。プロバイダーのコンソールから入るか、スナップショットを復元してください。
 
 ## settings-providers
 settings-providers-providers-where-your-servers-live = プロバイダー · サーバーの所在地

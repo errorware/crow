@@ -219,6 +219,12 @@ pub fn update_directory(servers: &[ServerRecord], keys: &[SshKeyRecord]) {
     }
 }
 
+/// Whether another server is reached through `id` (it's a bastion), from
+/// the servers Crow knows.
+pub fn is_jump_target(id: &str) -> bool {
+    directory().read().is_ok_and(|d| d.servers.values().any(|s| s.jump_host_id.as_deref() == Some(id)))
+}
+
 /// Where ssh keeps its multiplexing sockets. Unix socket paths are short
 /// (~104 bytes), so this stays near the root and ssh hashes the rest (%C).
 /// Where ssh keeps Crow's ControlMaster sockets: a folder only this user
@@ -226,7 +232,7 @@ pub fn update_directory(servers: &[ServerRecord], keys: &[SshKeyRecord]) {
 /// /tmp, where another user could create it first; the folder is per uid,
 /// made 0700, and refused if it exists with another owner, other modes or
 /// as a symlink (then the cache dir is tried).
-fn control_dir() -> PathBuf {
+pub(crate) fn control_dir() -> PathBuf {
     #[cfg(unix)]
     {
         let uid = unsafe { libc::geteuid() };

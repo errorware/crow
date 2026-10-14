@@ -332,6 +332,33 @@ pub fn run_program(host: &dyn Host, program: &str, root: bool, timeout: Duration
     run_streaming(host, program, root, timeout, nonce, &mut |_, _| {}, &std::sync::atomic::AtomicBool::new(false))
 }
 
+/// `login_check` (ERR-170): Crow's own key login to each server, made anew
+/// (no connection it already holds). Lab containers and this machine have
+/// no login to lose and are skipped.
+pub fn prove_logins(servers: &[crate::vault::ServerRecord]) -> Result<(), String> {
+    for s in servers {
+        if crate::host::transport_kind(s) != crate::host::TransportKind::Ssh {
+            continue;
+        }
+        crate::host::ssh::fresh_key_login(s).map_err(|e| format!("{}: {e}", s.name))?;
+    }
+    Ok(())
+}
+
+/// Runs `job` between two `prove_logins`: refused when Crow can't log in
+/// before; failed, with how to get back in, when it can't after.
+pub fn guarded(servers: &[crate::vault::ServerRecord], job: impl FnOnce() -> RunResult) -> RunResult {
+    if let Err(e) = prove_logins(servers) {
+        return RunResult::failed(t!("plugin-run-login-before", why = e));
+    }
+    let mut r = job();
+    if let Err(e) = prove_logins(servers) {
+        r.ok = false;
+        r.error = Some(t!("plugin-run-login-after", why = e));
+    }
+    r
+}
+
 /// A fresh nonce for one run.
 pub fn nonce() -> String {
     use rand::RngExt;
