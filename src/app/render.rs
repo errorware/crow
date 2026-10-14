@@ -49,6 +49,12 @@ impl Render for CrowApp {
         if self.screen == Screen::Settings && self.settings.section == super::SettingsSection::Plugins && self.plugin_enabled("email") {
             self.ensure_email_inputs(window, cx);
         }
+        if self.plugins.user.pending.is_some() {
+            self.ensure_plugin_inputs(window, cx);
+        }
+        if self.screen == Screen::Settings && self.plugins.user.reviewing.is_some() {
+            self.ensure_plugin_settings_inputs(window, cx);
+        }
         if self.screen == Screen::FleetSetup && self.fleet.setup_page == crate::views::fleet::state::SetupPage::Patching {
             self.ensure_window_inputs(window, cx);
         }
@@ -130,6 +136,26 @@ impl Render for CrowApp {
         // Fleet configuration's page; GROUPS & POLICIES is drawn by the screen itself.
         let map_page = match (self.screen, self.fleet.setup_page) {
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Patching) => Some(crate::views::fleet::patching::patching_page(&self.fleet, &self.patching, app_view.clone()).into_any_element()),
+            (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Plugin) => {
+                let found = self.fleet.plugin_page.as_ref().and_then(|(pid, pg)| {
+                    let plugin = self.plugins.user.get(pid).filter(|p| p.usable())?;
+                    let page = plugin.shown()?.pages.iter().find(|p| &p.id == pg && p.place == crate::plugin_host::manifest::Place::Fleet)?;
+                    Some((plugin, page))
+                });
+                Some(match found {
+                    Some((plugin, page)) => {
+                        let on = page.blocks.iter().flat_map(|b| b.actions.iter()).filter_map(|a| plugin.report.manifest.as_ref()?.actions.iter().find(|x| &x.id == a)).map(|a| a.on).next().unwrap_or(crate::plugin_host::manifest::Runs::Server);
+                        let (servers, left_out) = self.plugin_fleet_candidates(on);
+                        let runs = self.vault.db().lock().ok().and_then(|db| db.list_plugin_runs(&plugin.id, None, 30).ok()).unwrap_or_default();
+                        let names = self.fleet.servers.iter().map(|s| (s.id.clone(), s.name.clone())).collect();
+                        let canary = self.plugins.user.pending.as_ref().filter(|p| p.fleet).map(|p| p.key.2.clone()).or_else(|| servers.first().map(|s| s.id.clone())).unwrap_or_default();
+                        let needs_install = plugin.report.manifest.as_ref().is_some_and(|m| m.setup.is_some()) && self.user_plugin_setup_hash(&plugin.id).as_deref() != Some(plugin.hash.as_str());
+                        let data = crate::views::plugin_page::PageData { plugin, page, server_id: &canary, state: &self.plugins.user, runs, needs_install, fleet: true, server_names: names };
+                        crate::views::plugin_page::plugin_fleet_page(data, (&self.plugins.user.fleet, &self.fleet.groups, &servers, &left_out), app_view.clone()).into_any_element()
+                    }
+                    None => div().p(px(20.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_DIM).child(t!("plugin-page-not-accepted")).into_any_element(),
+                })
+            }
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Audit) => Some(crate::views::audit::audit_view(&audit, &self.audit_filter, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Team) => Some(crate::views::fleet::team::team_page(&self.fleet, &self.team, app_view.clone()).into_any_element()),
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Incidents) => {
@@ -344,7 +370,7 @@ impl Render for CrowApp {
                                                         .flex()
                                                         .w_full()
                                                         // Sidebar
-                                                        .child(sidebar(&self.active_view, self.sidebar_collapsed, &self.nav_badges(), &self.plugins.enabled, app_view.clone()))
+                                                        .child(sidebar(&self.active_view, self.sidebar_collapsed, &self.nav_badges(), &self.plugins.enabled, &self.plugins.user.server_pages(), app_view.clone()))
                                                         // Content Area (Overview or Config or other server view)
                                                         .child(
                                                             div()
@@ -493,6 +519,19 @@ impl Render for CrowApp {
                                                             } else if self.active_view == "containers" {
                                                                 let name = self.fleet.active_server().map(|s| s.name).unwrap_or_default();
                                                                 Some(div().size_full().child(crate::views::containers::containers_view(&self.containers, &name, app_view.clone())))
+                                                            } else if let Some((pid, page_id)) = crate::app::user_plugins::parse_page_view(&self.active_view) {
+                                                                let server_id = self.fleet.active_server().map(|s| s.id).unwrap_or_default();
+                                                                let plugin = self.plugins.user.get(pid).filter(|p| p.usable());
+                                                                let page = plugin.and_then(|p| p.shown()).and_then(|m| m.pages.iter().find(|pg| pg.id == page_id));
+                                                                match (plugin, page) {
+                                                                    (Some(plugin), Some(page)) => {
+                                                                        let runs = self.vault.db().lock().ok().and_then(|db| db.list_plugin_runs(pid, Some(&server_id), 20).ok()).unwrap_or_default();
+                                                                        let needs_install = plugin.report.manifest.as_ref().is_some_and(|m| m.setup.is_some()) && self.user_plugin_setup_hash(pid).as_deref() != Some(plugin.hash.as_str());
+                                                                        let data = crate::views::plugin_page::PageData { plugin, page, server_id: &server_id, state: &self.plugins.user, runs, needs_install, fleet: false, server_names: Default::default() };
+                                                                        Some(div().size_full().child(crate::views::plugin_page::plugin_page(data, app_view.clone())))
+                                                                    }
+                                                                    _ => Some(div().size_full().p(px(20.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_DIM).child(t!("plugin-page-not-accepted"))),
+                                                                }
                                                             } else if self.active_view == "danger" {
                                                                 Some(div().size_full().child(danger_zone(&self.danger, self.active_provider_actions().as_ref(), app_view.clone())))
                                                             } else if self.active_view == "firewall" {
@@ -603,7 +642,7 @@ impl Render for CrowApp {
                                     Screen::FleetSetup => Some(
                                         div()
                                             .size_full()
-                                            .child(fleet_setup_view(&self.fleet, map_page, app_view.clone())),
+                                            .child(fleet_setup_view(&self.fleet, map_page, self.plugins.user.fleet_pages(), app_view.clone())),
                                     ),
                                     Screen::Topology => Some(
                                         div()

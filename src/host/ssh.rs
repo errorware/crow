@@ -219,6 +219,12 @@ pub fn update_directory(servers: &[ServerRecord], keys: &[SshKeyRecord]) {
     }
 }
 
+/// Whether another server is reached through `id` (it's a bastion), from
+/// the servers Crow knows.
+pub fn is_jump_target(id: &str) -> bool {
+    directory().read().is_ok_and(|d| d.servers.values().any(|s| s.jump_host_id.as_deref() == Some(id)))
+}
+
 /// Where ssh keeps its multiplexing sockets. Unix socket paths are short
 /// (~104 bytes), so this stays near the root and ssh hashes the rest (%C).
 /// Where ssh keeps Crow's ControlMaster sockets: a folder only this user
@@ -226,7 +232,7 @@ pub fn update_directory(servers: &[ServerRecord], keys: &[SshKeyRecord]) {
 /// /tmp, where another user could create it first; the folder is per uid,
 /// made 0700, and refused if it exists with another owner, other modes or
 /// as a symlink (then the cache dir is tried).
-fn control_dir() -> PathBuf {
+pub(crate) fn control_dir() -> PathBuf {
     #[cfg(unix)]
     {
         let uid = unsafe { libc::geteuid() };
@@ -527,6 +533,35 @@ impl SshHost {
         self.args.push(self.dest.0.clone());
     }
 
+    /// This connection as an `ssh_config` block named `alias`, for a program
+    /// on this machine that reaches the server itself (ERR-180): the same
+    /// options, key file, port, user and bastions Crow uses. The key's path
+    /// is written, never its contents.
+    pub fn ssh_config_block(&self, alias: &str) -> Result<String, String> {
+        if let Some(why) = &self.unsupported {
+            return Err(why.clone());
+        }
+        let q = |v: &str| if v.contains([' ', '\t', '"']) { format!("\"{}\"", v.replace('"', "\\\"")) } else { v.to_string() };
+        let mut out = format!("Host {alias}\n    HostName {}\n", self.dest.0);
+        let mut it = self.args.iter();
+        while let Some(a) = it.next() {
+            match a.as_str() {
+                "--" => break,
+                "-p" => out.push_str(&format!("    Port {}\n", it.next().cloned().unwrap_or_default())),
+                "-l" => out.push_str(&format!("    User {}\n", q(it.next().map(String::as_str).unwrap_or_default()))),
+                "-i" => out.push_str(&format!("    IdentityFile {}\n", q(it.next().map(String::as_str).unwrap_or_default()))),
+                "-o" => {
+                    let Some((k, v)) = it.next().and_then(|o| o.split_once('=')) else { continue };
+                    // A command line goes in as written; ssh_config takes the rest of the line.
+                    let v = if k == "ProxyCommand" { v.to_string() } else { q(v) };
+                    out.push_str(&format!("    {k} {v}\n"));
+                }
+                _ => {}
+            }
+        }
+        Ok(out)
+    }
+
     /// The bastions on the way to this server, nearest first.
     pub fn chain(&self) -> &[Hop] {
         &self.chain
@@ -639,7 +674,27 @@ impl Host for SshHost {
         // args end with `-- <destination>`; everything after is the command.
         full.extend(self.args.iter().map(String::as_str));
         full.push(&remote);
-        match run_command(&full, stdin, timeout) {
+        self.settle(run_command(&full, stdin, timeout))
+    }
+
+    fn exec_streaming(&self, argv: &[&str], stdin: &[u8], timeout: Duration, sink: &mut dyn FnMut(bool, &str), stop: &std::sync::atomic::AtomicBool) -> Result<ExecOutput, HostError> {
+        if let Some(why) = &self.unsupported {
+            record_state(&self.server_id, ConnectionState::AuthFailed(why.clone()));
+            return Err(HostError::Unreachable(why.clone()));
+        }
+        let remote = argv.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" ");
+        let mut full: Vec<&str> = vec![self.program.as_str()];
+        full.extend(self.args.iter().map(String::as_str));
+        full.push(&remote);
+        self.settle(super::local::run_command_streaming(&full, stdin, timeout, &[], sink, stop))
+    }
+}
+
+impl SshHost {
+    /// What an ssh run came to: its own failures become the connection's
+    /// state; anything else is the remote command's result.
+    fn settle(&self, result: Result<ExecOutput, HostError>) -> Result<ExecOutput, HostError> {
+        match result {
             // ssh exits 255 for its own failures; anything else is the remote command's status.
             Err(HostError::Failed { status: 255, stderr }) => {
                 let state = classify_hop_failure(&stderr, &self.chain, &self.dest.0)

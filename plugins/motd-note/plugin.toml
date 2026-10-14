@@ -1,0 +1,100 @@
+# A small plugin that changes a server: a note in the login message (motd).
+
+format = 1
+
+[plugin]
+id = "motd-note"
+name = "Login note"
+version = "0.1.0"
+author = "Errorware"
+about = "Puts a note in the message people see when they log in to a server (/etc/motd.d/50-crow-note), and shows what's there now."
+crow = ">=0.8.3"
+license = "MIT"
+category = "config"
+capabilities = ["motd.read", "motd.write"]
+
+[[action]]
+id = "current"
+label = "Current note"
+on = "server"
+effect = "read"
+command = ["cat", "/etc/motd.d/50-crow-note"]
+timeout = "20s"
+
+[[action]]
+id = "preview"
+label = "Preview"
+help = "Shows the note as it would be written, next to what's there now."
+on = "server"
+effect = "read"
+script = "preview.sh"
+interpreter = "sh"
+args = ["{input.note}"]
+timeout = "20s"
+
+[[action.input]]
+key = "note"
+label = "Note"
+type = "text"
+charset = "any"
+required = true
+
+[[action]]
+id = "write"
+label = "Write the note"
+help = "Replaces /etc/motd.d/50-crow-note with the note; everyone sees it at their next login."
+on = "server"
+effect = "danger"
+root = true
+dry_run = "preview"
+keyword = "NOTE"
+script = "write.sh"
+interpreter = "sh"
+args = ["{input.note}"]
+timeout = "1m"
+
+[[action.input]]
+key = "note"
+label = "Note"
+type = "text"
+charset = "any"
+required = true
+
+[action.output]
+summary_prefix = "wrote "
+
+[[action]]
+id = "count"
+label = "Count slowly"
+help = "Counts to 60, a line a second: something to stop."
+on = "server"
+effect = "change"
+script = "count.sh"
+interpreter = "sh"
+timeout = "2m"
+
+[[page]]
+id = "note"
+label = "Login note"
+icon = "file-text"
+where = "server"
+
+[[page.block]]
+kind = "actions"
+actions = ["current", "write", "count"]
+
+[[page.block]]
+kind = "runs"
+
+[[page]]
+id = "note-fleet"
+label = "Login note"
+icon = "file-text"
+where = "fleet"
+
+[[page.block]]
+kind = "actions"
+actions = ["current", "write"]
+
+[[page.block]]
+kind = "runs"

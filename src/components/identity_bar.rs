@@ -206,7 +206,9 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         .font_weight(FontWeight::BOLD)
                         .text_color(fg)
                         .child(env_str.to_uppercase())
-                }),
+                })
+                // User plugins' badges (ERR-182).
+                .children(server.map(|s| crate::plugin_host::badges::for_server(&s.id)).unwrap_or_default().iter().map(|b| crate::components::plugin_badge::badge_chip(b, 9.5))),
         )
         // 4. Spacer
         .child(div().flex_1())

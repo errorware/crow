@@ -1,0 +1,116 @@
+# DevSec hardening (ERR-170), written as a recipe plugin (ERR-173).
+# Crow runs ansible-playbook on this machine against an inventory it writes;
+# nothing is installed on the servers.
+
+format = 1
+
+[plugin]
+id = "devsec-hardening"
+name = "DevSec hardening"
+version = "0.1.0"
+author = "Errorware"
+about = "Applies the devsec.hardening Ansible collection (OS and SSH roles) and tracks whether each server is still hardened."
+crow = ">=0.8.3"
+license = "Apache-2.0"
+homepage = "https://github.com/dev-sec/ansible-collection-hardening"
+category = "security.hardening"
+capabilities = ["hardening.check", "hardening.apply"]
+
+[requires]
+local = ["python3", "ssh"]
+os = ["debian", "ubuntu", "rhel", "fedora", "amazon", "arch", "suse"]
+
+# The one-time controller install: a venv with pinned ansible-core and the
+# collection, under this plugin's data folder.
+[setup]
+script = "setup.sh"
+interpreter = "sh"
+env = { ANSIBLE_CORE = "2.21.5", DEVSEC_HARDENING = "11.0.0", VENV = "{data_dir}/venv", COLLECTIONS = "{data_dir}/collections" }
+timeout = "15m"
+
+[[setting]]
+key = "roles"
+label = "Roles to apply"
+type = "choices"
+choices = ["os_hardening", "ssh_hardening", "nginx_hardening", "mysql_hardening"]
+default = ["os_hardening", "ssh_hardening"]
+help = "nginx and mysql only on servers that run them."
+
+[[action]]
+id = "plan"
+label = "Check"
+help = "What applying would change: ansible-playbook --check --diff."
+on = "local"
+effect = "read"
+command = ["{data_dir}/venv/bin/python", "{plugin_dir}/run.py", "--check", "--roles", "{setting.roles}", "--inventory", "{inventory}", "--results", "{results}"]
+timeout = "30m"
+
+[action.output]
+format = "lines"
+summary_prefix = "PLAY RECAP"
+results = true
+
+[[action]]
+id = "apply"
+label = "Harden"
+help = "Applies the roles. Crow's own login is kept working, and proven before and after."
+on = "local"
+effect = "danger"
+dry_run = "plan"
+login_check = true
+keyword = "HARDEN"
+command = ["{data_dir}/venv/bin/python", "{plugin_dir}/run.py", "--apply", "--roles", "{setting.roles}", "--inventory", "{inventory}", "--results", "{results}"]
+timeout = "1h"
+
+[action.output]
+format = "lines"
+summary_prefix = "PLAY RECAP"
+results = true
+
+# Feeds the badge: a check run that reports "hardened" when nothing would change.
+[[action]]
+id = "status"
+label = "Hardened?"
+on = "local"
+effect = "read"
+command = ["{data_dir}/venv/bin/python", "{plugin_dir}/run.py", "--status", "--roles", "{setting.roles}", "--inventory", "{inventory}", "--results", "{results}"]
+timeout = "30m"
+
+[action.output]
+format = "lines"
+results = true
+
+[[page]]
+id = "devsec"
+label = "DevSec"
+icon = "shield-check"
+where = "server"
+
+[[page.block]]
+kind = "status"
+action = "status"
+
+[[page.block]]
+kind = "actions"
+actions = ["plan", "apply"]
+
+[[page.block]]
+kind = "runs"
+
+[[page]]
+id = "devsec-fleet"
+label = "DevSec hardening"
+icon = "shield-check"
+where = "fleet"
+
+[[page.block]]
+kind = "actions"
+actions = ["plan", "apply"]
+
+[[page.block]]
+kind = "runs"
+
+[badge]
+action = "status"
+every = "6h"
+last_run = "apply"

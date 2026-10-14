@@ -278,6 +278,29 @@ pub struct ChangeRecord {
     pub completed_at: Option<String>,
 }
 
+/// One run of a user plugin's action (ERR-178). The output itself isn't
+/// kept: only its size and the plugin's summary line.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct PluginRun {
+    pub plugin_id: String,
+    pub action_id: String,
+    pub server_id: String,
+    pub started_at: i64,
+    pub finished_at: i64,
+    pub ok: bool,
+    pub exit_code: Option<i32>,
+    pub summary: String,
+    pub output_bytes: u64,
+    /// The plugin's files when it ran.
+    pub plugin_hash: String,
+    /// Run as another action's dry run.
+    pub dry_run: bool,
+    /// Ended by STOP or its timeout.
+    pub stopped: bool,
+    /// What a change or danger action printed (capped); empty for reads.
+    pub log: String,
+}
+
 /// One recorded version of a config file on a server (ERR-72). The content
 /// is sealed with the vault's data key; `sealed` is `None` when no key was
 /// available, and then only the hash is known.
@@ -572,7 +595,23 @@ impl VaultDb {
             CREATE TABLE IF NOT EXISTS server_groups (
                 name TEXT PRIMARY KEY,
                 created_at TEXT NOT NULL
-            );",
+            );
+
+            -- User plugins' runs (ERR-178): when, what, where, and how it ended.
+            CREATE TABLE IF NOT EXISTS plugin_runs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                plugin_id TEXT NOT NULL,
+                action_id TEXT NOT NULL,
+                server_id TEXT NOT NULL,
+                started_at INTEGER NOT NULL,
+                finished_at INTEGER NOT NULL,
+                ok INTEGER NOT NULL,
+                exit_code INTEGER,
+                summary TEXT NOT NULL,
+                output_bytes INTEGER NOT NULL,
+                plugin_hash TEXT NOT NULL
+            );
+            CREATE INDEX IF NOT EXISTS plugin_runs_by_plugin ON plugin_runs (plugin_id, started_at);",
         )?;
 
         // Seed default scan path if empty
@@ -675,6 +714,10 @@ impl VaultDb {
         let _ = self.conn.execute("UPDATE clanker_providers SET model = 'deepseek-flash', base_url = 'https://api.deepseek.com' WHERE id = 'deepseek' AND model = 'deepseek-chat' AND api_key = ''", []);
         let _ = self.conn.execute("UPDATE clanker_providers SET model = 'mistral-small-2603' WHERE id = 'mistral' AND model = 'mistral-small-latest' AND api_key = ''", []);
         let _ = self.conn.execute("UPDATE clanker_providers SET model = 'qwen-plus' WHERE id = 'qwen' AND model = 'qwen-2.5-coder-32b' AND api_key = ''", []);
+        // ERR-179: plugin runs that were dry runs, were stopped, and their log.
+        let _ = self.conn.execute("ALTER TABLE plugin_runs ADD COLUMN dry_run INTEGER NOT NULL DEFAULT 0", []);
+        let _ = self.conn.execute("ALTER TABLE plugin_runs ADD COLUMN stopped INTEGER NOT NULL DEFAULT 0", []);
+        let _ = self.conn.execute("ALTER TABLE plugin_runs ADD COLUMN log TEXT NOT NULL DEFAULT ''", []);
         for col in ["region_country", "region_city", "region_provider", "region_code", "region_source", "provider_account", "provider_instance"] {
             let _ = self.conn.execute(&format!("ALTER TABLE servers ADD COLUMN {col} TEXT NOT NULL DEFAULT ''"), []);
         }
@@ -1412,6 +1455,45 @@ impl VaultDb {
     pub fn list_watch_sessions(&self, since: i64) -> Result<Vec<(i64, i64)>, VaultError> {
         let mut stmt = self.conn.prepare("SELECT started, last_tick FROM watch_sessions WHERE last_tick >= ?1 ORDER BY started")?;
         let rows = stmt.query_map(params![since], |r| Ok((r.get(0)?, r.get(1)?)))?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    // ==========================================
+    // User plugins' runs (ERR-178)
+    // ==========================================
+
+    pub fn insert_plugin_run(&self, run: &PluginRun) -> Result<(), VaultError> {
+        self.conn.execute(
+            "INSERT INTO plugin_runs (plugin_id, action_id, server_id, started_at, finished_at, ok, exit_code, summary, output_bytes, plugin_hash, dry_run, stopped, log)
+             VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)",
+            params![run.plugin_id, run.action_id, run.server_id, run.started_at, run.finished_at, run.ok, run.exit_code, run.summary, run.output_bytes as i64, run.plugin_hash, run.dry_run, run.stopped, run.log],
+        )?;
+        Ok(())
+    }
+
+    /// A plugin's runs, newest first; on one server when `server_id` is given.
+    pub fn list_plugin_runs(&self, plugin_id: &str, server_id: Option<&str>, limit: usize) -> Result<Vec<PluginRun>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT plugin_id, action_id, server_id, started_at, finished_at, ok, exit_code, summary, output_bytes, plugin_hash, dry_run, stopped, log
+             FROM plugin_runs WHERE plugin_id = ?1 AND (?2 IS NULL OR server_id = ?2) ORDER BY started_at DESC, id DESC LIMIT ?3",
+        )?;
+        let rows = stmt.query_map(params![plugin_id, server_id, limit as i64], |r| {
+            Ok(PluginRun {
+                plugin_id: r.get(0)?,
+                action_id: r.get(1)?,
+                server_id: r.get(2)?,
+                started_at: r.get(3)?,
+                finished_at: r.get(4)?,
+                ok: r.get(5)?,
+                exit_code: r.get(6)?,
+                summary: r.get(7)?,
+                output_bytes: r.get::<_, i64>(8)? as u64,
+                plugin_hash: r.get(9)?,
+                dry_run: r.get(10)?,
+                stopped: r.get(11)?,
+                log: r.get(12)?,
+            })
+        })?;
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 

@@ -12,6 +12,7 @@ pub mod language;
 pub mod lab;
 pub mod plugins;
 pub mod providers;
+pub mod user_plugins;
 pub mod state;
 pub mod vault_manage;
 

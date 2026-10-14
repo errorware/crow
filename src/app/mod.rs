@@ -56,6 +56,10 @@ pub mod providers;
 pub mod topology;
 pub mod palette;
 pub mod plugins;
+pub mod user_plugins;
+pub mod user_plugin_fleet;
+pub mod user_plugin_settings;
+pub mod user_plugin_badges;
 pub mod notify;
 pub mod containers;
 pub mod bastions;
@@ -591,6 +595,8 @@ impl CrowApp {
             app.refresh_firewall_for_active_server(cx);
             app.run_journal_query(cx);
         }
+        // User plugins: read the folder in the background (ERR-177).
+        app.scan_user_plugins(cx);
         app
     }
 }
@@ -685,6 +691,8 @@ impl CrowApp {
         } else if view == "containers" {
             self.active_view = view.to_string();
             self.refresh_containers(cx);
+        } else if view.starts_with("plugin:") {
+            self.open_plugin_page(view, cx);
         } else {
             self.active_view = view.to_string();
         }

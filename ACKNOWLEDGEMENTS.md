@@ -60,6 +60,11 @@ Crow doesn't link these; it calls the copies already on your machine.
 - [curl](https://curl.se): provider, AI and update requests (secrets go to it on stdin).
 - [slsa-verifier](https://github.com/slsa-framework/slsa-verifier): checking a release before Crow installs it (optional).
 
+The example DevSec hardening plugin installs these into its own folder when you press INSTALL; Crow doesn't ship them:
+
+- [ansible-core](https://github.com/ansible/ansible) (GPL-3.0): runs the hardening playbooks from your machine.
+- [devsec.hardening](https://github.com/dev-sec/ansible-collection-hardening) by DevSec (Apache-2.0), with the collections it needs (ansible.posix, community.general, community.crypto, community.mysql).
+
 ## Graphic assets and fonts
 
 | Asset | From | License |

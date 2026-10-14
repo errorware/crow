@@ -151,6 +151,10 @@ fn from_record(r: &ChangeRecord) -> Option<AuditItem> {
         "ssh.revoke_sessions" => t!("audit-model-sessions-ended-on", target = r.target),
         "config.drift_restore" => t!("audit-model-brought-back-on", target = r.target),
         "file.chmod" => t!("audit-model-permissions-changed", target = r.target),
+        "plugin.accept" => t!("audit-model-plugin-accepted", target = r.target),
+        "plugin.refuse" => t!("audit-model-plugin-refused", target = r.target),
+        "plugin.revoke" => t!("audit-model-plugin-revoked", target = r.target),
+        k if k.starts_with("plugin.") => t!("audit-model-plugin-ran", target = r.target, action = k.rsplit('.').next().unwrap_or(k)),
         k => format!("{k} {}", r.target),
     };
     // Config records carry hashes; command records carry the command, and

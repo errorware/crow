@@ -192,6 +192,7 @@ impl CrowApp {
                         this.people_tick(cx);
                         this.log_alert_tick(cx);
                         this.checks_tick(cx);
+                        this.plugin_badges_tick(cx);
                         this.resolve_peer_names(cx);
                         // Overview on screen: keep the updates/CVE check current
                         // (a no-op while it's fresh; also covers startup).

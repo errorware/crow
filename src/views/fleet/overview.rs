@@ -1359,6 +1359,8 @@ fn render_fleet_host_row(
                 .flex()
                 .items_center()
                 .gap(px(6.0))
+                .mr(px(10.0))
+                .overflow_hidden()
                 .child(if !host.country.is_empty() {
                     crate::components::flag::flag(&host.country, 11.0)
                 } else {
@@ -1413,6 +1415,16 @@ fn render_fleet_host_row(
                             });
                         })
                         .child(format!("{grp_display} ▾")),
+                )
+                // User plugins' badges (ERR-182), last: clipped when the
+                // cell is narrow, so they never cover the address.
+                .child(
+                    div()
+                        .min_w(px(0.0))
+                        .overflow_hidden()
+                        .flex()
+                        .gap(px(4.0))
+                        .children(crate::plugin_host::badges::for_server(&host.id).iter().map(|b| crate::components::plugin_badge::badge_chip(b, 8.5))),
                 ),
         )
         // Address
