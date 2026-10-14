@@ -2828,6 +2828,7 @@ plugin-page-exit = código de salida { $code }
 plugin-page-unreadable = No se puede leer la salida: { $why }
 plugin-page-no-rows = Nada que mostrar.
 plugin-page-runs = EJECUCIONES EN ESTE SERVIDOR
+plugin-page-runs-fleet = EJECUCIONES EN LA FLOTA
 plugin-page-no-runs = Aún no hay ejecuciones.
 plugin-page-running = { $label }…
 plugin-page-truncated = Salida cortada en 1 MB.
@@ -2847,6 +2848,8 @@ plugin-page-type-to-confirm = Escribe { $keyword } para confirmar
 plugin-page-run = EJECUTAR · { $label }
 plugin-page-cancel = CANCELAR
 plugin-page-needs-install = Este plugin ejecuta cosas en esta máquina y necesita su instalación primero.
+plugin-page-installed = Instalado: su instalación se ejecutó con estos archivos.
+plugin-page-close = CERRAR
 plugin-fleet-where = DÓNDE
 plugin-fleet-count = { $count ->
     [one] 1 servidor

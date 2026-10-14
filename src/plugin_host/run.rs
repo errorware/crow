@@ -254,6 +254,14 @@ impl RunResult {
     pub fn output_bytes(&self) -> u64 {
         (self.stdout.len() + self.stderr.len()) as u64
     }
+
+    /// A local run for one server: the line the program wrote for it.
+    pub fn host_line(&self) -> Option<&serde_json::Value> {
+        match self.per_host.as_slice() {
+            [one] => Some(one),
+            _ => None,
+        }
+    }
 }
 
 fn cap(mut s: String) -> (String, bool) {
@@ -379,6 +387,12 @@ pub fn summary(out: &Output, r: &RunResult) -> String {
         .and_then(|p| r.stdout.lines().find(|l| l.trim_start().starts_with(p)))
         .or_else(|| (out.format == OutputFormat::Lines).then(|| r.stdout.lines().find(|l| !l.trim().is_empty())).flatten())
         .map(|l| l.trim().to_string());
+    // A local run for one server: the summary its results line gives.
+    if r.error.is_none() {
+        if let Some(own) = r.host_line().and_then(|l| l.get("summary")).and_then(|s| s.as_str()).map(|s| s.chars().filter(|c| !c.is_control()).collect::<String>()).filter(|s| !s.trim().is_empty()) {
+            return own.trim().chars().take(200).collect();
+        }
+    }
     let last_err = r.stderr.lines().rev().find(|l| !l.trim().is_empty()).map(|l| l.trim().to_string());
     let text = match (&r.error, line) {
         (Some(e), _) => e.lines().next().unwrap_or_default().to_string(),
@@ -496,6 +510,17 @@ pub fn status(stdout: &str) -> Result<Status, String> {
     };
     let label: String = v.get("label").and_then(|s| s.as_str()).unwrap_or_default().chars().filter(|c| !c.is_control()).take(80).collect();
     Ok(Status { state, label })
+}
+
+/// The status a local action's `{results}` line gives for its server.
+pub fn status_of_line(l: &serde_json::Value) -> Option<Status> {
+    let state = match l.get("state").and_then(|s| s.as_str())? {
+        "ok" => State::Ok,
+        "warn" => State::Warn,
+        "bad" => State::Bad,
+        _ => State::Unknown,
+    };
+    Some(Status { state, label: l.get("label").and_then(|s| s.as_str()).unwrap_or_default().chars().filter(|c| !c.is_control()).take(80).collect() })
 }
 
 #[cfg(test)]
@@ -681,6 +706,22 @@ mod tests {
         let r = RunResult { exit_code: Some(1), stdout: "making /etc/motd.d\n".into(), stderr: "mkdir: can't create directory '/etc/motd.d': File exists\n".into(), ..Default::default() };
         assert_eq!(summary(&lines, &r), "mkdir: can't create directory '/etc/motd.d': File exists");
         assert_eq!(quote("it's"), "'it'\\''s'");
+    }
+
+    #[test]
+    fn a_local_run_is_told_by_its_results_line() {
+        let out = manifest("[[action]]\nid = \"st\"\nlabel = \"S\"\non = \"local\"\neffect = \"read\"\ncommand = [\"x\"]\n[action.output]\nformat = \"lines\"\nresults = true\n").actions[0].output.clone();
+        let line = serde_json::json!({"host": "web-1", "ok": false, "state": "unknown", "label": "DevSec: couldn't check", "summary": "DevSec: couldn't check"});
+        let r = RunResult { ok: false, exit_code: Some(2), stdout: "PLAY [devsec] ****\n".into(), per_host: vec![line.clone()], ..Default::default() };
+        assert_eq!(summary(&out, &r), "DevSec: couldn't check");
+        let st = super::status_of_line(r.host_line().unwrap()).unwrap();
+        assert_eq!((st.state, st.label.as_str()), (State::Unknown, "DevSec: couldn't check"));
+        // A fleet batch has several lines: none of them is "this run's".
+        let two = RunResult { per_host: vec![line.clone(), line], ..Default::default() };
+        assert!(two.host_line().is_none());
+        // Couldn't run at all: the reason, not a stale line.
+        let failed = RunResult { error: Some("unreachable".into()), per_host: vec![serde_json::json!({"host": "web-1", "summary": "x"})], ..Default::default() };
+        assert_eq!(summary(&out, &failed), "unreachable");
     }
 }
 

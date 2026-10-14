@@ -33,7 +33,8 @@ id = "disks"
 label = "Disks"
 on = "server"
 effect = "read"
-command = ["df", "-P", "-h", "-x", "tmpfs", "-x", "devtmpfs", "-x", "squashfs"]
+script = "disks.sh"
+interpreter = "sh"
 timeout = "30s"
 
 [action.output]
@@ -42,6 +43,7 @@ columns = [
   { key = "Mounted", label = "Mounted on" },
   { key = "Size", label = "Size" },
   { key = "Used", label = "Used" },
+  { key = "Avail", label = "Free" },
   { key = "Use%", label = "Use" },
   { key = "Filesystem", label = "Filesystem" },
 ]

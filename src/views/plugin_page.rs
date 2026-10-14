@@ -68,21 +68,28 @@ fn block_view(i: usize, b: &Block, d: &PageData, app: &Entity<CrowApp>) -> AnyEl
     let heading = b.title.clone().or_else(|| action.map(|a| a.label.clone()));
     match b.kind {
         BlockKind::Status => {
-            let body = pending_or_error(slot).map(IntoElement::into_any_element).unwrap_or_else(|| {
-                let r = slot.and_then(|s| s.last.as_ref()).expect("a read result");
-                match run::status(&r.stdout) {
-                    Ok(st) => {
-                        let color = match st.state {
-                            State::Ok => OK,
-                            State::Warn => WARN,
-                            State::Bad => CRIT,
-                            State::Unknown => TEXT_DIM,
-                        };
-                        div().flex().items_center().gap(px(8.0)).child(div().size(px(9.0)).rounded_full().bg(color)).child(div().text_size(px(12.5)).font_weight(FontWeight::BOLD).text_color(color).child(st.label)).into_any_element()
+            let shown = |st: run::Status| {
+                let color = match st.state {
+                    State::Ok => OK,
+                    State::Warn => WARN,
+                    State::Bad => CRIT,
+                    State::Unknown => TEXT_DIM,
+                };
+                div().flex().items_center().gap(px(8.0)).child(div().size(px(9.0)).rounded_full().bg(color)).child(div().text_size(px(12.5)).font_weight(FontWeight::BOLD).text_color(color).child(st.label)).into_any_element()
+            };
+            // A local action tells each server's status in {results}, even
+            // when the run as a whole failed.
+            let from_results = slot.and_then(|s| s.last.as_ref()).filter(|r| r.error.is_none()).and_then(|r| r.host_line()).and_then(run::status_of_line);
+            let body = match from_results {
+                Some(st) => shown(st),
+                None => pending_or_error(slot).map(IntoElement::into_any_element).unwrap_or_else(|| {
+                    let r = slot.and_then(|s| s.last.as_ref()).expect("a read result");
+                    match run::status(&r.stdout) {
+                        Ok(st) => shown(st),
+                        Err(e) => div().text_size(px(10.5)).text_color(CRIT).child(t!("plugin-page-unreadable", why = e)).into_any_element(),
                     }
-                    Err(e) => div().text_size(px(10.5)).text_color(CRIT).child(t!("plugin-page-unreadable", why = e)).into_any_element(),
-                }
-            });
+                }),
+            };
             panel().children(heading.map(title)).child(body).into_any_element()
         }
         BlockKind::Kv => {
@@ -139,7 +146,7 @@ fn block_view(i: usize, b: &Block, d: &PageData, app: &Entity<CrowApp>) -> AnyEl
         BlockKind::Runs => {
             let label = |id: &str| m.actions.iter().find(|a| a.id == id).map_or(id.to_string(), |a| a.label.clone());
             panel()
-                .child(title(t!("plugin-page-runs").to_string()))
+                .child(title(if d.fleet { t!("plugin-page-runs-fleet") } else { t!("plugin-page-runs") }.to_string()))
                 .when(d.runs.is_empty(), |p| p.child(div().text_size(px(10.5)).text_color(TEXT_DIM).child(t!("plugin-page-no-runs"))))
                 .children(d.runs.iter().take(20).map(|r| {
                     div()
@@ -435,17 +442,23 @@ pub fn plugin_page(d: PageData, app: Entity<CrowApp>) -> impl IntoElement {
                         .child(t!("plugin-page-refresh")),
                 ),
         )
-        .children(d.needs_install.then(|| {
-            let (app_install, app_console, id) = (app.clone(), app.clone(), d.plugin.id.clone());
+        // The install banner: while setup is needed, and after INSTALL ran
+        // here, so its console stays until it's closed.
+        .children({
             let slot = d.state.slot(&d.plugin.id, crate::app::user_plugins::SETUP, crate::app::user_plugins::HERE);
+            (d.needs_install || slot.is_some()).then_some(slot)
+        }
+        .map(|slot| {
+            let (app_install, app_console, app_close, id, close_id) = (app.clone(), app.clone(), app.clone(), d.plugin.id.clone(), d.plugin.id.clone());
             let running = slot.is_some_and(|s| s.running);
+            let installed = !d.needs_install;
             div()
                 .flex()
                 .flex_col()
                 .gap(px(6.0))
                 .px(px(14.0))
                 .py(px(8.0))
-                .bg(WARN_BG)
+                .bg(if installed { OK_BG } else { WARN_BG })
                 .border_b_1()
                 .border_color(BORDER_PANEL)
                 .child(
@@ -453,8 +466,25 @@ pub fn plugin_page(d: PageData, app: Entity<CrowApp>) -> impl IntoElement {
                         .flex()
                         .items_center()
                         .gap(px(10.0))
-                        .child(div().flex_1().text_size(px(10.5)).text_color(WARN_INK).child(t!("plugin-page-needs-install")))
-                        .child(
+                        .child(div().flex_1().text_size(px(10.5)).text_color(if installed { OK_INK } else { WARN_INK }).child(if installed { t!("plugin-page-installed") } else { t!("plugin-page-needs-install") }))
+                        .when(installed && !running, |d| {
+                            d.child(
+                                div()
+                                    .id("btn-plugin-install-close")
+                                    .px(px(10.0))
+                                    .py(px(4.0))
+                                    .border_1()
+                                    .border_color(BORDER_STRONG)
+                                    .text_color(TEXT_SECONDARY)
+                                    .text_size(px(10.5))
+                                    .font_weight(FontWeight::BOLD)
+                                    .cursor_pointer()
+                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                    .on_click(move |_ev, _w, cx| app_close.update(cx, |this, cx| this.close_plugin_setup_console(&close_id, cx)))
+                                    .child(t!("plugin-page-close")),
+                            )
+                        })
+                        .when(!installed, |d| d.child(
                             div()
                                 .id("btn-plugin-install-page")
                                 .px(px(10.0))
@@ -466,7 +496,7 @@ pub fn plugin_page(d: PageData, app: Entity<CrowApp>) -> impl IntoElement {
                                 .font_weight(FontWeight::BOLD)
                                 .when(!running, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _w, cx| app_install.update(cx, |this, cx| this.run_plugin_setup(&id, cx))))
                                 .child(if running { t!("settings-user-plugins-installing") } else { t!("settings-user-plugins-install") }),
-                        ),
+                        )),
                 )
                 .children(slot.map(|s| console(&d.plugin.id, crate::app::user_plugins::SETUP, crate::app::user_plugins::HERE, s, app_console.clone())))
         }))

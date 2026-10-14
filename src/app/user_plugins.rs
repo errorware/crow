@@ -458,11 +458,10 @@ impl CrowApp {
                     let go = |sink: &mut dyn FnMut(bool, &str)| local::run(&argv, &paths.data_dir, &env, timeout, sink, stop);
                     let mut r = if guard { run::guarded(std::slice::from_ref(&target), || go(sink)) } else { go(sink) };
                     // What the program said about this server, if it wrote results.
-                    r.per_host = local::read_results(&paths.results);
-                    if let Some(mine) = r.per_host.iter().find(|h| h["host"] == host_alias.as_str()) {
-                        if mine.get("ok").and_then(|o| o.as_bool()) == Some(false) {
-                            r.ok = false;
-                        }
+                    // Only this server's line is kept: it's what the page shows.
+                    r.per_host = local::read_results(&paths.results).into_iter().filter(|h| h["host"] == host_alias.as_str()).take(1).collect();
+                    if r.host_line().and_then(|h| h.get("ok")).and_then(|o| o.as_bool()) == Some(false) {
+                        r.ok = false;
                     }
                     let _ = std::fs::remove_dir_all(&rd);
                     r
@@ -684,11 +683,22 @@ impl CrowApp {
                         completed_at: None,
                     });
                 }
+                let ok = result.ok;
                 this.plugins.user.runs.insert(key, RunSlot { last: Some(result), ..Default::default() });
+                // The page's blocks were read before the install; read them again.
+                if ok && parse_page_view(&this.active_view).is_some_and(|(p, _)| p == id) {
+                    this.refresh_plugin_page(cx);
+                }
                 cx.notify();
             });
         })
         .detach();
+    }
+
+    /// CLOSE on a plugin page's install console.
+    pub fn close_plugin_setup_console(&mut self, plugin_id: &str, cx: &mut Context<Self>) {
+        self.plugins.user.runs.remove(&(plugin_id.to_string(), SETUP.to_string(), HERE.to_string()));
+        cx.notify();
     }
 
     pub(crate) fn user_plugin_pin(&self, id: &str) -> Pin {
