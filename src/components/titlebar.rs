@@ -811,6 +811,8 @@ pub fn clock_menu_overlay(app: Entity<CrowApp>, zones: &[chrono_tz::Tz], selecte
         .occlude()
         .flex()
         .justify_end()
+        // The menu is as tall as its rows, not the window.
+        .items_start()
         .on_click(move |_ev, _window, cx| app_backdrop.update(cx, |this, cx| this.toggle_clock_menu(cx)))
         .child(
             div()
