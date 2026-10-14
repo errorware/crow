@@ -141,7 +141,7 @@ mod tests {
     fn copy_fixture(case: &str, id: &str) -> PathBuf {
         let root = std::env::temp_dir().join(format!("crow-plugin-folder-{}-{case}", std::process::id()));
         let _ = std::fs::remove_dir_all(&root);
-        let from = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/plugin_host/fixtures").join(id);
+        let from = Path::new(env!("CARGO_MANIFEST_DIR")).join("plugins").join(id);
         let to = root.join(id);
         std::fs::create_dir_all(&to).unwrap();
         for e in std::fs::read_dir(&from).unwrap() {
@@ -172,7 +172,7 @@ mod tests {
         assert!(!changed.usable());
 
         // A new file counts too.
-        std::fs::write(&script, std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("src/plugin_host/fixtures/restic-check/status.sh")).unwrap()).unwrap();
+        std::fs::write(&script, std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("plugins/restic-check/status.sh")).unwrap()).unwrap();
         assert_eq!(load(&dir, &pin).trust, Trust::Accepted, "back to the accepted bytes");
         std::fs::write(dir.join("extra.txt"), "hi").unwrap();
         assert_eq!(load(&dir, &pin).trust, Trust::Changed);
@@ -201,7 +201,7 @@ mod tests {
     fn scan_lists_folders_in_order_and_skips_the_rest() {
         let a = copy_fixture("scan", "restic-check");
         let root = a.parent().unwrap().to_path_buf();
-        let from = Path::new(env!("CARGO_MANIFEST_DIR")).join("src/plugin_host/fixtures/devsec-hardening");
+        let from = Path::new(env!("CARGO_MANIFEST_DIR")).join("plugins/devsec-hardening");
         let b = root.join("devsec-hardening");
         std::fs::create_dir_all(&b).unwrap();
         for e in std::fs::read_dir(&from).unwrap() {

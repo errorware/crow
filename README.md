@@ -117,6 +117,8 @@ Crow's extensions are **plugins** described by crow-config manifests:
 
 Providers are compiled in, one cargo feature each (`provider-linode`, `provider-upcloud`, both on by default). Their settings forms are generated from the manifest, and tokens are stored only in the encrypted vault.
 
+**Your own plugins.** Besides the built-in ones, Crow loads plugins you write or download: a folder with a `plugin.toml` and its scripts, dropped into `~/.config/crow/plugins/`. Crow shows every command a plugin can run before you accept it, pins its files (a changed file turns it off until you review it again), asks before anything changes, and records every run. A plugin's actions run on a server's page, across the fleet with a canary, or on this machine against an inventory Crow writes (Ansible, for example), and can add badges to the fleet. `crow --check-plugin <folder>` checks one before you share it. Examples are in [`plugins/`](plugins), including DevSec hardening through Ansible; how to write one is in [docs/plugins.md](docs/plugins.md).
+
 ### Repository layout
 
 ```

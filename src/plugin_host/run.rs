@@ -647,7 +647,7 @@ mod tests {
 
     #[test]
     fn json_tables_and_kv_and_status() {
-        let restic = include_str!("fixtures/restic-check/plugin.toml");
+        let restic = include_str!("../../plugins/restic-check/plugin.toml");
         let m = manifest::parse(restic).unwrap();
         let snapshots = m.actions.iter().find(|a| a.id == "snapshots").unwrap();
         let out = r#"[{"time":"2026-10-13T02:00:00Z","hostname":"web-1","paths":["/etc","/srv"],"short_id":"4f2a","tags":null}]"#;

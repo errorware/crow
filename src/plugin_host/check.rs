@@ -585,7 +585,7 @@ command = ["ls", "-l"]
 "#;
 
     fn fixtures() -> PathBuf {
-        Path::new(env!("CARGO_MANIFEST_DIR")).join("src/plugin_host/fixtures")
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("plugins")
     }
 
     /// A plugin folder named `id` holding `files`, in a fresh temp dir.
