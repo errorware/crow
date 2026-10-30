@@ -204,8 +204,9 @@ pub fn pid_marker(nonce: &str) -> String {
 
 /// The `sh` program that ends a run started with pid `pid`: its whole
 /// session if it has one, else the process, then a kill if it lingers.
+/// No `--`: dash's kill (Debian, Ubuntu) takes it for a pid and fails.
 pub fn stop_program(pid: u32) -> String {
-    format!("kill -TERM -- -{pid} 2>/dev/null || kill -TERM {pid} 2>/dev/null\nsleep 2\nkill -KILL -- -{pid} 2>/dev/null || kill -KILL {pid} 2>/dev/null\nexit 0\n")
+    format!("kill -TERM -{pid} 2>/dev/null || kill -TERM {pid} 2>/dev/null\nsleep 2\nkill -KILL -{pid} 2>/dev/null || kill -KILL {pid} 2>/dev/null\nexit 0\n")
 }
 
 /// Splits the markers off stderr: (stderr without them, the exit code).
@@ -634,6 +635,14 @@ mod tests {
         assert_eq!(watcher.error.as_deref(), Some("stopped"));
         std::thread::sleep(std::time::Duration::from_millis(300));
         assert_eq!((running(&["sleep", "299.5"]), running(&["sleep", "299.6"])), (0, 0), "the action outlived STOP");
+    }
+
+    #[test]
+    fn stop_works_in_dash_too() {
+        // dash's kill takes `--` for a pid and fails, leaving the session's
+        // children running (Debian, Ubuntu servers; CI).
+        let p = super::stop_program(42);
+        assert!(p.contains("kill -TERM -42 ") && p.contains("kill -KILL -42 ") && !p.contains(" -- "), "{p}");
     }
 
     #[test]
