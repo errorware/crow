@@ -26,6 +26,11 @@ impl CrowApp {
     pub fn toggle_local_lab_modal(&mut self, cx: &mut Context<Self>) {
         self.local_lab.show_modal = !self.local_lab.show_modal;
         if self.local_lab.show_modal {
+            // The lab lives on the Fleet screen: opened from anywhere else,
+            // it would wait there unseen.
+            if self.screen != Screen::Fleet {
+                self.set_screen(Screen::Fleet, cx);
+            }
             self.refresh_lab(cx);
         }
         cx.notify();
