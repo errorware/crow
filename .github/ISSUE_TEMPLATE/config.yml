@@ -1,0 +1,11 @@
+blank_issues_enabled: true
+contact_links:
+  - name: 🐛 Report a Bug (Errorware Community Forum)
+    url: https://forum.errorware.net/forums/bug-reports
+    about: Found a crash, bug, or regression in Crow? Post a structured bug report on our official support forum so our team and community can triage and track it.
+  - name: 💬 Troubleshooting & Q&A
+    url: https://forum.errorware.net/forums/troubleshooting-q-a
+    about: Need help configuring Crow, debugging your environment, or getting started? Ask on our Q&A forum.
+  - name: 💡 Feature Requests & Ideas
+    url: https://forum.errorware.net/forums/feature-requests
+    about: Propose and vote on new features, integrations, and workflow improvements.
