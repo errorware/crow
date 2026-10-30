@@ -52,6 +52,9 @@ impl Render for CrowApp {
         if self.plugins.user.pending.is_some() {
             self.ensure_plugin_inputs(window, cx);
         }
+        if self.screen == Screen::Settings && self.settings.section == super::SettingsSection::Personalisation {
+            self.ensure_time_zone_search(window, cx);
+        }
         if self.screen == Screen::Settings && self.plugins.user.reviewing.is_some() {
             self.ensure_plugin_settings_inputs(window, cx);
         }
@@ -239,6 +242,7 @@ impl Render for CrowApp {
                                 None => self.session_label(),
                             },
                             &stance,
+                            self.clock_line(self.fleet.active_server().map(|s| s.id).as_deref()),
                             app_view.clone(),
                         ))
                         // 2. Main Screen Area
@@ -630,6 +634,7 @@ impl Render for CrowApp {
                                                 (&self.vault_form, self.vault_form_inputs.as_ref()),
                                                 self.clanker_inputs.as_ref(),
                                                 self.custom_setting_input.as_ref().map(|s| &s.input),
+                                                &self.clock,
                                                 &self.plugins,
                                                 (&self.email, self.email_inputs.as_ref()),
                                             )),
@@ -670,6 +675,8 @@ impl Render for CrowApp {
                         } else {
                             None
                         })
+                        // The titlebar clock's zone picker.
+                        .children(self.clock.menu_open.then(|| crate::components::titlebar::clock_menu_overlay(app_view.clone(), &self.saved_time_zones(), self.selected_zone())))
                         // 4. Command Palette Overlay (⌘K)
                         .children(if palette_open {
                             let scope = self.fleet.servers.iter()

@@ -9,6 +9,7 @@ pub mod diff_rail;
 pub mod keys;
 pub mod keys_state;
 pub mod language;
+pub mod time_zones;
 pub mod lab;
 pub mod plugins;
 pub mod providers;
@@ -49,6 +50,7 @@ pub fn settings_view(
     vault_form: (&crate::app::vault_manage::VaultFormState, Option<&crate::app::vault_manage::VaultFormInputs>),
     clanker_inputs: Option<&crate::app::ClankerInputs>,
     custom_setting_input: Option<&Entity<InputState>>,
+    clock: &crate::app::clock::ClockState,
     plugins: &crate::app::plugins::PluginsState,
     email: (&crate::app::notify::EmailState, Option<&crate::app::notify::EmailInputs>),
 ) -> impl IntoElement {
@@ -113,6 +115,7 @@ pub fn settings_view(
             fleet_background,
             vault_form,
             custom_setting_input,
+            clock,
         )
         .into_any_element(),
     };

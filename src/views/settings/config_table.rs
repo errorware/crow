@@ -251,6 +251,7 @@ pub fn render_config_section(
     fleet_background: (&FleetBackground, Option<std::path::PathBuf>),
     vault_form: (&VaultFormState, Option<&VaultFormInputs>),
     custom_setting_input: Option<&Entity<InputState>>,
+    clock: &crate::app::clock::ClockState,
 ) -> impl IntoElement {
     let (title, sub) = match section {
         SettingsSection::General => (t!("settings-config-table-general"), t!("settings-config-table-general-application-behavior")),
@@ -275,7 +276,7 @@ pub fn render_config_section(
         .rows
         .iter()
         .filter(|r| r.row_id.starts_with(&sec_prefix))
-        .filter(|r| r.row_id != crate::app::appearance::FLEET_BACKGROUND && r.row_id != crate::app::language::LANGUAGE)
+        .filter(|r| r.row_id != crate::app::appearance::FLEET_BACKGROUND && r.row_id != crate::app::language::LANGUAGE && r.row_id != crate::app::clock::TIME_ZONES && r.row_id != crate::app::clock::TIME_ZONE)
         .filter(|r| crate::config::WIRED_SETTINGS.contains(&r.row_id.as_str()))
         .collect();
     let hidden_settings = config.ir.rows.iter().filter(|r| r.row_id.starts_with(&sec_prefix) && !crate::config::WIRED_SETTINGS.contains(&r.row_id.as_str())).count();
@@ -335,6 +336,7 @@ pub fn render_config_section(
                 .overflow_y_scrollbar()
                 .children((section == SettingsSection::Personalisation).then(|| personalisation_block(&fleet_background, app.clone())))
                 .children((section == SettingsSection::Personalisation).then(|| crate::views::settings::language::language_block(&settings.language, crate::i18n::current().code(), app.clone())))
+                .children((section == SettingsSection::Personalisation).then(|| crate::views::settings::time_zones::time_zones_block(config, clock, app.clone())))
                 .children(if section == SettingsSection::Security {
                     if !is_auth_enabled {
                         Some(

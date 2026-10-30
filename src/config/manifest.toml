@@ -229,6 +229,18 @@ required = false
 help = "The language of Crow's screens: en, or the code of a pack in the languages folder (es for es.ftl)."
 
 [[fields]]
+name = "appearance.time_zones"
+type = "string"
+required = false
+help = "Time zones you can show your time in, from the titlebar's clock: zone names, comma separated (Europe/Madrid, Asia/Tokyo)."
+
+[[fields]]
+name = "appearance.time_zone"
+type = "string"
+required = false
+help = "The time zone your time is shown in; empty for this computer's. The titlebar's clock remembers your last pick here."
+
+[[fields]]
 name = "servers.host_key_max_age_days"
 type = "enum"
 required = false
