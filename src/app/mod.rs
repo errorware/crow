@@ -48,6 +48,7 @@ pub mod keys;
 pub mod appearance;
 pub mod language;
 pub mod clock;
+pub mod edit_server;
 pub mod archive;
 pub mod configs;
 pub mod region;
@@ -316,6 +317,8 @@ pub struct CrowApp {
     pub fleet_runner: Option<fleet_run::FleetRunner>,
     /// How a run that went on in the background ended.
     pub run_toast: Option<fleet_run::RunToast>,
+    /// The Edit server dialog, while it's open (ERR-166).
+    pub edit_server: Option<edit_server::EditServer>,
     /// Why a server can't be reached, and the fix (ERR-89).
     pub recovery: Option<recovery::RecoveryPanel>,
     /// Terminal workspaces by server id, and the task pumping them (ERR-93, ERR-95).
@@ -557,6 +560,7 @@ impl CrowApp {
             snapshots_panel: None,
             fleet_runner: None,
             run_toast: None,
+            edit_server: None,
             recovery: None,
             terminals: std::collections::HashMap::new(),
             terminal_pump: None,

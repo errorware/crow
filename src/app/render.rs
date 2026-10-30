@@ -697,6 +697,8 @@ impl Render for CrowApp {
                         // Danger Zone → SNAPSHOTS (ERR-47)
                         .children(self.snapshots_panel.as_ref().map(|p| crate::components::snapshots_panel::snapshots_panel(p, app_view.clone())))
                         .children(self.fleet_runner.as_ref().filter(|r| !r.hidden).map(|r| crate::views::fleet::run_panel::fleet_run_panel(r, (self.team.config.enabled() && self.team.config.require_approval).then_some(()).and(self.team.approval.as_ref()), app_view.clone())))
+                        // Edit server (ERR-166).
+                        .children(self.edit_server.as_ref().map(|e| crate::views::fleet::edit_server::edit_server_modal(e, &self.fleet.servers, &self.fleet.groups, &self.keys.enrolled, app_view.clone())))
                         // A background run's result.
                         .children(self.run_toast.as_ref().map(|t| crate::components::run_toast::run_toast(t, app_view.clone())))
                         .children(self.recovery.as_ref().map(|p| {

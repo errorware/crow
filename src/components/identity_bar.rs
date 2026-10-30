@@ -243,6 +243,10 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                 })
             })
         }))
+        .children(server.map(|s| {
+            let (app, id) = (app.clone(), s.id.clone());
+            header_button("btn-identity-edit", t!("identity-bar-edit")).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.open_edit_server(&id, window, cx)))
+        }))
         .children(server.filter(|s| transport_kind(s) == TransportKind::Ssh).map(|_| {
             let app = app.clone();
             header_button("btn-identity-reconnect", t!("identity-bar-reconnect")).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.reconnect_active_server(cx)))
