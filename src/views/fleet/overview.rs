@@ -21,6 +21,8 @@ pub struct FleetHost {
     pub name: String,
     pub group: String,
     pub ip: String,
+    /// The bare address, for copying (ERR-191).
+    pub addr: String,
     pub role: String,
     pub env: String,
     pub env_bg: Rgba,
@@ -232,6 +234,7 @@ pub fn fleet_overview_view(
                     Some(b) => t!("fleet-overview-via", host = s.host, name = b.name),
                     None => s.host.clone(),
                 },
+                addr: s.host.clone(),
                 role: s.role.clone(),
                 env: s.env.clone(),
                 env_bg,
@@ -1434,8 +1437,9 @@ fn render_fleet_host_row(
                 .flex_basis(px(0.0))
                 .min_w(px(110.0))
                 .overflow_hidden()
-                .text_color(TEXT_DIM)
-                .child(host.ip.clone()),
+                .flex()
+                // Click to copy the address (ERR-191).
+                .child(crate::components::copy_flash::copyable(format!("fleet-ip-{}", host.id), host.ip.clone(), host.addr.clone(), TEXT_DIM)),
         )
         // OS: the distro's logo (Dashboard Icons, Apache-2.0) and its short name.
         .child(

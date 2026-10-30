@@ -90,7 +90,11 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         .gap(px(8.0))
                         .font_family("JetBrains Mono")
                         .text_size(px(9.5))
-                        .child(div().text_color(TEXT_DIM).child(endpoint_str))
+                        .child(match server {
+                            // Click to copy the address (ERR-191).
+                            Some(s) => crate::components::copy_flash::copyable(format!("identity-ip-{}", s.id), endpoint_str, s.host.clone(), TEXT_DIM).into_any_element(),
+                            None => div().text_color(TEXT_DIM).child(endpoint_str).into_any_element(),
+                        })
                         .children(jump.map(|(name, down)| {
                             div()
                                 .text_color(if down { CRIT } else { TEXT_DIM })

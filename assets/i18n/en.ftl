@@ -3810,3 +3810,7 @@ app-edit-server-saved = { $name } saved.
 app-edit-server-name-placeholder = web-1
 app-edit-server-role-placeholder = web, db, cache…
 app-edit-server-tags-placeholder = comma separated
+
+## Click to copy (ERR-191)
+copy-flash-click-to-copy = Click to copy the address
+copy-flash-copied = copied ✓

@@ -3770,3 +3770,7 @@ app-edit-server-saved = { $name } を保存しました。
 app-edit-server-name-placeholder = web-1
 app-edit-server-role-placeholder = web、db、キャッシュ…
 app-edit-server-tags-placeholder = カンマ区切り
+
+## Click to copy (ERR-191)
+copy-flash-click-to-copy = クリックでアドレスをコピー
+copy-flash-copied = コピーしました ✓
