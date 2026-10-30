@@ -351,6 +351,35 @@ pub struct VaultDb {
     path: PathBuf,
 }
 
+/// Makes the vault file, its -wal and -shm, and copies of it (`crow.db.*`)
+/// readable by this user only (0600), creating the file when it's missing;
+/// with `own_dir`, Crow's folder too (0700). The secrets inside are
+/// encrypted either way; this keeps the server list, the audit log and the
+/// metrics away from other accounts on the computer.
+pub(crate) fn private_files(path: &Path, own_dir: bool) {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{OpenOptionsExt, PermissionsExt};
+        let _ = std::fs::OpenOptions::new().create(true).append(true).mode(0o600).open(path);
+        let (Some(dir), Some(name)) = (path.parent(), path.file_name().and_then(|n| n.to_str())) else { return };
+        if own_dir {
+            let _ = std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700));
+        }
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for e in entries.flatten() {
+            let n = e.file_name();
+            let n = n.to_string_lossy();
+            let ours = n == name || n.strip_prefix(name).is_some_and(|rest| rest.starts_with('-') || rest.starts_with('.'));
+            // Only regular files: never follow a link somewhere else.
+            if ours && e.file_type().is_ok_and(|t| t.is_file()) {
+                let _ = std::fs::set_permissions(e.path(), std::fs::Permissions::from_mode(0o600));
+            }
+        }
+    }
+    #[cfg(not(unix))]
+    let _ = (path, own_dir);
+}
+
 impl VaultDb {
     /// Returns the default path for Crow's SQLite database (~/.config/crow/crow.db).
     pub fn default_path() -> PathBuf {
@@ -370,6 +399,10 @@ impl VaultDb {
         if let Some(parent) = path.parent() {
             std::fs::create_dir_all(parent)?;
         }
+        // Readable by this user only: the folder, and the file before
+        // SQLite writes to it (its -wal and -shm take the file's mode).
+        let own_dir = custom_path.is_none();
+        private_files(&path, own_dir);
 
         let conn = Connection::open(&path)?;
 
@@ -381,6 +414,8 @@ impl VaultDb {
              PRAGMA secure_delete = ON;",
         )?;
 
+        // The -wal and -shm files now exist: private too.
+        private_files(&path, own_dir);
         let db = Self { conn, path };
         db.create_tables()?;
         Ok(db)
@@ -2292,6 +2327,39 @@ impl VaultDb {
 mod tests {
     use super::*;
     use crate::vault::crypto::generate_totp_secret;
+
+    #[cfg(unix)]
+    #[test]
+    fn the_vault_and_its_copies_are_private() {
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("crow-perm-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o755)).unwrap();
+        let mode = |p: &std::path::Path| std::fs::symlink_metadata(p).unwrap().permissions().mode() & 0o777;
+        let other = dir.join("elsewhere.txt");
+        for f in ["crow.db.before-moons", "crow.db-wal", "crow.dbx", "config.toml"] {
+            std::fs::write(dir.join(f), b"x").unwrap();
+            std::fs::set_permissions(dir.join(f), std::fs::Permissions::from_mode(0o644)).unwrap();
+        }
+        std::fs::write(&other, b"x").unwrap();
+        std::fs::set_permissions(&other, std::fs::Permissions::from_mode(0o644)).unwrap();
+        std::os::unix::fs::symlink(&other, dir.join("crow.db.link")).unwrap();
+
+        let db = VaultDb::open_or_create(Some(&dir.join("crow.db"))).unwrap();
+        // SQLite removes the -wal when the last connection closes: look now.
+        assert_eq!(mode(&dir.join("crow.db-wal")), 0o600);
+        drop(db);
+        assert_eq!(mode(&dir.join("crow.db")), 0o600);
+        assert_eq!(mode(&dir.join("crow.db.before-moons")), 0o600, "a copy of the vault");
+        assert_eq!(mode(&dir.join("crow.dbx")), 0o644, "not ours");
+        assert_eq!(mode(&dir.join("config.toml")), 0o644, "not the vault");
+        assert_eq!(mode(&other), 0o644, "a link isn't followed");
+        assert_eq!(mode(&dir), 0o755, "a folder given in tests isn't Crow's own");
+        super::private_files(&dir.join("crow.db"), true);
+        assert_eq!(mode(&dir), 0o700, "Crow's own folder");
+        let _ = std::fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn data_key_survives_the_password_and_wraps_under_it() {

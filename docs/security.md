@@ -16,7 +16,8 @@ Security costs something: typing a password, carrying a second factor, the risk 
 ### LOCKED
 
 - **How**: a master password plus TOTP two-factor authentication. The key is stored encrypted by a key derived from your password (Argon2id, 64 MB, 3 iterations).
-- **Protects against**: everything Open does, plus anyone or anything using your account while Crow is locked. Nothing can be read without your password and a current 2FA code.
+- **Protects against**: everything Open does, plus anyone or anything using your account while Crow is locked. The secrets can't be read without your password, and Crow won't open without a current 2FA code too.
+- **What 2FA covers**: opening Crow, not the file. The data key is wrapped by your password alone, because a code that changes every 30 seconds can't be part of a fixed key. Someone with a copy of `crow.db` *and* your password could decrypt it without a code. Binding the key to a hardware security key (FIDO2) is planned.
 - **Exposed to**: anyone at your computer while Crow is unlocked. Crow locks itself after the auto-lock period (Settings → Vault & Security).
 - **Costs**: you unlock with password + code on every launch and after auto-lock. **If you lose the password or the authenticator, the stored secrets can't be recovered**; there's no reset and no cloud copy. Your server list and settings stay readable.
 
@@ -30,6 +31,7 @@ You can switch either way from Settings → Vault & Security (going back to Open
 - **Config history**: every version of a config file Crow wrote or found on a server is sealed under the same data key, because config files can hold credentials. If there's no key (no OS keyring and no vault password), Crow keeps only each version's SHA-256: it can still tell a file changed, not what it said, and such versions can't be restored. Crow creates the key in the OS keyring for this without asking you to choose a stance, since it only ever makes things safer; storing provider tokens and AI keys still waits for your choice.
 - **The data key**: never written to disk unencrypted. It's held by the OS keyring (Open) or stored wrapped by your password-derived key (Locked). Changing the password or the stance re-wraps this one key; the entries don't change.
 - **Not encrypted**: the rest of `crow.db` (server list, settings, the change log with file paths and hashes, metrics), `config.toml`, and your SSH private keys in `~/.ssh`. Unless an SSH key has a passphrase, anything running as you can use it, in either stance.
+- **Who can read the file**: only your account. Crow keeps its folder at `0700` and `crow.db` (with its `-wal`, `-shm` and any `crow.db.*` copies) at `0600`, fixing them on every start.
 
 ## How secrets are handled
 
