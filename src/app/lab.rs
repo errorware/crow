@@ -306,6 +306,7 @@ impl CrowApp {
                 name: record.name.clone(),
                 is_active: true,
             });
+            self.remember_tabs();
         }
         self.fleet.active_tab_id = record.id.clone();
         self.overview.services = collect_services_for_server(&record);

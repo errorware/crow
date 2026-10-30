@@ -192,6 +192,7 @@ impl CrowApp {
         }
         if let Some(pos) = self.fleet.tabs.iter().position(|t| t.id == srv.id || t.name == srv.name) {
             self.fleet.tabs.remove(pos);
+            self.remember_tabs();
         }
         if self.fleet.active_tab_id == srv.id || self.fleet.active_tab_id == srv.name {
             match self.fleet.tabs.last().map(|t| t.id.clone()) {

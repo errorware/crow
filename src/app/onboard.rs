@@ -558,6 +558,7 @@ impl CrowApp {
                 name: name.clone(),
                 is_active: true,
             });
+            self.remember_tabs();
         }
         self.fleet.active_tab_id = id.clone();
         self.reload_configs_for_active_server(cx);

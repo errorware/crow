@@ -388,7 +388,8 @@ impl CrowApp {
         crate::host::update_directory(&servers, &keys.enrolled);
         log_config_core_self_check();
 
-        let tabs = initial_tabs(&servers);
+        let saved_tabs = vault.db().lock().ok().and_then(|db| db.flag(tabs::OPEN_TABS));
+        let tabs = initial_tabs(&servers, saved_tabs.as_deref());
 
         let onboard_state = OnboardState::new(&keys.enrolled);
 
