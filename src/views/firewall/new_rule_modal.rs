@@ -130,6 +130,8 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
         .id("new-rule-modal-backdrop")
         .absolute()
         .inset_0()
+        // Blocks the page underneath: no hover or clicks through.
+        .occlude()
         .bg(hex_rgba(0x060709, 0.75))
         .flex()
         .items_center()

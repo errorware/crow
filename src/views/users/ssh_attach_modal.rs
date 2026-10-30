@@ -24,6 +24,8 @@ pub fn ssh_attach_modal(
         .id("ssh-attach-modal-backdrop")
         .absolute()
         .inset_0()
+        // Blocks the page underneath: no hover or clicks through.
+        .occlude()
         .bg(hex_rgba(0x000000, 0.65))
         .flex()
         .items_center()

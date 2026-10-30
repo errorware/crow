@@ -1211,6 +1211,8 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
             div()
                 .absolute()
                 .inset_0()
+                // Blocks the page underneath: no hover or clicks through.
+                .occlude()
                 .bg(hex_rgba(0x050507, 0.85))
                 .flex()
                 .items_center()
@@ -1555,6 +1557,8 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
             div()
                 .absolute()
                 .inset_0()
+                // Blocks the page underneath: no hover or clicks through.
+                .occlude()
                 .bg(hex_rgba(0x050507, 0.85))
                 .flex()
                 .items_center()
@@ -1663,6 +1667,8 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
             div()
                 .absolute()
                 .inset_0()
+                // Blocks the page underneath: no hover or clicks through.
+                .occlude()
                 .bg(hex_rgba(0x050507, 0.85))
                 .flex()
                 .items_center()
@@ -1774,6 +1780,8 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
             div()
                 .absolute()
                 .inset_0()
+                // Blocks the page underneath: no hover or clicks through.
+                .occlude()
                 .bg(hex_rgba(0x050507, 0.85))
                 .flex()
                 .items_center()

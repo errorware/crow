@@ -217,6 +217,7 @@ app-fleet-run-install-new-key-verify-switch = install new key, verify, switch, r
 app-fleet-run-install-key-verify-switch = install key, verify, switch
 app-fleet-run-switched-old-key-removed = switched; old key removed
 app-fleet-run-type-exactly-to-start = Type { $keyword } exactly to start.
+app-fleet-run-in-background = { $title } · { $done } of { $total } done
 app-fleet-run-approved-by = Approved by { $by }.
 app-fleet-run-crow = crow: { $title } — { $summary }
 app-fleet-run-pinned-was = pinned { $r } (was { $before })
@@ -852,6 +853,7 @@ stat-strip-mb-s-2 = Mb/s
 
 ## status-bar
 status-bar-no-open-alerts = no open alerts
+run-toast-view-details = VIEW DETAILS
 status-bar-1-open-alert = 1 open alert
 status-bar-open-alerts = { $n } open alerts
 status-bar-agentless-ssh = agentless · ssh
@@ -1796,6 +1798,7 @@ fleet-run-panel-one-host-at-a-time = { $count } { $count ->
 fleet-run-panel-the-canary-is-done-check = The canary is done. Check it, then CONTINUE with the rest, or STOP here.
 fleet-run-panel-stopping-after-the-current-host = Stopping after the current host…
 fleet-run-panel-running = Running…
+fleet-run-panel-run-in-background = RUN IN BACKGROUND
 fleet-run-panel-not-run = not run
 fleet-run-panel-left-out = left out · { $why }
 fleet-run-panel-type-to-start = TYPE { $keyword } TO START

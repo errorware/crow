@@ -205,6 +205,7 @@ app-fleet-run-install-new-key-verify-switch = 新しい鍵を設置、確認、�
 app-fleet-run-install-key-verify-switch = 鍵を設置、確認、切り替え
 app-fleet-run-switched-old-key-removed = 切り替え済み。古い鍵は削除しました
 app-fleet-run-type-exactly-to-start = 開始するには { $keyword } と正確に入力してください。
+app-fleet-run-in-background = { $title } · { $total } 件中 { $done } 件完了
 app-fleet-run-approved-by = { $by } が承認しました。
 app-fleet-run-crow = crow: { $title } — { $summary }
 app-fleet-run-pinned-was = { $r } を固定（以前: { $before }）
@@ -839,6 +840,7 @@ stat-strip-mb-s-2 = Mb/s
 
 ## status-bar
 status-bar-no-open-alerts = 未解決のアラートなし
+run-toast-view-details = 詳細を見る
 status-bar-1-open-alert = 未解決のアラート 1 件
 status-bar-open-alerts = 未解決のアラート { $n } 件
 status-bar-agentless-ssh = エージェントレス · ssh
@@ -1776,6 +1778,7 @@ fleet-run-panel-one-host-at-a-time = { $count } { $count ->
 fleet-run-panel-the-canary-is-done-check = カナリアが完了しました。確認してから 残りを続行 するか、ここで停止 してください。
 fleet-run-panel-stopping-after-the-current-host = 現在のホストの後で停止します…
 fleet-run-panel-running = 実行中…
+fleet-run-panel-run-in-background = バックグラウンドで続行
 fleet-run-panel-not-run = 未実行
 fleet-run-panel-left-out = 除外 · { $why }
 fleet-run-panel-type-to-start = 開始するには { $keyword } と入力

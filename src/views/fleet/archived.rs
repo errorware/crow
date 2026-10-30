@@ -382,6 +382,8 @@ pub fn archive_confirm_overlay(srv: &ServerRecord, purge_due: &str, app: Entity<
     div()
         .absolute()
         .inset_0()
+        // Blocks the page underneath: no hover or clicks through.
+        .occlude()
         .flex()
         .items_center()
         .justify_center()

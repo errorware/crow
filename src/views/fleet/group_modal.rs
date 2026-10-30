@@ -37,6 +37,8 @@ pub fn group_assign_modal(
         .id("group-assign-modal-scrim")
         .absolute()
         .inset_0()
+        // Blocks the page underneath: no hover or clicks through.
+        .occlude()
         .bg(hex_rgba(0x060709, 0.75))
         .flex()
         .items_center()

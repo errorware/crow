@@ -192,6 +192,40 @@ mod icon_guard {
     }
 }
 
+#[cfg(test)]
+mod backdrop_guard {
+    /// A dialog's dark backdrop must `.occlude()`: without it the mouse
+    /// still hovers and clicks the page underneath.
+    #[test]
+    fn every_dialog_backdrop_blocks_the_page() {
+        fn visit(dir: &std::path::Path, hits: &mut Vec<String>) {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    visit(&path, hits);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    let text = std::fs::read_to_string(&path).unwrap();
+                    let lines: Vec<&str> = text.lines().collect();
+                    for (i, line) in lines.iter().enumerate() {
+                        if !line.contains(concat!(".inset", "_0()")) {
+                            continue;
+                        }
+                        let near = lines[i.saturating_sub(4)..(i + 10).min(lines.len())].join(" ");
+                        // A backdrop: dark, with a dialog centred on it.
+                        let backdrop = near.contains("0x000000") && (near.contains(".justify_center()") || near.contains(".items_center()"));
+                        if backdrop && !near.contains(concat!(".occ", "lude()")) {
+                            hits.push(format!("{}:{}", path.display(), i + 1));
+                        }
+                    }
+                }
+            }
+        }
+        let mut hits = Vec::new();
+        visit(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut hits);
+        assert!(hits.is_empty(), "dialog backdrops that let the mouse through: {hits:?}");
+    }
+}
+
 /// The language pack's own font (its `### font:` line), tried after Crow's
 /// for the characters JetBrains Mono doesn't have: CJK, Arabic, Thai…
 /// Without one the system's fallback fonts are used.

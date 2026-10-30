@@ -664,7 +664,7 @@ impl Render for CrowApp {
                         // 3. Status bar: alerts, notices, version (Fleet shows its
                         //    notices in its own banner).
                         .children(matches!(screen, Screen::Fleet | Screen::Server).then(|| {
-                            crate::components::status_bar::status_bar(&alert_lines, self.fleet.notice.as_deref().filter(|_| screen == Screen::Server), self.update.available.as_ref().map(|r| r.version.to_string()), self.local_lab.busy.as_deref(), app_view.clone())
+                            crate::components::status_bar::status_bar(&alert_lines, self.fleet.notice.as_deref().filter(|_| screen == Screen::Server), self.update.available.as_ref().map(|r| r.version.to_string()), self.local_lab.busy.as_deref(), self.background_run_line().as_deref(), app_view.clone())
                         }))
                         // 3. Burger Menu Overlay
                         .children(if menu_open {
@@ -689,7 +689,9 @@ impl Render for CrowApp {
                         })
                         // Danger Zone → SNAPSHOTS (ERR-47)
                         .children(self.snapshots_panel.as_ref().map(|p| crate::components::snapshots_panel::snapshots_panel(p, app_view.clone())))
-                        .children(self.fleet_runner.as_ref().map(|r| crate::views::fleet::run_panel::fleet_run_panel(r, (self.team.config.enabled() && self.team.config.require_approval).then_some(()).and(self.team.approval.as_ref()), app_view.clone())))
+                        .children(self.fleet_runner.as_ref().filter(|r| !r.hidden).map(|r| crate::views::fleet::run_panel::fleet_run_panel(r, (self.team.config.enabled() && self.team.config.require_approval).then_some(()).and(self.team.approval.as_ref()), app_view.clone())))
+                        // A background run's result.
+                        .children(self.run_toast.as_ref().map(|t| crate::components::run_toast::run_toast(t, app_view.clone())))
                         .children(self.recovery.as_ref().map(|p| {
                             let name = self.fleet.servers.iter().find(|s| s.id == p.server_id).map(|s| s.name.clone()).unwrap_or_default();
                             crate::components::recovery_panel::recovery_panel(p, &name, app_view.clone())

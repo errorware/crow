@@ -41,6 +41,8 @@ pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::
     div()
         .absolute()
         .inset_0()
+        // Blocks the page underneath: no hover or clicks through.
+        .occlude()
         .bg(hex_rgba(0x000000, 0.55))
         .flex()
         .items_center()
@@ -157,6 +159,12 @@ pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::
                                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.stop_fleet_run(cx)))
                         }))
                         .child(div().flex_1())
+                        // Keep working: the run goes on, a chip in the status bar.
+                        .children((run.phase == RunPhase::Running).then(|| {
+                            let app = app.clone();
+                            button("btn-fleet-run-hide", t!("fleet-run-panel-run-in-background").into(), TEXT_SECONDARY)
+                                .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.hide_fleet_run(cx)))
+                        }))
                         .children((!matches!(run.phase, RunPhase::Running | RunPhase::Paused)).then(|| {
                             let app = app.clone();
                             button("btn-fleet-run-close", if run.phase == RunPhase::Finished { t!("fleet-run-panel-close").into() } else { t!("fleet-run-panel-cancel").into() }, TEXT_SECONDARY)

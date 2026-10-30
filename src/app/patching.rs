@@ -308,5 +308,10 @@ impl CrowApp {
         self.patching.reboot_after = false;
         self.plan_patch(scope, window, cx);
         (self.patching.target, self.patching.reboot_after) = saved;
+        // One server's updates: once PATCH is typed it goes on in the
+        // background, and you keep working.
+        if let Some(r) = self.fleet_runner.as_mut().filter(|r| r.run.phase == crate::views::fleet::run::RunPhase::Confirming) {
+            r.background = true;
+        }
     }
 }

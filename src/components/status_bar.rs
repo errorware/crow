@@ -11,8 +11,9 @@ use crate::views::fleet::alert_lines::AlertLine;
 
 /// `job`: a background job's live step (a Multipass VM launching), shown
 /// with a pulsing dot; clicking it opens the lab.
-pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<String>, job: Option<&str>, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<String>, job: Option<&str>, run: Option<&str>, app: Entity<CrowApp>) -> impl IntoElement {
     let app_job = app.clone();
+    let app_run = app.clone();
     let app_update = app.clone();
     let open: Vec<&AlertLine> = alerts.iter().filter(|a| !a.resolved && !a.acknowledged).collect();
     let crit = open.iter().any(|a| a.level == "CRIT");
@@ -82,6 +83,26 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
                                 .with_animation("status-job-pulse", Animation::new(std::time::Duration::from_millis(1200)).repeat().with_easing(pulsating_between(0.25, 1.0)), |d, t| d.opacity(t)),
                         )
                         .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(hex_rgb(0x8ab4ff)).child(j.to_string()))
+                }))
+                // A fleet run going on in the background: click to watch it.
+                .children(run.map(|r| {
+                    div()
+                        .id("status-run")
+                        .flex()
+                        .items_center()
+                        .gap(px(7.0))
+                        .min_w(px(0.0))
+                        .cursor_pointer()
+                        .on_click(move |_ev, _window, cx| app_run.update(cx, |this, cx| this.show_fleet_run(cx)))
+                        .child(
+                            div()
+                                .size(px(6.0))
+                                .flex_none()
+                                .rounded_full()
+                                .bg(WARN)
+                                .with_animation("status-run-pulse", Animation::new(std::time::Duration::from_millis(1200)).repeat().with_easing(pulsating_between(0.25, 1.0)), |d, t| d.opacity(t)),
+                        )
+                        .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(WARN).child(r.to_string()))
                 }))
                 .children(notice.map(|n| {
                     let app = app.clone();

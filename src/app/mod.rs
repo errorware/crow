@@ -314,6 +314,8 @@ pub struct CrowApp {
     pub snapshots_panel: Option<danger::SnapshotsPanel>,
     /// A fleet-wide run being planned, running, or just finished (ERR-79).
     pub fleet_runner: Option<fleet_run::FleetRunner>,
+    /// How a run that went on in the background ended.
+    pub run_toast: Option<fleet_run::RunToast>,
     /// Why a server can't be reached, and the fix (ERR-89).
     pub recovery: Option<recovery::RecoveryPanel>,
     /// Terminal workspaces by server id, and the task pumping them (ERR-93, ERR-95).
@@ -554,6 +556,7 @@ impl CrowApp {
             snapshot_offer: None,
             snapshots_panel: None,
             fleet_runner: None,
+            run_toast: None,
             recovery: None,
             terminals: std::collections::HashMap::new(),
             terminal_pump: None,

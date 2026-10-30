@@ -31,6 +31,8 @@ pub fn retention_boundaries_modal(
         .id("journal-retention-modal-scrim")
         .absolute()
         .inset_0()
+        // Blocks the page underneath: no hover or clicks through.
+        .occlude()
         .bg(hex_rgba(0x060709, 0.85))
         .flex()
         .items_center()

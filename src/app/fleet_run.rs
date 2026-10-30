@@ -25,6 +25,20 @@ pub struct FleetRunner {
     pub input: Entity<InputState>,
     /// (button label, what it does), offered when the run is finished.
     pub after: Option<(String, AfterRun)>,
+    /// Once started, the panel closes and the run goes on in the
+    /// background: a chip in the status bar, a toast when it's done.
+    pub background: bool,
+    /// The panel is closed while the run goes on.
+    pub hidden: bool,
+}
+
+/// What a background run's toast says: whether it all went well, and how.
+pub struct RunToast {
+    pub ok: bool,
+    pub title: String,
+    pub summary: String,
+    /// Which toast this is, so an old timer doesn't close a newer one.
+    pub serial: u64,
 }
 
 impl CrowApp {
@@ -336,6 +350,13 @@ impl CrowApp {
         if !self.allowed(crate::team::Permission::RunFleet, None, cx) {
             return;
         }
+        // One run at a time: a run going on in the background is shown
+        // instead of being replaced.
+        if let Some(r) = self.fleet_runner.as_mut().filter(|r| matches!(r.run.phase, RunPhase::Running | RunPhase::Paused)) {
+            r.hidden = false;
+            cx.notify();
+            return;
+        }
         let mut jobs = jobs;
         if self.team.config.enabled() {
             let mut keep = Vec::new();
@@ -360,7 +381,7 @@ impl CrowApp {
         }
         let keyword = run.keyword;
         let input = cx.new(|cx| InputState::new(window, cx).placeholder(keyword));
-        self.fleet_runner = Some(FleetRunner { run, jobs, input, after: None });
+        self.fleet_runner = Some(FleetRunner { run, jobs, input, after: None, background: false, hidden: false });
         cx.notify();
     }
 
@@ -396,6 +417,7 @@ impl CrowApp {
         let Some(runner) = self.fleet_runner.as_mut() else { return };
         runner.run.error = None;
         runner.run.phase = RunPhase::Running;
+        runner.hidden = runner.background;
         let mut jobs: Vec<Option<RunJob>> = std::mem::take(&mut runner.jobs).into_iter().map(Some).collect();
         let groups = runner.run.stage_groups();
         let pause_after = runner.run.pause_after;
@@ -436,6 +458,8 @@ impl CrowApp {
                         if more && pause_after == Some(stage) {
                             if let Some(r) = this.fleet_runner.as_mut() {
                                 r.run.phase = RunPhase::Paused;
+                                // CONTINUE needs the panel.
+                                r.hidden = false;
                             }
                         }
                         cx.notify();
@@ -463,6 +487,12 @@ impl CrowApp {
                 });
                 if let Some(m) = marker {
                     this.push_journal_action_marker(m);
+                }
+                // Ran in the background: say how it went.
+                if let Some(r) = this.fleet_runner.as_ref().filter(|r| r.hidden) {
+                    let ok = !r.run.steps.iter().any(|s| matches!(s.status, crate::views::fleet::run::StepStatus::Failed(_)));
+                    let (title, summary) = (r.run.title.clone(), r.run.summary());
+                    this.show_run_toast(ok, title, summary, cx);
                 }
                 // Server records may have changed (key switches).
                 this.reload_servers();
@@ -509,6 +539,56 @@ impl CrowApp {
             r.run.phase = RunPhase::Running;
         }
         cx.notify();
+    }
+
+    /// The status bar's line for a run going on in the background.
+    pub fn background_run_line(&self) -> Option<String> {
+        let r = self.fleet_runner.as_ref().filter(|r| r.hidden && r.run.phase == RunPhase::Running)?;
+        let done = r.run.steps.iter().filter(|s| !matches!(s.status, crate::views::fleet::run::StepStatus::Waiting | crate::views::fleet::run::StepStatus::Running)).count();
+        Some(t!("app-fleet-run-in-background", title = r.run.title, done = done, total = r.run.steps.len()))
+    }
+
+    /// Closes the panel of a running run; it goes on in the background.
+    pub fn hide_fleet_run(&mut self, cx: &mut Context<Self>) {
+        if let Some(r) = self.fleet_runner.as_mut().filter(|r| r.run.phase == RunPhase::Running) {
+            r.hidden = true;
+        }
+        cx.notify();
+    }
+
+    /// Opens the panel of the run going on (or done) in the background.
+    pub fn show_fleet_run(&mut self, cx: &mut Context<Self>) {
+        if let Some(r) = self.fleet_runner.as_mut() {
+            r.hidden = false;
+        }
+        self.run_toast = None;
+        cx.notify();
+    }
+
+    /// Closes a background run's toast; a finished run's panel goes with it.
+    pub fn dismiss_run_toast(&mut self, cx: &mut Context<Self>) {
+        self.run_toast = None;
+        if self.fleet_runner.as_ref().is_some_and(|r| r.hidden && r.run.phase == RunPhase::Finished) {
+            self.fleet_runner = None;
+        }
+        cx.notify();
+    }
+
+    fn show_run_toast(&mut self, ok: bool, title: String, summary: String, cx: &mut Context<Self>) {
+        let serial = self.run_toast.as_ref().map_or(0, |t| t.serial) + 1;
+        self.run_toast = Some(RunToast { ok, title, summary, serial });
+        // A good result goes away by itself; a failure stays until read.
+        if ok {
+            cx.spawn(async move |entity, cx| {
+                cx.background_executor().timer(std::time::Duration::from_secs(12)).await;
+                let _ = entity.update(cx, |this, cx| {
+                    if this.run_toast.as_ref().is_some_and(|t| t.serial == serial) {
+                        this.dismiss_run_toast(cx);
+                    }
+                });
+            })
+            .detach();
+        }
     }
 
     /// Closes the panel; a running run can't be closed, only stopped.

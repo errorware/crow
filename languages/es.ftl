@@ -208,6 +208,7 @@ app-fleet-run-install-new-key-verify-switch = instalar la clave nueva, verificar
 app-fleet-run-install-key-verify-switch = instalar la clave, verificar, cambiar
 app-fleet-run-switched-old-key-removed = cambiada; clave antigua eliminada
 app-fleet-run-type-exactly-to-start = Escribe { $keyword } exactamente para empezar.
+app-fleet-run-in-background = { $title } · { $done } de { $total } hechos
 app-fleet-run-approved-by = Aprobado por { $by }.
 app-fleet-run-crow = crow: { $title } — { $summary }
 app-fleet-run-pinned-was = fijadas { $r } (antes { $before })
@@ -848,6 +849,7 @@ stat-strip-mb-s-2 = Mb/s
 
 ## status-bar
 status-bar-no-open-alerts = ninguna alerta abierta
+run-toast-view-details = VER DETALLES
 status-bar-1-open-alert = 1 alerta abierta
 status-bar-open-alerts = { $n } alertas abiertas
 status-bar-agentless-ssh = sin agente · ssh
@@ -1799,6 +1801,7 @@ fleet-run-panel-one-host-at-a-time = { $count } { $count ->
 fleet-run-panel-the-canary-is-done-check = El canario ha terminado. Compruébalo y luego CONTINUAR con el resto, o PARAR aquí.
 fleet-run-panel-stopping-after-the-current-host = Parando después del host actual…
 fleet-run-panel-running = Ejecutando…
+fleet-run-panel-run-in-background = SEGUIR EN SEGUNDO PLANO
 fleet-run-panel-not-run = sin ejecutar
 fleet-run-panel-left-out = fuera · { $why }
 fleet-run-panel-type-to-start = ESCRIBE { $keyword } PARA EMPEZAR

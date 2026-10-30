@@ -29,6 +29,8 @@ pub fn recovery_panel(panel: &RecoveryPanel, server_name: &str, app: Entity<Crow
     div()
         .absolute()
         .inset_0()
+        // Blocks the page underneath: no hover or clicks through.
+        .occlude()
         .bg(hex_rgba(0x000000, 0.55))
         .flex()
         .items_center()
