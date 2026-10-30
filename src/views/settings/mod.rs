@@ -20,7 +20,7 @@ pub mod vault_manage;
 use gpui_kit::component::input::InputState;
 use gpui_kit::*;
 
-use crate::app::{CrowApp, Screen, SettingsSection};
+use crate::app::{CrowApp, SettingsSection};
 use crate::components::icons::{tabler_icon, TablerIcon};
 use crate::config::CrowConfigManager;
 use crate::theme::*;
@@ -93,7 +93,6 @@ pub fn settings_view(
         })
         .collect();
 
-    let app_close = app.clone();
 
     // Route center content exhaustively
     let center_content: AnyElement = match section {
@@ -199,28 +198,7 @@ pub fn settings_view(
                                 .child(status_subtitle),
                         ),
                 )
-                .child(
-                    div()
-                        .id("btn-close-settings")
-                        .flex_none()
-                        .ml(px(12.0))
-                        .px(px(10.0))
-                        .py(px(5.0))
-                        .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .font_family(FONT_MONO)
-                        .text_size(px(10.5))
-                        .text_color(TEXT_TERTIARY)
-                        .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
-                        .on_click(move |_ev, _window, cx| {
-                            app_close.update(cx, |this, cx| {
-                                this.close_settings_dropdown(cx);
-                                this.set_screen(Screen::Fleet, cx);
-                            });
-                        })
-                        .child(t!("settings-close-esc")),
-                ),
+
         )
         // 2. 3-Column Content: Nav (200px) | Central Section (flex-1) | Right Rail (340px)
         .child(

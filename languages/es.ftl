@@ -1828,7 +1828,6 @@ fleet-run-not-run = { $not_run } sin ejecutar
 
 ## fleet-setup
 fleet-setup-default-unassigned = por defecto / sin asignar
-fleet-setup-close-esc = CERRAR esc
 fleet-setup-enrolled-servers = SERVIDORES AÑADIDOS:
 fleet-setup-fleet-groups = GRUPOS DE LA FLOTA:
 fleet-setup-unique-tags = ETIQUETAS ÚNICAS:
@@ -2756,7 +2755,6 @@ settings-no-servers = sin servidores
 settings-1-server = 1 servidor
 settings-servers = { $n } servidores
 settings-settings = AJUSTES
-settings-close-esc = CERRAR esc
 
 ## settings-plugins
 settings-plugins-local-virtual-machines = MÁQUINAS VIRTUALES LOCALES
@@ -3840,3 +3838,8 @@ app-edit-server-tags-placeholder = separadas por comas
 ## Click to copy (ERR-191)
 copy-flash-click-to-copy = Clic para copiar la dirección
 copy-flash-copied = copiado ✓
+
+## Page tabs (ERR-190)
+page-tabs-fleet-configuration = CONFIG. FLOTA
+page-tabs-topology = TOPOLOGÍA
+page-tabs-settings = AJUSTES

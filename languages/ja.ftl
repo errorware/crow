@@ -1803,7 +1803,6 @@ fleet-run-not-run = 未実行 { $not_run }
 
 ## fleet-setup
 fleet-setup-default-unassigned = 既定 / 未割り当て
-fleet-setup-close-esc = 閉じる esc
 fleet-setup-enrolled-servers = 登録済みサーバー:
 fleet-setup-fleet-groups = フリートのグループ:
 fleet-setup-unique-tags = タグの種類:
@@ -2714,7 +2713,6 @@ settings-no-servers = サーバーなし
 settings-1-server = 1 台
 settings-servers = { $n } 台
 settings-settings = 設定
-settings-close-esc = 閉じる esc
 
 ## settings-plugins
 settings-plugins-local-virtual-machines = ローカルの仮想マシン
@@ -3774,3 +3772,8 @@ app-edit-server-tags-placeholder = カンマ区切り
 ## Click to copy (ERR-191)
 copy-flash-click-to-copy = クリックでアドレスをコピー
 copy-flash-copied = コピーしました ✓
+
+## Page tabs (ERR-190)
+page-tabs-fleet-configuration = フリート設定
+page-tabs-topology = トポロジー
+page-tabs-settings = 設定

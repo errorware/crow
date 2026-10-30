@@ -53,6 +53,8 @@ pub fn titlebar(
     session: String,
     stance: &crate::security::stance::StanceReport,
     clock: crate::app::clock::ClockLine,
+    // Crow's own pages open as tabs (ERR-190).
+    page_tabs: &[crate::app::page_tabs::PageTab],
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
     let mut bar = div()
@@ -153,6 +155,57 @@ pub fn titlebar(
                             .child(t!("titlebar-fleet")),
                     ),
             )
+            // Crow's own pages (ERR-190): white on top, where a server's is green.
+            .children(page_tabs.iter().map(|&page| {
+                let is_active = current_screen == page.screen();
+                let (app_open, app_close) = (app.clone(), app.clone());
+                div()
+                    .id(ElementId::Name(format!("page-tab-{}", page.id()).into()))
+                    .relative()
+                    .overflow_hidden()
+                    .flex()
+                    .items_center()
+                    .gap(px(7.0))
+                    .px(px(14.0))
+                    .border_r_1()
+                    .border_color(if is_active { BORDER_STRONG } else { BORDER_PANEL })
+                    .bg(if is_active { BG_APP } else { hex_rgba(0, 0.0) })
+                    .cursor_pointer()
+                    .hover(|s| s.bg(if is_active { BG_APP } else { BG_ROW_HOVER }))
+                    .on_click(move |_ev, _window, cx| {
+                        app_open.update(cx, |this, cx| match page {
+                            crate::app::page_tabs::PageTab::Topology => this.open_topology(cx),
+                            crate::app::page_tabs::PageTab::Setup => this.open_fleet_setup(cx),
+                            crate::app::page_tabs::PageTab::Settings => this.set_screen(Screen::Settings, cx),
+                        })
+                    })
+                    .children(is_active.then(|| div().absolute().top_0().left_0().right_0().h(px(2.0)).bg(TEXT_MAX)))
+                    .child(
+                        div()
+                            .font_family(FONT_MONO)
+                            .text_size(px(11.0))
+                            .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+                            .text_color(if is_active { TEXT_MAX } else { TEXT_MUTED })
+                            .child(page.label()),
+                    )
+                    .child(
+                        div()
+                            .id(ElementId::Name(format!("close-page-tab-{}", page.id()).into()))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .size(px(16.0))
+                            .rounded_sm()
+                            .cursor_pointer()
+                            .hover(|s| s.bg(hex_rgba(0xffffff, 0.08)).text_color(TEXT_PRIMARY))
+                            .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
+                            .on_click(move |_ev, _window, cx| {
+                                cx.stop_propagation();
+                                app_close.update(cx, |this, cx| this.close_page_tab(page, cx));
+                            })
+                            .child(tabler_icon(TablerIcon::X).size(px(11.0)).text_color(rgb(0x6b7280))),
+                    )
+            }))
             // Server Tabs (each with close affordance)
             .children(tabs.iter().enumerate().map(|(idx, (tab, status_color))| {
                 let is_active = current_screen == Screen::Server && tab.id == active_tab_id;

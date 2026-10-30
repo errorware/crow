@@ -1825,7 +1825,6 @@ fleet-run-not-run = { $not_run } not run
 
 ## fleet-setup
 fleet-setup-default-unassigned = default / unassigned
-fleet-setup-close-esc = CLOSE esc
 fleet-setup-enrolled-servers = ENROLLED SERVERS:
 fleet-setup-fleet-groups = FLEET GROUPS:
 fleet-setup-unique-tags = UNIQUE TAGS:
@@ -2746,7 +2745,6 @@ settings-no-servers = no servers
 settings-1-server = 1 server
 settings-servers = { $n } servers
 settings-settings = SETTINGS
-settings-close-esc = CLOSE esc
 
 ## settings-plugins
 settings-plugins-local-virtual-machines = LOCAL VIRTUAL MACHINES
@@ -3814,3 +3812,8 @@ app-edit-server-tags-placeholder = comma separated
 ## Click to copy (ERR-191)
 copy-flash-click-to-copy = Click to copy the address
 copy-flash-copied = copied ✓
+
+## Page tabs (ERR-190)
+page-tabs-fleet-configuration = FLEET CONFIG
+page-tabs-topology = TOPOLOGY
+page-tabs-settings = SETTINGS

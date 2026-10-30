@@ -244,6 +244,7 @@ impl CrowApp {
         } else if screen == Screen::VaultSetup && self.screen != Screen::VaultSetup {
             self.setup_state = SetupState::default();
         }
+        self.open_page_tab(screen);
         self.screen = screen;
         self.menu_open = false;
         self.palette_open = false;

@@ -49,6 +49,7 @@ pub mod appearance;
 pub mod language;
 pub mod clock;
 pub mod edit_server;
+pub mod page_tabs;
 pub mod archive;
 pub mod configs;
 pub mod region;
@@ -319,6 +320,8 @@ pub struct CrowApp {
     pub run_toast: Option<fleet_run::RunToast>,
     /// The Edit server dialog, while it's open (ERR-166).
     pub edit_server: Option<edit_server::EditServer>,
+    /// Crow's own pages open as tabs (ERR-190), in order.
+    pub page_tabs: Vec<page_tabs::PageTab>,
     /// Why a server can't be reached, and the fix (ERR-89).
     pub recovery: Option<recovery::RecoveryPanel>,
     /// Terminal workspaces by server id, and the task pumping them (ERR-93, ERR-95).
@@ -395,6 +398,7 @@ impl CrowApp {
 
         let saved_tabs = vault.db().lock().ok().and_then(|db| db.flag(tabs::OPEN_TABS));
         let tabs = initial_tabs(&servers, saved_tabs.as_deref());
+        let saved_pages = vault.db().lock().ok().and_then(|db| db.flag(page_tabs::OPEN_PAGES)).map(|s| page_tabs::parse(&s)).unwrap_or_default();
 
         let onboard_state = OnboardState::new(&keys.enrolled);
 
@@ -561,6 +565,7 @@ impl CrowApp {
             fleet_runner: None,
             run_toast: None,
             edit_server: None,
+            page_tabs: saved_pages,
             recovery: None,
             terminals: std::collections::HashMap::new(),
             terminal_pump: None,

@@ -484,7 +484,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
         .flex()
         .flex_col()
         .bg(BG_APP)
-        .child(screen_header(t!("fleet-setup-fleet-configuration"), t!("fleet-setup-fleet-configuration-about"), app.clone()))
+        .child(screen_header(t!("fleet-setup-fleet-configuration"), t!("fleet-setup-fleet-configuration-about")))
         .child(div().flex_1().min_h(px(0.0)).flex().child(setup_nav(fleet.setup_page, fleet.plugin_page.as_ref(), plugin_pages, app)).child(content))
 }
 
@@ -512,8 +512,8 @@ fn render_policy_row(label: &'static str, count: usize, color: Rgba) -> impl Int
         )
 }
 
-/// Title, one line on what the screen is for, and CLOSE.
-fn screen_header(title: &'static str, about: &'static str, app: Entity<CrowApp>) -> impl IntoElement {
+/// Title, and one line on what the screen is for. It closes as a tab (ERR-190).
+fn screen_header(title: &'static str, about: &'static str) -> impl IntoElement {
     div()
         .h(px(52.0))
         .flex_none()
@@ -534,22 +534,7 @@ fn screen_header(title: &'static str, about: &'static str, app: Entity<CrowApp>)
                 .child(div().flex_none().font_family(FONT_MONO).text_size(px(16.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child(title))
                 .child(div().min_w(px(0.0)).truncate().font_family(FONT_MONO).text_size(px(11.5)).text_color(TEXT_DIM).child(about)),
         )
-        .child(
-            div()
-                .id("btn-close-fleet-setup")
-                .flex_none()
-                .px(px(10.0))
-                .py(px(5.0))
-                .border_1()
-                .border_color(BORDER_DEFAULT)
-                .font_family(FONT_MONO)
-                .text_size(px(10.5))
-                .text_color(TEXT_TERTIARY)
-                .cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER))
-                .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_screen(Screen::Fleet, cx)))
-                .child(t!("fleet-setup-close-esc")),
-        )
+
 }
 
 /// Fleet configuration's side menu, in groups.
@@ -676,7 +661,7 @@ pub fn topology_view(page: crate::views::fleet::state::TopologyPage, content: Op
         .flex()
         .flex_col()
         .bg(BG_APP)
-        .child(screen_header(t!("fleet-setup-topology-dr"), t!("fleet-setup-topology-dr-about"), app.clone()))
+        .child(screen_header(t!("fleet-setup-topology-dr"), t!("fleet-setup-topology-dr-about")))
         .child(
             div()
                 .min_h(px(34.0))
