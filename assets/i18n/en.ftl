@@ -1229,6 +1229,7 @@ files-text = { $lines } { $lines ->
        *[other] lines
     }
 files-edit-in-terminal = EDIT IN TERMINAL
+files-editing-closes-when-the-editor-does = Editing { $path } · closes when the editor does
 files-reading-the-file = Reading the file…
 
 ## firewall-detector

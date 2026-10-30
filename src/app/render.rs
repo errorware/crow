@@ -28,6 +28,8 @@ use crate::views::users::user_management_view;
 
 impl Render for CrowApp {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        // Files' editor terminal: its focus and what it shows (ERR-188).
+        let files_editor = self.files_editor_snapshot(window, cx);
         if self.screen == Screen::Onboard {
             self.ensure_onboard_inputs(window, cx);
         }
@@ -518,7 +520,12 @@ impl Render for CrowApp {
                                                                 Some(
                                                                     div()
                                                                         .size_full()
-                                                                        .child(file_browser_view(app_view.clone(), &self.files))
+                                                                        .child(file_browser_view(app_view.clone(), &self.files, files_editor.and_then(|(frame, focused)| {
+                                                                            let ed = self.files.editor.as_ref()?;
+                                                                            let pane = self.terminals.get(&ed.server_id)?.panes.get(&ed.pane)?;
+                                                                            let look = crate::views::terminal::Look { font_size: self.terminal_font_size(), blink_on: self.terminal_blink.0 };
+                                                                            Some(crate::views::files::EditorView { pane, frame, focused, look })
+                                                                        })))
                                                                 )
                                                             } else if self.active_view == "containers" {
                                                                 let name = self.fleet.active_server().map(|s| s.name).unwrap_or_default();

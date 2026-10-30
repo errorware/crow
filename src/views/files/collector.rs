@@ -71,16 +71,22 @@ pub fn change_mode(server: &ServerRecord, path: &str, mode: u32) -> Result<(), S
     }
 }
 
-/// What the terminal types to edit `path`: nano (else vim, else vi), through
-/// sudoedit when the login can't write the file. None for a path with
-/// control characters, which can't be typed safely.
-pub fn edit_command(path: &str) -> Option<String> {
+/// What the terminal under the file viewer types to edit `path`: nano
+/// (else vim, else vi), through sudoedit when the login can't write the
+/// file. Its shell ends when the editor does, unless the editor failed (its
+/// error stays readable). None for a path with control characters, which
+/// can't be typed safely.
+pub fn edit_then_exit_command(path: &str) -> Option<String> {
+    edit_line(path).map(|l| format!("{l} && exit\r"))
+}
+
+fn edit_line(path: &str) -> Option<String> {
     if path.chars().any(char::is_control) {
         return None;
     }
     let f = crate::host::ssh::shell_quote(path);
     Some(format!(
-        "f={f}; e=$(command -v nano || command -v vim || command -v vi); if [ -w \"$f\" ] || [ \"$(id -u)\" = 0 ]; then \"$e\" \"$f\"; else SUDO_EDITOR=\"$e\" sudoedit \"$f\"; fi\r"
+        "f={f}; e=$(command -v nano || command -v vim || command -v vi); if [ -w \"$f\" ] || [ \"$(id -u)\" = 0 ]; then \"$e\" \"$f\"; else SUDO_EDITOR=\"$e\" sudoedit \"$f\"; fi"
     ))
 }
 
@@ -188,10 +194,10 @@ mod tests {
 
     #[test]
     fn the_edit_command_quotes_the_path() {
-        let cmd = edit_command("/etc/it's here.conf").unwrap();
+        let cmd = edit_then_exit_command("/etc/it's here.conf").unwrap();
         assert!(cmd.starts_with("f='/etc/it'\\''s here.conf'; "));
-        assert!(cmd.ends_with("fi\r"));
+        assert!(cmd.ends_with("fi && exit\r"), "{cmd}");
         assert!(cmd.contains("sudoedit"));
-        assert_eq!(edit_command("/tmp/a\nb"), None);
+        assert_eq!(edit_then_exit_command("/tmp/a\nb"), None);
     }
 }

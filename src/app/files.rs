@@ -2,8 +2,8 @@ use gpui_kit::*;
 use gpui_kit::component::input::InputState;
 
 use super::CrowApp;
-use crate::views::files::collector::{change_mode, create_directory, delete_entry, edit_command, list_directory_for_server, read_preview};
-use crate::views::files::state::{FilePreview, PermsEdit, PreviewText};
+use crate::views::files::collector::{change_mode, create_directory, delete_entry, edit_then_exit_command, list_directory_for_server, read_preview};
+use crate::views::files::state::{FilePreview, FilesEditor, PermsEdit, PreviewText};
 
 // ==========================================
 // Files — a literal directory browser on top of the server layer
@@ -96,8 +96,13 @@ impl CrowApp {
 
     /// Opens a file in the viewer, read in the background.
     pub fn files_open_preview(&mut self, name: &str, cx: &mut Context<Self>) {
-        let Some(srv) = self.fleet.active_server() else { return };
         let path = self.files.child_path(name);
+        self.files_preview_path(path, cx);
+    }
+
+    /// Reads `path` into the viewer.
+    fn files_preview_path(&mut self, path: String, cx: &mut Context<Self>) {
+        let Some(srv) = self.fleet.active_server() else { return };
         self.files.preview = Some(FilePreview { path: path.clone(), result: None });
         cx.notify();
         cx.spawn(async move |entity, cx| {
@@ -121,6 +126,7 @@ impl CrowApp {
     }
 
     pub fn files_close_preview(&mut self, cx: &mut Context<Self>) {
+        self.files_close_editor(cx);
         self.files.preview = None;
         cx.notify();
     }
@@ -191,25 +197,65 @@ impl CrowApp {
         .detach();
     }
 
-    /// Opens a new terminal tab on this server with the file in nano (or
-    /// vim/vi), through sudoedit when the login can't write it.
+    /// Opens a terminal under the file's viewer with the file in nano (or
+    /// vim/vi), through sudoedit when the login can't write it (ERR-188).
     pub fn files_edit_in_terminal(&mut self, path: &str, cx: &mut Context<Self>) {
-        let Some(cmd) = edit_command(path) else {
+        let Some(cmd) = edit_then_exit_command(path) else {
             self.files.error = Some(t!("app-files-that-name-has-control-characters").into());
             cx.notify();
             return;
         };
-        // A server with no terminal yet gets one tab, used for this.
-        let has_terminal = self.fleet.active_server().is_some_and(|srv| self.terminals.contains_key(&srv.id));
-        if has_terminal {
-            self.terminal_new_tab(cx);
+        let Some(srv) = self.fleet.active_server() else { return };
+        // One editor at a time; the viewer shows the file being edited.
+        let split = self.files.editor.as_ref().map_or(0.5, |e| e.split);
+        self.files_close_editor(cx);
+        if self.files.preview.as_ref().is_none_or(|p| p.path != path) {
+            self.files_preview_path(path.to_string(), cx);
         }
-        if let Some(pane) = self.terminal_workspace(cx).and_then(|ws| {
-            let id = ws.tabs.get(ws.active)?.focused;
-            ws.panes.get_mut(&id)
-        }) {
-            pane.pending_input = Some(cmd.into_bytes());
+        let Some(pane) = self.terminal_detached_pane(cmd.into_bytes(), cx) else { return };
+        self.files.editor = Some(FilesEditor { pane, server_id: srv.id, path: path.to_string(), split, dragging: false, bounds: Default::default() });
+        cx.notify();
+    }
+
+    /// Closes the terminal under the viewer (its session ends) and reads
+    /// the file again: it may have changed.
+    pub fn files_close_editor(&mut self, cx: &mut Context<Self>) {
+        let Some(ed) = self.files.editor.take() else { return };
+        if let Some(ws) = self.terminals.get_mut(&ed.server_id) {
+            ws.panes.remove(&ed.pane);
         }
-        self.set_view("terminal", cx);
+        if self.files.preview.as_ref().is_some_and(|p| p.path == ed.path) {
+            self.files_preview_path(ed.path, cx);
+        }
+        cx.notify();
+    }
+
+    /// The editor terminal's frame and whether it has focus, taking focus
+    /// when it asked for it. `None` with no editor open.
+    pub fn files_editor_snapshot(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<(Option<crate::terminal::session::Frame>, bool)> {
+        let ed = self.files.editor.as_ref()?;
+        let pane = self.terminals.get_mut(&ed.server_id)?.panes.get_mut(&ed.pane)?;
+        if pane.focus_pending {
+            window.focus(&pane.focus, cx);
+            pane.focus_pending = false;
+        }
+        Some((pane.session.as_ref().map(|s| s.frame()), pane.focus.is_focused(window)))
+    }
+
+    /// Dragging the divider between the viewer and the terminal.
+    pub fn files_editor_drag(&mut self, y: Pixels, cx: &mut Context<Self>) {
+        let Some(ed) = self.files.editor.as_mut().filter(|e| e.dragging) else { return };
+        let Some(b) = ed.bounds.get() else { return };
+        if b.size.height > px(0.0) {
+            ed.split = ((y - b.origin.y) / b.size.height).clamp(0.15, 0.85);
+            cx.notify();
+        }
+    }
+
+    pub fn files_editor_set_dragging(&mut self, dragging: bool, cx: &mut Context<Self>) {
+        if let Some(ed) = self.files.editor.as_mut() {
+            ed.dragging = dragging;
+            cx.notify();
+        }
     }
 }

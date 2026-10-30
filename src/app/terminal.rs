@@ -107,10 +107,6 @@ pub struct TerminalWorkspace {
 }
 
 impl TerminalWorkspace {
-    pub fn focused_pane(&self) -> Option<&TerminalPane> {
-        self.panes.get(&self.tabs.get(self.active)?.focused)
-    }
-
     fn focused_pane_mut(&mut self) -> Option<&mut TerminalPane> {
         let id = self.tabs.get(self.active)?.focused;
         self.panes.get_mut(&id)
@@ -157,6 +153,19 @@ impl CrowApp {
             self.ensure_terminal_pump(cx);
         }
         self.terminals.get_mut(&srv.id)
+    }
+
+    /// A pane on the active server that's in no tab (Files' editor,
+    /// ERR-188): pumped like the others, shown where its owner draws it.
+    /// `input` is typed into its shell once it starts.
+    pub fn terminal_detached_pane(&mut self, input: Vec<u8>, cx: &mut Context<Self>) -> Option<PaneId> {
+        let srv = self.fleet.active_server()?;
+        let mut pane = Self::new_pane(&srv.id, cx);
+        pane.pending_input = Some(input);
+        let id = pane.id;
+        self.terminal_workspace(cx)?.panes.insert(id, pane);
+        cx.notify();
+        Some(id)
     }
 
     pub fn terminal_new_tab(&mut self, cx: &mut Context<Self>) {
@@ -355,6 +364,13 @@ impl CrowApp {
         if dirty {
             cx.notify();
         }
+        // Files' editor ended (the editor closed): back to the file.
+        let editor_done = self.files.editor.as_ref().is_some_and(|ed| {
+            self.terminals.get(&ed.server_id).and_then(|ws| ws.panes.get(&ed.pane)).is_none_or(|p| p.session.as_ref().is_some_and(|s| s.exited.is_some()))
+        });
+        if editor_done {
+            self.files_close_editor(cx);
+        }
         if self.terminals.is_empty() {
             self.terminal_pump = None;
             return false;
@@ -364,7 +380,7 @@ impl CrowApp {
 
     /// A key pressed in the focused pane. Returns false for keys left to
     /// Crow (other ⌘ shortcuts and Ctrl+Shift chords).
-    pub fn terminal_key(&mut self, ev: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) -> bool {
+    pub fn terminal_key(&mut self, id: PaneId, ev: &KeyDownEvent, window: &mut Window, cx: &mut Context<Self>) -> bool {
         // Typing shows the cursor, as terminals do.
         self.terminal_blink = (true, Instant::now());
         let m = &ev.keystroke.modifiers;
@@ -372,6 +388,16 @@ impl CrowApp {
 
         // Workspace chords: ⌘ on macOS, Ctrl+Shift elsewhere.
         let chord = if cfg!(target_os = "macos") { m.platform } else { m.control && m.shift };
+        // A pane in no tab (Files' editor) takes only copy and paste.
+        let in_tab = self.terminal_workspace(cx).is_some_and(|ws| ws.tabs.iter().any(|t| t.root.panes().contains(&id)));
+        if chord && !in_tab {
+            match key.as_str() {
+                "v" => self.terminal_paste(id, cx),
+                "c" => self.terminal_copy(id, cx),
+                _ => return false,
+            }
+            return true;
+        }
         if chord {
             match (key.as_str(), m.shift) {
                 ("t", _) => self.terminal_new_tab(cx),
@@ -385,8 +411,8 @@ impl CrowApp {
                 ("s", _) => self.terminal_split(Axis::Column, cx),
                 ("right" | "]", _) => self.terminal_cycle(true, cx),
                 ("left" | "[", _) => self.terminal_cycle(false, cx),
-                ("v", _) => self.terminal_paste(cx),
-                ("c", _) => self.terminal_copy(cx),
+                ("v", _) => self.terminal_paste(id, cx),
+                ("c", _) => self.terminal_copy(id, cx),
                 _ => return false,
             }
             return true;
@@ -394,7 +420,7 @@ impl CrowApp {
         if m.platform {
             return false;
         }
-        let Some(pane) = self.terminal_workspace(cx).and_then(|ws| ws.focused_pane_mut()) else { return false };
+        let Some(pane) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get_mut(&id)) else { return false };
         // An ended session starts again on Enter.
         if pane.session.as_ref().is_some_and(|s| s.exited.is_some()) || pane.error.is_some() {
             if key == "enter" {
@@ -424,9 +450,9 @@ impl CrowApp {
         true
     }
 
-    fn terminal_paste(&mut self, cx: &mut Context<Self>) {
+    fn terminal_paste(&mut self, id: PaneId, cx: &mut Context<Self>) {
         let text = cx.read_from_clipboard().and_then(|c| c.text());
-        if let (Some(text), Some(s)) = (text, self.terminal_workspace(cx).and_then(|ws| ws.focused_pane()).and_then(|p| p.session.as_ref())) {
+        if let (Some(text), Some(s)) = (text, self.terminal_workspace(cx).and_then(|ws| ws.panes.get(&id)).and_then(|p| p.session.as_ref())) {
             s.scroll_to_bottom();
             s.write(input::paste(&text, s.mode().contains(alacritty_terminal::term::TermMode::BRACKETED_PASTE)));
         }
@@ -461,9 +487,9 @@ impl CrowApp {
         }
     }
 
-    /// Copies the focused pane's selection to the clipboard.
-    fn terminal_copy(&mut self, cx: &mut Context<Self>) {
-        if let Some(text) = self.terminal_workspace(cx).and_then(|ws| ws.focused_pane()).and_then(|p| p.session.as_ref()).and_then(|s| s.selection_text()) {
+    /// Copies a pane's selection to the clipboard.
+    fn terminal_copy(&mut self, id: PaneId, cx: &mut Context<Self>) {
+        if let Some(text) = self.terminal_workspace(cx).and_then(|ws| ws.panes.get(&id)).and_then(|p| p.session.as_ref()).and_then(|s| s.selection_text()) {
             cx.write_to_clipboard(ClipboardItem::new_string(text));
         }
     }

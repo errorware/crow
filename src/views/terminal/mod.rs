@@ -254,7 +254,7 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, l
         .bg(color(palette::BACKGROUND))
         .track_focus(&pane.focus)
         .on_key_down(move |ev: &KeyDownEvent, window, cx| {
-            let handled = app_keys.update(cx, |this, cx| this.terminal_key(ev, window, cx));
+            let handled = app_keys.update(cx, |this, cx| this.terminal_key(pane_id, ev, window, cx));
             if handled {
                 cx.stop_propagation();
             }

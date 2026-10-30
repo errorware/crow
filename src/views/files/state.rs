@@ -50,6 +50,20 @@ pub struct FilesState {
     pub new_folder_input: Option<Entity<InputState>>,
     pub preview: Option<FilePreview>,
     pub perms: Option<PermsEdit>,
+    /// A terminal editing the viewed file, under it.
+    pub editor: Option<FilesEditor>,
+}
+
+/// The terminal under the file viewer (EDIT IN TERMINAL, ERR-188).
+pub struct FilesEditor {
+    pub pane: crate::terminal::layout::PaneId,
+    pub server_id: String,
+    pub path: String,
+    /// The viewer's share of the panel's height; the terminal has the rest.
+    pub split: f32,
+    pub dragging: bool,
+    /// Where the panel was last drawn, for dragging the divider.
+    pub bounds: std::rc::Rc<std::cell::Cell<Option<gpui_kit::Bounds<gpui_kit::Pixels>>>>,
 }
 
 impl Default for FilesState {
@@ -63,6 +77,7 @@ impl Default for FilesState {
             new_folder_input: None,
             preview: None,
             perms: None,
+            editor: None,
         }
     }
 }

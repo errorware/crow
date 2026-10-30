@@ -12,10 +12,18 @@ use crate::theme::*;
 use crate::app::CrowApp;
 use crate::components::icons::{TablerIcon, tabler_icon};
 use gpui_kit::prelude::FluentBuilder as _;
-use state::{FilePreview, PermsEdit};
+use state::{FilePreview, FilesEditor, PermsEdit};
+
+/// What the file viewer needs to draw the editor terminal under the file.
+pub struct EditorView<'a> {
+    pub pane: &'a crate::app::terminal::TerminalPane,
+    pub frame: Option<crate::terminal::session::Frame>,
+    pub focused: bool,
+    pub look: crate::views::terminal::Look,
+}
 use models::FileEntry;
 
-pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState) -> impl IntoElement {
+pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState, editor: Option<EditorView>) -> impl IntoElement {
     let path = files.current_path.clone();
 
     div()
@@ -164,7 +172,7 @@ pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState) -> impl IntoE
                 .min_h(px(0.0))
                 .flex()
                 .child(render_listing(files, app.clone()))
-                .children(files.preview.as_ref().map(|pv| render_preview(pv, app.clone()))),
+                .children(files.preview.as_ref().map(|pv| render_preview(pv, files.editor.as_ref().zip(editor), app.clone()))),
         )
 }
 
@@ -708,7 +716,7 @@ fn render_perms_editor(edit: &PermsEdit, entry: &FileEntry, app: Entity<CrowApp>
 
 /// The viewer: a file's text, read-only, highlighted like the config
 /// editors, with a way out to a terminal editor.
-fn render_preview(pv: &FilePreview, app: Entity<CrowApp>) -> impl IntoElement {
+fn render_preview(pv: &FilePreview, editor: Option<(&FilesEditor, EditorView)>, app: Entity<CrowApp>) -> impl IntoElement {
     let app_edit = app.clone();
     let app_close = app.clone();
     let path = pv.path.clone();
@@ -764,7 +772,8 @@ fn render_preview(pv: &FilePreview, app: Entity<CrowApp>) -> impl IntoElement {
                 )
                 .child(icon_button("files-preview-close", TablerIcon::X, false).on_click(move |_ev, _window, cx| app_close.update(cx, |this, cx| this.files_close_preview(cx)))),
         )
-        .child(match &pv.result {
+        .child({
+            let content = match &pv.result {
             None => div().flex_1().p(px(14.0)).text_size(px(11.0)).text_color(TEXT_DIMMER).child(t!("files-reading-the-file")).into_any_element(),
             Some(Err(e)) => div().flex_1().p(px(14.0)).text_size(px(11.0)).text_color(CRIT_INK).child(e.clone()).into_any_element(),
             Some(Ok(t)) => div()
@@ -783,5 +792,65 @@ fn render_preview(pv: &FilePreview, app: Entity<CrowApp>) -> impl IntoElement {
                         .child(div().flex_none().pr(px(16.0)).text_color(TEXT_SECONDARY).child(StyledText::new(t.text.clone()).with_highlights(t.runs.clone()))),
                 )
                 .into_any_element(),
+        };
+            match editor {
+                None => content,
+                Some((ed, view)) => editor_split(content, ed, view, app.clone()).into_any_element(),
+            }
         })
+}
+
+/// The file over its editor terminal, split by a divider you can drag
+/// (ERR-188). The terminal closes when the editor does.
+fn editor_split(content: AnyElement, ed: &FilesEditor, view: EditorView, app: Entity<CrowApp>) -> impl IntoElement {
+    let bounds = ed.bounds.clone();
+    let (app_move, app_up, app_down, app_close) = (app.clone(), app.clone(), app.clone(), app.clone());
+    div()
+        .id("files-editor-split")
+        .flex_1()
+        .min_h(px(0.0))
+        .relative()
+        .flex()
+        .flex_col()
+        .on_mouse_move(move |ev: &MouseMoveEvent, _window, cx| app_move.update(cx, |this, cx| this.files_editor_drag(ev.position.y, cx)))
+        .on_mouse_up(MouseButton::Left, move |_ev, _window, cx| app_up.update(cx, |this, cx| this.files_editor_set_dragging(false, cx)))
+        // Measures the panel, so a drag knows where the pointer is in it.
+        .child(canvas(move |b, _window, _cx| bounds.set(Some(b)), |_, _, _, _| {}).absolute().size_full())
+        .child(div().h(relative(ed.split)).flex_none().min_h(px(0.0)).flex().flex_col().child(content))
+        .child(
+            div()
+                .id("files-editor-divider")
+                .h(px(6.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .justify_center()
+                .bg(BG_PANEL)
+                .border_t_1()
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .cursor_row_resize()
+                .hover(|s| s.bg(BG_ROW_HOVER))
+                .on_mouse_down(MouseButton::Left, move |_ev, _window, cx| {
+                    cx.stop_propagation();
+                    app_down.update(cx, |this, cx| this.files_editor_set_dragging(true, cx));
+                })
+                .child(div().w(px(28.0)).h(px(2.0)).rounded_full().bg(if ed.dragging { TEXT_SECONDARY } else { BORDER_STRONG })),
+        )
+        .child(
+            div()
+                .h(px(24.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .gap(px(8.0))
+                .px(px(10.0))
+                .bg(BG_PANEL)
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .child(tabler_icon(TablerIcon::Terminal2).size(px(11.0)).text_color(TEXT_TERTIARY))
+                .child(div().flex_1().min_w(px(0.0)).truncate().text_size(px(10.0)).text_color(TEXT_DIM).child(t!("files-editing-closes-when-the-editor-does", path = ed.path.clone())))
+                .child(icon_button("files-editor-close", TablerIcon::X, false).on_click(move |_ev, _window, cx| app_close.update(cx, |this, cx| this.files_close_editor(cx)))),
+        )
+        .child(div().flex_1().min_h(px(0.0)).flex().child(crate::views::terminal::terminal_view(view.pane, view.frame, view.focused, view.look, app)))
 }

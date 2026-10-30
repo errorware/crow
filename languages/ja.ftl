@@ -1216,6 +1216,7 @@ files-text = { $lines } { $lines ->
        *[other] 行
     }
 files-edit-in-terminal = ターミナルで編集
+files-editing-closes-when-the-editor-does = { $path } を編集中 · エディターを閉じると閉じます
 files-reading-the-file = ファイルを読み取り中…
 
 ## firewall-detector
