@@ -843,11 +843,7 @@ impl VaultDb {
             None => return Err(VaultError::NotInitialized),
         };
 
-        if salt_vec.len() != SALT_LEN {
-            return Err(VaultError::Crypto("Corrupted salt in database".into()));
-        }
-        let mut salt = [0u8; SALT_LEN];
-        salt.copy_from_slice(&salt_vec);
+        let salt: [u8; SALT_LEN] = salt_vec.as_slice().try_into().map_err(|_| VaultError::Crypto("Corrupted salt in database".into()))?;
 
         // 1. Verify password against hash verifier
         let valid_password = verify_password(password, &verifier_hash)
@@ -865,11 +861,7 @@ impl VaultDb {
             let enc_secret = encrypted_totp.ok_or(VaultError::Crypto("Missing encrypted TOTP secret".into()))?;
             let nonce_vec = totp_nonce.ok_or(VaultError::Crypto("Missing TOTP nonce".into()))?;
 
-            if nonce_vec.len() != NONCE_LEN {
-                return Err(VaultError::Crypto("Invalid TOTP nonce length".into()));
-            }
-            let mut nonce = [0u8; NONCE_LEN];
-            nonce.copy_from_slice(&nonce_vec);
+            let nonce: [u8; NONCE_LEN] = nonce_vec.as_slice().try_into().map_err(|_| VaultError::Crypto("Invalid TOTP nonce length".into()))?;
 
             let decrypted_secret_bytes = decrypt_data(&master_key, &enc_secret, &nonce)?;
             let secret_base32 = zeroize::Zeroizing::new(String::from_utf8(decrypted_secret_bytes)
@@ -894,8 +886,7 @@ impl VaultDb {
         )?;
         match wrapped {
             (Some(ct), Some(nonce_vec)) if nonce_vec.len() == NONCE_LEN => {
-                let mut nonce = [0u8; NONCE_LEN];
-                nonce.copy_from_slice(&nonce_vec);
+                let nonce: [u8; NONCE_LEN] = nonce_vec.as_slice().try_into().map_err(|_| VaultError::Crypto("Invalid data key nonce".into()))?;
                 Ok(unwrap_key(master_key, &ct, &nonce)?)
             }
             _ => self.upgrade_to_data_key(master_key),
@@ -1016,11 +1007,7 @@ impl VaultDb {
             None => return Err(VaultError::EntryNotFound(id.to_string())),
         };
 
-        if nonce_vec.len() != NONCE_LEN {
-            return Err(VaultError::Crypto("Invalid nonce stored in database".into()));
-        }
-        let mut nonce = [0u8; NONCE_LEN];
-        nonce.copy_from_slice(&nonce_vec);
+        let nonce: [u8; NONCE_LEN] = nonce_vec.as_slice().try_into().map_err(|_| VaultError::Crypto("Invalid nonce stored in database".into()))?;
 
         let plaintext = decrypt_data(key, &ciphertext, &nonce)?;
         Ok(plaintext)

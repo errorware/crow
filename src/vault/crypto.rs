@@ -57,16 +57,12 @@ impl std::error::Error for CryptoError {}
 
 /// Generates a cryptographically secure random 16-byte salt.
 pub fn generate_salt() -> [u8; SALT_LEN] {
-    let mut salt = [0u8; SALT_LEN];
-    rand::rng().fill(&mut salt);
-    salt
+    rand::rng().random()
 }
 
 /// Generates a cryptographically secure random 96-bit (12-byte) nonce for ChaCha20-Poly1305.
 pub fn generate_nonce() -> [u8; NONCE_LEN] {
-    let mut nonce = [0u8; NONCE_LEN];
-    rand::rng().fill(&mut nonce);
-    nonce
+    rand::rng().random()
 }
 
 /// Creates a standard Argon2id instance with production parameters:
