@@ -55,15 +55,8 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                 .child(t!("settings-clankers-clankers-llm-providers-keys")),
                         )
                         .child(
-                            div()
-                                .px(px(6.0))
-                                .py(px(2.0))
-                                .bg(hex_rgb(0x181822))
-                                .border_1()
-                                .border_color(BORDER_DEFAULT)
-                                .font_family(FONT_MONO)
+                            crate::components::button::badge(TEXT_SECONDARY)
                                 .text_size(px(9.5))
-                                .text_color(TEXT_SECONDARY)
                                 .child(t!("settings-clankers-configured", configured_count = configured_count, count = providers.len())),
                         ),
                 )
@@ -85,16 +78,9 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                         .child(t!("settings-clankers-30d-cumulative-calls")),
                                 )
                                 .child(
-                                    div()
-                                        .px(px(6.0))
-                                        .py(px(2.0))
-                                        .bg(hex_rgb(0x122416))
-                                        .border_1()
-                                        .border_color(OK)
-                                        .font_family(FONT_MONO)
+                                    crate::components::button::badge(OK)
                                         .text_size(px(10.5))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(OK)
                                         .child(t!("settings-clankers-calls", total_calls_30d = total_calls_30d)),
                                 ),
                         )
@@ -261,46 +247,25 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                         // A role means something only with a key to answer with.
                         .children(if prov.is_default && is_configured {
                             Some(
-                                div()
-                                    .px(px(6.0))
-                                    .py(px(1.5))
-                                    .bg(OK_BG)
-                                    .border_1()
-                                    .border_color(OK)
-                                    .font_family(FONT_MONO)
+                                crate::components::button::badge(OK)
                                     .text_size(px(9.0))
                                     .font_weight(FontWeight::BOLD)
-                                    .text_color(OK)
                                     .child(t!("settings-clankers-primary")),
                             )
                         } else {
                             None
                         })
                         .children((prov.is_backup && is_configured).then(|| {
-                            div()
-                                .px(px(6.0))
-                                .py(px(1.5))
-                                .bg(hex_rgba(0x8ab4ff, 0.10))
-                                .border_1()
-                                .border_color(hex_rgb(0x8ab4ff))
-                                .font_family(FONT_MONO)
+                            crate::components::button::badge(hex_rgb(0x8ab4ff))
                                 .text_size(px(9.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(hex_rgb(0x8ab4ff))
                                 .child(t!("settings-clankers-backup"))
                         })),
                 )
                 .child(
-                    div()
-                        .px(px(6.0))
-                        .py(px(2.0))
-                        .bg(if is_configured { hex_rgb(0x132216) } else { hex_rgb(0x201416) })
-                        .border_1()
-                        .border_color(if is_configured { OK } else { BORDER_DEFAULT })
-                        .font_family(FONT_MONO)
+                    crate::components::button::badge(if is_configured { OK } else { TEXT_DIM })
                         .text_size(px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(if is_configured { OK } else { TEXT_DIM })
                         .child(if is_configured { t!("settings-clankers-ready") } else { t!("settings-clankers-not-setup") }),
                 ),
         )
@@ -630,15 +595,8 @@ fn render_eli5_sandbox(
                                 .child(t!("settings-clankers-ai-usability-sandbox-wtf-is")),
                         )
                         .child(
-                            div()
-                                .px(px(6.0))
-                                .py(px(1.5))
-                                .bg(hex_rgb(0x1a1622))
-                                .border_1()
-                                .border_color(hex_rgb(0x604080))
-                                .font_family(FONT_MONO)
+                            crate::components::button::badge(hex_rgb(0xbb9af7))
                                 .text_size(px(9.0))
-                                .text_color(hex_rgb(0xbb9af7))
                                 .child(t!("settings-clankers-eli5-assistant-preview")),
                         ),
                 )

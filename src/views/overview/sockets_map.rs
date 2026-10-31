@@ -386,7 +386,6 @@ fn render_peer_card(
         .bg(if is_focused { BG_ROW_SELECTED } else { BG_APP })
         .border_1()
         .border_color(if is_focused { OK } else { BORDER_DEFAULT })
-        .rounded(px(4.0))
         .cursor_pointer()
         .hover(|s| s.bg(BG_ROW_HOVER).border_color(TEXT_SECONDARY))
         .on_click(move |_ev, _window, cx| {
@@ -435,10 +434,8 @@ fn render_peer_card(
         )
         // Middle line: Ports and connection count
         .child(
-            div()
-                .font_family(FONT_MONO)
+            crate::components::button::badge(TEXT_DIM)
                 .text_size(px(9.5))
-                .text_color(TEXT_DIM)
                 .child(t!("overview-sockets-map-ports", count = items.len(), ports_summary = ports_summary)),
         )
         // Bottom line: Traffic statistics if available
@@ -552,7 +549,6 @@ fn render_process_card(
         .bg(if is_focused { hex_rgba(0x38bdf8, 0.12) } else { BG_APP })
         .border_1()
         .border_color(if is_focused { hex_rgb(0x38bdf8) } else { BORDER_DEFAULT })
-        .rounded(px(4.0))
         .cursor_pointer()
         .hover(|s| s.bg(BG_ROW_HOVER).border_color(TEXT_SECONDARY))
         .on_click(move |_ev, _window, cx| {
@@ -666,9 +662,8 @@ fn render_connection_inspector(
                         ),
                 )
                 .child(
-                    div()
+                    crate::components::button::badge(TEXT_DIM)
                         .text_size(px(9.5))
-                        .text_color(TEXT_DIM)
                         .child(t!("overview-sockets-map-protocol-state-direction", protocol = sock.protocol, state = sock.state, direction = format!("{:?}", item.direction))),
                 ),
         )
@@ -729,15 +724,9 @@ fn render_connection_inspector(
                         let app_fw = app.clone();
                         let target_port = sock.local_port.clone();
                         Some(
-                            div()
+                            crate::components::button::badge(TEXT_PRIMARY)
                                 .id("btn-inspector-jump-fw")
-                                .px(px(8.0))
-                                .py(px(4.0))
-                                .bg(BG_CONTROL)
-                                .border_1()
-                                .border_color(BORDER_DEFAULT)
                                 .text_size(px(9.5))
-                                .text_color(TEXT_PRIMARY)
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {

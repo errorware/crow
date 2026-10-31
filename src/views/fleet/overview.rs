@@ -25,7 +25,6 @@ pub struct FleetHost {
     pub addr: String,
     pub role: String,
     pub env: String,
-    pub env_bg: Rgba,
     pub env_fg: Rgba,
     pub cpu_pct: u8,
     pub cpu_label: String,
@@ -208,11 +207,11 @@ pub fn fleet_overview_view(
                 FleetHealth::Checking => (t!("fleet-overview-checking").to_string(), false),
                 FleetHealth::Down { label, .. } => (label.to_string(), true),
             };
-            let (env_bg, env_fg) = match s.env.as_str() {
-                "PROD" => (CRIT_BG, CRIT),
-                "STAGE" => (WARN_BG, WARN),
-                "DEV" => (OK_BG, OK),
-                _ => (BG_PANEL, TEXT_DIM),
+            let env_fg = match s.env.as_str() {
+                "PROD" => CRIT,
+                "STAGE" => WARN,
+                "DEV" => OK,
+                _ => TEXT_DIM,
             };
             // Numbers only from a probe that answered; a failed one keeps
             // stale or default values that aren't readings.
@@ -237,7 +236,6 @@ pub fn fleet_overview_view(
                 addr: s.host.clone(),
                 role: s.role.clone(),
                 env: s.env.clone(),
-                env_bg,
                 env_fg,
                 cpu_pct,
                 cpu_label,
@@ -443,18 +441,10 @@ pub fn fleet_overview_view(
                                 // What the enabled plugins bring (ERR-138): nothing when none is on.
                                 .children(lab_buttons.iter().enumerate().map(|(i, label)| {
                                     let app_lab = app.clone();
-                                    div()
-                                        .id(ElementId::NamedInteger("btn-fleet-plugin".into(), i as u64))
+                                    // Neutral: the fleet table is what this page is for.
+                                    crate::components::button::button(ElementId::NamedInteger("btn-fleet-plugin".into(), i as u64), crate::components::button::Tone::Neutral)
                                         .px(px(8.0))
                                         .py(px(2.0))
-                                        .bg(OK_BG)
-                                        .border_1()
-                                        .border_color(OK)
-                                        .text_color(OK)
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
-                                        .cursor_pointer()
-                                        .font_family(FONT_MONO)
-                                        .font_weight(FontWeight::BOLD)
                                         .text_size(px(10.0))
                                         .on_click(move |_ev, _window, cx| {
                                             app_lab.update(cx, |this, cx| {
@@ -1171,7 +1161,6 @@ pub fn fleet_overview_view(
                         .bg(BG_CONTROL)
                         .border_1()
                         .border_color(BORDER_DEFAULT)
-                        .rounded_xs()
                         .text_size(px(10.0))
                         .text_color(TEXT_MUTED)
                         .cursor_pointer()
@@ -1387,14 +1376,8 @@ fn render_fleet_host_row(
                         .child(host.name.clone()),
                 )
                 .child(
-                    div()
-                        .px(px(4.0))
-                        .py(px(1.5))
-                        .rounded_sm()
-                        .bg(if host.is_critical_border { CRIT_BG } else if host.status_color == OK { OK_BG } else { BG_CHIP })
-                        .text_color(if host.status_color == TEXT_FAINTER { TEXT_DIM } else { host.status_color })
+                    crate::components::button::badge(if host.status_color == TEXT_FAINTER { TEXT_DIM } else { host.status_color })
                         .text_size(px(8.5))
-                        .font_weight(FontWeight::BOLD)
                         .child(host.pill.clone()),
                 )
                 .child(
@@ -1402,7 +1385,6 @@ fn render_fleet_host_row(
                         .id(SharedString::from(format!("fleet-grp-pill-{}", host.id)))
                         .px(px(4.0))
                         .py(px(1.5))
-                        .rounded_sm()
                         .border_1()
                         .border_color(BORDER_DEFAULT)
                         .text_color(if grp_display == "NO GROUP" { TEXT_DIMMER } else { hex_rgb(0x38bdf8) })
@@ -1479,15 +1461,8 @@ fn render_fleet_host_row(
                 .flex()
                 .items_center()
                 .child(
-                    div()
-                        .flex_none()
-                        .rounded_sm()
-                        .px(px(5.0))
-                        .py(px(1.5))
-                        .bg(host.env_bg)
-                        .text_color(host.env_fg)
+                    crate::components::button::badge(host.env_fg)
                         .text_size(px(8.5))
-                        .font_weight(FontWeight::BOLD)
                         .child(host.env.clone()),
                 ),
         )

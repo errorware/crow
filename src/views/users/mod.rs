@@ -354,16 +354,8 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
     panel = panel.child(inspector_section(t!("users-groups"))).child(
         div().flex().flex_wrap().gap(px(5.0)).px(px(14.0)).children(u.groups.iter().map(|g| {
             let is_primary = *g == u.primary_group;
-            div()
-                .rounded_sm()
-                .px(px(6.0))
-                .py(px(2.0))
-                .bg(if is_primary { BG_CHIP } else { BG_APP })
-                .border_1()
-                .border_color(BORDER_DEFAULT)
-                .font_family(FONT_MONO)
+            crate::components::button::badge(if Some(g.as_str()) == sudo_group { WARN } else { TEXT_SECONDARY })
                 .text_size(px(10.0))
-                .text_color(if Some(g.as_str()) == sudo_group { WARN } else { TEXT_SECONDARY })
                 .child(if is_primary { t!("users-primary", g = g) } else { g.clone() })
         })),
     );
@@ -434,7 +426,6 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
             let (app, n, sh) = (app.clone(), name.clone(), shell.clone());
             div()
                 .id(SharedString::from(format!("user-shell-{i}")))
-                .rounded_sm()
                 .px(px(7.0))
                 .py(px(2.0))
                 .border_1()

@@ -104,16 +104,9 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                         ),
                 )
                 .child(
-                    div()
-                        .px(px(7.0))
-                        .py(px(2.0))
-                        .bg(OK_BG)
-                        .border_1()
-                        .border_color(OK)
-                        .font_family(FONT_MONO)
+                    crate::components::button::badge(OK_INK)
                         .text_size(px(9.5))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(OK_INK)
                         .child(t!("settings-lab-isolated-sandbox")),
                 ),
         )

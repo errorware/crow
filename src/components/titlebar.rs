@@ -195,7 +195,6 @@ pub fn titlebar(
                             .items_center()
                             .justify_center()
                             .size(px(16.0))
-                            .rounded_sm()
                             .cursor_pointer()
                             .hover(|s| s.bg(hex_rgba(0xffffff, 0.08)).text_color(TEXT_PRIMARY))
                             .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
@@ -261,7 +260,6 @@ pub fn titlebar(
                             .items_center()
                             .justify_center()
                             .size(px(16.0))
-                            .rounded_sm()
                             .cursor_pointer()
                             .hover(|s| s.bg(hex_rgba(0xffffff, 0.08)).text_color(TEXT_PRIMARY))
                             .on_mouse_down(MouseButton::Left, |_ev, _window, cx| {
@@ -342,7 +340,6 @@ pub fn titlebar(
                     .gap(px(5.0))
                     .px(px(6.0))
                     .py(px(2.0))
-                    .rounded_sm()
                     .cursor_pointer()
                     .bg(if clock.menu_open { BG_ROW_HOVER } else { hex_rgba(0, 0.0) })
                     .hover(|s| s.bg(BG_ROW_HOVER))

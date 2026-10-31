@@ -1086,7 +1086,6 @@ fn render_journal_row(
                                 .id(ElementId::NamedInteger("journal-pid".into(), idx as u64))
                                 .px(px(4.0))
                                 .py(px(1.0))
-                                .rounded_sm()
                                 .bg(if is_filtered { hex_rgba(0x8ab4ff, 0.18) } else { hex_rgba(0, 0.0) })
                                 .text_color(if is_filtered { hex_rgb(0x8ab4ff) } else { TEXT_FAINT })
                                 .font_weight(if is_filtered { FontWeight::BOLD } else { FontWeight::NORMAL })

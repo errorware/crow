@@ -106,7 +106,6 @@ pub fn raw_config_editor(
                         .border_color(BORDER_DEFAULT)
                         .px(px(8.0))
                         .py(px(3.0))
-                        .rounded_sm()
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_ROW_HOVER))
                         .on_click(move |_ev, _window, cx| {
@@ -128,7 +127,6 @@ pub fn raw_config_editor(
                         .border_color(BORDER_DEFAULT)
                         .px(px(8.0))
                         .py(px(3.0))
-                        .rounded_sm()
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_ROW_HOVER))
                         .on_click(move |_ev, _window, cx| {
@@ -144,20 +142,7 @@ pub fn raw_config_editor(
                 .children(if is_modified {
                     let fn_clone = state.filename.clone();
                     Some(
-                        div()
-                            .id("btn-raw-revert")
-                            .px(px(8.0))
-                            .py(px(3.0))
-                            .bg(hex_rgba(0xef4444, 0.15))
-                            .border_1()
-                            .border_color(hex_rgba(0xef4444, 0.4))
-                            .rounded_sm()
-                            .cursor_pointer()
-                            .hover(|s| s.bg(hex_rgba(0xef4444, 0.25)))
-                            .font_family(FONT_MONO)
-                            .text_size(px(10.0))
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(CRIT)
+                        crate::components::button::button("btn-raw-revert", crate::components::button::Tone::Danger)
                             .on_click(move |_ev, _window, cx| {
                                 let f = fn_clone.clone();
                                 app_revert.update(cx, |this, cx| {
@@ -180,7 +165,6 @@ pub fn raw_config_editor(
                             .bg(hex_rgba(0x10b981, 0.18))
                             .border_1()
                             .border_color(hex_rgba(0x10b981, 0.4))
-                            .rounded_sm()
                             .cursor_pointer()
                             .hover(|s| s.bg(hex_rgba(0x10b981, 0.3)))
                             .font_family(FONT_MONO)

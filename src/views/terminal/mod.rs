@@ -112,7 +112,6 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames
                                 .justify_center()
                                 .flex_none()
                                 .size(px(16.0))
-                                .rounded_sm()
                                 .text_color(TEXT_FAINT)
                                 .hover(|s| s.bg(hex_rgba(0xffffff, 0.08)).text_color(TEXT_PRIMARY))
                                 .on_mouse_down(MouseButton::Left, |_ev, _w, cx| cx.stop_propagation())

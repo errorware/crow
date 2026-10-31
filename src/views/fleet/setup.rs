@@ -210,15 +210,8 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                                     ),
                                             )
                                             .child(
-                                                div()
-                                                    .px(px(6.0))
-                                                    .py(px(1.5))
-                                                    .bg(BG_CONTROL)
-                                                    .border_1()
-                                                    .border_color(BORDER_DEFAULT)
-                                                    .rounded_xs()
+                                                crate::components::button::badge(TEXT_SECONDARY)
                                                     .text_size(px(9.5))
-                                                    .text_color(TEXT_SECONDARY)
                                                     .child(t!("fleet-setup-text", member_count = member_count)),
                                             ),
                                     )
@@ -241,7 +234,6 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                                     .bg(BG_APP)
                                                     .border_1()
                                                     .border_color(BORDER_ROW)
-                                                    .rounded_sm()
                                                     .cursor_pointer()
                                                     .hover(|s| s.bg(BG_ROW_HOVER).border_color(TEXT_SECONDARY))
                                                     .on_click(move |_ev, _window, cx| {
@@ -286,15 +278,8 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                                             .items_center()
                                                             .gap(px(6.0))
                                                             .children(srv.tags.iter().map(|t| {
-                                                                div()
-                                                                    .px(px(5.0))
-                                                                    .py(px(1.0))
-                                                                    .bg(hex_rgba(0xa78bfa, 0.12))
-                                                                    .border_1()
-                                                                    .border_color(hex_rgba(0xa78bfa, 0.3))
-                                                                    .text_color(hex_rgb(0xa78bfa))
+                                                                crate::components::button::badge(hex_rgb(0xa78bfa))
                                                                     .text_size(px(8.5))
-                                                                    .rounded_xs()
                                                                     .child(t.clone())
                                                             }))
                                                             .child({
@@ -307,7 +292,6 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                                                     .bg(BG_CONTROL)
                                                                     .border_1()
                                                                     .border_color(BORDER_DEFAULT)
-                                                                    .rounded_xs()
                                                                     .text_size(px(9.0))
                                                                     .text_color(TEXT_SECONDARY)
                                                                     .cursor_pointer()

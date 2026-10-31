@@ -118,16 +118,9 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                 ),
                         )
                         .child(
-                            div()
-                                .px(px(7.0))
-                                .py(px(2.0))
-                                .bg(BG_KEY)
-                                .border_1()
-                                .border_color(CRIT)
-                                .font_family(FONT_MONO)
+                            crate::components::button::badge(CRIT)
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(CRIT)
                                 .child(t!("lock-setup-mandatory-2fa")),
                         ),
                 )
@@ -353,15 +346,8 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                 ),
                         )
                         .child(
-                            div()
-                                .px(px(7.0))
-                                .py(px(2.0))
-                                .bg(BG_KEY)
-                                .border_1()
-                                .border_color(BORDER_KEY)
-                                .font_family(FONT_MONO)
+                            crate::components::button::badge(OK)
                                 .text_size(px(10.0))
-                                .text_color(OK)
                                 .child(t!("lock-setup-step-2-of-2")),
                         ),
                 )
@@ -474,16 +460,9 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                                 ),
                                         )
                                         .child(
-                                            div()
-                                                .px(px(6.0))
-                                                .py(px(2.0))
-                                                .bg(OK_BG)
-                                                .border_1()
-                                                .border_color(OK)
-                                                .font_family(FONT_MONO)
+                                            crate::components::button::badge(OK)
                                                 .text_size(px(9.5))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(OK)
                                                 .child(t!("lock-setup-required")),
                                         ),
                                 )

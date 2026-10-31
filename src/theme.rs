@@ -226,6 +226,48 @@ mod backdrop_guard {
     }
 }
 
+#[cfg(test)]
+mod shape_guard {
+    /// One design language (ERR-197): what you click is square, what you
+    /// read is a rounded badge. An element (roughly: from one `div()` to the
+    /// next) that takes clicks must not be rounded. A dot or an input on the
+    /// same line is not the element itself.
+    #[test]
+    fn nothing_clickable_is_rounded() {
+        fn visit(dir: &std::path::Path, hits: &mut Vec<String>) {
+            for entry in std::fs::read_dir(dir).unwrap().flatten() {
+                let path = entry.path();
+                if path.is_dir() {
+                    visit(&path, hits);
+                } else if path.extension().is_some_and(|e| e == "rs") {
+                    let text = std::fs::read_to_string(&path).unwrap();
+                    let lines: Vec<&str> = text.lines().collect();
+                    let mut start = 0;
+                    for i in 0..=lines.len() {
+                        if i < lines.len() && !(i > start && lines[i].contains(concat!("div", "()"))) {
+                            continue;
+                        }
+                        let seg = &lines[start..i];
+                        let clickable = seg.iter().any(|l| l.contains(concat!("cursor_", "pointer")) || l.contains(concat!(".on_", "click(")));
+                        let rounded = (0..seg.len()).find(|&j| {
+                            let l = seg[j];
+                            let input = seg[j.saturating_sub(6)..=j].iter().any(|p| p.contains("Input::new"));
+                            l.contains(concat!(".roun", "ded")) && !input && !l.contains(".size(px(")
+                        });
+                        if let (true, Some(at)) = (clickable, rounded) {
+                            hits.push(format!("{}:{}", path.display(), start + at + 1));
+                        }
+                        start = i;
+                    }
+                }
+            }
+        }
+        let mut hits = Vec::new();
+        visit(&std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src"), &mut hits);
+        assert!(hits.is_empty(), "rounded things you can click (make them square, or a badge you can't): {hits:?}");
+    }
+}
+
 /// The language pack's own font (its `### font:` line), tried after Crow's
 /// for the characters JetBrains Mono doesn't have: CJK, Arabic, Thai…
 /// Without one the system's fallback fonts are used.

@@ -360,17 +360,10 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                             .items_center()
                                             .gap(px(10.0))
                                             .child(
-                                                div()
+                                                crate::components::button::badge(TEXT_SECONDARY)
                                                     .flex_none()
-                                                    .px(px(5.0))
-                                                    .py(px(2.0))
-                                                    .bg(BG_CONTROL)
-                                                    .border_1()
-                                                    .border_color(BORDER_STRONG)
-                                                    .font_family(FONT_MONO)
                                                     .text_size(px(9.0))
                                                     .font_weight(FontWeight::BOLD)
-                                                    .text_color(TEXT_SECONDARY)
                                                     .child(disc.algorithm.clone()),
                                             )
                                             .child(
@@ -570,16 +563,9 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                         .gap(px(8.0))
                                         // Algo badge
                                         .child(
-                                            div()
-                                                .px(px(5.0))
-                                                .py(px(1.5))
-                                                .bg(BG_CONTROL)
-                                                .border_1()
-                                                .border_color(BORDER_DEFAULT)
-                                                .font_family(FONT_MONO)
+                                            crate::components::button::badge(TEXT_SECONDARY)
                                                 .text_size(px(9.0))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_SECONDARY)
                                                 .child(key.algorithm.clone()),
                                         )
                                         // Key Name
@@ -670,16 +656,9 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                             None
                                         })
                                         .children(key.attached_servers.iter().map(|srv| {
-                                            div()
-                                                .px(px(6.0))
-                                                .py(px(2.0))
-                                                .bg(BG_CHIP)
-                                                .border_1()
-                                                .border_color(BORDER_KEY)
-                                                .font_family(FONT_MONO)
+                                            crate::components::button::badge(OK_INK)
                                                 .text_size(px(9.5))
                                                 .font_weight(FontWeight::MEDIUM)
-                                                .text_color(OK_INK)
                                                 .child(format!("🖥 {}", srv))
                                         })),
                                 ),

@@ -401,17 +401,10 @@ fn render_node_row(node: &LocalTestNode, idx: usize, app: Entity<CrowApp>) -> im
                 // Enroll button
                 .child(
                     if is_enrolled {
-                        div()
+                        crate::components::button::badge(OK)
                             .id(ElementId::NamedInteger("node-enrolled-pill".into(), idx as u64))
-                            .px(px(8.0))
-                            .py(px(3.0))
-                            .bg(OK_BG)
-                            .border_1()
-                            .border_color(OK)
-                            .font_family(FONT_MONO)
                             .text_size(px(9.5))
                             .font_weight(FontWeight::BOLD)
-                            .text_color(OK)
                             .child(t!("fleet-lab-modal-enrolled"))
                     } else {
                         let n_name = node_name.clone();
@@ -446,8 +439,8 @@ fn section_title(text: &'static str) -> Div {
     div().font_family(FONT_MONO).text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(text)
 }
 
-fn pill(text: String, fg: Rgba, bg: Rgba) -> Div {
-    div().px(px(5.0)).py(px(1.0)).bg(bg).font_family(FONT_MONO).text_size(px(8.5)).font_weight(FontWeight::BOLD).text_color(fg).child(text)
+fn pill(text: String, fg: Rgba) -> Div {
+    crate::components::button::badge(fg).text_size(px(8.5)).child(text)
 }
 
 /// A small text button whose label is built at render time.
@@ -456,7 +449,6 @@ fn text_button(id: impl Into<ElementId>, label: String, color: Rgba) -> Stateful
         .id(id)
         .px(px(7.0))
         .py(px(2.0))
-        .rounded_sm()
         .border_1()
         .border_color(BORDER_DEFAULT)
         .bg(BG_CONTROL)
@@ -471,7 +463,7 @@ fn text_button(id: impl Into<ElementId>, label: String, color: Rgba) -> Stateful
 /// Status, setup steps, the VMs Multipass has (with import and lifecycle
 /// actions) and the launch form.
 pub fn multipass_section(lab: &LocalLabState, servers: &[ServerRecord], app: Entity<CrowApp>) -> impl IntoElement {
-    let (status_text, status_fg, status_bg, steps): (String, Rgba, Rgba, &[InstallStep]) = match &lab.multipass {
+    let (status_text, status_fg, _, steps): (String, Rgba, Rgba, &[InstallStep]) = match &lab.multipass {
         None => (t!("fleet-lab-modal-checking-2").into(), TEXT_DIMMER, BG_CHIP, &[]),
         Some(MultipassStatus::Missing { steps }) => (t!("fleet-lab-modal-not-installed-2").into(), TEXT_DIMMER, BG_CHIP, steps),
         Some(MultipassStatus::DaemonDown { steps, .. }) => (t!("fleet-lab-modal-daemon-not-running").into(), WARN, hex_rgba(0xf59e0b, 0.12), steps),
@@ -494,7 +486,7 @@ pub fn multipass_section(lab: &LocalLabState, servers: &[ServerRecord], app: Ent
                 .flex()
                 .items_center()
                 .justify_between()
-                .child(div().flex().items_center().gap(px(8.0)).child(section_title(t!("fleet-lab-modal-multipass-vms"))).child(pill(status_text, status_fg, status_bg)))
+                .child(div().flex().items_center().gap(px(8.0)).child(section_title(t!("fleet-lab-modal-multipass-vms"))).child(pill(status_text, status_fg)))
                 .child(icon_button("btn-refresh-multipass", TablerIcon::Refresh, false).on_click(move |_ev, _window, cx| {
                     app_refresh.update(cx, |this, cx| this.refresh_multipass(cx));
                 })),
@@ -558,7 +550,7 @@ fn vm_row(i: usize, vm: &Instance, servers: &[ServerRecord], lab: &LocalLabState
     let mut actions = div().flex().items_center().gap(px(6.0));
     if idle {
         if in_fleet {
-            actions = actions.child(pill(t!("fleet-lab-modal-in-fleet").into(), OK, OK_BG));
+            actions = actions.child(pill(t!("fleet-lab-modal-in-fleet").into(), OK));
         } else if running {
             let (app_i, name) = (app.clone(), vm.name.clone());
             actions = actions.child(text_button(ElementId::NamedInteger("mp-import".into(), i as u64), t!("fleet-lab-modal-import-to-crow").into(), TEXT_PRIMARY).on_click(move |_ev, _window, cx| {

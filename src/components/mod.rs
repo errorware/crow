@@ -6,6 +6,7 @@ pub mod danger_zone;
 pub mod danger_zone_state;
 pub mod icons;
 pub mod icon_button;
+pub mod button;
 pub mod identity_bar;
 pub mod palette;
 pub mod sidebar;

@@ -41,14 +41,8 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                 .border_color(BORDER_PANEL)
                 .child(div().font_family(FONT_MONO).text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-providers-providers-where-your-servers-live")))
                 .child(
-                    div()
-                        .px(px(6.0))
-                        .py(px(2.0))
-                        .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .font_family(FONT_MONO)
+                    crate::components::button::badge(TEXT_SECONDARY)
                         .text_size(px(9.5))
-                        .text_color(TEXT_SECONDARY)
                         .child(t!("settings-providers-set-up", configured = configured, count = factories.len())),
                 )
                 .child(div().flex_1())
@@ -290,7 +284,7 @@ fn can_act(manifest: &crow_config_core::PluginManifest) -> bool {
 }
 
 fn tag(text: String, color: Rgba) -> impl IntoElement {
-    div().px(px(5.0)).py(px(1.0)).border_1().border_color(BORDER_DEFAULT).font_family(FONT_MONO).text_size(px(9.0)).text_color(color).child(text)
+    crate::components::button::badge(color).text_size(px(9.0)).child(text)
 }
 
 fn button(id: String, label: String, color: Rgba, enabled: bool, on_click: impl Fn(&mut App) + 'static) -> Stateful<Div> {

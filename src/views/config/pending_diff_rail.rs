@@ -278,7 +278,6 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                         });
                                     })
                                 })
-                                .rounded_sm()
                                 .flex()
                                 .flex_col()
                                 .gap(px(3.0))
@@ -328,7 +327,6 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                                     .font_family(FONT_MONO)
                                                     .text_size(px(9.0))
                                                     .text_color(TEXT_SECONDARY)
-                                                    .rounded_sm()
                                                     .cursor_pointer()
                                                     .on_click(move |_ev, _window, cx| {
                                                         cx.stop_propagation();
@@ -440,7 +438,6 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                         .bg(if is_modified { hex_rgba(0xef4444, 0.1) } else { hex_rgba(0, 0.0) })
                         .px(px(9.0))
                         .py(px(5.0))
-                        .rounded_sm()
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_ROW_HOVER))
                         .on_click(move |_ev, _window, cx| {
@@ -463,7 +460,6 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                         .bg(if is_modified { OK } else { TEXT_DIMMER })
                         .px(px(11.0))
                         .py(px(6.0))
-                        .rounded_sm()
                         .cursor_pointer()
                         .hover(|s| s.bg(hex_rgb(0x34d399)))
                         .on_click(move |_ev, _window, cx| {

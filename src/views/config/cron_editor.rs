@@ -202,7 +202,6 @@ pub fn cron_editor(
                         .bg(BG_CONTROL)
                         .border_1()
                         .border_color(BORDER_DEFAULT)
-                        .rounded_sm()
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                         .font_family(FONT_MONO)
@@ -219,20 +218,7 @@ pub fn cron_editor(
                 // Revert button
                 .children(if is_modified {
                     Some(
-                        div()
-                            .id("btn-cron-revert")
-                            .px(px(8.0))
-                            .py(px(4.0))
-                            .bg(hex_rgba(0xef4444, 0.15))
-                            .border_1()
-                            .border_color(hex_rgba(0xef4444, 0.4))
-                            .rounded_sm()
-                            .cursor_pointer()
-                            .hover(|s| s.bg(hex_rgba(0xef4444, 0.25)))
-                            .font_family(FONT_MONO)
-                            .text_size(px(10.0))
-                            .font_weight(FontWeight::BOLD)
-                            .text_color(CRIT)
+                        crate::components::button::button("btn-cron-revert", crate::components::button::Tone::Danger)
                             .on_click(move |_ev, _window, cx| {
                                 app_revert.update(cx, |this, cx| {
                                     this.revert_managed_config("crontab", cx);
@@ -251,7 +237,6 @@ pub fn cron_editor(
                             .px(px(10.0))
                             .py(px(4.0))
                             .bg(OK)
-                            .rounded_sm()
                             .cursor_pointer()
                             .hover(|s| s.bg(hex_rgb(0x34d399)))
                             .font_family(FONT_MONO)
@@ -280,7 +265,6 @@ pub fn cron_editor(
                         .bg(if configs.show_history { OK_BG } else { hex_rgba(0, 0.0) })
                         .px(px(8.0))
                         .py(px(4.0))
-                        .rounded_sm()
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_ROW_HOVER))
                         .on_click(move |_ev, _window, cx| {
@@ -535,7 +519,6 @@ fn render_cron_builder(
                                 .bg(BG_CONTROL)
                                 .border_1()
                                 .border_color(BORDER_DEFAULT)
-                                .rounded_sm()
                                 .cursor_pointer()
                                 .hover(|s| s.bg(hex_rgba(0x38bdf8, 0.2)).border_color(hex_rgb(0x38bdf8)))
                                 .font_family(FONT_MONO)
@@ -694,7 +677,6 @@ fn render_field_stepper(
                         .bg(BG_CONTROL)
                         .border_1()
                         .border_color(BORDER_DEFAULT)
-                        .rounded_sm()
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_ROW_HOVER))
                         .font_family(FONT_MONO)
@@ -717,7 +699,6 @@ fn render_field_stepper(
                         .bg(BG_CONTROL)
                         .border_1()
                         .border_color(BORDER_DEFAULT)
-                        .rounded_sm()
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_ROW_HOVER))
                         .font_family(FONT_MONO)

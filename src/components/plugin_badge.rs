@@ -16,21 +16,15 @@ pub fn color(state: State) -> Rgba {
     }
 }
 
-/// `size`: the label's text size; the dot follows it.
+/// `size`: the label's text size; the dot follows it. A badge, not a
+/// button (ERR-197): rounded and filled, no border.
 pub fn badge_chip(b: &BadgeView, size: f32) -> Div {
     let c = color(b.state);
-    div()
-        .flex_none()
-        .flex()
-        .items_center()
+    crate::components::button::badge(c)
         .gap(px(size * 0.45))
-        .px(px(size * 0.5))
-        .py(px(1.0))
-        .border_1()
-        .border_color(c.opacity(0.5))
-        .font_family(FONT_MONO)
+        .px(px(size * 0.6))
+        .font_weight(FontWeight::NORMAL)
         .text_size(px(size))
-        .text_color(c)
         .child(div().size(px(size * 0.6)).rounded_full().bg(c))
         .child(div().max_w(px(220.0)).truncate().child(b.text.clone()))
 }

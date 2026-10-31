@@ -62,16 +62,9 @@ pub fn journald_editor(
                                 .child("journald.conf"),
                         )
                         .child(
-                            div()
-                                .px(px(6.0))
-                                .py(px(2.0))
-                                .bg(if is_persistent { OK_BG } else { CRIT_BG })
-                                .border_1()
-                                .border_color(if is_persistent { OK } else { CRIT })
-                                .font_family(FONT_MONO)
+                            crate::components::button::badge(if is_persistent { OK } else { CRIT })
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(if is_persistent { OK } else { CRIT })
                                 .child(if is_persistent { t!("config-journald-editor-crash-safe") } else { t!("config-journald-editor-volatile-risk") }),
                         )
                         .child(
@@ -117,20 +110,7 @@ pub fn journald_editor(
                         )
                         .children(if is_modified {
                             Some(
-                                div()
-                                    .id("btn-revert-journald-conf")
-                                    .px(px(8.0))
-                                    .py(px(5.0))
-                                    .bg(hex_rgba(0xef4444, 0.15))
-                                    .border_1()
-                                    .border_color(hex_rgba(0xef4444, 0.4))
-                                    .rounded_sm()
-                                    .cursor_pointer()
-                                    .hover(|s| s.bg(hex_rgba(0xef4444, 0.25)))
-                                    .font_family(FONT_MONO)
-                                    .text_size(px(10.0))
-                                    .font_weight(FontWeight::BOLD)
-                                    .text_color(CRIT)
+                                crate::components::button::button("btn-revert-journald-conf", crate::components::button::Tone::Danger)
                                     .on_click(move |_ev, _window, cx| {
                                         app_revert.update(cx, |this, cx| {
                                             this.revert_managed_config("journald.conf", cx);
@@ -151,7 +131,6 @@ pub fn journald_editor(
                                 .font_weight(FontWeight::BOLD)
                                 .font_family(FONT_MONO)
                                 .text_size(px(10.0))
-                                .rounded_sm()
                                 .cursor_pointer()
                                 .hover(|s| s.bg(hex_rgb(0x34d399)))
                                 .on_click(move |_ev, _window, cx| {
@@ -172,7 +151,6 @@ pub fn journald_editor(
                                 .bg(if configs.show_history { OK_BG } else { hex_rgba(0, 0.0) })
                                 .px(px(8.0))
                                 .py(px(5.0))
-                                .rounded_sm()
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {

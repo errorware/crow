@@ -6,6 +6,7 @@ use gpui_kit::*;
 
 use crate::app::edit_server::EditServer;
 use crate::app::CrowApp;
+use crate::components::button::{button, Tone};
 use crate::host::{transport_kind, TransportKind};
 use crate::theme::*;
 use crate::vault::{ServerRecord, SshKeyRecord};
@@ -169,31 +170,14 @@ pub fn edit_server_modal(e: &EditServer, servers: &[ServerRecord], groups: &[Str
                         .gap(px(8.0))
                         .child(div().flex_1().text_size(px(10.0)).text_color(TEXT_DIM).child(if e.testing { t!("fleet-edit-server-trying").to_string() } else if reach_changes { t!("fleet-edit-server-tried-first").to_string() } else { String::new() }))
                         .child(
-                            div()
-                                .id("btn-edit-server-cancel")
-                                .px(px(12.0))
-                                .py(px(5.0))
-                                .border_1()
-                                .border_color(TEXT_SECONDARY)
-                                .text_size(px(10.5))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_SECONDARY)
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                            button("btn-edit-server-cancel", Tone::Neutral)
                                 .on_click(move |_ev, _window, cx| app_cancel.update(cx, |this, cx| this.close_edit_server(cx)))
                                 .child(t!("fleet-edit-server-cancel")),
                         )
                         .child(
-                            div()
-                                .id("btn-edit-server-save")
-                                .px(px(12.0))
-                                .py(px(5.0))
-                                .border_1()
-                                .border_color(OK)
-                                .text_size(px(10.5))
-                                .font_weight(FontWeight::BOLD)
-                                .text_color(OK)
-                                .when(!e.testing, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _window, cx| app_save.update(cx, |this, cx| this.save_edit_server(cx))))
+                            button("btn-edit-server-save", Tone::Primary)
+                                .when(e.testing, |d| d.opacity(0.5))
+                                .when(!e.testing, |d| d.on_click(move |_ev, _window, cx| app_save.update(cx, |this, cx| this.save_edit_server(cx))))
                                 .child(t!("fleet-edit-server-save")),
                         ),
                 ),

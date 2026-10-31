@@ -43,7 +43,6 @@ pub fn ssh_attach_modal(
                 .bg(BG_PANEL)
                 .border_1()
                 .border_color(BORDER_PANEL)
-                .rounded_md()
                 .flex()
                 .flex_col()
                 .on_click(|_ev, _window, _cx| {
@@ -91,7 +90,6 @@ pub fn ssh_attach_modal(
                             div()
                                 .id("btn-close-ssh-modal")
                                 .p(px(4.0))
-                                .rounded_sm()
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
@@ -229,7 +227,6 @@ pub fn ssh_attach_modal(
                                                         .bg(hex_rgba(0xef4444, 0.12))
                                                         .border_1()
                                                         .border_color(hex_rgba(0xef4444, 0.35))
-                                                        .rounded_sm()
                                                         .cursor_pointer()
                                                         .hover(|s| s.bg(hex_rgba(0xef4444, 0.25)))
                                                         .font_family(FONT_MONO)
@@ -390,7 +387,6 @@ pub fn ssh_attach_modal(
                                                         .bg(hex_rgba(0x8ab4ff, 0.15))
                                                         .border_1()
                                                         .border_color(hex_rgba(0x8ab4ff, 0.4))
-                                                        .rounded_sm()
                                                         .cursor_pointer()
                                                         .hover(|s| s.bg(hex_rgba(0x8ab4ff, 0.3)))
                                                         .font_family(FONT_MONO)

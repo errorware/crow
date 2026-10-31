@@ -322,17 +322,10 @@ pub fn socket_log_drawer(
                     let pid_str = sock.pid.map(|p| t!("overview-log-tail-pid", p = p)).unwrap_or_default();
 
                     Some(
-                        div()
-                            .flex()
-                            .items_center()
+                        crate::components::button::badge(hex_rgb(0x8ab4ff))
                             .gap(px(6.0))
                             .px(px(7.0))
-                            .py(px(1.5))
-                            .bg(hex_rgba(0x8ab4ff, 0.08))
-                            .border_1()
-                            .border_color(hex_rgba(0x8ab4ff, 0.25))
-                            .rounded_sm()
-                            .font_family(FONT_MONO)
+                            .font_weight(FontWeight::NORMAL)
                             .text_size(px(10.0))
                             .child(
                                 div()
@@ -386,7 +379,6 @@ pub fn socket_log_drawer(
                             .border_1()
                             .border_color(if is_filtered { hex_rgb(0x8ab4ff) } else { BORDER_DEFAULT })
                             .text_color(if is_filtered { hex_rgb(0x8ab4ff) } else { TEXT_DIMMER })
-                            .rounded_sm()
                             .cursor_pointer()
                             .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                             .font_family(FONT_MONO)
@@ -443,7 +435,6 @@ pub fn socket_log_drawer(
                         .font_family(FONT_MONO)
                         .text_size(px(9.5))
                         .font_weight(FontWeight::BOLD)
-                        .rounded_sm()
                         .on_click(move |_ev, _window, cx| {
                             let pid = focused_pid;
                             app_expand.update(cx, |this, cx| {
@@ -463,7 +454,6 @@ pub fn socket_log_drawer(
                         .items_center()
                         .justify_center()
                         .size(px(18.0))
-                        .rounded_sm()
                         .cursor_pointer()
                         .hover(|s| s.bg(hex_rgba(0xffffff, 0.1)).text_color(TEXT_PRIMARY))
                         .on_click(move |_ev, _window, cx| {

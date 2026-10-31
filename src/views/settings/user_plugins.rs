@@ -132,7 +132,7 @@ fn effect_chip(e: Effect) -> impl IntoElement {
         Effect::Change => (t!("settings-user-plugins-effect-change"), WARN),
         Effect::Danger => (t!("settings-user-plugins-effect-danger"), CRIT),
     };
-    div().flex_none().w(px(64.0)).px(px(5.0)).py(px(1.0)).border_1().border_color(color).text_color(color).text_size(px(9.0)).font_weight(FontWeight::BOLD).flex().justify_center().child(label)
+    crate::components::button::badge(color).flex_none().w(px(64.0)).text_size(px(9.0)).font_weight(FontWeight::BOLD).flex().justify_center().child(label)
 }
 
 fn where_text(a: &Action) -> &'static str {

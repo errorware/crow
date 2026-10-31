@@ -87,7 +87,7 @@ pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str, scope: Option<St
                         .border_color(BORDER_DEFAULT)
                         .child(div().font_family(FONT_MONO).text_size(px(13.0)).text_color(TEXT_FAINTER).child("›"))
                         .children(scope.map(|name| {
-                            div().flex_none().px(px(6.0)).py(px(1.0)).bg(hex_rgba(0x8ab4ff, 0.12)).border_1().border_color(hex_rgb(0x8ab4ff)).font_family(FONT_MONO).text_size(px(10.5)).text_color(hex_rgb(0x8ab4ff)).child(format!("{name} ›"))
+                            crate::components::button::badge(hex_rgb(0x8ab4ff)).flex_none().text_size(px(10.5)).child(format!("{name} ›"))
                         }))
                         .child(div().flex_1().min_w(px(0.0)).children(input.map(|i| Input::new(i).appearance(false).font_family(FONT_MONO).text_size(px(13.0)))))
                         .child(div().flex_none().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_DIMMER).child(count)),

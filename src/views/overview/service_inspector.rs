@@ -660,7 +660,7 @@ pub(crate) fn render_eli5(loading: bool, result: Option<&Result<crate::views::ov
                     .flex()
                     .items_start()
                     .gap(px(8.0))
-                    .child(div().flex_none().px(px(5.0)).py(px(1.5)).bg(color.opacity(0.15)).border_1().border_color(color).font_family(FONT_MONO).text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(color).child(label))
+                    .child(crate::components::button::badge(color).flex_none().text_size(px(9.0)).font_weight(FontWeight::BOLD).child(label))
                     .child(div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(TEXT_SECONDARY).child(t!("overview-service-inspector-to-stop-or-restart", reason = reason)))
             }))
             // One line per point, its label ("If you stop it:") bold.

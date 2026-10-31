@@ -48,7 +48,6 @@ pub fn passwd_inspector(
                                 .bg(BG_CONTROL)
                                 .border_1()
                                 .border_color(BORDER_DEFAULT)
-                                .rounded_sm()
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                                 .font_family(FONT_MONO)
@@ -71,17 +70,9 @@ pub fn passwd_inspector(
                                 .child("/etc/passwd"),
                         )
                         .child(
-                            div()
-                                .bg(hex_rgba(0x8ab4ff, 0.15))
-                                .border_1()
-                                .border_color(hex_rgba(0x8ab4ff, 0.4))
-                                .px(px(6.0))
-                                .py(px(1.5))
-                                .rounded_sm()
-                                .font_family(FONT_MONO)
+                            crate::components::button::badge(hex_rgb(0x8ab4ff))
                                 .text_size(px(9.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(hex_rgb(0x8ab4ff))
                                 .child(t!("users-passwd-inspector-account", uname = uname)),
                         ),
                 )
@@ -101,7 +92,6 @@ pub fn passwd_inspector(
                                 .bg(OK_BG)
                                 .border_1()
                                 .border_color(hex_rgba(0x10b981, 0.4))
-                                .rounded_sm()
                                 .cursor_pointer()
                                 .hover(|s| s.bg(hex_rgba(0x10b981, 0.25)))
                                 .font_family(FONT_MONO)
@@ -217,7 +207,6 @@ pub fn passwd_inspector(
                                         .id(ElementId::NamedInteger(format!("sw-user-{}", un).into(), 0))
                                         .px(px(8.0))
                                         .py(px(4.0))
-                                        .rounded_sm()
                                         .border_1()
                                         .border_color(if is_curr { hex_rgba(0x8ab4ff, 0.5) } else { BORDER_DEFAULT })
                                         .bg(if is_curr { BG_NAV_ACTIVE } else { BG_CONTROL })
@@ -371,17 +360,9 @@ fn render_exploded_fields(user: &SystemUserRecord) -> impl IntoElement {
                                 .items_center()
                                 .gap(px(8.0))
                                 .child(
-                                    div()
-                                        .px(px(6.0))
-                                        .py(px(1.5))
-                                        .bg(Rgba { a: 0.15, ..*color })
-                                        .border_1()
-                                        .border_color(Rgba { a: 0.4, ..*color })
-                                        .rounded_sm()
-                                        .font_family(FONT_MONO)
+                                    crate::components::button::badge(*color)
                                         .text_size(px(9.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(*color)
                                         .child(t!("users-passwd-inspector-portion", num = num)),
                                 )
                                 .child(

@@ -370,15 +370,8 @@ pub fn render_config_section(
                                                 ),
                                         )
                                         .child(
-                                            div()
-                                                .px(px(6.0))
-                                                .py(px(2.0))
-                                                .bg(CRIT_BG)
-                                                .border_1()
-                                                .border_color(CRIT)
-                                                .font_family(FONT_MONO)
+                                            crate::components::button::badge(CRIT_INK_DIM)
                                                 .text_size(px(9.5))
-                                                .text_color(CRIT_INK_DIM)
                                                 .child(t!("settings-config-table-disabled-default")),
                                         ),
                                 )
@@ -454,15 +447,8 @@ pub fn render_config_section(
                                                 ),
                                         )
                                         .child(
-                                            div()
-                                                .px(px(6.0))
-                                                .py(px(2.0))
-                                                .bg(OK_BG)
-                                                .border_1()
-                                                .border_color(OK)
-                                                .font_family(FONT_MONO)
+                                            crate::components::button::badge(OK_INK)
                                                 .text_size(px(9.5))
-                                                .text_color(OK_INK)
                                                 .child(t!("settings-config-table-locked-stance")),
                                         ),
                                 )
@@ -576,16 +562,9 @@ pub fn render_config_section(
                                                         .child(label),
                                                 )
                                                 .children(is_changed.then(|| {
-                                                    div()
-                                                        .px(px(4.0))
-                                                        .py(px(0.5))
-                                                        .bg(WARN_BG)
-                                                        .border_1()
-                                                        .border_color(WARN)
-                                                        .font_family(FONT_MONO)
+                                                    crate::components::button::badge(WARN)
                                                         .text_size(px(8.5))
                                                         .font_weight(FontWeight::BOLD)
-                                                        .text_color(WARN)
                                                         .child(t!("settings-config-table-changed"))
                                                 })),
                                         )

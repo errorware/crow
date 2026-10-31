@@ -88,7 +88,6 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                 .items_center()
                                 .justify_center()
                                 .size(px(18.0))
-                                .rounded_sm()
                                 .bg(BG_CONTROL)
                                 .border_1()
                                 .border_color(BORDER_DEFAULT)
@@ -158,7 +157,6 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                             .id("btn-clear-config-search")
                             .cursor_pointer()
                             .p(px(2.0))
-                            .rounded(px(3.0))
                             .hover(|s| s.bg(BG_ROW_HOVER))
                             .on_mouse_down(MouseButton::Left, move |_ev, _win, cx| {
                                 app_clear.update(cx, |this, cx| {

@@ -147,11 +147,11 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
     let id = srv.id.clone();
     let app_restore = app.clone();
     let purged = srv.purged_at.is_some();
-    let (env_bg, env_fg) = match srv.env.as_str() {
-        "PROD" => (CRIT_BG, CRIT),
-        "STAGE" => (WARN_BG, WARN),
-        "DEV" => (OK_BG, OK),
-        _ => (BG_PANEL, TEXT_DIM),
+    let env_fg = match srv.env.as_str() {
+        "PROD" => CRIT,
+        "STAGE" => WARN,
+        "DEV" => OK,
+        _ => TEXT_DIM,
     };
 
     div()
@@ -204,14 +204,8 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
                 .w(px(64.0))
                 .flex_none()
                 .child(
-                    div()
-                        .px(px(4.0))
-                        .py(px(1.5))
-                        .rounded_sm()
-                        .bg(env_bg)
-                        .text_color(env_fg)
+                    crate::components::button::badge(env_fg)
                         .text_size(px(8.5))
-                        .font_weight(FontWeight::BOLD)
                         .child(srv.env.clone()),
                 ),
         )

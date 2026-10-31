@@ -120,7 +120,6 @@ pub fn new_user_modal(
                             div()
                                 .id("btn-close-new-user")
                                 .p(px(4.0))
-                                .rounded_sm()
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
@@ -215,7 +214,6 @@ pub fn new_user_modal(
                                                 .id(SharedString::from(format!("new-user-shell-{i}")))
                                                 .px(px(7.0))
                                                 .py(px(3.0))
-                                                .rounded_sm()
                                                 .border_1()
                                                 .border_color(if current { OK } else { BORDER_DEFAULT })
                                                 .bg(if current { OK_BG } else { BG_APP })
@@ -254,7 +252,6 @@ pub fn new_user_modal(
                                                 .bg(if current_sudo { hex_rgba(0x10b981, 0.15) } else { BG_APP })
                                                 .border_1()
                                                 .border_color(if current_sudo { hex_rgba(0x10b981, 0.4) } else { BORDER_DEFAULT })
-                                                .rounded_sm()
                                                 .cursor_pointer()
                                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                                 .when(sudo_group.is_some(), |d| d.on_click(move |_ev, _window, cx| {
@@ -311,7 +308,6 @@ pub fn new_user_modal(
                                                 .bg(if is_sel { hex_rgba(0x8ab4ff, 0.15) } else { BG_CONTROL })
                                                 .border_1()
                                                 .border_color(if is_sel { hex_rgba(0x8ab4ff, 0.4) } else { BORDER_DEFAULT })
-                                                .rounded_sm()
                                                 .cursor_pointer()
                                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                                 .font_family(FONT_MONO)
@@ -341,7 +337,6 @@ pub fn new_user_modal(
                                 .bg(BG_CONTROL)
                                 .border_1()
                                 .border_color(BORDER_DEFAULT)
-                                .rounded_sm()
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| {
@@ -400,7 +395,6 @@ pub fn new_user_modal(
                                         .px(px(12.0))
                                         .py(px(5.0))
                                         .bg(OK)
-                                        .rounded_sm()
                                         .cursor_pointer()
                                         .hover(|s| s.bg(hex_rgb(0x34d399)))
                                         .font_family(FONT_MONO)

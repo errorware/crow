@@ -279,7 +279,6 @@ fn directive_row(file: &str, row: &SheetRow, key: &str, read_only: bool, active_
                     .id(SharedString::from(format!("sshd-opt-{key}-{i}")))
                     .px(px(8.0))
                     .py(px(3.0))
-                    .rounded_sm()
                     .border_1()
                     .font_family(FONT_MONO)
                     .text_size(px(10.5))
@@ -316,7 +315,6 @@ fn directive_row(file: &str, row: &SheetRow, key: &str, read_only: bool, active_
             .max_w(px(420.0))
             .px(px(8.0))
             .py(px(3.0))
-            .rounded_sm()
             .border_1()
             .border_color(if is_set { BORDER_DEFAULT } else { BORDER_PANEL })
             .font_family(FONT_MONO)
@@ -393,7 +391,7 @@ fn directive_row(file: &str, row: &SheetRow, key: &str, read_only: bool, active_
                     let c = risk_color(risk.as_ref());
                     div().px(px(4.0)).border_1().border_color(c.opacity(0.5)).text_size(px(8.5)).font_weight(FontWeight::BOLD).text_color(c).child(l)
                 }))
-                .children((!is_set && effective.is_some()).then(|| div().text_size(px(9.0)).text_color(TEXT_FAINTER).child(t!("config-sshd-sheet-default"))))
+                .children((!is_set && effective.is_some()).then(|| crate::components::button::badge(TEXT_FAINTER).text_size(px(9.0)).child(t!("config-sshd-sheet-default"))))
                 .child(div().flex_1())
                 .children((!location.is_empty()).then(|| div().text_size(px(9.0)).text_color(if row.shadowed { WARN_INK } else { TEXT_FAINTER }).child(location)))
                 .children(reset),

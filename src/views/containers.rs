@@ -103,7 +103,7 @@ fn header(st: &ContainersState, server_name: &str, app: Entity<CrowApp>) -> impl
         .child(mono(12.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(t!("containers-containers", server_name = server_name)))
         .children(scan.map(|s| {
             let running = s.containers.iter().filter(|c| c.is_running()).count();
-            div().px(px(6.0)).py(px(2.0)).border_1().border_color(BORDER_DEFAULT).font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_SECONDARY).child(t!("containers-running-2", running = running, count = s.containers.len()))
+            crate::components::button::badge(TEXT_SECONDARY).text_size(px(9.5)).child(t!("containers-running-2", running = running, count = s.containers.len()))
         }))
         .children(scan.into_iter().flat_map(|s| s.usable().map(|r| r.describe(s.login_is_root)).collect::<Vec<_>>()).map(|text| div().px(px(6.0)).py(px(2.0)).bg(BG_CHIP).font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_TERTIARY).child(text)))
         .child(div().flex_1())
@@ -274,7 +274,7 @@ fn ports_cell(c: &Container) -> impl IntoElement {
             .items_center()
             .gap(px(4.0))
             .child(mono(10.0, if exposed { TEXT_SECONDARY } else { TEXT_DIM }).child(text))
-            .when(exposed, |d| d.child(div().px(px(3.0)).border_1().border_color(WARN.opacity(0.45)).font_family(FONT_MONO).text_size(px(8.5)).text_color(WARN.opacity(0.85)).child(t!("containers-all-nets"))))
+            .when(exposed, |d| d.child(crate::components::button::badge(WARN.opacity(0.85)).text_size(px(8.5)).child(t!("containers-all-nets"))))
     }))
 }
 

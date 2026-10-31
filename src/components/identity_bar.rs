@@ -196,20 +196,12 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                 }))
                 // The environment closes the details.
                 .child({
-                    let (fg, outlined) = match env_str.to_uppercase().as_str() {
-                        "PROD" => (CRIT, true),
-                        "STAGE" | "STAGING" => (WARN, true),
-                        _ => (TEXT_DIM, false),
+                    let fg = match env_str.to_uppercase().as_str() {
+                        "PROD" => CRIT,
+                        "STAGE" | "STAGING" => WARN,
+                        _ => TEXT_DIM,
                     };
-                    div()
-                        .flex_none()
-                        .px(px(5.0))
-                        .py(px(1.0))
-                        .when(outlined, |d| d.border_1().border_color(fg))
-                        .text_size(px(9.5))
-                        .font_weight(FontWeight::BOLD)
-                        .text_color(fg)
-                        .child(env_str.to_uppercase())
+                    crate::components::button::badge(fg).text_size(px(9.5)).child(env_str.to_uppercase())
                 })
                 // User plugins' badges (ERR-182).
                 .children(server.map(|s| crate::plugin_host::badges::for_server(&s.id)).unwrap_or_default().iter().map(|b| crate::components::plugin_badge::badge_chip(b, 9.5))),

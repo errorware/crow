@@ -55,7 +55,6 @@ pub fn group_assign_modal(
                 .bg(BG_PANEL)
                 .border_1()
                 .border_color(BORDER_DEFAULT)
-                .rounded_md()
                 .shadow_lg()
                 .flex()
                 .flex_col()

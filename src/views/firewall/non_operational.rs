@@ -125,14 +125,8 @@ pub fn non_operational_view(
                                     ]
                                 } else {
                                     detected_binaries.iter().map(|b| {
-                                        div()
-                                            .px(px(8.0))
-                                            .py(px(3.0))
-                                            .border_1()
-                                            .border_color(BORDER_DEFAULT)
-                                            .font_family(FONT_MONO)
+                                        crate::components::button::badge(TEXT_SECONDARY)
                                             .text_size(px(10.0))
-                                            .text_color(TEXT_SECONDARY)
                                             .child(b.clone())
                                             .into_any_element()
                                     }).collect()

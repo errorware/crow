@@ -41,7 +41,7 @@ pub fn render_plugins_view(app: Entity<CrowApp>, plugins: &PluginsState, provide
                 .border_b_1()
                 .border_color(BORDER_PANEL)
                 .child(div().font_family(FONT_MONO).text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-plugins-plugins-what-crow-connects-to")))
-                .child(div().px(px(6.0)).py(px(2.0)).border_1().border_color(BORDER_DEFAULT).font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_SECONDARY).child(t!("settings-plugins-on", on = on, count = BUILTIN.len())))
+                .child(crate::components::button::badge(TEXT_SECONDARY).text_size(px(9.5)).child(t!("settings-plugins-on", on = on, count = BUILTIN.len())))
                 .child(div().flex_1())
                 .child(
                     div()
