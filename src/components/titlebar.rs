@@ -829,6 +829,7 @@ pub fn clock_menu_overlay(app: Entity<CrowApp>, zones: &[chrono_tz::Tz], selecte
     use crate::app::clock::{local_name, utc_label, Zone};
     let now = chrono::Utc::now();
     let app_backdrop = app.clone();
+    let app_backdrop_r = app.clone();
     let app_manage = app.clone();
     let mut rows: Vec<(Zone, String, String)> = vec![(Zone::Local, t!("titlebar-clock-this-computer").to_string(), local_name().unwrap_or_default())];
     rows.extend(zones.iter().map(|z| (Zone::Named(*z), crate::app::clock::city(z.name()), z.name().to_string())));
@@ -857,16 +858,18 @@ pub fn clock_menu_overlay(app: Entity<CrowApp>, zones: &[chrono_tz::Tz], selecte
     div()
         .id("clock-menu-backdrop")
         .absolute()
-        .top(px(36.0))
-        .left_0()
-        .right_0()
-        .bottom_0()
+        .inset_0()
         .occlude()
+        .bg(hex_rgba(0, 0.0))
         .flex()
         .justify_end()
         // The menu is as tall as its rows, not the window.
         .items_start()
-        .on_click(move |_ev, _window, cx| app_backdrop.update(cx, |this, cx| this.toggle_clock_menu(cx)))
+        .pt(px(36.0))
+        // A press anywhere else closes it, the titlebar and the clock too
+        // (the clock sits under this, so it doesn't reopen).
+        .on_mouse_down(MouseButton::Left, move |_ev, _window, cx| app_backdrop.update(cx, |this, cx| this.close_clock_menu(cx)))
+        .on_mouse_down(MouseButton::Right, move |_ev, _window, cx| app_backdrop_r.update(cx, |this, cx| this.close_clock_menu(cx)))
         .child(
             div()
                 .id("clock-menu-dropdown")

@@ -197,6 +197,13 @@ impl CrowApp {
         cx.notify();
     }
 
+    pub fn close_clock_menu(&mut self, cx: &mut Context<Self>) {
+        if self.clock.menu_open {
+            self.clock.menu_open = false;
+            cx.notify();
+        }
+    }
+
     pub fn open_time_zone_settings(&mut self, cx: &mut Context<Self>) {
         self.clock.menu_open = false;
         self.set_screen(super::Screen::Settings, cx);

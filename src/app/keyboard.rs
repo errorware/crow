@@ -281,6 +281,8 @@ impl CrowApp {
                 self.users.show_new_user_modal = false; cx.notify();
             } else if self.show_about_modal {
                 self.close_about_modal(cx);
+            } else if self.clock.menu_open {
+                self.close_clock_menu(cx);
             } else if self.menu_open {
                 self.menu_open = false;
                 cx.notify();
