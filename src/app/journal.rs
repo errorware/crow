@@ -70,8 +70,8 @@ impl CrowApp {
         cx.notify();
     }
 
-    pub fn toggle_ai_panel(&mut self, cx: &mut Context<Self>) {
-        self.journal.ai.open = !self.journal.ai.open;
+    pub fn close_ai_panel(&mut self, cx: &mut Context<Self>) {
+        self.journal.ai = Default::default();
         cx.notify();
     }
 
@@ -94,52 +94,68 @@ impl CrowApp {
         self.ai_provider().map(|p| format!("{} · {}", p.display_name, p.model))
     }
 
-    /// Sends the lines on screen (most recent first to be kept, capped) to
-    /// the AI provider and shows its plain-English reading in the panel.
-    pub fn explain_logs_with_ai(&mut self, cx: &mut Context<Self>) {
+    /// The wand on a log line (ERR-198): reads the lines related to it from
+    /// the server (same process, else unit, else moment), sends them with
+    /// that line marked, and shows the verdict in the side panel.
+    pub fn explain_journal_line(&mut self, id: &str, cx: &mut Context<Self>) {
+        use crate::journal::related::{self, Scope};
+        let Some(picked) = self.journal.entries.iter().find(|e| e.id == id).cloned() else { return };
+        let Some(server) = self.fleet.active_server() else { return };
+        let (query, scope) = related::query_for(&picked, self.journal.boot);
+        let scope_label = match &scope {
+            Scope::Process(pid) => t!("logs-wand-scope-process", pid = pid, unit = picked.unit.clone()),
+            Scope::Unit(unit) => t!("logs-wand-scope-unit", unit = unit.clone()),
+            Scope::Moment => t!("logs-wand-scope-moment").to_string(),
+        };
         let Some((provider, backup)) = self.ai_providers() else {
-            self.journal.ai.answer = Some(Err(t!("app-journal-no-ai-provider-has-an").into()));
+            self.journal.ai = crate::views::logs::AiPanelState { open: true, picked_id: Some(picked.id.clone()), picked: related::line_text(&picked), scope: scope_label, answer: Some(Err(t!("app-journal-no-ai-provider-has-an").into())), ..Default::default() };
             cx.notify();
             return;
         };
-        // Newest lines are the most relevant; keep as many as fit.
-        let mut lines: Vec<String> = Vec::new();
-        let mut size = 0;
-        for e in self.journal.entries.iter().rev() {
-            let line = format!("{} [{}] {}{}: {}", e.timestamp_formatted, e.priority.label(), e.unit, e.pid.map(|p| format!("[{p}]")).unwrap_or_default(), e.message);
-            size += line.len() + 1;
-            if size > crate::ai::MAX_LOG_CHARS {
-                break;
-            }
-            lines.push(line);
-        }
-        lines.reverse();
-        if lines.is_empty() {
-            self.journal.ai.answer = Some(Err(t!("app-journal-there-are-no-log-lines").into()));
-            cx.notify();
-            return;
-        }
-        let j = &self.journal;
-        let context = format!(
-            "These are the most recent {} lines matching: unit {}, priority {}, search {}, range {}.",
-            lines.len(),
-            j.unit_filter.as_deref().unwrap_or("any"),
-            j.severity_filter.map(|p| t!("app-journal-and-worse", label = p.label())).unwrap_or_else(|| "any".into()),
-            if j.search.is_empty() { "none".to_string() } else { format!("`{}`", j.search) },
-            j.time_range.label(),
-        );
-        self.journal.ai = crate::views::logs::AiPanelState { open: true, loading: true, provider: format!("{} · {}", provider.display_name, provider.model), lines_sent: lines.len(), answer: None };
+        // Said in English for the model; no host name or address.
+        let context = match &scope {
+            Scope::Process(pid) => format!("The other lines are from the same process (PID {pid}, {}), up to 10 minutes either side.", picked.unit),
+            Scope::Unit(unit) => format!("The other lines are from the same unit ({unit}), up to 5 minutes either side."),
+            Scope::Moment => "The line has no process or unit; the other lines are from the whole system, up to a minute either side.".to_string(),
+        };
+        self.journal.ai = crate::views::logs::AiPanelState {
+            open: true,
+            loading: true,
+            provider: format!("{} · {}", provider.display_name, provider.model),
+            lines_sent: 0,
+            answer: None,
+            picked_id: Some(picked.id.clone()),
+            picked: related::line_text(&picked),
+            scope: scope_label,
+        };
         cx.notify();
-        let text = lines.join("\n");
         let db = self.vault.db();
+        let asked = picked.id.clone();
         cx.spawn(async move |entity, cx| {
-            let answer = cx.background_executor().spawn(async move { crate::ai::explain_logs_with_fallback(&provider, backup.as_ref(), &context, &text) }).await;
+            let lines = cx.background_executor().spawn(async move { related::around(&read_journal_for_server(&server, &query), &picked, crate::ai::MAX_LOG_CHARS) }).await;
+            let still = entity.update(cx, |this, cx| {
+                let current = this.journal.ai.picked_id.as_deref() == Some(asked.as_str());
+                if current {
+                    this.journal.ai.lines_sent = lines.len();
+                    cx.notify();
+                }
+                current
+            });
+            // Another wand was pressed meanwhile: that one's answer wins.
+            if !matches!(still, Ok(true)) {
+                return;
+            }
+            let text = lines.join("\n");
+            let answer = cx.background_executor().spawn(async move { crate::ai::explain_line(&provider, backup.as_ref(), &context, &text) }).await;
             if let Ok(a) = &answer {
                 if let Ok(db) = db.lock() {
                     let _ = db.record_clanker_call(&a.provider_id);
                 }
             }
             let _ = entity.update(cx, |this, cx| {
+                if this.journal.ai.picked_id.as_deref() != Some(asked.as_str()) {
+                    return;
+                }
                 this.journal.ai.loading = false;
                 this.journal.ai.answer = Some(answer.map(|a| {
                     // Say when the backup answered, and why.

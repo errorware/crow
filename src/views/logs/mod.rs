@@ -1,5 +1,6 @@
 use gpui_kit::component::scroll::ScrollableElement;
 use std::collections::HashSet;
+use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 use crate::components::icon_button::icon_button;
 use crate::theme::*;
@@ -154,30 +155,10 @@ pub fn logs_explorer_view(
                         (OK, OK_BG)
                     };
 
-                    let app_ai = app_clone.clone();
-                    let ai_open = journal.ai.open;
                     div()
                         .flex()
                         .items_center()
                         .gap(px(8.0))
-                        // AI explanation panel toggle
-                        .child(
-                            div()
-                                .id("journal-ai-btn")
-                                .px(px(9.0))
-                                .py(px(3.5))
-                                .border_1()
-                                .border_color(if ai_open { hex_rgb(0xa78bfa) } else { BORDER_DEFAULT })
-                                .bg(if ai_open { hex_rgba(0xa78bfa, 0.12) } else { hex_rgba(0, 0.0) })
-                                .text_color(if ai_open { hex_rgb(0xa78bfa) } else { TEXT_SECONDARY })
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.0))
-                                .font_weight(FontWeight::BOLD)
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .on_click(move |_ev, _window, cx| app_ai.update(cx, |this, cx| this.toggle_ai_panel(cx)))
-                                .child(t!("logs-explain")),
-                        )
                         // Boundaries & Retention button
                         .child(
                             div()
@@ -821,7 +802,7 @@ pub fn logs_explorer_view(
                         .collect()
                 }),
                 )
-                .children(journal.ai.open.then(|| ai_panel(&journal.ai, ai_provider.clone(), filtered_count, app_clone.clone()))),
+                .children(journal.ai.open.then(|| ai_panel(&journal.ai, ai_provider.clone(), app_clone.clone()))),
         )
         .children(if journal.show_retention_modal {
             Some(retention_modal::retention_boundaries_modal(
@@ -1002,6 +983,7 @@ fn render_journal_row(
         .child(
             div()
                 .id(ElementId::NamedInteger("journal-row".into(), idx as u64))
+                .group("journal-row")
                 .relative()
                 .flex()
                 .items_baseline()
@@ -1040,15 +1022,10 @@ fn render_journal_row(
                         .w(px(70.0))
                         .flex_none()
                         .child(
-                            div()
+                            crate::components::button::badge(entry.priority.badge_fg())
                                 .w(px(52.0))
-                                .px(px(4.0))
-                                .py(px(1.0))
-                                .bg(entry.priority.badge_bg())
-                                .text_color(entry.priority.badge_fg())
+                                .justify_center()
                                 .text_size(px(8.5))
-                                .font_weight(FontWeight::BOLD)
-                                .text_align(TextAlign::Center)
                                 .child(entry.priority.label()),
                         ),
                 )
@@ -1104,10 +1081,11 @@ fn render_journal_row(
                             div().text_color(TEXT_FAINT).child("—").into_any_element()
                         }),
                 )
-                // 5. Message body
+                // 5. Message body: wraps, so the wand and the glyph stay on the row.
                 .child(
                     div()
                         .flex_1()
+                        .min_w(px(0.0))
                         .text_color(if entry.priority.is_error() {
                             TEXT_PRIMARY
                         } else if entry.priority.is_warn() {
@@ -1117,7 +1095,21 @@ fn render_journal_row(
                         })
                         .child(render_highlighted_message(&entry.message, &crate::journal::search_terms(&journal.search))),
                 )
-                // 6. Expand glyph
+                // 6. The wand: explain this line from its related ones (ERR-198).
+                .child({
+                    let app_wand = app.clone();
+                    let wid = entry_id.clone();
+                    let picked = journal.ai.picked_id.as_deref() == Some(entry_id.as_str());
+                    crate::components::icon_button::icon_button(ElementId::NamedInteger("journal-wand".into(), idx as u64), TablerIcon::Wand, false)
+                        .when(picked, |d| d.text_color(hex_rgb(0xa78bfa)))
+                        .when(!picked, |d| d.invisible().group_hover("journal-row", |s| s.visible()))
+                        .tooltip(|window, cx| gpui_kit::component::tooltip::Tooltip::new(t!("logs-wand-tooltip")).build(window, cx))
+                        .on_click(move |_ev, _window, cx| {
+                            cx.stop_propagation();
+                            app_wand.update(cx, |this, cx| this.explain_journal_line(&wid, cx));
+                        })
+                })
+                // 7. Expand glyph
                 .child(
                     div()
                         .w(px(20.0))
@@ -1262,26 +1254,32 @@ fn render_highlighted_message(msg: &str, terms: &[String]) -> impl IntoElement {
         .child(StyledText::new(msg.to_string()).with_highlights(ranges.into_iter().map(|r| (r, style))))
 }
 
-/// Plain-English reading of the lines on screen from the configured AI
-/// provider. Nothing is sent until EXPLAIN is clicked.
-fn ai_panel(ai: &AiPanelState, provider: Option<String>, lines_on_screen: usize, app: Entity<CrowApp>) -> impl IntoElement {
+/// One line explained (ERR-198): the line whose wand was pressed, where
+/// its related lines came from, and the verdict. Nothing is sent until a
+/// wand is pressed.
+fn ai_panel(ai: &AiPanelState, provider: Option<String>, app: Entity<CrowApp>) -> impl IntoElement {
     let accent = hex_rgb(0xa78bfa);
-    let app_go = app.clone();
     let body: AnyElement = match (&ai.answer, ai.loading) {
-        (_, true) => div().p(px(14.0)).text_color(TEXT_DIM).child(t!("logs-asking-about-lines", provider = ai.provider, lines_sent = ai.lines_sent)).into_any_element(),
+        (_, true) if ai.lines_sent == 0 => div().text_color(TEXT_DIM).child(t!("logs-wand-reading", scope = ai.scope.clone())).into_any_element(),
+        (_, true) => div().text_color(TEXT_DIM).child(t!("logs-asking-about-lines", provider = ai.provider, lines_sent = ai.lines_sent)).into_any_element(),
         (Some(Ok(text)), _) => div()
-            .p(px(14.0))
             .flex()
             .flex_col()
             .gap(px(6.0))
             .children(text.lines().map(|l| {
+                // The verdict, coloured by how bad it is.
+                if let Some(rest) = l.trim().strip_prefix("VERDICT:") {
+                    let rest = rest.trim();
+                    let color = if rest.starts_with("PROBLEM") { CRIT } else if rest.starts_with("WORTH") { WARN } else { OK };
+                    return div().child(crate::components::button::badge(color).text_size(px(10.0)).py(px(2.0)).child(rest.to_string())).into_any_element();
+                }
                 let heading = l.starts_with('#') || (l.len() > 2 && l.as_bytes()[0].is_ascii_digit() && l.as_bytes()[1] == b'.');
-                div().text_color(if heading { TEXT_MAX } else { TEXT_SECONDARY }).font_weight(if heading { FontWeight::BOLD } else { FontWeight::NORMAL }).child(l.trim_start_matches('#').trim_start().to_string())
+                div().text_color(if heading { TEXT_MAX } else { TEXT_SECONDARY }).font_weight(if heading { FontWeight::BOLD } else { FontWeight::NORMAL }).child(l.trim_start_matches('#').trim_start().to_string()).into_any_element()
             }))
             .child(div().pt(px(6.0)).text_size(px(9.0)).text_color(TEXT_FAINTER).child(t!("logs-lines-sent", provider = ai.provider, lines_sent = ai.lines_sent)))
             .into_any_element(),
-        (Some(Err(e)), _) => div().p(px(14.0)).text_color(CRIT).child(e.clone()).into_any_element(),
-        (None, false) => div().p(px(14.0)).text_color(TEXT_FAINT).child(t!("logs-get-a-plain-english-reading")).into_any_element(),
+        (Some(Err(e)), _) => div().text_color(CRIT).child(e.clone()).into_any_element(),
+        (None, false) => div().text_color(TEXT_FAINT).child(t!("logs-wand-hint")).into_any_element(),
     };
     div()
         .id("journal-ai-panel")
@@ -1305,27 +1303,37 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, lines_on_screen: usize,
                 .px(px(12.0))
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(div().text_color(accent).font_weight(FontWeight::BOLD).child(t!("logs-explain-logs")))
+                .child(tabler_icon(TablerIcon::Wand).size(px(12.0)).text_color(accent))
+                .child(div().text_color(accent).font_weight(FontWeight::BOLD).child(t!("logs-wand-title")))
                 .child(div().flex_1())
-                .child(match &provider {
-                    Some(_) if !ai.loading => div()
-                        .id("journal-ai-go")
-                        .px(px(9.0))
-                        .py(px(3.0))
-                        .border_1()
-                        .border_color(accent)
-                        .text_color(accent)
-                        .font_weight(FontWeight::BOLD)
-                        .cursor_pointer()
-                        .hover(|s| s.bg(hex_rgba(0xa78bfa, 0.12)))
-                        .on_click(move |_ev, _window, cx| app_go.update(cx, |this, cx| this.explain_logs_with_ai(cx)))
-                        .child(t!("logs-explain-lines", count = lines_on_screen))
-                        .into_any_element(),
-                    Some(_) => div().text_color(TEXT_FAINT).child(t!("logs-working")).into_any_element(),
-                    None => div().text_color(TEXT_FAINT).child(t!("logs-no-provider")).into_any_element(),
-                }),
+                .child(crate::components::icon_button::icon_button("journal-ai-close", TablerIcon::X, false).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.close_ai_panel(cx)))),
         )
-        .child(div().id("journal-ai-body").flex_1().min_h(px(0.0)).overflow_y_scrollbar().child(body))
+        .child(
+            div()
+                .id("journal-ai-body")
+                .flex_1()
+                .min_h(px(0.0))
+                .overflow_y_scrollbar()
+                .child(
+                    div()
+                        .p(px(14.0))
+                        .flex()
+                        .flex_col()
+                        .gap(px(12.0))
+                        // The line asked about, and where its company came from.
+                        .when(!ai.picked.is_empty(), |d| {
+                            d.child(
+                                div()
+                                    .flex()
+                                    .flex_col()
+                                    .gap(px(5.0))
+                                    .child(div().p(px(8.0)).bg(BG_WINDOW).border_l_2().border_color(accent).text_color(TEXT_PRIMARY).child(ai.picked.clone()))
+                                    .child(div().text_size(px(9.5)).text_color(TEXT_DIMMER).child(ai.scope.clone())),
+                            )
+                        })
+                        .child(body),
+                ),
+        )
         .child(
             div()
                 .flex_none()
@@ -1336,7 +1344,7 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, lines_on_screen: usize,
                 .text_size(px(9.0))
                 .text_color(TEXT_FAINTER)
                 .child(match provider {
-                    Some(p) => t!("logs-sends-the-log-lines-on", p = p),
+                    Some(p) => t!("logs-wand-sends", p = p),
                     None => t!("logs-add-an-api-key-for").to_string(),
                 }),
         )

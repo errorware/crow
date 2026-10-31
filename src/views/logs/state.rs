@@ -32,7 +32,7 @@ pub struct JournalState {
     pub search_generation: u64,
     /// Show Crow's own action markers ("crow: systemctl restart ...").
     pub show_actions: bool,
-    /// The AI "explain these lines" side panel.
+    /// The AI side panel: one line explained from its related lines (ERR-198).
     pub ai: AiPanelState,
     /// CLEAR: show only lines newer than this (µs since the epoch), so the
     /// live refresh doesn't bring cleared lines back. SHOW ALL resets it.
@@ -45,10 +45,16 @@ pub struct JournalState {
 pub struct AiPanelState {
     pub open: bool,
     pub loading: bool,
-    /// Provider used for the last answer, and how many lines it was sent.
+    /// Provider used for the last answer, and how many lines it was sent
+    /// (0 while they're still being read from the server).
     pub provider: String,
     pub lines_sent: usize,
     pub answer: Option<Result<String, String>>,
+    /// The line whose wand was pressed: its id and its text.
+    pub picked_id: Option<String>,
+    pub picked: String,
+    /// Where the related lines came from ("process 812 (ssh.service)").
+    pub scope: String,
 }
 
 /// One-click searches for what people most often go looking for:

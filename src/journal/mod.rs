@@ -4,6 +4,7 @@ use gpui_kit::Rgba;
 use crate::theme::*;
 
 pub mod reader;
+pub mod related;
 pub mod retention;
 
 pub use retention::{
@@ -59,16 +60,6 @@ impl JournalPriority {
             JournalPriority::Notice => hex_rgb(0x8ab4ff),
             JournalPriority::Info => TEXT_PRIMARY,
             JournalPriority::Debug => TEXT_FAINT,
-        }
-    }
-
-    pub fn badge_bg(&self) -> Rgba {
-        match self {
-            JournalPriority::Emerg | JournalPriority::Alert | JournalPriority::Crit | JournalPriority::Err => CRIT_BG,
-            JournalPriority::Warning => WARN_BG,
-            JournalPriority::Notice => hex_rgba(0x8ab4ff, 0.12),
-            JournalPriority::Info => BG_CHIP,
-            JournalPriority::Debug => hex_rgba(0x27272a, 0.4),
         }
     }
 

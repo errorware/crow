@@ -251,7 +251,6 @@ app-incidents-the-last = { $name }, the last { $secs }
 
 ## app-journal
 app-journal-no-ai-provider-has-an = No AI provider has an API key. Add one in Settings → Clankers.
-app-journal-there-are-no-log-lines = There are no log lines on screen to explain.
 app-journal-and-worse = { $label } and worse
 app-journal-answered-by-the-backup-the =
     Answered by the backup, { $provider_label }: the primary failed ({ $why }).
@@ -1974,7 +1973,6 @@ logs-volatile-lost-on-reboot = ⚠ VOLATILE — LOST ON REBOOT
 logs-no-age-limit = no age limit
 logs-no-size-cap = no size cap
 logs-persistent = { $days } · { $size } PERSISTENT
-logs-explain = ✦ EXPLAIN
 logs-boundaries = ⚙ BOUNDARIES: { $bound_text }
 logs-live-tail-on = LIVE TAIL ON
 logs-paused = PAUSED
@@ -2010,11 +2008,14 @@ logs-copy-message = COPY MESSAGE
 logs-copy-json = COPY JSON
 logs-asking-about-lines = Asking { $provider } about { $lines_sent } lines…
 logs-lines-sent = { $provider } · { $lines_sent } lines sent
-logs-get-a-plain-english-reading = Get a plain-English reading of the lines on screen: what's happening, what looks wrong, likely causes and what to check next.
-logs-explain-logs = ✦ EXPLAIN LOGS
-logs-working = working…
-logs-no-provider = no provider
-logs-sends-the-log-lines-on = Sends the log lines on screen (not host names) to { $p }. Nothing is sent until you click.
+logs-wand-title = EXPLAIN THIS LINE
+logs-wand-tooltip = Explain this line from the lines around it
+logs-wand-scope-process = With the lines from the same process ({ $pid }, { $unit }), 10 minutes either side.
+logs-wand-scope-unit = With the lines from the same unit ({ $unit }), 5 minutes either side.
+logs-wand-scope-moment = With the whole system's lines, a minute either side.
+logs-wand-reading = Reading the lines around it…
+logs-wand-hint = Hover a log line and press its wand to have it explained from the lines around it.
+logs-wand-sends = Sends the line you pick and its related lines (not host names) to { $p }. Nothing is sent until you press a wand.
 logs-add-an-api-key-for = Add an API key for a provider in Settings → Clankers to enable this.
 
 ## logs-retention-modal
@@ -3643,10 +3644,6 @@ fleet-overview-host-count = · { $count ->
        *[other] { $count } hosts
     }
 settings-clankers-all-time = { $count } all-time
-logs-explain-lines = EXPLAIN { $count } { $count ->
-        [one] LINE
-       *[other] LINES
-    }
 
 app-configs-value-placeholder = value
 fleet-alert-lines-down-now = { $reason } · alerts if it's still down at the next check

@@ -242,7 +242,6 @@ app-incidents-the-last = { $name }, últimos { $secs }
 
 ## app-journal
 app-journal-no-ai-provider-has-an = Ningún proveedor de IA tiene clave de API. Añade una en Ajustes → Clankers.
-app-journal-there-are-no-log-lines = No hay líneas de registro en pantalla que explicar.
 app-journal-and-worse = { $label } y peores
 app-journal-answered-by-the-backup-the =
     Respondido por el respaldo, { $provider_label }: el principal falló ({ $why }).
@@ -1978,7 +1977,6 @@ logs-volatile-lost-on-reboot = ⚠ VOLÁTIL — SE PIERDE AL REINICIAR
 logs-no-age-limit = sin límite de antigüedad
 logs-no-size-cap = sin límite de tamaño
 logs-persistent = { $days } · { $size } PERSISTENTE
-logs-explain = ✦ EXPLICAR
 logs-boundaries = ⚙ LÍMITES: { $bound_text }
 logs-live-tail-on = EN DIRECTO
 logs-paused = EN PAUSA
@@ -2014,12 +2012,15 @@ logs-copy-message = COPIAR MENSAJE
 logs-copy-json = COPIAR JSON
 logs-asking-about-lines = Preguntando a { $provider } sobre { $lines_sent } líneas…
 logs-lines-sent = { $provider } · { $lines_sent } líneas enviadas
-logs-get-a-plain-english-reading = Obtén una lectura en lenguaje llano de las líneas en pantalla: qué está pasando, qué parece ir mal, las causas probables y qué comprobar después.
+logs-wand-title = EXPLICAR ESTA LÍNEA
+logs-wand-tooltip = Explicar esta línea a partir de las que la rodean
+logs-wand-scope-process = Con las líneas del mismo proceso ({ $pid }, { $unit }), 10 minutos antes y después.
+logs-wand-scope-unit = Con las líneas de la misma unidad ({ $unit }), 5 minutos antes y después.
+logs-wand-scope-moment = Con las líneas de todo el sistema, un minuto antes y después.
+logs-wand-reading = Leyendo las líneas que la rodean…
+logs-wand-hint = Pasa el ratón por una línea del registro y pulsa su varita para que te la expliquen a partir de las que la rodean.
+logs-wand-sends = Envía la línea que elijas y sus líneas relacionadas (sin nombres de host) a { $p }. No se envía nada hasta que pulses una varita.
 
-logs-explain-logs = ✦ EXPLICAR REGISTROS
-logs-working = trabajando…
-logs-no-provider = ningún proveedor
-logs-sends-the-log-lines-on = Envía a { $p } las líneas de registro en pantalla (no los nombres de host). No se envía nada hasta que hagas clic.
 logs-add-an-api-key-for = Añade una clave de API para un proveedor en Ajustes → Clankers para activarlo.
 
 ## logs-retention-modal
@@ -3653,10 +3654,6 @@ fleet-overview-host-count = · { $count ->
        *[other] { $count } hosts
     }
 settings-clankers-all-time = { $count } en total
-logs-explain-lines = EXPLICAR { $count } { $count ->
-        [one] LÍNEA
-       *[other] LÍNEAS
-    }
 
 app-configs-value-placeholder = valor
 fleet-alert-lines-down-now = { $reason } · avisa si sigue caído en la próxima comprobación

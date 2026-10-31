@@ -248,6 +248,16 @@ pub fn explain_logs_with_fallback(primary: &ClankerProviderConfig, backup: Optio
     with_fallback(primary, backup, |p| explain_logs(p, context, logs))
 }
 
+const LINE_PROMPT: &str = "You are a senior Linux site reliability engineer. The operator picked one systemd journal line, marked with \"→\", and wants to know what it means. You also get the lines around it from the same process, unit or moment. Answer in this exact shape:\nVERDICT: <FINE|WORTH A LOOK|PROBLEM> - <one short reason>\n\nWhat it means: <one or two sentences, plain words>\nWhy: <what led to it, judging by the lines around it; quote the ones that matter>\nWhat to do: <exact commands where useful, or that nothing needs doing>\n\nFINE is routine and healthy, WORTH A LOOK is unusual but not failing, PROBLEM is something failing or at risk. Do not invent details that are not in the lines.";
+
+/// One picked line (marked "→ " in `logs`) explained from its related
+/// lines, as a verdict (ERR-198). `context` says where the lines came from,
+/// never which host.
+pub fn explain_line(primary: &ClankerProviderConfig, backup: Option<&ClankerProviderConfig>, context: &str, logs: &str) -> Result<Answer, String> {
+    let user = format!("{context}\n\nJournal lines:\n{logs}");
+    with_fallback(primary, backup, |p| send(p, &chat_config(p, LINE_PROMPT, &user, 900)))
+}
+
 /// Asks `provider` to explain `logs` (already capped by the caller).
 /// `context` says what the lines are (filters, time range), never which host.
 pub fn explain_logs(provider: &ClankerProviderConfig, context: &str, logs: &str) -> Result<String, String> {

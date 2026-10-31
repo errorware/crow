@@ -239,7 +239,6 @@ app-incidents-the-last = { $name }、直近 { $secs }
 
 ## app-journal
 app-journal-no-ai-provider-has-an = API キーを持つ AI プロバイダーがありません。設定 → Clanker で追加してください。
-app-journal-there-are-no-log-lines = 説明する対象のログ行が画面にありません。
 app-journal-and-worse = { $label } 以上
 app-journal-answered-by-the-backup-the =
     予備の { $provider_label } が回答しました: メインが失敗しました（{ $why }）。
@@ -1950,7 +1949,6 @@ logs-volatile-lost-on-reboot = ⚠ 揮発 — 再起動で消える
 logs-no-age-limit = 期間の上限なし
 logs-no-size-cap = サイズの上限なし
 logs-persistent = { $days } · { $size } 永続
-logs-explain = ✦ 説明
 logs-boundaries = ⚙ 上限: { $bound_text }
 logs-live-tail-on = ライブ表示 オン
 logs-paused = 一時停止中
@@ -1986,12 +1984,15 @@ logs-copy-message = メッセージをコピー
 logs-copy-json = JSON をコピー
 logs-asking-about-lines = { $lines_sent } 行について { $provider } に問い合わせ中…
 logs-lines-sent = { $provider } · { $lines_sent } 行を送信
-logs-get-a-plain-english-reading = 画面上のログ行をわかりやすく説明します: 何が起きているか、何がおかしそうか、考えられる原因、次に確認すること。
+logs-wand-title = この行を説明
+logs-wand-tooltip = 前後の行からこの行を説明
+logs-wand-scope-process = 同じプロセス（{ $pid }、{ $unit }）の前後10分の行と一緒に。
+logs-wand-scope-unit = 同じユニット（{ $unit }）の前後5分の行と一緒に。
+logs-wand-scope-moment = システム全体の前後1分の行と一緒に。
+logs-wand-reading = 前後の行を読み込み中…
+logs-wand-hint = ログの行にカーソルを合わせ、杖を押すと前後の行からその行を説明します。
+logs-wand-sends = 選んだ行と関連する行（ホスト名は除く）を { $p } に送ります。杖を押すまで何も送信されません。
 
-logs-explain-logs = ✦ ログを説明
-logs-working = 処理中…
-logs-no-provider = プロバイダーなし
-logs-sends-the-log-lines-on = 画面上のログ行（ホスト名ではありません）を { $p } に送ります。クリックするまで何も送りません。
 logs-add-an-api-key-for = 有効にするには、設定 → Clanker でプロバイダーの API キーを追加してください。
 
 ## logs-retention-modal
@@ -3589,9 +3590,6 @@ fleet-overview-host-count = · { $count } { $count ->
        *[other] 台
     }
 settings-clankers-all-time = 通算 { $count }
-logs-explain-lines = { $count } { $count ->
-       *[other] 行
-    }を説明
 
 app-configs-value-placeholder = 値
 fleet-alert-lines-down-now = { $reason } · 次のチェックでも停止していればアラート
