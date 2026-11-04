@@ -243,6 +243,30 @@ fn w10_rails_app_on_dokku(cx: &mut TestAppContext) {
         }
     }
 
+    step("Wire: the app's secrets never reach the ledger, in memory or in crow.db");
+    let db_password = url.split_once("://").and_then(|(_, r)| r.split_once('@')).and_then(|(auth, _)| auth.split_once(':')).map(|(_, p)| p.to_string()).expect("a password in DATABASE_URL");
+    let secrets = [master.clone(), crate::dokku::base64_encode(master.as_bytes()), db_password];
+    let events = crate::wire::recent_events();
+    let env_reads = events.iter().filter(|e| e.request_payload.contains("config:export")).count();
+    assert!(env_reads > 0, "the Env tab's reads are on the wire");
+    for e in &events {
+        for (i, secret) in secrets.iter().enumerate() {
+            for (field, text) in [("summary", &e.summary), ("request", &e.request_payload), ("response", &e.response_payload)] {
+                assert!(!text.contains(secret.as_str()), "secret #{i} in event {} {field}: {}", e.seq, e.summary);
+            }
+        }
+    }
+    let conn = rusqlite::Connection::open_with_flags(root.join("xdg/config/crow/crow.db"), rusqlite::OpenFlags::SQLITE_OPEN_READ_ONLY).unwrap();
+    let mut stmt = conn.prepare("SELECT summary || request_payload || response_payload || coalesce(error, '') FROM wire_log").unwrap();
+    let rows: Vec<String> = stmt.query_map([], |r| r.get(0)).unwrap().map(Result::unwrap).collect();
+    assert!(!rows.is_empty(), "wire_log persisted");
+    for (i, secret) in secrets.iter().enumerate() {
+        assert!(!rows.iter().any(|r| r.contains(secret.as_str())), "secret #{i} in wire_log");
+    }
+    let exported = events.iter().find(|e| e.request_payload.contains("config:export")).unwrap();
+    assert!(exported.response_payload.contains("\"RAILS_MASTER_KEY\":\"[REDACTED]\""), "keys kept, values blanked: {}", exported.response_payload);
+    step(&format!("  {} events, {env_reads} env reads, {} rows on disk: no secret in any", events.len(), rows.len()));
+
     step("Containers: Dokku's containers show up with what they use");
     act(cx, &app, w, |this, _, cx| this.set_view("containers", cx));
     let names: Vec<String> = app.read_with(cx, |this, _| this.containers.by_server.get(&srv_id).map(|s| s.containers.iter().map(|c| c.name.clone()).collect()).unwrap_or_default());

@@ -397,7 +397,12 @@ pub fn record_instant(
     seq
 }
 
-fn commit_event(ev: WireEvent) {
+fn commit_event(mut ev: WireEvent) {
+    // An app's environment coming back: keys yes, values never.
+    if redact::dumps_environment(&ev.request_payload) || redact::dumps_environment(&ev.summary) {
+        ev.response_payload = redact::scrub_environment(&ev.response_payload);
+        ev.error = ev.error.map(|e| redact::scrub_environment(&e));
+    }
     let mut persist_cb = None;
     if let Ok(mut l) = ledger().lock() {
         l.total_calls += 1;

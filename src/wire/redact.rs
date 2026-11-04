@@ -17,8 +17,81 @@ pub fn scrub_payload(text: &str) -> String {
         if idx > 0 {
             out.push('\n');
         }
-        out.push_str(&scrub_line(line));
+        out.push_str(&scrub_url_passwords(&scrub_line(line)));
     }
+    out
+}
+
+/// Commands whose output is an app's environment (`dokku config:export`,
+/// `config:show`, `config:get`, `config:set` echoing what it set): their
+/// replies are all secrets, in formats a line scrubber can't know.
+pub fn dumps_environment(request: &str) -> bool {
+    request.contains("dokku")
+        && ["config:export", "config:show", "config:get", "config:set", "config:unset", "config:bundle"]
+            .iter()
+            .any(|c| request.contains(c))
+}
+
+/// An app's environment with every value blanked and its keys kept, so the
+/// ledger still says which variables left: a JSON object, `KEY: value`
+/// and `KEY=value` lines and Dokku's banners as they are; anything else
+/// (a bare value, a truncated dump) is blanked whole.
+pub fn scrub_environment(text: &str) -> String {
+    if text.trim().is_empty() {
+        return text.to_string();
+    }
+    if let Ok(serde_json::Value::Object(map)) = serde_json::from_str(text.trim()) {
+        let blank: serde_json::Map<String, serde_json::Value> = map.into_iter().map(|(k, _)| (k, REDACTED.into())).collect();
+        return serde_json::Value::Object(blank).to_string();
+    }
+    text.lines().map(scrub_env_line).collect::<Vec<_>>().join("\n")
+}
+
+const REDACTED: &str = "[REDACTED]";
+
+fn scrub_env_line(line: &str) -> String {
+    let t = line.trim();
+    if t.is_empty() || t.starts_with("=====>") || t.starts_with("----->") || t.starts_with('!') || t == "… [truncated]" {
+        return line.to_string();
+    }
+    let body = t.strip_prefix("export ").unwrap_or(t);
+    if let Some(i) = body.find([':', '=']) {
+        let key = body[..i].trim();
+        let is_key = key.starts_with(|c: char| c.is_ascii_uppercase() || c == '_') && key.chars().all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_');
+        if is_key {
+            let indent = &line[..line.len() - line.trim_start().len()];
+            let export = if t.starts_with("export ") { "export " } else { "" };
+            let sep = &body[i..=i];
+            return format!("{indent}{export}{key}{sep}{}{REDACTED}", if sep == ":" { " " } else { "" });
+        }
+    }
+    REDACTED.to_string()
+}
+
+/// `scheme://user:password@host` → `scheme://user:[REDACTED]@host`, in any
+/// payload: database URLs travel in env dumps, service info and links.
+fn scrub_url_passwords(line: &str) -> String {
+    if !line.contains("://") {
+        return line.to_string();
+    }
+    let mut out = String::with_capacity(line.len());
+    let mut rest = line;
+    while let Some(i) = rest.find("://") {
+        let (head, tail) = rest.split_at(i + 3);
+        out.push_str(head);
+        let end = tail.find(|c: char| c.is_whitespace() || matches!(c, '/' | '"' | '\'' | '?' | '#' | '`' | '\\')).unwrap_or(tail.len());
+        let authority = &tail[..end];
+        match (authority.find(':'), authority.rfind('@')) {
+            (Some(colon), Some(at)) if colon < at => {
+                out.push_str(&authority[..=colon]);
+                out.push_str(REDACTED);
+                out.push_str(&authority[at..]);
+            }
+            _ => out.push_str(authority),
+        }
+        rest = &tail[end..];
+    }
+    out.push_str(rest);
     out
 }
 
@@ -74,7 +147,7 @@ fn scrub_line(line: &str) -> String {
     }
 
     // 5. Dokku encoded config:set commands (`config:set --encoded app KEY=b64...`)
-    if line.contains("config:set") && line.contains("--encoded") {
+    if line.contains("config:set") {
         return scrub_dokku_encoded_line(line);
     }
 
@@ -145,7 +218,7 @@ fn scrub_dokku_encoded_line(line: &str) -> String {
     let mut words: Vec<String> = Vec::new();
     let mut after_encoded = false;
     for w in line.split_whitespace() {
-        if w == "--encoded" {
+        if w == "--encoded" || w.ends_with("config:set") {
             after_encoded = true;
             words.push(w.to_string());
             continue;
@@ -189,5 +262,32 @@ mod tests {
         let dokku_cmd = "dokku config:set --encoded billing-api RAILS_MASTER_KEY=c2VjcmV0 DATABASE_URL=cG9zdGdyZXM=";
         let s2 = scrub_payload(dokku_cmd);
         assert_eq!(s2, "dokku config:set --encoded billing-api RAILS_MASTER_KEY=[REDACTED] DATABASE_URL=[REDACTED]");
+        assert_eq!(scrub_payload("dokku config:set shop SECRET_KEY_BASE=abc"), "dokku config:set shop SECRET_KEY_BASE=[REDACTED]");
+    }
+
+    #[test]
+    fn an_app_environment_keeps_its_keys_and_loses_its_values() {
+        // What Crow's SSH layer records for the Env tab's read.
+        let req = "sh -c 'if [ \"$(id -u)\" = 0 ]; then exec \"$@\"; else exec sudo -n -- \"$@\"; fi' crow-priv dokku config:export --format json quorum";
+        assert!(dumps_environment(req));
+        assert!(!dumps_environment("dokku ps:report quorum") && !dumps_environment("cat /etc/app/config:set"));
+        let json = r#"{"DATABASE_URL":"postgres://postgres:hunter2@dokku-postgres-db:5432/db","RAILS_MASTER_KEY":"0123abcd"}"#;
+        assert_eq!(scrub_environment(json), r#"{"DATABASE_URL":"[REDACTED]","RAILS_MASTER_KEY":"[REDACTED]"}"#);
+        // config:set echoes what it set.
+        let set = "-----> Setting config vars\n       RAILS_MASTER_KEY:   0123abcd\n       SOLID_QUEUE_IN_PUMA: true";
+        assert_eq!(scrub_environment(set), "-----> Setting config vars\n       RAILS_MASTER_KEY: [REDACTED]\n       SOLID_QUEUE_IN_PUMA: [REDACTED]");
+        assert_eq!(scrub_environment("export TOKEN='x'\nPORT=5000"), "export TOKEN=[REDACTED]\nPORT=[REDACTED]");
+        // A bare value (config:get) or a dump cut short: nothing to keep.
+        assert_eq!(scrub_environment("0123abcd"), "[REDACTED]");
+        assert_eq!(scrub_environment("{\"RAILS_MASTER_KEY\":\"0123\n… [truncated]"), "[REDACTED]\n… [truncated]");
+        assert_eq!(scrub_environment(" !     App quorum does not exist"), " !     App quorum does not exist");
+    }
+
+    #[test]
+    fn passwords_in_urls_are_blanked_anywhere() {
+        let info = "       Dsn:                 postgres://postgres:9f8e7d@dokku-postgres-quorum-db:5432/quorum_db";
+        assert_eq!(scrub_payload(info), "       Dsn:                 postgres://postgres:[REDACTED]@dokku-postgres-quorum-db:5432/quorum_db");
+        assert_eq!(scrub_payload("redis://:s3cret@cache:6379 and https://api.osv.dev/v1/query"), "redis://:[REDACTED]@cache:6379 and https://api.osv.dev/v1/query");
+        assert_eq!(scrub_payload("ssh://root@host:22"), "ssh://root@host:22", "no password, nothing to blank");
     }
 }
