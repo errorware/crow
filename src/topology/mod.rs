@@ -315,7 +315,7 @@ mod tests {
     #[test]
     fn a_servers_containers_hang_off_it_with_their_risks() {
         use crate::containers::{Container, PortMap, Runtime, Scan, Scope};
-        let c = |name: &str, state: &str, status: &str, ports: Vec<PortMap>| Container { runtime: Runtime::Docker, scope: Scope::Root, id: format!("{name}-id"), name: name.into(), image: "nginx".into(), state: state.into(), status: status.into(), health: None, ports, restarts: Some(0), labels: Default::default() };
+        let c = |name: &str, state: &str, status: &str, ports: Vec<PortMap>| Container { runtime: Runtime::Docker, scope: Scope::Root, id: format!("{name}-id"), name: name.into(), image: "nginx".into(), state: state.into(), status: status.into(), health: None, ports, restarts: Some(0), labels: Default::default(), usage: None };
         let public = PortMap { host_ip: "0.0.0.0".into(), host_port: "8080".into(), container: "80/tcp".into() };
         let local = PortMap { host_ip: "127.0.0.1".into(), host_port: "6379".into(), container: "6379/tcp".into() };
         let scan = Scan { containers: vec![c("web", "running", "Up 1 hour", vec![public]), c("cache", "running", "Up 1 hour", vec![local]), c("job", "exited", "Exited (1) 2 hours ago", vec![])], ..Default::default() };

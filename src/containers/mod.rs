@@ -107,6 +107,95 @@ pub struct Container {
     pub ports: Vec<PortMap>,
     pub restarts: Option<u32>,
     pub labels: BTreeMap<String, String>,
+    /// What it uses right now (ERR-200); `None` when stopped or the
+    /// runtime wouldn't say.
+    pub usage: Option<Usage>,
+}
+
+/// One `stats --no-stream` reading. Network and disk are totals since the
+/// container started.
+#[derive(Clone, Copy, Debug, Default, PartialEq)]
+pub struct Usage {
+    pub cpu_pct: f32,
+    pub mem_used: u64,
+    /// The container's limit, or the server's memory without one.
+    pub mem_limit: u64,
+    pub net_rx: u64,
+    pub net_tx: u64,
+    pub disk_read: u64,
+    pub disk_write: u64,
+    pub pids: u32,
+}
+
+impl Usage {
+    pub fn mem_pct(&self) -> f32 {
+        if self.mem_limit == 0 {
+            0.0
+        } else {
+            self.mem_used as f32 * 100.0 / self.mem_limit as f32
+        }
+    }
+}
+
+/// "274.4kB", "40.78MiB", "1.2GB", "0B" → bytes. Docker writes memory in
+/// binary units and I/O in decimal ones; Podman writes decimal throughout.
+pub fn parse_size(s: &str) -> Option<u64> {
+    let s = s.trim();
+    let split = s.find(|c: char| !(c.is_ascii_digit() || c == '.')).unwrap_or(s.len());
+    let (num, unit) = s.split_at(split);
+    let n: f64 = num.parse().ok()?;
+    let mult: f64 = match unit.trim() {
+        "" | "B" => 1.0,
+        "kB" | "KB" | "k" => 1e3,
+        "MB" | "M" => 1e6,
+        "GB" | "G" => 1e9,
+        "TB" | "T" => 1e12,
+        "KiB" | "Ki" => 1024.0,
+        "MiB" | "Mi" => 1024.0 * 1024.0,
+        "GiB" | "Gi" => 1024.0 * 1024.0 * 1024.0,
+        "TiB" | "Ti" => 1024.0 * 1024.0 * 1024.0 * 1024.0,
+        _ => return None,
+    };
+    Some((n * mult) as u64)
+}
+
+/// "1.2kB / 3MB" → both sides.
+fn parse_pair(s: &str) -> Option<(u64, u64)> {
+    let (a, b) = s.split_once('/')?;
+    Some((parse_size(a)?, parse_size(b)?))
+}
+
+/// "123.4 MB", "1.2 GB", "512 B": decimal, the way the runtimes print.
+pub fn human_size(n: u64) -> String {
+    const UNITS: [&str; 5] = ["B", "kB", "MB", "GB", "TB"];
+    let mut v = n as f64;
+    let mut i = 0;
+    while v >= 1000.0 && i < UNITS.len() - 1 {
+        v /= 1000.0;
+        i += 1;
+    }
+    if i == 0 {
+        format!("{n} B")
+    } else if v >= 100.0 {
+        format!("{v:.0} {}", UNITS[i])
+    } else {
+        format!("{v:.1} {}", UNITS[i])
+    }
+}
+
+/// One line of `stats --no-stream --format STATS_FORMAT`: the id (full
+/// from Docker, short from Podman) and what it uses.
+pub fn parse_stats_line(line: &str) -> Option<(String, Usage)> {
+    let f: Vec<&str> = line.split('\t').collect();
+    if f.len() < 7 {
+        return None;
+    }
+    let cpu_pct = f[1].trim().trim_end_matches('%').parse().ok()?;
+    let (mem_used, mem_limit) = parse_pair(f[2])?;
+    let (net_rx, net_tx) = parse_pair(f[4]).unwrap_or_default();
+    let (disk_read, disk_write) = parse_pair(f[5]).unwrap_or_default();
+    let pids = f[6].trim().parse().unwrap_or(0);
+    Some((f[0].trim().to_string(), Usage { cpu_pct, mem_used, mem_limit, net_rx, net_tx, disk_read, disk_write, pids }))
 }
 
 impl Container {
@@ -163,6 +252,7 @@ pub struct Stack {
     pub running: usize,
 }
 
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Scan {
     pub login_is_root: bool,
@@ -199,6 +289,12 @@ impl Scan {
         stacks
     }
 
+    /// What a set of containers uses together: CPU and memory summed.
+    pub fn total_usage<'a>(&'a self, keys: impl IntoIterator<Item = &'a String>) -> Option<(f32, u64)> {
+        let usages: Vec<Usage> = keys.into_iter().filter_map(|k| self.find(k)).filter_map(|c| c.usage).collect();
+        (!usages.is_empty()).then(|| (usages.iter().map(|u| u.cpu_pct).sum(), usages.iter().map(|u| u.mem_used).sum()))
+    }
+
     pub fn find(&self, key: &str) -> Option<&Container> {
         self.containers.iter().find(|c| c.key() == key)
     }
@@ -209,13 +305,15 @@ impl Scan {
     }
 }
 
-/// One round trip: for each runtime, its version, compose, `ps` and (for
-/// Docker) restart counts, as the user and, where that's how it's reached,
-/// through `sudo -n`.
+/// One round trip: for each runtime, its version, compose, `ps`, (for
+/// Docker) restart counts and what the running ones use, as the user and,
+/// where that's how it's reached, through `sudo -n`.
 pub const SCAN_SCRIPT: &str = r#"
 uid=$(id -u)
 echo "@@uid $uid"
 run() { sc=$1; shift; if [ "$sc" = root ] && [ "$uid" != 0 ]; then sudo -n -- "$@"; else "$@"; fi; }
+# A wedged container can hang `stats`; it never holds up the rest.
+lim=""; command -v timeout >/dev/null 2>&1 && lim="timeout 15"
 scan() {
   rt=$1; sc=$2
   echo "@@begin $rt $sc"
@@ -236,6 +334,8 @@ scan() {
   else
     run "$sc" podman ps -a --format json
   fi
+  echo "@@stats"
+  run "$sc" $lim "$rt" stats --no-stream --format '{{.ID}}\t{{.CPUPerc}}\t{{.MemUsage}}\t{{.MemPerc}}\t{{.NetIO}}\t{{.BlockIO}}\t{{.PIDs}}' 2>/dev/null
   echo "@@end"
 }
 for rt in docker podman; do
@@ -339,6 +439,7 @@ pub fn parse_docker_line(line: &str, scope: Scope) -> Option<Container> {
         ports: parse_docker_ports(&s(&v, "Ports")),
         restarts: None,
         labels: parse_labels_str(&s(&v, "Labels")),
+        usage: None,
     })
 }
 
@@ -377,6 +478,7 @@ pub fn parse_podman_json(json: &str, scope: Scope) -> Vec<Container> {
                 ports,
                 restarts: v.get("Restarts").and_then(Value::as_u64).map(|r| r as u32),
                 labels,
+                usage: None,
             }
         })
         .collect()
@@ -408,6 +510,7 @@ pub fn parse_scan(out: &str) -> Scan {
             let (mut version, mut compose, mut error) = (None, None, None);
             let mut body = String::new();
             let mut restarts: Vec<(String, u32)> = Vec::new();
+            let mut usage: Vec<(String, Usage)> = Vec::new();
             let mut section = "";
             for l in lines.by_ref() {
                 if l == "@@end" {
@@ -422,6 +525,10 @@ pub fn parse_scan(out: &str) -> Scan {
                     section = "ps";
                 } else if l == "@@restarts" {
                     section = "restarts";
+                } else if l == "@@stats" {
+                    section = "stats";
+                } else if section == "stats" {
+                    usage.extend(parse_stats_line(l));
                 } else if section == "ps" {
                     body.push_str(l);
                     body.push('\n');
@@ -451,6 +558,9 @@ pub fn parse_scan(out: &str) -> Scan {
             for c in &mut containers {
                 if let Some((_, n)) = restarts.iter().find(|(id, _)| *id == c.id) {
                     c.restarts = Some(*n);
+                }
+                if c.is_running() {
+                    c.usage = usage.iter().find(|(id, _)| !id.is_empty() && c.id.starts_with(id.as_str())).map(|(_, u)| *u);
                 }
             }
             // Root Podman with nothing in it isn't worth a line.
@@ -600,7 +710,7 @@ pub fn inspect(host: &dyn Host, c: &Container) -> Result<String, String> {
 
 #[cfg(test)]
 mod tests {
-    use super::{action_argv, health_from_status, mask_inspect, parse_docker_ports, parse_scan, stack_argv, Action, Runtime, RuntimeOutcome, Scope, StackAction};
+    use super::{action_argv, health_from_status, human_size, mask_inspect, parse_docker_ports, parse_scan, parse_size, parse_stats_line, stack_argv, Action, Runtime, RuntimeOutcome, Scope, StackAction};
 
     // Real output, Docker 29.8.2 with compose 5.6.0 (2026-10-08), trimmed.
     const DOCKER_PS: &str = r#"{"Command":"\"false\"","CreatedAt":"2026-10-08 08:08:19 +0000 UTC","HealthStatus":"none","ID":"2a28cd00442ea1a784adc856b83d353496b5dd969fcb890c9ad4fa111207d985","Image":"alpine","Labels":"","LocalVolumes":"0","Mounts":"","Names":"exited-one","Networks":"bridge","Ports":"","RunningFor":"7 seconds ago","State":"exited","Status":"Exited (1) 7 seconds ago"}
@@ -616,9 +726,14 @@ mod tests {
   {"Id": "infra0", "IsInfra": true, "Names": ["pod-infra"], "State": "running", "Status": "Up"}
 ]"#;
 
+    // `stats --no-stream` with Crow's format: Docker's ids are full, its
+    // memory binary; Podman's ids are short (real output, Podman 5.8.9).
+    const DOCKER_STATS: &str = "61d5a50a6cba9012a8ede2ee4aa1b4d81096fb7a42a40eae59f97266256fc692\t1.25%\t12.5MiB / 1.906GiB\t0.64%\t1.2kB / 830B\t0B / 4.1kB\t3\nded20e45de6f82b1726673c575b35f5c1db58a49be2f071fddcaa9f3a1c66b74\t0.30%\t3MiB / 1.906GiB\t0.15%\t0B / 0B\t0B / 0B\t5";
+    const PODMAN_STATS: &str = "db85def7d45d\t0.23%\t40.78MB / 29.08GB\t0.14%\t696B / 14.97kB\t285MB / 924.8MB\t6";
+
     fn scan_output(docker_user: &str) -> String {
         format!(
-            "@@uid 1000\n{docker_user}@@begin docker root\n@@version 29.8.2\n@@compose v5.6.0\n@@ps\n{DOCKER_PS}\n@@restarts\n61d5a50a6cba9012a8ede2ee4aa1b4d81096fb7a42a40eae59f97266256fc692 3\n@@end\n@@begin podman user\n@@version 5.8.7\n@@ps\n{PODMAN_PS}\n@@end\n@@begin podman root\n@@version 5.8.7\n@@ps\n[]\n@@end\n@@done\n"
+            "@@uid 1000\n{docker_user}@@begin docker root\n@@version 29.8.2\n@@compose v5.6.0\n@@ps\n{DOCKER_PS}\n@@restarts\n61d5a50a6cba9012a8ede2ee4aa1b4d81096fb7a42a40eae59f97266256fc692 3\n@@stats\n{DOCKER_STATS}\n@@end\n@@begin podman user\n@@version 5.8.7\n@@ps\n{PODMAN_PS}\n@@stats\n{PODMAN_STATS}\n@@end\n@@begin podman root\n@@version 5.8.7\n@@ps\n[]\n@@end\n@@done\n"
         )
     }
 
@@ -646,6 +761,33 @@ mod tests {
         let stack = stacks.iter().find(|s| s.project == "stack").unwrap();
         assert_eq!((stack.containers.len(), stack.running, stack.working_dir.as_deref()), (2, 2, Some("/root/stack")));
         assert_eq!(stack.config_files, vec!["/root/stack/compose.yaml"]);
+    }
+
+    #[test]
+    fn running_containers_carry_what_they_use() {
+        let scan = parse_scan(&scan_output(""));
+        let find = |n: &str| scan.containers.iter().find(|c| c.name == n).unwrap();
+        let web = find("stack-web-1").usage.expect("docker usage by full id");
+        assert_eq!((web.cpu_pct, web.mem_used, web.net_rx, web.net_tx, web.disk_write, web.pids), (1.25, 12 * 1024 * 1024 + 512 * 1024, 1200, 830, 4100, 3));
+        let probe = find("crow-ps-probe").usage.expect("podman usage by short id");
+        assert_eq!((probe.mem_used, probe.mem_limit, probe.disk_read), (40_780_000, 29_080_000_000, 285_000_000));
+        assert!((probe.mem_pct() - 0.14).abs() < 0.01);
+        assert_eq!(find("exited-one").usage, None);
+        let stack = scan.stacks().into_iter().find(|s| s.project == "stack").unwrap();
+        let (cpu, mem) = scan.total_usage(&stack.containers).unwrap();
+        assert!((cpu - 1.55).abs() < 0.001);
+        assert_eq!(mem, web.mem_used + 3 * 1024 * 1024);
+    }
+
+    #[test]
+    fn sizes_read_and_print_like_the_runtimes() {
+        assert_eq!(parse_size("0B"), Some(0));
+        assert_eq!(parse_size("274.4kB"), Some(274_400));
+        assert_eq!(parse_size(" 1.5GiB "), Some(1_610_612_736));
+        assert_eq!(parse_size("12 parsecs"), None);
+        assert_eq!(parse_stats_line("garbage"), None);
+        assert_eq!(parse_stats_line("abc\t--\t-- / --\t--\t--\t--\t--"), None, "a container still starting has no numbers yet");
+        assert_eq!((human_size(512), human_size(40_780_000), human_size(1_906_000_000), human_size(285_000_000)), ("512 B".into(), "40.8 MB".into(), "1.9 GB".into(), "285 MB".into()));
     }
 
     #[test]
@@ -715,7 +857,7 @@ fn live_container_scan() {
         eprintln!("runtime: {}", r.describe(scan.login_is_root));
     }
     for c in &scan.containers {
-        eprintln!("{:24} {:20} {:9} {:?} {:?} {:?}", c.name, c.image, c.state, c.health, c.restarts, c.published());
+        eprintln!("{:24} {:20} {:9} {:?} {:?} {:?} {:?}", c.name, c.image, c.state, c.health, c.restarts, c.published(), c.usage);
     }
     for s in scan.stacks() {
         eprintln!("stack {} {:?} {:?} {}/{}", s.project, s.working_dir, s.config_files, s.running, s.containers.len());

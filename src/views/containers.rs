@@ -9,14 +9,18 @@ use gpui_kit::*;
 use crate::app::containers::{ContainersState, DrawerTab, Pending};
 use crate::app::CrowApp;
 use crate::components::icons::{inherited_icon, TablerIcon};
-use crate::containers::{Action, Container, RuntimeOutcome, Scan, Stack, StackAction};
+use crate::containers::{human_size, Action, Container, RuntimeOutcome, Scan, Stack, StackAction, Usage};
 use crate::lab::multipass::InstallStep;
 use crate::theme::*;
 use crate::views::overview::service_inspector::{render_eli5, WAND};
 
-const W_IMAGE: f32 = 220.0;
+const W_NAME_MIN: f32 = 140.0;
+const W_IMAGE: f32 = 180.0;
 const W_STATE: f32 = 150.0;
-const W_PORTS: f32 = 230.0;
+const W_CPU: f32 = 56.0;
+const W_MEM: f32 = 96.0;
+const W_NET: f32 = 120.0;
+const W_PORTS: f32 = 190.0;
 const W_RESTARTS: f32 = 70.0;
 const W_RUNTIME: f32 = 110.0;
 
@@ -171,7 +175,7 @@ fn body(scan: &Scan, st: &ContainersState, app: Entity<CrowApp>) -> impl IntoEle
                     .flex()
                     .flex_col()
                     .child(div().flex().items_center().gap(px(8.0)).pb(px(6.0)).child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("containers-standalone"))).child(mono(9.5, TEXT_FAINT).child(t!("containers-not-in-a-compose-stack", count = standalone.len()))))
-                    .child(table_head())
+                    .child(table_head(st.selected.is_some()))
                     .children(standalone.iter().map(|c| row(c, st, app.clone()))),
             )
         })
@@ -204,6 +208,7 @@ fn stack_section(stack: &Stack, scan: &Scan, st: &ContainersState, app: Entity<C
                 .child(inherited_icon(TablerIcon::Box, px(13.0)).text_color(TEXT_DIM))
                 .child(mono(10.5, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(stack.project.clone()))
                 .child(mono(9.5, if stack.running == members.len() { OK } else { WARN }).child(t!("containers-running-3", running = stack.running, count = members.len())))
+                .children(scan.total_usage(&stack.containers).map(|(cpu, mem)| mono(9.5, TEXT_TERTIARY).child(t!("containers-stack-uses", cpu = format!("{cpu:.1}%"), mem = human_size(mem)))))
                 .children(stack.working_dir.clone().map(|d| mono(9.5, TEXT_FAINT).child(d)))
                 .child(mono(9.5, TEXT_FAINT).child(stack.runtime.label()))
                 .child(div().flex_1())
@@ -219,7 +224,7 @@ fn stack_section(stack: &Stack, scan: &Scan, st: &ContainersState, app: Entity<C
             };
             confirm_row(what, crate::containers::stack_argv(stack, action).map(|a| a.join(" ")).unwrap_or_else(|e| e), app.clone())
         }))
-        .child(table_head())
+        .child(table_head(st.selected.is_some()))
         .children(members.into_iter().map(|c| row(c, st, app.clone())))
 }
 
@@ -239,12 +244,14 @@ fn confirm_row(question: &'static str, command: String, app: Entity<CrowApp>) ->
         .child(button("btn-container-cancel", t!("containers-cancel"), TEXT_DIM).on_click(move |_ev, _window, cx| app_no.update(cx, |this, cx| this.cancel_container_pending(cx))))
 }
 
-fn table_head() -> impl IntoElement {
+/// With the drawer open there's room for the name, its state and what it
+/// uses; the rest comes back when it closes.
+fn table_head(compact: bool) -> impl IntoElement {
     let cell = |w: Option<f32>, text: &'static str| {
         let d = mono(9.0, TEXT_FAINT).font_weight(FontWeight::SEMIBOLD).child(text);
         match w {
             Some(w) => d.w(px(w)).flex_none(),
-            None => d.flex_1().min_w(px(0.0)),
+            None => d.flex_1().min_w(px(W_NAME_MIN)),
         }
     };
     div()
@@ -257,11 +264,59 @@ fn table_head() -> impl IntoElement {
         .border_1()
         .border_color(BORDER_PANEL)
         .child(cell(None, t!("containers-name")))
-        .child(cell(Some(W_IMAGE), t!("containers-image")))
+        .when(!compact, |d| d.child(cell(Some(W_IMAGE), t!("containers-image"))))
         .child(cell(Some(W_STATE), t!("containers-state")))
-        .child(cell(Some(W_PORTS), t!("containers-published-ports")))
-        .child(cell(Some(W_RESTARTS), t!("containers-restarts")))
-        .child(cell(Some(W_RUNTIME), t!("containers-runtime")))
+        .child(cell(Some(W_CPU), t!("containers-cpu")))
+        .child(cell(Some(W_MEM), t!("containers-memory")))
+        .when(!compact, |d| {
+            d.child(cell(Some(W_NET), t!("containers-net-io")))
+                .child(cell(Some(W_PORTS), t!("containers-published-ports")))
+                .child(cell(Some(W_RESTARTS), t!("containers-restarts")))
+                .child(cell(Some(W_RUNTIME), t!("containers-runtime")))
+        })
+}
+
+/// CPU % (amber from 80, red from 100: more than one core's worth), memory
+/// with a bar against its limit, and network totals.
+fn usage_cells(u: Option<Usage>, compact: bool) -> impl IntoElement {
+    let dash = |w: f32| mono(10.0, TEXT_GHOST).w(px(w)).flex_none().child("—");
+    let Some(u) = u else {
+        return div().flex().gap(px(10.0)).child(dash(W_CPU)).child(dash(W_MEM)).when(!compact, |d| d.child(dash(W_NET)));
+    };
+    let cpu_color = if u.cpu_pct >= 100.0 { CRIT } else if u.cpu_pct >= 80.0 { WARN } else { TEXT_SECONDARY };
+    let mem_pct = u.mem_pct();
+    let mem_color = if mem_pct >= 90.0 { CRIT } else if mem_pct >= 75.0 { WARN } else { OK };
+    div()
+        .flex()
+        .items_center()
+        .gap(px(10.0))
+        .child(mono(10.5, cpu_color).w(px(W_CPU)).flex_none().child(format!("{:.1}%", u.cpu_pct)))
+        .child(
+            div()
+                .w(px(W_MEM))
+                .flex_none()
+                .flex()
+                .flex_col()
+                .gap(px(3.0))
+                .child(mono(10.5, TEXT_SECONDARY).child(human_size(u.mem_used)))
+                .child(div().h(px(2.0)).w_full().bg(BORDER_PANEL).child(div().h_full().w(relative((mem_pct / 100.0).clamp(0.0, 1.0))).bg(mem_color))),
+        )
+        .when(!compact, |d| d.child(mono(10.0, TEXT_TERTIARY).w(px(W_NET)).flex_none().whitespace_nowrap().child(format!("↓{} ↑{}", human_size(u.net_rx), human_size(u.net_tx)))))
+}
+
+/// The drawer's "what it uses now".
+fn usage_panel(u: Usage) -> impl IntoElement {
+    let stat = |label: &'static str, value: String| div().flex().flex_col().gap(px(2.0)).child(mono(8.5, TEXT_FAINT).font_weight(FontWeight::SEMIBOLD).child(label)).child(mono(10.5, TEXT_SECONDARY).child(value));
+    div()
+        .flex()
+        .flex_wrap()
+        .gap_x(px(18.0))
+        .gap_y(px(8.0))
+        .child(stat(t!("containers-cpu"), format!("{:.1}%", u.cpu_pct)))
+        .child(stat(t!("containers-memory"), format!("{} / {} ({:.0}%)", human_size(u.mem_used), human_size(u.mem_limit), u.mem_pct())))
+        .child(stat(t!("containers-network-in-out"), format!("↓{} ↑{}", human_size(u.net_rx), human_size(u.net_tx))))
+        .child(stat(t!("containers-disk-read-write"), format!("{} / {}", human_size(u.disk_read), human_size(u.disk_write))))
+        .child(stat(t!("containers-processes"), u.pids.to_string()))
 }
 
 fn ports_cell(c: &Container) -> impl IntoElement {
@@ -287,6 +342,7 @@ fn row(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl IntoEl
         _ => c.state.clone(),
     };
     let restarts = c.restarts.unwrap_or(0);
+    let compact = st.selected.is_some();
     div()
         .id(ElementId::Name(format!("container-row-{key}").into()))
         .flex()
@@ -305,7 +361,7 @@ fn row(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl IntoEl
         .child(
             div()
                 .flex_1()
-                .min_w(px(0.0))
+                .min_w(px(W_NAME_MIN))
                 .flex()
                 .items_center()
                 .gap(px(8.0))
@@ -313,11 +369,14 @@ fn row(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl IntoEl
                 .child(mono(11.0, TEXT_PRIMARY).whitespace_nowrap().overflow_hidden().text_ellipsis().child(c.name.clone()))
                 .children(c.service().filter(|s| !c.name.contains(*s)).map(|s| mono(9.5, TEXT_FAINT).child(s.to_string()))),
         )
-        .child(mono(10.5, TEXT_TERTIARY).w(px(W_IMAGE)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(c.image.clone()))
+        .when(!compact, |d| d.child(mono(10.5, TEXT_TERTIARY).w(px(W_IMAGE)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(c.image.clone())))
         .child(div().w(px(W_STATE)).flex_none().flex().flex_col().child(mono(10.5, color).child(state_text)).child(mono(9.0, TEXT_FAINT).whitespace_nowrap().overflow_hidden().text_ellipsis().child(c.status.clone())))
-        .child(ports_cell(c))
-        .child(mono(10.5, if restarts > 0 { WARN } else { TEXT_DIM }).w(px(W_RESTARTS)).flex_none().child(c.restarts.map(|r| r.to_string()).unwrap_or_else(|| "—".into())))
-        .child(mono(10.0, TEXT_DIM).w(px(W_RUNTIME)).flex_none().child(format!("{}{}", c.runtime.cmd(), if c.scope == crate::containers::Scope::Root { t!("containers-root") } else { "" })))
+        .child(usage_cells(c.usage, compact))
+        .when(!compact, |d| {
+            d.child(ports_cell(c))
+                .child(mono(10.5, if restarts > 0 { WARN } else { TEXT_DIM }).w(px(W_RESTARTS)).flex_none().child(c.restarts.map(|r| r.to_string()).unwrap_or_else(|| "—".into())))
+                .child(mono(10.0, TEXT_DIM).w(px(W_RUNTIME)).flex_none().child(format!("{}{}", c.runtime.cmd(), if c.scope == crate::containers::Scope::Root { t!("containers-root") } else { "" })))
+        })
 }
 
 fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl IntoElement {
@@ -429,6 +488,7 @@ fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl Int
                 )
                 .child(mono(10.5, TEXT_TERTIARY).child(format!("{} · {} · {}", c.image, c.short_id(), c.runtime.label())))
                 .child(mono(10.0, TEXT_DIM).child(c.status.clone()))
+                .children(c.usage.map(usage_panel))
                 .when(st.eli5_open, |d| d.child(render_eli5(st.eli5_loading.contains(&eli5_key), st.eli5.get(&eli5_key))))
                 .child(div().flex().gap(px(6.0)).children(actions.into_iter().map(|(action, color)| {
                     let (app, key) = (app.clone(), key.clone());
