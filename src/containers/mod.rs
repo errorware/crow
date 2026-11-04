@@ -3,6 +3,7 @@
 //! lists every runtime the server has, its containers and their compose
 //! stacks; actions and logs run the runtime's own CLI the same way.
 
+pub mod alerts;
 pub mod history;
 
 use std::collections::BTreeMap;
@@ -295,6 +296,16 @@ impl Scan {
     pub fn total_usage<'a>(&'a self, keys: impl IntoIterator<Item = &'a String>) -> Option<(f32, u64)> {
         let usages: Vec<Usage> = keys.into_iter().filter_map(|k| self.find(k)).filter_map(|c| c.usage).collect();
         (!usages.is_empty()).then(|| (usages.iter().map(|u| u.cpu_pct).sum(), usages.iter().map(|u| u.mem_used).sum()))
+    }
+
+    /// For Fleet (ERR-202): (running, total, unhealthy, restarting), or
+    /// `None` without containers.
+    pub fn summary(&self) -> Option<(usize, usize, usize, usize)> {
+        let all = &self.containers;
+        (!all.is_empty()).then(|| {
+            let count = |f: &dyn Fn(&Container) -> bool| all.iter().filter(|c| f(c)).count();
+            (count(&|c| c.is_running()), all.len(), count(&|c| c.is_running() && c.health.as_deref() == Some("unhealthy")), count(&|c| c.state == "restarting"))
+        })
     }
 
     pub fn find(&self, key: &str) -> Option<&Container> {

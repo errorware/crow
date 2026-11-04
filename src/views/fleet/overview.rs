@@ -42,6 +42,8 @@ pub struct FleetHost {
     pub country: String,
     /// The os-release name, for its logo ("" when not read yet).
     pub distro: String,
+    /// Its containers at a glance (ERR-202): the text and its color.
+    pub containers: Option<(String, Rgba)>,
 }
 
 pub fn fleet_stat_strip(
@@ -187,6 +189,7 @@ pub fn fleet_overview_view(
     alert_lines: &[crate::views::fleet::alert_lines::AlertLine],
     watch_gap: Option<(i64, i64)>,
     plugins: &crate::app::plugins::PluginsState,
+    containers: &HashMap<String, crate::containers::Scan>,
 ) -> impl IntoElement {
     // The buttons the enabled plugins add (ERR-138).
     let mut lab_buttons: Vec<&'static str> = Vec::new();
@@ -251,6 +254,12 @@ pub fn fleet_overview_view(
                 is_selected: s.id == fleet.active_tab_id,
                 country: s.region_country.clone(),
                 distro: s.os_distro.clone(),
+                containers: containers.get(&s.id).and_then(|scan| scan.summary()).map(|(running, total, unhealthy, restarting)| {
+                    // The cell is narrow: the color says something's wrong,
+                    // the container's alert says what.
+                    let color = if unhealthy > 0 { CRIT } else if restarting > 0 { WARN } else { TEXT_DIM };
+                    (format!("{running}/{total}"), color)
+                }),
             }
         }).collect()
     } else {
@@ -1409,6 +1418,9 @@ fn render_fleet_host_row(
                         .overflow_hidden()
                         .flex()
                         .gap(px(4.0))
+                        .children(host.containers.clone().map(|(text, color)| {
+                            crate::components::button::badge(color).text_size(px(8.5)).child(crate::components::icons::inherited_icon(crate::components::icons::TablerIcon::Box, px(9.0))).child(text)
+                        }))
                         .children(crate::plugin_host::badges::for_server(&host.id).iter().map(|b| crate::components::plugin_badge::badge_chip(b, 8.5))),
                 ),
         )

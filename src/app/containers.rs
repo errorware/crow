@@ -216,17 +216,23 @@ impl CrowApp {
                 .await;
             let _ = entity.update(cx, |this, cx| {
                 this.containers.sampling = false;
-                let mut samples = Vec::new();
+                let db = this.vault.db();
+                let open = db.lock().ok().and_then(|db| db.list_alerts(i64::MAX).ok()).unwrap_or_default();
+                let (mut samples, mut alerts) = (Vec::new(), Vec::new());
                 for (server_id, scan) in scans {
                     let Ok(scan) = scan else { continue };
                     if scan.runtimes.is_empty() {
                         this.containers.no_runtime_until.insert(server_id.clone(), now + NO_RUNTIME_RECHECK_SECS);
                     }
                     samples.extend(history::samples_from(&server_id, now, &scan));
+                    alerts.push(containers::alerts::container_changes(&open, &server_id, this.containers.by_server.get(&server_id), &scan, now));
                     this.containers.by_server.insert(server_id, scan);
                 }
-                if let Ok(db) = this.vault.db().lock() {
+                if let Ok(db) = db.lock() {
                     let _ = db.insert_container_samples(&samples);
+                    for changes in &alerts {
+                        let _ = db.apply_alert_changes(changes, now);
+                    }
                 }
                 if this.containers.tab == DrawerTab::Usage {
                     this.load_container_usage();

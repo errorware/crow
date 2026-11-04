@@ -246,6 +246,7 @@ fn kind_label(kind: &str) -> String {
         "unreachable" => "unreachable".into(),
         "disk" => "disk".into(),
         "host_key_age" => "host key age".into(),
+        k if crate::containers::alerts::container_of(k).is_some() => format!("container {}", crate::containers::alerts::container_of(k).unwrap_or_default()),
         k => k.strip_prefix("service:").map(|u| format!("service {u}")).unwrap_or_else(|| k.replace('_', " ")),
     }
 }
