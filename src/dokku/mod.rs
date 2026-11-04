@@ -396,7 +396,10 @@ echo "@@global_domains"
 dk domains:report --global 2>/dev/null
 
 echo "@@global_letsencrypt"
-le_email=$(dk config:get --global DOKKU_LETSENCRYPT_EMAIL 2>/dev/null | head -1)
+# letsencrypt:set --global keeps it in the plugin's own report; older
+# setups had it as a global env var.
+le_email=$(dk letsencrypt:report --global --letsencrypt-global-email 2>/dev/null | head -1)
+[ -n "$le_email" ] || le_email=$(dk config:get --global DOKKU_LETSENCRYPT_EMAIL 2>/dev/null | head -1)
 echo "email: $le_email"
 if crontab -l -u dokku 2>/dev/null | grep -q 'letsencrypt' || [ -f /etc/cron.d/dokku-letsencrypt ]; then
   echo "cron: true"
@@ -704,13 +707,7 @@ pub fn parse_scan(out: &str) -> Scan {
                 if !trimmed.is_empty() && !trimmed.starts_with("----") && !trimmed.starts_with("App name") {
                     let mut parts = trimmed.split_whitespace();
                     if let Some(app_name) = parts.next() {
-                        let rest = parts.collect::<Vec<_>>().join(" ");
-                        let days = rest
-                            .split("days")
-                            .next()
-                            .and_then(|before| before.split_whitespace().last())
-                            .and_then(|n| n.parse::<i64>().ok());
-                        le_apps.insert(app_name.to_string(), days);
+                        le_apps.insert(app_name.to_string(), expiry_days(&parts.collect::<Vec<_>>()));
                     }
                 }
             }
@@ -781,6 +778,10 @@ pub fn parse_scan(out: &str) -> Scan {
                         if let Some((k, v)) = report_kv(line) {
                             let kl = k.to_lowercase();
                             if (kl == "port map" || kl == "ports map") && !v.is_empty() {
+                                app.ports = parse_port_mappings(v);
+                            } else if kl == "ports map detected" && app.ports.is_empty() {
+                                // 0.35: an app nobody set ports for lists
+                                // what Dokku picked (from EXPOSE) here only.
                                 app.ports = parse_port_mappings(v);
                             }
                         }
@@ -861,6 +862,20 @@ pub fn parse_scan(out: &str) -> Scan {
     scan.apps.sort_by(|a, b| a.name.cmp(&b.name));
     scan.services.sort_by(|a, b| (a.kind, &a.name).cmp(&(b.kind, &b.name)));
     scan
+}
+
+/// Days to expiry from a `letsencrypt:list` row after the app name:
+/// `2027-02-02 21:29:22  89d, 23h, 1m, 6s  59d, ...` (the first `Nd` is
+/// the time before expiry), or `... 89 days ...`.
+fn expiry_days(cols: &[&str]) -> Option<i64> {
+    cols.iter().enumerate().find_map(|(i, c)| {
+        let c = c.trim_end_matches(',');
+        match c.strip_suffix('d') {
+            Some(n) => n.parse().ok(),
+            None if c == "days" => cols.get(i.wrapping_sub(1)).and_then(|n| n.parse().ok()),
+            None => None,
+        }
+    })
 }
 
 /// Runs `SCAN_SCRIPT` on `host`.
@@ -1326,6 +1341,26 @@ release:  0
 /var/lib/dokku/data/storage/rails-shop:/rails/storage
 @@done
 "#;
+
+    #[test]
+    fn letsencrypt_expiry_reads_as_the_plugin_prints_it() {
+        // dokku-letsencrypt 0.19 on Dokku 0.35.15.
+        let row = "2027-02-02 21:29:22       89d, 23h, 1m, 6s          59d, 23h, 1m, 6s";
+        assert_eq!(expiry_days(&row.split_whitespace().collect::<Vec<_>>()), Some(89));
+        assert_eq!(expiry_days(&["2026-12-25", "12:00:00", "51d", "14h"]), Some(51));
+        assert_eq!(expiry_days(&["2026-12-25", "12:00:00", "12", "days"]), Some(12));
+        assert_eq!(expiry_days(&["expired"]), None);
+    }
+
+    #[test]
+    fn ports_dokku_detected_count_when_none_were_set() {
+        // As Dokku 0.35.15 prints it for an app deployed from a Dockerfile.
+        let out = "@@app quorum\n@@sub ports\n=====> quorum ports information\n       Ports map:                     \n       Ports map detected:            http:80:80\n@@done\n";
+        let ports = &parse_scan(out).apps[0].ports;
+        assert_eq!(ports.iter().map(|p| p.spec()).collect::<Vec<_>>(), vec!["http:80:80"]);
+        let set = "@@app quorum\n@@sub ports\n       Ports map:                     http:80:5000\n       Ports map detected:            http:80:80\n@@done\n";
+        assert_eq!(parse_scan(set).apps[0].ports.iter().map(|p| p.spec()).collect::<Vec<_>>(), vec!["http:80:5000"], "what was set wins");
+    }
 
     #[test]
     fn parses_full_rails_scan() {

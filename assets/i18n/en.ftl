@@ -3964,6 +3964,7 @@ dokku-tls-enabled = Let's Encrypt / TLS certificate active
 dokku-tls-disabled = No TLS certificate configured for this app
 dokku-btn-renew-le = RENEW CERT
 dokku-btn-enable-le = ENABLE LET'S ENCRYPT
+dokku-le-email-needed = Let's Encrypt needs a contact email first; it's kept for every app on this server
 dokku-domains-heading = APP VHOST DOMAINS
 dokku-no-domains = No domains configured for this app.
 dokku-btn-watch-checks = WATCH IN CHECKS

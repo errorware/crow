@@ -3925,6 +3925,7 @@ dokku-tls-enabled = Let's Encrypt / TLS 証明書が有効です
 dokku-tls-disabled = TLS 証明書が未設定です
 dokku-btn-renew-le = 証明書を更新
 dokku-btn-enable-le = LET'S ENCRYPT を有効化
+dokku-le-email-needed = Let's Encrypt には先に連絡先メールが必要です。このサーバーのすべてのアプリで使われます
 dokku-domains-heading = アプリのドメイン
 dokku-no-domains = ドメインが設定されていません。
 dokku-btn-watch-checks = チェックで監視

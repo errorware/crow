@@ -29,3 +29,5 @@ mod w07_key_rotation;
 mod w08_host_keys;
 #[cfg(test)]
 mod w09_drift;
+#[cfg(test)]
+mod w10_dokku;

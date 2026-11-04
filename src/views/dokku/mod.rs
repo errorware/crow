@@ -4,7 +4,7 @@
 
 use std::collections::{BTreeMap, HashSet};
 
-use gpui_kit::component::input::{Input, InputState};
+use gpui_kit::component::input::{Input, InputState, Textarea};
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
@@ -1159,7 +1159,7 @@ fn app_drawer(
             drawer_overview_tab(a, st, inputs, containers_scan, app.clone()).into_any_element()
         }
         DokkuDrawerTab::Env => drawer_env_tab(a, st, inputs, app.clone()).into_any_element(),
-        DokkuDrawerTab::Domains => drawer_domains_tab(a, inputs, app.clone()).into_any_element(),
+        DokkuDrawerTab::Domains => drawer_domains_tab(a, &scan.letsencrypt_email, inputs, app.clone()).into_any_element(),
         DokkuDrawerTab::Services => {
             drawer_services_tab(a, scan, st, app.clone()).into_any_element()
         }
@@ -1682,9 +1682,11 @@ fn drawer_env_tab(
             d.child(
                 div()
                     .flex()
-                    .items_center()
+                    .items_end()
                     .gap(px(6.0))
-                    .child(text_input(inputs.map(|i| &i.dotenv_blob)))
+                    .child(div().flex_1().min_w(px(0.0)).children(inputs.map(|i| {
+                        Textarea::new(&i.dotenv_blob).h(px(110.0)).w_full().font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP)
+                    })))
                     .child(
                         button("btn-dokku-env-stage-blob", t!("dokku-btn-import-dotenv"), OK)
                             .on_click(move |_ev, w, cx| {
@@ -1802,9 +1804,13 @@ fn drawer_env_tab(
 
 fn drawer_domains_tab(
     a: &DokkuApp,
+    le_email: &str,
     inputs: Option<&DokkuInputs>,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
+    // Let's Encrypt wants a contact email before its first certificate:
+    // asked here, the first time, and kept for every app on the server.
+    let needs_email = le_email.is_empty() && !a.ssl_enabled;
     let (a_le, a_dom, a_port) = (app.clone(), app.clone(), app.clone());
     let (n_le, n_dom, n_port) = (a.name.clone(), a.name.clone(), a.name.clone());
 
@@ -1817,7 +1823,7 @@ fn drawer_domains_tab(
             div()
                 .flex()
                 .items_center()
-                .justify_between()
+                .gap(px(8.0))
                 .p(px(10.0))
                 .bg(BG_APP)
                 .border_1()
@@ -1839,8 +1845,11 @@ fn drawer_domains_tab(
                         .children(
                             a.letsencrypt_expiry_days
                                 .map(|days| mono(9.5, TEXT_DIM).child(format!("{days}d"))),
-                        ),
+                        )
+                        .when(needs_email, |d| d.child(mono(9.5, TEXT_DIM).child(t!("dokku-le-email-needed")))),
                 )
+                .child(div().flex_1())
+                .when(needs_email, |d| d.child(div().w(px(220.0)).child(text_input(inputs.map(|i| &i.letsencrypt_email)))))
                 .child(
                     button(
                         "btn-dokku-enable-le",

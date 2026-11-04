@@ -7,7 +7,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::time::Duration;
 
-use gpui_kit::component::input::InputState;
+use gpui_kit::component::input::{InputState, TextareaState};
 use gpui_kit::*;
 
 use super::host_actions::{describe_commands, HostCommand};
@@ -111,7 +111,8 @@ pub struct DokkuInputs {
     pub letsencrypt_email: Entity<InputState>,
     pub env_key: Entity<InputState>,
     pub env_val: Entity<InputState>,
-    pub dotenv_blob: Entity<InputState>,
+    /// Multi-line: a pasted .env keeps all its lines.
+    pub dotenv_blob: Entity<TextareaState>,
     pub domain_add: Entity<InputState>,
     pub port_add: Entity<InputState>,
     pub mount_host: Entity<InputState>,
@@ -254,7 +255,7 @@ impl CrowApp {
             letsencrypt_email: cx.new(|cx| InputState::new(window, cx).placeholder(t!("dokku-placeholder-le-email"))),
             env_key: cx.new(|cx| InputState::new(window, cx).placeholder(t!("dokku-placeholder-env-key"))),
             env_val: cx.new(|cx| InputState::new(window, cx).placeholder(t!("dokku-placeholder-env-val"))),
-            dotenv_blob: cx.new(|cx| InputState::new(window, cx).placeholder(t!("dokku-placeholder-dotenv"))),
+            dotenv_blob: cx.new(|cx| TextareaState::new(window, cx).placeholder(t!("dokku-placeholder-dotenv"))),
             domain_add: cx.new(|cx| InputState::new(window, cx).placeholder(t!("dokku-placeholder-domain"))),
             port_add: cx.new(|cx| InputState::new(window, cx).placeholder(t!("dokku-placeholder-port"))),
             mount_host: cx.new(|cx| InputState::new(window, cx).placeholder(t!("dokku-placeholder-mount-host"))),
@@ -1150,6 +1151,27 @@ impl CrowApp {
                 "dokku".into(),
                 "plugin:install".into(),
                 "https://github.com/dokku/dokku-letsencrypt.git".into(),
+            ]));
+        }
+        // No contact email on the server yet: the one typed beside the
+        // button, set once for every app.
+        if self.dokku.current().is_some_and(|s| s.letsencrypt_email.is_empty()) {
+            let email = self
+                .dokku_inputs
+                .as_ref()
+                .map(|i| i.letsencrypt_email.read(cx).value().trim().to_string())
+                .unwrap_or_default();
+            if !email.contains('@') || email.contains(' ') {
+                self.dokku.result = Some((false, t!("app-dokku-invalid-email").into()));
+                cx.notify();
+                return;
+            }
+            cmds.push(HostCommand::new(vec![
+                "dokku".into(),
+                "letsencrypt:set".into(),
+                "--global".into(),
+                "email".into(),
+                email,
             ]));
         }
         cmds.push(HostCommand::new(vec![
