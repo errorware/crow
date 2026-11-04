@@ -119,6 +119,8 @@ pub struct Inputs<'a> {
     pub posture: &'a HashMap<String, Posture>,
     /// The last container scan of each server that has one (ERR-140).
     pub containers: &'a HashMap<String, crate::containers::Scan>,
+    /// The last Dokku scan of each server that has one (ERR-210).
+    pub dokku: &'a HashMap<String, crate::dokku::DokkuScan>,
     /// Risks someone accepted (ERR-145): not drawn.
     pub accepted: &'a [crate::security::hardening::Accepted],
     pub now: i64,
@@ -234,6 +236,18 @@ pub fn build(i: &Inputs) -> Graph {
         if let Some(p) = i.posture.get(&s.id) {
             risks.extend(posture_risks(&s.id, p, i.accepted));
         }
+        if let Some(dscan) = i.dokku.get(&s.id).filter(|d| d.installed) {
+            for app in &dscan.apps {
+                if app.degraded() {
+                    risks.push(risk(Level::Crit, "dokku", t!("topology-dokku-app-degraded", name = app.name)));
+                } else if app.maintenance {
+                    risks.push(risk(Level::Warn, "dokku", t!("topology-dokku-app-maintenance", name = app.name)));
+                }
+                if app.running && !app.domains.is_empty() && !app.ssl_enabled {
+                    risks.push(risk(Level::Warn, "dokku", t!("topology-dokku-app-no-tls", name = app.name)));
+                }
+            }
+        }
         if let Some(&n) = through.get(s.id.as_str()).filter(|n| **n >= 2) {
             risks.push(risk(Level::Warn, "fleet", t!("topology-jump-host-for-servers-if", n = n)));
         }
@@ -342,8 +356,13 @@ mod tests {
         ServerRecord { id: id.into(), name: id.into(), host: format!("{id}.lan"), port: 22, login_user: "ops".into(), auth_method: "publickey".into(), key_id: Some("k1".into()), env: "PROD".into(), host_key_fingerprint: Some("SHA256:x".into()), ..Default::default() }
     }
 
+    fn empty_dokku() -> &'static HashMap<String, crate::dokku::DokkuScan> {
+        static EMPTY: std::sync::OnceLock<HashMap<String, crate::dokku::DokkuScan>> = std::sync::OnceLock::new();
+        EMPTY.get_or_init(HashMap::new)
+    }
+
     fn inputs<'a>(servers: &'a [ServerRecord], keys: &'a [SshKeyRecord], alerts: &'a [Alert], posture: &'a HashMap<String, Posture>, health: &'a HashMap<String, Health>) -> Inputs<'a> {
-        Inputs { servers, keys, alerts, health, posture, containers: empty_containers(), accepted: &[], now: chrono::DateTime::parse_from_rfc3339("2026-10-07T00:00:00Z").unwrap().timestamp() }
+        Inputs { servers, keys, alerts, health, posture, containers: empty_containers(), dokku: empty_dokku(), accepted: &[], now: chrono::DateTime::parse_from_rfc3339("2026-10-07T00:00:00Z").unwrap().timestamp() }
     }
 
     #[test]

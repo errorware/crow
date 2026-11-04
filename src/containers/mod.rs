@@ -224,6 +224,34 @@ impl Container {
         self.labels.get("com.docker.compose.service").or_else(|| self.labels.get("io.podman.compose.service")).map(String::as_str)
     }
 
+    /// The Dokku app this container belongs to (`ERR-210`), from Dokku's labels.
+    pub fn dokku_app(&self) -> Option<&str> {
+        self.labels
+            .get("com.dokku.app-name")
+            .or_else(|| self.labels.get("org.label-schema.nyae.dokku.app-name"))
+            .map(String::as_str)
+            .filter(|s| !s.is_empty())
+    }
+
+    /// `(kind, name)` when this container is a Dokku backing service (`dokku.postgres.main`).
+    pub fn dokku_service(&self) -> Option<(&str, &str)> {
+        let rest = self.name.strip_prefix("dokku.")?;
+        let (kind, name) = rest.split_once('.')?;
+        crate::dokku::ServiceKind::from_id(kind)?;
+        (!name.is_empty()).then_some((kind, name))
+    }
+
+    /// Target string for `CrowApp::open_in_dokku` (`"app"` or `"dokku.<kind>.<name>"`).
+    pub fn dokku_target(&self) -> Option<String> {
+        if let Some(app) = self.dokku_app() {
+            return Some(app.to_string());
+        }
+        if let Some((kind, name)) = self.dokku_service() {
+            return Some(format!("dokku.{kind}.{name}"));
+        }
+        None
+    }
+
     /// Published ports, one per (host port, container port): an IPv4 and an
     /// IPv6 binding of the same port count once, exposed if either is.
     pub fn published(&self) -> Vec<PortMap> {
@@ -315,6 +343,30 @@ impl Scan {
     /// The runtime reports Crow could use.
     pub fn usable(&self) -> impl Iterator<Item = &RuntimeReport> {
         self.runtimes.iter().filter(|r| matches!(r.outcome, RuntimeOutcome::Ok { .. }))
+    }
+
+    /// Combined CPU% and memory bytes used by a Dokku app's containers (`ERR-210`).
+    pub fn dokku_app_usage(&self, app: &str) -> Option<(f32, u64)> {
+        let prefix = format!("{app}.");
+        let usages: Vec<Usage> = self
+            .containers
+            .iter()
+            .filter(|c| c.dokku_app() == Some(app) || c.name.starts_with(&prefix))
+            .filter_map(|c| c.usage)
+            .collect();
+        (!usages.is_empty()).then(|| {
+            (
+                usages.iter().map(|u| u.cpu_pct).sum(),
+                usages.iter().map(|u| u.mem_used).sum(),
+            )
+        })
+    }
+
+    /// CPU% and memory bytes used by a Dokku backing service container (`ERR-210`).
+    pub fn dokku_service_usage(&self, kind: &str, name: &str) -> Option<(f32, u64)> {
+        let target = format!("dokku.{kind}.{name}");
+        let u = self.containers.iter().find(|c| c.name == target)?.usage?;
+        Some((u.cpu_pct, u.mem_used))
     }
 }
 

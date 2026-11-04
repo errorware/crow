@@ -273,6 +273,19 @@ impl CrowApp {
             FirewallOperationalState::Active(_) | FirewallOperationalState::Inactive { .. } => badges.push(("firewall", t!("app-overview-off").into(), WARN)),
             FirewallOperationalState::Unmanaged { .. } => {}
         }
+        if let Some(scan) = self.dokku.current() {
+            if scan.installed && !scan.apps.is_empty() {
+                let running = scan.apps.iter().filter(|a| a.running && !a.degraded()).count();
+                let color = if scan.apps.iter().any(|a| a.degraded()) {
+                    CRIT
+                } else if scan.apps.iter().any(|a| a.maintenance || !a.running) {
+                    WARN
+                } else {
+                    OK
+                };
+                badges.push(("dokku", format!("{running}/{}", scan.apps.len()), color));
+            }
+        }
         badges
     }
 

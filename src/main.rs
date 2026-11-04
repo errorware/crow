@@ -19,6 +19,7 @@ pub mod checks;
 pub mod config;
 pub mod dr;
 pub mod containers;
+pub mod dokku;
 pub mod geoip;
 pub mod incident;
 pub mod host;

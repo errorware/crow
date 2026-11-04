@@ -65,6 +65,7 @@ pub mod user_plugin_settings;
 pub mod user_plugin_badges;
 pub mod notify;
 pub mod containers;
+pub mod dokku;
 pub mod bastions;
 pub mod patching;
 pub mod rollouts;
@@ -215,6 +216,9 @@ pub struct CrowApp {
     pub email_inputs: Option<notify::EmailInputs>,
     /// The server's Containers page (ERR-140).
     pub containers: containers::ContainersState,
+    /// The server's Dokku PaaS page (ERR-203..ERR-210).
+    pub dokku: dokku::DokkuState,
+    pub dokku_inputs: Option<dokku::DokkuInputs>,
     /// Fleet Setup → PATCHING (ERR-141).
     pub patching: patching::PatchingState,
     /// Fleet Setup → ROLLOUTS (ERR-142).
@@ -508,6 +512,8 @@ impl CrowApp {
             email: Default::default(),
             email_inputs: None,
             containers: Default::default(),
+            dokku: Default::default(),
+            dokku_inputs: None,
             patching: Default::default(),
             rollouts: Default::default(),
             rollout_inputs: None,
@@ -708,6 +714,9 @@ impl CrowApp {
         } else if view == "containers" {
             self.active_view = view.to_string();
             self.refresh_containers(cx);
+        } else if view == "dokku" {
+            self.active_view = view.to_string();
+            self.refresh_dokku(cx);
         } else if view.starts_with("plugin:") {
             self.open_plugin_page(view, cx);
         } else {

@@ -372,6 +372,7 @@ fn row(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl IntoEl
                 .gap(px(8.0))
                 .child(div().flex_none().size(px(7.0)).rounded_full().bg(color))
                 .child(mono(11.0, TEXT_PRIMARY).whitespace_nowrap().overflow_hidden().text_ellipsis().child(c.name.clone()))
+                .children(c.dokku_target().map(|_| crate::components::button::badge(OK).text_size(px(8.5)).child(t!("containers-dokku-badge"))))
                 .children(c.service().filter(|s| !c.name.contains(*s)).map(|s| mono(9.5, TEXT_FAINT).child(s.to_string()))),
         )
         .when(!compact, |d| d.child(mono(10.5, TEXT_TERTIARY).w(px(W_IMAGE)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(c.image.clone())))
@@ -507,6 +508,10 @@ fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl Int
                         Action::Restart => t!("containers-restart"),
                     }, color)
                     .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.request_container_action(Pending::Container { key: key.clone(), action }, cx)))
+                })).children(c.dokku_target().map(|target| {
+                    let app_dokku = app.clone();
+                    button("btn-container-open-dokku", t!("containers-open-in-dokku"), TEXT_SECONDARY)
+                        .on_click(move |_ev, _window, cx| app_dokku.update(cx, |this, cx| this.open_in_dokku(&target, cx)))
                 })))
                 .children(pending.map(|action| {
                     let what = match action {

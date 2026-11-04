@@ -216,6 +216,33 @@ pub fn explain_container(primary: &ClankerProviderConfig, backup: Option<&Clanke
     with_fallback(primary, backup, |p| send(p, &chat_config(p, CONTAINER_PROMPT, &user, 700)))
 }
 
+const DOKKU_PROMPT: &str = "You explain a Dokku application to an operator who manages it, like a patient senior SRE would. You are given the app's process types and scale, linked backing services, TLS/maintenance state, and recent log lines if any. Answer in this exact shape:\nSEVERITY: <LOW|MEDIUM|HIGH|CRITICAL> - <one short reason>\n\nWhat it runs: <one or two sentences about its process types and linked services, plain words>\nCurrent health: <one or two sentences on its processes, TLS and recent logs>\nIf you restart or scale it: <what users notice, whether Dokku zero-downtime checks apply, and whether linked service data survives>\nNext step: <any concrete fix if degraded or unencrypted, or that it looks healthy>\n\nSEVERITY rates restarting or touching it: LOW when not deployed or in maintenance, MEDIUM when a background worker restarts, HIGH when user-facing web processes restart or logs show errors, CRITICAL when a database or production traffic is failing. Don't invent what isn't given.";
+
+/// What Crow sends about a Dokku app: no host name, domain names, or env values.
+pub struct DokkuAppFacts<'a> {
+    pub processes: &'a str,
+    pub services: &'a str,
+    pub state: &'a str,
+    pub ssl: bool,
+    pub maintenance: bool,
+    pub logs: &'a str,
+}
+
+/// Asks for a plain-words explanation of a Dokku app and its current health.
+pub fn explain_dokku_app(primary: &ClankerProviderConfig, backup: Option<&ClankerProviderConfig>, f: &DokkuAppFacts) -> Result<Answer, String> {
+    let logs_tail: String = f.logs.chars().take(4000).collect();
+    let user = format!(
+        "Processes: {}\nLinked services: {}\nState: {}\nTLS enabled: {}\nMaintenance mode: {}\nRecent logs:\n{}",
+        if f.processes.is_empty() { "none" } else { f.processes },
+        if f.services.is_empty() { "none" } else { f.services },
+        f.state,
+        f.ssl,
+        f.maintenance,
+        if logs_tail.trim().is_empty() { "(no logs read)" } else { logs_tail.trim() },
+    );
+    with_fallback(primary, backup, |p| send(p, &chat_config(p, DOKKU_PROMPT, &user, 750)))
+}
+
 /// An answer, with who gave it and, when the backup did, why the primary didn't.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Answer {

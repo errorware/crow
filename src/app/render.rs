@@ -101,6 +101,9 @@ impl Render for CrowApp {
             if let Some(page) = super::overview::TablePage::for_view(&self.active_view) {
                 self.ensure_table_search(page, window, cx);
             }
+            if self.active_view == "dokku" {
+                self.ensure_dokku_inputs(window, cx);
+            }
         }
         self.ensure_key_inputs(window, cx);
         self.ensure_settings_custom_input(window, cx);
@@ -531,6 +534,12 @@ impl Render for CrowApp {
                                                             } else if self.active_view == "containers" {
                                                                 let name = self.fleet.active_server().map(|s| s.name).unwrap_or_default();
                                                                 Some(div().size_full().child(crate::views::containers::containers_view(&self.containers, &name, app_view.clone())))
+                                                            } else if self.active_view == "dokku" {
+                                                                let srv = self.fleet.active_server();
+                                                                let name = srv.as_ref().map(|s| s.name.clone()).unwrap_or_default();
+                                                                let host = srv.as_ref().map(|s| s.host.clone()).unwrap_or_default();
+                                                                let cscan = srv.as_ref().and_then(|s| self.containers.by_server.get(&s.id));
+                                                                Some(div().size_full().child(crate::views::dokku::dokku_view(&self.dokku, self.dokku_inputs.as_ref(), &name, &host, &self.keys.enrolled, cscan, app_view.clone())))
                                                             } else if let Some((pid, page_id)) = crate::app::user_plugins::parse_page_view(&self.active_view) {
                                                                 let server_id = self.fleet.active_server().map(|s| s.id).unwrap_or_default();
                                                                 let plugin = self.plugins.user.get(pid).filter(|p| p.usable());

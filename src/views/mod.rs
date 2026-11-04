@@ -1,6 +1,7 @@
 pub mod audit;
 pub mod config;
 pub mod containers;
+pub mod dokku;
 pub mod files;
 pub mod firewall;
 pub mod fleet;

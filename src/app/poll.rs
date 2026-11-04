@@ -186,6 +186,7 @@ impl CrowApp {
                         this.maybe_check_certs(cx);
                         this.notify_tick(cx);
                         this.containers_tick(cx);
+                        this.dokku_tick(cx);
                         this.patching_tick(cx);
                         this.drift_tick(cx);
                         this.certificates_tick(cx);

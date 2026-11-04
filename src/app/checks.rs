@@ -123,6 +123,28 @@ impl CrowApp {
         self.run_check(&id, cx);
     }
 
+    /// Creates or re-runs an HTTP(S) check for `url` attached to `server_id` (ERR-210).
+    pub fn add_http_check_for_domain(&mut self, url: String, name: String, server_id: Option<String>, cx: &mut Context<Self>) -> String {
+        if let Some(existing) = self.checks.defs.iter().find(|c| matches!(&c.kind, Kind::Http { url: u, .. } if u == &url)).cloned() {
+            self.run_check(&existing.id, cx);
+            return existing.name;
+        }
+        let check = Check {
+            id: format!("chk{}", chrono::Utc::now().timestamp_millis()),
+            name: if name.is_empty() { url.clone() } else { name },
+            kind: Kind::Http { url, keyword: String::new(), status: None },
+            server_id,
+            every_secs: 60,
+            alert: true,
+        };
+        let label = check.name.clone();
+        let id = check.id.clone();
+        self.checks.defs.push(check);
+        self.save_checks();
+        self.run_check(&id, cx);
+        label
+    }
+
     pub fn delete_check(&mut self, id: &str, cx: &mut Context<Self>) {
         let Some(c) = self.checks.defs.iter().find(|c| c.id == id).cloned() else { return };
         self.checks.defs.retain(|c| c.id != id);

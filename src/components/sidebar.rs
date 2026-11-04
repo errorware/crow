@@ -21,6 +21,7 @@ pub fn nav_items() -> Vec<NavItemDef> {
         NavItemDef { icon: TablerIcon::Cpu, label: t!("sidebar-processes"), view_id: Some("processes"), hint: "" },
         NavItemDef { icon: TablerIcon::Network, label: t!("sidebar-sockets"), view_id: Some("sockets"), hint: "" },
         NavItemDef { icon: TablerIcon::Box, label: t!("sidebar-containers"), view_id: Some("containers"), hint: "" },
+        NavItemDef { icon: TablerIcon::Rocket, label: t!("sidebar-dokku"), view_id: Some("dokku"), hint: "" },
         NavItemDef { icon: TablerIcon::AdjustmentsHorizontal, label: t!("sidebar-config"), view_id: Some("config"), hint: "" },
         NavItemDef { icon: TablerIcon::FileText, label: t!("sidebar-logs"), view_id: Some("logs"), hint: "" },
         NavItemDef { icon: TablerIcon::Folder, label: t!("sidebar-files"), view_id: Some("files"), hint: "" },
@@ -32,7 +33,7 @@ pub fn nav_items() -> Vec<NavItemDef> {
 }
 
 /// Pages a plugin brings (ERR-138): (view id, plugin id).
-pub const PLUGIN_PAGES: [(&str, &str); 1] = [("containers", "containers")];
+pub const PLUGIN_PAGES: [(&str, &str); 2] = [("containers", "containers"), ("dokku", "dokku")];
 
 /// Whether page `view` shows, given the plugins that are on.
 pub fn page_shown(view: &str, enabled: &std::collections::HashSet<String>) -> bool {

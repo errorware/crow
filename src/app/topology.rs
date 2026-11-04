@@ -34,6 +34,7 @@ impl CrowApp {
             health: &health,
             posture: &self.topology.posture,
             containers: &self.containers.by_server,
+            dokku: &self.dokku.by_server,
             accepted: &self.hardening.accepted,
             now: chrono::Utc::now().timestamp(),
         })
