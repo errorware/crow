@@ -129,6 +129,28 @@ pub fn argv(command: Option<&[Template]>, script: Option<&str>, interpreter: Opt
 /// Runs `argv` in `cwd` with exactly `env`, in its own process group.
 pub fn run(argv: &[String], cwd: &Path, env: &[(String, String)], timeout: Duration, sink: &mut dyn FnMut(bool, &str), stop: &std::sync::atomic::AtomicBool) -> RunResult {
     let started_at = chrono::Utc::now().timestamp();
+    let cmd_str = argv.join(" ");
+    let span = match crate::wire::begin_checked(crate::wire::WireStart {
+        category: crate::wire::WireCategory::Plugin,
+        protocol: "PROC",
+        caller: crate::wire::current_caller("plugin.local"),
+        target_label: format!("plugin:{}", argv.first().map(String::as_str).unwrap_or("local")),
+        remote_host: "plugin-subprocess".into(),
+        remote_port: 0,
+        via_hop: None,
+        summary: cmd_str.clone(),
+        request_payload: format!("cwd: {}\nargv: {cmd_str}", cwd.display()),
+    }) {
+        Ok(s) => s,
+        Err(msg) => {
+            return RunResult {
+                error: Some(msg),
+                started_at,
+                finished_at: started_at,
+                ..Default::default()
+            };
+        }
+    };
     let (mut out, mut err) = (String::new(), String::new());
     let mut on_line = |is_err: bool, line: &str| {
         sink(is_err, line);
@@ -147,8 +169,14 @@ pub fn run(argv: &[String], cwd: &Path, env: &[(String, String)], timeout: Durat
     let stopped = stop.load(std::sync::atomic::Ordering::Relaxed) || matches!(result, Err(HostError::Timeout));
     let truncated = out.len() >= MAX_OUTPUT_BYTES || err.len() >= MAX_OUTPUT_BYTES;
     match result {
-        Ok(_) => RunResult { ok: true, exit_code: Some(0), stdout: out, stderr: err, truncated, started_at, finished_at, ..Default::default() },
-        Err(HostError::Failed { status, .. }) => RunResult { ok: false, exit_code: Some(status), stdout: out, stderr: err, truncated, started_at, finished_at, ..Default::default() },
+        Ok(_) => {
+            span.finish_ok(cmd_str.len() as u64, (out.len() + err.len()) as u64, &out);
+            RunResult { ok: true, exit_code: Some(0), stdout: out, stderr: err, truncated, started_at, finished_at, ..Default::default() }
+        }
+        Err(HostError::Failed { status, .. }) => {
+            span.finish_err(crate::wire::WireStatus::Error, &format!("exit {status}"), &err);
+            RunResult { ok: false, exit_code: Some(status), stdout: out, stderr: err, truncated, started_at, finished_at, ..Default::default() }
+        }
         Err(e) => {
             let error = match e {
                 _ if stop.load(std::sync::atomic::Ordering::Relaxed) => "stopped".to_string(),
@@ -156,6 +184,7 @@ pub fn run(argv: &[String], cwd: &Path, env: &[(String, String)], timeout: Durat
                 HostError::Io(m) if m.contains("No such file") => format!("{}: not found", argv.first().cloned().unwrap_or_default()),
                 other => other.to_string(),
             };
+            span.finish_err(crate::wire::WireStatus::Error, &error, &err);
             RunResult { error: Some(error), stdout: out, stderr: err, truncated, started_at, finished_at, stopped, ..Default::default() }
         }
     }

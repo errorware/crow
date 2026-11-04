@@ -103,20 +103,41 @@ pub fn probe_host(host: &str, port: u16) -> (ProbeResult, Vec<ProbeLog>) {
         return (result, logs);
     }
 
-    // 1. TCP connect
+    if let Err(msg) = crate::wire::check_allowed(crate::wire::WireCategory::Onboard, "TCP", "onboard.probe", host, host, port) {
+        result.error = Some(msg.clone());
+        log(&mut logs, "✕", CRIT, msg, "silenced".into());
+        return (result, logs);
+    }
+
+    // 1. TCP connect + SSH banner
+    let tcp_span = crate::wire::begin(crate::wire::WireStart {
+        category: crate::wire::WireCategory::Onboard,
+        protocol: "TCP-SSH",
+        caller: crate::wire::current_caller("onboard.tcp_banner"),
+        target_label: format!("onboard:{host}:{port}"),
+        remote_host: host.to_string(),
+        remote_port: port,
+        via_hop: None,
+        summary: format!("TCP connect + SSH banner read {host}:{port}"),
+        request_payload: format!("TCP SYN -> {host}:{port}"),
+    });
     let start = Instant::now();
     let addr = match format!("{host}:{port}").to_socket_addrs().ok().and_then(|mut a| a.next()) {
         Some(a) => a,
         None => {
-            result.error = Some(t!("onboard-probe-could-not-resolve", host = host));
-            log(&mut logs, "✕", CRIT, t!("onboard-probe-could-not-resolve", host = host), "dns".into());
+            let err = t!("onboard-probe-could-not-resolve", host = host);
+            tcp_span.finish_err(crate::wire::WireStatus::Error, &err, "DNS resolution failed");
+            result.error = Some(err.clone());
+            log(&mut logs, "✕", CRIT, err, "dns".into());
             return (result, logs);
         }
     };
     let stream = match TcpStream::connect_timeout(&addr, Duration::from_millis(3000)) {
         Ok(s) => s,
         Err(e) => {
-            result.error = Some(t!("onboard-probe-tcp", host = host, port = port, e = e));
+            let err = t!("onboard-probe-tcp", host = host, port = port, e = e);
+            tcp_span.finish_err(crate::wire::WireStatus::Error, &err, &e.to_string());
+            result.error = Some(err);
             log(&mut logs, "✕", CRIT, t!("onboard-probe-tcp-connect-failed", host = host, port = port, e = e), format!("{}ms", start.elapsed().as_millis()));
             return (result, logs);
         }
@@ -133,14 +154,33 @@ pub fn probe_host(host: &str, port: u16) -> (ProbeResult, Vec<ProbeLog>) {
         Ok(_) if banner.starts_with("SSH-") => {
             result.ssh_banner = Some(banner.trim().to_string());
             log(&mut logs, "✓", OK, t!("onboard-probe-ssh-banner", banner = banner.trim()), String::new());
+            tcp_span.finish_ok(0, banner.len() as u64, banner.trim());
         }
-        _ => log(&mut logs, "▲", WARN, t!("onboard-probe-no-ssh-banner-is-this").into(), String::new()),
+        _ => {
+            log(&mut logs, "▲", WARN, t!("onboard-probe-no-ssh-banner-is-this").into(), String::new());
+            tcp_span.finish_ok(0, banner.len() as u64, "connected (no SSH banner)");
+        }
     }
     drop(stream);
 
     // 3. Host keys, from the server itself
     let port_s = port.to_string();
+    let keyscan_span = crate::wire::begin(crate::wire::WireStart {
+        category: crate::wire::WireCategory::Onboard,
+        protocol: "SSH-KEYSCAN",
+        caller: crate::wire::current_caller("onboard.ssh_keyscan"),
+        target_label: format!("keyscan:{host}:{port}"),
+        remote_host: host.to_string(),
+        remote_port: port,
+        via_hop: None,
+        summary: format!("ssh-keyscan -T 5 -p {port} {host}"),
+        request_payload: format!("ssh-keyscan -T 5 -p {port} {host}"),
+    });
     let scan = LocalHost.exec(&["ssh-keyscan", "-T", "5", "-p", &port_s, host], Duration::from_secs(12));
+    match &scan {
+        Ok(o) => keyscan_span.finish_ok(0, o.stdout.len() as u64, &o.stdout),
+        Err(e) => keyscan_span.finish_err(crate::wire::WireStatus::Error, &e.to_string(), &e.to_string()),
+    }
     result.scanned_keys = scan
         .map(|o| o.stdout.lines().filter(|l| !l.trim().is_empty() && !l.starts_with('#')).map(str::to_string).collect())
         .unwrap_or_default();
@@ -171,9 +211,28 @@ pub fn probe_via_bastion(host: &str, port: u16, user: &str, proxy: &str, via: &s
         log(&mut logs, "✕", CRIT, t!("onboard-probe-is-not-a-valid-host", host = format!("{:?}", host)), String::new());
         return (result, logs);
     }
+    let span = match crate::wire::begin_checked(crate::wire::WireStart {
+        category: crate::wire::WireCategory::Onboard,
+        protocol: "SSH-PROBE",
+        caller: crate::wire::current_caller("onboard.probe_via_bastion"),
+        target_label: format!("onboard:{host}:{port} via {via}"),
+        remote_host: host.to_string(),
+        remote_port: port,
+        via_hop: Some(via.to_string()),
+        summary: format!("SSH host-key probe {host}:{port} via {via}"),
+        request_payload: format!("ssh ProxyCommand={proxy} -p {port} -- {host} true"),
+    }) {
+        Ok(s) => s,
+        Err(msg) => {
+            result.error = Some(msg.clone());
+            log(&mut logs, "✕", CRIT, msg, "silenced".into());
+            return (result, logs);
+        }
+    };
     let scratch = std::env::temp_dir().join(format!("crow-probe-{}-{}", std::process::id(), Instant::now().elapsed().as_nanos()));
     let kh = scratch.join("known_hosts");
     if let Err(e) = std::fs::create_dir_all(&scratch).and_then(|_| std::fs::write(&kh, "")) {
+        span.finish_err(crate::wire::WireStatus::Error, &e.to_string(), "");
         log(&mut logs, "✕", CRIT, t!("onboard-probe-couldnt-make-a-scratch-known", e = e), String::new());
         return (result, logs);
     }
@@ -215,10 +274,12 @@ pub fn probe_via_bastion(host: &str, port: u16, user: &str, proxy: &str, via: &s
             _ if why.contains("Connection closed by UNKNOWN") => t!("onboard-probe-let-crow-in-but-couldnt", via = via, host = host, port = port),
             _ => why,
         };
+        span.finish_err(crate::wire::WireStatus::Error, &why, &stderr);
         result.error = Some(why.clone());
         log(&mut logs, "✕", CRIT, t!("onboard-probe-through", via = via, why = why), format!("{elapsed}ms"));
         return (result, logs);
     }
+    span.finish_ok(0, stderr.len() as u64, &lines.join("\n"));
     result.is_reachable = true;
     result.latency_ms = Some(elapsed);
     log(&mut logs, "✓", OK, t!("onboard-probe-reached-through", host = host, port = port, via = via), format!("{elapsed}ms"));

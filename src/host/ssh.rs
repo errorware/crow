@@ -172,14 +172,35 @@ pub fn fresh_key_login(server: &ServerRecord) -> Result<(), String> {
     if let Some(why) = &host.unsupported {
         return Err(why.clone());
     }
+    let span = crate::wire::begin_checked(crate::wire::WireStart {
+        category: crate::wire::WireCategory::Ssh,
+        protocol: "SSH",
+        caller: crate::wire::current_caller("ssh.fresh_key_login"),
+        target_label: host.label.clone(),
+        remote_host: host.dest.0.clone(),
+        remote_port: host.dest.1,
+        via_hop: host.via_hop(),
+        summary: "fresh key login verification (ssh -o ControlMaster=no true)".into(),
+        request_payload: "true".into(),
+    })?;
     let mut argv: Vec<String> = vec![host.program.clone()];
     argv.extend(fresh_login_args(host.args.clone()));
     argv.push("true".into());
     let argv: Vec<&str> = argv.iter().map(String::as_str).collect();
-    run_command(&argv, &[], Duration::from_secs(20)).map(|_| ()).map_err(|e| match e {
-        HostError::Failed { stderr, .. } => stderr.trim().lines().last().unwrap_or(t!("host-ssh-login-failed")).to_string(),
-        other => other.to_string(),
-    })
+    match run_command(&argv, &[], Duration::from_secs(20)) {
+        Ok(out) => {
+            span.finish_ok(2, out.stdout.len() as u64, "SSH key login verified");
+            Ok(())
+        }
+        Err(e) => {
+            let msg = match e {
+                HostError::Failed { stderr, .. } => stderr.trim().lines().last().unwrap_or(t!("host-ssh-login-failed")).to_string(),
+                other => other.to_string(),
+            };
+            span.finish_err(crate::wire::WireStatus::Error, &msg, &msg);
+            Err(msg)
+        }
+    }
 }
 
 fn states() -> &'static Mutex<HashMap<String, ConnectionState>> {
@@ -659,9 +680,29 @@ impl Host for SshHost {
     /// (ERR-32): `ssh -O exit` with the same options resolves to the same `%C`
     /// control socket that `exec_stdin` opened.
     fn close_connection(&self) -> bool {
+        let span = crate::wire::begin(crate::wire::WireStart {
+            category: crate::wire::WireCategory::Ssh,
+            protocol: "SSH",
+            caller: crate::wire::current_caller("ssh.close_mux"),
+            target_label: self.label.clone(),
+            remote_host: self.dest.0.clone(),
+            remote_port: self.dest.1,
+            via_hop: self.via_hop(),
+            summary: "ssh -O exit (ControlMaster teardown)".into(),
+            request_payload: "ssh -O exit".into(),
+        });
         let mut argv: Vec<&str> = vec![self.program.as_str(), "-O", "exit"];
         argv.extend(self.args.iter().map(String::as_str));
-        run_command(&argv, &[], Duration::from_secs(5)).is_ok()
+        match run_command(&argv, &[], Duration::from_secs(5)) {
+            Ok(out) => {
+                span.finish_ok(0, out.stdout.len() as u64, &out.stdout);
+                true
+            }
+            Err(e) => {
+                span.finish_err(crate::wire::WireStatus::Error, &e.to_string(), &e.to_string());
+                false
+            }
+        }
     }
 
     fn exec_stdin(&self, argv: &[&str], stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {
@@ -670,11 +711,26 @@ impl Host for SshHost {
             return Err(HostError::Unreachable(why.clone()));
         }
         let remote = argv.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" ");
+        let span = crate::wire::begin_checked(crate::wire::WireStart {
+            category: crate::wire::WireCategory::Ssh,
+            protocol: "SSH",
+            caller: crate::wire::current_caller("ssh.exec"),
+            target_label: self.label.clone(),
+            remote_host: self.dest.0.clone(),
+            remote_port: self.dest.1,
+            via_hop: self.via_hop(),
+            summary: Self::summarize_remote(&remote),
+            request_payload: Self::format_request(&remote, stdin),
+        })
+        .map_err(HostError::Unreachable)?;
         let mut full: Vec<&str> = vec![self.program.as_str()];
         // args end with `-- <destination>`; everything after is the command.
         full.extend(self.args.iter().map(String::as_str));
         full.push(&remote);
-        self.settle(run_command(&full, stdin, timeout))
+        let tx = (remote.len() + stdin.len()) as u64;
+        let res = self.settle(run_command(&full, stdin, timeout));
+        Self::finish_wire_span(span, tx, &res);
+        res
     }
 
     fn exec_streaming(&self, argv: &[&str], stdin: &[u8], timeout: Duration, sink: &mut dyn FnMut(bool, &str), stop: &std::sync::atomic::AtomicBool) -> Result<ExecOutput, HostError> {
@@ -683,14 +739,84 @@ impl Host for SshHost {
             return Err(HostError::Unreachable(why.clone()));
         }
         let remote = argv.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" ");
+        let span = crate::wire::begin_checked(crate::wire::WireStart {
+            category: crate::wire::WireCategory::Ssh,
+            protocol: "SSH-STREAM",
+            caller: crate::wire::current_caller("ssh.exec_streaming"),
+            target_label: self.label.clone(),
+            remote_host: self.dest.0.clone(),
+            remote_port: self.dest.1,
+            via_hop: self.via_hop(),
+            summary: Self::summarize_remote(&remote),
+            request_payload: Self::format_request(&remote, stdin),
+        })
+        .map_err(HostError::Unreachable)?;
         let mut full: Vec<&str> = vec![self.program.as_str()];
         full.extend(self.args.iter().map(String::as_str));
         full.push(&remote);
-        self.settle(super::local::run_command_streaming(&full, stdin, timeout, &[], sink, stop))
+        let tx = (remote.len() + stdin.len()) as u64;
+        let res = self.settle(super::local::run_command_streaming(&full, stdin, timeout, &[], sink, stop));
+        Self::finish_wire_span(span, tx, &res);
+        res
     }
 }
 
 impl SshHost {
+    pub(crate) fn via_hop(&self) -> Option<String> {
+        if self.chain.is_empty() {
+            None
+        } else {
+            Some(self.chain.iter().map(|h| h.name.as_str()).collect::<Vec<_>>().join(" -> "))
+        }
+    }
+
+    fn summarize_remote(remote: &str) -> String {
+        let first_line = remote.lines().find(|l| !l.trim().is_empty()).unwrap_or(remote).trim();
+        if first_line.chars().count() > 96 {
+            let cut: String = first_line.chars().take(96).collect();
+            format!("{cut}…")
+        } else {
+            first_line.to_string()
+        }
+    }
+
+    fn format_request(remote: &str, stdin: &[u8]) -> String {
+        if stdin.is_empty() {
+            remote.to_string()
+        } else {
+            let stdin_str = String::from_utf8_lossy(stdin);
+            format!("# command:\n{remote}\n\n# stdin ({} bytes):\n{stdin_str}", stdin.len())
+        }
+    }
+
+    fn finish_wire_span(span: crate::wire::WireSpan, tx: u64, res: &Result<ExecOutput, HostError>) {
+        match res {
+            Ok(out) => {
+                let rx = (out.stdout.len() + out.stderr.len()) as u64;
+                let payload = if out.stderr.is_empty() {
+                    out.stdout.clone()
+                } else {
+                    format!("{}\n--- stderr ---\n{}", out.stdout, out.stderr)
+                };
+                span.finish_ok(tx, rx, &payload);
+            }
+            Err(HostError::Timeout) => {
+                span.finish_err(crate::wire::WireStatus::Timeout, "SSH command timed out", "");
+            }
+            Err(HostError::Failed { status, stderr }) => {
+                span.finish_err(
+                    crate::wire::WireStatus::Error,
+                    &format!("exit {status}: {}", stderr.lines().last().unwrap_or("")),
+                    stderr,
+                );
+            }
+            Err(other) => {
+                let msg = other.to_string();
+                span.finish_err(crate::wire::WireStatus::Error, &msg, &msg);
+            }
+        }
+    }
+
     /// What an ssh run came to: its own failures become the connection's
     /// state; anything else is the remote command's result.
     fn settle(&self, result: Result<ExecOutput, HostError>) -> Result<ExecOutput, HostError> {

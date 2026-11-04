@@ -105,6 +105,9 @@ impl Render for CrowApp {
                 self.ensure_dokku_inputs(window, cx);
             }
         }
+        if self.screen == Screen::Wire {
+            self.ensure_wire_inputs(window, cx);
+        }
         self.ensure_key_inputs(window, cx);
         self.ensure_settings_custom_input(window, cx);
         self.ensure_config_search(window, cx);
@@ -676,11 +679,16 @@ impl Render for CrowApp {
                                             .size_full()
                                             .child(vault_setup_view(app_view.clone(), &self.setup_state, self.setup_inputs.as_ref())),
                                     ),
+                                    Screen::Wire => Some(
+                                        div()
+                                            .size_full()
+                                            .child(crate::views::wire::wire_view(&self.wire, self.wire_inputs.as_ref(), app_view.clone())),
+                                    ),
                                 }),
                         )
                         // 3. Status bar: alerts, notices, version (Fleet shows its
                         //    notices in its own banner).
-                        .children(matches!(screen, Screen::Fleet | Screen::Server).then(|| {
+                        .children(matches!(screen, Screen::Fleet | Screen::Server | Screen::Wire).then(|| {
                             crate::components::status_bar::status_bar(&alert_lines, self.fleet.notice.as_deref().filter(|_| screen == Screen::Server), self.update.available.as_ref().map(|r| r.version.to_string()), self.local_lab.busy.as_deref(), self.background_run_line().as_deref(), app_view.clone())
                         }))
                         // 3. Burger Menu Overlay

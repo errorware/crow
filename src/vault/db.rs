@@ -660,7 +660,30 @@ impl VaultDb {
                 output_bytes INTEGER NOT NULL,
                 plugin_hash TEXT NOT NULL
             );
-            CREATE INDEX IF NOT EXISTS plugin_runs_by_plugin ON plugin_runs (plugin_id, started_at);",
+            CREATE INDEX IF NOT EXISTS plugin_runs_by_plugin ON plugin_runs (plugin_id, started_at);
+
+            -- Outbound Wire & Egress Traceability ledger (ERR-215): rolling 5,000 events.
+            CREATE TABLE IF NOT EXISTS wire_log (
+                seq INTEGER PRIMARY KEY AUTOINCREMENT,
+                started_at_ms INTEGER NOT NULL,
+                duration_ms INTEGER NOT NULL,
+                category TEXT NOT NULL,
+                protocol TEXT NOT NULL,
+                caller TEXT NOT NULL,
+                target_label TEXT NOT NULL,
+                remote_host TEXT NOT NULL,
+                remote_port INTEGER NOT NULL,
+                via_hop TEXT,
+                status TEXT NOT NULL,
+                bytes_tx INTEGER NOT NULL,
+                bytes_rx INTEGER NOT NULL,
+                summary TEXT NOT NULL,
+                request_payload TEXT NOT NULL,
+                response_payload TEXT NOT NULL,
+                error TEXT
+            );
+            CREATE INDEX IF NOT EXISTS idx_wire_log_ts ON wire_log (started_at_ms DESC);
+            CREATE INDEX IF NOT EXISTS idx_wire_log_cat ON wire_log (category);",
         )?;
 
         // Seed default scan path if empty
@@ -2374,6 +2397,88 @@ impl VaultDb {
             .filter_map(|e| e.id.strip_prefix(&prefix).map(str::to_string))
             .collect())
     }
+
+    // ==========================================
+    // Outbound Wire Ledger (ERR-215)
+    // ==========================================
+
+    /// Appends one redacted [`crate::wire::WireEvent`] to `wire_log` and prunes
+    /// rows beyond the latest 5,000 entries.
+    pub fn insert_wire_event(&self, ev: &crate::wire::WireEvent) -> Result<(), VaultError> {
+        self.conn.execute(
+            "INSERT INTO wire_log (
+                started_at_ms, duration_ms, category, protocol, caller, target_label,
+                remote_host, remote_port, via_hop, status, bytes_tx, bytes_rx,
+                summary, request_payload, response_payload, error
+            ) VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16)",
+            params![
+                ev.started_at_ms,
+                ev.duration_ms as i64,
+                ev.category.id(),
+                ev.protocol,
+                ev.caller,
+                ev.target_label,
+                ev.remote_host,
+                ev.remote_port as i64,
+                ev.via_hop,
+                ev.status.id(),
+                ev.bytes_tx as i64,
+                ev.bytes_rx as i64,
+                ev.summary,
+                ev.request_payload,
+                ev.response_payload,
+                ev.error,
+            ],
+        )?;
+        // Rolling retention cap: keep latest 5,000 events.
+        let _ = self.conn.execute(
+            "DELETE FROM wire_log WHERE seq <= (SELECT COALESCE(MAX(seq), 0) - 5000 FROM wire_log)",
+            [],
+        );
+        Ok(())
+    }
+
+    /// Reads the latest `limit` events from `wire_log`, newest first.
+    pub fn list_wire_events(&self, limit: usize) -> Result<Vec<crate::wire::WireEvent>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT seq, started_at_ms, duration_ms, category, protocol, caller, target_label,
+                    remote_host, remote_port, via_hop, status, bytes_tx, bytes_rx,
+                    summary, request_payload, response_payload, error
+             FROM wire_log
+             ORDER BY seq DESC
+             LIMIT ?1",
+        )?;
+        let rows = stmt.query_map(params![limit as i64], |r| {
+            let cat_str: String = r.get(3)?;
+            let status_str: String = r.get(10)?;
+            Ok(crate::wire::WireEvent {
+                seq: r.get::<_, i64>(0)? as u64,
+                started_at_ms: r.get(1)?,
+                duration_ms: r.get::<_, i64>(2)?.max(0) as u64,
+                category: crate::wire::WireCategory::from_id(&cat_str),
+                protocol: r.get(4)?,
+                caller: r.get(5)?,
+                target_label: r.get(6)?,
+                remote_host: r.get(7)?,
+                remote_port: r.get::<_, i64>(8)?.clamp(0, 65535) as u16,
+                via_hop: r.get(9)?,
+                status: crate::wire::WireStatus::from_id(&status_str),
+                bytes_tx: r.get::<_, i64>(11)?.max(0) as u64,
+                bytes_rx: r.get::<_, i64>(12)?.max(0) as u64,
+                summary: r.get(13)?,
+                request_payload: r.get(14)?,
+                response_payload: r.get(15)?,
+                error: r.get(16)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
+    /// Clears all persisted rows in `wire_log`.
+    pub fn clear_wire_events(&self) -> Result<(), VaultError> {
+        self.conn.execute("DELETE FROM wire_log", [])?;
+        Ok(())
+    }
 }
 
 #[cfg(test)]
@@ -3026,6 +3131,39 @@ mod tests {
         let fetched3 = db.get_server("s1").unwrap().unwrap();
         assert_eq!(fetched3.group_name, "default");
     }
+
+    #[test]
+    fn wire_log_round_trips_and_clears() {
+        let db = VaultDb::open_in_memory().unwrap();
+        let ev = crate::wire::WireEvent {
+            seq: 1,
+            started_at_ms: 1_762_000_000_000,
+            duration_ms: 42,
+            category: crate::wire::WireCategory::Ssh,
+            protocol: "SSH".into(),
+            caller: "dokku.scan".into(),
+            target_label: "root@203.0.113.10:22".into(),
+            remote_host: "203.0.113.10".into(),
+            remote_port: 22,
+            via_hop: Some("bastion@198.51.100.1:22".into()),
+            status: crate::wire::WireStatus::Ok,
+            bytes_tx: 128,
+            bytes_rx: 512,
+            summary: "dokku apps:list".into(),
+            request_payload: "dokku apps:list".into(),
+            response_payload: "=====> My Apps\napi-prod".into(),
+            error: None,
+        };
+        db.insert_wire_event(&ev).unwrap();
+        let rows = db.list_wire_events(10).unwrap();
+        assert_eq!(rows.len(), 1);
+        assert_eq!(rows[0].caller, "dokku.scan");
+        assert_eq!(rows[0].remote_host, "203.0.113.10");
+        assert_eq!(rows[0].via_hop.as_deref(), Some("bastion@198.51.100.1:22"));
+        assert_eq!(rows[0].bytes_tx, 128);
+        assert_eq!(rows[0].bytes_rx, 512);
+
+        db.clear_wire_events().unwrap();
+        assert!(db.list_wire_events(10).unwrap().is_empty());
+    }
 }
-
-

@@ -67,6 +67,7 @@ impl CrowApp {
         out.push(place(t!("app-palette-rollouts"), "run command config every server canary batch", Place::Rollouts));
         out.push(place(t!("app-palette-drift-config-search"), "baseline drift search setting find grep", Place::Drift));
         out.push(place(t!("app-palette-audit-log"), "changes history who", Place::Audit));
+        out.push(place(t!("app-palette-outbound-wire"), "wire outbound egress network sockets trace proc silence lockdown", Place::Wire));
         out.push(place(t!("app-palette-settings"), "preferences", Place::Settings));
         out.push(place(t!("app-palette-ssh-keys"), "keys credentials", Place::Keys));
         // Every config file Crow has read, on every other server.
@@ -227,6 +228,7 @@ impl CrowApp {
             }
             Target::Screen(Place::FleetMap) => self.open_topology(cx),
             Target::Screen(Place::Audit) => self.open_audit(cx),
+            Target::Screen(Place::Wire) => self.open_wire(cx),
             Target::Screen(p @ (Place::Patching | Place::Rollouts | Place::Drift)) => {
                 use crate::views::fleet::state::SetupPage;
                 self.set_setup_page(match p { Place::Patching => SetupPage::Patching, Place::Rollouts => SetupPage::Rollouts, _ => SetupPage::Drift }, cx);

@@ -300,10 +300,43 @@ fn fetch(provider: &ClankerProviderConfig, cfg: &str) -> Result<Value, String> {
     if provider.api_key.trim().is_empty() {
         return Err(format!("{} has no API key; add one in Settings → Clankers", provider.display_name));
     }
-    let out = LocalHost
-        .exec_stdin(&["curl", "--config", "-"], cfg.as_bytes(), Duration::from_secs(100))
-        .map_err(|e| format!("request to {} failed: {e}", provider.display_name))?;
-    serde_json::from_str(&out.stdout).map_err(|_| format!("{} answered with something unexpected: {}", provider.display_name, out.stdout.chars().take(200).collect::<String>()))
+    let url = cfg
+        .lines()
+        .find_map(|l| l.strip_prefix("url = \"")?.strip_suffix('"'))
+        .unwrap_or(&provider.base_url)
+        .to_string();
+    let (host, port) = crate::wire::parse_url_endpoint(&url);
+    let span = crate::wire::begin_checked(crate::wire::WireStart {
+        category: crate::wire::WireCategory::Ai,
+        protocol: "HTTPS",
+        caller: crate::wire::current_caller("ai.complete"),
+        target_label: format!("ai:{} ({})", provider.display_name, provider.model),
+        remote_host: host,
+        remote_port: port,
+        via_hop: None,
+        summary: format!("POST {url} (model={})", provider.model),
+        request_payload: cfg.to_string(),
+    })?;
+    let tx = cfg.len() as u64;
+    let out = match LocalHost.exec_stdin(&["curl", "--config", "-"], cfg.as_bytes(), Duration::from_secs(100)) {
+        Ok(o) => o,
+        Err(e) => {
+            let msg = format!("request to {} failed: {e}", provider.display_name);
+            span.finish_err(crate::wire::WireStatus::Error, &msg, &e.to_string());
+            return Err(msg);
+        }
+    };
+    match serde_json::from_str(&out.stdout) {
+        Ok(v) => {
+            span.finish_ok(tx, out.stdout.len() as u64, &out.stdout);
+            Ok(v)
+        }
+        Err(_) => {
+            let msg = format!("{} answered with something unexpected: {}", provider.display_name, out.stdout.chars().take(200).collect::<String>());
+            span.finish_err(crate::wire::WireStatus::Error, &msg, &out.stdout);
+            Err(msg)
+        }
+    }
 }
 
 #[cfg(test)]

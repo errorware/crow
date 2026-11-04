@@ -14,6 +14,7 @@ pub enum PageTab {
     Setup,
     Topology,
     Settings,
+    Wire,
 }
 
 impl PageTab {
@@ -22,6 +23,7 @@ impl PageTab {
             Screen::FleetSetup => Some(Self::Setup),
             Screen::Topology => Some(Self::Topology),
             Screen::Settings => Some(Self::Settings),
+            Screen::Wire => Some(Self::Wire),
             _ => None,
         }
     }
@@ -31,6 +33,7 @@ impl PageTab {
             Self::Setup => Screen::FleetSetup,
             Self::Topology => Screen::Topology,
             Self::Settings => Screen::Settings,
+            Self::Wire => Screen::Wire,
         }
     }
 
@@ -39,6 +42,7 @@ impl PageTab {
             Self::Setup => "setup",
             Self::Topology => "topology",
             Self::Settings => "settings",
+            Self::Wire => "wire",
         }
     }
 
@@ -47,6 +51,7 @@ impl PageTab {
             Self::Setup => t!("page-tabs-fleet-configuration"),
             Self::Topology => t!("page-tabs-topology"),
             Self::Settings => t!("page-tabs-settings"),
+            Self::Wire => t!("page-tabs-wire"),
         }
     }
 }
@@ -55,7 +60,7 @@ impl PageTab {
 pub fn parse(saved: &str) -> Vec<PageTab> {
     let mut out = Vec::new();
     for t in saved.split(',').map(str::trim) {
-        let tab = [PageTab::Setup, PageTab::Topology, PageTab::Settings].into_iter().find(|p| p.id() == t);
+        let tab = [PageTab::Setup, PageTab::Topology, PageTab::Settings, PageTab::Wire].into_iter().find(|p| p.id() == t);
         if let Some(tab) = tab.filter(|t| !out.contains(t)) {
             out.push(tab);
         }

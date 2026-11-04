@@ -15,4 +15,5 @@ pub mod settings;
 pub mod terminal;
 pub mod topology;
 pub mod users;
+pub mod wire;
 

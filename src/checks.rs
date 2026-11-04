@@ -81,19 +81,43 @@ pub fn run(check: &Check) -> Outcome {
             if !(url.starts_with("http://") || url.starts_with("https://")) {
                 return fail("the URL must start with http:// or https://", None);
             }
+            let (host, port) = crate::wire::parse_url_endpoint(url);
+            let proto = if url.starts_with("https://") { "HTTPS" } else { "HTTP" };
+            let span = match crate::wire::begin_checked(crate::wire::WireStart {
+                category: crate::wire::WireCategory::Check,
+                protocol: proto,
+                caller: crate::wire::current_caller("checks.http"),
+                target_label: format!("check:{}", check.name),
+                remote_host: host,
+                remote_port: port,
+                via_hop: None,
+                summary: format!("GET {url}"),
+                request_payload: format!("GET {url} (User-Agent: Crow uptime check)"),
+            }) {
+                Ok(s) => s,
+                Err(msg) => return fail(msg, None),
+            };
             // Only the start of the body is kept, for the keyword.
             let out = std::process::Command::new("curl")
                 .args(["-sS", "-v", "-L", "--max-redirs", "5", "--max-time", "10", "--max-filesize", "2000000", "-A", "Crow uptime check", "-w", "\n@@crow %{http_code} %{time_total}", "--", url])
                 .output();
             let out = match out {
                 Ok(o) => o,
-                Err(e) => return fail(format!("couldn't run curl: {e}"), None),
+                Err(e) => {
+                    let msg = format!("couldn't run curl: {e}");
+                    span.finish_err(crate::wire::WireStatus::Error, &msg, &msg);
+                    return fail(msg, None);
+                }
             };
             let stdout = String::from_utf8_lossy(&out.stdout);
             let stderr = String::from_utf8_lossy(&out.stderr);
             let (body, write_out) = stdout.rsplit_once("@@crow ").unwrap_or((&stdout, ""));
             let (code, ms, cert_days) = parse_curl(write_out, &stderr, chrono::Utc::now().timestamp());
-            let Some(code) = code else { return fail(curl_error(&stderr), ms) };
+            let Some(code) = code else {
+                let err = curl_error(&stderr);
+                span.finish_err(crate::wire::WireStatus::Error, &err, &stderr);
+                return fail(err, ms);
+            };
             let status_ok = match status {
                 Some(s) => code == *s,
                 None => (200..400).contains(&code),
@@ -110,39 +134,87 @@ pub fn run(check: &Check) -> Outcome {
                 o.ok = false;
                 o.detail = format!("the certificate expired {} days ago", -d);
             }
+            if o.ok {
+                span.finish_ok(0, body.len() as u64, &format!("{}\n\n{}", o.detail, body.chars().take(1024).collect::<String>()));
+            } else {
+                span.finish_err(crate::wire::WireStatus::Error, &o.detail, &stderr);
+            }
             o
         }
         Kind::Tcp { host, port } => {
+            let span = match crate::wire::begin_checked(crate::wire::WireStart {
+                category: crate::wire::WireCategory::Check,
+                protocol: "TCP",
+                caller: crate::wire::current_caller("checks.tcp"),
+                target_label: format!("check:{}", check.name),
+                remote_host: host.clone(),
+                remote_port: *port,
+                via_hop: None,
+                summary: format!("TCP connect {host}:{port}"),
+                request_payload: format!("TCP SYN -> {host}:{port}"),
+            }) {
+                Ok(s) => s,
+                Err(msg) => return fail(msg, None),
+            };
             let start = Instant::now();
             let addrs: Vec<_> = match (host.as_str(), *port).to_socket_addrs() {
                 Ok(a) => a.collect(),
-                Err(e) => return fail(format!("can't resolve {host}: {e}"), None),
+                Err(e) => {
+                    let msg = format!("can't resolve {host}: {e}");
+                    span.finish_err(crate::wire::WireStatus::Error, &msg, &msg);
+                    return fail(msg, None);
+                }
             };
             let mut last = String::from("no address");
             for a in addrs {
                 match TcpStream::connect_timeout(&a, TIMEOUT) {
                     Ok(_) => {
                         let ms = start.elapsed().as_millis() as i64;
-                        return Outcome { ok: true, latency_ms: Some(ms), detail: format!("{a} open in {ms} ms"), cert_days: None };
+                        let detail = format!("{a} open in {ms} ms");
+                        span.finish_ok(0, 0, &detail);
+                        return Outcome { ok: true, latency_ms: Some(ms), detail, cert_days: None };
                     }
                     Err(e) => last = format!("{a}: {e}"),
                 }
             }
+            span.finish_err(crate::wire::WireStatus::Error, &last, &last);
             fail(last, Some(start.elapsed().as_millis() as i64))
         }
         Kind::Dns { name, expect } => {
+            let span = match crate::wire::begin_checked(crate::wire::WireStart {
+                category: crate::wire::WireCategory::Check,
+                protocol: "DNS",
+                caller: crate::wire::current_caller("checks.dns"),
+                target_label: format!("check:{}", check.name),
+                remote_host: name.clone(),
+                remote_port: 53,
+                via_hop: None,
+                summary: format!("DNS resolve {name}"),
+                request_payload: format!("getaddrinfo({name}, 0)"),
+            }) {
+                Ok(s) => s,
+                Err(msg) => return fail(msg, None),
+            };
             let start = Instant::now();
             match (name.as_str(), 0).to_socket_addrs() {
                 Ok(a) => {
                     let ms = start.elapsed().as_millis() as i64;
                     let ips: Vec<String> = a.map(|a| a.ip().to_string()).collect();
                     if !expect.trim().is_empty() && !ips.iter().any(|i| i == expect.trim()) {
-                        fail(format!("{name} resolves to {}, not {expect}", ips.join(", ")), Some(ms))
+                        let msg = format!("{name} resolves to {}, not {expect}", ips.join(", "));
+                        span.finish_err(crate::wire::WireStatus::Error, &msg, &msg);
+                        fail(msg, Some(ms))
                     } else {
-                        Outcome { ok: true, latency_ms: Some(ms), detail: format!("{name} → {}", ips.join(", ")), cert_days: None }
+                        let detail = format!("{name} → {}", ips.join(", "));
+                        span.finish_ok(0, detail.len() as u64, &detail);
+                        Outcome { ok: true, latency_ms: Some(ms), detail, cert_days: None }
                     }
                 }
-                Err(e) => fail(format!("{name} doesn't resolve: {e}"), Some(start.elapsed().as_millis() as i64)),
+                Err(e) => {
+                    let msg = format!("{name} doesn't resolve: {e}");
+                    span.finish_err(crate::wire::WireStatus::Error, &msg, &msg);
+                    fail(msg, Some(start.elapsed().as_millis() as i64))
+                }
             }
         }
     }

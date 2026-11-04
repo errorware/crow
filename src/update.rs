@@ -69,15 +69,39 @@ pub fn newest(current: &str, releases: &[Release], include_pre: bool, skipped: O
 }
 
 fn curl(args: &[&str]) -> Result<Vec<u8>, String> {
-    let out = Command::new("curl")
+    let url = args.iter().rev().find(|a| a.starts_with("https://") || a.starts_with("http://")).copied().unwrap_or("https://api.github.com");
+    let (host, port) = crate::wire::parse_url_endpoint(url);
+    let span = crate::wire::begin_checked(crate::wire::WireStart {
+        category: crate::wire::WireCategory::Update,
+        protocol: "HTTPS",
+        caller: crate::wire::current_caller("update.github"),
+        target_label: format!("update:{host}"),
+        remote_host: host,
+        remote_port: port,
+        via_hop: None,
+        summary: format!("GET {url}"),
+        request_payload: format!("curl {}", args.join(" ")),
+    })?;
+    let out = match Command::new("curl")
         .args(["-fsSL", "--proto", "=https", "--max-time", "300", "-A", concat!("crow/", env!("CARGO_PKG_VERSION"))])
         .args(args)
         .output()
-        .map_err(|e| format!("curl couldn't run: {e}"))?;
+    {
+        Ok(o) => o,
+        Err(e) => {
+            let msg = format!("curl couldn't run: {e}");
+            span.finish_err(crate::wire::WireStatus::Error, &msg, &msg);
+            return Err(msg);
+        }
+    };
     if out.status.success() {
+        let preview = String::from_utf8_lossy(&out.stdout);
+        span.finish_ok(0, out.stdout.len() as u64, &preview);
         Ok(out.stdout)
     } else {
-        Err(String::from_utf8_lossy(&out.stderr).trim().to_string())
+        let err = String::from_utf8_lossy(&out.stderr).trim().to_string();
+        span.finish_err(crate::wire::WireStatus::Error, &err, &err);
+        Err(err)
     }
 }
 

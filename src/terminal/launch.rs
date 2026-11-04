@@ -11,7 +11,21 @@ const SHELL: &str = "command -v bash >/dev/null 2>&1 && exec bash -l || exec sh 
 pub fn launch_for(server: &ServerRecord) -> Result<Launch, String> {
     match transport_kind(server) {
         TransportKind::Ssh => {
-            let (program, args) = SshHost::for_server(server).interactive_command()?;
+            let ssh_host = SshHost::for_server(server);
+            let via_hop = ssh_host.via_hop();
+            let (program, args) = ssh_host.interactive_command()?;
+            let span = crate::wire::begin_checked(crate::wire::WireStart {
+                category: crate::wire::WireCategory::Terminal,
+                protocol: "SSH-PTY",
+                caller: crate::wire::current_caller("terminal.open"),
+                target_label: format!("pty:{}@{}", server.login_user, server.name),
+                remote_host: server.host.clone(),
+                remote_port: if server.port == 0 { 22 } else { server.port },
+                via_hop,
+                summary: format!("interactive SSH PTY -> {} ({})", server.name, server.host),
+                request_payload: format!("{program} {}", args.join(" ")),
+            })?;
+            span.finish_ok(0, 0, "interactive PTY session spawned");
             Ok(Launch { program, args })
         }
         TransportKind::Container => {

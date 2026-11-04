@@ -37,6 +37,7 @@ pub enum Place {
     Audit,
     Settings,
     Keys,
+    Wire,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

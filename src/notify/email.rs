@@ -413,6 +413,11 @@ pub fn send(settings: &EmailSettings, password: Option<&str>, mails: &[Mail]) ->
         return (0, Some(e));
     }
     let host = settings.host.trim();
+    let proto = match settings.security {
+        Security::Tls => "SMTP-TLS",
+        Security::StartTls => "SMTP-STARTTLS",
+        Security::None => "SMTP",
+    };
     let builder = match settings.security {
         Security::Tls => SmtpTransport::relay(host),
         Security::StartTls => SmtpTransport::starttls_relay(host),
@@ -428,14 +433,39 @@ pub fn send(settings: &EmailSettings, password: Option<&str>, mails: &[Mail]) ->
     let transport = builder.build();
     let mut sent = 0;
     for mail in mails {
+        let span = match crate::wire::begin_checked(crate::wire::WireStart {
+            category: crate::wire::WireCategory::Notify,
+            protocol: proto,
+            caller: crate::wire::current_caller("notify.email"),
+            target_label: format!("smtp:{}:{}", host, settings.port),
+            remote_host: host.to_string(),
+            remote_port: settings.port,
+            via_hop: None,
+            summary: format!("SMTP -> {} | {}", settings.to.join(", "), mail.subject),
+            request_payload: format!("From: {}\nTo: {}\nSubject: {}\n\n{}", settings.from, settings.to.join(", "), mail.subject, mail.body),
+        }) {
+            Ok(s) => s,
+            Err(msg) => return (sent, Some(msg)),
+        };
         let message = match build_message(settings, mail) {
             Ok(m) => m,
-            Err(e) => return (sent, Some(e)),
+            Err(e) => {
+                span.finish_err(crate::wire::WireStatus::Error, &e, &e);
+                return (sent, Some(e));
+            }
         };
-        if let Err(e) = transport.send(&message) {
-            return (sent, Some(explain(&e, settings)));
+        match transport.send(&message) {
+            Ok(resp) => {
+                let msg = format!("250 OK ({:?})", resp.message().collect::<Vec<_>>());
+                span.finish_ok((mail.subject.len() + mail.body.len()) as u64, msg.len() as u64, &msg);
+                sent += 1;
+            }
+            Err(e) => {
+                let err = explain(&e, settings);
+                span.finish_err(crate::wire::WireStatus::Error, &err, &err);
+                return (sent, Some(err));
+            }
         }
-        sent += 1;
     }
     (sent, None)
 }

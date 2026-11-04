@@ -75,15 +75,48 @@ impl CveReport {
 }
 
 fn curl_json(url: &str, body: Option<&str>) -> Result<Value, String> {
+    let (host, port) = crate::wire::parse_url_endpoint(url);
+    let method = if body.is_some() { "POST" } else { "GET" };
+    let req_body = body.unwrap_or("");
+    let span = crate::wire::begin_checked(crate::wire::WireStart {
+        category: crate::wire::WireCategory::Osv,
+        protocol: "HTTPS",
+        caller: crate::wire::current_caller("osv.query"),
+        target_label: format!("osv:{host}"),
+        remote_host: host,
+        remote_port: port,
+        via_hop: None,
+        summary: format!("{method} {url} ({} bytes)", req_body.len()),
+        request_payload: if req_body.is_empty() {
+            format!("{method} {url}")
+        } else {
+            format!("{method} {url}\nContent-Type: application/json\n\n{req_body}")
+        },
+    })?;
     let mut argv = vec!["curl", "-sS", "--fail-with-body", "--max-time", "30"];
     if body.is_some() {
         argv.extend(["-H", "Content-Type: application/json", "--data-binary", "@-"]);
     }
     argv.push(url);
-    let out = LocalHost
-        .exec_stdin(&argv, body.unwrap_or("").as_bytes(), Duration::from_secs(40))
-        .map_err(|e| format!("OSV request failed: {e}"))?;
-    serde_json::from_str(&out.stdout).map_err(|e| t!("security-osv-osv-answered-with-something-unexpected", e = e))
+    let out = match LocalHost.exec_stdin(&argv, req_body.as_bytes(), Duration::from_secs(40)) {
+        Ok(o) => o,
+        Err(e) => {
+            let msg = format!("OSV request failed: {e}");
+            span.finish_err(crate::wire::WireStatus::Error, &msg, &e.to_string());
+            return Err(msg);
+        }
+    };
+    match serde_json::from_str(&out.stdout) {
+        Ok(v) => {
+            span.finish_ok(req_body.len() as u64, out.stdout.len() as u64, &out.stdout);
+            Ok(v)
+        }
+        Err(e) => {
+            let msg = t!("security-osv-osv-answered-with-something-unexpected", e = e);
+            span.finish_err(crate::wire::WireStatus::Error, &msg, &out.stdout);
+            Err(msg)
+        }
+    }
 }
 
 /// The per-CVE records in a result (`UBUNTU-CVE-…`, `DEBIAN-CVE-…`). OSV
@@ -137,10 +170,33 @@ fn details(ids: &[String]) -> HashMap<String, VulnInfo> {
         return HashMap::new();
     }
     let urls: Vec<String> = ids.iter().map(|id| format!("{VULN_URL}{id}")).collect();
+    let (host, port) = crate::wire::parse_url_endpoint(VULN_URL);
+    let Ok(span) = crate::wire::begin_checked(crate::wire::WireStart {
+        category: crate::wire::WireCategory::Osv,
+        protocol: "HTTPS",
+        caller: crate::wire::current_caller("osv.details"),
+        target_label: format!("osv:{host}"),
+        remote_host: host,
+        remote_port: port,
+        via_hop: None,
+        summary: format!("GET {} OSV advisory record(s)", urls.len()),
+        request_payload: urls.join("\n"),
+    }) else {
+        return HashMap::new();
+    };
     let separator = format!("\n{DETAIL_SEPARATOR}\n");
     let mut argv = vec!["curl", "-sS", "--max-time", "60", "-w", separator.as_str()];
     argv.extend(urls.iter().map(String::as_str));
-    let Ok(out) = LocalHost.exec(&argv, Duration::from_secs(70)) else { return HashMap::new() };
+    let out = match LocalHost.exec(&argv, Duration::from_secs(70)) {
+        Ok(o) => {
+            span.finish_ok(0, o.stdout.len() as u64, &o.stdout);
+            o
+        }
+        Err(e) => {
+            span.finish_err(crate::wire::WireStatus::Error, &e.to_string(), &e.to_string());
+            return HashMap::new();
+        }
+    };
     out.stdout
         .split(DETAIL_SEPARATOR)
         .filter_map(|chunk| serde_json::from_str::<Value>(chunk.trim()).ok())

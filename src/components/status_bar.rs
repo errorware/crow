@@ -123,6 +123,35 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
                         )
                 })),
         )
+        .child({
+            let app_wire = app.clone();
+            let counters = crate::wire::counters();
+            let silenced = crate::wire::is_silenced();
+            let (wire_dot, wire_color, wire_text) = if silenced {
+                (CRIT, CRIT, t!("status-bar-wire-silenced").to_string())
+            } else if counters.in_flight > 0 {
+                (WARN, WARN, t!("status-bar-wire-active", total = counters.total_calls, active = counters.in_flight))
+            } else {
+                (OK, TEXT_SECONDARY, t!("status-bar-wire-calls", total = counters.total_calls))
+            };
+            div()
+                .id("status-wire")
+                .h_full()
+                .flex()
+                .flex_none()
+                .items_center()
+                .gap(px(7.0))
+                .px(px(12.0))
+                .border_l_1()
+                .border_color(BORDER_PANEL)
+                .cursor_pointer()
+                .hover(|s| s.bg(BG_ROW_HOVER))
+                .on_click(move |_ev, _window, cx| {
+                    app_wire.update(cx, |this, cx| this.open_wire(cx));
+                })
+                .child(div().size(px(6.0)).bg(wire_dot).flex_none())
+                .child(div().text_color(wire_color).child(wire_text))
+        })
         .child(
             div()
                 .h_full()

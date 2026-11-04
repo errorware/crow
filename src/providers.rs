@@ -96,10 +96,78 @@ pub fn load_settings(db: &VaultDb, key: &MasterKey, account: &ProviderAccount) -
     Ok(settings)
 }
 
+/// Wraps `CurlHttp` so every Cloud Provider API call is recorded in Crow's
+/// Outbound Wire ledger with redacted headers and full response payload.
+struct TracedHttp {
+    label: String,
+    inner: CurlHttp,
+}
+
+impl TracedHttp {
+    fn new(account: &ProviderAccount) -> Self {
+        Self {
+            label: format!("provider:{} ({})", account.plugin, account.label),
+            inner: CurlHttp::default(),
+        }
+    }
+}
+
+impl crow_provider_core::http::Http for TracedHttp {
+    fn send(&self, request: &crow_provider_core::http::HttpRequest) -> Result<crow_provider_core::http::HttpResponse, ProviderError> {
+        use crow_provider_core::http::HeaderValue;
+        let (host, port) = crate::wire::parse_url_endpoint(&request.url);
+        let mut req_text = format!("{} {}\n", request.method.as_str(), request.url);
+        for (name, val) in &request.headers {
+            match val {
+                HeaderValue::Plain(v) => req_text.push_str(&format!("{name}: {v}\n")),
+                HeaderValue::Secret(_) => req_text.push_str(&format!("{name}: [REDACTED]\n")),
+            }
+        }
+        if let Some(body) = &request.body {
+            req_text.push('\n');
+            req_text.push_str(&serde_json::to_string_pretty(body).unwrap_or_else(|_| body.to_string()));
+        }
+        let span = crate::wire::begin_checked(crate::wire::WireStart {
+            category: crate::wire::WireCategory::Provider,
+            protocol: "HTTPS",
+            caller: crate::wire::current_caller("provider.http"),
+            target_label: self.label.clone(),
+            remote_host: host,
+            remote_port: port,
+            via_hop: None,
+            summary: format!("{} {}", request.method.as_str(), request.url),
+            request_payload: req_text.clone(),
+        })
+        .map_err(ProviderError::Network)?;
+        let tx = req_text.len() as u64;
+        match self.inner.send(request) {
+            Ok(resp) => {
+                let rx = resp.body.len() as u64;
+                let payload = format!("HTTP {}\n\n{}", resp.status, resp.body);
+                if resp.is_success() {
+                    span.finish_ok(tx, rx, &payload);
+                } else {
+                    span.finish_err(
+                        crate::wire::WireStatus::Error,
+                        &format!("HTTP {}", resp.status),
+                        &payload,
+                    );
+                }
+                Ok(resp)
+            }
+            Err(e) => {
+                let msg = e.to_string();
+                span.finish_err(crate::wire::WireStatus::Error, &msg, &msg);
+                Err(e)
+            }
+        }
+    }
+}
+
 /// Builds the provider for `account`, talking HTTP through the system curl.
 pub fn connect(account: &ProviderAccount, settings: ProviderSettings) -> Result<Box<dyn Provider>, ProviderError> {
     let f = factory(&account.plugin).ok_or_else(|| ProviderError::Unsupported(t!("providers-isnt-compiled-into-this-build", plugin = account.plugin)))?;
-    (f.build)(settings, Arc::new(CurlHttp::default()))
+    (f.build)(settings, Arc::new(TracedHttp::new(account)))
 }
 
 /// Something done to an instance at its provider (ERR-47).

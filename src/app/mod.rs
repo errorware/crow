@@ -83,6 +83,7 @@ pub mod password_login;
 pub mod vault_manage;
 mod lab;
 pub mod groups;
+pub mod wire;
 
 use crate::views::fleet::lab_state::LocalLabState;
 use crate::views::fleet::FleetState;
@@ -115,6 +116,8 @@ pub enum Screen {
     /// Topology & DR: the fleet map and recovery plans.
     Topology,
     VaultSetup,
+    /// Outbound Wire & Egress Traceability monitor (`ERR-216`).
+    Wire,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -219,6 +222,9 @@ pub struct CrowApp {
     /// The server's Dokku PaaS page (ERR-203..ERR-210).
     pub dokku: dokku::DokkuState,
     pub dokku_inputs: Option<dokku::DokkuInputs>,
+    /// Outbound Wire & Egress Traceability monitor (ERR-211..ERR-218).
+    pub wire: wire::WireState,
+    pub wire_inputs: Option<wire::WireInputs>,
     /// Fleet Setup → PATCHING (ERR-141).
     pub patching: patching::PatchingState,
     /// Fleet Setup → ROLLOUTS (ERR-142).
@@ -514,6 +520,8 @@ impl CrowApp {
             containers: Default::default(),
             dokku: Default::default(),
             dokku_inputs: None,
+            wire: Default::default(),
+            wire_inputs: None,
             patching: Default::default(),
             rollouts: Default::default(),
             rollout_inputs: None,
@@ -595,6 +603,7 @@ impl CrowApp {
             vault_form: Default::default(),
             vault_form_inputs: None,
         };
+        app.init_wire();
         app.refresh_providers();
         app.load_plugins();
         app.load_email();

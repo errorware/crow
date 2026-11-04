@@ -177,6 +177,7 @@ pub fn titlebar(
                             crate::app::page_tabs::PageTab::Topology => this.open_topology(cx),
                             crate::app::page_tabs::PageTab::Setup => this.open_fleet_setup(cx),
                             crate::app::page_tabs::PageTab::Settings => this.set_screen(Screen::Settings, cx),
+                            crate::app::page_tabs::PageTab::Wire => this.open_wire(cx),
                         })
                     })
                     .children(is_active.then(|| div().absolute().top_0().left_0().right_0().h(px(2.0)).bg(TEXT_MAX)))
@@ -590,6 +591,15 @@ pub fn burger_menu_overlay(
         label: t!("titlebar-command-palette").to_string(),
         shortcut: "⌘K",
         action: Some(MenuAction::TogglePalette),
+        is_danger: false,
+        is_header: false,
+        is_featured: false,
+    });
+    items.push(MenuItem {
+        icon: Some(TablerIcon::Activity),
+        label: t!("titlebar-outbound-wire").to_string(),
+        shortcut: "",
+        action: Some(MenuAction::NavigateScreen(Screen::Wire)),
         is_danger: false,
         is_header: false,
         is_featured: false,

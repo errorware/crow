@@ -119,16 +119,39 @@ fn download(path: &std::path::Path) -> Result<(), String> {
     let tmp = dir.join("download.mmdb");
     let mut last = String::new();
     for url in download_urls(chrono::Local::now().date_naive()) {
-        let out = std::process::Command::new("curl")
+        let (host, port) = crate::wire::parse_url_endpoint(&url);
+        let span = crate::wire::begin_checked(crate::wire::WireStart {
+            category: crate::wire::WireCategory::GeoIp,
+            protocol: "HTTPS",
+            caller: crate::wire::current_caller("geoip.download"),
+            target_label: format!("geoip:{host}"),
+            remote_host: host,
+            remote_port: port,
+            via_hop: None,
+            summary: format!("GET {url}"),
+            request_payload: format!("GET {url} -> {}", gz.display()),
+        })?;
+        let out = match std::process::Command::new("curl")
             .args(["-fsSL", "--proto", "=https", "--max-time", "120", "-o"])
             .arg(&gz)
             .arg(&url)
             .output()
-            .map_err(|e| format!("curl couldn't run: {e}"))?;
+        {
+            Ok(o) => o,
+            Err(e) => {
+                let msg = format!("curl couldn't run: {e}");
+                span.finish_err(crate::wire::WireStatus::Error, &msg, &msg);
+                return Err(msg);
+            }
+        };
         if !out.status.success() {
-            last = format!("{url}: {}", String::from_utf8_lossy(&out.stderr).trim());
+            let err_str = String::from_utf8_lossy(&out.stderr).trim().to_string();
+            span.finish_err(crate::wire::WireStatus::Error, &err_str, &err_str);
+            last = format!("{url}: {err_str}");
             continue;
         }
+        let gz_size = std::fs::metadata(&gz).map(|m| m.len()).unwrap_or(0);
+        span.finish_ok(0, gz_size, &format!("downloaded {gz_size} bytes from {url}"));
         let mut bytes = Vec::new();
         let unpacked = std::fs::File::open(&gz).map_err(|e| e.to_string()).and_then(|f| flate2::read::GzDecoder::new(f).read_to_end(&mut bytes).map_err(|e| e.to_string()));
         let _ = std::fs::remove_file(&gz);

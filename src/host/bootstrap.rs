@@ -167,6 +167,18 @@ fn install_key_via(ssh: &str, askpass_program: &str, server: &ServerRecord, prox
 
     let remote = format!("sh -c {}", shell_quote(INSTALL_KEY_SCRIPT));
     let args = bootstrap_args(server, proxy, &remote)?;
+    let span = crate::wire::begin_checked(crate::wire::WireStart {
+        category: crate::wire::WireCategory::Ssh,
+        protocol: "SSH-ASKPASS",
+        caller: crate::wire::current_caller("ssh.bootstrap"),
+        target_label: format!("ssh:{}@{}", server.login_user, server.host),
+        remote_host: server.host.clone(),
+        remote_port: if server.port == 0 { 22 } else { server.port },
+        via_hop: proxy.map(|_| "bastion".into()),
+        summary: "one-time password bootstrap -> install authorized_keys".into(),
+        request_payload: format!("{remote}\n# stdin public key:\n{}", public_key.trim()),
+    })
+    .map_err(BootstrapError::Failed)?;
     let askpass = AskpassServer::start(password).map_err(|e| BootstrapError::Failed(t!("host-bootstrap-askpass-socket", e = e)))?;
     let sock = askpass.sock.to_string_lossy().into_owned();
 
@@ -178,15 +190,38 @@ fn install_key_via(ssh: &str, askpass_program: &str, server: &ServerRecord, prox
     drop(askpass);
 
     match result {
-        Ok(out) if out.stdout.contains("crow-key-installed") => Ok(()),
-        Ok(out) => Err(BootstrapError::Failed(t!("host-bootstrap-the-key-install-script-didnt", stderr = out.stderr.trim()))),
-        Err(HostError::Failed { status: 255, stderr }) => match classify_ssh_failure(&stderr) {
-            ConnectionState::AuthFailed(d) => Err(BootstrapError::PasswordRejected(d)),
-            other => Err(BootstrapError::Failed(format!("{}: {}", other.label().to_lowercase(), other.detail().unwrap_or_default()))),
-        },
-        Err(HostError::Failed { stderr, .. }) => Err(BootstrapError::Failed(t!("host-bootstrap-installing-the-key-failed", stderr = stderr.trim()))),
-        Err(HostError::Timeout) => Err(BootstrapError::Failed(t!("host-bootstrap-timed-out-logging-in-with").into())),
-        Err(e) => Err(BootstrapError::Failed(e.to_string())),
+        Ok(out) if out.stdout.contains("crow-key-installed") => {
+            span.finish_ok(stdin.len() as u64, out.stdout.len() as u64, &out.stdout);
+            Ok(())
+        }
+        Ok(out) => {
+            let err = BootstrapError::Failed(t!("host-bootstrap-the-key-install-script-didnt", stderr = out.stderr.trim()));
+            span.finish_err(crate::wire::WireStatus::Error, &err.to_string(), &out.stderr);
+            Err(err)
+        }
+        Err(HostError::Failed { status: 255, stderr }) => {
+            let err = match classify_ssh_failure(&stderr) {
+                ConnectionState::AuthFailed(d) => BootstrapError::PasswordRejected(d),
+                other => BootstrapError::Failed(format!("{}: {}", other.label().to_lowercase(), other.detail().unwrap_or_default())),
+            };
+            span.finish_err(crate::wire::WireStatus::Error, &err.to_string(), &stderr);
+            Err(err)
+        }
+        Err(HostError::Failed { stderr, .. }) => {
+            let err = BootstrapError::Failed(t!("host-bootstrap-installing-the-key-failed", stderr = stderr.trim()));
+            span.finish_err(crate::wire::WireStatus::Error, &err.to_string(), &stderr);
+            Err(err)
+        }
+        Err(HostError::Timeout) => {
+            let err = BootstrapError::Failed(t!("host-bootstrap-timed-out-logging-in-with").into());
+            span.finish_err(crate::wire::WireStatus::Timeout, &err.to_string(), "");
+            Err(err)
+        }
+        Err(e) => {
+            let err = BootstrapError::Failed(e.to_string());
+            span.finish_err(crate::wire::WireStatus::Error, &err.to_string(), "");
+            Err(err)
+        }
     }
 }
 

@@ -39,6 +39,7 @@ pub mod security;
 pub mod team;
 pub mod update;
 pub mod vault;
+pub mod wire;
 mod views;
 mod workflows;
 
