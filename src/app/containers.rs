@@ -7,19 +7,26 @@ use gpui_kit::*;
 
 use super::host_actions::HostCommand;
 use super::CrowApp;
+use crate::containers::history::{self, ContainerCharts};
 use crate::containers::{self, Action, Scan, Scope, StackAction};
 use crate::host::host_for;
+use crate::metrics::chart::Range;
 use crate::views::overview::state::ServiceEli5;
 
 /// How often an open Containers page reads the server again.
 const RESCAN_SECS: i64 = 15;
 /// How often followed logs are read again.
 const FOLLOW_SECS: i64 = 3;
+/// How often every server's containers are sampled for history (ERR-201).
+const SAMPLE_SECS: i64 = 60;
+/// A server with neither Docker nor Podman is asked again after this long.
+const NO_RUNTIME_RECHECK_SECS: i64 = 3_600;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum DrawerTab {
     #[default]
     Logs,
+    Usage,
     Inspect,
 }
 
@@ -56,6 +63,15 @@ pub struct ContainersState {
     pub eli5_open: bool,
     /// The last scan of each server, for the fleet map.
     pub by_server: HashMap<String, Scan>,
+    /// The minute sampler (ERR-201): when it last ran, whether it's out.
+    pub sampled_at: i64,
+    pub sampling: bool,
+    /// Servers without a container runtime, left alone until then.
+    pub no_runtime_until: HashMap<String, i64>,
+    pub usage_range: Range,
+    /// (container key, range, sampled_at it was built at, the charts).
+    pub usage: Option<(String, Range, i64, ContainerCharts)>,
+    pub usage_hover: Option<f32>,
 }
 
 impl ContainersState {
@@ -69,8 +85,17 @@ impl CrowApp {
     pub fn refresh_containers(&mut self, cx: &mut Context<Self>) {
         let Some(srv) = self.fleet.active_server() else { return };
         if self.containers.server_id.as_deref() != Some(srv.id.as_str()) {
-            let by_server = std::mem::take(&mut self.containers.by_server);
-            self.containers = ContainersState { server_id: Some(srv.id.clone()), follow: true, by_server, ..Default::default() };
+            let old = std::mem::take(&mut self.containers);
+            self.containers = ContainersState {
+                server_id: Some(srv.id.clone()),
+                follow: true,
+                by_server: old.by_server,
+                sampled_at: old.sampled_at,
+                sampling: old.sampling,
+                no_runtime_until: old.no_runtime_until,
+                usage_range: old.usage_range,
+                ..Default::default()
+            };
         }
         if self.containers.loading {
             return;
@@ -105,12 +130,16 @@ impl CrowApp {
     /// Every poll: an open Containers page stays current, and followed
     /// logs keep coming.
     pub fn containers_tick(&mut self, cx: &mut Context<Self>) {
+        self.sample_containers(cx);
         if self.screen != super::Screen::Server || self.active_view != "containers" {
             return;
         }
         let now = chrono::Utc::now().timestamp();
         if now - self.containers.scanned_at >= RESCAN_SECS && self.containers.busy.is_none() {
             self.refresh_containers(cx);
+        }
+        if self.containers.tab == DrawerTab::Usage {
+            self.load_container_usage();
         }
         if self.containers.follow && self.containers.tab == DrawerTab::Logs && self.containers.selected.is_some() && now - self.containers.logs_at >= FOLLOW_SECS {
             self.load_container_logs(cx);
@@ -130,6 +159,7 @@ impl CrowApp {
         self.containers.inspect = None;
         match self.containers.tab {
             DrawerTab::Logs => self.load_container_logs(cx),
+            DrawerTab::Usage => self.load_container_usage(),
             DrawerTab::Inspect => self.load_container_inspect(cx),
         }
         cx.notify();
@@ -146,9 +176,98 @@ impl CrowApp {
         match tab {
             DrawerTab::Logs if self.containers.logs.is_none() => self.load_container_logs(cx),
             DrawerTab::Inspect if self.containers.inspect.is_none() => self.load_container_inspect(cx),
+            DrawerTab::Usage => self.load_container_usage(),
             _ => {}
         }
         cx.notify();
+    }
+
+    /// Every server Crow can reach, once a minute: its containers' usage
+    /// into history, and its scan for the fleet map. Each server is read
+    /// on its own thread, so one slow server doesn't hold up the rest.
+    fn sample_containers(&mut self, cx: &mut Context<Self>) {
+        use crate::views::fleet::state::FleetHealth;
+        let now = chrono::Utc::now().timestamp();
+        if self.containers.sampling || now - self.containers.sampled_at < SAMPLE_SECS {
+            return;
+        }
+        self.containers.sampled_at = now;
+        let servers: Vec<_> = self
+            .fleet
+            .servers
+            .iter()
+            .filter(|s| matches!(self.fleet.health(s), FleetHealth::Ok))
+            .filter(|s| self.containers.no_runtime_until.get(&s.id).is_none_or(|&until| now >= until))
+            .cloned()
+            .collect();
+        if servers.is_empty() {
+            return;
+        }
+        self.containers.sampling = true;
+        cx.spawn(async move |entity, cx| {
+            let scans = cx
+                .background_executor()
+                .spawn(async move {
+                    std::thread::scope(|sc| {
+                        let jobs: Vec<_> = servers.iter().map(|s| sc.spawn(move || (s.id.clone(), containers::scan(host_for(s).as_ref())))).collect();
+                        jobs.into_iter().filter_map(|j| j.join().ok()).collect::<Vec<_>>()
+                    })
+                })
+                .await;
+            let _ = entity.update(cx, |this, cx| {
+                this.containers.sampling = false;
+                let mut samples = Vec::new();
+                for (server_id, scan) in scans {
+                    let Ok(scan) = scan else { continue };
+                    if scan.runtimes.is_empty() {
+                        this.containers.no_runtime_until.insert(server_id.clone(), now + NO_RUNTIME_RECHECK_SECS);
+                    }
+                    samples.extend(history::samples_from(&server_id, now, &scan));
+                    this.containers.by_server.insert(server_id, scan);
+                }
+                if let Ok(db) = this.vault.db().lock() {
+                    let _ = db.insert_container_samples(&samples);
+                }
+                if this.containers.tab == DrawerTab::Usage {
+                    this.load_container_usage();
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    /// The selected container's charts, rebuilt when the range changes or a
+    /// new sample came in.
+    pub fn load_container_usage(&mut self) {
+        let Some((srv, c)) = self.selected_container() else { return };
+        let (key, range, at) = (c.key(), self.containers.usage_range, self.containers.sampled_at);
+        if self.containers.usage.as_ref().is_some_and(|(k, r, t, _)| *k == key && *r == range && *t == at) {
+            return;
+        }
+        let now = chrono::Utc::now().timestamp();
+        let from = now - range.secs();
+        let db = self.vault.db();
+        let Ok(db) = db.lock() else { return };
+        let samples = db.list_container_history(&srv.id, &c.name, from).unwrap_or_default();
+        let rows = db.list_history(&srv.id, from).unwrap_or_default();
+        let sessions = db.list_watch_sessions(from).unwrap_or_default();
+        drop(db);
+        self.containers.usage = Some((key, range, at, history::charts(&samples, &rows, &sessions, from, now, range.bucket_secs())));
+    }
+
+    pub fn set_container_usage_range(&mut self, range: Range, cx: &mut Context<Self>) {
+        self.containers.usage_range = range;
+        self.containers.usage_hover = None;
+        self.load_container_usage();
+        cx.notify();
+    }
+
+    pub fn set_container_usage_hover(&mut self, x: Option<f32>, cx: &mut Context<Self>) {
+        if self.containers.usage_hover != x {
+            self.containers.usage_hover = x;
+            cx.notify();
+        }
     }
 
     pub fn toggle_container_follow(&mut self, cx: &mut Context<Self>) {

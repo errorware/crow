@@ -613,6 +613,20 @@ impl VaultDb {
                 PRIMARY KEY (check_id, ts)
             );
 
+            CREATE TABLE IF NOT EXISTS container_history (
+                server_id TEXT NOT NULL,
+                name TEXT NOT NULL,
+                ts INTEGER NOT NULL,
+                state TEXT NOT NULL,
+                cpu REAL,
+                mem INTEGER,
+                mem_limit INTEGER,
+                net_rx INTEGER,
+                net_tx INTEGER,
+                restarts INTEGER,
+                PRIMARY KEY (server_id, name, ts)
+            );
+
             CREATE TABLE IF NOT EXISTS watch_sessions (
                 started INTEGER PRIMARY KEY,
                 last_tick INTEGER NOT NULL
@@ -1455,9 +1469,48 @@ impl VaultDb {
         Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
     }
 
+    /// Container samples (ERR-201).
+    pub fn insert_container_samples(&self, rows: &[crate::containers::history::ContainerSample]) -> Result<(), VaultError> {
+        let tx = self.conn.unchecked_transaction()?;
+        for r in rows {
+            tx.execute(
+                "INSERT OR REPLACE INTO container_history (server_id, name, ts, state, cpu, mem, mem_limit, net_rx, net_tx, restarts)
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)",
+                params![r.server_id, r.name, r.ts, r.state, r.cpu, r.mem.map(|v| v as i64), r.mem_limit.map(|v| v as i64), r.net_rx.map(|v| v as i64), r.net_tx.map(|v| v as i64), r.restarts],
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
+
+    /// One container's samples since `since`, oldest first.
+    pub fn list_container_history(&self, server_id: &str, name: &str, since: i64) -> Result<Vec<crate::containers::history::ContainerSample>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT server_id, name, ts, state, cpu, mem, mem_limit, net_rx, net_tx, restarts FROM container_history
+             WHERE server_id = ?1 AND name = ?2 AND ts >= ?3 ORDER BY ts",
+        )?;
+        let u = |v: Option<i64>| v.map(|v| v.max(0) as u64);
+        let rows = stmt.query_map(params![server_id, name, since], |r| {
+            Ok(crate::containers::history::ContainerSample {
+                server_id: r.get(0)?,
+                name: r.get(1)?,
+                ts: r.get(2)?,
+                state: r.get(3)?,
+                cpu: r.get(4)?,
+                mem: u(r.get(5)?),
+                mem_limit: u(r.get(6)?),
+                net_rx: u(r.get(7)?),
+                net_tx: u(r.get(8)?),
+                restarts: r.get(9)?,
+            })
+        })?;
+        Ok(rows.collect::<rusqlite::Result<Vec<_>>>()?)
+    }
+
     /// Drops history older than `before` (Unix seconds).
     pub fn prune_history(&self, before: i64) -> Result<usize, VaultError> {
         let n = self.conn.execute("DELETE FROM metric_history WHERE ts < ?1", params![before])?;
+        self.conn.execute("DELETE FROM container_history WHERE ts < ?1", params![before])?;
         self.conn.execute("DELETE FROM alerts WHERE resolved_at IS NOT NULL AND resolved_at < ?1", params![before])?;
         self.conn.execute("DELETE FROM watch_sessions WHERE last_tick < ?1", params![before])?;
         Ok(n)
@@ -2327,6 +2380,19 @@ impl VaultDb {
 mod tests {
     use super::*;
     use crate::vault::crypto::generate_totp_secret;
+
+    #[test]
+    fn container_samples_round_trip_and_age_out() {
+        use crate::containers::history::ContainerSample;
+        let db = VaultDb::open_in_memory().unwrap();
+        let mk = |name: &str, ts: i64, cpu: Option<f32>| ContainerSample { server_id: "s1".into(), name: name.into(), ts, state: if cpu.is_some() { "running" } else { "exited" }.into(), cpu, mem: cpu.map(|_| 5_000_000_000), mem_limit: None, net_rx: Some(1), net_tx: None, restarts: Some(2) };
+        db.insert_container_samples(&[mk("web", 100, Some(1.5)), mk("web", 160, None), mk("db", 100, Some(9.0))]).unwrap();
+        let web = db.list_container_history("s1", "web", 0).unwrap();
+        assert_eq!(web, vec![mk("web", 100, Some(1.5)), mk("web", 160, None)], "past 4 GB and the Nones survive");
+        db.prune_history(150).unwrap();
+        assert_eq!(db.list_container_history("s1", "web", 0).unwrap().len(), 1);
+        assert!(db.list_container_history("s1", "db", 0).unwrap().is_empty());
+    }
 
     #[cfg(unix)]
     #[test]

@@ -3,6 +3,8 @@
 //! lists every runtime the server has, its containers and their compose
 //! stacks; actions and logs run the runtime's own CLI the same way.
 
+pub mod history;
+
 use std::collections::BTreeMap;
 use std::time::Duration;
 

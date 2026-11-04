@@ -2,6 +2,9 @@
 //! containers, and a drawer for the selected one (logs, inspect, actions,
 //! the wand).
 
+use std::cell::Cell;
+use std::rc::Rc;
+
 use gpui_kit::component::scroll::ScrollableElement;
 use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
@@ -9,8 +12,10 @@ use gpui_kit::*;
 use crate::app::containers::{ContainersState, DrawerTab, Pending};
 use crate::app::CrowApp;
 use crate::components::icons::{inherited_icon, TablerIcon};
+use crate::containers::history::ContainerCharts;
 use crate::containers::{human_size, Action, Container, RuntimeOutcome, Scan, Stack, StackAction, Usage};
 use crate::lab::multipass::InstallStep;
+use crate::metrics::chart::{GapKind, Range, Series};
 use crate::theme::*;
 use crate::views::overview::service_inspector::{render_eli5, WAND};
 
@@ -387,7 +392,7 @@ fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl Int
     };
     let actions: Vec<(Action, Rgba)> = if c.is_running() { vec![(Action::Restart, WARN), (Action::Stop, CRIT)] } else { vec![(Action::Start, OK)] };
     let eli5_key = format!("{}|{}", c.image, c.service().unwrap_or_default());
-    let (app_close, app_wand, app_logs, app_inspect, app_follow) = (app.clone(), app.clone(), app.clone(), app.clone(), app.clone());
+    let (app_close, app_wand, app_logs, app_usage, app_inspect, app_follow) = (app.clone(), app.clone(), app.clone(), app.clone(), app.clone(), app.clone());
     let tab = |id: &'static str, label: &'static str, active: bool| {
         div()
             .id(id)
@@ -426,6 +431,10 @@ fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl Int
             }
             Some((k, Err(e))) if *k == key => mono(10.5, CRIT).child(e.clone()).into_any_element(),
             _ => mono(10.5, TEXT_DIM).child(t!("containers-reading-logs")).into_any_element(),
+        },
+        DrawerTab::Usage => match &st.usage {
+            Some((k, _, _, charts)) if *k == key => usage_charts(charts, st.usage_hover, app.clone()).into_any_element(),
+            _ => mono(10.5, TEXT_DIM).child(t!("containers-reading-2")).into_any_element(),
         },
         DrawerTab::Inspect => match &st.inspect {
             Some((k, Ok(json))) if *k == key => div().flex().flex_col().children(json.lines().map(|l| mono(10.0, TEXT_SECONDARY).whitespace_nowrap().child(l.replace(' ', "\u{a0}")))).into_any_element(),
@@ -517,6 +526,7 @@ fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl Int
                 .border_b_1()
                 .border_color(BORDER_PANEL)
                 .child(tab("container-tab-logs", t!("containers-logs"), st.tab == DrawerTab::Logs).on_click(move |_ev, _window, cx| app_logs.update(cx, |this, cx| this.set_container_tab(DrawerTab::Logs, cx))))
+                .child(tab("container-tab-usage", t!("containers-usage"), st.tab == DrawerTab::Usage).on_click(move |_ev, _window, cx| app_usage.update(cx, |this, cx| this.set_container_tab(DrawerTab::Usage, cx))))
                 .child(tab("container-tab-inspect", t!("containers-inspect"), st.tab == DrawerTab::Inspect).on_click(move |_ev, _window, cx| app_inspect.update(cx, |this, cx| this.set_container_tab(DrawerTab::Inspect, cx))))
                 .child(div().flex_1())
                 .when(st.tab == DrawerTab::Logs, |d| {
@@ -532,7 +542,136 @@ fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl Int
                             .child(mono(9.5, if st.follow { OK } else { TEXT_DIM }).font_weight(FontWeight::BOLD).child(if st.follow { t!("containers-following") } else { t!("containers-follow") })),
                     )
                 })
+                .when(st.tab == DrawerTab::Usage, |d| {
+                    d.child(div().flex().gap(px(4.0)).children([Range::Hour, Range::Day, Range::Week].into_iter().map(|r| {
+                        let app = app.clone();
+                        let on = st.usage_range == r;
+                        crate::components::button::button(SharedString::from(format!("container-range-{}", r.label())), crate::components::button::Tone::Neutral)
+                            .px(px(6.0))
+                            .py(px(1.0))
+                            .text_size(px(9.0))
+                            .when(on, |b| b.bg(BG_ROW_SELECTED).text_color(TEXT_PRIMARY))
+                            .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_container_usage_range(r, cx)))
+                            .child(r.label())
+                    })))
+                })
                 .when(st.tab == DrawerTab::Inspect, |d| d.child(mono(9.0, TEXT_FAINT).child(t!("containers-environment-values-hidden")))),
         )
         .child(div().id("container-drawer-scroll").flex_1().min_h(px(0.0)).overflow_y_scrollbar().p(px(12.0)).child(content))
+}
+
+/// The one series hue, as on the History page: not a status color.
+const SERIES: u32 = 0x38bdf8;
+
+/// CPU, memory and network over the chosen range (ERR-201), one time axis.
+fn usage_charts(c: &ContainerCharts, hover: Option<f32>, app: Entity<CrowApp>) -> impl IntoElement {
+    let span = (c.to - c.from).max(1);
+    let bucket_frac = c.bucket as f32 / span as f32;
+    let at = |s: &Series, fmt: &dyn Fn(f32) -> String| match hover {
+        Some(h) => s.value_at(h, bucket_frac).map(fmt).unwrap_or_else(|| "—".into()),
+        None => s.last.map(fmt).unwrap_or_else(|| "—".into()),
+    };
+    let when = hover.map(|h| {
+        let t = c.from + (span as f32 * h) as i64;
+        chrono::DateTime::from_timestamp(t, 0).map(|d| d.with_timezone(&chrono::Local).format(if span > 86_400 { "%a %H:%M" } else { "%H:%M" }).to_string()).unwrap_or_default()
+    });
+    let mem_max = c.mem_limit_mb.filter(|l| *l < c.mem.max * 4.0).unwrap_or((c.mem.max * 1.2).max(1.0));
+    let empty = c.cpu.segments.is_empty() && c.mem.segments.is_empty();
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(12.0))
+        .child(mono(9.5, TEXT_DIM).line_height(px(14.0)).child(match when {
+            Some(w) => t!("containers-usage-at", when = w),
+            None => t!("containers-usage-hint").to_string(),
+        }))
+        .when(empty, |d| d.child(mono(10.5, TEXT_DIM).line_height(px(15.0)).child(t!("containers-usage-none-yet"))))
+        .child(usage_chart(0, t!("containers-cpu"), &c.cpu, (c.cpu.max * 1.2).max(5.0), at(&c.cpu, &|v| format!("{v:.1}%")), c, hover, app.clone()))
+        .child(usage_chart(1, t!("containers-memory"), &c.mem, mem_max, at(&c.mem, &|v| human_size((v * 1e6) as u64)), c, hover, app.clone()))
+        .child(usage_chart(2, t!("containers-network-rate"), &c.net, (c.net.max * 1.2).max(1.0), at(&c.net, &|v| format!("{}/s", human_size((v * 1e3) as u64))), c, hover, app))
+        .child(
+            div()
+                .flex()
+                .flex_wrap()
+                .gap(px(12.0))
+                .child(usage_key(hex_rgba(0xffffff, 0.12), t!("history-crow-wasnt-running-nothing-watched")))
+                .child(usage_key(hex_rgba(0xf87171, 0.3), t!("history-server-unreachable")))
+                .child(usage_key(WARN, t!("containers-usage-restarted"))),
+        )
+}
+
+fn usage_key(color: Rgba, label: &'static str) -> impl IntoElement {
+    div().flex().items_center().gap(px(5.0)).child(div().size(px(8.0)).bg(color)).child(mono(9.0, TEXT_DIM).child(label))
+}
+
+#[allow(clippy::too_many_arguments)]
+fn usage_chart(i: usize, title: &'static str, series: &Series, max: f32, value: String, c: &ContainerCharts, hover: Option<f32>, app: Entity<CrowApp>) -> impl IntoElement {
+    let (series, gaps, restarts) = (series.clone(), c.gaps.clone(), c.restarts.clone());
+    let bounds: Rc<Cell<Option<Bounds<Pixels>>>> = Rc::new(Cell::new(None));
+    let painted = bounds.clone();
+    let app_leave = app.clone();
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(4.0))
+        .child(div().flex().items_baseline().child(mono(9.0, TEXT_DIMMER).font_weight(FontWeight::BOLD).child(title)).child(div().flex_1()).child(mono(10.5, TEXT_PRIMARY).child(value)))
+        .child(
+            div()
+                .id(("container-usage-chart", i))
+                .h(px(84.0))
+                .relative()
+                .border_1()
+                .border_color(BORDER_ROW)
+                .on_mouse_move(move |ev: &MouseMoveEvent, _window, cx| {
+                    let Some(b) = bounds.get() else { return };
+                    let inside = ev.position.y >= b.origin.y && ev.position.y <= b.origin.y + b.size.height && ev.position.x >= b.origin.x && ev.position.x <= b.origin.x + b.size.width;
+                    let x = inside.then(|| ((ev.position.x - b.origin.x) / b.size.width).clamp(0.0, 1.0));
+                    app.update(cx, |this, cx| this.set_container_usage_hover(x, cx));
+                })
+                .on_hover(move |over, _window, cx| {
+                    if !*over {
+                        app_leave.update(cx, |this, cx| this.set_container_usage_hover(None, cx));
+                    }
+                })
+                .child(
+                    canvas(
+                        |_bounds, _window, _cx| (),
+                        move |b, (), window, _cx| {
+                            painted.set(Some(b));
+                            let x = |f: f32| b.origin.x + b.size.width * f;
+                            let y = |v: f32| b.origin.y + b.size.height * (1.0 - (v / max).clamp(0.0, 1.0));
+                            for g in &gaps {
+                                let color = match g.kind {
+                                    GapKind::CrowClosed => hex_rgba(0xffffff, 0.035),
+                                    GapKind::Unreachable => hex_rgba(0xf87171, 0.08),
+                                };
+                                window.paint_quad(fill(Bounds::new(point(x(g.from), b.origin.y), size((x(g.to) - x(g.from)).max(px(1.0)), b.size.height)), color));
+                            }
+                            window.paint_quad(fill(Bounds::new(point(b.origin.x, y(max * 0.5)), size(b.size.width, px(1.0))), hex_rgba(0xffffff, 0.06)));
+                            for &r in &restarts {
+                                window.paint_quad(fill(Bounds::new(point(x(r), b.origin.y), size(px(1.0), b.size.height)), WARN.opacity(0.7)));
+                            }
+                            for seg in &series.segments {
+                                if seg.len() == 1 {
+                                    let (f, v) = seg[0];
+                                    window.paint_quad(fill(Bounds::new(point(x(f) - px(1.5), y(v) - px(1.5)), size(px(3.0), px(3.0))), rgb(SERIES)));
+                                    continue;
+                                }
+                                let mut path = PathBuilder::stroke(px(2.0));
+                                path.move_to(point(x(seg[0].0), y(seg[0].1)));
+                                for &(f, v) in &seg[1..] {
+                                    path.line_to(point(x(f), y(v)));
+                                }
+                                if let Ok(p) = path.build() {
+                                    window.paint_path(p, rgb(SERIES));
+                                }
+                            }
+                            if let Some(h) = hover {
+                                window.paint_quad(fill(Bounds::new(point(x(h), b.origin.y), size(px(1.0), b.size.height)), hex_rgba(0xffffff, 0.35)));
+                            }
+                        },
+                    )
+                    .size_full(),
+                ),
+        )
 }

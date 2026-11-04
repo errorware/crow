@@ -5,8 +5,11 @@
 use super::alerts::Alert;
 use super::history::HistoryRow;
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Range {
+    /// The container drawer's default (ERR-201).
+    #[default]
+    Hour,
     Day,
     Week,
 }
@@ -14,6 +17,7 @@ pub enum Range {
 impl Range {
     pub fn secs(self) -> i64 {
         match self {
+            Range::Hour => 3_600,
             Range::Day => 86_400,
             Range::Week => 7 * 86_400,
         }
@@ -22,6 +26,7 @@ impl Range {
     /// Bucket width: ~700 points either way.
     pub fn bucket_secs(self) -> i64 {
         match self {
+            Range::Hour => 60,
             Range::Day => 120,
             Range::Week => 900,
         }
@@ -29,6 +34,7 @@ impl Range {
 
     pub fn label(self) -> &'static str {
         match self {
+            Range::Hour => "1H",
             Range::Day => "24H",
             Range::Week => "7D",
         }
@@ -60,11 +66,16 @@ impl Series {
 
 /// Buckets `rows` over [from, to) and averages `pick` in each bucket.
 pub fn series(rows: &[HistoryRow], pick: fn(&HistoryRow) -> Option<f32>, from: i64, to: i64, bucket: i64) -> Series {
+    series_of(rows.iter().map(|r| (r.ts, pick(r))), from, to, bucket)
+}
+
+/// `series` over any (time, value) pairs.
+pub fn series_of(points: impl IntoIterator<Item = (i64, Option<f32>)>, from: i64, to: i64, bucket: i64) -> Series {
     let n = ((to - from) / bucket).max(1) as usize;
     let mut sums = vec![(0.0f32, 0u32); n];
-    for r in rows {
-        let (Some(v), true) = (pick(r), r.ts >= from && r.ts < to) else { continue };
-        let i = (((r.ts - from) / bucket) as usize).min(n - 1);
+    for (ts, v) in points {
+        let (Some(v), true) = (v, ts >= from && ts < to) else { continue };
+        let i = (((ts - from) / bucket) as usize).min(n - 1);
         sums[i].0 += v;
         sums[i].1 += 1;
     }
