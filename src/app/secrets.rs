@@ -36,7 +36,7 @@ impl CrowApp {
             self.on_data_key_ready(cx);
             return;
         }
-        let read = cx.read_credentials(KEYRING_URL);
+        let read = super::keyring::read(cx, KEYRING_URL);
         cx.spawn(async move |entity, cx| {
             let result = read.await;
             let _ = entity.update(cx, |this, cx| {
@@ -116,7 +116,7 @@ impl CrowApp {
         }
         // Password off and the keyring is empty: make the key, keep it there.
         let key = generate_data_key();
-        let write = cx.write_credentials(KEYRING_URL, KEYRING_USER, key.as_bytes());
+        let write = super::keyring::write(cx, KEYRING_URL, KEYRING_USER, key.as_bytes());
         cx.spawn(async move |entity, cx| {
             let result = write.await;
             let _ = entity.update(cx, |this, cx| match result {
@@ -209,7 +209,7 @@ impl CrowApp {
     /// After the vault password is turned on, the data key lives in the
     /// vault (wrapped by the password); remove the keyring copy.
     pub fn forget_keyring_key(&mut self, cx: &mut Context<Self>) {
-        cx.delete_credentials(KEYRING_URL).detach();
+        super::keyring::delete(cx, KEYRING_URL).detach();
     }
 
     fn count_secret_entries(&self) -> usize {

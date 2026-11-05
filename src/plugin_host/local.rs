@@ -76,6 +76,10 @@ fn write_private(path: &Path, text: &str) -> Result<(), String> {
 
 /// The commands in `requires` that aren't on PATH here.
 pub fn missing_here(requires: &[String]) -> Vec<String> {
+    if crate::sandbox::flatpak() {
+        use crate::host::Host;
+        return requires.iter().filter(|c| crate::host::LocalHost.exec(&["sh", "-c", "command -v \"$1\"", "crow-which", c], std::time::Duration::from_secs(10)).is_err()).cloned().collect();
+    }
     let path = std::env::var("PATH").unwrap_or_default();
     requires
         .iter()
@@ -161,10 +165,10 @@ pub fn run(argv: &[String], cwd: &Path, env: &[(String, String)], timeout: Durat
         }
     };
     let words: Vec<&str> = argv.iter().map(String::as_str).collect();
-    let prepare = |c: &mut std::process::Command| {
-        c.env_clear().envs(env.iter().map(|(k, v)| (k.as_str(), v.as_str()))).current_dir(cwd);
-    };
-    let result = crate::host::run_streaming_with(&words, &[], timeout, &prepare, &mut on_line, stop);
+    // On this computer, outside Flatpak's sandbox when Crow runs in one.
+    let result = crate::sandbox::host_command(&words, Some(env), Some(cwd))
+        .map_err(HostError::from)
+        .and_then(|c| crate::host::stream_child(c, &[], timeout, &mut on_line, stop));
     let finished_at = chrono::Utc::now().timestamp();
     let stopped = stop.load(std::sync::atomic::Ordering::Relaxed) || matches!(result, Err(HostError::Timeout));
     let truncated = out.len() >= MAX_OUTPUT_BYTES || err.len() >= MAX_OUTPUT_BYTES;

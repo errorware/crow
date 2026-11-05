@@ -8,6 +8,9 @@ use crate::vault::ServerRecord;
 /// A login shell that prefers bash where it exists.
 const SHELL: &str = "command -v bash >/dev/null 2>&1 && exec bash -l || exec sh -l";
 
+/// The user's own login shell, from the password database.
+const LOGIN_SHELL: &str = "s=$(getent passwd \"$(id -un)\" | cut -d: -f7); exec \"${s:-/bin/sh}\" -l";
+
 pub fn launch_for(server: &ServerRecord) -> Result<Launch, String> {
     match transport_kind(server) {
         TransportKind::Ssh => {
@@ -30,10 +33,13 @@ pub fn launch_for(server: &ServerRecord) -> Result<Launch, String> {
         }
         TransportKind::Container => {
             let engine = if server.tags.iter().any(|t| t == "docker") { "docker" } else { "podman" };
-            Ok(Launch {
-                program: engine.into(),
-                args: ["exec", "-it", "-e", "TERM=xterm-256color", "--", &server.name, "sh", "-c", SHELL].iter().map(|s| s.to_string()).collect(),
-            })
+            let (program, args) = crate::sandbox::host_terminal(engine.into(), ["exec", "-it", "-e", "TERM=xterm-256color", "--", &server.name, "sh", "-c", SHELL].iter().map(|s| s.to_string()).collect());
+            Ok(Launch { program, args })
+        }
+        TransportKind::Local if crate::sandbox::flatpak() => {
+            // The sandbox's SHELL isn't the user's: ask the computer.
+            let (program, args) = crate::sandbox::host_terminal("sh".into(), vec!["-c".into(), LOGIN_SHELL.into()]);
+            Ok(Launch { program, args })
         }
         TransportKind::Local => {
             let shell = std::env::var("SHELL").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| "/bin/sh".into());

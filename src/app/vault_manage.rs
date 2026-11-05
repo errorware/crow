@@ -127,7 +127,7 @@ impl CrowApp {
                 // The keyring must hold the key before the password goes;
                 // otherwise every secret would become unreadable.
                 self.vault_form.busy = true;
-                let write = cx.write_credentials(KEYRING_URL, "crow", key.as_bytes());
+                let write = super::keyring::write(cx, KEYRING_URL, "crow", key.as_bytes());
                 cx.spawn(async move |entity, cx| {
                     let result = write.await;
                     let _ = entity.update(cx, |this, cx| {

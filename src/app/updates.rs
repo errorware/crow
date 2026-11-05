@@ -22,6 +22,10 @@ pub struct UpdateState {
 
 impl CrowApp {
     pub fn update_check_enabled(&self) -> bool {
+        // A Flatpak is updated by Flatpak (Bazaar, GNOME Software, ...).
+        if crate::sandbox::flatpak() {
+            return false;
+        }
         self.config.saved_bool("general.update_check").unwrap_or(true)
     }
 

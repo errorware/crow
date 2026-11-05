@@ -1,0 +1,65 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>rs.crow.Crow</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LicenseRef-proprietary=https://github.com/errorware/crow/blob/main/LICENSE</project_license>
+  <name>Crow</name>
+  <summary>Manage Linux servers over plain SSH</summary>
+  <developer id="rs.crow">
+    <name>Errorware</name>
+  </developer>
+  <description>
+    <p>
+      Crow is a native desktop app for people who run Linux servers. It's
+      agentless: it talks to your servers over plain SSH, reusing one
+      connection per server, and never installs anything on them.
+    </p>
+    <ul>
+      <li>A fleet view of every server's health, alerts and containers</li>
+      <li>Services, logs, users, firewall, packages, certificates and config files</li>
+      <li>Terminals that use the same connection and keys as everything else</li>
+      <li>An encrypted vault for keys and secrets, unlocked by your OS keyring</li>
+      <li>Cloud providers, Dokku apps and plugins of your own</li>
+      <li>A record of every connection Crow makes, and a switch to stop them all</li>
+    </ul>
+    <p>
+      Crow is in active development: features move between releases and the
+      vault format can change.
+    </p>
+  </description>
+  <launchable type="desktop-id">rs.crow.Crow.desktop</launchable>
+  <url type="homepage">https://crow.rs</url>
+  <url type="bugtracker">https://github.com/errorware/crow/issues</url>
+  <url type="vcs-browser">https://github.com/errorware/crow</url>
+  <url type="contact">https://forum.errorware.net</url>
+  <screenshots>
+    <screenshot type="default">
+      <image>https://github.com/user-attachments/assets/24f12684-14eb-4a80-8943-8dc8f730ff36</image>
+      <caption>The fleet at a glance</caption>
+    </screenshot>
+  </screenshots>
+  <categories>
+    <category>System</category>
+    <category>Monitor</category>
+  </categories>
+  <keywords>
+    <keyword>ssh</keyword>
+    <keyword>server</keyword>
+    <keyword>fleet</keyword>
+    <keyword>sysadmin</keyword>
+  </keywords>
+  <branding>
+    <color type="primary" scheme_preference="dark">#1a1d21</color>
+  </branding>
+  <requires>
+    <display_length compare="ge">768</display_length>
+  </requires>
+  <supports>
+    <control>keyboard</control>
+    <control>pointing</control>
+  </supports>
+  <content_rating type="oars-1.1"/>
+  <releases>
+    <release version="0.8.2" date="2026-10-11"/>
+  </releases>
+</component>

@@ -1,6 +1,6 @@
 use std::time::Duration;
 
-use super::local::run_command;
+use super::local::{run_on_host, run_on_host_streaming};
 use super::{ExecOutput, Host, HostError};
 
 /// A Crow-managed lab container, reached with `podman|docker exec -i <name>`.
@@ -24,13 +24,13 @@ impl Host for ContainerHost {
     fn exec_streaming(&self, argv: &[&str], stdin: &[u8], timeout: Duration, sink: &mut dyn FnMut(bool, &str), stop: &std::sync::atomic::AtomicBool) -> Result<ExecOutput, HostError> {
         let mut full: Vec<&str> = vec![self.engine.as_str(), "exec", "-i", self.name.as_str()];
         full.extend_from_slice(argv);
-        super::local::run_command_streaming(&full, stdin, timeout, &[], sink, stop).map_err(|e| self.engine_error(e))
+        run_on_host_streaming(&full, stdin, timeout, sink, stop).map_err(|e| self.engine_error(e))
     }
 
     fn exec_stdin(&self, argv: &[&str], stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {
         let mut full: Vec<&str> = vec![self.engine.as_str(), "exec", "-i", self.name.as_str()];
         full.extend_from_slice(argv);
-        run_command(&full, stdin, timeout).map_err(|e| self.engine_error(e))
+        run_on_host(&full, stdin, timeout).map_err(|e| self.engine_error(e))
     }
 }
 

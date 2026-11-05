@@ -298,12 +298,13 @@ pub fn progress_line(chunk: &str) -> Option<String> {
 /// `launch`, reporting Multipass's progress line as it changes.
 pub fn launch_with_progress(spec: &LaunchSpec, public_key: &str, progress: &(dyn Fn(String) + Sync)) -> Result<(), String> {
     use std::io::{Read, Write};
-    use std::process::{Command, Stdio};
+    use std::process::Stdio;
     spec.check()?;
     let user_data = cloud_init(public_key)?;
     let argv = spec.argv();
-    let mut child = Command::new(&argv[0])
-        .args(&argv[1..])
+    let words: Vec<&str> = argv.iter().map(String::as_str).collect();
+    let mut child = crate::sandbox::host_command(&words, None, None)
+        .map_err(|e| format!("couldn't run multipass: {e}"))?
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())

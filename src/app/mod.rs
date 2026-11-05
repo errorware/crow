@@ -25,6 +25,7 @@ use crate::views::overview::{
 };
 
 pub mod danger;
+mod keyring;
 pub mod server_facts;
 pub mod fleet_run;
 pub mod recovery;

@@ -19,30 +19,45 @@ impl Host for LocalHost {
     }
 
     fn exec_stdin(&self, argv: &[&str], stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {
-        run_command(argv, stdin, timeout)
+        run_on_host(argv, stdin, timeout)
     }
 
     fn exec_streaming(&self, argv: &[&str], stdin: &[u8], timeout: Duration, sink: &mut dyn FnMut(bool, &str), stop: &std::sync::atomic::AtomicBool) -> Result<ExecOutput, HostError> {
-        run_command_streaming(argv, stdin, timeout, &[], sink, stop)
+        run_on_host_streaming(argv, stdin, timeout, sink, stop)
     }
 
     fn read_file(&self, path: &str) -> Result<String, HostError> {
+        if crate::sandbox::flatpak() {
+            return HostShell.read_file(path);
+        }
         Ok(std::fs::read_to_string(path)?)
     }
 
     fn exists(&self, path: &str) -> bool {
+        if crate::sandbox::flatpak() {
+            return HostShell.exists(path);
+        }
         Path::new(path).exists()
     }
 
     fn list_dirs(&self, paths: &[&str]) -> std::collections::HashMap<String, Vec<DirEntry>> {
+        if crate::sandbox::flatpak() {
+            return HostShell.list_dirs(paths);
+        }
         paths.iter().filter_map(|p| Some((p.to_string(), self.list_dir(p).ok()?))).collect()
     }
 
     fn read_files(&self, paths: &[&str]) -> std::collections::HashMap<String, Result<String, String>> {
+        if crate::sandbox::flatpak() {
+            return HostShell.read_files(paths);
+        }
         paths.iter().map(|p| (p.to_string(), self.read_file(p).map_err(|e| e.to_string()))).collect()
     }
 
     fn list_dir(&self, path: &str) -> Result<Vec<DirEntry>, HostError> {
+        if crate::sandbox::flatpak() {
+            return HostShell.list_dir(path);
+        }
         let mut out = Vec::new();
         for entry in std::fs::read_dir(path)?.flatten() {
             let (Ok(file_type), Ok(meta)) = (entry.file_type(), entry.metadata()) else { continue };
@@ -61,6 +76,9 @@ impl Host for LocalHost {
     }
 
     fn write_file_atomic(&self, path: &str, content: &str) -> Result<(), HostError> {
+        if crate::sandbox::flatpak() {
+            return HostShell.write_file_atomic(path, content);
+        }
         let target = Path::new(path);
         let dir = target.parent().ok_or_else(|| HostError::Io(format!("{path} has no parent directory")))?;
         let file_name = target.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
@@ -85,15 +103,44 @@ impl Host for LocalHost {
     }
 
     fn create_dir(&self, path: &str) -> Result<(), HostError> {
+        if crate::sandbox::flatpak() {
+            return HostShell.create_dir(path);
+        }
         Ok(std::fs::create_dir(path)?)
     }
 
     fn remove(&self, path: &str, is_dir: bool) -> Result<(), HostError> {
+        if crate::sandbox::flatpak() {
+            return HostShell.remove(path, is_dir);
+        }
         if is_dir {
             std::fs::remove_dir(path).map_err(|e| HostError::Io(format!("{e} (directory must be empty)")))
         } else {
             Ok(std::fs::remove_file(path)?)
         }
+    }
+}
+
+/// This computer seen from inside Flatpak's sandbox, whose own /etc and
+/// /usr aren't the computer's: files go through commands run on the host,
+/// with the exec-based defaults on [`Host`], as for a container.
+struct HostShell;
+
+impl Host for HostShell {
+    fn label(&self) -> String {
+        "local".to_string()
+    }
+
+    fn is_local(&self) -> bool {
+        true
+    }
+
+    fn exec_stdin(&self, argv: &[&str], stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {
+        run_on_host(argv, stdin, timeout)
+    }
+
+    fn exec_streaming(&self, argv: &[&str], stdin: &[u8], timeout: Duration, sink: &mut dyn FnMut(bool, &str), stop: &std::sync::atomic::AtomicBool) -> Result<ExecOutput, HostError> {
+        run_on_host_streaming(argv, stdin, timeout, sink, stop)
     }
 }
 
@@ -106,9 +153,24 @@ pub(super) fn run_command(argv: &[&str], stdin: &[u8], timeout: Duration) -> Res
 /// `run_command` with extra environment variables for the child.
 pub(super) fn run_command_env(argv: &[&str], stdin: &[u8], timeout: Duration, env: &[(&str, &str)]) -> Result<ExecOutput, HostError> {
     let (program, args) = argv.split_first().ok_or_else(|| HostError::Io("empty command".into()))?;
-    let mut child = Command::new(program)
-        .args(args)
-        .envs(env.iter().copied())
+    let mut command = Command::new(program);
+    command.args(args).envs(env.iter().copied());
+    run_child(command, stdin, timeout)
+}
+
+/// `run_command` on this computer, outside Flatpak's sandbox when Crow
+/// runs in one (see `crate::sandbox`).
+pub(super) fn run_on_host(argv: &[&str], stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {
+    run_child(crate::sandbox::host_command(argv, None, None)?, stdin, timeout)
+}
+
+/// `run_command_streaming` on this computer, as `run_on_host`.
+pub(super) fn run_on_host_streaming(argv: &[&str], stdin: &[u8], timeout: Duration, sink: &mut dyn FnMut(bool, &str), stop: &std::sync::atomic::AtomicBool) -> Result<ExecOutput, HostError> {
+    stream_child(crate::sandbox::host_command(argv, None, None)?, stdin, timeout, sink, stop)
+}
+
+fn run_child(mut command: Command, stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {
+    let mut child = command
         .stdin(if stdin.is_empty() { Stdio::null() } else { Stdio::piped() })
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
@@ -188,13 +250,20 @@ pub fn run_streaming_with(
     sink: &mut dyn FnMut(bool, &str),
     stop: &std::sync::atomic::AtomicBool,
 ) -> Result<ExecOutput, HostError> {
+    let (program, args) = argv.split_first().ok_or_else(|| HostError::Io("empty command".into()))?;
+    let mut command = Command::new(program);
+    command.args(args);
+    prepare(&mut command);
+    stream_child(command, stdin, timeout, sink, stop)
+}
+
+/// `run_streaming_with` for a command already built (e.g. by
+/// `crate::sandbox::host_command`).
+pub fn stream_child(mut command: Command, stdin: &[u8], timeout: Duration, sink: &mut dyn FnMut(bool, &str), stop: &std::sync::atomic::AtomicBool) -> Result<ExecOutput, HostError> {
     use std::io::BufRead;
     use std::os::unix::process::CommandExt;
     use std::sync::atomic::Ordering;
-    let (program, args) = argv.split_first().ok_or_else(|| HostError::Io("empty command".into()))?;
-    let mut command = Command::new(program);
-    command.args(args).process_group(0).stdin(if stdin.is_empty() { Stdio::null() } else { Stdio::piped() }).stdout(Stdio::piped()).stderr(Stdio::piped());
-    prepare(&mut command);
+    command.process_group(0).stdin(if stdin.is_empty() { Stdio::null() } else { Stdio::piped() }).stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = command.spawn()?;
     let group = child.id() as i32;
     let end_group = |child: &mut std::process::Child| {

@@ -1,7 +1,6 @@
 pub mod multipass;
 
 use serde::{Deserialize, Serialize};
-use std::process::Command;
 use crate::vault::{ServerRecord, VaultDb};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
@@ -79,10 +78,7 @@ pub fn scan_local_test_nodes(enrolled_servers: &[ServerRecord]) -> Vec<LocalTest
     let mut nodes = Vec::new();
 
     // 1. Query podman containers (which also includes distrobox containers)
-    if let Ok(output) = Command::new("podman")
-        .args(["ps", "-a", "--format", "json"])
-        .output()
-    {
+    if let Ok(output) = crate::sandbox::host_command(&["podman", "ps", "-a", "--format", "json"], None, None).and_then(|mut c| c.output()) {
         if output.status.success() {
             let json_str = String::from_utf8_lossy(&output.stdout);
             if let Ok(parsed) = parse_podman_json(&json_str) {
@@ -186,9 +182,8 @@ pub fn start_local_node(node: &LocalTestNode) -> Result<(), String> {
         _ => vec!["start", &node.name],
     };
 
-    let out = Command::new(cmd_name)
-        .args(&args)
-        .output()
+    let out = crate::sandbox::host_command(&[&[cmd_name][..], &args].concat(), None, None)
+        .and_then(|mut c| c.output())
         .map_err(|e| format!("Failed to execute {}: {}", cmd_name, e))?;
 
     if out.status.success() {
@@ -213,9 +208,8 @@ pub fn stop_local_node(node: &LocalTestNode) -> Result<(), String> {
         _ => vec!["stop", &node.name],
     };
 
-    let out = Command::new(cmd_name)
-        .args(&args)
-        .output()
+    let out = crate::sandbox::host_command(&[&[cmd_name][..], &args].concat(), None, None)
+        .and_then(|mut c| c.output())
         .map_err(|e| format!("Failed to execute {}: {}", cmd_name, e))?;
 
     if out.status.success() {

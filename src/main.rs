@@ -33,6 +33,7 @@ pub mod notify;
 pub mod os_detect;
 pub mod providers;
 pub mod rollout;
+pub mod sandbox;
 pub mod region;
 pub mod secret_string;
 pub mod security;
@@ -46,6 +47,7 @@ mod workflows;
 use app::CrowApp;
 
 fn main() {
+    crate::sandbox::share_native_folders();
     // Started by ssh as its askpass helper during a password bootstrap
     // (host::bootstrap): answer the prompt and exit, no window.
     if let Ok(sock) = std::env::var(host::bootstrap::ASKPASS_SOCK_ENV) {

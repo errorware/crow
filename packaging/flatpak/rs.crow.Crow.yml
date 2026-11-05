@@ -1,0 +1,62 @@
+# Crow as a Flatpak. Local build and install (from the repo root):
+#   flatpak run org.flatpak.Builder --user --install --force-clean \
+#     --state-dir ~/.cache/crow-flatpak/state ~/.cache/crow-flatpak/build \
+#     packaging/flatpak/rs.crow.Crow.yml
+# Sources are this checkout and ../crow-config-core as they are on disk;
+# Flathub's copy of this manifest pins both to git commits instead.
+# After a Cargo.lock change, regenerate cargo-sources.json with
+# flatpak-builder-tools' cargo/flatpak-cargo-generator.py.
+id: rs.crow.Crow
+runtime: org.freedesktop.Platform
+runtime-version: '26.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: crow
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Servers' keys: the user's agent, and ~/.ssh for key files, config and
+  # known_hosts, which Crow appends to when enrolling a server.
+  - --socket=ssh-auth
+  - --filesystem=~/.ssh
+  # The vault and settings, where a native install keeps them.
+  - --filesystem=xdg-config/crow:create
+  # The vault's key in the session keyring, shared with a native install
+  # (src/app/keyring.rs).
+  - --talk-name=org.freedesktop.secrets
+  # This computer as a server, its containers and Multipass VMs, the local
+  # terminal and plugins' local actions run on the host (src/sandbox.rs).
+  - --talk-name=org.freedesktop.Flatpak
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/crow/cargo
+    CARGO_NET_OFFLINE: 'true'
+modules:
+  - name: crow
+    buildsystem: simple
+    build-commands:
+      - cd crow && cargo --offline build --release --bin crow
+      - install -Dm755 crow/target/release/crow /app/bin/crow
+      - install -Dm644 crow/packaging/linux/rs.crow.Crow.desktop /app/share/applications/rs.crow.Crow.desktop
+      - install -Dm644 crow/packaging/flatpak/rs.crow.Crow.metainfo.xml /app/share/metainfo/rs.crow.Crow.metainfo.xml
+      - cp -r crow/packaging/linux/icons /app/share/
+    sources:
+      - type: dir
+        path: ../..
+        dest: crow
+        skip:
+          - target
+          - workflows
+          - .git
+      - type: dir
+        path: ../../../crow-config-core
+        dest: crow-config-core
+        skip:
+          - target
+          - .git
+      - cargo-sources.json
