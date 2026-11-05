@@ -60,6 +60,19 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.8.3" date="2026-11-05">
+      <description>
+        <p>The first release on Flathub.</p>
+        <ul>
+          <li>Dokku: deploy and run apps, databases, secrets and TLS on your servers</li>
+          <li>Wire: every connection Crow makes, logged with what it sent, and a switch to stop them all</li>
+          <li>Create servers on AWS, Linode and UpCloud from Crow, with your key already on them</li>
+          <li>Containers: live usage, history charts, and alerts when one fails</li>
+          <li>Plugins you write yourself, starting with DevSec hardening</li>
+          <li>Edit a server after enrolling it, tabs that stay open, your time and the server's</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.8.2" date="2026-10-11"/>
   </releases>
 </component>
