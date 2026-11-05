@@ -52,6 +52,12 @@ pub fn config(request: &HttpRequest, timeout: Duration) -> Zeroizing<String> {
     if let Some(body) = &request.body {
         cfg.push_str(&format!("header = {}\n", quote("Content-Type: application/json")));
         cfg.push_str(&format!("data = {}\n", quote(&body.to_string())));
+    } else if let Some(form) = &request.form_body {
+        let has_ct = request.headers.iter().any(|(k, _)| k.eq_ignore_ascii_case("content-type"));
+        if !has_ct {
+            cfg.push_str(&format!("header = {}\n", quote("Content-Type: application/x-www-form-urlencoded")));
+        }
+        cfg.push_str(&format!("data = {}\n", quote(form)));
     }
     cfg.push_str(&format!("silent\nshow-error\ninclude\nmax-time = {}\n", timeout.as_secs().max(1)));
     cfg

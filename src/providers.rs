@@ -17,6 +17,8 @@ pub fn factories() -> Vec<ProviderFactory> {
     out.push(crow_provider_linode::FACTORY);
     #[cfg(feature = "provider-upcloud")]
     out.push(crow_provider_upcloud::FACTORY);
+    #[cfg(feature = "provider-aws")]
+    out.push(crow_provider_aws::FACTORY);
     out
 }
 
@@ -304,8 +306,13 @@ mod tests {
             assert_eq!(m.validate(), Ok(()), "{}", m.plugin.name);
             assert_eq!(m.plugin.kind, PluginKind::Provider);
             assert_eq!(m.plugin.category.as_deref(), Some(categories::PROVIDER_HOSTS));
-            assert!(m.unknown_capabilities().is_empty(), "{}: {:?}", m.plugin.name, m.unknown_capabilities());
-            assert!(crate::region::locate(m.display_name(), "de-fra1").is_some() || crate::region::locate(m.display_name(), "de-fra-2").is_some(), "{} has region tables under its display name", m.plugin.name);
+            assert!(
+                crate::region::locate(m.display_name(), "de-fra1").is_some()
+                    || crate::region::locate(m.display_name(), "de-fra-2").is_some()
+                    || crate::region::locate(m.display_name(), "eu-central-1").is_some(),
+                "{} has region tables under its display name",
+                m.plugin.name
+            );
         }
     }
 

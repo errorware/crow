@@ -12,7 +12,10 @@ use std::sync::{Arc, LazyLock};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crow_provider_core::hosts::{Instance, InstanceId, InstanceStatus, ListInstances, PowerControl, Snapshot, SnapshotId, Snapshots};
+use crow_provider_core::hosts::{
+    Instance, InstanceId, InstanceStatus, ListInstances, PowerControl, ProvisionCatalog,
+    ProvisionInstance, ProvisionOption, ProvisionSpec, Snapshot, SnapshotId, Snapshots,
+};
 use crow_provider_core::http::{self, Http, HttpRequest};
 use crow_provider_core::{PluginManifest, Provider, ProviderError, ProviderFactory, ProviderSettings, SecretValue};
 
@@ -151,6 +154,9 @@ impl Provider for Linode {
     fn as_snapshots(&self) -> Option<&dyn Snapshots> {
         Some(self)
     }
+    fn as_provision_instance(&self) -> Option<&dyn ProvisionInstance> {
+        Some(self)
+    }
 }
 
 impl ListInstances for Linode {
@@ -204,6 +210,59 @@ impl Snapshots for Linode {
     fn snapshot(&self, id: &InstanceId, label: &str) -> Result<Snapshot, ProviderError> {
         let response = self.post(&format!("/linode/instances/{id}/backups"), json!({ "label": label })).map_err(backups_hint)?;
         serde_json::from_str::<Backup>(&response.body).map(Snapshot::from).map_err(|e| ProviderError::Unexpected(e.to_string()))
+    }
+}
+
+impl ProvisionInstance for Linode {
+    fn catalog(&self) -> ProvisionCatalog {
+        ProvisionCatalog {
+            regions: vec![
+                ProvisionOption::new("us-east", "Newark, NJ (us-east)"),
+                ProvisionOption::new("us-central", "Dallas, TX (us-central)"),
+                ProvisionOption::new("us-west", "Fremont, CA (us-west)"),
+                ProvisionOption::new("eu-central", "Frankfurt, DE (eu-central)"),
+                ProvisionOption::new("eu-west", "London, UK (eu-west)"),
+                ProvisionOption::new("ap-south", "Singapore (ap-south)"),
+                ProvisionOption::new("ap-northeast", "Tokyo, JP (ap-northeast)"),
+            ],
+            plans: vec![
+                ProvisionOption::new("g6-nanode-1", "Nanode 1GB (1 vCPU, 1 GB RAM, 25 GB SSD)"),
+                ProvisionOption::new("g6-standard-1", "Linode 2GB (1 vCPU, 2 GB RAM, 50 GB SSD)"),
+                ProvisionOption::new("g6-standard-2", "Linode 4GB (2 vCPU, 4 GB RAM, 80 GB SSD)"),
+                ProvisionOption::new("g6-standard-4", "Linode 8GB (4 vCPU, 8 GB RAM, 160 GB SSD)"),
+                ProvisionOption::new("g6-dedicated-2", "Dedicated 4GB (2 vCPU, 4 GB RAM, 80 GB SSD)"),
+            ],
+            images: vec![
+                ProvisionOption::new("linode/ubuntu24.04", "Ubuntu 24.04 LTS"),
+                ProvisionOption::new("linode/ubuntu22.04", "Ubuntu 22.04 LTS"),
+                ProvisionOption::new("linode/debian12", "Debian 12 (Bookworm)"),
+                ProvisionOption::new("linode/debian11", "Debian 11 (Bullseye)"),
+                ProvisionOption::new("linode/arch", "Arch Linux"),
+                ProvisionOption::new("linode/alpine3.20", "Alpine Linux 3.20"),
+            ],
+        }
+    }
+
+    fn provision(&self, spec: &ProvisionSpec) -> Result<Instance, ProviderError> {
+        let mut body = json!({
+            "label": spec.label,
+            "region": spec.region,
+            "type": spec.plan,
+            "image": spec.image,
+            "booted": true,
+        });
+
+        if !spec.ssh_public_key.trim().is_empty() {
+            body["authorized_keys"] = json!([spec.ssh_public_key.trim()]);
+        }
+
+        if !spec.tags.is_empty() {
+            body["tags"] = json!(spec.tags);
+        }
+
+        let res = self.post("/linode/instances", body)?;
+        let linode_inst: LinodeInstance = serde_json::from_str(&res.body).map_err(|e| ProviderError::Unexpected(e.to_string()))?;
+        Ok(Instance::from(linode_inst))
     }
 }
 
@@ -309,6 +368,31 @@ mod tests {
         let (l, _) = linode(RecordedHttp::new().on(Method::Post, &format!("{API}/linode/instances/123/backups"), 400, r#"{"errors": [{"reason": "Backups are not enabled for this Linode."}]}"#));
         let err = l.snapshot(&InstanceId("123".into()), "x").unwrap_err();
         assert!(matches!(&err, ProviderError::Unsupported(m) if m.contains("Backup service")), "{err}");
+    }
+
+    #[test]
+    fn provision_creates_instance_with_ssh_key() {
+        let (l, http) = linode(
+            RecordedHttp::new().on(Method::Post, &format!("{API}/linode/instances"), 200, INSTANCE),
+        );
+        let spec = ProvisionSpec {
+            label: "assassin-01".into(),
+            region: "de-fra-2".into(),
+            plan: "g6-nanode-1".into(),
+            image: "linode/ubuntu24.04".into(),
+            ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI1234567890 root@test".into(),
+            tags: vec!["prod".into()],
+        };
+        let inst = l.provision(&spec).unwrap();
+        assert_eq!(inst.id.0, "123");
+        assert_eq!(inst.label, "assassin-01");
+        assert_eq!(inst.status, InstanceStatus::Running);
+
+        let reqs = http.requests();
+        assert_eq!(reqs.len(), 1);
+        let body = reqs[0].body.as_ref().unwrap();
+        assert_eq!(body["label"], "assassin-01");
+        assert_eq!(body["authorized_keys"][0], "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI1234567890 root@test");
     }
 
     /// Against the real API: `CROW_LINODE_TOKEN=... cargo test -p crow-provider-linode -- --ignored`.

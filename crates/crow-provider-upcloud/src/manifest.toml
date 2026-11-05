@@ -3,7 +3,7 @@ name = "upcloud"
 display_name = "UpCloud"
 kind = "provider"
 category = "provider.hosts"
-capabilities = ["instances.list", "instances.power"]
+capabilities = ["instances.list", "instances.power", "instances.create"]
 
 [[settings]]
 key = "api_token"

@@ -64,14 +64,21 @@ pub const BUILTIN: &[BuiltinPlugin] = &[
         name: "Linode",
         about: "Your Linode instances: import them, read their regions, power them and take snapshots.",
         category: "provider.hosts",
-        capabilities: &["instances.list", "instances.power", "snapshots"],
+        capabilities: &["instances.list", "instances.power", "instances.create", "snapshots"],
     },
     BuiltinPlugin {
         id: "upcloud",
         name: "UpCloud",
         about: "Your UpCloud servers: import them, read their zones, power them and take snapshots.",
         category: "provider.hosts",
-        capabilities: &["instances.list", "instances.power", "snapshots"],
+        capabilities: &["instances.list", "instances.power", "instances.create"],
+    },
+    BuiltinPlugin {
+        id: "aws",
+        name: "AWS EC2",
+        about: "Your AWS EC2 instances: import them, read their regions, power them and take snapshots.",
+        category: "provider.hosts",
+        capabilities: &["instances.list", "instances.power", "instances.create", "snapshots"],
     },
     BuiltinPlugin {
         id: "email",

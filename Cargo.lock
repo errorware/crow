@@ -1460,6 +1460,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "crow-provider-aws"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "crow-provider-core",
+ "hmac 0.12.1",
+ "roxmltree 0.20.0",
+ "serde",
+ "serde_json",
+ "sha2 0.10.9",
+]
+
+[[package]]
 name = "crow-provider-core"
 version = "0.1.0"
 dependencies = [
@@ -1499,6 +1512,7 @@ dependencies = [
  "chrono-tz",
  "crow-config-core",
  "crow-config-schemas",
+ "crow-provider-aws",
  "crow-provider-core",
  "crow-provider-linode",
  "crow-provider-upcloud",

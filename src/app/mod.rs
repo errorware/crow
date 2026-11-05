@@ -316,6 +316,9 @@ pub struct CrowApp {
     pub clanker_inputs: Option<ClankerInputs>,
     /// Fleet → IMPORT FROM PROVIDERS.
     pub import: providers::ImportState,
+    /// Fleet → PROVISION CLOUD INSTANCE (ERR-224).
+    pub provision: providers::ProvisionState,
+    pub provision_inputs: Option<providers::ProvisionInputs>,
     /// The lock screen's password and 2FA code inputs (while locked).
     pub lock_inputs: Option<LockInputs>,
     /// Vault setup's password, confirm and 2FA code inputs.
@@ -574,6 +577,8 @@ impl CrowApp {
             provider_inputs: None,
             clanker_inputs: None,
             import: Default::default(),
+            provision: Default::default(),
+            provision_inputs: None,
             snapshot_offer: None,
             snapshots_panel: None,
             fleet_runner: None,

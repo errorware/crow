@@ -15,7 +15,10 @@ use std::sync::{Arc, LazyLock};
 use serde::Deserialize;
 use serde_json::{json, Value};
 
-use crow_provider_core::hosts::{Instance, InstanceId, InstanceStatus, ListInstances, PowerControl};
+use crow_provider_core::hosts::{
+    Instance, InstanceId, InstanceStatus, ListInstances, PowerControl, ProvisionCatalog,
+    ProvisionInstance, ProvisionOption, ProvisionSpec,
+};
 use crow_provider_core::http::{self, Http, HttpRequest};
 use crow_provider_core::{PluginManifest, Provider, ProviderError, ProviderFactory, ProviderSettings, SecretValue};
 
@@ -65,6 +68,10 @@ impl UpCloud {
 
     fn post(&self, path: &str, body: Value) -> Result<(), ProviderError> {
         http::check(self.http.send(&self.authed(HttpRequest::post(format!("{API}{path}"), body)))?, error_message).map(drop)
+    }
+
+    fn post_decode<T: serde::de::DeserializeOwned>(&self, path: &str, body: Value) -> Result<T, ProviderError> {
+        http::decode(self.http.send(&self.authed(HttpRequest::post(format!("{API}{path}"), body)))?, error_message)
     }
 
     fn servers(&self) -> Result<Vec<UpServer>, ProviderError> {
@@ -161,6 +168,9 @@ impl Provider for UpCloud {
     fn as_power_control(&self) -> Option<&dyn PowerControl> {
         Some(self)
     }
+    fn as_provision_instance(&self) -> Option<&dyn ProvisionInstance> {
+        Some(self)
+    }
 }
 
 impl ListInstances for UpCloud {
@@ -186,6 +196,131 @@ impl PowerControl for UpCloud {
     }
     fn shutdown(&self, id: &InstanceId) -> Result<(), ProviderError> {
         self.post(&format!("/server/{id}/stop"), json!({"stop_server": {"stop_type": "soft", "timeout": SOFT_STOP_TIMEOUT}}))
+    }
+}
+
+#[derive(Deserialize)]
+struct CreatedServerResponse {
+    server: CreatedServer,
+}
+
+#[derive(Deserialize)]
+struct CreatedServer {
+    uuid: String,
+    title: Option<String>,
+    hostname: Option<String>,
+    state: String,
+    zone: Option<String>,
+    plan: Option<String>,
+    #[serde(default)]
+    tags: Tags,
+    #[serde(default)]
+    ip_addresses: Option<IpAddressesField>,
+}
+
+#[derive(Deserialize)]
+struct IpAddressesField {
+    #[serde(default)]
+    ip_address: Vec<UpIp>,
+}
+
+impl ProvisionInstance for UpCloud {
+    fn catalog(&self) -> ProvisionCatalog {
+        ProvisionCatalog {
+            regions: vec![
+                ProvisionOption::new("de-fra1", "Frankfurt 1 (de-fra1)"),
+                ProvisionOption::new("fi-hel1", "Helsinki 1 (fi-hel1)"),
+                ProvisionOption::new("fi-hel2", "Helsinki 2 (fi-hel2)"),
+                ProvisionOption::new("nl-ams1", "Amsterdam 1 (nl-ams1)"),
+                ProvisionOption::new("uk-lon1", "London 1 (uk-lon1)"),
+                ProvisionOption::new("us-nyc1", "New York 1 (us-nyc1)"),
+                ProvisionOption::new("us-chi1", "Chicago 1 (us-chi1)"),
+                ProvisionOption::new("us-sjo1", "San Jose 1 (us-sjo1)"),
+                ProvisionOption::new("sg-sin1", "Singapore 1 (sg-sin1)"),
+                ProvisionOption::new("pl-waw1", "Warsaw 1 (pl-waw1)"),
+                ProvisionOption::new("es-mad1", "Madrid 1 (es-mad1)"),
+                ProvisionOption::new("se-sto1", "Stockholm 1 (se-sto1)"),
+                ProvisionOption::new("au-syd1", "Sydney 1 (au-syd1)"),
+            ],
+            plans: vec![
+                ProvisionOption::new("1xCPU-1GB", "1xCPU-1GB (1 vCPU, 1 GB RAM, 25 GB Storage)"),
+                ProvisionOption::new("1xCPU-2GB", "1xCPU-2GB (1 vCPU, 2 GB RAM, 50 GB Storage)"),
+                ProvisionOption::new("2xCPU-4GB", "2xCPU-4GB (2 vCPU, 4 GB RAM, 80 GB Storage)"),
+                ProvisionOption::new("4xCPU-8GB", "4xCPU-8GB (4 vCPU, 8 GB RAM, 160 GB Storage)"),
+                ProvisionOption::new("6xCPU-16GB", "6xCPU-16GB (6 vCPU, 16 GB RAM, 320 GB Storage)"),
+            ],
+            images: vec![
+                ProvisionOption::new("01000000-0000-4000-8000-000030240200", "Ubuntu Server 24.04 LTS"),
+                ProvisionOption::new("01000000-0000-4000-8000-000030220200", "Ubuntu Server 22.04 LTS"),
+                ProvisionOption::new("01000000-0000-4000-8000-000020120200", "Debian GNU/Linux 12 (Bookworm)"),
+                ProvisionOption::new("01000000-0000-4000-8000-000020110200", "Debian GNU/Linux 11 (Bullseye)"),
+                ProvisionOption::new("01000000-0000-4000-8000-000060090200", "AlmaLinux 9"),
+                ProvisionOption::new("01000000-0000-4000-8000-000050090200", "Rocky Linux 9"),
+            ],
+        }
+    }
+
+    fn provision(&self, spec: &ProvisionSpec) -> Result<Instance, ProviderError> {
+        let size = match spec.plan.as_str() {
+            "1xCPU-2GB" => 50,
+            "2xCPU-4GB" => 80,
+            "4xCPU-8GB" => 160,
+            "6xCPU-16GB" => 320,
+            _ => 25,
+        };
+
+        let hostname = format!("{}.example.com", spec.label.replace(' ', "-").to_lowercase());
+
+        let mut server_obj = json!({
+            "zone": spec.region,
+            "title": spec.label,
+            "hostname": hostname,
+            "plan": spec.plan,
+            "storage_devices": {
+                "storage_device": [
+                    {
+                        "action": "clone",
+                        "storage": spec.image,
+                        "title": format!("{}-disk", spec.label),
+                        "size": size,
+                        "tier": "maxiops"
+                    }
+                ]
+            }
+        });
+
+        if !spec.ssh_public_key.trim().is_empty() {
+            server_obj["login_user"] = json!({
+                "username": "root",
+                "ssh_keys": {
+                    "ssh_key": [
+                        spec.ssh_public_key.trim()
+                    ]
+                }
+            });
+        }
+
+        let body = json!({ "server": server_obj });
+        let created: CreatedServerResponse = self.post_decode("/server", body)?;
+        let s = created.server;
+        let mut by_server: HashMap<String, Vec<&UpIp>> = HashMap::new();
+        if let Some(ref ips) = s.ip_addresses {
+            for ip in &ips.ip_address {
+                by_server.entry(s.uuid.clone()).or_default().push(ip);
+            }
+        }
+
+        let up_server = UpServer {
+            uuid: s.uuid,
+            title: s.title,
+            hostname: s.hostname,
+            state: s.state,
+            zone: s.zone,
+            plan: s.plan,
+            tags: s.tags,
+        };
+
+        Ok(instance(up_server, &by_server))
     }
 }
 
@@ -221,7 +356,51 @@ mod tests {
     fn declares_what_it_implements_and_no_snapshots() {
         let (u, _) = with_token(RecordedHttp::new());
         crow_provider_core::check_declarations(&u).unwrap();
+        assert_eq!(MANIFEST.unknown_capabilities(), Vec::<&str>::new());
         assert!(u.as_snapshots().is_none(), "the UI must not offer snapshots for UpCloud");
+    }
+
+    #[test]
+    fn provision_creates_server_with_ssh_key() {
+        let created_json = r#"{"server": {
+            "uuid": "00112233-4455-6677-8899-aabbccddeeff",
+            "title": "app-01",
+            "hostname": "app-01.example.com",
+            "state": "started",
+            "zone": "de-fra1",
+            "plan": "1xCPU-1GB",
+            "tags": {"tag": ["prod"]},
+            "ip_addresses": {
+                "ip_address": [
+                    {"access": "public", "address": "94.237.10.10", "family": "IPv4"}
+                ]
+            }
+        }}"#;
+        let (u, http) = with_token(
+            RecordedHttp::new().on(Method::Post, &format!("{API}/server"), 200, created_json)
+        );
+
+        let spec = ProvisionSpec {
+            label: "app-01".into(),
+            region: "de-fra1".into(),
+            plan: "1xCPU-1GB".into(),
+            image: "01000000-0000-4000-8000-000030240200".into(),
+            ssh_public_key: "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI1234567890 root@test".into(),
+            tags: vec!["prod".into()],
+        };
+
+        let inst = u.provision(&spec).unwrap();
+        assert_eq!(inst.id.0, "00112233-4455-6677-8899-aabbccddeeff");
+        assert_eq!(inst.label, "app-01");
+        assert_eq!(inst.status, InstanceStatus::Running);
+        assert_eq!(inst.ipv4[0].to_string(), "94.237.10.10");
+
+        let reqs = http.requests();
+        assert_eq!(reqs.len(), 1);
+        let body = reqs[0].body.as_ref().unwrap();
+        assert_eq!(body["server"]["title"], "app-01");
+        assert_eq!(body["server"]["zone"], "de-fra1");
+        assert_eq!(body["server"]["login_user"]["ssh_keys"]["ssh_key"][0], "ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAI1234567890 root@test");
     }
 
     #[test]

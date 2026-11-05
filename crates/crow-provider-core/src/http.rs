@@ -52,11 +52,20 @@ pub struct HttpRequest {
     pub headers: Vec<(String, HeaderValue)>,
     /// A JSON body, sent with `Content-Type: application/json`.
     pub body: Option<Value>,
+    /// A URL-encoded form body (`application/x-www-form-urlencoded`), used by
+    /// AWS EC2 Query API requests.
+    pub form_body: Option<String>,
 }
 
 impl HttpRequest {
     pub fn new(method: Method, url: impl Into<String>) -> Self {
-        Self { method, url: url.into(), headers: vec![("Accept".into(), HeaderValue::Plain("application/json".into()))], body: None }
+        Self {
+            method,
+            url: url.into(),
+            headers: vec![("Accept".into(), HeaderValue::Plain("application/json".into()))],
+            body: None,
+            form_body: None,
+        }
     }
 
     pub fn get(url: impl Into<String>) -> Self {
@@ -67,6 +76,17 @@ impl HttpRequest {
         Self::new(Method::Post, url).json(body)
     }
 
+    /// Builds a `POST` request with an `application/x-www-form-urlencoded` body.
+    pub fn post_form(url: impl Into<String>, form: impl Into<String>) -> Self {
+        Self {
+            method: Method::Post,
+            url: url.into(),
+            headers: Vec::new(),
+            body: None,
+            form_body: Some(form.into()),
+        }
+    }
+
     pub fn json(mut self, body: Value) -> Self {
         self.body = Some(body);
         self
@@ -74,6 +94,12 @@ impl HttpRequest {
 
     pub fn header(mut self, name: &str, value: impl Into<String>) -> Self {
         self.headers.push((name.into(), HeaderValue::Plain(value.into())));
+        self
+    }
+
+    /// Adds a header whose value is redacted in `Debug` and Wire logs.
+    pub fn secret_header(mut self, name: &str, value: SecretValue) -> Self {
+        self.headers.push((name.into(), HeaderValue::Secret(value)));
         self
     }
 

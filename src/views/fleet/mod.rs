@@ -29,3 +29,6 @@ pub use setup::fleet_setup_view;
 pub mod group_modal;
 pub mod edit_server;
 pub use group_modal::group_assign_modal;
+pub mod provision;
+#[allow(unused_imports)]
+pub use provision::provision_panel;

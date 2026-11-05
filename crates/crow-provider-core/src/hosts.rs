@@ -108,3 +108,44 @@ pub trait Snapshots: Send + Sync {
     /// Starts a snapshot and returns it (usually still pending).
     fn snapshot(&self, id: &InstanceId, label: &str) -> Result<Snapshot, ProviderError>;
 }
+
+/// One selectable option in a provider's provisioning catalog (region, plan, or OS image).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProvisionOption {
+    pub id: String,
+    pub label: String,
+}
+
+impl ProvisionOption {
+    pub fn new(id: impl Into<String>, label: impl Into<String>) -> Self {
+        Self { id: id.into(), label: label.into() }
+    }
+}
+
+/// The regions, plans (instance sizes), and OS images a provider offers for new instances.
+#[derive(Debug, Clone, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProvisionCatalog {
+    pub regions: Vec<ProvisionOption>,
+    pub plans: Vec<ProvisionOption>,
+    pub images: Vec<ProvisionOption>,
+}
+
+/// Parameters to launch a new cloud instance pre-seeded with an SSH public key.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ProvisionSpec {
+    pub label: String,
+    pub region: String,
+    pub plan: String,
+    pub image: String,
+    /// OpenSSH public key line (`ssh-ed25519 AAAA...` or `ssh-rsa AAAA...`).
+    pub ssh_public_key: String,
+    pub tags: Vec<String>,
+}
+
+/// Creating new server instances directly from Crow (`ERR-219`).
+pub trait ProvisionInstance: Send + Sync {
+    /// Regions, instance sizes/plans, and OS images this provider supports.
+    fn catalog(&self) -> ProvisionCatalog;
+    /// Launches a new instance with `spec` and returns the created [`Instance`].
+    fn provision(&self, spec: &ProvisionSpec) -> Result<Instance, ProviderError>;
+}

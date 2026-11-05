@@ -1514,6 +1514,27 @@ fleet-import-no-address = アドレスなし
 fleet-import-in-fleet-as = フリート上の名前: { $server }
 fleet-import-import = 取り込み →
 
+## fleet-provision
+fleet-provision-modal-title = クラウドインスタンスのプロビジョニング
+fleet-provision-loading-catalog = プロバイダーのカタログを読み込み中…
+fleet-provision-region = リージョン
+fleet-provision-plan = プラン / サイズ
+fleet-provision-image = OSイメージ
+fleet-provision-launching = インスタンス起動中…
+fleet-provision-launch-instance = インスタンスを起動 →
+fleet-provision-provider-account = プロバイダーアカウント
+fleet-provision-instance-label = インスタンスのラベル
+fleet-provision-tags = タグ (カンマ区切り)
+fleet-provision-vault-ssh-key = CROW VAULT SSH鍵
+fleet-provision-vault-ssh-key-help = この公開鍵はクラウドプロバイダーに登録され、起動時に承認済みSSH鍵として設定されます。
+fleet-provision-no-providers-configured = プロビジョニング対応のプロバイダーアカウントが設定されていません。まずAWS、Linode、またはUpCloudアカウントを設定してください。
+fleet-provision-label-placeholder = 例: web-prod-01
+fleet-provision-tags-placeholder = 例: prod, web, primary
+fleet-provision-label-required = インスタンスのラベルを入力してください。
+fleet-provision-ssh-key-required = 新しいインスタンスに登録するCrow Vault SSH鍵を選択してください。
+fleet-provision-select-provider-account = インスタンスを起動するプロバイダーアカウントを選択してください。
+fleet-provision-ssh-vault-seeded = SSH VAULT 連携
+
 ## fleet-incidents
 fleet-incidents-from-an-alert-last-7 = アラートから（過去 7 日）
 fleet-incidents-no-alerts-in-the-last = 過去 7 日間にアラートはありません。
@@ -2841,8 +2862,9 @@ plugin-run-login-after = 変更は実行されましたが、その後 Crow が�
 settings-providers-providers-where-your-servers-live = プロバイダー · サーバーの所在地
 settings-providers-set-up = { $configured }/{ $count } 設定済み
 settings-providers-import-instances = インスタンスを取り込み
+settings-providers-provision-instance = インスタンス作成
 settings-providers-tokens-cant-be-saved-right = 現在トークンを保存できません: { $why }。
-settings-providers-no-cloud-provider-plugin-is = クラウドプロバイダーのプラグインがオンになっていません。アカウントを接続するには、設定 → プラグイン で Linode か UpCloud をオンにしてください。
+settings-providers-no-cloud-provider-plugin-is = クラウドプロバイダーのプラグインがオンになっていません。アカウントを接続するには、設定 → プラグイン で AWS、Linode か UpCloud をオンにしてください。
 settings-providers-connect-the-cloud-accounts-your = サーバーが動いているクラウドのアカウントを接続します。Crow はそこからインスタンスを読み取り、プロバイダーが対応していれば SSH の外から電源操作やスナップショットができます。トークンは Crow のボールトに暗号化して保存され、その鍵は OS のキーリング（キーチェーン、Secret Service）が保持するか、ボールトのパスワードがあればそれでロックされます。プロバイダーへはコマンドラインではなく curl の標準入力で送ります。
 settings-providers-vault-security = ボールトとセキュリティ →
 settings-providers-not-set-up = 未設定
@@ -2852,6 +2874,7 @@ settings-providers-saved-not-tested-yet = 保存済み · 未テスト
 settings-providers-checked = 確認 { $short_time }
 settings-providers-edit = 編集
 settings-providers-set-up-2 = 設定
+settings-providers-provision = 作成
 settings-providers-test-connection = 接続をテスト
 settings-providers-click-again-to-remove = もう一度クリックで削除
 settings-providers-remove = 削除
@@ -3699,6 +3722,8 @@ plugin-linode-name = Linode
 plugin-linode-about = Linode のインスタンス: 取り込み、リージョンの読み取り、電源操作、スナップショット。
 plugin-upcloud-name = UpCloud
 plugin-upcloud-about = UpCloud のサーバー: 取り込み、ゾーンの読み取り、電源操作、スナップショット。
+plugin-aws-name = AWS EC2
+plugin-aws-about = AWS EC2 のインスタンス: 取り込み、リージョンの読み取り、電源操作、スナップショット。
 plugin-email-name = Email
 plugin-email-about = 自分の SMTP サーバーでアラートをメール送信: 重大なものはすぐに、警告はまとめて。Crow の実行中に送ります。
 

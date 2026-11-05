@@ -54,6 +54,9 @@ impl Render for CrowApp {
         if self.plugins.user.pending.is_some() {
             self.ensure_plugin_inputs(window, cx);
         }
+        if self.provision.open {
+            self.ensure_provision_inputs(window, cx);
+        }
         if self.screen == Screen::Settings && self.settings.section == super::SettingsSection::Personalisation {
             self.ensure_time_zone_search(window, cx);
         }
@@ -729,6 +732,8 @@ impl Render for CrowApp {
                         .children(self.snapshot_offer.as_ref().map(|o| crate::components::snapshot_offer::snapshot_offer(o, app_view.clone())))
                         // Fleet → IMPORT FROM PROVIDERS (ERR-46)
                         .children(self.import.open.then(|| crate::views::fleet::import::import_panel(&self.import, app_view.clone())))
+                        // Fleet → PROVISION CLOUD INSTANCE (ERR-224)
+                        .children(self.provision.open.then(|| crate::views::fleet::provision::provision_panel(&self.provision, self.provision_inputs.as_ref(), &self.providers.accounts, &self.keys.enrolled, app_view.clone())))
                         // Security stance panel (titlebar badge, ERR-60)
                         .children(self.stance_panel_open.then(|| crate::components::stance::stance_panel(&stance, app_view.clone())))
                         // First secret while Open: choose a stance on purpose (ERR-60)

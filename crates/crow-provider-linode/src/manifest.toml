@@ -3,7 +3,7 @@ name = "linode"
 display_name = "Linode"
 kind = "provider"
 category = "provider.hosts"
-capabilities = ["instances.list", "instances.power", "snapshots"]
+capabilities = ["instances.list", "instances.power", "instances.create", "snapshots"]
 
 [[settings]]
 key = "api_token"

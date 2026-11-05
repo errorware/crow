@@ -43,12 +43,13 @@ pub use crow_config_core::{PluginManifest, SecretValue};
 pub use error::ProviderError;
 pub use settings::ProviderSettings;
 
-use hosts::{ListInstances, PowerControl, Snapshots};
+use hosts::{ListInstances, PowerControl, ProvisionInstance, Snapshots};
 
 /// Capability tags, as written in manifests.
 pub mod capabilities {
     pub const INSTANCES_LIST: &str = "instances.list";
     pub const INSTANCES_POWER: &str = "instances.power";
+    pub const INSTANCES_CREATE: &str = "instances.create";
     pub const SNAPSHOTS: &str = "snapshots";
 }
 
@@ -69,6 +70,9 @@ pub trait Provider: Send + Sync {
     fn as_snapshots(&self) -> Option<&dyn Snapshots> {
         None
     }
+    fn as_provision_instance(&self) -> Option<&dyn ProvisionInstance> {
+        None
+    }
 }
 
 /// The capabilities `provider` actually implements.
@@ -76,6 +80,7 @@ pub fn implemented_capabilities(provider: &dyn Provider) -> Vec<&'static str> {
     [
         (provider.as_list_instances().is_some(), capabilities::INSTANCES_LIST),
         (provider.as_power_control().is_some(), capabilities::INSTANCES_POWER),
+        (provider.as_provision_instance().is_some(), capabilities::INSTANCES_CREATE),
         (provider.as_snapshots().is_some(), capabilities::SNAPSHOTS),
     ]
     .into_iter()

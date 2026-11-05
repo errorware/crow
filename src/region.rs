@@ -67,16 +67,16 @@ pub fn locate(provider: &str, code: &str) -> Option<(&'static str, &'static str)
     match provider {
         // Linode's newer codes start with the country ("de-fra-2", "fr-par");
         // the older ones are named per area.
-        "Linode" => exact(LINODE_LEGACY).or_else(|| prefix(LINODE_CITIES)).or_else(|| country_from_prefix(&code)),
+        "Linode" | "linode" => exact(LINODE_LEGACY).or_else(|| prefix(LINODE_CITIES)).or_else(|| country_from_prefix(&code)),
         "DigitalOcean" => prefix(DIGITALOCEAN),
         // Hetzner reports the zone ("fsn1-dc14").
         "Hetzner" => prefix(HETZNER),
-        "AWS" => prefix(AWS),
+        "AWS" | "aws" | "Amazon Web Services (EC2)" => prefix(AWS),
         // GCP reports the zone ("europe-west3-b").
         "GCP" => prefix(GCP),
         "Azure" => exact(AZURE),
         // UpCloud zones ("de-fra1") start with the country, like Linode's.
-        "UpCloud" => prefix(UPCLOUD).or_else(|| country_from_prefix(&code)),
+        "UpCloud" | "upcloud" => prefix(UPCLOUD).or_else(|| country_from_prefix(&code)),
         _ => None,
     }
 }

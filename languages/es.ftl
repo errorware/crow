@@ -1531,6 +1531,27 @@ fleet-import-no-address = sin dirección
 fleet-import-in-fleet-as = en la flota como { $server }
 fleet-import-import = IMPORTAR →
 
+## fleet-provision
+fleet-provision-modal-title = PROVISIONAR INSTANCIA EN LA NUBE
+fleet-provision-loading-catalog = Cargando catálogo del proveedor…
+fleet-provision-region = REGIÓN
+fleet-provision-plan = PLAN / TAMAÑO
+fleet-provision-image = IMAGEN DEL SISTEMA OPERATIVO
+fleet-provision-launching = INICIANDO INSTANCIA…
+fleet-provision-launch-instance = CREAR INSTANCIA →
+fleet-provision-provider-account = CUENTA DE PROVEEDOR
+fleet-provision-instance-label = ETIQUETA DE LA INSTANCIA
+fleet-provision-tags = ETIQUETAS (SEPARADAS POR COMAS)
+fleet-provision-vault-ssh-key = CLAVE SSH DE CROW VAULT
+fleet-provision-vault-ssh-key-help = Esta clave pública se importará en el proveedor e instalará como clave SSH autorizada al arrancar.
+fleet-provision-no-providers-configured = No hay cuentas de proveedor con soporte de aprovisionamiento configuradas. Configura primero una cuenta de AWS, Linode o UpCloud.
+fleet-provision-label-placeholder = p. ej. web-prod-01
+fleet-provision-tags-placeholder = p. ej. prod, web, primary
+fleet-provision-label-required = La etiqueta de la instancia no puede estar vacía.
+fleet-provision-ssh-key-required = Selecciona una clave SSH de Crow Vault para autorizar en la nueva instancia.
+fleet-provision-select-provider-account = Selecciona una cuenta de proveedor donde crear la instancia.
+fleet-provision-ssh-vault-seeded = CLAVE SSH VINCULADA
+
 ## fleet-incidents
 fleet-incidents-from-an-alert-last-7 = DESDE UNA ALERTA (ÚLTIMOS 7 DÍAS)
 fleet-incidents-no-alerts-in-the-last = No hubo alertas en los últimos 7 días.
@@ -2886,8 +2907,9 @@ plugin-run-login-after = El cambio se ejecutó, pero Crow no puede iniciar sesi�
 settings-providers-providers-where-your-servers-live = PROVEEDORES · DÓNDE VIVEN TUS SERVIDORES
 settings-providers-set-up = { $configured }/{ $count } CONFIGURADOS
 settings-providers-import-instances = IMPORTAR INSTANCIAS
+settings-providers-provision-instance = PROVISIONAR INSTANCIA
 settings-providers-tokens-cant-be-saved-right = Ahora mismo no se pueden guardar tokens: { $why }.
-settings-providers-no-cloud-provider-plugin-is = No hay ningún plugin de proveedor de nube activado. Activa Linode o UpCloud en Ajustes → Plugins para conectar una cuenta.
+settings-providers-no-cloud-provider-plugin-is = No hay ningún plugin de proveedor de nube activado. Activa AWS, Linode o UpCloud en Ajustes → Plugins para conectar una cuenta.
 settings-providers-connect-the-cloud-accounts-your = Conecta las cuentas de nube donde corren tus servidores. Crow lee tus instancias desde ellas y, si el proveedor lo permite, puede encender y apagar servidores y hacer instantáneas sin pasar por SSH. Los tokens se guardan cifrados en la bóveda de Crow: su clave la guarda el llavero del sistema (Keychain, Secret Service) o, con contraseña de bóveda, la bloquea esa contraseña. Llegan al proveedor por la entrada estándar de curl, nunca por la línea de comandos.
 settings-providers-vault-security = Bóveda y seguridad →
 settings-providers-not-set-up = sin configurar
@@ -2897,6 +2919,7 @@ settings-providers-saved-not-tested-yet = guardado · aún sin probar
 settings-providers-checked = comprobado { $short_time }
 settings-providers-edit = EDITAR
 settings-providers-set-up-2 = CONFIGURAR
+settings-providers-provision = PROVISIONAR
 settings-providers-test-connection = PROBAR CONEXIÓN
 settings-providers-click-again-to-remove = PULSA OTRA VEZ PARA QUITAR
 settings-providers-remove = QUITAR
@@ -3763,6 +3786,8 @@ plugin-linode-name = Linode
 plugin-linode-about = Tus instancias de Linode: impórtalas, lee sus regiones, enciéndelas y apágalas y hazles instantáneas.
 plugin-upcloud-name = UpCloud
 plugin-upcloud-about = Tus servidores de UpCloud: impórtalos, lee sus zonas, enciéndelos y apágalos y hazles instantáneas.
+plugin-aws-name = AWS EC2
+plugin-aws-about = Tus instancias de AWS EC2: impórtalas, lee sus regiones, enciéndelas y apágalas y hazles instantáneas.
 plugin-email-name = Email
 plugin-email-about = Alertas por correo a través de tu propio servidor SMTP: las críticas al momento, los avisos en un resumen. Se envían mientras Crow está en marcha.
 

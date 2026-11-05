@@ -1530,6 +1530,27 @@ fleet-import-no-address = no address
 fleet-import-in-fleet-as = in fleet as { $server }
 fleet-import-import = IMPORT →
 
+## fleet-provision
+fleet-provision-modal-title = PROVISION CLOUD INSTANCE
+fleet-provision-loading-catalog = Loading provider catalog…
+fleet-provision-region = REGION
+fleet-provision-plan = PLAN / SIZE
+fleet-provision-image = OPERATING SYSTEM IMAGE
+fleet-provision-launching = LAUNCHING INSTANCE…
+fleet-provision-launch-instance = LAUNCH INSTANCE →
+fleet-provision-provider-account = PROVIDER ACCOUNT
+fleet-provision-instance-label = INSTANCE LABEL
+fleet-provision-tags = TAGS (COMMA-SEPARATED)
+fleet-provision-vault-ssh-key = CROW VAULT SSH KEY
+fleet-provision-vault-ssh-key-help = This public key will be imported into the cloud provider and authorized on the instance upon creation.
+fleet-provision-no-providers-configured = No cloud provider accounts with provisioning support are configured. Set up an AWS, Linode, or UpCloud account first.
+fleet-provision-label-placeholder = e.g. web-prod-01
+fleet-provision-tags-placeholder = e.g. prod, web, primary
+fleet-provision-label-required = Instance label cannot be empty.
+fleet-provision-ssh-key-required = Please select a Crow Vault SSH key to authorize on the new instance.
+fleet-provision-select-provider-account = Please select a provider account to launch the instance in.
+fleet-provision-ssh-vault-seeded = SSH VAULT SEEDED
+
 ## fleet-incidents
 fleet-incidents-from-an-alert-last-7 = FROM AN ALERT (LAST 7 DAYS)
 fleet-incidents-no-alerts-in-the-last = No alerts in the last 7 days.
@@ -2875,8 +2896,9 @@ plugin-run-login-after = The change ran, but Crow can't log in afterwards: { $wh
 settings-providers-providers-where-your-servers-live = PROVIDERS · WHERE YOUR SERVERS LIVE
 settings-providers-set-up = { $configured }/{ $count } SET UP
 settings-providers-import-instances = IMPORT INSTANCES
+settings-providers-provision-instance = PROVISION INSTANCE
 settings-providers-tokens-cant-be-saved-right = Tokens can't be saved right now: { $why }.
-settings-providers-no-cloud-provider-plugin-is = No cloud provider plugin is on. Turn on Linode or UpCloud in Settings → Plugins to connect an account.
+settings-providers-no-cloud-provider-plugin-is = No cloud provider plugin is on. Turn on AWS, Linode, or UpCloud in Settings → Plugins to connect an account.
 settings-providers-connect-the-cloud-accounts-your = Connect the cloud accounts your servers run on. Crow reads your instances from them and, where the provider supports it, can power servers and take snapshots from outside SSH. Tokens are stored encrypted in Crow's vault: its key is held by your OS keyring (Keychain, Secret Service) or, with a vault password, locked by that password. They reach the provider through curl's stdin, never the command line.
 settings-providers-vault-security = Vault & Security →
 settings-providers-not-set-up = not set up
@@ -2886,6 +2908,7 @@ settings-providers-saved-not-tested-yet = saved · not tested yet
 settings-providers-checked = checked { $short_time }
 settings-providers-edit = EDIT
 settings-providers-set-up-2 = SET UP
+settings-providers-provision = PROVISION
 settings-providers-test-connection = TEST CONNECTION
 settings-providers-click-again-to-remove = CLICK AGAIN TO REMOVE
 settings-providers-remove = REMOVE
@@ -3787,6 +3810,8 @@ plugin-linode-name = Linode
 plugin-linode-about = Your Linode instances: import them, read their regions, power them and take snapshots.
 plugin-upcloud-name = UpCloud
 plugin-upcloud-about = Your UpCloud servers: import them, read their zones, power them and take snapshots.
+plugin-aws-name = AWS EC2
+plugin-aws-about = Your AWS EC2 instances: import them, read their regions, power them and take snapshots.
 plugin-email-name = Email
 plugin-email-about = Alerts by email through your own SMTP server: critical ones at once, warnings in one digest. Sent while Crow is running.
 

@@ -373,4 +373,348 @@ impl CrowApp {
         self.onboard_inputs = None;
         cx.notify();
     }
+
+    // --- Cloud Instance Provisioning (ERR-224) ---
+
+    pub fn close_provision(&mut self, cx: &mut Context<Self>) {
+        self.provision.open = false;
+        self.provision_inputs = None;
+        cx.notify();
+    }
+
+    pub fn set_provision_region(&mut self, region: &str, cx: &mut Context<Self>) {
+        self.provision.region = region.to_string();
+        cx.notify();
+    }
+
+    pub fn set_provision_plan(&mut self, plan: &str, cx: &mut Context<Self>) {
+        self.provision.plan = plan.to_string();
+        cx.notify();
+    }
+
+    pub fn set_provision_image(&mut self, image: &str, cx: &mut Context<Self>) {
+        self.provision.image = image.to_string();
+        cx.notify();
+    }
+
+    pub fn set_provision_ssh_key(&mut self, key_id: &str, cx: &mut Context<Self>) {
+        self.provision.selected_ssh_key_id = key_id.to_string();
+        cx.notify();
+    }
+
+    pub fn open_provision(&mut self, account_id: Option<&str>, cx: &mut Context<Self>) {
+        use crow_provider_core::capabilities::INSTANCES_CREATE;
+        let accounts: Vec<ProviderAccount> = self
+            .providers
+            .accounts
+            .iter()
+            .filter(|a| providers::factory(&a.plugin).is_some_and(|f| (f.manifest)().has_capability(INSTANCES_CREATE)))
+            .cloned()
+            .collect();
+
+        if accounts.is_empty() {
+            self.provision = ProvisionState {
+                open: true,
+                error: Some(t!("fleet-provision-no-providers-configured").into()),
+                ..Default::default()
+            };
+            self.provision_inputs = None;
+            cx.notify();
+            return;
+        }
+
+        let selected = match account_id {
+            Some(id) if accounts.iter().any(|a| a.id == id) => id.to_string(),
+            _ => accounts[0].id.clone(),
+        };
+
+        let default_ssh_key = self
+            .keys
+            .enrolled
+            .first()
+            .map(|k| k.id.clone())
+            .unwrap_or_default();
+
+        let rand_suffix: u32 = rand::random::<u32>() % 900000 + 100000;
+        let default_label = format!("srv-{rand_suffix}");
+
+        self.provision = ProvisionState {
+            open: true,
+            loading_catalog: false,
+            provisioning: false,
+            selected_account_id: selected.clone(),
+            label: default_label,
+            region: String::new(),
+            plan: String::new(),
+            image: String::new(),
+            selected_ssh_key_id: default_ssh_key,
+            tags: "crow".to_string(),
+            catalog: None,
+            error: None,
+        };
+        self.provision_inputs = None;
+        cx.notify();
+
+        self.load_provision_catalog(&selected, cx);
+    }
+
+    pub fn select_provision_account(&mut self, account_id: &str, cx: &mut Context<Self>) {
+        self.provision.selected_account_id = account_id.to_string();
+        self.provision.region.clear();
+        self.provision.plan.clear();
+        self.provision.image.clear();
+        self.provision.catalog = None;
+        self.provision.error = None;
+        cx.notify();
+
+        self.load_provision_catalog(account_id, cx);
+    }
+
+    fn load_provision_catalog(&mut self, account_id: &str, cx: &mut Context<Self>) {
+        let Some(account) = self.providers.accounts.iter().find(|a| a.id == account_id).cloned() else { return };
+        let Some(key) = self.vault.key().cloned() else {
+            self.provision.error = Some(self.vault.secrets_blocker().unwrap_or_else(|| t!("app-providers-no-encryption-key").into()));
+            cx.notify();
+            return;
+        };
+
+        let settings = match self.vault.db().lock() {
+            Ok(db) => match providers::load_settings(&db, &key, &account) {
+                Ok(s) => s,
+                Err(e) => {
+                    self.provision.error = Some(format!("{}: {e}", account.label));
+                    cx.notify();
+                    return;
+                }
+            },
+            Err(_) => return,
+        };
+
+        self.provision.loading_catalog = true;
+        self.provision.error = None;
+        cx.notify();
+
+        let acct = account.clone();
+        cx.spawn(async move |entity, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    let provider = providers::connect(&acct, settings).map_err(|e| e.to_string())?;
+                    let prov = provider.as_provision_instance().ok_or_else(|| "Provider does not support provisioning".to_string())?;
+                    Ok::<_, String>(prov.catalog())
+                })
+                .await;
+
+            let _ = entity.update(cx, |this, cx| {
+                this.provision.loading_catalog = false;
+                match result {
+                    Ok(catalog) => {
+                        if this.provision.region.is_empty() {
+                            if let Some(r) = catalog.regions.first() {
+                                this.provision.region = r.id.clone();
+                            }
+                        }
+                        if this.provision.plan.is_empty() {
+                            if let Some(p) = catalog.plans.first() {
+                                this.provision.plan = p.id.clone();
+                            }
+                        }
+                        if this.provision.image.is_empty() {
+                            if let Some(img) = catalog.images.first() {
+                                this.provision.image = img.id.clone();
+                            }
+                        }
+                        this.provision.catalog = Some(catalog);
+                    }
+                    Err(e) => {
+                        this.provision.error = Some(e);
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    pub fn ensure_provision_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.provision_inputs.is_none() && self.provision.open {
+            let label_val = self.provision.label.clone();
+            let tags_val = self.provision.tags.clone();
+            let mut events = Vec::new();
+
+            let label_input = cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder(t!("fleet-provision-label-placeholder"))
+                    .default_value(label_val)
+            });
+            events.push(cx.subscribe_in(&label_input, window, |this, input, ev: &InputEvent, _window, cx| {
+                if let InputEvent::Change = ev {
+                    this.provision.label = input.read(cx).value().to_string();
+                    this.provision.error = None;
+                    cx.notify();
+                }
+            }));
+
+            let tags_input = cx.new(|cx| {
+                InputState::new(window, cx)
+                    .placeholder(t!("fleet-provision-tags-placeholder"))
+                    .default_value(tags_val)
+            });
+            events.push(cx.subscribe_in(&tags_input, window, |this, input, ev: &InputEvent, _window, cx| {
+                if let InputEvent::Change = ev {
+                    this.provision.tags = input.read(cx).value().to_string();
+                    cx.notify();
+                }
+            }));
+
+            self.provision_inputs = Some(ProvisionInputs {
+                label: label_input,
+                tags: tags_input,
+                _events: events,
+            });
+        }
+    }
+
+    pub fn submit_provision(&mut self, cx: &mut Context<Self>) {
+        if self.provision.provisioning || self.provision.loading_catalog {
+            return;
+        }
+
+        let label = self.provision.label.trim().to_string();
+        if label.is_empty() {
+            self.provision.error = Some(t!("fleet-provision-label-required").into());
+            cx.notify();
+            return;
+        }
+
+        let ssh_key = self
+            .keys
+            .enrolled
+            .iter()
+            .find(|k| k.id == self.provision.selected_ssh_key_id)
+            .cloned();
+
+        let Some(key_record) = ssh_key else {
+            self.provision.error = Some(t!("fleet-provision-ssh-key-required").into());
+            cx.notify();
+            return;
+        };
+
+        let Some(account) = self.providers.accounts.iter().find(|a| a.id == self.provision.selected_account_id).cloned() else {
+            self.provision.error = Some(t!("fleet-provision-select-provider-account").into());
+            cx.notify();
+            return;
+        };
+
+        let Some(key) = self.vault.key().cloned() else {
+            self.provision.error = Some(self.vault.secrets_blocker().unwrap_or_else(|| t!("app-providers-no-encryption-key").into()));
+            cx.notify();
+            return;
+        };
+
+        let settings = match self.vault.db().lock() {
+            Ok(db) => match providers::load_settings(&db, &key, &account) {
+                Ok(s) => s,
+                Err(e) => {
+                    self.provision.error = Some(format!("{}: {e}", account.label));
+                    cx.notify();
+                    return;
+                }
+            },
+            Err(_) => return,
+        };
+
+        let tags_vec: Vec<String> = self
+            .provision
+            .tags
+            .split(',')
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+
+        let spec = crow_provider_core::hosts::ProvisionSpec {
+            label: label.clone(),
+            region: self.provision.region.clone(),
+            plan: self.provision.plan.clone(),
+            image: self.provision.image.clone(),
+            ssh_public_key: key_record.public_key.clone(),
+            tags: tags_vec,
+        };
+
+        self.provision.provisioning = true;
+        self.provision.error = None;
+        cx.notify();
+
+        let acct = account.clone();
+        let selected_key_id = key_record.id.clone();
+
+        cx.spawn(async move |entity, cx| {
+            let result = cx
+                .background_executor()
+                .spawn(async move {
+                    let provider = providers::connect(&acct, settings).map_err(|e| e.to_string())?;
+                    let prov = provider.as_provision_instance().ok_or_else(|| "Provider does not support provisioning".to_string())?;
+                    prov.provision(&spec).map_err(|e| e.to_string())
+                })
+                .await;
+
+            let _ = entity.update(cx, |this, cx| {
+                this.provision.provisioning = false;
+                match result {
+                    Ok(instance) => {
+                        this.provision.open = false;
+                        this.provision_inputs = None;
+                        this.start_onboarding(cx);
+                        let o = &mut this.onboard_state;
+                        o.host = instance
+                            .ipv4
+                            .first()
+                            .or(instance.ipv6.first())
+                            .map(|ip| ip.to_string())
+                            .unwrap_or_default();
+                        o.label = instance.label.clone();
+                        o.tags = instance.tags.join(", ");
+                        o.selected_key_id = Some(selected_key_id);
+                        o.auth_method = "publickey".to_string();
+                        o.provider = Some(crate::views::onboard::ProviderLink {
+                            account: account.id.clone(),
+                            instance: instance.id.0.clone(),
+                            provider_name: providers::display_name(&account.plugin),
+                            region_code: instance.region.clone().unwrap_or_default(),
+                        });
+                        this.onboard_inputs = None;
+                        cx.notify();
+                    }
+                    Err(e) => {
+                        this.provision.error = Some(e);
+                        cx.notify();
+                    }
+                }
+            });
+        })
+        .detach();
+    }
+}
+
+/// Cloud instance provisioning state (`ERR-224`).
+#[derive(Clone, Default)]
+pub struct ProvisionState {
+    pub open: bool,
+    pub loading_catalog: bool,
+    pub provisioning: bool,
+    pub selected_account_id: String,
+    pub label: String,
+    pub region: String,
+    pub plan: String,
+    pub image: String,
+    pub selected_ssh_key_id: String,
+    pub tags: String,
+    pub catalog: Option<crow_provider_core::hosts::ProvisionCatalog>,
+    pub error: Option<String>,
+}
+
+pub struct ProvisionInputs {
+    pub label: Entity<InputState>,
+    pub tags: Entity<InputState>,
+    pub _events: Vec<Subscription>,
 }

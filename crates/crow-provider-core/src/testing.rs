@@ -9,6 +9,7 @@ use crate::ProviderError;
 #[derive(Default)]
 pub struct RecordedHttp {
     routes: Vec<(Method, String, HttpResponse)>,
+    form_routes: Vec<(String, String, HttpResponse)>,
     seen: Mutex<Vec<HttpRequest>>,
 }
 
@@ -24,6 +25,12 @@ impl RecordedHttp {
         self
     }
 
+    /// Answers a form `POST` to `url` whose `form_body` contains `needle`.
+    pub fn on_form(mut self, url: &str, needle: &str, status: u16, body: &str) -> Self {
+        self.form_routes.push((url.into(), needle.into(), HttpResponse::new(status, body)));
+        self
+    }
+
     /// The requests sent so far.
     pub fn requests(&self) -> Vec<HttpRequest> {
         self.seen.lock().unwrap().clone()
@@ -33,6 +40,15 @@ impl RecordedHttp {
 impl Http for RecordedHttp {
     fn send(&self, request: &HttpRequest) -> Result<HttpResponse, ProviderError> {
         self.seen.lock().unwrap().push(request.clone());
+        if let Some(form) = &request.form_body {
+            if let Some((_, _, r)) = self
+                .form_routes
+                .iter()
+                .find(|(u, needle, _)| *u == request.url && form.contains(needle.as_str()))
+            {
+                return Ok(r.clone());
+            }
+        }
         self.routes
             .iter()
             .find(|(m, u, _)| *m == request.method && *u == request.url)
