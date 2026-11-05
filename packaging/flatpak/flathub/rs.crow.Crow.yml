@@ -1,0 +1,51 @@
+# Flathub's copy of packaging/flatpak/rs.crow.Crow.yml: both repos pinned
+# to commits. Bump the commits (and cargo-sources.json) per release.
+id: rs.crow.Crow
+runtime: org.freedesktop.Platform
+runtime-version: '26.08'
+sdk: org.freedesktop.Sdk
+sdk-extensions:
+  - org.freedesktop.Sdk.Extension.rust-stable
+command: crow
+finish-args:
+  - --share=ipc
+  - --share=network
+  - --socket=wayland
+  - --socket=fallback-x11
+  - --device=dri
+  # Servers' keys: the user's agent, and ~/.ssh for key files, config and
+  # known_hosts, which Crow appends to when enrolling a server.
+  - --socket=ssh-auth
+  - --filesystem=~/.ssh
+  # The vault and settings, where a native install keeps them.
+  - --filesystem=xdg-config/crow:create
+  # The vault's key in the session keyring, shared with a native install
+  # (src/app/keyring.rs).
+  - --talk-name=org.freedesktop.secrets
+  # This computer as a server, its containers and Multipass VMs, the local
+  # terminal and plugins' local actions run on the host (src/sandbox.rs).
+  - --talk-name=org.freedesktop.Flatpak
+build-options:
+  append-path: /usr/lib/sdk/rust-stable/bin
+  env:
+    CARGO_HOME: /run/build/crow/cargo
+    CARGO_NET_OFFLINE: 'true'
+modules:
+  - name: crow
+    buildsystem: simple
+    build-commands:
+      - cd crow && cargo --offline build --release --bin crow
+      - install -Dm755 crow/target/release/crow /app/bin/crow
+      - install -Dm644 crow/packaging/linux/rs.crow.Crow.desktop /app/share/applications/rs.crow.Crow.desktop
+      - install -Dm644 crow/packaging/flatpak/rs.crow.Crow.metainfo.xml /app/share/metainfo/rs.crow.Crow.metainfo.xml
+      - cp -r crow/packaging/linux/icons /app/share/
+    sources:
+      - type: git
+        url: https://github.com/errorware/crow.git
+        commit: b7be691b8962860a712e06c6a5096fae983bc027
+        dest: crow
+      - type: git
+        url: https://github.com/errorware/crow-config.git
+        commit: 9168c10ed7c2d7e66674db2960c15fd95f3b982a
+        dest: crow-config-core
+      - cargo-sources.json
