@@ -59,7 +59,7 @@ pub fn team_page(fleet: &FleetState, st: &TeamState, app: Entity<CrowApp>) -> im
                 .flex()
                 .flex_col()
                 .gap(px(14.0))
-                .child(div().flex().items_center().gap(px(12.0)).child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("fleet-team-team"))).child(mono(10.5, if enabled { OK } else { TEXT_DIM }).child(if enabled { t!("fleet-team-team-mode-on", count = st.config.members.len()) } else { t!("fleet-team-off-crow-is-single-user").to_string() })).child(div().flex_1()).when(st.active.is_some(), |d| d.child(chip("team-signout", t!("fleet-team-sign-out-switch"), false).on_click(move |_ev, _w, cx| app_out.update(cx, |this, cx| this.sign_out(cx))))))
+                .child(div().flex().items_center().gap(px(12.0)).child(mono(10.5, if enabled { OK } else { TEXT_DIM }).child(if enabled { t!("fleet-team-team-mode-on", count = st.config.members.len()) } else { t!("fleet-team-off-crow-is-single-user").to_string() })).child(div().flex_1()).when(st.active.is_some(), |d| d.child(chip("team-signout", t!("fleet-team-sign-out-switch"), false).on_click(move |_ev, _w, cx| app_out.update(cx, |this, cx| this.sign_out(cx))))))
                 .child(mono(9.5, TEXT_FAINT).line_height(px(14.0)).child(t!("fleet-team-who-uses-this-crow-with")))
                 .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { OK } else { WARN }).line_height(px(15.0)).child(m)))
                 // Members.

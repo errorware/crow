@@ -39,7 +39,6 @@ pub fn certificates_page(fleet: &FleetState, st: &CertificatesState, app: Entity
                         .flex()
                         .items_center()
                         .gap(px(12.0))
-                        .child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("fleet-certificates-certificates")))
                         .child(mono(10.5, if soon > 0 || broken > 0 { WARN } else { OK }).child(t!("fleet-certificates-served-expiring-within-days-not", total = total, soon = soon, cert_warn_days = CERT_WARN_DAYS, broken = broken)))
                         .child(div().flex_1())
                         .child(

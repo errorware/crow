@@ -30,27 +30,34 @@ pub fn audit_view(items: &[AuditItem], filter: &AuditFilter, app: Entity<CrowApp
         .flex_col()
         .bg(BG_APP)
         .font_family(FONT_MONO)
-        .child(
-            div()
-                .h(px(52.0))
-                .flex_none()
-                .flex()
-                .items_center()
-                .px(px(16.0))
-                .gap(px(10.0))
-                .border_b_1()
-                .border_color(BORDER_PANEL)
-                .child(div().text_size(px(16.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child(t!("audit-audit-log")))
-                .child(div().text_size(px(11.5)).text_color(TEXT_DIM).child(t!("audit-failed-every-server", count = shown.len(), failed = failed)))
-        )
-        .child(filter_row(t!("audit-server"), filter.server_id.is_none(), servers.into_iter().map(|(id, name)| {
-            let selected = filter.server_id.as_deref() == Some(id.as_str());
-            (name, selected, AuditFilter { server_id: (!selected).then_some(id), group: filter.group })
-        }).collect(), AuditFilter { server_id: None, group: filter.group }, app.clone()))
-        .child(filter_row(t!("audit-kind"), filter.group.is_none(), groups.into_iter().map(|g| {
-            let selected = filter.group == Some(g);
-            (g.label().to_string(), selected, AuditFilter { server_id: filter.server_id.clone(), group: (!selected).then_some(g) })
-        }).collect(), AuditFilter { server_id: filter.server_id.clone(), group: None }, app.clone()))
+        .child(filter_row(
+            t!("audit-server"),
+            filter.server_id.is_none(),
+            servers
+                .into_iter()
+                .map(|(id, name)| {
+                    let selected = filter.server_id.as_deref() == Some(id.as_str());
+                    (name, selected, AuditFilter { server_id: (!selected).then_some(id), group: filter.group })
+                })
+                .collect(),
+            AuditFilter { server_id: None, group: filter.group },
+            Some(t!("audit-failed-every-server", count = shown.len(), failed = failed)),
+            app.clone(),
+        ))
+        .child(filter_row(
+            t!("audit-kind"),
+            filter.group.is_none(),
+            groups
+                .into_iter()
+                .map(|g| {
+                    let selected = filter.group == Some(g);
+                    (g.label().to_string(), selected, AuditFilter { server_id: filter.server_id.clone(), group: (!selected).then_some(g) })
+                })
+                .collect(),
+            AuditFilter { server_id: filter.server_id.clone(), group: None },
+            None,
+            app.clone(),
+        ))
         .child(
             div()
                 .id("audit-list")
@@ -67,7 +74,14 @@ pub fn audit_view(items: &[AuditItem], filter: &AuditFilter, app: Entity<CrowApp
         )
 }
 
-fn filter_row(label: &'static str, all_selected: bool, chips: Vec<(String, bool, AuditFilter)>, all: AuditFilter, app: Entity<CrowApp>) -> impl IntoElement {
+fn filter_row(
+    label: &'static str,
+    all_selected: bool,
+    chips: Vec<(String, bool, AuditFilter)>,
+    all: AuditFilter,
+    trailing_summary: Option<String>,
+    app: Entity<CrowApp>,
+) -> impl IntoElement {
     let chip = |id: SharedString, text: String, selected: bool, next: AuditFilter, app: Entity<CrowApp>| {
         div()
             .id(id)
@@ -102,6 +116,8 @@ fn filter_row(label: &'static str, all_selected: bool, chips: Vec<(String, bool,
         .child(div().w(px(56.0)).text_color(TEXT_DIMMER).child(label))
         .child(chip(format!("audit-{label}-all").into(), t!("audit-all").into(), all_selected, all, app.clone()))
         .children(chips.into_iter().enumerate().map(|(n, (text, selected, next))| chip(format!("audit-{label}-{n}").into(), text, selected, next, app.clone())))
+        .child(div().flex_1())
+        .children(trailing_summary.map(|s| div().text_size(px(10.0)).text_color(TEXT_DIM).child(s)))
 }
 
 fn audit_row(i: &AuditItem, now: chrono::DateTime<Local>) -> AnyElement {

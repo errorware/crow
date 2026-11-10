@@ -345,7 +345,6 @@ fn render_options_section(
                 .bg(BG_APP)
                 .border_1()
                 .border_color(if is_open { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
-                .rounded(px(2.0))
                 .flex()
                 .items_center()
                 .justify_between()
@@ -383,7 +382,6 @@ fn render_options_section(
                 .bg(BG_PANEL)
                 .border_1()
                 .border_color(BORDER_CONTROL_SEL)
-                .rounded(px(2.0))
                 .flex()
                 .flex_col()
                 .children(options.iter().map(|opt| {

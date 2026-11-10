@@ -59,7 +59,7 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                 .flex()
                 .flex_col()
                 .gap(px(14.0))
-                .child(div().flex().items_center().gap(px(12.0)).child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("fleet-checks-checks-from-outside"))).child(mono(10.5, if failing > 0 { CRIT } else { OK }).child(t!("fleet-checks-checks-failing", count = st.defs.len(), failing = failing))).child(mono(9.5, TEXT_FAINT).child(t!("fleet-checks-run-from-this-machine-only"))))
+                .child(div().flex().items_center().gap(px(12.0)).child(mono(10.5, if failing > 0 { CRIT } else { OK }).child(t!("fleet-checks-checks-failing", count = st.defs.len(), failing = failing))).child(mono(9.5, TEXT_FAINT).child(t!("fleet-checks-run-from-this-machine-only"))))
                 // Add one.
                 .child(
                     div()

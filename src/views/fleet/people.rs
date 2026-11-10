@@ -79,7 +79,6 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                         .flex()
                         .items_center()
                         .gap(px(12.0))
-                        .child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("fleet-people-people")))
                         .child(mono(10.5, TEXT_DIM).child(t!("fleet-people-accounts-keys-servers-read", count = rows.len(), key_rows_count = key_rows.len(), scans_count = scans.len())))
                         .child(div().flex_1())
                         .child(
