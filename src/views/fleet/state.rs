@@ -90,7 +90,7 @@ impl FleetState {
             drift: None,
             archived: Vec::new(),
             page: FleetPage::Active,
-            setup_page: SetupPage::Policies,
+            setup_page: SetupPage::Rollouts,
             topology_page: TopologyPage::Map,
             plugin_page: None,
             notice: None,

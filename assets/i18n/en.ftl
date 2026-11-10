@@ -4013,7 +4013,7 @@ dokku-badge-tls = TLS
 dokku-usage-cpu-mem = CPU { $cpu }% · MEM { $mem }
 
 # Outbound Wire & Egress Traceability
-page-tabs-wire = Wire
+page-tabs-wire = WIRE
 titlebar-outbound-wire = Outbound Wire
 app-palette-outbound-wire = Outbound Wire
 status-bar-wire-silenced = WIRE · SILENCED
