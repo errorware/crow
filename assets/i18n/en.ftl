@@ -4135,4 +4135,20 @@ overview-bottlenecks-detected = { $count } { $count ->
         [one] PERFORMANCE BOTTLENECK DETECTED
        *[other] PERFORMANCE BOTTLENECKS DETECTED
     }
+onboard-header-subtitle = Connect an existing machine over SSH or deploy a new cloud instance pre-seeded with your Crow Vault SSH key
+onboard-nav-existing-ssh = EXISTING SERVER (SSH)
+onboard-nav-cloud-provision = CLOUD PROVISIONING
+onboard-nav-deploy-vm = Deploy Cloud Instance
+onboard-cloud-subtitle = Launch a new Linode, UpCloud, or AWS EC2 instance pre-seeded with your Crow Vault SSH key, then verify and enroll it
+onboard-cloud-configure-providers = CONFIGURE PROVIDERS →
+onboard-cloud-enable-plugins = ENABLE PROVIDER PLUGINS →
+onboard-cloud-empty-desc = Enable Linode, UpCloud, or AWS in Settings → Plugins and add an API token in Settings → Providers to deploy cloud VMs directly from this screen.
+onboard-target-summary = TARGET SUMMARY
+onboard-instance-spec = INSTANCE SPECIFICATION
+onboard-summary-endpoint = ENDPOINT
+onboard-summary-route = ROUTE
+onboard-summary-auth = AUTHENTICATION
+onboard-summary-host-key = HOST KEY
+onboard-summary-auto-enroll-note = Once the instance boots and receives an IP address, Crow automatically opens SSH Host Key Verification so you can verify and place it in your fleet.
+
 

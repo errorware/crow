@@ -403,6 +403,16 @@ impl CrowApp {
     }
 
     pub fn open_provision(&mut self, account_id: Option<&str>, cx: &mut Context<Self>) {
+        self.init_provision(account_id, true, cx);
+    }
+
+    pub fn prepare_inline_provision(&mut self, cx: &mut Context<Self>) {
+        if self.provision.selected_account_id.is_empty() || self.provision.catalog.is_none() {
+            self.init_provision(None, false, cx);
+        }
+    }
+
+    fn init_provision(&mut self, account_id: Option<&str>, open_modal: bool, cx: &mut Context<Self>) {
         use crow_provider_core::capabilities::INSTANCES_CREATE;
         let accounts: Vec<ProviderAccount> = self
             .providers
@@ -414,8 +424,8 @@ impl CrowApp {
 
         if accounts.is_empty() {
             self.provision = ProvisionState {
-                open: true,
-                error: Some(t!("fleet-provision-no-providers-configured").into()),
+                open: open_modal,
+                error: if open_modal { Some(t!("fleet-provision-no-providers-configured").into()) } else { None },
                 ..Default::default()
             };
             self.provision_inputs = None;
@@ -439,7 +449,7 @@ impl CrowApp {
         let default_label = format!("srv-{rand_suffix}");
 
         self.provision = ProvisionState {
-            open: true,
+            open: open_modal,
             loading_catalog: false,
             provisioning: false,
             selected_account_id: selected.clone(),
@@ -537,7 +547,10 @@ impl CrowApp {
     }
 
     pub fn ensure_provision_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.provision_inputs.is_none() && self.provision.open {
+        let active = self.provision.open
+            || (self.screen == super::Screen::Onboard
+                && self.onboard_state.mode == crate::views::onboard::OnboardMode::CloudProvision);
+        if self.provision_inputs.is_none() && active {
             let label_val = self.provision.label.clone();
             let tags_val = self.provision.tags.clone();
             let mut events = Vec::new();

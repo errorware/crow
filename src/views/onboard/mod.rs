@@ -9,9 +9,12 @@ use gpui_kit::prelude::FluentBuilder as _;
 use gpui_kit::*;
 
 use crate::app::onboard::OnboardInputs;
-use crate::app::CrowApp;
+use crate::app::providers::{ProvisionInputs, ProvisionState};
+use crate::app::{CrowApp, Screen, SettingsSection};
+use crate::components::icons::{tabler_icon, TablerIcon};
 use crate::os_detect::classify_distro_family;
 use crate::theme::*;
+use crate::vault::ProviderAccount;
 use crate::views::fleet::lab_state::LocalLabState;
 use crate::views::fleet::FleetState;
 use crate::views::settings::keys_state::KeysState;
@@ -19,6 +22,13 @@ use crate::views::settings::keys_state::KeysState;
 pub mod probe;
 #[allow(unused_imports)]
 pub use probe::{gather_facts, log as probe_log, probe_host, trust_host_keys, DetectedFacts, ProbeLog, ProbeResult};
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
+pub enum OnboardMode {
+    #[default]
+    Ssh,
+    CloudProvision,
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OnboardStep {
@@ -35,6 +45,14 @@ impl OnboardStep {
             Self::Connect => t!("onboard-connect"),
             Self::Verify => t!("onboard-verify"),
             Self::Name => t!("onboard-name"),
+        }
+    }
+
+    pub fn icon(&self) -> TablerIcon {
+        match self {
+            Self::Connect => TablerIcon::Terminal2,
+            Self::Verify => TablerIcon::ShieldCheck,
+            Self::Name => TablerIcon::Server,
         }
     }
 
@@ -56,6 +74,7 @@ pub enum OnboardFieldFocus {
 
 #[derive(Clone, Debug)]
 pub struct OnboardState {
+    pub mode: OnboardMode,
     pub step: OnboardStep,
     pub max_reached_step: OnboardStep,
     // Connect
@@ -104,6 +123,7 @@ impl OnboardState {
     pub fn new(enrolled_keys: &[crate::vault::SshKeyRecord]) -> Self {
         let key = enrolled_keys.iter().find(|k| k.name == "crow").or(enrolled_keys.first()).map(|k| k.id.clone());
         Self {
+            mode: OnboardMode::Ssh,
             step: OnboardStep::Connect,
             max_reached_step: OnboardStep::Connect,
             host: String::new(),
@@ -165,8 +185,10 @@ fn labeled(text: &'static str, body: impl IntoElement) -> Div {
     div().flex().flex_col().gap(px(5.0)).child(label(text)).child(body)
 }
 
-/// One choice in a row of them: outlined when picked.
+/// One choice in a row of them: outlined with Obsidian Edge control selection tokens when picked.
 fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, selected: bool, accent: Rgba) -> Stateful<Div> {
+    let sel_border = if accent == OK || accent == TEXT_DIM { BORDER_CONTROL_SEL } else { accent };
+    let dot_color = if accent == OK || accent == TEXT_DIM { TEXT_PRIMARY } else { accent };
     div()
         .id(ElementId::Name(id.into()))
         .flex()
@@ -175,14 +197,15 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, selected: bo
         .px(px(10.0))
         .py(px(5.0))
         .border_1()
-        .border_color(if selected { accent } else { BORDER_DEFAULT })
-        .bg(if selected { BG_CONTROL_ALT } else { BG_CONTROL })
+        .border_color(if selected { sel_border } else { BORDER_DEFAULT })
+        .bg(if selected { BG_ROW_SELECTED } else { BG_CONTROL })
         .font_family(FONT_MONO)
         .text_size(px(10.5))
         .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
-        .text_color(if selected { TEXT_PRIMARY } else { TEXT_DIM })
+        .text_color(if selected { TEXT_MAX } else { TEXT_SECONDARY })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .hover(|s| s.border_color(BORDER_STRONG).bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .when(selected, |d| d.child(div().size(px(5.0)).rounded_full().bg(dot_color)))
         .child(text.into())
 }
 
@@ -197,11 +220,25 @@ fn method_card(id: &'static str, title: &'static str, about: &'static str, selec
         .gap(px(4.0))
         .p(px(10.0))
         .border_1()
-        .border_color(if selected { OK } else { BORDER_DEFAULT })
-        .bg(if selected { OK.opacity(0.06) } else { BG_CONTROL })
+        .border_color(if selected { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
+        .bg(if selected { BG_ROW_SELECTED } else { BG_CONTROL })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
-        .child(div().flex().items_center().gap(px(6.0)).child(div().size(px(8.0)).rounded_full().border_1().border_color(if selected { OK } else { TEXT_FAINT }).when(selected, |d| d.bg(OK))).child(mono(11.0, if selected { TEXT_PRIMARY } else { TEXT_SECONDARY }).font_weight(FontWeight::BOLD).child(title)))
+        .hover(|s| s.border_color(BORDER_STRONG).bg(BG_ROW_HOVER))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(6.0))
+                .child(
+                    div()
+                        .size(px(8.0))
+                        .rounded_full()
+                        .border_1()
+                        .border_color(if selected { TEXT_MAX } else { TEXT_FAINT })
+                        .when(selected, |d| d.bg(TEXT_MAX)),
+                )
+                .child(mono(11.0, if selected { TEXT_MAX } else { TEXT_SECONDARY }).font_weight(FontWeight::BOLD).child(title)),
+        )
         .child(mono(9.5, TEXT_DIM).line_height(px(13.0)).child(about))
 }
 
@@ -224,95 +261,719 @@ fn button(id: &'static str, text: impl Into<SharedString>, primary: bool, enable
         .child(text.into())
 }
 
-pub fn onboard_view(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &FleetState, state: &OnboardState, keys: &KeysState, local_lab: &LocalLabState) -> impl IntoElement {
-    let (app_cancel, app_back, app_next) = (app.clone(), app.clone(), app.clone());
+pub fn onboard_view(
+    app: Entity<CrowApp>,
+    inputs: Option<&OnboardInputs>,
+    fleet: &FleetState,
+    state: &OnboardState,
+    keys: &KeysState,
+    local_lab: &LocalLabState,
+    provision: &ProvisionState,
+    provision_inputs: Option<&ProvisionInputs>,
+    provider_accounts: &[ProviderAccount],
+) -> impl IntoElement {
+    let (app_cancel, app_back, app_next, app_cloud, app_launch) = (app.clone(), app.clone(), app.clone(), app.clone(), app.clone());
+    let is_cloud = state.mode == OnboardMode::CloudProvision;
+
+    let prov_capable_count = provider_accounts
+        .iter()
+        .filter(|a| {
+            crate::providers::factory(&a.plugin)
+                .is_some_and(|f| (f.manifest)().has_capability(crow_provider_core::capabilities::INSTANCES_CREATE))
+        })
+        .count();
+
+    let (sec_title, sec_subtitle): (String, String) = if is_cloud {
+        (
+            t!("fleet-provision-modal-title").to_string(),
+            t!("onboard-cloud-subtitle").to_string(),
+        )
+    } else {
+        match state.step {
+            OnboardStep::Connect => (
+                format!("1. {}", t!("onboard-connect").to_uppercase()),
+                t!("onboard-crow-connects-over-ssh-and").to_string(),
+            ),
+            OnboardStep::Verify => (
+                format!("2. {}", t!("onboard-verify").to_uppercase()),
+                t!("onboard-compare-it-with-the-servers").to_string(),
+            ),
+            OnboardStep::Name => (
+                format!("3. {}", t!("onboard-name").to_uppercase()),
+                t!("onboard-all-of-this-can-be").to_string(),
+            ),
+        }
+    };
+
     let (primary_text, primary_enabled) = match state.step {
         OnboardStep::Connect => (t!("onboard-check-connection").to_string(), true),
         OnboardStep::Verify => (t!("onboard-next-name-it").to_string(), state.host_key_accepted && !state.is_probing),
         OnboardStep::Name => (t!("onboard-add-server").to_string(), true),
     };
+
     div()
         .size_full()
         .flex()
         .flex_col()
         .bg(BG_APP)
-        // Title and steps
+        // 1. Top Screen Header (matches Settings → Personalisation)
         .child(
             div()
+                .h(px(52.0))
                 .flex_none()
                 .flex()
                 .items_center()
-                .gap(px(18.0))
-                .h(px(52.0))
-                .px(px(20.0))
+                .px(px(16.0))
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(mono(15.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(t!("onboard-add-server-2")))
-                .child(div().flex().items_center().gap(px(4.0)).children(OnboardStep::ALL.iter().map(|step| {
-                    let (active, done) = (state.step == *step, step.num() < state.max_reached_step.num() || (step.num() <= state.max_reached_step.num() && state.step != *step));
-                    let reachable = step.num() <= state.max_reached_step.num();
-                    let app = app.clone();
-                    let step = *step;
+                .child(
                     div()
-                        .id(ElementId::NamedInteger("onboard-step".into(), step.num() as u64))
+                        .flex_1()
+                        .min_w(px(0.0))
                         .flex()
-                        .items_center()
-                        .gap(px(6.0))
-                        .px(px(10.0))
-                        .py(px(4.0))
-                        .border_b_2()
-                        .border_color(if active { OK } else { hex_rgba(0, 0.0) })
-                        .when(reachable && !active, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)))
-                        .on_click(move |_ev, _window, cx| {
-                            if reachable {
-                                app.update(cx, |this, cx| this.onboard_set_step(step, cx));
-                            }
-                        })
-                        .child(mono(10.0, if active { OK } else if done { OK.opacity(0.7) } else { TEXT_FAINT }).child(if done && !active { "✓".to_string() } else { step.num().to_string() }))
-                        .child(mono(11.0, if active { TEXT_PRIMARY } else if reachable { TEXT_SECONDARY } else { TEXT_FAINT }).font_weight(if active { FontWeight::BOLD } else { FontWeight::NORMAL }).child(step.label()))
-                })))
-                .child(div().flex_1())
-                .child(button("btn-onboard-cancel", t!("onboard-cancel-esc"), false, true).on_click(move |_ev, _window, cx| app_cancel.update(cx, |this, cx| this.set_screen(crate::app::Screen::Fleet, cx)))),
+                        .items_baseline()
+                        .gap(px(10.0))
+                        .child(
+                            div()
+                                .flex_none()
+                                .font_family(FONT_MONO)
+                                .text_size(px(16.0))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(TEXT_MAX)
+                                .child(t!("onboard-add-server-2")),
+                        )
+                        .child(
+                            div()
+                                .min_w(px(0.0))
+                                .truncate()
+                                .font_family(FONT_MONO)
+                                .text_size(px(11.5))
+                                .text_color(TEXT_DIM)
+                                .child(t!("onboard-header-subtitle")),
+                        ),
+                )
+                .child(
+                    button("btn-onboard-cancel", t!("onboard-cancel-esc"), false, true)
+                        .on_click(move |_ev, _window, cx| app_cancel.update(cx, |this, cx| this.set_screen(Screen::Fleet, cx))),
+                ),
         )
-        // The step
-        .child(
-            div().id("onboard-scroll").flex_1().min_h(px(0.0)).overflow_y_scrollbar().child(
-                div()
-                    .max_w(px(820.0))
-                    .px(px(28.0))
-                    .py(px(22.0))
-                    .flex()
-                    .flex_col()
-                    .gap(px(18.0))
-                    .child(match state.step {
-                        OnboardStep::Connect => step_connect(app.clone(), inputs, fleet, state, keys, local_lab).into_any_element(),
-                        OnboardStep::Verify => step_verify(app.clone(), state, fleet).into_any_element(),
-                        OnboardStep::Name => step_name(app.clone(), inputs, fleet, state).into_any_element(),
-                    })
-                    .children(state.error_message.clone().map(|e| div().p(px(10.0)).bg(CRIT.opacity(0.08)).border_1().border_color(CRIT.opacity(0.5)).child(mono(11.0, CRIT).line_height(px(16.0)).child(e)))),
-            ),
-        )
-        // Back and forward
+        // 2. 3-Column Workbench: Left Nav Rail (220px) | Center Column (flex-1) | Right Summary Rail (340px)
         .child(
             div()
+                .flex_1()
+                .min_h(px(0.0))
+                .flex()
+                // Left Navigation Rail
+                .child(
+                    div()
+                        .w(px(220.0))
+                        .flex_none()
+                        .flex()
+                        .flex_col()
+                        .bg(BG_RAIL)
+                        .border_r_1()
+                        .border_color(BORDER_PANEL)
+                        .pt(px(8.0))
+                        // Group 1: Existing Server (SSH)
+                        .child(
+                            div()
+                                .px(px(12.0))
+                                .py(px(6.0))
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.5))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(TEXT_FAINT)
+                                .child(t!("onboard-nav-existing-ssh")),
+                        )
+                        .children(OnboardStep::ALL.iter().map(|step| {
+                            let active = !is_cloud && state.step == *step;
+                            let done = step.num() < state.max_reached_step.num()
+                                || (step.num() <= state.max_reached_step.num() && state.step != *step);
+                            let reachable = step.num() <= state.max_reached_step.num();
+                            let app = app.clone();
+                            let step = *step;
+                            div()
+                                .id(ElementId::NamedInteger("onboard-step".into(), step.num() as u64))
+                                .relative()
+                                .h(px(34.0))
+                                .flex_none()
+                                .flex()
+                                .items_center()
+                                .gap(px(10.0))
+                                .px(px(12.0))
+                                .bg(if active { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
+                                .children(active.then(|| left_indicator(TEXT_PRIMARY)))
+                                .when(reachable || is_cloud, |d| {
+                                    d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER))
+                                })
+                                .on_click(move |_ev, _window, cx| {
+                                    if reachable {
+                                        app.update(cx, |this, cx| this.onboard_set_step(step, cx));
+                                    } else {
+                                        app.update(cx, |this, cx| this.onboard_set_mode(OnboardMode::Ssh, cx));
+                                    }
+                                })
+                                .child(
+                                    div()
+                                        .w(px(16.0))
+                                        .h(px(16.0))
+                                        .flex()
+                                        .items_center()
+                                        .justify_center()
+                                        .child(
+                                            tabler_icon(step.icon())
+                                                .size(px(14.0))
+                                                .text_color(if active {
+                                                    TEXT_PRIMARY
+                                                } else if done {
+                                                    OK
+                                                } else {
+                                                    TEXT_DIMMER
+                                                }),
+                                        ),
+                                )
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_w(px(0.0))
+                                        .truncate()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(11.5))
+                                        .font_weight(if active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+                                        .text_color(if active {
+                                            TEXT_PRIMARY
+                                        } else if reachable {
+                                            TEXT_MUTED
+                                        } else {
+                                            TEXT_FAINT
+                                        })
+                                        .child(format!("{}. {}", step.num(), step.label())),
+                                )
+                                .child(
+                                    mono(10.0, if done { OK } else { TEXT_FAINT })
+                                        .child(if done { "✓".to_string() } else { String::new() }),
+                                )
+                        }))
+                        // Group 2: Cloud Provisioning
+                        .child(
+                            div()
+                                .mt(px(14.0))
+                                .px(px(12.0))
+                                .py(px(6.0))
+                                .border_t_1()
+                                .border_color(BORDER_PANEL)
+                                .font_family(FONT_MONO)
+                                .text_size(px(9.5))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(TEXT_FAINT)
+                                .child(t!("onboard-nav-cloud-provision")),
+                        )
+                        .child(
+                            div()
+                                .id("onboard-nav-cloud-vm")
+                                .relative()
+                                .h(px(34.0))
+                                .flex_none()
+                                .flex()
+                                .items_center()
+                                .gap(px(10.0))
+                                .px(px(12.0))
+                                .bg(if is_cloud { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
+                                .children(is_cloud.then(|| left_indicator(TEXT_PRIMARY)))
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .on_click(move |_ev, _window, cx| {
+                                    app_cloud.update(cx, |this, cx| this.onboard_set_mode(OnboardMode::CloudProvision, cx));
+                                })
+                                .child(
+                                    div()
+                                        .w(px(16.0))
+                                        .h(px(16.0))
+                                        .flex()
+                                        .items_center()
+                                        .justify_center()
+                                        .child(
+                                            tabler_icon(TablerIcon::Cloud)
+                                                .size(px(14.0))
+                                                .text_color(if is_cloud { TEXT_PRIMARY } else { TEXT_DIMMER }),
+                                        ),
+                                )
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_w(px(0.0))
+                                        .truncate()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(11.5))
+                                        .font_weight(if is_cloud { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+                                        .text_color(if is_cloud { TEXT_PRIMARY } else { TEXT_MUTED })
+                                        .child(t!("onboard-nav-deploy-vm")),
+                                )
+                                .child(
+                                    mono(10.0, if prov_capable_count > 0 { OK } else { TEXT_FAINT })
+                                        .child(if prov_capable_count > 0 { format!("{prov_capable_count}") } else { String::new() }),
+                                ),
+                        ),
+                )
+                // Center Section: Subheader + Scrollable Form + Fixed Bottom Bar
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w(px(0.0))
+                        .flex()
+                        .flex_col()
+                        .bg(BG_APP)
+                        // Section Subheader Bar (h=34, BG_PANEL)
+                        .child(
+                            div()
+                                .h(px(34.0))
+                                .flex_none()
+                                .flex()
+                                .items_center()
+                                .px(px(14.0))
+                                .bg(BG_PANEL)
+                                .border_b_1()
+                                .border_color(BORDER_PANEL)
+                                .gap(px(10.0))
+                                .child(
+                                    div()
+                                        .flex_none()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(11.0))
+                                        .font_weight(FontWeight::SEMIBOLD)
+                                        .text_color(TEXT_PRIMARY)
+                                        .child(sec_title),
+                                )
+                                .children(is_cloud.then(|| {
+                                    crate::components::button::badge(OK)
+                                        .text_size(px(9.0))
+                                        .child(t!("fleet-provision-ssh-vault-seeded"))
+                                }))
+                                .child(
+                                    div()
+                                        .min_w(px(0.0))
+                                        .truncate()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(10.0))
+                                        .text_color(TEXT_DIM)
+                                        .child(sec_subtitle),
+                                ),
+                        )
+                        // Scrollable Form Content
+                        .child(
+                            div()
+                                .id("onboard-scroll")
+                                .flex_1()
+                                .min_h(px(0.0))
+                                .overflow_y_scrollbar()
+                                .child(
+                                    div()
+                                        .max_w(px(760.0))
+                                        .p(px(20.0))
+                                        .flex()
+                                        .flex_col()
+                                        .gap(px(18.0))
+                                        .child(if is_cloud {
+                                            render_cloud_provision_center(
+                                                app.clone(),
+                                                provision,
+                                                provision_inputs,
+                                                provider_accounts,
+                                                keys,
+                                                prov_capable_count,
+                                            )
+                                            .into_any_element()
+                                        } else {
+                                            match state.step {
+                                                OnboardStep::Connect => step_connect(app.clone(), inputs, fleet, state, keys, local_lab).into_any_element(),
+                                                OnboardStep::Verify => step_verify(app.clone(), state, fleet).into_any_element(),
+                                                OnboardStep::Name => step_name(app.clone(), inputs, fleet, state).into_any_element(),
+                                            }
+                                        })
+                                        .children((!is_cloud).then(|| state.error_message.clone()).flatten().map(|e| {
+                                            div()
+                                                .p(px(10.0))
+                                                .bg(CRIT.opacity(0.08))
+                                                .border_1()
+                                                .border_color(CRIT.opacity(0.5))
+                                                .child(mono(11.0, CRIT).line_height(px(16.0)).child(e))
+                                        })),
+                                ),
+                        )
+                        // Fixed Bottom Action Bar (anchored to Center Column!)
+                        .child(
+                            div()
+                                .flex_none()
+                                .flex()
+                                .items_center()
+                                .gap(px(10.0))
+                                .h(px(48.0))
+                                .px(px(16.0))
+                                .bg(BG_PANEL)
+                                .border_t_1()
+                                .border_color(BORDER_PANEL)
+                                .when(!is_cloud && state.step != OnboardStep::Connect, |d| {
+                                    d.child(
+                                        button("btn-onboard-back", t!("onboard-back"), false, true)
+                                            .on_click(move |_ev, _window, cx| app_back.update(cx, |this, cx| this.onboard_prev_step(cx))),
+                                    )
+                                })
+                                .child(div().flex_1())
+                                .children(if is_cloud {
+                                    let can_launch = prov_capable_count > 0 && !provision.provisioning && !provision.loading_catalog;
+                                    let launch_label = if provision.provisioning {
+                                        t!("fleet-provision-launching").to_string()
+                                    } else {
+                                        t!("fleet-provision-launch-instance").to_string()
+                                    };
+                                    vec![
+                                        button("btn-onboard-launch-vm", launch_label, true, can_launch)
+                                            .on_click(move |_ev, _window, cx| {
+                                                if can_launch {
+                                                    app_launch.update(cx, |this, cx| this.submit_provision(cx));
+                                                }
+                                            })
+                                            .into_any_element(),
+                                    ]
+                                } else {
+                                    vec![
+                                        mono(10.0, TEXT_FAINT)
+                                            .child(state.endpoint())
+                                            .when(state.host.trim().is_empty(), |d| d.invisible())
+                                            .into_any_element(),
+                                        button("btn-onboard-next", primary_text, true, primary_enabled)
+                                            .on_click(move |_ev, _window, cx| {
+                                                if primary_enabled {
+                                                    app_next.update(cx, |this, cx| this.onboard_next_step(cx));
+                                                }
+                                            })
+                                            .into_any_element(),
+                                    ]
+                                }),
+                        ),
+                )
+                // Right Context & Summary Rail (340px)
+                .child(
+                    div()
+                        .w(px(340.0))
+                        .flex_none()
+                        .flex()
+                        .flex_col()
+                        .bg(BG_RAIL)
+                        .border_l_1()
+                        .border_color(BORDER_PANEL)
+                        .child(render_onboard_right_rail(
+                            state,
+                            fleet,
+                            keys,
+                            provision,
+                            provider_accounts,
+                            is_cloud,
+                        )),
+                ),
+        )
+}
+
+fn render_cloud_provision_center(
+    app: Entity<CrowApp>,
+    provision: &ProvisionState,
+    provision_inputs: Option<&ProvisionInputs>,
+    provider_accounts: &[ProviderAccount],
+    keys: &KeysState,
+    prov_capable_count: usize,
+) -> impl IntoElement {
+    if prov_capable_count == 0 {
+        let (app_prov, app_plug) = (app.clone(), app);
+        return div()
+            .p(px(16.0))
+            .bg(BG_PANEL)
+            .border_1()
+            .border_color(BORDER_PANEL)
+            .flex()
+            .flex_col()
+            .gap(px(12.0))
+            .child(
+                mono(12.0, TEXT_PRIMARY)
+                    .font_weight(FontWeight::BOLD)
+                    .child(t!("fleet-provision-no-providers-configured")),
+            )
+            .child(
+                mono(10.5, TEXT_DIM)
+                    .line_height(px(15.0))
+                    .child(t!("onboard-cloud-empty-desc")),
+            )
+            .child(
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(10.0))
+                    .pt(px(4.0))
+                    .child(
+                        button("btn-onboard-goto-providers", t!("onboard-cloud-configure-providers"), true, true)
+                            .on_click(move |_ev, _window, cx| {
+                                app_prov.update(cx, |this, cx| {
+                                    this.set_settings_section(SettingsSection::Providers, cx);
+                                    this.set_screen(Screen::Settings, cx);
+                                });
+                            }),
+                    )
+                    .child(
+                        button("btn-onboard-goto-plugins", t!("onboard-cloud-enable-plugins"), false, true)
+                            .on_click(move |_ev, _window, cx| {
+                                app_plug.update(cx, |this, cx| {
+                                    this.set_settings_section(SettingsSection::Plugins, cx);
+                                    this.set_screen(Screen::Settings, cx);
+                                });
+                            }),
+                    ),
+            )
+            .into_any_element();
+    }
+
+    div()
+        .p(px(16.0))
+        .bg(BG_PANEL)
+        .border_1()
+        .border_color(BORDER_PANEL)
+        .child(crate::views::fleet::provision::render_provision_form_body(
+            provision,
+            provision_inputs,
+            provider_accounts,
+            &keys.enrolled,
+            app,
+        ))
+        .into_any_element()
+}
+
+fn summary_row(k: impl Into<SharedString>, v: impl Into<SharedString>, v_color: Rgba) -> Div {
+    div()
+        .flex()
+        .items_center()
+        .justify_between()
+        .gap(px(10.0))
+        .py(px(6.0))
+        .border_b_1()
+        .border_color(BORDER_ROW)
+        .child(mono(9.5, TEXT_FAINT).font_weight(FontWeight::BOLD).child(k.into()))
+        .child(mono(10.5, v_color).truncate().child(v.into()))
+}
+
+fn render_onboard_right_rail(
+    state: &OnboardState,
+    fleet: &FleetState,
+    keys: &KeysState,
+    provision: &ProvisionState,
+    provider_accounts: &[ProviderAccount],
+    is_cloud: bool,
+) -> impl IntoElement {
+    let header_title = if is_cloud {
+        t!("onboard-instance-spec")
+    } else {
+        t!("onboard-target-summary")
+    };
+
+    let body: AnyElement = if is_cloud {
+        let acct_name = provider_accounts
+            .iter()
+            .find(|a| a.id == provision.selected_account_id)
+            .map(|a| {
+                let disp = crate::providers::display_name(&a.plugin);
+                if a.label.is_empty() || a.label.eq_ignore_ascii_case(&disp) {
+                    disp
+                } else {
+                    format!("{} ({disp})", a.label)
+                }
+            })
+            .unwrap_or_else(|| "—".to_string());
+        let key_name = keys
+            .enrolled
+            .iter()
+            .find(|k| k.id == provision.selected_ssh_key_id)
+            .map(|k| format!("{} · {}", k.name, k.algorithm))
+            .unwrap_or_else(|| "—".to_string());
+
+        div()
+            .p(px(14.0))
+            .flex()
+            .flex_col()
+            .gap(px(14.0))
+            .child(
+                div()
+                    .p(px(12.0))
+                    .bg(BG_PANEL)
+                    .border_1()
+                    .border_color(BORDER_PANEL)
+                    .flex()
+                    .flex_col()
+                    .child(summary_row(t!("fleet-provision-provider-account"), acct_name, TEXT_PRIMARY))
+                    .child(summary_row(
+                        t!("fleet-provision-instance-label"),
+                        if provision.label.trim().is_empty() { "—".to_string() } else { provision.label.clone() },
+                        TEXT_PRIMARY,
+                    ))
+                    .child(summary_row(
+                        t!("fleet-provision-region"),
+                        if provision.region.is_empty() { "—".to_string() } else { provision.region.clone() },
+                        TEXT_SECONDARY,
+                    ))
+                    .child(summary_row(
+                        t!("fleet-provision-plan"),
+                        if provision.plan.is_empty() { "—".to_string() } else { provision.plan.clone() },
+                        TEXT_SECONDARY,
+                    ))
+                    .child(summary_row(
+                        t!("fleet-provision-image"),
+                        if provision.image.is_empty() { "—".to_string() } else { provision.image.clone() },
+                        TEXT_SECONDARY,
+                    ))
+                    .child(summary_row(t!("fleet-provision-vault-ssh-key"), key_name, OK))
+                    .child(summary_row(
+                        t!("onboard-tags"),
+                        if provision.tags.trim().is_empty() { "—".to_string() } else { provision.tags.clone() },
+                        TEXT_DIM,
+                    )),
+            )
+            .child(
+                div()
+                    .p(px(12.0))
+                    .bg(BG_PANEL)
+                    .border_1()
+                    .border_color(BORDER_PANEL)
+                    .child(
+                        mono(10.0, TEXT_DIM)
+                            .line_height(px(15.0))
+                            .child(t!("onboard-summary-auto-enroll-note")),
+                    ),
+            )
+            .into_any_element()
+    } else {
+        let ep = if state.host.trim().is_empty() {
+            "—".to_string()
+        } else {
+            state.endpoint()
+        };
+        let route = state
+            .jump_host_id
+            .as_deref()
+            .map(|b| crate::app::bastions::route(b, &fleet.servers))
+            .unwrap_or_else(|| t!("onboard-directly").to_string());
+        let auth = match state.auth_method.as_str() {
+            "publickey" => {
+                let kname = state
+                    .selected_key_id
+                    .as_deref()
+                    .and_then(|id| keys.enrolled.iter().find(|k| k.id == id))
+                    .map(|k| k.name.as_str())
+                    .unwrap_or("key");
+                format!("SSH key ({kname})")
+            }
+            "agent" => t!("onboard-my-ssh-agent").to_string(),
+            _ => t!("onboard-a-password-once").to_string(),
+        };
+        let (hk_text, hk_color) = if state.host_key_accepted {
+            (t!("onboard-host-key-trusted").to_string(), OK)
+        } else if state.probe_result.as_ref().is_some_and(|r| r.host_key_mismatch) {
+            (t!("onboard-host-key-changed-not-trusted").to_string(), CRIT)
+        } else if state.probe_result.is_some() {
+            (t!("onboard-host-key-new-to-this").to_string(), WARN)
+        } else {
+            (t!("onboard-not-checked-yet").to_string(), TEXT_DIM)
+        };
+
+        div()
+            .p(px(14.0))
+            .flex()
+            .flex_col()
+            .gap(px(14.0))
+            .child(
+                div()
+                    .p(px(12.0))
+                    .bg(BG_PANEL)
+                    .border_1()
+                    .border_color(BORDER_PANEL)
+                    .flex()
+                    .flex_col()
+                    .child(summary_row(t!("onboard-summary-endpoint"), ep, TEXT_PRIMARY))
+                    .child(summary_row(
+                        t!("onboard-summary-route"),
+                        route,
+                        if state.jump_host_id.is_some() { BASTION_BLUE } else { TEXT_SECONDARY },
+                    ))
+                    .child(summary_row(t!("onboard-summary-auth"), auth, TEXT_SECONDARY))
+                    .child(summary_row(t!("onboard-summary-host-key"), hk_text, hk_color))
+                    .child(summary_row(
+                        t!("onboard-name-2"),
+                        if state.label.trim().is_empty() {
+                            if state.host.trim().is_empty() { "—".to_string() } else { state.host.trim().to_string() }
+                        } else {
+                            state.label.trim().to_string()
+                        },
+                        TEXT_PRIMARY,
+                    ))
+                    .child(summary_row(
+                        t!("onboard-environment"),
+                        if state.env.is_empty() { "—".to_string() } else { state.env.clone() },
+                        TEXT_SECONDARY,
+                    ))
+                    .child(summary_row(
+                        t!("onboard-group"),
+                        if state.group.is_empty() { "—".to_string() } else { state.group.clone() },
+                        TEXT_SECONDARY,
+                    )),
+            )
+            .when(!state.probe_logs.is_empty(), |d| {
+                d.child(
+                    labeled(
+                        t!("onboard-log"),
+                        div()
+                            .flex()
+                            .flex_col()
+                            .gap(px(4.0))
+                            .p(px(10.0))
+                            .bg(BG_PANEL)
+                            .border_1()
+                            .border_color(BORDER_PANEL)
+                            .children(state.probe_logs.iter().map(|l| {
+                                div()
+                                    .flex()
+                                    .gap(px(6.0))
+                                    .child(mono(9.5, l.color).flex_none().w(px(10.0)).child(l.glyph.clone()))
+                                    .child(mono(10.0, TEXT_SECONDARY).flex_1().min_w(px(0.0)).line_height(px(14.0)).child(l.message.clone()))
+                            })),
+                    ),
+                )
+            })
+            .into_any_element()
+    };
+
+    div()
+        .size_full()
+        .flex()
+        .flex_col()
+        .child(
+            div()
+                .h(px(34.0))
                 .flex_none()
                 .flex()
                 .items_center()
-                .gap(px(10.0))
-                .h(px(56.0))
-                .px(px(20.0))
+                .px(px(14.0))
                 .bg(BG_PANEL)
-                .border_t_1()
+                .border_b_1()
                 .border_color(BORDER_PANEL)
-                .when(state.step != OnboardStep::Connect, |d| d.child(button("btn-onboard-back", t!("onboard-back"), false, true).on_click(move |_ev, _window, cx| app_back.update(cx, |this, cx| this.onboard_prev_step(cx)))))
-                .child(div().flex_1())
-                .child(mono(10.0, TEXT_FAINT).child(state.endpoint()).when(state.host.trim().is_empty(), |d| d.invisible()))
-                .child(button("btn-onboard-next", primary_text, true, primary_enabled).on_click(move |_ev, _window, cx| {
-                    if primary_enabled {
-                        app_next.update(cx, |this, cx| this.onboard_next_step(cx));
-                    }
-                })),
+                .child(
+                    mono(10.5, TEXT_PRIMARY)
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(header_title),
+                ),
+        )
+        .child(
+            div()
+                .id("onboard-right-rail-scroll")
+                .flex_1()
+                .min_h(px(0.0))
+                .overflow_y_scrollbar()
+                .child(body),
         )
 }
 

@@ -4095,4 +4095,20 @@ fleet-edit-server-agent = バックグラウンドエージェント (crow --age
 overview-bottlenecks-detected = { $count } { $count ->
        *[other] 件のパフォーマンス・ボトルネックを検出
     }
+onboard-header-subtitle = 既存のサーバーに SSH 接続するか、Crow 保管庫の SSH 鍵を事前登録した新しいクラウドインスタンスをデプロイします
+onboard-nav-existing-ssh = 既存サーバー (SSH)
+onboard-nav-cloud-provision = クラウドプロビジョニング
+onboard-nav-deploy-vm = クラウド VM をデプロイ
+onboard-cloud-subtitle = Crow 保管庫の SSH 鍵を事前設定して Linode / UpCloud / AWS EC2 インスタンスを起動し、そのままフリートに登録します
+onboard-cloud-configure-providers = プロバイダーを設定 →
+onboard-cloud-enable-plugins = プラグインを有効化 →
+onboard-cloud-empty-desc = 設定 → プラグインで Linode、UpCloud、または AWS を有効化し、設定 → プロバイダーで API トークンを登録すると、この画面から直接クラウド VM をデプロイできます。
+onboard-target-summary = ターゲット概要
+onboard-instance-spec = インスタンス仕様
+onboard-summary-endpoint = 接続先
+onboard-summary-route = 経路
+onboard-summary-auth = 認証方式
+onboard-summary-host-key = ホスト鍵
+onboard-summary-auto-enroll-note = インスタンスが起動して IP アドレスが割り当てられると、自動的に SSH ホスト鍵の確認ステップに進み、フリートへ登録できます。
+
 

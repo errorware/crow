@@ -54,7 +54,7 @@ impl Render for CrowApp {
         if self.plugins.user.pending.is_some() {
             self.ensure_plugin_inputs(window, cx);
         }
-        if self.provision.open {
+        if self.provision.open || (self.screen == Screen::Onboard && self.onboard_state.mode == crate::views::onboard::OnboardMode::CloudProvision) {
             self.ensure_provision_inputs(window, cx);
         }
         if self.screen == Screen::Settings && self.settings.section == super::SettingsSection::Personalisation {
@@ -678,7 +678,17 @@ impl Render for CrowApp {
                                     Screen::Onboard => Some(
                                         div()
                                             .size_full()
-                                            .child(onboard_view(app_view.clone(), self.onboard_inputs.as_ref(), &self.fleet, &self.onboard_state, &self.keys, &self.local_lab)),
+                                            .child(onboard_view(
+                                                app_view.clone(),
+                                                self.onboard_inputs.as_ref(),
+                                                &self.fleet,
+                                                &self.onboard_state,
+                                                &self.keys,
+                                                &self.local_lab,
+                                                &self.provision,
+                                                self.provision_inputs.as_ref(),
+                                                &self.providers.accounts,
+                                            )),
                                     ),
                                     Screen::FleetSetup => Some(
                                         div()

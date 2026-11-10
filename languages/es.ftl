@@ -4161,4 +4161,20 @@ overview-bottlenecks-detected = { $count } { $count ->
         [one] CUELLO DE BOTELLA DE RENDIMIENTO DETECTADO
        *[other] CUELLOS DE BOTELLA DE RENDIMIENTO DETECTADOS
     }
+onboard-header-subtitle = Conecta una máquina existente por SSH o despliega una nueva instancia en la nube con tu clave SSH de la bóveda de Crow
+onboard-nav-existing-ssh = SERVIDOR EXISTENTE (SSH)
+onboard-nav-cloud-provision = DESPLIEGUE EN LA NUBE
+onboard-nav-deploy-vm = Desplegar instancia cloud
+onboard-cloud-subtitle = Lanza una nueva instancia en Linode, UpCloud o AWS EC2 con tu clave SSH de Crow preinstalada y luego verifícala en tu flota
+onboard-cloud-configure-providers = CONFIGURAR PROVEEDORES →
+onboard-cloud-enable-plugins = ACTIVAR EXTENSIONES →
+onboard-cloud-empty-desc = Activa Linode, UpCloud o AWS en Ajustes → Extensiones y añade un token de API en Ajustes → Proveedores para desplegar máquinas virtuales directamente desde aquí.
+onboard-target-summary = RESUMEN DEL DESTINO
+onboard-instance-spec = ESPECIFICACIÓN DE INSTANCIA
+onboard-summary-endpoint = DESTINO
+onboard-summary-route = RUTA
+onboard-summary-auth = AUTENTICACIÓN
+onboard-summary-host-key = CLAVE DEL SERVIDOR
+onboard-summary-auto-enroll-note = En cuanto la instancia arranque y reciba una dirección IP, Crow abrirá automáticamente la verificación de clave SSH para incorporarla a tu flota.
+
 

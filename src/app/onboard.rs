@@ -181,7 +181,16 @@ impl CrowApp {
         self.onboard_set_focus_select(focus, false, cx);
     }
 
+    pub fn onboard_set_mode(&mut self, mode: crate::views::onboard::OnboardMode, cx: &mut Context<Self>) {
+        self.onboard_state.mode = mode;
+        if mode == crate::views::onboard::OnboardMode::CloudProvision {
+            self.prepare_inline_provision(cx);
+        }
+        cx.notify();
+    }
+
     pub fn onboard_set_step(&mut self, step: OnboardStep, cx: &mut Context<Self>) {
+        self.onboard_state.mode = crate::views::onboard::OnboardMode::Ssh;
         self.onboard_state.step = step;
         self.onboard_state.error_message = None;
         if step.num() > self.onboard_state.max_reached_step.num() {
