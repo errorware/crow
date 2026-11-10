@@ -73,7 +73,14 @@ impl Zone {
 
 /// This computer's zone name (`Europe/Madrid`), when the system says.
 pub fn local_name() -> Option<String> {
-    iana_time_zone::get_timezone().ok().filter(|n| !n.is_empty())
+    iana_time_zone::get_timezone()
+        .ok()
+        .filter(|n| !n.is_empty())
+        .or_else(|| {
+            let link = std::fs::read_link("/etc/localtime").ok()?.into_os_string().into_string().ok()?;
+            let (_, zone) = link.split_once("zoneinfo/")?;
+            (!zone.is_empty()).then(|| zone.to_string())
+        })
 }
 
 /// `America/Argentina/Buenos_Aires` → `Buenos Aires`.
@@ -214,6 +221,7 @@ impl CrowApp {
     pub fn select_time_zone(&mut self, zone: Option<Tz>, cx: &mut Context<Self>) {
         let name = zone.map(|z| z.name().to_string()).unwrap_or_default();
         self.update_config_field(TIME_ZONE, serde_json::Value::String(name), cx);
+        let _ = self.config.save();
         self.clock.menu_open = false;
         cx.notify();
     }
@@ -223,6 +231,7 @@ impl CrowApp {
         if !zones.contains(&zone) {
             zones.push(zone);
             self.update_config_field(TIME_ZONES, serde_json::Value::String(join_zones(&zones)), cx);
+            let _ = self.config.save();
         }
     }
 
@@ -235,6 +244,7 @@ impl CrowApp {
         if was_selected {
             self.update_config_field(TIME_ZONE, serde_json::Value::String(String::new()), cx);
         }
+        let _ = self.config.save();
     }
 
     pub fn ensure_time_zone_search(&mut self, window: &mut Window, cx: &mut Context<Self>) {
