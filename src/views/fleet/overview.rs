@@ -1204,7 +1204,7 @@ pub fn fleet_overview_view(
                         // Activity Header
                         .child(
                             div()
-                                .h(px(30.0))
+                                .h(px(34.0))
                                 .flex_none()
                                 .flex()
                                 .items_center()
