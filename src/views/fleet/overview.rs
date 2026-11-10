@@ -818,6 +818,162 @@ pub fn fleet_overview_view(
                                                     ),
                                             )
                                     ).into_iter().map(|e| e.into_any_element()).collect::<Vec<AnyElement>>()
+                                } else if fleet.region_bar_open && fleet.group_bar_open {
+                                    let mut by_region: BTreeMap<(u8, String, String), Vec<FleetHost>> = BTreeMap::new();
+                                    for host in hosts {
+                                        let cc = host.country.trim().to_uppercase();
+                                        let key = if cc.is_empty() {
+                                            (1u8, String::new(), String::new())
+                                        } else {
+                                            let cname = crate::region::country_name(&cc).unwrap_or(&cc).to_uppercase();
+                                            (0u8, cname, cc)
+                                        };
+                                        by_region.entry(key).or_default().push(host);
+                                    }
+
+                                    let mut elements: Vec<AnyElement> = Vec::new();
+                                    let mut row_idx = 0;
+                                    for ((_rank, cname, cc), region_hosts) in by_region {
+                                        let region_display = if cc.is_empty() {
+                                            t!("fleet-overview-unknown").to_string()
+                                        } else {
+                                            format!("{cname} ({cc})")
+                                        };
+                                        let region_count = region_hosts.len();
+
+                                        elements.push(
+                                            div()
+                                                .h(px(26.0))
+                                                .flex_none()
+                                                .flex()
+                                                .items_center()
+                                                .px(px(12.0))
+                                                .bg(BG_SUBHEAD)
+                                                .border_b_1()
+                                                .border_color(BORDER_PANEL)
+                                                .font_family(FONT_MONO)
+                                                .text_size(px(10.0))
+                                                .font_weight(FontWeight::BOLD)
+                                                .text_color(TEXT_PRIMARY)
+                                                .child(crate::components::flag::flag(&cc, 11.0))
+                                                .child(div().ml(px(6.0)).child(region_display))
+                                                .child(
+                                                    div()
+                                                        .ml(px(8.0))
+                                                        .text_size(px(9.0))
+                                                        .text_color(TEXT_DIMMER)
+                                                        .child(t!("fleet-overview-host-count", count = region_count)),
+                                                )
+                                                .into_any_element(),
+                                        );
+
+                                        let mut grouped_hosts: BTreeMap<String, Vec<FleetHost>> = BTreeMap::new();
+                                        for host in region_hosts {
+                                            let grp = if host.group.trim().is_empty() || host.group.trim() == "default" {
+                                                "default".to_string()
+                                            } else {
+                                                host.group.trim().to_string()
+                                            };
+                                            grouped_hosts.entry(grp).or_default().push(host);
+                                        }
+                                        let ungrouped = grouped_hosts.remove("default");
+                                        for (grp_name, group_list) in grouped_hosts.into_iter().chain(ungrouped.map(|l| ("default".to_string(), l))) {
+                                            let display_name = if grp_name == "default" {
+                                                t!("fleet-overview-no-group").to_string()
+                                            } else {
+                                                grp_name.to_uppercase()
+                                            };
+                                            let host_count = group_list.len();
+
+                                            elements.push(
+                                                div()
+                                                    .h(px(24.0))
+                                                    .flex_none()
+                                                    .flex()
+                                                    .items_center()
+                                                    .pl(px(24.0))
+                                                    .pr(px(12.0))
+                                                    .bg(BG_APP)
+                                                    .border_b_1()
+                                                    .border_color(BORDER_PANEL)
+                                                    .font_family(FONT_MONO)
+                                                    .text_size(px(9.5))
+                                                    .font_weight(FontWeight::BOLD)
+                                                    .text_color(TEXT_SECONDARY)
+                                                    .child(tabler_icon(TablerIcon::Folder).size(px(11.0)).text_color(hex_rgb(0x38bdf8)))
+                                                    .child(div().ml(px(6.0)).child(display_name))
+                                                    .child(
+                                                        div()
+                                                            .ml(px(8.0))
+                                                            .text_size(px(9.0))
+                                                            .text_color(TEXT_DIMMER)
+                                                            .child(t!("fleet-overview-host-count", count = host_count)),
+                                                    )
+                                                    .into_any_element(),
+                                            );
+
+                                            for host in group_list {
+                                                elements.push(render_fleet_host_row(&host, row_idx, &app).into_any_element());
+                                                row_idx += 1;
+                                            }
+                                        }
+                                    }
+                                    elements
+                                } else if fleet.region_bar_open {
+                                    let mut by_region: BTreeMap<(u8, String, String), Vec<FleetHost>> = BTreeMap::new();
+                                    for host in hosts {
+                                        let cc = host.country.trim().to_uppercase();
+                                        let key = if cc.is_empty() {
+                                            (1u8, String::new(), String::new())
+                                        } else {
+                                            let cname = crate::region::country_name(&cc).unwrap_or(&cc).to_uppercase();
+                                            (0u8, cname, cc)
+                                        };
+                                        by_region.entry(key).or_default().push(host);
+                                    }
+
+                                    let mut elements: Vec<AnyElement> = Vec::new();
+                                    let mut row_idx = 0;
+                                    for ((_rank, cname, cc), region_hosts) in by_region {
+                                        let region_display = if cc.is_empty() {
+                                            t!("fleet-overview-unknown").to_string()
+                                        } else {
+                                            format!("{cname} ({cc})")
+                                        };
+                                        let host_count = region_hosts.len();
+
+                                        elements.push(
+                                            div()
+                                                .h(px(26.0))
+                                                .flex_none()
+                                                .flex()
+                                                .items_center()
+                                                .px(px(12.0))
+                                                .bg(BG_SUBHEAD)
+                                                .border_b_1()
+                                                .border_color(BORDER_PANEL)
+                                                .font_family(FONT_MONO)
+                                                .text_size(px(10.0))
+                                                .font_weight(FontWeight::BOLD)
+                                                .text_color(TEXT_SECONDARY)
+                                                .child(crate::components::flag::flag(&cc, 11.0))
+                                                .child(div().ml(px(6.0)).child(region_display))
+                                                .child(
+                                                    div()
+                                                        .ml(px(8.0))
+                                                        .text_size(px(9.0))
+                                                        .text_color(TEXT_DIMMER)
+                                                        .child(t!("fleet-overview-host-count", count = host_count)),
+                                                )
+                                                .into_any_element(),
+                                        );
+
+                                        for host in region_hosts {
+                                            elements.push(render_fleet_host_row(&host, row_idx, &app).into_any_element());
+                                            row_idx += 1;
+                                        }
+                                    }
+                                    elements
                                 } else if fleet.group_bar_open {
                                     let mut grouped_hosts: BTreeMap<String, Vec<FleetHost>> = BTreeMap::new();
                                     for host in hosts {
