@@ -382,18 +382,30 @@ impl CrowApp {
         cx.notify();
     }
 
+    pub fn toggle_provision_dropdown(&mut self, which: &str, cx: &mut Context<Self>) {
+        if self.provision.open_dropdown.as_deref() == Some(which) {
+            self.provision.open_dropdown = None;
+        } else {
+            self.provision.open_dropdown = Some(which.to_string());
+        }
+        cx.notify();
+    }
+
     pub fn set_provision_region(&mut self, region: &str, cx: &mut Context<Self>) {
         self.provision.region = region.to_string();
+        self.provision.open_dropdown = None;
         cx.notify();
     }
 
     pub fn set_provision_plan(&mut self, plan: &str, cx: &mut Context<Self>) {
         self.provision.plan = plan.to_string();
+        self.provision.open_dropdown = None;
         cx.notify();
     }
 
     pub fn set_provision_image(&mut self, image: &str, cx: &mut Context<Self>) {
         self.provision.image = image.to_string();
+        self.provision.open_dropdown = None;
         cx.notify();
     }
 
@@ -460,6 +472,7 @@ impl CrowApp {
             selected_ssh_key_id: default_ssh_key,
             tags: "crow".to_string(),
             catalog: None,
+            open_dropdown: None,
             error: None,
         };
         self.provision_inputs = None;
@@ -723,6 +736,7 @@ pub struct ProvisionState {
     pub selected_ssh_key_id: String,
     pub tags: String,
     pub catalog: Option<crow_provider_core::hosts::ProvisionCatalog>,
+    pub open_dropdown: Option<String>,
     pub error: Option<String>,
 }
 

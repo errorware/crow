@@ -213,34 +213,185 @@ impl Snapshots for Linode {
     }
 }
 
+#[derive(Deserialize)]
+struct LinodeRegion {
+    id: String,
+    label: String,
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    capabilities: Vec<String>,
+}
+
+#[derive(Deserialize)]
+struct LinodePrice {
+    monthly: Option<f64>,
+}
+
+#[derive(Deserialize)]
+struct LinodeType {
+    id: String,
+    label: String,
+    vcpus: Option<u32>,
+    memory: Option<u64>,
+    disk: Option<u64>,
+    successor: Option<String>,
+    price: Option<LinodePrice>,
+}
+
+#[derive(Deserialize)]
+struct LinodeImage {
+    id: String,
+    label: String,
+    #[serde(default)]
+    status: String,
+    #[serde(default)]
+    deprecated: bool,
+}
+
+impl Linode {
+    fn fetch_regions(&self) -> Option<Vec<ProvisionOption>> {
+        let p: Page<LinodeRegion> = self.get("/regions?page=1&page_size=500").ok()?;
+        let mut list: Vec<ProvisionOption> = p
+            .data
+            .into_iter()
+            .filter(|r| {
+                (r.status.is_empty() || r.status == "ok")
+                    && (r.capabilities.is_empty() || r.capabilities.iter().any(|c| c.eq_ignore_ascii_case("Linodes")))
+            })
+            .map(|r| {
+                let lbl = if r.label.contains(&r.id) {
+                    r.label
+                } else {
+                    format!("{} ({})", r.label, r.id)
+                };
+                ProvisionOption::new(r.id, lbl)
+            })
+            .collect();
+        list.sort_by(|a, b| a.label.cmp(&b.label));
+        (!list.is_empty()).then_some(list)
+    }
+
+    fn fetch_plans(&self) -> Option<Vec<ProvisionOption>> {
+        let p: Page<LinodeType> = self.get("/linode/types?page=1&page_size=500").ok()?;
+        let mut types: Vec<LinodeType> = p
+            .data
+            .into_iter()
+            .filter(|t| t.successor.is_none())
+            .collect();
+        types.sort_by(|a, b| {
+            let pa = a.price.as_ref().and_then(|p| p.monthly).unwrap_or(f64::MAX);
+            let pb = b.price.as_ref().and_then(|p| p.monthly).unwrap_or(f64::MAX);
+            pa.partial_cmp(&pb)
+                .unwrap_or(std::cmp::Ordering::Equal)
+                .then_with(|| a.memory.cmp(&b.memory))
+        });
+        let list: Vec<ProvisionOption> = types
+            .into_iter()
+            .map(|t| {
+                let vcpu = t.vcpus.unwrap_or(1);
+                let ram_gb = t.memory.unwrap_or(1024) as f64 / 1024.0;
+                let disk_gb = t.disk.unwrap_or(25600) / 1024;
+                let ram_str = if (ram_gb - ram_gb.round()).abs() < 0.05 {
+                    format!("{} GB", ram_gb.round() as u64)
+                } else {
+                    format!("{ram_gb:.1} GB")
+                };
+                let price_str = match t.price.as_ref().and_then(|p| p.monthly) {
+                    Some(m) if m > 0.0 => format!(" · ${m:.0}/mo"),
+                    _ => String::new(),
+                };
+                ProvisionOption::new(
+                    t.id,
+                    format!("{} ({vcpu} vCPU, {ram_str} RAM, {disk_gb} GB SSD{price_str})", t.label),
+                )
+            })
+            .collect();
+        (!list.is_empty()).then_some(list)
+    }
+
+    fn fetch_images(&self) -> Option<Vec<ProvisionOption>> {
+        let p: Page<LinodeImage> = self.get("/images?page=1&page_size=500").ok()?;
+        let mut imgs: Vec<LinodeImage> = p
+            .data
+            .into_iter()
+            .filter(|i| !i.deprecated && (i.status.is_empty() || i.status == "available"))
+            .collect();
+        imgs.sort_by(|a, b| {
+            let a_pub = a.id.starts_with("linode/");
+            let b_pub = b.id.starts_with("linode/");
+            b_pub.cmp(&a_pub).then_with(|| a.label.cmp(&b.label))
+        });
+        let list: Vec<ProvisionOption> = imgs
+            .into_iter()
+            .map(|i| ProvisionOption::new(i.id, i.label))
+            .collect();
+        (!list.is_empty()).then_some(list)
+    }
+}
+
 impl ProvisionInstance for Linode {
     fn catalog(&self) -> ProvisionCatalog {
-        ProvisionCatalog {
-            regions: vec![
+        let regions = self.fetch_regions().unwrap_or_else(|| {
+            vec![
                 ProvisionOption::new("us-east", "Newark, NJ (us-east)"),
                 ProvisionOption::new("us-central", "Dallas, TX (us-central)"),
                 ProvisionOption::new("us-west", "Fremont, CA (us-west)"),
+                ProvisionOption::new("us-southeast", "Atlanta, GA (us-southeast)"),
+                ProvisionOption::new("us-iad", "Washington, DC (us-iad)"),
+                ProvisionOption::new("us-ord", "Chicago, IL (us-ord)"),
+                ProvisionOption::new("us-sea", "Seattle, WA (us-sea)"),
+                ProvisionOption::new("us-lax", "Los Angeles, CA (us-lax)"),
+                ProvisionOption::new("us-mia", "Miami, FL (us-mia)"),
+                ProvisionOption::new("ca-central", "Toronto, CA (ca-central)"),
+                ProvisionOption::new("br-gru", "São Paulo, BR (br-gru)"),
                 ProvisionOption::new("eu-central", "Frankfurt, DE (eu-central)"),
+                ProvisionOption::new("de-fra-2", "Frankfurt 2, DE (de-fra-2)"),
                 ProvisionOption::new("eu-west", "London, UK (eu-west)"),
+                ProvisionOption::new("gb-lon", "London 2, UK (gb-lon)"),
+                ProvisionOption::new("fr-par", "Paris, FR (fr-par)"),
+                ProvisionOption::new("nl-ams", "Amsterdam, NL (nl-ams)"),
+                ProvisionOption::new("se-sto", "Stockholm, SE (se-sto)"),
+                ProvisionOption::new("es-mad", "Madrid, ES (es-mad)"),
+                ProvisionOption::new("it-mil", "Milan, IT (it-mil)"),
                 ProvisionOption::new("ap-south", "Singapore (ap-south)"),
+                ProvisionOption::new("sg-sin-2", "Singapore 2 (sg-sin-2)"),
                 ProvisionOption::new("ap-northeast", "Tokyo, JP (ap-northeast)"),
-            ],
-            plans: vec![
-                ProvisionOption::new("g6-nanode-1", "Nanode 1GB (1 vCPU, 1 GB RAM, 25 GB SSD)"),
-                ProvisionOption::new("g6-standard-1", "Linode 2GB (1 vCPU, 2 GB RAM, 50 GB SSD)"),
-                ProvisionOption::new("g6-standard-2", "Linode 4GB (2 vCPU, 4 GB RAM, 80 GB SSD)"),
-                ProvisionOption::new("g6-standard-4", "Linode 8GB (4 vCPU, 8 GB RAM, 160 GB SSD)"),
-                ProvisionOption::new("g6-dedicated-2", "Dedicated 4GB (2 vCPU, 4 GB RAM, 80 GB SSD)"),
-            ],
-            images: vec![
+                ProvisionOption::new("jp-osa", "Osaka, JP (jp-osa)"),
+                ProvisionOption::new("ap-west", "Mumbai, IN (ap-west)"),
+                ProvisionOption::new("in-maa", "Chennai, IN (in-maa)"),
+                ProvisionOption::new("id-cgk", "Jakarta, ID (id-cgk)"),
+                ProvisionOption::new("ap-southeast", "Sydney, AU (ap-southeast)"),
+                ProvisionOption::new("au-mel", "Melbourne, AU (au-mel)"),
+            ]
+        });
+        let plans = self.fetch_plans().unwrap_or_else(|| {
+            vec![
+                ProvisionOption::new("g6-nanode-1", "Nanode 1GB (1 vCPU, 1 GB RAM, 25 GB SSD · $5/mo)"),
+                ProvisionOption::new("g6-standard-1", "Linode 2GB (1 vCPU, 2 GB RAM, 50 GB SSD · $12/mo)"),
+                ProvisionOption::new("g6-standard-2", "Linode 4GB (2 vCPU, 4 GB RAM, 80 GB SSD · $24/mo)"),
+                ProvisionOption::new("g6-standard-4", "Linode 8GB (4 vCPU, 8 GB RAM, 160 GB SSD · $48/mo)"),
+                ProvisionOption::new("g6-standard-6", "Linode 16GB (6 vCPU, 16 GB RAM, 320 GB SSD · $96/mo)"),
+                ProvisionOption::new("g6-standard-8", "Linode 32GB (8 vCPU, 32 GB RAM, 640 GB SSD · $192/mo)"),
+                ProvisionOption::new("g6-dedicated-2", "Dedicated 4GB (2 vCPU, 4 GB RAM, 80 GB SSD · $36/mo)"),
+                ProvisionOption::new("g6-dedicated-4", "Dedicated 8GB (4 vCPU, 8 GB RAM, 160 GB SSD · $72/mo)"),
+                ProvisionOption::new("g6-dedicated-8", "Dedicated 16GB (8 vCPU, 16 GB RAM, 320 GB SSD · $144/mo)"),
+            ]
+        });
+        let images = self.fetch_images().unwrap_or_else(|| {
+            vec![
                 ProvisionOption::new("linode/ubuntu24.04", "Ubuntu 24.04 LTS"),
                 ProvisionOption::new("linode/ubuntu22.04", "Ubuntu 22.04 LTS"),
                 ProvisionOption::new("linode/debian12", "Debian 12 (Bookworm)"),
                 ProvisionOption::new("linode/debian11", "Debian 11 (Bullseye)"),
+                ProvisionOption::new("linode/almalinux9", "AlmaLinux 9"),
+                ProvisionOption::new("linode/rocky9", "Rocky Linux 9"),
+                ProvisionOption::new("linode/fedora40", "Fedora 40"),
                 ProvisionOption::new("linode/arch", "Arch Linux"),
                 ProvisionOption::new("linode/alpine3.20", "Alpine Linux 3.20"),
-            ],
-        }
+            ]
+        });
+        ProvisionCatalog { regions, plans, images }
     }
 
     fn provision(&self, spec: &ProvisionSpec) -> Result<Instance, ProviderError> {

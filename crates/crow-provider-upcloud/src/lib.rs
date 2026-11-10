@@ -224,10 +224,113 @@ struct IpAddressesField {
     ip_address: Vec<UpIp>,
 }
 
+#[derive(Deserialize)]
+struct ZoneList {
+    zones: ZonesField,
+}
+#[derive(Deserialize)]
+struct ZonesField {
+    #[serde(default)]
+    zone: Vec<UpZone>,
+}
+#[derive(Deserialize)]
+struct UpZone {
+    id: String,
+    description: Option<String>,
+    public: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct PlanList {
+    plans: PlansField,
+}
+#[derive(Deserialize)]
+struct PlansField {
+    #[serde(default)]
+    plan: Vec<UpPlan>,
+}
+#[derive(Deserialize)]
+struct UpPlan {
+    name: String,
+    core_number: Option<u32>,
+    memory_amount: Option<u64>,
+    storage_size: Option<u64>,
+}
+
+#[derive(Deserialize)]
+struct TemplateList {
+    storages: StoragesField,
+}
+#[derive(Deserialize)]
+struct StoragesField {
+    #[serde(default)]
+    storage: Vec<UpTemplate>,
+}
+#[derive(Deserialize)]
+struct UpTemplate {
+    uuid: String,
+    title: String,
+    template_type: Option<String>,
+}
+
+impl UpCloud {
+    fn fetch_zones(&self) -> Option<Vec<ProvisionOption>> {
+        let z: ZoneList = self.get("/zone").ok()?;
+        let mut list: Vec<ProvisionOption> = z
+            .zones
+            .zone
+            .into_iter()
+            .filter(|z| z.public.as_deref().unwrap_or("yes") != "no")
+            .map(|z| {
+                let desc = z.description.unwrap_or_else(|| z.id.clone());
+                ProvisionOption::new(z.id.clone(), format!("{desc} ({})", z.id))
+            })
+            .collect();
+        list.sort_by(|a, b| a.label.cmp(&b.label));
+        (!list.is_empty()).then_some(list)
+    }
+
+    fn fetch_plans(&self) -> Option<Vec<ProvisionOption>> {
+        let p: PlanList = self.get("/plan").ok()?;
+        let mut plans = p.plans.plan;
+        plans.sort_by(|a, b| {
+            a.memory_amount
+                .cmp(&b.memory_amount)
+                .then_with(|| a.core_number.cmp(&b.core_number))
+        });
+        let list: Vec<ProvisionOption> = plans
+            .into_iter()
+            .map(|pl| {
+                let cpu = pl.core_number.unwrap_or(1);
+                let ram_gb = pl.memory_amount.unwrap_or(1024) as f64 / 1024.0;
+                let disk_gb = pl.storage_size.unwrap_or(25);
+                ProvisionOption::new(
+                    pl.name.clone(),
+                    format!("{} ({cpu} vCPU, {ram_gb:.0} GB RAM, {disk_gb} GB Storage)", pl.name),
+                )
+            })
+            .collect();
+        (!list.is_empty()).then_some(list)
+    }
+
+    fn fetch_templates(&self) -> Option<Vec<ProvisionOption>> {
+        let t: TemplateList = self.get("/storage/template").ok()?;
+        let mut list: Vec<ProvisionOption> = t
+            .storages
+            .storage
+            .into_iter()
+            .filter(|s| s.template_type.as_deref() != Some("custom"))
+            .map(|s| ProvisionOption::new(s.uuid, s.title))
+            .collect();
+        list.sort_by(|a, b| a.label.cmp(&b.label));
+        (!list.is_empty()).then_some(list)
+    }
+}
+
 impl ProvisionInstance for UpCloud {
     fn catalog(&self) -> ProvisionCatalog {
-        ProvisionCatalog {
-            regions: vec![
+        let regions = self.fetch_zones().unwrap_or_else(|| {
+            vec![
                 ProvisionOption::new("de-fra1", "Frankfurt 1 (de-fra1)"),
                 ProvisionOption::new("fi-hel1", "Helsinki 1 (fi-hel1)"),
                 ProvisionOption::new("fi-hel2", "Helsinki 2 (fi-hel2)"),
@@ -241,23 +344,28 @@ impl ProvisionInstance for UpCloud {
                 ProvisionOption::new("es-mad1", "Madrid 1 (es-mad1)"),
                 ProvisionOption::new("se-sto1", "Stockholm 1 (se-sto1)"),
                 ProvisionOption::new("au-syd1", "Sydney 1 (au-syd1)"),
-            ],
-            plans: vec![
+            ]
+        });
+        let plans = self.fetch_plans().unwrap_or_else(|| {
+            vec![
                 ProvisionOption::new("1xCPU-1GB", "1xCPU-1GB (1 vCPU, 1 GB RAM, 25 GB Storage)"),
                 ProvisionOption::new("1xCPU-2GB", "1xCPU-2GB (1 vCPU, 2 GB RAM, 50 GB Storage)"),
                 ProvisionOption::new("2xCPU-4GB", "2xCPU-4GB (2 vCPU, 4 GB RAM, 80 GB Storage)"),
                 ProvisionOption::new("4xCPU-8GB", "4xCPU-8GB (4 vCPU, 8 GB RAM, 160 GB Storage)"),
                 ProvisionOption::new("6xCPU-16GB", "6xCPU-16GB (6 vCPU, 16 GB RAM, 320 GB Storage)"),
-            ],
-            images: vec![
+            ]
+        });
+        let images = self.fetch_templates().unwrap_or_else(|| {
+            vec![
                 ProvisionOption::new("01000000-0000-4000-8000-000030240200", "Ubuntu Server 24.04 LTS"),
                 ProvisionOption::new("01000000-0000-4000-8000-000030220200", "Ubuntu Server 22.04 LTS"),
                 ProvisionOption::new("01000000-0000-4000-8000-000020120200", "Debian GNU/Linux 12 (Bookworm)"),
                 ProvisionOption::new("01000000-0000-4000-8000-000020110200", "Debian GNU/Linux 11 (Bullseye)"),
                 ProvisionOption::new("01000000-0000-4000-8000-000060090200", "AlmaLinux 9"),
                 ProvisionOption::new("01000000-0000-4000-8000-000050090200", "Rocky Linux 9"),
-            ],
-        }
+            ]
+        });
+        ProvisionCatalog { regions, plans, images }
     }
 
     fn provision(&self, spec: &ProvisionSpec) -> Result<Instance, ProviderError> {

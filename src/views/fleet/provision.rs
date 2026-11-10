@@ -178,6 +178,7 @@ pub fn render_provision_form_body(
                         t!("fleet-provision-region"),
                         &cat.regions,
                         &state.region,
+                        state.open_dropdown.as_deref() == Some("provision-opt-region"),
                         app.clone(),
                         |app, id, cx| app.update(cx, |this, cx| this.set_provision_region(&id, cx)),
                     ))
@@ -186,6 +187,7 @@ pub fn render_provision_form_body(
                         t!("fleet-provision-plan"),
                         &cat.plans,
                         &state.plan,
+                        state.open_dropdown.as_deref() == Some("provision-opt-plan"),
                         app.clone(),
                         |app, id, cx| app.update(cx, |this, cx| this.set_provision_plan(&id, cx)),
                     ))
@@ -194,6 +196,7 @@ pub fn render_provision_form_body(
                         t!("fleet-provision-image"),
                         &cat.images,
                         &state.image,
+                        state.open_dropdown.as_deref() == Some("provision-opt-image"),
                         app.clone(),
                         |app, id, cx| app.update(cx, |this, cx| this.set_provision_image(&id, cx)),
                     )),
@@ -296,36 +299,136 @@ fn render_options_section(
     title: &str,
     options: &[crow_provider_core::hosts::ProvisionOption],
     selected_id: &str,
+    is_open: bool,
     app: Entity<CrowApp>,
     on_select: impl Fn(Entity<CrowApp>, String, &mut App) + 'static + Clone,
 ) -> impl IntoElement {
+    let selected_label = options
+        .iter()
+        .find(|o| o.id == selected_id)
+        .map(|o| o.label.clone())
+        .unwrap_or_else(|| selected_id.to_string());
+    let total_count = options.len();
+    let app_toggle = app.clone();
+
     div()
         .flex()
         .flex_col()
-        .gap(px(6.0))
-        .child(
-            div()
-                .text_color(TEXT_DIM)
-                .font_weight(FontWeight::BOLD)
-                .text_size(px(10.0))
-                .child(title.to_string()),
-        )
+        .gap(px(5.0))
+        .max_w(px(540.0))
         .child(
             div()
                 .flex()
-                .flex_wrap()
-                .gap(px(6.0))
+                .items_center()
+                .justify_between()
+                .child(
+                    div()
+                        .text_color(TEXT_DIM)
+                        .font_weight(FontWeight::BOLD)
+                        .text_size(px(10.0))
+                        .child(title.to_string()),
+                )
+                .child(
+                    div()
+                        .text_color(TEXT_FAINT)
+                        .text_size(px(9.5))
+                        .child(format!("{total_count}")),
+                ),
+        )
+        // Dropdown Trigger
+        .child(
+            div()
+                .id(SharedString::from(format!("{id_prefix}-dropdown-trigger")))
+                .w_full()
+                .h(px(32.0))
+                .px(px(10.0))
+                .bg(BG_APP)
+                .border_1()
+                .border_color(if is_open { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
+                .rounded(px(2.0))
+                .flex()
+                .items_center()
+                .justify_between()
+                .gap(px(8.0))
+                .cursor_pointer()
+                .hover(|s| s.border_color(BORDER_STRONG).bg(BG_ROW_HOVER))
+                .on_click(move |_ev, _window, cx| {
+                    app_toggle.update(cx, |this, cx| this.toggle_provision_dropdown(id_prefix, cx));
+                })
+                .child(
+                    div()
+                        .flex_1()
+                        .min_w(px(0.0))
+                        .truncate()
+                        .font_family(FONT_MONO)
+                        .text_size(px(11.5))
+                        .text_color(TEXT_PRIMARY)
+                        .child(selected_label),
+                )
+                .child(
+                    inherited_icon(
+                        if is_open { TablerIcon::ChevronUp } else { TablerIcon::ChevronDown },
+                        px(14.0),
+                    )
+                    .text_color(TEXT_DIM),
+                ),
+        )
+        // Expandable Dropdown List
+        .children(is_open.then(|| {
+            div()
+                .id(SharedString::from(format!("{id_prefix}-dropdown-list")))
+                .w_full()
+                .max_h(px(220.0))
+                .overflow_y_scrollbar()
+                .bg(BG_PANEL)
+                .border_1()
+                .border_color(BORDER_CONTROL_SEL)
+                .rounded(px(2.0))
+                .flex()
+                .flex_col()
                 .children(options.iter().map(|opt| {
                     let is_sel = opt.id == selected_id;
                     let opt_id = opt.id.clone();
+                    let opt_label = opt.label.clone();
                     let app = app.clone();
                     let on_sel = on_select.clone();
-                    let chip_id = format!("{id_prefix}-{}", opt.id);
-                    chip(chip_id, opt.label.clone(), is_sel, move |cx| {
-                        on_sel(app.clone(), opt_id.clone(), cx);
-                    })
-                })),
-        )
+                    let row_id = format!("{id_prefix}-{}", opt.id);
+                    div()
+                        .id(SharedString::from(row_id))
+                        .px(px(10.0))
+                        .py(px(6.0))
+                        .border_b_1()
+                        .border_color(BORDER_ROW)
+                        .bg(if is_sel { BG_ROW_SELECTED } else { BG_PANEL })
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .cursor_pointer()
+                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_MAX))
+                        .on_click(move |_ev, _window, cx| {
+                            on_sel(app.clone(), opt_id.clone(), cx);
+                        })
+                        .child(
+                            div()
+                                .size(px(6.0))
+                                .rounded_full()
+                                .bg(if is_sel { TEXT_MAX } else { hex_rgba(0, 0.0) })
+                                .border_1()
+                                .border_color(if is_sel { TEXT_MAX } else { BORDER_STRONG }),
+                        )
+                        .child(
+                            div()
+                                .flex_1()
+                                .min_w(px(0.0))
+                                .truncate()
+                                .font_family(FONT_MONO)
+                                .text_size(px(11.0))
+                                .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
+                                .text_color(if is_sel { TEXT_MAX } else { TEXT_SECONDARY })
+                                .child(opt_label),
+                        )
+                }))
+        }))
 }
 
 fn render_ssh_keys_section(
