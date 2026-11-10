@@ -46,10 +46,9 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                         .child(t!("settings-providers-set-up", configured = configured, count = factories.len())),
                 )
                 .child(div().flex_1())
-                // The fleet's import and provisioning from these accounts live here, with them.
+                // The fleet's import from these accounts lives here, with them.
                 .children((configured > 0).then(|| {
                     let app1 = app.clone();
-                    let app2 = app.clone();
                     div()
                         .flex()
                         .items_center()
@@ -72,25 +71,6 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                                 .on_click(move |_ev, _window, cx| app1.update(cx, |this, cx| this.open_import(cx)))
                                 .child(inherited_icon(TablerIcon::Download, px(12.0)))
                                 .child(t!("settings-providers-import-instances")),
-                        )
-                        .child(
-                            div()
-                                .id("btn-providers-provision")
-                                .flex()
-                                .items_center()
-                                .gap(px(6.0))
-                                .h(px(26.0))
-                                .px(px(10.0))
-                                .border_1()
-                                .border_color(OK.opacity(0.6))
-                                .font_family(FONT_MONO)
-                                .text_size(px(10.5))
-                                .text_color(OK)
-                                .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
-                                .on_click(move |_ev, _window, cx| app2.update(cx, |this, cx| this.open_provision(None, cx)))
-                                .child(inherited_icon(TablerIcon::Cloud, px(12.0)))
-                                .child(t!("settings-providers-provision-instance")),
                         )
                 })),
         )
@@ -190,11 +170,9 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
 
     let status_line = div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(14.0)).text_color(status.1).child(status.0);
 
-    let (a_edit, a_test, a_remove, a_prov) = (app.clone(), app.clone(), app.clone(), app.clone());
+    let (a_edit, a_test, a_remove) = (app.clone(), app.clone(), app.clone());
     let (p_edit, p_test, p_remove) = (plugin.clone(), plugin.clone(), plugin.clone());
     let confirming = state.confirm_remove.as_deref() == Some(plugin.as_str());
-    let can_provision = manifest.has_capability(crow_provider_core::capabilities::INSTANCES_CREATE);
-    let acct_id = account.map(|a| a.id.clone()).unwrap_or_default();
 
     let actions = div()
         .flex()
@@ -206,15 +184,7 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
             }))
         })
         .when(account.is_some(), |d| {
-            d.when(can_provision, |d| {
-                let a_prov = a_prov.clone();
-                let aid = acct_id.clone();
-                d.child(button(format!("provider-provision-{plugin}"), t!("settings-providers-provision").into(), OK, true, move |cx| {
-                    let aid = aid.clone();
-                    a_prov.update(cx, |this, cx| this.open_provision(Some(&aid), cx));
-                }))
-            })
-            .child(button(format!("provider-test-{plugin}"), t!("settings-providers-test-connection").into(), TEXT_SECONDARY, !checking, move |cx| {
+            d.child(button(format!("provider-test-{plugin}"), t!("settings-providers-test-connection").into(), TEXT_SECONDARY, !checking, move |cx| {
                 let p = p_test.clone();
                 a_test.update(cx, |this, cx| this.test_provider(&p, cx));
             }))
