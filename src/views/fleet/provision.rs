@@ -88,77 +88,7 @@ pub fn provision_panel(
                         .flex_1()
                         .overflow_y_scrollbar()
                         .p(px(16.0))
-                        .flex()
-                        .flex_col()
-                        .gap(px(14.0))
-                        .font_family(FONT_MONO)
-                        .text_size(px(11.0))
-                        // Error banner if any
-                        .children(state.error.as_ref().map(|err| {
-                            div()
-                                .p(px(10.0))
-                                .bg(CRIT.opacity(0.1))
-                                .border_1()
-                                .border_color(CRIT.opacity(0.4))
-                                .text_color(CRIT)
-                                .text_size(px(10.5))
-                                .child(format!("⚠ {err}"))
-                        }))
-                        // 1. Account selector
-                        .child(render_account_section(state, accounts, app.clone()))
-                        // 2. Server label
-                        .child(render_label_section(inputs))
-                        // 3. Catalog sections (Region, Plan, Image)
-                        .children(if state.loading_catalog {
-                            Some(
-                                div()
-                                    .py(px(20.0))
-                                    .flex()
-                                    .items_center()
-                                    .justify_center()
-                                    .gap(px(8.0))
-                                    .text_color(TEXT_DIMMER)
-                                    .child(inherited_icon(TablerIcon::Refresh, px(14.0)))
-                                    .child(t!("fleet-provision-loading-catalog")),
-                            )
-                        } else if let Some(cat) = &state.catalog {
-                            Some(
-                                div()
-                                    .flex()
-                                    .flex_col()
-                                    .gap(px(14.0))
-                                    .child(render_options_section(
-                                        "provision-opt-region",
-                                        t!("fleet-provision-region"),
-                                        &cat.regions,
-                                        &state.region,
-                                        app.clone(),
-                                        |app, id, cx| app.update(cx, |this, cx| this.set_provision_region(&id, cx)),
-                                    ))
-                                    .child(render_options_section(
-                                        "provision-opt-plan",
-                                        t!("fleet-provision-plan"),
-                                        &cat.plans,
-                                        &state.plan,
-                                        app.clone(),
-                                        |app, id, cx| app.update(cx, |this, cx| this.set_provision_plan(&id, cx)),
-                                    ))
-                                    .child(render_options_section(
-                                        "provision-opt-image",
-                                        t!("fleet-provision-image"),
-                                        &cat.images,
-                                        &state.image,
-                                        app.clone(),
-                                        |app, id, cx| app.update(cx, |this, cx| this.set_provision_image(&id, cx)),
-                                    )),
-                            )
-                        } else {
-                            None
-                        })
-                        // 4. SSH Key selector
-                        .child(render_ssh_keys_section(state, enrolled_keys, app.clone()))
-                        // 5. Tags input
-                        .child(render_tags_section(inputs)),
+                        .child(render_provision_form_body(state, inputs, accounts, enrolled_keys, app.clone())),
                 )
                 .child(
                     // Footer actions
@@ -196,6 +126,87 @@ pub fn provision_panel(
         )
 }
 
+pub fn render_provision_form_body(
+    state: &ProvisionState,
+    inputs: Option<&ProvisionInputs>,
+    accounts: &[ProviderAccount],
+    enrolled_keys: &[SshKeyRecord],
+    app: Entity<CrowApp>,
+) -> Div {
+    div()
+        .flex()
+        .flex_col()
+        .gap(px(16.0))
+        .font_family(FONT_MONO)
+        .text_size(px(11.0))
+        // Error banner if any
+        .children(state.error.as_ref().map(|err| {
+            div()
+                .p(px(10.0))
+                .bg(CRIT.opacity(0.1))
+                .border_1()
+                .border_color(CRIT.opacity(0.4))
+                .text_color(CRIT)
+                .text_size(px(10.5))
+                .child(format!("⚠ {err}"))
+        }))
+        // 1. Account selector
+        .child(render_account_section(state, accounts, app.clone()))
+        // 2. Server label
+        .child(render_label_section(inputs))
+        // 3. Catalog sections (Region, Plan, Image)
+        .children(if state.loading_catalog {
+            Some(
+                div()
+                    .py(px(20.0))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .gap(px(8.0))
+                    .text_color(TEXT_DIMMER)
+                    .child(inherited_icon(TablerIcon::Refresh, px(14.0)))
+                    .child(t!("fleet-provision-loading-catalog")),
+            )
+        } else if let Some(cat) = &state.catalog {
+            Some(
+                div()
+                    .flex()
+                    .flex_col()
+                    .gap(px(16.0))
+                    .child(render_options_section(
+                        "provision-opt-region",
+                        t!("fleet-provision-region"),
+                        &cat.regions,
+                        &state.region,
+                        app.clone(),
+                        |app, id, cx| app.update(cx, |this, cx| this.set_provision_region(&id, cx)),
+                    ))
+                    .child(render_options_section(
+                        "provision-opt-plan",
+                        t!("fleet-provision-plan"),
+                        &cat.plans,
+                        &state.plan,
+                        app.clone(),
+                        |app, id, cx| app.update(cx, |this, cx| this.set_provision_plan(&id, cx)),
+                    ))
+                    .child(render_options_section(
+                        "provision-opt-image",
+                        t!("fleet-provision-image"),
+                        &cat.images,
+                        &state.image,
+                        app.clone(),
+                        |app, id, cx| app.update(cx, |this, cx| this.set_provision_image(&id, cx)),
+                    )),
+            )
+        } else {
+            None
+        })
+        // 4. SSH Key selector
+        .child(render_ssh_keys_section(state, enrolled_keys, app))
+        // 5. Tags input
+        .child(render_tags_section(inputs))
+}
+
 fn render_account_section(state: &ProvisionState, accounts: &[ProviderAccount], app: Entity<CrowApp>) -> impl IntoElement {
     let prov_accounts: Vec<_> = accounts
         .iter()
@@ -212,7 +223,8 @@ fn render_account_section(state: &ProvisionState, accounts: &[ProviderAccount], 
         .gap(px(6.0))
         .child(
             div()
-                .text_color(TEXT_MUTED)
+                .text_color(TEXT_DIM)
+                .font_weight(FontWeight::BOLD)
                 .text_size(px(10.0))
                 .child(t!("fleet-provision-provider-account")),
         )
@@ -224,7 +236,7 @@ fn render_account_section(state: &ProvisionState, accounts: &[ProviderAccount], 
                 .children(prov_accounts.into_iter().map(|a| {
                     let is_sel = a.id == state.selected_account_id;
                     let display = crate::providers::display_name(&a.plugin);
-                    let title = if a.label.is_empty() {
+                    let title = if a.label.is_empty() || a.label.eq_ignore_ascii_case(&display) {
                         display
                     } else {
                         format!("{} ({})", a.label, display)
@@ -243,23 +255,19 @@ fn render_label_section(inputs: Option<&ProvisionInputs>) -> impl IntoElement {
     div()
         .flex()
         .flex_col()
-        .gap(px(6.0))
+        .gap(px(5.0))
+        .max_w(px(420.0))
         .child(
             div()
-                .text_color(TEXT_MUTED)
+                .text_color(TEXT_DIM)
+                .font_weight(FontWeight::BOLD)
                 .text_size(px(10.0))
                 .child(t!("fleet-provision-instance-label")),
         )
         .children(inputs.map(|i| {
             div()
-                .h(px(28.0))
-                .px(px(8.0))
-                .bg(BG_OVERLAY_PANEL)
-                .border_1()
-                .border_color(BORDER_DEFAULT)
-                .flex()
-                .items_center()
-                .child(Input::new(&i.label).text_size(px(11.0)))
+                .w_full()
+                .child(Input::new(&i.label).font_family(FONT_MONO).text_size(px(12.0)).bg(BG_APP).rounded(px(2.0)))
         }))
 }
 
@@ -267,23 +275,19 @@ fn render_tags_section(inputs: Option<&ProvisionInputs>) -> impl IntoElement {
     div()
         .flex()
         .flex_col()
-        .gap(px(6.0))
+        .gap(px(5.0))
+        .max_w(px(420.0))
         .child(
             div()
-                .text_color(TEXT_MUTED)
+                .text_color(TEXT_DIM)
+                .font_weight(FontWeight::BOLD)
                 .text_size(px(10.0))
                 .child(t!("fleet-provision-tags")),
         )
         .children(inputs.map(|i| {
             div()
-                .h(px(28.0))
-                .px(px(8.0))
-                .bg(BG_OVERLAY_PANEL)
-                .border_1()
-                .border_color(BORDER_DEFAULT)
-                .flex()
-                .items_center()
-                .child(Input::new(&i.tags).text_size(px(11.0)))
+                .w_full()
+                .child(Input::new(&i.tags).font_family(FONT_MONO).text_size(px(12.0)).bg(BG_APP).rounded(px(2.0)))
         }))
 }
 
@@ -301,7 +305,8 @@ fn render_options_section(
         .gap(px(6.0))
         .child(
             div()
-                .text_color(TEXT_MUTED)
+                .text_color(TEXT_DIM)
+                .font_weight(FontWeight::BOLD)
                 .text_size(px(10.0))
                 .child(title.to_string()),
         )
@@ -334,7 +339,8 @@ fn render_ssh_keys_section(
         .gap(px(6.0))
         .child(
             div()
-                .text_color(TEXT_MUTED)
+                .text_color(TEXT_DIM)
+                .font_weight(FontWeight::BOLD)
                 .text_size(px(10.0))
                 .child(t!("fleet-provision-vault-ssh-key")),
         )
@@ -356,7 +362,7 @@ fn render_ssh_keys_section(
         )
         .child(
             div()
-                .text_color(TEXT_DIMMER)
+                .text_color(TEXT_FAINT)
                 .text_size(px(9.5))
                 .child(t!("fleet-provision-vault-ssh-key-help")),
         )
@@ -365,18 +371,24 @@ fn render_ssh_keys_section(
 fn chip(id: String, label: String, selected: bool, on_click: impl Fn(&mut App) + 'static) -> Stateful<Div> {
     div()
         .id(SharedString::from(id))
-        .px(px(8.0))
-        .py(px(4.0))
+        .flex()
+        .items_center()
+        .gap(px(6.0))
+        .px(px(10.0))
+        .py(px(5.0))
         .border_1()
-        .border_color(if selected { OK } else { BORDER_DEFAULT })
-        .bg(if selected { BG_ROW_HOVER } else { BG_PANEL })
-        .text_color(if selected { OK } else { TEXT_SECONDARY })
+        .border_color(if selected { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
+        .bg(if selected { BG_ROW_SELECTED } else { BG_CONTROL })
+        .text_color(if selected { TEXT_MAX } else { TEXT_SECONDARY })
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(px(10.5))
         .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
         .cursor_pointer()
-        .hover(|s| s.border_color(BORDER_CONTROL_SEL).text_color(TEXT_PRIMARY))
+        .hover(|s| s.border_color(BORDER_STRONG).bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
         .on_click(move |_ev, _window, cx| on_click(cx))
+        .when(selected, |d| {
+            d.child(div().size(px(5.0)).rounded_full().bg(TEXT_PRIMARY))
+        })
         .child(label)
 }
 
