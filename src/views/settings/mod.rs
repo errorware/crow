@@ -16,6 +16,7 @@ pub mod providers;
 pub mod user_plugins;
 pub mod state;
 pub mod vault_manage;
+pub mod agent;
 
 use gpui_kit::component::input::InputState;
 use gpui_kit::*;
@@ -53,6 +54,7 @@ pub fn settings_view(
     clock: &crate::app::clock::ClockState,
     plugins: &crate::app::plugins::PluginsState,
     email: (&crate::app::notify::EmailState, Option<&crate::app::notify::EmailInputs>),
+    agent_state: &crate::app::agent::AgentState,
 ) -> impl IntoElement {
     let is_auth_enabled = vault.is_password_auth_enabled();
     let secrets_blocker = vault.secrets_blocker().filter(|_| !matches!(vault.keyring_state, crate::vault::KeyringState::Loading));
@@ -63,6 +65,7 @@ pub fn settings_view(
         (TablerIcon::Key, t!("settings-keys-rotation"), SettingsSection::Keys),
         (TablerIcon::ShieldCheck, t!("settings-vault-security"), SettingsSection::Security),
         (TablerIcon::Server, t!("settings-servers-archives"), SettingsSection::Servers),
+        (TablerIcon::Activity, t!("settings-agent"), SettingsSection::Agent),
         (TablerIcon::Box, t!("settings-ui-components-lab"), SettingsSection::Components),
         (TablerIcon::Cpu, t!("settings-clankers-ai"), SettingsSection::Clankers),
         (TablerIcon::Cloud, t!("settings-providers"), SettingsSection::Providers),
@@ -97,6 +100,7 @@ pub fn settings_view(
     // Route center content exhaustively
     let center_content: AnyElement = match section {
         SettingsSection::Keys => keys::render_keys_center_column(app.clone(), keys).into_any_element(),
+        SettingsSection::Agent => agent::render_agent_view(app.clone(), agent_state, &fleet.servers, is_auth_enabled).into_any_element(),
         SettingsSection::Components => lab::render_components_lab(app.clone(), lab_state).into_any_element(),
         SettingsSection::Clankers => clankers::render_clankers_view(app.clone(), clankers, secrets_blocker.clone(), secrets_notice).into_any_element(),
         SettingsSection::Providers => providers::render_providers_view(app.clone(), providers_state, provider_inputs, secrets_blocker.clone(), secrets_notice, !is_auth_enabled, &plugins.enabled).into_any_element(),
@@ -149,7 +153,8 @@ pub fn settings_view(
                 .child(diff_rail::render_diff_rail(config, section, &keychain, app.clone()))
                 .into_any_element(),
         ),
-        SettingsSection::Components
+        SettingsSection::Agent
+        | SettingsSection::Components
         | SettingsSection::Clankers
         | SettingsSection::Providers
         | SettingsSection::Plugins => None,

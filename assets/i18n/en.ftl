@@ -4084,3 +4084,55 @@ wire-meta-bytes = BYTES (TX / RX)
 wire-drawer-request = OUTBOUND REQUEST / STDIN SCRIPT (REDACTED)
 wire-drawer-response = INBOUND RESPONSE / STDOUT + STDERR (REDACTED)
 wire-drawer-empty = Select any call in the Egress Ledger to inspect its full redacted request payload, response output, caller attribution, and route.
+
+# Crow Agent & Performance Bottlenecks (ERR-203)
+settings-agent = Agent
+settings-agent-header-title = CROW AGENT & BOTTLENECK DETECTOR
+settings-agent-enrolled-count = { $enrolled } / { $total } ENROLLED
+settings-agent-sample-now = SAMPLE NOW
+settings-agent-intro = Runs crow --agent in the background when the Crow desktop window is closed, keeping performance history continuous and flagging sustained CPU, Load, Memory, and Disk bottlenecks across the servers you enroll.
+settings-agent-vault-password-warning = Your vault is protected by a master password. While Crow is closed, crow --agent can only use SSH keys available in your OS ssh-agent or standard unencrypted ~/.ssh key files unless you use the open keyring stance.
+settings-agent-status-active = ACTIVE · RUNNING
+settings-agent-status-stopped = INSTALLED · STOPPED
+settings-agent-status-not-installed = NOT INSTALLED
+settings-agent-never = never
+settings-agent-service-card-title = SYSTEM SERVICE (crow --agent)
+settings-agent-restart-service = RESTART
+settings-agent-enable-and-start = ENABLE & START SERVICE
+settings-agent-stop-and-remove = STOP & REMOVE SERVICE
+settings-agent-unit-file = UNIT / PLIST PATH
+settings-agent-last-sample = LAST AGENT SAMPLE
+settings-agent-coordination = GUI COORDINATION
+settings-agent-yields-when-gui-open = Yields automatically while Crow GUI is open
+settings-agent-poll-interval = BACKGROUND POLL INTERVAL
+settings-agent-rule-cpu-title = Sustained CPU Saturation
+settings-agent-rule-cpu-desc = Flags when CPU usage stays at or above 85% across 3 consecutive samples, naming the top CPU process.
+settings-agent-rule-load-title = Load / vCPU Queue Bottleneck
+settings-agent-rule-load-desc = Flags when 1-minute load average exceeds 1.5x vCPU count across 3 consecutive samples.
+settings-agent-rule-mem-title = Memory Pressure
+settings-agent-rule-mem-desc = Flags when RAM usage stays at or above 90% across 3 consecutive samples, naming the top memory consumer.
+settings-agent-rule-disk-title = Disk Growth Runway (< 14 days)
+settings-agent-rule-disk-desc = Flags when disk usage is at least 70% and linear growth over the last 6 hours projects full exhaustion within 14 days.
+settings-agent-bottlenecks-card-title = PERFORMANCE BOTTLENECK DETECTION
+settings-agent-bottlenecks-card-subtitle = Evaluated on both live GUI samples and background crow --agent samples
+settings-agent-enabled = ENABLED
+settings-agent-disabled = DISABLED
+settings-agent-enrollment-card-title = SERVER ENROLLMENT
+settings-agent-enrollment-card-subtitle = Choose which servers crow --agent monitors when Crow is closed (you can also toggle this on each server's header bar)
+settings-agent-enroll-all = ENROLL ALL
+settings-agent-unenroll-all = UNENROLL ALL
+settings-agent-no-servers-in-fleet = No servers in the fleet yet. Add a server first to enroll it in crow --agent.
+settings-agent-last-sample-row = last sample { $when }
+settings-agent-enrolled = ENROLLED
+settings-agent-not-enrolled = OFF
+settings-agent-service-installed-and-started = crow --agent background service installed and started.
+settings-agent-service-stopped-and-removed = crow --agent background service stopped and removed.
+settings-agent-sampled-enrolled-servers = Sampled { $count } enrolled server(s) ({ $alerts } alert changes).
+identity-bar-agent-on = AGENT: ON
+identity-bar-agent-off = AGENT: OFF
+fleet-edit-server-agent = BACKGROUND AGENT (crow --agent)
+overview-bottlenecks-detected = { $count } { $count ->
+        [one] PERFORMANCE BOTTLENECK DETECTED
+       *[other] PERFORMANCE BOTTLENECKS DETECTED
+    }
+

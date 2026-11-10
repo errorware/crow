@@ -125,9 +125,10 @@ pub struct ServerRecord {
     pub arch: String,
     pub memory_total: String,
     pub disk_total: String,
-    /// Unused: Crow is agentless. Kept so existing vaults keep loading.
+    /// Whether this server is enrolled in the local background `crow --agent`
+    /// monitor (ERR-204). Stored in the `agent_installed` column.
     pub agent_installed: bool,
-    /// Unused, see `agent_installed`.
+    /// Unused legacy column; kept so existing vaults keep loading.
     pub agent_version: Option<String>,
     pub status: String,
     pub created_at: String,
@@ -174,6 +175,18 @@ pub const AUDIT_SERVER_ID: &str = "crow";
 pub struct PurgeOutcome {
     pub change_records: usize,
     pub key_attachments: usize,
+}
+
+/// Live coordination & telemetry state shared between the Crow GUI and the
+/// headless `crow --agent` background daemon via SQLite WAL (ERR-204).
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct AgentHeartbeatState {
+    pub gui_last_tick: i64,
+    pub agent_pid: Option<u32>,
+    pub agent_started_at: Option<i64>,
+    pub agent_last_tick: Option<i64>,
+    pub last_polled_servers: usize,
+    pub last_error: Option<String>,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
@@ -683,7 +696,18 @@ impl VaultDb {
                 error TEXT
             );
             CREATE INDEX IF NOT EXISTS idx_wire_log_ts ON wire_log (started_at_ms DESC);
-            CREATE INDEX IF NOT EXISTS idx_wire_log_cat ON wire_log (category);",
+            CREATE INDEX IF NOT EXISTS idx_wire_log_cat ON wire_log (category);
+
+            -- Background agent & GUI coordination state (ERR-204).
+            CREATE TABLE IF NOT EXISTS agent_state (
+                id INTEGER PRIMARY KEY CHECK (id = 1),
+                gui_last_tick INTEGER NOT NULL DEFAULT 0,
+                agent_pid INTEGER,
+                agent_started_at INTEGER,
+                agent_last_tick INTEGER,
+                last_polled_servers INTEGER NOT NULL DEFAULT 0,
+                last_error TEXT
+            );",
         )?;
 
         // Seed default scan path if empty
@@ -1652,6 +1676,102 @@ impl VaultDb {
     pub fn set_server_host_key_mtime(&self, id: &str, mtime: i64) -> Result<(), VaultError> {
         self.conn.execute("UPDATE servers SET host_key_mtime = ?1 WHERE id = ?2", params![mtime, id])?;
         Ok(())
+    }
+
+    /// Enrolls or unenrolls a single server in the background `crow --agent`
+    /// monitor (ERR-204).
+    pub fn set_server_agent_enrolled(&self, id: &str, enrolled: bool) -> Result<(), VaultError> {
+        self.conn.execute(
+            "UPDATE servers SET agent_installed = ?1 WHERE id = ?2",
+            params![if enrolled { 1 } else { 0 }, id],
+        )?;
+        Ok(())
+    }
+
+    /// Enrolls or unenrolls all active (non-archived) servers in the background
+    /// `crow --agent` monitor (ERR-204).
+    pub fn set_all_servers_agent_enrolled(&self, enrolled: bool) -> Result<usize, VaultError> {
+        let n = self.conn.execute(
+            "UPDATE servers SET agent_installed = ?1 WHERE archived_at IS NULL",
+            params![if enrolled { 1 } else { 0 }],
+        )?;
+        Ok(n)
+    }
+
+    /// Active servers enrolled in the background `crow --agent` monitor (ERR-204).
+    pub fn list_agent_enrolled_servers(&self) -> Result<Vec<ServerRecord>, VaultError> {
+        self.query_servers("WHERE archived_at IS NULL AND agent_installed != 0 ORDER BY created_at ASC")
+    }
+
+    /// Records that the Crow GUI poll loop just ran at `now` (Unix seconds),
+    /// allowing `crow --agent` to yield while the window is open (ERR-204).
+    pub fn touch_gui_heartbeat(&self, now: i64) -> Result<(), VaultError> {
+        self.conn.execute(
+            "INSERT INTO agent_state (id, gui_last_tick) VALUES (1, ?1)
+             ON CONFLICT(id) DO UPDATE SET gui_last_tick = excluded.gui_last_tick",
+            params![now],
+        )?;
+        Ok(())
+    }
+
+    /// Records a heartbeat from the headless `crow --agent` daemon (ERR-204).
+    pub fn record_agent_heartbeat(
+        &self,
+        pid: u32,
+        started_at: i64,
+        now: i64,
+        polled_servers: usize,
+        last_error: Option<&str>,
+    ) -> Result<(), VaultError> {
+        self.conn.execute(
+            "INSERT INTO agent_state (id, gui_last_tick, agent_pid, agent_started_at, agent_last_tick, last_polled_servers, last_error)
+             VALUES (1, 0, ?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT(id) DO UPDATE SET
+                 agent_pid = excluded.agent_pid,
+                 agent_started_at = excluded.agent_started_at,
+                 agent_last_tick = excluded.agent_last_tick,
+                 last_polled_servers = excluded.last_polled_servers,
+                 last_error = excluded.last_error",
+            params![pid as i64, started_at, now, polled_servers as i64, last_error],
+        )?;
+        Ok(())
+    }
+
+    /// Reads the shared GUI/Agent heartbeat state (ERR-204).
+    pub fn get_agent_state(&self) -> Result<AgentHeartbeatState, VaultError> {
+        let res = self
+            .conn
+            .query_row(
+                "SELECT gui_last_tick, agent_pid, agent_started_at, agent_last_tick, last_polled_servers, last_error
+                 FROM agent_state WHERE id = 1",
+                [],
+                |r| {
+                    Ok(AgentHeartbeatState {
+                        gui_last_tick: r.get(0)?,
+                        agent_pid: r.get::<_, Option<i64>>(1)?.and_then(|v| u32::try_from(v).ok()),
+                        agent_started_at: r.get(2)?,
+                        agent_last_tick: r.get(3)?,
+                        last_polled_servers: r.get::<_, i64>(4)?.max(0) as usize,
+                        last_error: r.get(5)?,
+                    })
+                },
+            )
+            .optional()?;
+        Ok(res.unwrap_or_default())
+    }
+
+    /// Most recent `metric_history` timestamp per server (ERR-204).
+    pub fn latest_history_ts_by_server(&self) -> Result<std::collections::HashMap<String, i64>, VaultError> {
+        let mut stmt = self.conn.prepare(
+            "SELECT server_id, MAX(ts) FROM metric_history GROUP BY server_id",
+        )?;
+        let rows = stmt.query_map([], |r| Ok((r.get::<_, String>(0)?, r.get::<_, i64>(1)?)))?;
+        let mut map = std::collections::HashMap::new();
+        for r in rows {
+            let (id, ts) = r?;
+            map.insert(id, ts);
+        }
+        Ok(map)
     }
 
     /// Servers in the active fleet — archived ones are excluded, so every

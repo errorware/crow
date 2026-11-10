@@ -3,6 +3,7 @@ use gpui_kit::*;
 
 #[macro_use]
 pub mod i18n;
+pub mod agent;
 pub mod ai;
 pub mod appearance;
 mod app;
@@ -65,6 +66,14 @@ fn main() {
     // would load it (ERR-176).
     if args.get(1).map(String::as_str) == Some("--check-plugin") {
         std::process::exit(plugin_host::check::check_dir_main(args.get(2).map(String::as_str)));
+    }
+    // `crow --agent` / `crow --agent-once`: headless background telemetry and
+    // performance bottleneck monitor (ERR-207).
+    if args.get(1).map(String::as_str) == Some("--agent") {
+        std::process::exit(agent::agent_main(false));
+    }
+    if args.get(1).map(String::as_str) == Some("--agent-once") {
+        std::process::exit(agent::agent_main(true));
     }
 
     gpui_kit::application().run(|cx| {

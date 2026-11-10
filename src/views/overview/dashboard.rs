@@ -13,7 +13,11 @@ use super::summary::{summarize_processes, summarize_services, summarize_sockets,
 use super::state::SecurityState;
 use super::OverviewState;
 
-pub fn overview_dashboard(overview: &OverviewState, app: Entity<CrowApp>) -> impl IntoElement {
+pub fn overview_dashboard(
+    overview: &OverviewState,
+    bottlenecks: &[crate::metrics::alerts::Alert],
+    app: Entity<CrowApp>,
+) -> impl IntoElement {
     let services = summarize_services(&overview.services);
     let processes = summarize_processes(&overview.processes);
     let sockets = summarize_sockets(&overview.sockets);
@@ -28,14 +32,75 @@ pub fn overview_dashboard(overview: &OverviewState, app: Entity<CrowApp>) -> imp
         .child(
             div()
                 .flex()
-                .items_start()
+                .flex_col()
                 .gap(px(12.0))
                 .p(px(14.0))
-                // Services with Sockets under it, Processes, then Updates & Security.
-                .child(div().flex_1().min_w(px(0.0)).flex().flex_col().gap(px(12.0)).child(services_card(&services, app.clone())).child(sockets_card(&sockets, app.clone())))
-                .child(div().flex_1().min_w(px(0.0)).flex().flex_col().child(processes_card(&processes, app.clone())))
-                .child(div().flex_1().min_w(px(0.0)).flex().flex_col().child(security_card(&overview.security, app))),
+                .when(!bottlenecks.is_empty(), |d| {
+                    d.child(bottlenecks_banner(bottlenecks, app.clone()))
+                })
+                .child(
+                    div()
+                        .flex()
+                        .items_start()
+                        .gap(px(12.0))
+                        // Services with Sockets under it, Processes, then Updates & Security.
+                        .child(div().flex_1().min_w(px(0.0)).flex().flex_col().gap(px(12.0)).child(services_card(&services, app.clone())).child(sockets_card(&sockets, app.clone())))
+                        .child(div().flex_1().min_w(px(0.0)).flex().flex_col().child(processes_card(&processes, app.clone())))
+                        .child(div().flex_1().min_w(px(0.0)).flex().flex_col().child(security_card(&overview.security, app))),
+                ),
         )
+}
+
+fn bottlenecks_banner(bottlenecks: &[crate::metrics::alerts::Alert], app: Entity<CrowApp>) -> impl IntoElement {
+    let has_crit = bottlenecks.iter().any(|b| b.level == "CRIT");
+    let border_c = if has_crit { CRIT } else { WARN };
+    let bg_c = if has_crit { CRIT_ROW_BG } else { WARN_BG };
+
+    div()
+        .w_full()
+        .p(px(10.0))
+        .bg(bg_c)
+        .border_1()
+        .border_color(border_c)
+        .font_family(FONT_MONO)
+        .flex()
+        .flex_col()
+        .gap(px(6.0))
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.0))
+                .child(
+                    div()
+                        .text_size(px(10.5))
+                        .font_weight(FontWeight::BOLD)
+                        .text_color(border_c)
+                        .child(t!("overview-bottlenecks-detected", count = bottlenecks.len())),
+                )
+                .child(div().flex_1())
+                .child(
+                    div()
+                        .id("btn-overview-bottleneck-history")
+                        .text_size(px(10.0))
+                        .text_color(hex_rgb(0x8ab4ff))
+                        .cursor_pointer()
+                        .hover(|s| s.text_color(TEXT_PRIMARY))
+                        .on_click(move |_ev, _window, cx| {
+                            app.update(cx, |this, cx| this.set_view("history", cx))
+                        })
+                        .child(t!("overview-dashboard-open")),
+                ),
+        )
+        .children(bottlenecks.iter().map(|b| {
+            let c = if b.level == "CRIT" { CRIT } else { WARN };
+            div()
+                .flex()
+                .items_center()
+                .gap(px(8.0))
+                .child(crate::components::button::badge(c).text_size(px(9.0)).child(b.level.clone()))
+                .child(div().text_size(px(10.5)).text_color(TEXT_PRIMARY).child(b.detail.clone()))
+        }))
 }
 
 fn card(title: &'static str, view: &'static str, app: Entity<CrowApp>) -> Div {

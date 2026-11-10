@@ -463,11 +463,12 @@ impl CrowApp {
     }
 
     /// Applies the alert rules to a round of history rows and stores the
-    /// changes (ERR-85).
+    /// changes (ERR-85, ERR-205).
     fn evaluate_alerts(&mut self, rows: &[crate::metrics::history::HistoryRow]) {
         let now = chrono::Utc::now().timestamp();
         let db = self.vault.db();
         let Ok(db) = db.lock() else { return };
+        let b_cfg = crate::metrics::bottlenecks::BottleneckConfig::from_db(&db);
         let open: Vec<_> = db.list_alerts(i64::MAX).unwrap_or_default();
         let (changes, down_now) = crate::metrics::alerts::evaluate(&open, rows, &self.history_down, now);
         self.history_down = down_now;
@@ -476,6 +477,37 @@ impl CrowApp {
         let keys: Vec<(String, Option<i64>)> = self.fleet.servers.iter().map(|s| (s.id.clone(), s.host_key_mtime)).collect();
         let policy = crate::app::archive::host_key_max_age_days(&self.config);
         let _ = db.apply_alert_changes(&crate::metrics::alerts::key_age_changes(&open, &keys, policy, now), now);
+        // Performance bottleneck rules (ERR-205).
+        let open_now: Vec<_> = db.list_alerts(i64::MAX).unwrap_or_default();
+        for row in rows {
+            let hist = db.list_history(&row.server_id, now - 6 * 3600).unwrap_or_default();
+            let latest_m = self.fleet.buffered_stores.get(&row.server_id).and_then(|b| b.head()).map(|h| &h.metrics).or_else(|| self.fleet.metrics_store.get(&row.server_id));
+            let procs = if self.fleet.active_server().as_ref().is_some_and(|s| s.id == row.server_id) {
+                self.overview.processes.as_slice()
+            } else {
+                &[]
+            };
+            let ctx = crate::metrics::bottlenecks::BottleneckContext::from_metrics_and_processes(
+                latest_m.map(|m| m.vcpu_count).unwrap_or(1),
+                row.disk_mount.as_deref().or_else(|| latest_m.map(|m| m.disk_mount.as_str())).unwrap_or("/"),
+                procs,
+            );
+            let b_changes = crate::metrics::bottlenecks::evaluate_server_bottlenecks(
+                &open_now,
+                &row.server_id,
+                &hist,
+                &ctx,
+                &b_cfg,
+                now,
+            );
+            let _ = db.apply_alert_changes(&b_changes, now);
+        }
+        self.agent.open_bottlenecks = db
+            .list_alerts(i64::MAX)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|a| a.resolved_at.is_none() && crate::metrics::bottlenecks::is_bottleneck_kind(&a.kind))
+            .collect();
     }
 
     /// One history row per server from its newest sample, the watch session
@@ -502,6 +534,7 @@ impl CrowApp {
         let Ok(db) = db.lock() else { return };
         let _ = db.insert_history_rows(&rows);
         let _ = db.touch_watch_session(self.history.watch_started, now);
+        let _ = db.touch_gui_heartbeat(now);
         if now - self.history.last_prune >= 3600 {
             let _ = db.prune_history(now - HISTORY_KEEP_SECS);
             self.history.last_prune = now;

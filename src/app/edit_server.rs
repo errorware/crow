@@ -26,6 +26,8 @@ pub struct EditServer {
     pub key_id: Option<String>,
     /// The bastion it goes through; `None` = direct.
     pub jump: Option<String>,
+    /// Enrolled in the background `crow --agent` monitor (ERR-209).
+    pub agent_enrolled: bool,
     /// Trying the new way in before saving.
     pub testing: bool,
     pub error: Option<String>,
@@ -92,6 +94,7 @@ pub fn describe(old: &ServerRecord, new: &ServerRecord, servers: &[ServerRecord]
         ("login", old.login_user.clone(), new.login_user.clone()),
         ("key", old.key_id.clone().unwrap_or_default(), new.key_id.clone().unwrap_or_default()),
         ("route", route(&old.jump_host_id), route(&new.jump_host_id)),
+        ("agent", old.agent_installed.to_string(), new.agent_installed.to_string()),
     ];
     pairs.iter().filter(|(_, a, b)| a != b).map(|(k, a, b)| format!("{k}: {a} → {b}")).collect::<Vec<_>>().join("; ")
 }
@@ -107,7 +110,7 @@ impl CrowApp {
         let role = input(s.role.clone(), t!("app-edit-server-role-placeholder").to_string(), cx);
         let tags = input(user_tags(&s.tags), t!("app-edit-server-tags-placeholder").to_string(), cx);
         let login = input(s.login_user.clone(), "root".to_string(), cx);
-        self.edit_server = Some(EditServer { server_id: s.id, name, role, tags, login, env: s.env, group: s.group_name, key_id: s.key_id, jump: s.jump_host_id, testing: false, error: None });
+        self.edit_server = Some(EditServer { server_id: s.id, name, role, tags, login, env: s.env, group: s.group_name, key_id: s.key_id, jump: s.jump_host_id, agent_enrolled: s.agent_installed, testing: false, error: None });
         cx.notify();
     }
 
@@ -139,6 +142,7 @@ impl CrowApp {
         new.tags = merge_tags(&old.tags, &e.tags.read(cx).value());
         new.env = e.env.clone();
         new.group_name = e.group.clone();
+        new.agent_installed = e.agent_enrolled;
         if transport_kind(&old) == TransportKind::Ssh {
             new.login_user = e.login.read(cx).value().trim().to_string();
             new.key_id = e.key_id.clone();

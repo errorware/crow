@@ -4045,3 +4045,54 @@ wire-meta-bytes = バイト数 (送信 / 受信)
 wire-drawer-request = 送信リクエスト / STDIN スクリプト (秘密情報マスク済み)
 wire-drawer-response = 受信レスポンス / STDOUT + STDERR (秘密情報マスク済み)
 wire-drawer-empty = 台帳の行を選択すると、マスク済みリクエスト、レスポンス出力、呼び出し元、接続経路の詳細を表示します。
+
+# Crow Agent & Performance Bottlenecks (ERR-203)
+settings-agent = エージェント
+settings-agent-header-title = CROW バックグラウンドエージェント & ボトルネック検出
+settings-agent-enrolled-count = { $enrolled } / { $total } 台登録済み
+settings-agent-sample-now = 今すぐサンプリング
+settings-agent-intro = Crow のウィンドウを閉じている間もバックグラウンドで crow --agent を実行し、登録したサーバーのパフォーマンス履歴を途切れさせず、CPU・負荷・メモリ・ディスクの持続的なボトルネックを検出します。
+settings-agent-vault-password-warning = ボールトにマスターパスワードが設定されています。Crow を閉じている間、オープンキーリング方式でない限り、crow --agent は OS の ssh-agent または暗号化されていない ~/.ssh 鍵のみを使用できます。
+settings-agent-status-active = 稼働中 · ACTIVE
+settings-agent-status-stopped = インストール済み · 停止中
+settings-agent-status-not-installed = 未インストール
+settings-agent-never = なし
+settings-agent-service-card-title = システムサービス (crow --agent)
+settings-agent-restart-service = 再起動
+settings-agent-enable-and-start = サービスを有効化して開始
+settings-agent-stop-and-remove = サービスを停止して削除
+settings-agent-unit-file = ユニット / PLIST パス
+settings-agent-last-sample = 最終エージェント取得
+settings-agent-coordination = GUI との協調動作
+settings-agent-yields-when-gui-open = Crow ウィンドウが開いている間は自動的に待機します
+settings-agent-poll-interval = バックグラウンド取得間隔
+settings-agent-rule-cpu-title = 持続的な CPU 飽和
+settings-agent-rule-cpu-desc = CPU 使用率が 3 回連続で 85% 以上になったときに検出し、上位の CPU プロセスを記録します。
+settings-agent-rule-load-title = ロード / vCPU キューのボトルネック
+settings-agent-rule-load-desc = 1 分ロードアベレージが 3 回連続で vCPU 数の 1.5 倍を超えたときに検出します。
+settings-agent-rule-mem-title = メモリ逼迫
+settings-agent-rule-mem-desc = RAM 使用率が 3 回連続で 90% 以上になったときに検出し、上位のメモリ消費プロセスを記録します。
+settings-agent-rule-disk-title = ディスク枯渇予測 (残り 14 日未満)
+settings-agent-rule-disk-desc = ディスク使用率が 70% 以上で、直近 6 時間の増加ペースから 14 日以内に満杯になると予測されるときに検出します。
+settings-agent-bottlenecks-card-title = パフォーマンス・ボトルネック検出ルール
+settings-agent-bottlenecks-card-subtitle = GUI のライブ取得と crow --agent のバックグラウンド取得の両方で評価されます
+settings-agent-enabled = 有効
+settings-agent-disabled = 無効
+settings-agent-enrollment-card-title = サーバー登録
+settings-agent-enrollment-card-subtitle = Crow を閉じている間に crow --agent が監視するサーバーを選択します（各サーバーの上部バーからも切り替え可能）
+settings-agent-enroll-all = すべて登録
+settings-agent-unenroll-all = すべて解除
+settings-agent-no-servers-in-fleet = フリートにサーバーがありません。先にサーバーを追加してください。
+settings-agent-last-sample-row = 最終取得 { $when }
+settings-agent-enrolled = 登録済み
+settings-agent-not-enrolled = オフ
+settings-agent-service-installed-and-started = crow --agent バックグラウンドサービスをインストールして開始しました。
+settings-agent-service-stopped-and-removed = crow --agent バックグラウンドサービスを停止して削除しました。
+settings-agent-sampled-enrolled-servers = 登録済みサーバー { $count } 台をサンプリングしました（アラート変更 { $alerts } 件）。
+identity-bar-agent-on = AGENT: オン
+identity-bar-agent-off = AGENT: オフ
+fleet-edit-server-agent = バックグラウンドエージェント (crow --agent)
+overview-bottlenecks-detected = { $count } { $count ->
+       *[other] 件のパフォーマンス・ボトルネックを検出
+    }
+

@@ -194,6 +194,21 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_bastion(&id, !is_bastion, cx)))
                         .child(if is_bastion { t!("identity-bar-bastion") } else { t!("identity-bar-bastion-no") })
                 }))
+                // Background agent enrollment (ERR-209): click to enroll/unenroll this machine.
+                .children(server.map(|s| {
+                    let (app, id, enrolled) = (app.clone(), s.id.clone(), s.agent_installed);
+                    div()
+                        .id("identity-agent-chip")
+                        .flex()
+                        .flex_none()
+                        .items_center()
+                        .gap(px(5.0))
+                        .cursor_pointer()
+                        .hover(|h| h.text_color(TEXT_PRIMARY))
+                        .text_color(if enrolled { OK } else { TEXT_FAINT })
+                        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_server_agent_enrolled(&id, !enrolled, cx)))
+                        .child(if enrolled { t!("identity-bar-agent-on") } else { t!("identity-bar-agent-off") })
+                }))
                 // The environment closes the details.
                 .child({
                     let fg = match env_str.to_uppercase().as_str() {

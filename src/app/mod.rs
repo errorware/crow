@@ -85,6 +85,7 @@ pub mod vault_manage;
 mod lab;
 pub mod groups;
 pub mod wire;
+pub mod agent;
 
 use crate::views::fleet::lab_state::LocalLabState;
 use crate::views::fleet::FleetState;
@@ -128,6 +129,8 @@ pub enum SettingsSection {
     Keys,
     Security,
     Servers,
+    /// Background service (`crow --agent`) & performance bottleneck rules (ERR-208).
+    Agent,
     Components,
     Clankers,
     Providers,
@@ -144,6 +147,7 @@ impl SettingsSection {
             SettingsSection::Keys => "keys",
             SettingsSection::Security => "security",
             SettingsSection::Servers => "servers",
+            SettingsSection::Agent => "agent",
             SettingsSection::Components => "components",
             SettingsSection::Clankers => "clankers",
             SettingsSection::Providers => "providers",
@@ -226,6 +230,8 @@ pub struct CrowApp {
     /// Outbound Wire & Egress Traceability monitor (ERR-211..ERR-218).
     pub wire: wire::WireState,
     pub wire_inputs: Option<wire::WireInputs>,
+    /// Background service (`crow --agent`) & bottleneck rules (ERR-208).
+    pub agent: agent::AgentState,
     /// Fleet Setup → PATCHING (ERR-141).
     pub patching: patching::PatchingState,
     /// Fleet Setup → ROLLOUTS (ERR-142).
@@ -526,6 +532,7 @@ impl CrowApp {
             dokku_inputs: None,
             wire: Default::default(),
             wire_inputs: None,
+            agent: Default::default(),
             patching: Default::default(),
             rollouts: Default::default(),
             rollout_inputs: None,
@@ -610,6 +617,7 @@ impl CrowApp {
             vault_form_inputs: None,
         };
         app.init_wire();
+        app.refresh_agent_state(cx);
         app.refresh_providers();
         app.load_plugins();
         app.load_email();

@@ -259,6 +259,7 @@ pub fn render_config_section(
         SettingsSection::Keys => (t!("settings-config-table-keys-rotation"), t!("settings-config-table-keys-key-distribution-policies")),
         SettingsSection::Security => (t!("settings-config-table-vault-security"), t!("settings-config-table-vault-encrypted-secrets-who-can")),
         SettingsSection::Servers => (t!("settings-config-table-servers-archives"), t!("settings-config-table-servers-archiving-and-how-long")),
+        SettingsSection::Agent => (t!("settings-agent-header-title"), t!("settings-agent-intro")),
         SettingsSection::Components => (t!("settings-config-table-ui-components-lab"), t!("settings-config-table-lab-gpui-component-testbed-sandbox")),
         SettingsSection::Clankers => (t!("settings-config-table-clankers-ai-usability"), t!("settings-config-table-clankers-api-keys-log-eli5")),
         SettingsSection::Providers => (t!("settings-config-table-providers"), t!("settings-config-table-providers-cloud-accounts-your-servers")),

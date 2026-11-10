@@ -7,6 +7,7 @@ use crate::views::overview::{ProcessUnit, ServiceUnit, SocketUnit};
 pub mod collector;
 pub mod history;
 pub mod alerts;
+pub mod bottlenecks;
 pub mod certs;
 pub mod chart;
 

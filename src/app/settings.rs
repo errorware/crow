@@ -20,6 +20,9 @@ impl CrowApp {
             self.check_all_plugins(cx);
             self.scan_user_plugins(cx);
         }
+        if section == SettingsSection::Agent {
+            self.refresh_agent_state(cx);
+        }
         cx.notify();
     }
 

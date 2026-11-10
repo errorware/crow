@@ -126,6 +126,15 @@ pub fn edit_server_modal(e: &EditServer, servers: &[ServerRecord], groups: &[Str
                         ))
                         .child(row(t!("fleet-edit-server-role"), Input::new(&e.role).font_family(FONT_MONO).bg(BG_APP)))
                         .child(row(t!("fleet-edit-server-tags"), Input::new(&e.tags).font_family(FONT_MONO).bg(BG_APP)))
+                        .child(row(
+                            t!("fleet-edit-server-agent"),
+                            div()
+                                .flex()
+                                .flex_wrap()
+                                .gap(px(6.0))
+                                .child(pick("es-agent-on".into(), t!("settings-agent-enrolled").to_string(), e.agent_enrolled, std::rc::Rc::new(|e| e.agent_enrolled = true)))
+                                .child(pick("es-agent-off".into(), t!("settings-agent-not-enrolled").to_string(), !e.agent_enrolled, std::rc::Rc::new(|e| e.agent_enrolled = false))),
+                        ))
                         // How Crow reaches it: SSH servers only.
                         .when(ssh, |d| {
                             d.child(div().h(px(1.0)).bg(BORDER_PANEL))

@@ -4110,3 +4110,55 @@ wire-meta-bytes = BYTES (TX / RX)
 wire-drawer-request = PETICIÓN SALIENTE / SCRIPT STDIN (REDACTADO)
 wire-drawer-response = RESPUESTA ENTRANTE / STDOUT + STDERR (REDACTADO)
 wire-drawer-empty = Selecciona cualquier llamada en el registro para inspeccionar su carga útil redactada, respuesta, atribución de origen y ruta.
+
+# Crow Agent & Performance Bottlenecks (ERR-203)
+settings-agent = Agente
+settings-agent-header-title = AGENTE CROW Y DETECTOR DE CUELLOS DE BOTELLA
+settings-agent-enrolled-count = { $enrolled } / { $total } INSCRITOS
+settings-agent-sample-now = MUESTREAR AHORA
+settings-agent-intro = Ejecuta crow --agent en segundo plano cuando la ventana de Crow está cerrada, manteniendo continuo el historial de rendimiento y señalando cuellos de botella sostenidos de CPU, carga, memoria y disco en los servidores inscritos.
+settings-agent-vault-password-warning = Tu bóveda está protegida con contraseña maestra. Mientras Crow está cerrado, crow --agent solo puede usar claves SSH disponibles en el ssh-agent del sistema o en ~/.ssh sin cifrar, a menos que uses la postura de llavero abierto.
+settings-agent-status-active = ACTIVO · EN MARCHA
+settings-agent-status-stopped = INSTALADO · DETENIDO
+settings-agent-status-not-installed = NO INSTALADO
+settings-agent-never = nunca
+settings-agent-service-card-title = SERVICIO DEL SISTEMA (crow --agent)
+settings-agent-restart-service = REINICIAR
+settings-agent-enable-and-start = ACTIVAR E INICIAR SERVICIO
+settings-agent-stop-and-remove = DETENER Y QUITAR SERVICIO
+settings-agent-unit-file = RUTA DE UNIDAD / PLIST
+settings-agent-last-sample = ÚLTIMA MUESTRA DEL AGENTE
+settings-agent-coordination = COORDINACIÓN CON LA INTERFAZ
+settings-agent-yields-when-gui-open = Cede automáticamente el turno mientras la ventana de Crow está abierta
+settings-agent-poll-interval = INTERVALO DE SONDEO EN SEGUNDO PLANO
+settings-agent-rule-cpu-title = Saturación sostenida de CPU
+settings-agent-rule-cpu-desc = Avisa cuando el uso de CPU se mantiene al 85% o más durante 3 muestras seguidas, indicando el proceso principal.
+settings-agent-rule-load-title = Cuello de botella de cola Load / vCPU
+settings-agent-rule-load-desc = Avisa cuando la carga media de 1 minuto supera 1,5 veces los vCPU durante 3 muestras seguidas.
+settings-agent-rule-mem-title = Presión de memoria
+settings-agent-rule-mem-desc = Avisa cuando el uso de RAM se mantiene al 90% o más durante 3 muestras seguidas, indicando el proceso que más memoria consume.
+settings-agent-rule-disk-title = Margen de llenado de disco (< 14 días)
+settings-agent-rule-disk-desc = Avisa cuando el disco supera el 70% y el crecimiento lineal de las últimas 6 horas proyecta agotamiento en menos de 14 días.
+settings-agent-bottlenecks-card-title = DETECCIÓN DE CUELLOS DE BOTELLA DE RENDIMIENTO
+settings-agent-bottlenecks-card-subtitle = Se evalúa tanto en las muestras en vivo de la interfaz como en las muestras en segundo plano de crow --agent
+settings-agent-enabled = ACTIVADO
+settings-agent-disabled = DESACTIVADO
+settings-agent-enrollment-card-title = INSCRIPCIÓN DE SERVIDORES
+settings-agent-enrollment-card-subtitle = Elige qué servidores vigila crow --agent cuando Crow está cerrado (también puedes conmutarlo en la barra de cada servidor)
+settings-agent-enroll-all = INSCRIBIR TODOS
+settings-agent-unenroll-all = DESINSCRIBIR TODOS
+settings-agent-no-servers-in-fleet = Aún no hay servidores en la flota. Añade un servidor primero para inscribirlo en crow --agent.
+settings-agent-last-sample-row = última muestra { $when }
+settings-agent-enrolled = INSCRITO
+settings-agent-not-enrolled = DESACT.
+settings-agent-service-installed-and-started = Servicio en segundo plano crow --agent instalado e iniciado.
+settings-agent-service-stopped-and-removed = Servicio en segundo plano crow --agent detenido y eliminado.
+settings-agent-sampled-enrolled-servers = Muestreados { $count } servidor(es) inscrito(s) ({ $alerts } cambios de alerta).
+identity-bar-agent-on = AGENTE: SÍ
+identity-bar-agent-off = AGENTE: NO
+fleet-edit-server-agent = AGENTE EN SEGUNDO PLANO (crow --agent)
+overview-bottlenecks-detected = { $count } { $count ->
+        [one] CUELLO DE BOTELLA DE RENDIMIENTO DETECTADO
+       *[other] CUELLOS DE BOTELLA DE RENDIMIENTO DETECTADOS
+    }
+

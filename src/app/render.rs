@@ -395,7 +395,19 @@ impl Render for CrowApp {
                                                                 .h_full()
                                                             .flex()
                                                             .children(if is_overview {
-                                                                Some(div().size_full().flex().child(overview_dashboard(&self.overview, app_view.clone())))
+                                                                let active_bottlenecks: Vec<_> = self
+                                                                    .fleet
+                                                                    .active_server()
+                                                                    .map(|s| {
+                                                                        self.agent
+                                                                            .open_bottlenecks
+                                                                            .iter()
+                                                                            .filter(|a| a.server_id == s.id && a.resolved_at.is_none())
+                                                                            .cloned()
+                                                                            .collect()
+                                                                    })
+                                                                    .unwrap_or_default();
+                                                                Some(div().size_full().flex().child(overview_dashboard(&self.overview, &active_bottlenecks, app_view.clone())))
                                                             } else if is_table_page {
                                                                 Some(
                                                                     if self.overview.active_tab == "sockets" {
@@ -660,6 +672,7 @@ impl Render for CrowApp {
                                                 &self.clock,
                                                 &self.plugins,
                                                 (&self.email, self.email_inputs.as_ref()),
+                                                &self.agent,
                                             )),
                                     ),
                                     Screen::Onboard => Some(
