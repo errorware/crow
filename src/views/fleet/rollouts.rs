@@ -44,13 +44,22 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
     let canary = if st.use_canary { st.canary.clone().filter(|c| servers.iter().any(|s| &s.id == c)).or_else(|| servers.first().map(|s| s.id.clone())) } else { None };
     let (app_cmd, app_cfg, app_plan, app_root, app_read) = (app.clone(), app.clone(), app.clone(), app.clone(), app.clone());
 
+    let target_summary = t!(
+        "fleet-rollouts-text",
+        count = servers.len(),
+        left_out = if left_out.is_empty() {
+            String::new()
+        } else {
+            t!("fleet-rollouts-left-out-unreachable-or-the", count = left_out.len())
+        }
+    );
+
     let form = div()
-        .w(px(520.0))
-        .flex_none()
+        .max_w(px(680.0))
+        .p(px(18.0))
         .flex()
         .flex_col()
-        .gap(px(14.0))
-        .child(mono(10.0, TEXT_FAINT).line_height(px(14.0)).child(t!("fleet-rollouts-one-change-across-many-servers")))
+        .gap(px(16.0))
         .child(
             div()
                 .flex()
@@ -130,7 +139,7 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                             })
                         })),
                 )
-                .child(mono(10.0, TEXT_DIM).child(t!("fleet-rollouts-text", count = servers.len(), left_out = if left_out.is_empty() { String::new() } else { t!("fleet-rollouts-left-out-unreachable-or-the", count = left_out.len()) }))),
+                .child(mono(10.0, TEXT_DIM).child(target_summary.clone())),
         )
         .child(
             div()
@@ -167,37 +176,17 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                     chip(format!("rollout-batch-{n}"), n.to_string(), st.batch == n).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_rollout_batch(n, cx)))
                 }))),
         )
-        .children(st.message.clone().map(|m| mono(10.5, WARN).line_height(px(15.0)).child(m)))
-        .child(
-            div()
-                .id("btn-rollout-plan")
-                .flex()
-                .items_center()
-                .justify_center()
-                .h(px(30.0))
-                .border_1()
-                .border_color(WARN)
-                .font_family(FONT_MONO)
-                .text_size(px(11.0))
-                .font_weight(FontWeight::BOLD)
-                .text_color(WARN)
-                .cursor_pointer()
-                .hover(|s| s.bg(WARN.opacity(0.12)))
-                .on_click(move |_ev, window, cx| app_plan.update(cx, |this, cx| this.plan_rollout(window, cx)))
-                .child(t!("fleet-rollouts-preview-the-run")),
-        );
+        .children(st.message.clone().map(|m| mono(10.5, WARN).line_height(px(15.0)).child(m)));
 
-    // The selected server's diff.
-    let preview = div()
-        .flex_1()
-        .min_w(px(0.0))
+    // Right-hand diff / preview rail
+    let preview_body = div()
+        .p(px(14.0))
         .flex()
         .flex_col()
-        .gap(px(8.0))
-        .when(st.kind == Kind::Command, |d| d.child(mono(10.5, TEXT_FAINT).child(t!("fleet-rollouts-a-command-has-no-preview"))))
+        .gap(px(10.0))
+        .when(st.kind == Kind::Command, |d| d.child(mono(10.5, TEXT_FAINT).line_height(px(15.0)).child(t!("fleet-rollouts-a-command-has-no-preview"))))
         .when(st.kind == Kind::Config, |d| {
-            d.child(label(t!("fleet-rollouts-what-changes-per-server")))
-                .when(st.preview_path.is_empty(), |d| d.child(mono(10.5, TEXT_FAINT).child(t!("fleet-rollouts-type-the-path-and-press"))))
+            d.when(st.preview_path.is_empty(), |d| d.child(mono(10.5, TEXT_FAINT).line_height(px(15.0)).child(t!("fleet-rollouts-type-the-path-and-press"))))
                 .child(div().flex().flex_wrap().gap(px(4.0)).children(servers.iter().map(|s| {
                     let stat = match st.current.get(&s.id) {
                         Some(Current::Read(now)) => {
@@ -261,7 +250,87 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
         .id("rollouts-page")
         .flex_1()
         .min_h(px(0.0))
-        .overflow_y_scrollbar()
-        .child(div().p(px(18.0)).flex().gap(px(24.0)).child(form).child(preview))
+        .flex()
+        // Center Column: Scrollable Form + Fixed Bottom Action Bar
+        .child(
+            div()
+                .flex_1()
+                .min_w(px(0.0))
+                .min_h(px(0.0))
+                .flex()
+                .flex_col()
+                .child(
+                    div()
+                        .id("rollouts-form-scroll")
+                        .flex_1()
+                        .min_h(px(0.0))
+                        .overflow_y_scrollbar()
+                        .child(form),
+                )
+                .child(
+                    div()
+                        .flex_none()
+                        .h(px(46.0))
+                        .px(px(16.0))
+                        .bg(BG_PANEL)
+                        .border_t_1()
+                        .border_color(BORDER_PANEL)
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .child(mono(10.0, TEXT_DIM).child(target_summary))
+                        .child(
+                            div()
+                                .id("btn-rollout-plan")
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .h(px(30.0))
+                                .px(px(14.0))
+                                .border_1()
+                                .border_color(WARN)
+                                .bg(WARN.opacity(0.08))
+                                .font_family(FONT_MONO)
+                                .text_size(px(11.0))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(WARN)
+                                .cursor_pointer()
+                                .hover(|s| s.bg(WARN.opacity(0.18)))
+                                .on_click(move |_ev, window, cx| app_plan.update(cx, |this, cx| this.plan_rollout(window, cx)))
+                                .child(t!("fleet-rollouts-preview-the-run")),
+                        ),
+                ),
+        )
+        // Right Preview / Diff Rail (360px)
+        .child(
+            div()
+                .w(px(360.0))
+                .flex_none()
+                .flex()
+                .flex_col()
+                .bg(BG_RAIL)
+                .border_l_1()
+                .border_color(BORDER_PANEL)
+                .child(
+                    div()
+                        .h(px(34.0))
+                        .flex_none()
+                        .flex()
+                        .items_center()
+                        .px(px(14.0))
+                        .bg(BG_PANEL)
+                        .border_b_1()
+                        .border_color(BORDER_PANEL)
+                        .child(mono(10.5, TEXT_PRIMARY).font_weight(FontWeight::SEMIBOLD).child(t!("fleet-rollouts-what-changes-per-server"))),
+                )
+                .child(
+                    div()
+                        .id("rollouts-preview-rail-scroll")
+                        .flex_1()
+                        .min_h(px(0.0))
+                        .overflow_y_scrollbar()
+                        .child(preview_body),
+                ),
+        )
         .into_any_element()
 }

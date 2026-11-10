@@ -41,6 +41,8 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
     let missing_keys = total_servers - pinned_keys;
     let ages = crate::views::fleet::state::host_key_ages(servers, chrono::Utc::now().timestamp());
 
+    let (sec_title, sec_subtitle) = setup_section_meta(fleet.setup_page, fleet.plugin_page.as_ref(), &plugin_pages);
+
     // The page's own content, or GROUPS & POLICIES' KPI strip and columns.
     let content = div()
         .flex_1()
@@ -48,6 +50,37 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
         .min_h(px(0.0))
         .flex()
         .flex_col()
+        // Consistent Section Subheader Bar (matches Settings → Personalisation)
+        .child(
+            div()
+                .h(px(34.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .px(px(14.0))
+                .bg(BG_PANEL)
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .gap(px(10.0))
+                .child(
+                    div()
+                        .flex_none()
+                        .font_family(FONT_MONO)
+                        .text_size(px(11.0))
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .text_color(TEXT_PRIMARY)
+                        .child(sec_title),
+                )
+                .child(
+                    div()
+                        .min_w(px(0.0))
+                        .truncate()
+                        .font_family(FONT_MONO)
+                        .text_size(px(10.0))
+                        .text_color(TEXT_DIM)
+                        .child(sec_subtitle),
+                ),
+        )
         .children(map)
         // 2. Metrics / KPI Strip
         .when(!on_map, |d| d.child(
@@ -521,6 +554,75 @@ fn screen_header(title: &'static str, about: &'static str) -> impl IntoElement {
 
 }
 
+fn setup_section_meta(
+    page: crate::views::fleet::state::SetupPage,
+    plugin_page: Option<&(String, String)>,
+    plugin_pages: &[(String, String, String, Option<String>)],
+) -> (String, String) {
+    use crate::views::fleet::state::SetupPage;
+    match page {
+        SetupPage::Rollouts => (
+            t!("fleet-setup-rollouts").to_uppercase(),
+            t!("fleet-rollouts-one-change-across-many-servers").to_string(),
+        ),
+        SetupPage::Patching => (
+            t!("fleet-setup-patching").to_uppercase(),
+            t!("fleet-patching-check-all").to_string(),
+        ),
+        SetupPage::Drift => (
+            t!("fleet-setup-drift-search").to_uppercase(),
+            t!("fleet-drift-compare-one-config-file-across").to_string(),
+        ),
+        SetupPage::Hardening => (
+            t!("fleet-setup-hardening").to_uppercase(),
+            t!("fleet-hardening-ssh-and-firewall-checks-across").to_string(),
+        ),
+        SetupPage::Certificates => (
+            t!("fleet-setup-certificates").to_uppercase(),
+            t!("fleet-certificates-tls-certificates-on-every-open").to_string(),
+        ),
+        SetupPage::People => (
+            t!("fleet-setup-people").to_uppercase(),
+            t!("fleet-people-ssh-authorized-keys-and-sudoers").to_string(),
+        ),
+        SetupPage::Checks => (
+            t!("fleet-setup-checks").to_uppercase(),
+            t!("fleet-checks-tcp-and-https-checks-from").to_string(),
+        ),
+        SetupPage::LogSearch => (
+            t!("fleet-setup-log-search").to_uppercase(),
+            t!("fleet-logsearch-search-journalctl-or-a-log").to_string(),
+        ),
+        SetupPage::Incidents => (
+            t!("fleet-setup-incidents").to_uppercase(),
+            t!("fleet-incidents-alerts-that-opened-together-with").to_string(),
+        ),
+        SetupPage::Audit => (
+            t!("fleet-setup-audit-log").to_uppercase(),
+            t!("fleet-setup-fleet-configuration-about").to_string(),
+        ),
+        SetupPage::Policies => (
+            t!("fleet-setup-groups-policies").to_uppercase(),
+            t!("fleet-setup-crow-pins-each-servers-host").to_string(),
+        ),
+        SetupPage::Team => (
+            t!("fleet-setup-team").to_uppercase(),
+            t!("fleet-team-shared-fleet-file-roles-and").to_string(),
+        ),
+        SetupPage::Plugin => {
+            let label = plugin_page
+                .and_then(|(pid, pg)| {
+                    plugin_pages
+                        .iter()
+                        .find(|(p, g, _, _)| p == pid && g == pg)
+                        .map(|(_, _, l, _)| l.to_uppercase())
+                })
+                .unwrap_or_else(|| t!("fleet-setup-nav-plugins").to_uppercase());
+            (label, t!("fleet-setup-fleet-configuration-about").to_string())
+        }
+    }
+}
+
 /// Fleet configuration's side menu, in groups.
 fn setup_nav(page: crate::views::fleet::state::SetupPage, plugin_page: Option<&(String, String)>, plugin_pages: Vec<(String, String, String, Option<String>)>, app: Entity<CrowApp>) -> impl IntoElement {
     use crate::views::fleet::state::SetupPage;
@@ -550,21 +652,30 @@ fn setup_nav(page: crate::views::fleet::state::SetupPage, plugin_page: Option<&(
         let (app, on) = (app.clone(), page == to);
         div()
             .id(id)
-            .h(px(30.0))
+            .relative()
+            .h(px(34.0))
+            .flex_none()
             .flex()
             .items_center()
-            .gap(px(9.0))
-            .px(px(14.0))
-            .border_l_2()
-            .border_color(if on { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
-            .when(on, |d| d.bg(BG_ROW_SELECTED))
-            .text_size(px(11.0))
-            .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
-            .text_color(if on { TEXT_PRIMARY } else { TEXT_TERTIARY })
+            .gap(px(10.0))
+            .px(px(12.0))
+            .bg(if on { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
+            .children(on.then(|| left_indicator(TEXT_PRIMARY)))
+            .text_size(px(11.5))
+            .font_weight(if on { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
+            .text_color(if on { TEXT_PRIMARY } else { TEXT_MUTED })
             .cursor_pointer()
             .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
             .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_setup_page(to, cx)))
-            .child(tabler_icon(icon).size(px(14.0)).flex_none().text_color(if on { TEXT_PRIMARY } else { TEXT_DIMMER }))
+            .child(
+                div()
+                    .w(px(16.0))
+                    .h(px(16.0))
+                    .flex()
+                    .items_center()
+                    .justify_center()
+                    .child(tabler_icon(icon).size(px(14.0)).text_color(if on { TEXT_PRIMARY } else { TEXT_DIMMER })),
+            )
             .child(div().min_w(px(0.0)).truncate().child(label))
     };
     div()
