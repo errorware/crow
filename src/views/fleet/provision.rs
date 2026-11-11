@@ -178,8 +178,17 @@ pub fn render_provision_form_body(
                         t!("fleet-provision-region"),
                         &cat.regions,
                         &state.region,
+                        if state.region_group.is_empty() { "all" } else { &state.region_group },
+                        &[
+                            ("americas", "Americas"),
+                            ("europe", "Europe"),
+                            ("apac", "Asia-Pacific"),
+                            ("all", "All"),
+                        ],
+                        crate::app::providers::classify_region,
                         state.open_dropdown.as_deref() == Some("provision-opt-region"),
                         app.clone(),
+                        |app, grp, cx| app.update(cx, |this, cx| this.set_provision_region_group(&grp, cx)),
                         |app, id, cx| app.update(cx, |this, cx| this.set_provision_region(&id, cx)),
                     ))
                     .child(render_options_section(
@@ -187,8 +196,18 @@ pub fn render_provision_form_body(
                         t!("fleet-provision-plan"),
                         &cat.plans,
                         &state.plan,
+                        if state.plan_tier.is_empty() { "shared" } else { &state.plan_tier },
+                        &[
+                            ("shared", "Shared / Standard"),
+                            ("dedicated", "Dedicated / Premium"),
+                            ("highmem", "High Memory"),
+                            ("gpu", "GPU / Accel"),
+                            ("all", "All"),
+                        ],
+                        crate::app::providers::classify_plan,
                         state.open_dropdown.as_deref() == Some("provision-opt-plan"),
                         app.clone(),
+                        |app, tier, cx| app.update(cx, |this, cx| this.set_provision_plan_tier(&tier, cx)),
                         |app, id, cx| app.update(cx, |this, cx| this.set_provision_plan(&id, cx)),
                     ))
                     .child(render_options_section(
@@ -196,8 +215,18 @@ pub fn render_provision_form_body(
                         t!("fleet-provision-image"),
                         &cat.images,
                         &state.image,
+                        if state.image_family.is_empty() { "ubuntu" } else { &state.image_family },
+                        &[
+                            ("ubuntu", "Ubuntu"),
+                            ("debian", "Debian"),
+                            ("enterprise", "Enterprise / RHEL"),
+                            ("other", "Other"),
+                            ("all", "All"),
+                        ],
+                        crate::app::providers::classify_image,
                         state.open_dropdown.as_deref() == Some("provision-opt-image"),
                         app.clone(),
+                        |app, fam, cx| app.update(cx, |this, cx| this.set_provision_image_family(&fam, cx)),
                         |app, id, cx| app.update(cx, |this, cx| this.set_provision_image(&id, cx)),
                     )),
             )
@@ -294,13 +323,18 @@ fn render_tags_section(inputs: Option<&ProvisionInputs>) -> impl IntoElement {
         }))
 }
 
+#[allow(clippy::too_many_arguments)]
 fn render_options_section(
     id_prefix: &'static str,
     title: &str,
     options: &[crow_provider_core::hosts::ProvisionOption],
     selected_id: &str,
+    active_category: &str,
+    categories: &[(&'static str, &'static str)],
+    classify: fn(&crow_provider_core::hosts::ProvisionOption) -> &'static str,
     is_open: bool,
     app: Entity<CrowApp>,
+    on_category: impl Fn(Entity<CrowApp>, String, &mut App) + 'static + Clone,
     on_select: impl Fn(Entity<CrowApp>, String, &mut App) + 'static + Clone,
 ) -> impl IntoElement {
     let selected_label = options
@@ -309,13 +343,38 @@ fn render_options_section(
         .map(|o| o.label.clone())
         .unwrap_or_else(|| selected_id.to_string());
     let total_count = options.len();
+
+    let filtered_options: Vec<&crow_provider_core::hosts::ProvisionOption> = if active_category == "all" {
+        options.iter().collect()
+    } else {
+        let matching: Vec<_> = options.iter().filter(|o| classify(o) == active_category).collect();
+        if matching.is_empty() {
+            options.iter().collect()
+        } else {
+            matching
+        }
+    };
+    let filtered_count = filtered_options.len();
     let app_toggle = app.clone();
+
+    // Build category tabs that have at least 1 option
+    let category_tabs: Vec<(&'static str, &'static str, usize)> = categories
+        .iter()
+        .filter_map(|&(key, label)| {
+            let count = if key == "all" {
+                total_count
+            } else {
+                options.iter().filter(|o| classify(o) == key).count()
+            };
+            (count > 0).then_some((key, label, count))
+        })
+        .collect();
 
     div()
         .flex()
         .flex_col()
-        .gap(px(5.0))
-        .max_w(px(540.0))
+        .gap(px(6.0))
+        .max_w(px(560.0))
         .child(
             div()
                 .flex()
@@ -332,9 +391,58 @@ fn render_options_section(
                     div()
                         .text_color(TEXT_FAINT)
                         .text_size(px(9.5))
-                        .child(format!("{total_count}")),
+                        .child(if filtered_count == total_count {
+                            format!("{total_count}")
+                        } else {
+                            format!("{filtered_count} / {total_count}")
+                        }),
                 ),
         )
+        // Tier / Category Filter Tabs
+        .when(category_tabs.len() > 2, |d| {
+            d.child(
+                div()
+                    .flex()
+                    .flex_wrap()
+                    .gap(px(4.0))
+                    .children(category_tabs.into_iter().map(|(cat_key, cat_label, count)| {
+                        let is_cat_sel = cat_key == active_category;
+                        let app_cat = app.clone();
+                        let on_cat = on_category.clone();
+                        let tab_id = format!("{id_prefix}-cat-{cat_key}");
+                        div()
+                            .id(SharedString::from(tab_id))
+                            .px(px(8.0))
+                            .py(px(3.0))
+                            .border_1()
+                            .border_color(if is_cat_sel { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
+                            .bg(if is_cat_sel { BG_CONTROL_ALT } else { BG_APP })
+                            .flex()
+                            .items_center()
+                            .gap(px(5.0))
+                            .cursor_pointer()
+                            .hover(|s| s.border_color(BORDER_STRONG).bg(BG_ROW_HOVER))
+                            .on_click(move |_ev, _window, cx| {
+                                on_cat(app_cat.clone(), cat_key.to_string(), cx);
+                            })
+                            .child(
+                                div()
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(10.0))
+                                    .font_weight(if is_cat_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
+                                    .text_color(if is_cat_sel { TEXT_MAX } else { TEXT_SECONDARY })
+                                    .child(cat_label),
+                            )
+                            .child(
+                                div()
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(9.0))
+                                    .text_color(if is_cat_sel { TEXT_PRIMARY } else { TEXT_FAINT })
+                                    .child(format!("{count}")),
+                            )
+                    })),
+            )
+        })
         // Dropdown Trigger
         .child(
             div()
@@ -372,60 +480,69 @@ fn render_options_section(
                     .text_color(TEXT_DIM),
                 ),
         )
-        // Expandable Dropdown List
+        // Expandable Dropdown List (uses .h(list_h) so gpui-component's Scrollable::render
+        // resets the inner content height via .h_auto() while keeping fixed viewport height)
         .children(is_open.then(|| {
+            let list_h = px(((filtered_count as f32) * 30.0 + 4.0).clamp(36.0, 240.0));
             div()
-                .id(SharedString::from(format!("{id_prefix}-dropdown-list")))
+                .id(SharedString::from(format!("{id_prefix}-dropdown-wrap")))
                 .w_full()
-                .max_h(px(220.0))
-                .overflow_y_scrollbar()
                 .bg(BG_PANEL)
                 .border_1()
                 .border_color(BORDER_CONTROL_SEL)
-                .flex()
-                .flex_col()
-                .children(options.iter().map(|opt| {
-                    let is_sel = opt.id == selected_id;
-                    let opt_id = opt.id.clone();
-                    let opt_label = opt.label.clone();
-                    let app = app.clone();
-                    let on_sel = on_select.clone();
-                    let row_id = format!("{id_prefix}-{}", opt.id);
+                .occlude()
+                .on_scroll_wheel(|_ev, _window, cx| cx.stop_propagation())
+                .child(
                     div()
-                        .id(SharedString::from(row_id))
-                        .px(px(10.0))
-                        .py(px(6.0))
-                        .border_b_1()
-                        .border_color(BORDER_ROW)
-                        .bg(if is_sel { BG_ROW_SELECTED } else { BG_PANEL })
+                        .w_full()
+                        .h(list_h)
+                        .overflow_y_scrollbar()
+                        .id(SharedString::from(format!("{id_prefix}-dropdown-list")))
                         .flex()
-                        .items_center()
-                        .gap(px(8.0))
-                        .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_MAX))
-                        .on_click(move |_ev, _window, cx| {
-                            on_sel(app.clone(), opt_id.clone(), cx);
-                        })
-                        .child(
+                        .flex_col()
+                        .children(filtered_options.into_iter().map(|opt| {
+                            let is_sel = opt.id == selected_id;
+                            let opt_id = opt.id.clone();
+                            let opt_label = opt.label.clone();
+                            let app = app.clone();
+                            let on_sel = on_select.clone();
+                            let row_id = format!("{id_prefix}-{}", opt.id);
                             div()
-                                .size(px(6.0))
-                                .rounded_full()
-                                .bg(if is_sel { TEXT_MAX } else { hex_rgba(0, 0.0) })
-                                .border_1()
-                                .border_color(if is_sel { TEXT_MAX } else { BORDER_STRONG }),
-                        )
-                        .child(
-                            div()
-                                .flex_1()
-                                .min_w(px(0.0))
-                                .truncate()
-                                .font_family(FONT_MONO)
-                                .text_size(px(11.0))
-                                .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                .text_color(if is_sel { TEXT_MAX } else { TEXT_SECONDARY })
-                                .child(opt_label),
-                        )
-                }))
+                                .id(SharedString::from(row_id))
+                                .px(px(10.0))
+                                .py(px(6.0))
+                                .border_b_1()
+                                .border_color(BORDER_ROW)
+                                .bg(if is_sel { BG_ROW_SELECTED } else { BG_PANEL })
+                                .flex()
+                                .items_center()
+                                .gap(px(8.0))
+                                .cursor_pointer()
+                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_MAX))
+                                .on_click(move |_ev, _window, cx| {
+                                    on_sel(app.clone(), opt_id.clone(), cx);
+                                })
+                                .child(
+                                    div()
+                                        .size(px(6.0))
+                                        .rounded_full()
+                                        .bg(if is_sel { TEXT_MAX } else { hex_rgba(0, 0.0) })
+                                        .border_1()
+                                        .border_color(if is_sel { TEXT_MAX } else { BORDER_STRONG }),
+                                )
+                                .child(
+                                    div()
+                                        .flex_1()
+                                        .min_w(px(0.0))
+                                        .truncate()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(11.0))
+                                        .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
+                                        .text_color(if is_sel { TEXT_MAX } else { TEXT_SECONDARY })
+                                        .child(opt_label),
+                                )
+                        })),
+                )
         }))
 }
 

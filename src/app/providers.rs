@@ -397,9 +397,47 @@ impl CrowApp {
         cx.notify();
     }
 
+    pub fn set_provision_region_group(&mut self, group: &str, cx: &mut Context<Self>) {
+        self.provision.region_group = group.to_string();
+        if group != "all" {
+            if let Some(cat) = &self.provision.catalog {
+                let current_matches = cat
+                    .regions
+                    .iter()
+                    .find(|o| o.id == self.provision.region)
+                    .is_some_and(|o| classify_region(o) == group);
+                if !current_matches {
+                    if let Some(first) = cat.regions.iter().find(|o| classify_region(o) == group) {
+                        self.provision.region = first.id.clone();
+                    }
+                }
+            }
+        }
+        cx.notify();
+    }
+
     pub fn set_provision_plan(&mut self, plan: &str, cx: &mut Context<Self>) {
         self.provision.plan = plan.to_string();
         self.provision.open_dropdown = None;
+        cx.notify();
+    }
+
+    pub fn set_provision_plan_tier(&mut self, tier: &str, cx: &mut Context<Self>) {
+        self.provision.plan_tier = tier.to_string();
+        if tier != "all" {
+            if let Some(cat) = &self.provision.catalog {
+                let current_matches = cat
+                    .plans
+                    .iter()
+                    .find(|o| o.id == self.provision.plan)
+                    .is_some_and(|o| classify_plan(o) == tier);
+                if !current_matches {
+                    if let Some(first) = cat.plans.iter().find(|o| classify_plan(o) == tier) {
+                        self.provision.plan = first.id.clone();
+                    }
+                }
+            }
+        }
         cx.notify();
     }
 
@@ -409,11 +447,31 @@ impl CrowApp {
         cx.notify();
     }
 
+    pub fn set_provision_image_family(&mut self, family: &str, cx: &mut Context<Self>) {
+        self.provision.image_family = family.to_string();
+        if family != "all" {
+            if let Some(cat) = &self.provision.catalog {
+                let current_matches = cat
+                    .images
+                    .iter()
+                    .find(|o| o.id == self.provision.image)
+                    .is_some_and(|o| classify_image(o) == family);
+                if !current_matches {
+                    if let Some(first) = cat.images.iter().find(|o| classify_image(o) == family) {
+                        self.provision.image = first.id.clone();
+                    }
+                }
+            }
+        }
+        cx.notify();
+    }
+
     pub fn set_provision_ssh_key(&mut self, key_id: &str, cx: &mut Context<Self>) {
         self.provision.selected_ssh_key_id = key_id.to_string();
         cx.notify();
     }
 
+    #[allow(dead_code)]
     pub fn open_provision(&mut self, account_id: Option<&str>, cx: &mut Context<Self>) {
         self.init_provision(account_id, true, cx);
     }
@@ -469,6 +527,9 @@ impl CrowApp {
             region: String::new(),
             plan: String::new(),
             image: String::new(),
+            region_group: "americas".to_string(),
+            plan_tier: "shared".to_string(),
+            image_family: "ubuntu".to_string(),
             selected_ssh_key_id: default_ssh_key,
             tags: "crow".to_string(),
             catalog: None,
@@ -533,17 +594,35 @@ impl CrowApp {
                 match result {
                     Ok(catalog) => {
                         if this.provision.region.is_empty() {
-                            if let Some(r) = catalog.regions.first() {
+                            if let Some(r) = catalog
+                                .regions
+                                .iter()
+                                .find(|o| classify_region(o) == this.provision.region_group)
+                                .or_else(|| catalog.regions.first())
+                            {
+                                this.provision.region_group = classify_region(r).to_string();
                                 this.provision.region = r.id.clone();
                             }
                         }
                         if this.provision.plan.is_empty() {
-                            if let Some(p) = catalog.plans.first() {
+                            if let Some(p) = catalog
+                                .plans
+                                .iter()
+                                .find(|o| classify_plan(o) == this.provision.plan_tier)
+                                .or_else(|| catalog.plans.first())
+                            {
+                                this.provision.plan_tier = classify_plan(p).to_string();
                                 this.provision.plan = p.id.clone();
                             }
                         }
                         if this.provision.image.is_empty() {
-                            if let Some(img) = catalog.images.first() {
+                            if let Some(img) = catalog
+                                .images
+                                .iter()
+                                .find(|o| classify_image(o) == this.provision.image_family)
+                                .or_else(|| catalog.images.first())
+                            {
+                                this.provision.image_family = classify_image(img).to_string();
                                 this.provision.image = img.id.clone();
                             }
                         }
@@ -722,7 +801,7 @@ impl CrowApp {
     }
 }
 
-/// Cloud instance provisioning state (`ERR-224`).
+/// Cloud instance provisioning state (`ERR-224`, `ERR-222`).
 #[derive(Clone, Default)]
 pub struct ProvisionState {
     pub open: bool,
@@ -733,6 +812,9 @@ pub struct ProvisionState {
     pub region: String,
     pub plan: String,
     pub image: String,
+    pub region_group: String,
+    pub plan_tier: String,
+    pub image_family: String,
     pub selected_ssh_key_id: String,
     pub tags: String,
     pub catalog: Option<crow_provider_core::hosts::ProvisionCatalog>,
@@ -744,4 +826,122 @@ pub struct ProvisionInputs {
     pub label: Entity<InputState>,
     pub tags: Entity<InputState>,
     pub _events: Vec<Subscription>,
+}
+
+/// Classifies a provider region option into `"americas"`, `"europe"`, or `"apac"`.
+pub fn classify_region(opt: &crow_provider_core::hosts::ProvisionOption) -> &'static str {
+    let id = opt.id.to_ascii_lowercase();
+    let pfx = id.split('-').next().unwrap_or("");
+    match pfx {
+        "us" | "ca" | "br" | "sa" | "mx" | "cl" | "co" | "ar" => "americas",
+        "eu" | "de" | "fr" | "gb" | "uk" | "nl" | "se" | "es" | "it" | "fi" | "pl" | "ch"
+        | "at" | "no" | "dk" | "ie" | "be" | "pt" | "cz" | "ro" => "europe",
+        "ap" | "jp" | "sg" | "in" | "id" | "au" | "kr" | "hk" | "tw" | "nz" | "my" | "th"
+        | "vn" | "ph" => "apac",
+        _ => {
+            let lbl = opt.label.to_ascii_lowercase();
+            if lbl.contains("europe")
+                || lbl.contains("frankfurt")
+                || lbl.contains("london")
+                || lbl.contains("amsterdam")
+                || lbl.contains("paris")
+                || lbl.contains("madrid")
+                || lbl.contains("milan")
+                || lbl.contains("stockholm")
+                || lbl.contains("helsinki")
+                || lbl.contains("warsaw")
+            {
+                "europe"
+            } else if lbl.contains("tokyo")
+                || lbl.contains("osaka")
+                || lbl.contains("singapore")
+                || lbl.contains("sydney")
+                || lbl.contains("melbourne")
+                || lbl.contains("mumbai")
+                || lbl.contains("chennai")
+                || lbl.contains("jakarta")
+                || lbl.contains("seoul")
+            {
+                "apac"
+            } else {
+                "americas"
+            }
+        }
+    }
+}
+
+/// Classifies a provider instance plan into `"shared"`, `"dedicated"`, `"highmem"`, or `"gpu"`.
+pub fn classify_plan(opt: &crow_provider_core::hosts::ProvisionOption) -> &'static str {
+    let id = opt.id.to_ascii_lowercase();
+    let lbl = opt.label.to_ascii_lowercase();
+    if id.contains("gpu")
+        || id.contains("rtx")
+        || id.contains("quadro")
+        || id.contains("accelerated")
+        || lbl.contains("gpu")
+        || lbl.contains("rtx")
+        || lbl.contains("quadro")
+        || lbl.contains("accelerated")
+        || id.starts_with("g4")
+        || id.starts_with("g5")
+        || id.starts_with("p3")
+        || id.starts_with("p4")
+    {
+        "gpu"
+    } else if id.contains("highmem")
+        || id.contains("himem")
+        || lbl.contains("highmem")
+        || lbl.contains("high memory")
+        || id.starts_with("r6")
+        || id.starts_with("r7")
+    {
+        "highmem"
+    } else if id.contains("dedicated")
+        || id.contains("premium")
+        || id.contains("hicpu")
+        || id.contains("cloudnative")
+        || lbl.contains("dedicated")
+        || lbl.contains("premium")
+        || id.starts_with("c6")
+        || id.starts_with("c7")
+        || id.starts_with("m6")
+        || id.starts_with("m7")
+    {
+        "dedicated"
+    } else {
+        "shared"
+    }
+}
+
+/// Classifies an OS image option into `"ubuntu"`, `"debian"`, `"enterprise"`, or `"other"`.
+pub fn classify_image(opt: &crow_provider_core::hosts::ProvisionOption) -> &'static str {
+    let id = opt.id.to_ascii_lowercase();
+    let lbl = opt.label.to_ascii_lowercase();
+    if id.contains("ubuntu") || lbl.contains("ubuntu") {
+        "ubuntu"
+    } else if id.contains("debian") || lbl.contains("debian") {
+        "debian"
+    } else if id.contains("alma")
+        || id.contains("rocky")
+        || id.contains("fedora")
+        || id.contains("centos")
+        || id.contains("rhel")
+        || id.contains("oracle")
+        || id.contains("al2023")
+        || id.contains("opensuse")
+        || id.contains("suse")
+        || lbl.contains("alma")
+        || lbl.contains("rocky")
+        || lbl.contains("fedora")
+        || lbl.contains("centos")
+        || lbl.contains("red hat")
+        || lbl.contains("rhel")
+        || lbl.contains("oracle")
+        || lbl.contains("amazon linux")
+        || lbl.contains("suse")
+    {
+        "enterprise"
+    } else {
+        "other"
+    }
 }
