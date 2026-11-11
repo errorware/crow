@@ -37,8 +37,8 @@ crow-provider-linode = { path = "crates/crow-provider-linode", version = "0.1.0"
 crow-provider-upcloud = { path = "crates/crow-provider-upcloud", version = "0.1.0", optional = true }
 crow-provider-aws = { path = "crates/crow-provider-aws", version = "0.1.0", optional = true }
 gpui-kit = "0.6.1"
-crow-config-core = { path = "../crow-config-core/crow-config-core", version = "0.1.0" }
-crow-config-schemas = { path = "../crow-config-core/crow-config-schemas", version = "0.1.0" }
+crow-config-core = { git = "https://github.com/errorware/crow-config.git", version = "0.1.0" }
+crow-config-schemas = { git = "https://github.com/errorware/crow-config.git", version = "0.1.0" }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 chrono = "0.4"

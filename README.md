@@ -183,11 +183,8 @@ brew install font-jetbrains-mono          # Linux (Homebrew)
  
 ### Build & Run
  
-Crow builds against crow-config from a sibling checkout:
- 
 ```bash
-git clone git@github.com:errorware/crow-config.git crow-config-core
-git clone git@github.com:errorware/crow.git
+git clone https://github.com/errorware/crow.git
 cd crow
  
 cargo test --workspace

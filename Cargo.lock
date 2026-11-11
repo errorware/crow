@@ -1440,6 +1440,7 @@ checksum = "a31eee39dddec8330830986fcd7625edb5a24ec90ea038215273bbc3adb08ac6"
 [[package]]
 name = "crow-config-core"
 version = "0.1.0"
+source = "git+https://github.com/errorware/crow-config.git#9168c10ed7c2d7e66674db2960c15fd95f3b982a"
 dependencies = [
  "serde",
  "serde_json",
@@ -1451,6 +1452,7 @@ dependencies = [
 [[package]]
 name = "crow-config-schemas"
 version = "0.1.0"
+source = "git+https://github.com/errorware/crow-config.git#9168c10ed7c2d7e66674db2960c15fd95f3b982a"
 dependencies = [
  "crow-config-core",
  "serde",
