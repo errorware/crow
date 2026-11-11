@@ -8,7 +8,7 @@ Security costs something: typing a password, carrying a second factor, the risk 
 
 ### OPEN (the default)
 
-- **How**: no vault password. Crow's encryption key is held by the OS credential store: macOS Keychain, Secret Service on Linux (GNOME Keyring, KWallet), Windows Credential Manager.
+- **How**: no vault password. Crow's encryption key is held by the OS credential store: macOS Keychain or Secret Service on Linux (GNOME Keyring, KWallet).
 - **Protects against**: someone copying `~/.config/crow/crow.db`, or your backups. The secrets in it are encrypted, and the key isn't in the file.
 - **Exposed to**: anything running as your user while you're logged in, because your login unlocks the keyring and any program can ask it for Crow's key. Also anyone at your unlocked computer: they can open Crow and use everything in it, including provider tokens that power servers off.
 - **Costs**: nothing.

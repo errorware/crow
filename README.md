@@ -54,7 +54,8 @@ Website: [crow.rs](https://crow.rs) · Community: [forum.errorware.net](https://
 ### Fleet
 - All enrolled servers with health, environment (PROD / STAGE / DEV / LAB) and region (from the cloud provider, metadata service, or set by you). Optional offline IP-to-country lookup via DB-IP; no addresses leave your machine.
 - Add Server verifies the host key, can bootstrap a password-only server onto Crow's SSH key, and reads distro, kernel, memory and disk.
-- Import instances from Linode and UpCloud.
+- Import and provision instances from AWS EC2, Linode, and UpCloud.
+- **Local Lab**: Spin up or connect local test environments and sandboxes to test configs, playbooks, and commands safely without risking live fleets.
 - Archive servers you no longer manage; their data is purged after a set window.
 ### Fleet Setup
 Multi-server changes preview what they'll do, run one server at a time, and stop at the first failure.
@@ -69,6 +70,8 @@ Multi-server changes preview what they'll do, run one server at a time, and stop
 - **Overview**: live CPU, memory, disk, network, pending updates, and CVEs from [OSV](https://osv.dev)
 - **History**: 24h / 7d metrics, sampled while Crow runs
 - **Services, processes, sockets**: search, filter, act with confirmation
+- **Containers**: Discover Docker and Podman containers on the host — view health, CPU/memory usage, port bindings, stream container logs, and inspect state without Docker Desktop.
+- **Dokku**: Manage apps, services, domains, scaling, environment variables, and live logs on Dokku servers.
 - **Logs**: `journalctl` with filters, plus optional AI explanations
 - **Configs**: `sshd_config`, `/etc/hosts`, `pg_hba.conf` and ufw as structured rows via [crow-config](https://github.com/errorware/crow-config). Every change is a revision you can roll back; writes are atomic.
 - **Firewall**: edit ufw and firewalld; read-only nftables/iptables. A lock-out guard asks for confirmation before anything that would block Crow's SSH port.
@@ -90,7 +93,7 @@ Crow holds provider tokens, AI keys and SSH access to your fleet, so it makes yo
  
 | | **OPEN** (default) | **LOCKED** |
 |---|---|---|
-| Key held by | OS keyring (Keychain, Secret Service, Credential Manager) | Master password + TOTP |
+| Key held by | OS keyring (Keychain, Secret Service) | Master password + TOTP |
 | Protects against | Someone copying `crow.db` or backups | That, plus anyone using your machine while Crow is locked |
 | Exposed to | Anything running as you; anyone at your unlocked desk | Anyone at your machine while Crow is unlocked (auto-locks when idle) |
 | Cost | Nothing | Lose the password or 2FA and stored secrets are gone |
@@ -110,10 +113,11 @@ Plugins are described by crow-config manifests. A plugin implements a **category
  
 | Provider | Category | Capabilities |
 |---|---|---|
-| Linode | `provider.hosts` | list instances, power, backup snapshots |
+| AWS EC2 | `provider.hosts` | list instances, power, EBS snapshots, instance provisioning |
+| Linode | `provider.hosts` | list instances, power, backup snapshots, instance provisioning |
 | UpCloud | `provider.hosts` | list instances, power |
  
-Providers are compiled in as cargo features (`provider-linode`, `provider-upcloud`, both on by default). Tokens live only in the encrypted vault.
+Providers are compiled in as cargo features (`provider-linode`, `provider-upcloud`, `provider-aws`, all on by default). Tokens and credentials live only in the encrypted vault.
  
 **Your own plugins** go in `~/.config/crow/plugins/` as a folder with a `plugin.toml` and scripts. Crow shows every command a plugin can run before you accept it, disables it if its files change, asks before making changes, and logs every run. Plugins can act on a single server, across the fleet with a canary, or locally against a generated inventory (e.g. Ansible). Validate one with `crow --check-plugin <folder>`. Examples in [`plugins/`](plugins), docs in [docs/plugins.md](docs/plugins.md).
  
@@ -123,7 +127,8 @@ Providers are compiled in as cargo features (`provider-linode`, `provider-upclou
 crow/
 ├── src/                         # the app
 ├── crates/
-│   ├── crow-provider-core/      # provider contracts: Provider, ListInstances, PowerControl, Snapshots; curl-based HTTP
+│   ├── crow-provider-core/      # provider contracts: Provider, ListInstances, PowerControl, Snapshots, Provision; curl-based HTTP
+│   ├── crow-provider-aws/       # AWS EC2 (IMDS, SigV4, instances, snapshots, provisioning)
 │   ├── crow-provider-linode/    # Linode API v4
 │   └── crow-provider-upcloud/   # UpCloud API 1.3
 ├── assets/                      # icons, flags, distro logos, fonts (each with its license), i18n/en.ftl
