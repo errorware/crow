@@ -237,13 +237,13 @@ pub fn agent_main(once: bool) -> i32 {
         let db = match VaultDb::open_or_create(None) {
             Ok(db) => db,
             Err(e) => {
-                eprintln!("crow --agent-once: failed to open vault db: {e}");
+                eprintln!("crow daemon: failed to open vault db: {e}");
                 return 1;
             }
         };
         let outcome = run_agent_tick(&db, &mut rt, now, true);
         if let Some(err) = outcome.error {
-            eprintln!("crow --agent-once: {err}");
+            eprintln!("crow daemon: {err}");
             return 1;
         }
         return 0;

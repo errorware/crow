@@ -67,12 +67,13 @@ fn main() {
     if args.get(1).map(String::as_str) == Some("--check-plugin") {
         std::process::exit(plugin_host::check::check_dir_main(args.get(2).map(String::as_str)));
     }
-    // `crow --agent` / `crow --agent-once`: headless background telemetry and
-    // performance bottleneck monitor (ERR-207).
-    if args.get(1).map(String::as_str) == Some("--agent") {
+    // `crow --daemon` / `crow --daemon-once` (aliases `--agent`, `--agent-once`, `--watch`):
+    // headless local background telemetry and performance bottleneck monitor (ERR-207, ERR-226).
+    let first_arg = args.get(1).map(String::as_str);
+    if matches!(first_arg, Some("--daemon" | "--agent" | "--watch")) {
         std::process::exit(agent::agent_main(false));
     }
-    if args.get(1).map(String::as_str) == Some("--agent-once") {
+    if matches!(first_arg, Some("--daemon-once" | "--agent-once" | "--watch-once")) {
         std::process::exit(agent::agent_main(true));
     }
 

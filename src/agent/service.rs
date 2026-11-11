@@ -70,19 +70,19 @@ pub fn current_unit_path() -> Option<PathBuf> {
     }
 }
 
-/// Generates the `systemd --user` unit file content for `crow --agent`.
-/// When `in_flatpak` is true, invokes `flatpak run --command=crow rs.crow.Crow --agent`.
+/// Generates the `systemd --user` unit file content for `crow --daemon`.
+/// When `in_flatpak` is true, invokes `flatpak run --command=crow rs.crow.Crow --daemon`.
 pub fn generate_systemd_unit(exe_path: &Path, in_flatpak: bool) -> String {
     let exec_start = if in_flatpak {
-        "/usr/bin/flatpak run --command=crow rs.crow.Crow --agent".to_string()
+        "/usr/bin/flatpak run --command=crow rs.crow.Crow --daemon".to_string()
     } else {
         let escaped = exe_path.display().to_string().replace('"', "\\\"");
-        format!("\"{escaped}\" --agent")
+        format!("\"{escaped}\" --daemon")
     };
 
     format!(
         "[Unit]\n\
-         Description=Crow Fleet Background Monitor & Bottleneck Agent\n\
+         Description=Crow Fleet Background Monitor & Daemon\n\
          After=network-online.target\n\
          Wants=network-online.target\n\
          \n\
@@ -97,7 +97,7 @@ pub fn generate_systemd_unit(exe_path: &Path, in_flatpak: bool) -> String {
     )
 }
 
-/// Generates the macOS `LaunchAgent` plist XML content for `crow --agent`.
+/// Generates the macOS `LaunchAgent` plist XML content for `crow --daemon`.
 pub fn generate_launchd_plist(exe_path: &Path) -> String {
     let escaped = xml_escape(&exe_path.display().to_string());
     format!(
@@ -110,7 +110,7 @@ pub fn generate_launchd_plist(exe_path: &Path) -> String {
              <key>ProgramArguments</key>\n\
              <array>\n\
                  <string>{escaped}</string>\n\
-                 <string>--agent</string>\n\
+                 <string>--daemon</string>\n\
              </array>\n\
              <key>RunAtLoad</key>\n\
              <true/>\n\
@@ -379,12 +379,12 @@ mod tests {
     #[test]
     fn generates_native_and_flatpak_systemd_unit() {
         let native = generate_systemd_unit(Path::new("/home/user/.local/bin/crow"), false);
-        assert!(native.contains("ExecStart=\"/home/user/.local/bin/crow\" --agent"));
+        assert!(native.contains("ExecStart=\"/home/user/.local/bin/crow\" --daemon"));
         assert!(native.contains("Restart=on-failure"));
         assert!(native.contains("WantedBy=default.target"));
 
         let flatpak = generate_systemd_unit(Path::new("/app/bin/crow"), true);
-        assert!(flatpak.contains("ExecStart=/usr/bin/flatpak run --command=crow rs.crow.Crow --agent"));
+        assert!(flatpak.contains("ExecStart=/usr/bin/flatpak run --command=crow rs.crow.Crow --daemon"));
     }
 
     #[test]
@@ -392,7 +392,7 @@ mod tests {
         let plist = generate_launchd_plist(Path::new("/Applications/Crow.app/Contents/MacOS/crow"));
         assert!(plist.contains("<string>rs.crow.Crow.agent</string>"));
         assert!(plist.contains("<string>/Applications/Crow.app/Contents/MacOS/crow</string>"));
-        assert!(plist.contains("<string>--agent</string>"));
+        assert!(plist.contains("<string>--daemon</string>"));
         assert!(plist.contains("<key>RunAtLoad</key>"));
     }
 }
