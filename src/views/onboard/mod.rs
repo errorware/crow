@@ -30,6 +30,32 @@ pub enum OnboardMode {
     CloudProvision,
 }
 
+#[derive(Clone, Debug)]
+pub struct BootWaitLog {
+    pub timestamp: String,
+    pub glyph: String,
+    pub color: Rgba,
+    pub message: String,
+}
+
+#[derive(Clone, Debug)]
+#[allow(dead_code)]
+pub struct BootWaitState {
+    pub instance_id: String,
+    pub label: String,
+    pub provider_name: String,
+    pub host: String,
+    pub port: u16,
+    pub selected_key_id: String,
+    pub account_id: String,
+    pub region_code: String,
+    pub tags: String,
+    pub logs: Vec<BootWaitLog>,
+    pub attempt: usize,
+    pub pulse_tick: usize,
+    pub done: bool,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum OnboardStep {
     Connect = 1,
@@ -101,6 +127,8 @@ pub struct OnboardState {
     pub facts: DetectedFacts,
     /// Set when the server was imported from a provider (ERR-46).
     pub provider: Option<ProviderLink>,
+    /// Live cloud VM boot wait and polling state (ERR-223).
+    pub boot_wait: Option<BootWaitState>,
     // UI state
     pub focus: OnboardFieldFocus,
     pub error_message: Option<String>,
@@ -145,6 +173,7 @@ impl OnboardState {
             make_bastion: false,
             facts: DetectedFacts::default(),
             provider: None,
+            boot_wait: None,
             focus: OnboardFieldFocus::Host,
             error_message: None,
         }
@@ -283,7 +312,13 @@ pub fn onboard_view(
         })
         .count();
 
-    let (sec_title, sec_subtitle): (String, String) = if is_cloud {
+    let is_boot_waiting = state.boot_wait.is_some();
+    let (sec_title, sec_subtitle): (String, String) = if is_boot_waiting {
+        (
+            t!("onboard-boot-title").to_string(),
+            t!("onboard-boot-subtitle").to_string(),
+        )
+    } else if is_cloud {
         (
             t!("fleet-provision-modal-title").to_string(),
             t!("onboard-cloud-subtitle").to_string(),
@@ -574,7 +609,9 @@ pub fn onboard_view(
                                         .flex()
                                         .flex_col()
                                         .gap(px(18.0))
-                                        .child(if is_cloud {
+                                        .child(if let Some(ref bw) = state.boot_wait {
+                                            render_boot_wait_center(app.clone(), bw).into_any_element()
+                                        } else if is_cloud {
                                             render_cloud_provision_center(
                                                 app.clone(),
                                                 provision,
@@ -591,7 +628,7 @@ pub fn onboard_view(
                                                 OnboardStep::Name => step_name(app.clone(), inputs, fleet, state).into_any_element(),
                                             }
                                         })
-                                        .children((!is_cloud).then(|| state.error_message.clone()).flatten().map(|e| {
+                                        .children((!is_cloud && !is_boot_waiting).then(|| state.error_message.clone()).flatten().map(|e| {
                                             div()
                                                 .p(px(10.0))
                                                 .bg(CRIT.opacity(0.08))
@@ -613,14 +650,28 @@ pub fn onboard_view(
                                 .bg(BG_PANEL)
                                 .border_t_1()
                                 .border_color(BORDER_PANEL)
-                                .when(!is_cloud && state.step != OnboardStep::Connect, |d| {
+                                .when(!is_cloud && !is_boot_waiting && state.step != OnboardStep::Connect, |d| {
                                     d.child(
                                         button("btn-onboard-back", t!("onboard-back"), false, true)
                                             .on_click(move |_ev, _window, cx| app_back.update(cx, |this, cx| this.onboard_prev_step(cx))),
                                     )
                                 })
                                 .child(div().flex_1())
-                                .children(if is_cloud {
+                                .children(if is_boot_waiting {
+                                    let app_skip = app.clone();
+                                    vec![
+                                        div()
+                                            .flex()
+                                            .items_center()
+                                            .gap(px(8.0))
+                                            .child(mono(10.5, OK).child("●"))
+                                            .child(mono(10.0, TEXT_SECONDARY).child(t!("onboard-boot-polling-live")))
+                                            .into_any_element(),
+                                        button("btn-onboard-boot-skip", t!("onboard-boot-skip-manual"), false, true)
+                                            .on_click(move |_ev, _window, cx| app_skip.update(cx, |this, cx| this.skip_provision_boot_wait(cx)))
+                                            .into_any_element(),
+                                    ]
+                                } else if is_cloud {
                                     let can_launch = prov_capable_count > 0 && !provision.provisioning && !provision.loading_catalog;
                                     let launch_label = if provision.provisioning {
                                         t!("fleet-provision-launching").to_string()
@@ -746,6 +797,174 @@ fn render_cloud_provision_center(
         .into_any_element()
 }
 
+fn render_boot_wait_center(_app: Entity<CrowApp>, bw: &BootWaitState) -> impl IntoElement {
+    let num_segments = 36;
+    let head = (bw.pulse_tick % num_segments) as i32;
+
+    div()
+        .p(px(16.0))
+        .bg(BG_PANEL)
+        .border_1()
+        .border_color(BORDER_PANEL)
+        .flex()
+        .flex_col()
+        .gap(px(16.0))
+        // Header info banner
+        .child(
+            div()
+                .flex()
+                .items_start()
+                .justify_between()
+                .gap(px(12.0))
+                .child(
+                    div()
+                        .flex()
+                        .gap(px(10.0))
+                        .child(
+                            div()
+                                .size(px(32.0))
+                                .flex_none()
+                                .bg(BG_APP)
+                                .border_1()
+                                .border_color(BORDER_DEFAULT)
+                                .flex()
+                                .items_center()
+                                .justify_center()
+                                .child(tabler_icon(TablerIcon::Cloud).size(px(18.0)).text_color(OK)),
+                        )
+                        .child(
+                            div()
+                                .flex()
+                                .flex_col()
+                                .gap(px(2.0))
+                                .child(
+                                    div()
+                                        .flex()
+                                        .items_center()
+                                        .gap(px(8.0))
+                                        .child(
+                                            mono(13.0, TEXT_PRIMARY)
+                                                .font_weight(FontWeight::BOLD)
+                                                .child(format!("{} · {}", bw.label, bw.provider_name)),
+                                        )
+                                        .child(
+                                            crate::components::button::badge(OK)
+                                                .text_size(px(9.0))
+                                                .child(bw.region_code.clone()),
+                                        ),
+                                )
+                                .child(mono(10.5, TEXT_DIM).child(t!("onboard-boot-waiting-desc"))),
+                        ),
+                )
+                .child(
+                    mono(11.0, TEXT_SECONDARY)
+                        .font_weight(FontWeight::SEMIBOLD)
+                        .child(format!("{}:22", bw.host)),
+                ),
+        )
+        // Indeterminate Wave Progress Bar
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(6.0))
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .child(
+                            mono(10.0, TEXT_DIM)
+                                .font_weight(FontWeight::BOLD)
+                                .child(t!("onboard-boot-polling-title", interval = 4)),
+                        )
+                        .child(
+                            mono(9.5, if bw.done { OK } else { TEXT_FAINT })
+                                .child(if bw.done {
+                                    "SSH Ready".to_string()
+                                } else {
+                                    format!("Poll #{}", bw.attempt)
+                                }),
+                        ),
+                )
+                .child(
+                    div()
+                        .w_full()
+                        .h(px(8.0))
+                        .bg(BG_APP)
+                        .border_1()
+                        .border_color(BORDER_DEFAULT)
+                        .p(px(1.0))
+                        .flex()
+                        .gap(px(2.0))
+                        .children((0..num_segments).map(|i| {
+                            let dist = (i as i32 - head).abs().min(num_segments as i32 - (i as i32 - head).abs());
+                            let op = match dist {
+                                0 => 1.0,
+                                1 => 0.70,
+                                2 => 0.40,
+                                3 => 0.15,
+                                _ => 0.03,
+                            };
+                            div()
+                                .flex_1()
+                                .h_full()
+                                .bg(if bw.done { OK } else { OK.opacity(op) })
+                        })),
+                ),
+        )
+        // Live Terminal Log Console
+        .child(
+            div()
+                .flex()
+                .flex_col()
+                .gap(px(6.0))
+                .child(
+                    mono(10.0, TEXT_DIM)
+                        .font_weight(FontWeight::BOLD)
+                        .child(t!("onboard-boot-terminal-log")),
+                )
+                .child(
+                    div()
+                        .id("onboard-boot-console")
+                        .w_full()
+                        .h(px(240.0))
+                        .overflow_y_scrollbar()
+                        .bg(BG_APP)
+                        .border_1()
+                        .border_color(BORDER_DEFAULT)
+                        .p(px(10.0))
+                        .flex()
+                        .flex_col()
+                        .gap(px(4.0))
+                        .children(bw.logs.iter().map(|log| {
+                            div()
+                                .flex()
+                                .items_start()
+                                .gap(px(8.0))
+                                .child(
+                                    mono(9.5, TEXT_FAINT)
+                                        .flex_none()
+                                        .child(format!("[{}]", log.timestamp)),
+                                )
+                                .child(
+                                    mono(10.0, log.color)
+                                        .flex_none()
+                                        .w(px(16.0))
+                                        .child(log.glyph.clone()),
+                                )
+                                .child(
+                                    mono(10.5, log.color)
+                                        .flex_1()
+                                        .min_w(px(0.0))
+                                        .line_height(px(15.0))
+                                        .child(log.message.clone()),
+                                )
+                        })),
+                ),
+        )
+}
+
 fn summary_row(k: impl Into<SharedString>, v: impl Into<SharedString>, v_color: Rgba) -> Div {
     div()
         .flex()
@@ -767,13 +986,59 @@ fn render_onboard_right_rail(
     provider_accounts: &[ProviderAccount],
     is_cloud: bool,
 ) -> impl IntoElement {
-    let header_title = if is_cloud {
+    let header_title = if state.boot_wait.is_some() {
+        t!("onboard-boot-title")
+    } else if is_cloud {
         t!("onboard-instance-spec")
     } else {
         t!("onboard-target-summary")
     };
 
-    let body: AnyElement = if is_cloud {
+    let body: AnyElement = if let Some(ref bw) = state.boot_wait {
+        let key_name = keys
+            .enrolled
+            .iter()
+            .find(|k| k.id == bw.selected_key_id)
+            .map(|k| format!("{} · {}", k.name, k.algorithm))
+            .unwrap_or_else(|| "key".to_string());
+        div()
+            .p(px(14.0))
+            .flex()
+            .flex_col()
+            .gap(px(14.0))
+            .child(
+                div()
+                    .p(px(12.0))
+                    .bg(BG_PANEL)
+                    .border_1()
+                    .border_color(BORDER_PANEL)
+                    .flex()
+                    .flex_col()
+                    .child(summary_row(t!("onboard-summary-endpoint"), format!("{}:22", bw.host), TEXT_PRIMARY))
+                    .child(summary_row(t!("fleet-provision-provider-account"), bw.provider_name.clone(), TEXT_PRIMARY))
+                    .child(summary_row(t!("fleet-provision-instance-label"), bw.label.clone(), TEXT_PRIMARY))
+                    .child(summary_row(t!("fleet-provision-region"), bw.region_code.clone(), TEXT_SECONDARY))
+                    .child(summary_row(t!("fleet-provision-vault-ssh-key"), key_name, OK))
+                    .child(summary_row(
+                        "STATUS",
+                        if bw.done { "SSH Ready".to_string() } else { format!("Polling #{}", bw.attempt) },
+                        if bw.done { OK } else { WARN },
+                    )),
+            )
+            .child(
+                div()
+                    .p(px(12.0))
+                    .bg(BG_PANEL)
+                    .border_1()
+                    .border_color(BORDER_PANEL)
+                    .child(
+                        mono(10.0, TEXT_DIM)
+                            .line_height(px(15.0))
+                            .child(t!("onboard-summary-auto-enroll-note")),
+                    ),
+            )
+            .into_any_element()
+    } else if is_cloud {
         let acct_name = provider_accounts
             .iter()
             .find(|a| a.id == provision.selected_account_id)

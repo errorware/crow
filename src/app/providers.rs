@@ -769,26 +769,7 @@ impl CrowApp {
                     Ok(instance) => {
                         this.provision.open = false;
                         this.provision_inputs = None;
-                        this.start_onboarding(cx);
-                        let o = &mut this.onboard_state;
-                        o.host = instance
-                            .ipv4
-                            .first()
-                            .or(instance.ipv6.first())
-                            .map(|ip| ip.to_string())
-                            .unwrap_or_default();
-                        o.label = instance.label.clone();
-                        o.tags = instance.tags.join(", ");
-                        o.selected_key_id = Some(selected_key_id);
-                        o.auth_method = "publickey".to_string();
-                        o.provider = Some(crate::views::onboard::ProviderLink {
-                            account: account.id.clone(),
-                            instance: instance.id.0.clone(),
-                            provider_name: providers::display_name(&account.plugin),
-                            region_code: instance.region.clone().unwrap_or_default(),
-                        });
-                        this.onboard_inputs = None;
-                        cx.notify();
+                        this.start_provision_boot_wait(instance, account, selected_key_id, cx);
                     }
                     Err(e) => {
                         this.provision.error = Some(e);
@@ -798,6 +779,251 @@ impl CrowApp {
             });
         })
         .detach();
+    }
+
+    pub fn start_provision_boot_wait(
+        &mut self,
+        instance: crow_provider_core::hosts::Instance,
+        account: ProviderAccount,
+        selected_key_id: String,
+        cx: &mut Context<Self>,
+    ) {
+        let instance_id = instance.id.0.clone();
+        let host = instance
+            .ipv4
+            .first()
+            .or(instance.ipv6.first())
+            .map(|ip| ip.to_string())
+            .unwrap_or_default();
+
+        self.start_onboarding(cx);
+        self.init_provision_boot_wait(&instance, &account, &selected_key_id);
+        cx.notify();
+
+        // Launch background ticker for wave animation
+        let inst_id_ticker = instance_id.clone();
+        cx.spawn(async move |entity, cx| {
+            loop {
+                cx.background_executor().timer(std::time::Duration::from_millis(100)).await;
+                let keep_going = entity
+                    .update(cx, |this, cx| {
+                        if let Some(ref mut bw) = this.onboard_state.boot_wait {
+                            if bw.instance_id == inst_id_ticker && !bw.done {
+                                bw.pulse_tick = (bw.pulse_tick + 1) % 1000;
+                                cx.notify();
+                                return true;
+                            }
+                        }
+                        false
+                    })
+                    .unwrap_or(false);
+                if !keep_going {
+                    break;
+                }
+            }
+        })
+        .detach();
+
+        // Launch background polling task
+        let inst_id_poller = instance_id.clone();
+        let poll_host = host.clone();
+        cx.spawn(async move |entity, cx| {
+            // Initial brief delay while provider initializes VM networking
+            cx.background_executor().timer(std::time::Duration::from_millis(2500)).await;
+
+            for attempt in 1..=60 {
+                // Check if user cancelled or navigated away
+                let still_active = entity
+                    .update(cx, |this, _cx| {
+                        this.onboard_state.boot_wait.as_ref().is_some_and(|bw| bw.instance_id == inst_id_poller && !bw.done)
+                    })
+                    .unwrap_or(false);
+                if !still_active {
+                    break;
+                }
+
+                let target_host = poll_host.clone();
+                let port = 22;
+                let poll_result = cx
+                    .background_executor()
+                    .spawn(async move {
+                        use std::net::{TcpStream, ToSocketAddrs};
+                        let addr_str = format!("{target_host}:{port}");
+                        let addr = match addr_str.to_socket_addrs().ok().and_then(|mut a| a.next()) {
+                            Some(a) => a,
+                            None => return Err("DNS resolution failed".to_string()),
+                        };
+                        match TcpStream::connect_timeout(&addr, std::time::Duration::from_millis(2500)) {
+                            Ok(mut stream) => {
+                                use std::io::Read;
+                                let _ = stream.set_read_timeout(Some(std::time::Duration::from_millis(1500)));
+                                let mut buf = [0u8; 128];
+                                let n = stream.read(&mut buf).unwrap_or(0);
+                                let banner = String::from_utf8_lossy(&buf[..n]).trim().to_string();
+                                Ok(banner)
+                            }
+                            Err(e) => Err(e.to_string()),
+                        }
+                    })
+                    .await;
+
+                let now = chrono::Local::now().format("%H:%M:%S").to_string();
+                match poll_result {
+                    Ok(banner) => {
+                        // Success! SSH is alive!
+                        let _ = entity.update(cx, |this, cx| {
+                            if let Some(ref mut bw) = this.onboard_state.boot_wait {
+                                if bw.instance_id == inst_id_poller {
+                                    bw.done = true;
+                                    let banner_desc = if banner.is_empty() { String::new() } else { format!(" ({banner})") };
+                                    bw.logs.push(crate::views::onboard::BootWaitLog {
+                                        timestamp: now.clone(),
+                                        glyph: "✓".to_string(),
+                                        color: crate::theme::OK,
+                                        message: format!("SSH port 22 is open!{banner_desc}"),
+                                    });
+                                    bw.logs.push(crate::views::onboard::BootWaitLog {
+                                        timestamp: now,
+                                        glyph: "🔑".to_string(),
+                                        color: crate::theme::OK,
+                                        message: "Probing host keys and authenticating with Vault key...".to_string(),
+                                    });
+                                    cx.notify();
+                                }
+                            }
+                        });
+
+                        // Brief pause so the user sees the green checkmark
+                        cx.background_executor().timer(std::time::Duration::from_millis(1200)).await;
+
+                        let _ = entity.update(cx, |this, cx| {
+                            if this.onboard_state.boot_wait.as_ref().is_some_and(|bw| bw.instance_id == inst_id_poller) {
+                                this.onboard_state.boot_wait = None;
+                                this.onboard_state.mode = crate::views::onboard::OnboardMode::Ssh;
+                                this.onboard_state.step = crate::views::onboard::OnboardStep::Verify;
+                                this.onboard_state.max_reached_step = crate::views::onboard::OnboardStep::Verify;
+                                this.onboard_inputs = None;
+                                this.onboard_run_probe(cx);
+                                cx.notify();
+                            }
+                        });
+                        break;
+                    }
+                    Err(err_msg) => {
+                        let _ = entity.update(cx, |this, cx| {
+                            if let Some(ref mut bw) = this.onboard_state.boot_wait {
+                                if bw.instance_id == inst_id_poller {
+                                    bw.attempt = attempt;
+                                    let short_reason = if err_msg.to_lowercase().contains("refused") {
+                                        "connection refused (OS booting)"
+                                    } else if err_msg.to_lowercase().contains("timed out") || err_msg.to_lowercase().contains("timeout") {
+                                        "timed out (network routing warming up)"
+                                    } else {
+                                        "waiting for sshd"
+                                    };
+                                    bw.logs.push(crate::views::onboard::BootWaitLog {
+                                        timestamp: now,
+                                        glyph: "⟳".to_string(),
+                                        color: crate::theme::TEXT_FAINT,
+                                        message: format!("Poll #{attempt}: {short_reason}, retrying in 4s..."),
+                                    });
+                                    cx.notify();
+                                }
+                            }
+                        });
+                        cx.background_executor().timer(std::time::Duration::from_millis(4000)).await;
+                    }
+                }
+            }
+        })
+        .detach();
+    }
+
+    pub fn init_provision_boot_wait(
+        &mut self,
+        instance: &crow_provider_core::hosts::Instance,
+        account: &ProviderAccount,
+        selected_key_id: &str,
+    ) {
+        let host = instance
+            .ipv4
+            .first()
+            .or(instance.ipv6.first())
+            .map(|ip| ip.to_string())
+            .unwrap_or_default();
+        let label = instance.label.clone();
+        let tags = instance.tags.join(", ");
+        let provider_name = providers::display_name(&account.plugin);
+        let instance_id = instance.id.0.clone();
+        let account_id = account.id.clone();
+        let region_code = instance.region.clone().unwrap_or_default();
+
+        self.onboard_state.mode = crate::views::onboard::OnboardMode::CloudProvision;
+        self.onboard_state.host = host.clone();
+        self.onboard_state.port = "22".into();
+        self.onboard_state.user = "root".into();
+        self.onboard_state.selected_key_id = Some(selected_key_id.to_string());
+        self.onboard_state.auth_method = "publickey".to_string();
+        self.onboard_state.label = label.clone();
+        self.onboard_state.tags = tags.clone();
+        self.onboard_state.provider = Some(crate::views::onboard::ProviderLink {
+            account: account_id.clone(),
+            instance: instance_id.clone(),
+            provider_name: provider_name.clone(),
+            region_code: region_code.clone(),
+        });
+        self.onboard_inputs = None;
+
+        let now = chrono::Local::now().format("%H:%M:%S").to_string();
+        let initial_logs = vec![
+            crate::views::onboard::BootWaitLog {
+                timestamp: now.clone(),
+                glyph: "🚀".to_string(),
+                color: crate::theme::OK,
+                message: format!("Instance '{label}' launched on {provider_name} (ID: {instance_id})"),
+            },
+            crate::views::onboard::BootWaitLog {
+                timestamp: now.clone(),
+                glyph: "🌐".to_string(),
+                color: crate::theme::TEXT_PRIMARY,
+                message: format!("Assigned IP: {host} (region: {region_code})"),
+            },
+            crate::views::onboard::BootWaitLog {
+                timestamp: now,
+                glyph: "⏳".to_string(),
+                color: crate::theme::TEXT_SECONDARY,
+                message: "Waiting for cloud kernel boot & SSH daemon startup...".to_string(),
+            },
+        ];
+
+        self.onboard_state.boot_wait = Some(crate::views::onboard::BootWaitState {
+            instance_id,
+            label,
+            provider_name,
+            host,
+            port: 22,
+            selected_key_id: selected_key_id.to_string(),
+            account_id,
+            region_code,
+            tags,
+            logs: initial_logs,
+            attempt: 0,
+            pulse_tick: 0,
+            done: false,
+        });
+    }
+
+    pub fn skip_provision_boot_wait(&mut self, cx: &mut Context<Self>) {
+        self.cancel_provision_boot_wait();
+        cx.notify();
+    }
+
+    pub fn cancel_provision_boot_wait(&mut self) {
+        if let Some(_bw) = self.onboard_state.boot_wait.take() {
+            self.onboard_state.mode = crate::views::onboard::OnboardMode::Ssh;
+            self.onboard_state.step = crate::views::onboard::OnboardStep::Connect;
+            self.onboard_inputs = None;
+        }
     }
 }
 

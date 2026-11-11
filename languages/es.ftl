@@ -4176,5 +4176,12 @@ onboard-summary-route = RUTA
 onboard-summary-auth = AUTENTICACIÓN
 onboard-summary-host-key = CLAVE DEL SERVIDOR
 onboard-summary-auto-enroll-note = En cuanto la instancia arranque y reciba una dirección IP, Crow abrirá automáticamente la verificación de clave SSH para incorporarla a tu flota.
+onboard-boot-title = MONITOR DE ARRANQUE
+onboard-boot-subtitle = Esperando a que el sistema operativo de la instancia arranque y se inicie el servicio SSH
+onboard-boot-waiting-desc = Instancia creada. Crow está monitorizando el puerto SSH 22 y se conectará automáticamente para verificar las claves cuando esté en línea.
+onboard-boot-polling-title = CONSULTANDO PUERTO SSH 22 (CADA { $interval }S)
+onboard-boot-skip-manual = SALTAR A CONFIGURACIÓN MANUAL →
+onboard-boot-polling-live = MONITORIZACIÓN ACTIVA
+onboard-boot-terminal-log = REGISTRO DE ARRANQUE Y CONEXIÓN EN DIRECTO
 
 

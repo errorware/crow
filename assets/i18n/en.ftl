@@ -4150,5 +4150,12 @@ onboard-summary-route = ROUTE
 onboard-summary-auth = AUTHENTICATION
 onboard-summary-host-key = HOST KEY
 onboard-summary-auto-enroll-note = Once the instance boots and receives an IP address, Crow automatically opens SSH Host Key Verification so you can verify and place it in your fleet.
+onboard-boot-title = BOOT WATCHER
+onboard-boot-subtitle = Waiting for cloud instance operating system to boot and SSH daemon to start
+onboard-boot-waiting-desc = Instance created. Crow is monitoring SSH port 22 and will automatically connect and verify host keys once online.
+onboard-boot-polling-title = POLLING SSH PORT 22 (EVERY { $interval }S)
+onboard-boot-skip-manual = SKIP TO MANUAL CONFIGURATION →
+onboard-boot-polling-live = POLLING ACTIVE
+onboard-boot-terminal-log = LIVE BOOT & CONNECTION LOG
 
 

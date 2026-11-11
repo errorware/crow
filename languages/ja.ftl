@@ -4110,5 +4110,12 @@ onboard-summary-route = 経路
 onboard-summary-auth = 認証方式
 onboard-summary-host-key = ホスト鍵
 onboard-summary-auto-enroll-note = インスタンスが起動して IP アドレスが割り当てられると、自動的に SSH ホスト鍵の確認ステップに進み、フリートへ登録できます。
+onboard-boot-title = 起動監視
+onboard-boot-subtitle = クラウドインスタンスの OS 起動と SSH デーモンの立ち上がりを待機しています
+onboard-boot-waiting-desc = インスタンスを作成しました。Crow が SSH ポート 22 を監視し、オンラインになり次第ホスト鍵の確認を自動開始します。
+onboard-boot-polling-title = SSH ポート 22 をポーリング中（{ $interval }秒ごと）
+onboard-boot-skip-manual = 手動設定へスキップ →
+onboard-boot-polling-live = ポーリング中
+onboard-boot-terminal-log = 起動・接続ライブログ
 
 

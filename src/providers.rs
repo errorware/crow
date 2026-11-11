@@ -463,4 +463,97 @@ mod tests {
         assert_eq!(crate::region::locate(&display_name("linode"), "de-fra-2"), Some(("DE", "Frankfurt")));
         assert_eq!(crate::region::locate(&display_name("upcloud"), "fi-hel1"), Some(("FI", "Helsinki")));
     }
+
+    #[test]
+    fn classifies_regions_plans_and_images() {
+        use crow_provider_core::hosts::ProvisionOption;
+        use crate::app::providers::{classify_image, classify_plan, classify_region};
+
+        let r_us = ProvisionOption::new("us-east", "US East (Newark)");
+        let r_eu = ProvisionOption::new("eu-central", "Europe (Frankfurt)");
+        let r_ap = ProvisionOption::new("ap-south", "Asia (Singapore)");
+        assert_eq!(classify_region(&r_us), "americas");
+        assert_eq!(classify_region(&r_eu), "europe");
+        assert_eq!(classify_region(&r_ap), "apac");
+
+        let p_std = ProvisionOption::new("g6-standard-1", "Linode 2GB");
+        let p_ded = ProvisionOption::new("g6-dedicated-4", "Dedicated 8GB");
+        let p_mem = ProvisionOption::new("g6-highmem-1", "HighMem 16GB");
+        let p_gpu = ProvisionOption::new("g6-gpu-rtx6000-1", "GPU RTX6000 1");
+        assert_eq!(classify_plan(&p_std), "shared");
+        assert_eq!(classify_plan(&p_ded), "dedicated");
+        assert_eq!(classify_plan(&p_mem), "highmem");
+        assert_eq!(classify_plan(&p_gpu), "gpu");
+
+        let img_u = ProvisionOption::new("linode/ubuntu24.04", "Ubuntu 24.04 LTS");
+        let img_d = ProvisionOption::new("linode/debian12", "Debian 12");
+        let img_r = ProvisionOption::new("linode/almalinux9", "AlmaLinux 9");
+        let img_a = ProvisionOption::new("linode/arch", "Arch Linux");
+        assert_eq!(classify_image(&img_u), "ubuntu");
+        assert_eq!(classify_image(&img_d), "debian");
+        assert_eq!(classify_image(&img_r), "enterprise");
+        assert_eq!(classify_image(&img_a), "other");
+    }
+
+    #[test]
+    fn boot_wait_state_lifecycle() {
+        let instance = crow_provider_core::hosts::Instance {
+            id: crow_provider_core::hosts::InstanceId("inst-999".into()),
+            label: "test-srv".into(),
+            ipv4: vec!["198.51.100.25".parse().unwrap()],
+            ipv6: vec![],
+            region: Some("us-ord".into()),
+            plan: Some("g6-standard-1".into()),
+            tags: vec!["web".into()],
+            status: crow_provider_core::hosts::InstanceStatus::Running,
+            extra: Default::default(),
+        };
+        let acct = ProviderAccount {
+            id: "acct-1".into(),
+            plugin: "linode".into(),
+            label: "My Linode".into(),
+            settings: Default::default(),
+            last_check: None,
+            last_check_ok: true,
+            last_check_at: None,
+        };
+
+        let mut st = crate::views::onboard::OnboardState::new(&[]);
+        assert!(st.boot_wait.is_none());
+
+        st.boot_wait = Some(crate::views::onboard::BootWaitState {
+            instance_id: instance.id.0.clone(),
+            label: instance.label.clone(),
+            provider_name: "Linode".into(),
+            host: instance.ipv4[0].to_string(),
+            port: 22,
+            selected_key_id: "key-1".into(),
+            account_id: acct.id.clone(),
+            region_code: "us-ord".into(),
+            tags: "web".into(),
+            logs: vec![
+                crate::views::onboard::BootWaitLog {
+                    timestamp: "12:00:00".into(),
+                    glyph: "🚀".into(),
+                    color: crate::theme::OK,
+                    message: "Launched".into(),
+                }
+            ],
+            attempt: 1,
+            pulse_tick: 5,
+            done: false,
+        });
+
+        assert!(st.boot_wait.is_some());
+        let bw = st.boot_wait.as_ref().unwrap();
+        assert_eq!(bw.host, "198.51.100.25");
+        assert_eq!(bw.instance_id, "inst-999");
+        assert_eq!(bw.logs.len(), 1);
+
+        st.boot_wait = None;
+        st.mode = crate::views::onboard::OnboardMode::Ssh;
+        st.step = crate::views::onboard::OnboardStep::Verify;
+        assert!(st.boot_wait.is_none());
+        assert_eq!(st.step, crate::views::onboard::OnboardStep::Verify);
+    }
 }
