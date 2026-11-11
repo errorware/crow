@@ -2,7 +2,7 @@
 name = "crow-provider-linode"
 version = "0.1.0"
 edition = "2021"
-license-file = "../../LICENSE"
+license = "EUPL-1.2"
 authors = ["Nelson <nelson@errorware.net>"]
 readme = "README.md"
 description = "Linode (Akamai) provider for Crow: instances, power and backup snapshots"

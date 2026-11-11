@@ -2,7 +2,7 @@
 <component type="desktop-application">
   <id>rs.crow.Crow</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>LicenseRef-proprietary=https://github.com/errorware/crow/blob/main/LICENSE</project_license>
+  <project_license>EUPL-1.2</project_license>
   <name>Crow</name>
   <summary>Manage Linux servers over plain SSH</summary>
   <developer id="rs.crow">

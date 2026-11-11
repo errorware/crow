@@ -199,7 +199,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                                 .child(info_row(t!("about-geoip-data"), crate::geoip::ATTRIBUTION))
                                                 .child(info_row(t!("about-font"), t!("about-jetbrains-mono-ofl-1-1")))
                                                 .child(heading(t!("about-license")))
-                                                .child(div().text_size(px(10.0)).line_height(px(15.0)).text_color(TEXT_DIM).child(t!("about-aeupl-1-2-free-for"))),
+                                                .child(div().text_size(px(10.0)).line_height(px(15.0)).text_color(TEXT_DIM).child(t!("about-eupl-1-2-copyleft"))),
                                         ),
                                 )
                                 // Footer

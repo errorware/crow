@@ -4,7 +4,7 @@
 name = "crow-rs"
 version = "0.8.3"
 edition = "2021"
-license-file = "LICENSE"
+license = "EUPL-1.2"
 authors = ["Nelson <nelson@errorware.net>"]
 description = "Agentless fleet manager for Linux servers over plain SSH: services, logs, configs, firewall, users"
 homepage = "https://crow.rs"
