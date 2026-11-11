@@ -6,6 +6,6 @@ Comment=Agentless fleet manager for Linux servers over plain SSH
 Exec=crow
 Icon=rs.crow.Crow
 Terminal=false
-Categories=System;Monitor;
+Categories=Development;System;Utility;
 Keywords=ssh;server;fleet;sysadmin;firewall;logs;
 StartupWMClass=rs.crow.Crow
