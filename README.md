@@ -27,10 +27,11 @@
 ## Overview
  
 <img width="1494" height="911" alt="image" src="https://github.com/user-attachments/assets/24f12684-14eb-4a80-8943-8dc8f730ff36" />
+
 Crow is a native desktop control plane for Linux server management over plain SSH. Broadly, it gives you what you'd get from a traditional shell, but with the bells and whistles of a dashboard-style UI. It bridges the gap between the grey-bearded SSH artisan and the neophyte, without taking anything away from either.
- 
+
 I originally envisioned it as a one-stop shop for all my server management needs. Over the years I've used every combination of shells, shell wrappers, IDEs, external services, web apps and more esoteric things to get done what I can now do in Crow alone. I have way more freedom now than with any single product before.
- 
+
 I can deploy a VM, provision and harden it, see patch states, and follow logs and services, without losing the ability to just jump into a shell and do things by hand when that gets me there faster.
  
 None of Crow's niceties are mandatory. You can keep working however you did before, and nothing gets in the way. That's by design. Of course, design and usability are subjective, so you're entitled to think it sucks too.
