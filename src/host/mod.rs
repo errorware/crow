@@ -27,7 +27,7 @@ pub use local::{run_streaming_with, stream_child, LocalHost};
 pub fn run_local(argv: &[&str], stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {
     local::run_command(argv, stdin, timeout)
 }
-pub use ssh::{connection_state, update_directory, ConnectionState, SshHost};
+pub use ssh::{connection_state, shell_quote, single_quote, update_directory, ConnectionState, SshHost};
 
 /// Default budget for a single command; long enough for `journalctl` on a busy
 /// box, short enough that a wedged host can't stall a poll tick forever.

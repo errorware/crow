@@ -147,8 +147,9 @@ pub fn fill(t: &Template, v: &Values) -> Result<String, String> {
 }
 
 /// Single quotes around anything; a quote inside becomes '\''.
+/// Security-critical escaping logic is centralized in [`crate::host::single_quote`].
 pub fn quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\\''"))
+    crate::host::single_quote(s)
 }
 
 pub fn exit_marker(nonce: &str) -> String {

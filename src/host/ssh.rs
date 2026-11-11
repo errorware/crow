@@ -292,12 +292,20 @@ fn private_dir(dir: &std::path::Path, uid: u32) -> std::io::Result<()> {
     }
 }
 
+/// Unconditionally wraps `arg` in single quotes, escaping any single quotes inside as `'\''`.
+pub fn single_quote(arg: &str) -> String {
+    format!("'{}'", arg.replace('\'', "'\\''"))
+}
+
 /// Quotes one argument for the remote POSIX shell ssh hands the command to.
+/// Purely safe alphanumeric / path characters are left unquoted for readability;
+/// any string with spaces, quotes, newlines, or shell metacharacters is wrapped
+/// using [`single_quote`].
 pub fn shell_quote(arg: &str) -> String {
     if !arg.is_empty() && arg.bytes().all(|b| b.is_ascii_alphanumeric() || b"-_./=:@%+,".contains(&b)) {
         return arg.to_string();
     }
-    format!("'{}'", arg.replace('\'', "'\\''"))
+    single_quote(arg)
 }
 
 /// One bastion on the way to a server (ERR-152), with its own identity:
@@ -971,6 +979,22 @@ mod tests {
         assert_eq!(shell_quote("_PID=42"), "_PID=42");
         assert_eq!(shell_quote("it's here"), "'it'\\''s here'");
         assert_eq!(shell_quote(""), "''");
+
+        // Special characters and metacharacters
+        assert_eq!(shell_quote("hello world"), "'hello world'");
+        assert_eq!(shell_quote("foo; rm -rf /"), "'foo; rm -rf /'");
+        assert_eq!(shell_quote("$(id)`id`$HOME"), "'$(id)`id`$HOME'");
+        assert_eq!(shell_quote("line1\nline2"), "'line1\nline2'");
+        assert_eq!(shell_quote("tab\tseparated"), "'tab\tseparated'");
+        assert_eq!(shell_quote("echo \"quoted\""), "'echo \"quoted\"'");
+        assert_eq!(shell_quote("a\\b"), "'a\\b'");
+
+        // single_quote unconditionally wraps and escapes
+        assert_eq!(single_quote(""), "''");
+        assert_eq!(single_quote("hello"), "'hello'");
+        assert_eq!(single_quote("it's"), "'it'\\''s'");
+        assert_eq!(single_quote("/tmp/a'b"), "'/tmp/a'\\''b'");
+        assert_eq!(single_quote("val with\nnewlines & $vars"), "'val with\nnewlines & $vars'");
     }
 
     #[test]

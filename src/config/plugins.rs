@@ -449,12 +449,12 @@ pub fn validate_on_host(host: &dyn Host, format: StructuredFormat, path: &str, c
             // Check the tool exists before asking for root: a missing tool is
             // "skipped", not a sudo failure. sbin dirs hold e.g. sshd.
             let tool = template.split_whitespace().next().unwrap_or_default();
-            let probe = format!("PATH=\"$PATH:/usr/sbin:/sbin\" command -v {}", shell_quote(tool));
+            let probe = format!("PATH=\"$PATH:/usr/sbin:/sbin\" command -v {}", crate::host::single_quote(tool));
             if host.exec(&["sh", "-c", &probe], DEFAULT_TIMEOUT).is_err() {
                 skipped.push(template.replace("{file}", "<file>"));
                 continue;
             }
-            let command = format!("PATH=\"$PATH:/usr/sbin:/sbin\"; {}", template.replace("{file}", &shell_quote(&tmp)).replace("{name}", &shell_quote(name)).replace("{path}", &shell_quote(path)));
+            let command = format!("PATH=\"$PATH:/usr/sbin:/sbin\"; {}", template.replace("{file}", &crate::host::single_quote(&tmp)).replace("{name}", &crate::host::single_quote(name)).replace("{path}", &crate::host::single_quote(path)));
             // Validators often need root (e.g. `sshd -t` reads the host keys).
             match host.exec_privileged(&["sh", "-c", &command], &[], DEFAULT_TIMEOUT) {
                 Ok(_) => {}
@@ -470,10 +470,6 @@ pub fn validate_on_host(host: &dyn Host, format: StructuredFormat, path: &str, c
     })();
     let _ = host.exec(&["rm", "-f", "--", &tmp], DEFAULT_TIMEOUT);
     result
-}
-
-fn shell_quote(s: &str) -> String {
-    format!("'{}'", s.replace('\'', "'\\''"))
 }
 
 /// A never-on-prod value: (field name, value, what it means).
@@ -739,7 +735,7 @@ mod tests {
         } else {
             assert!(matches!(result, Ok(Validation::Skipped(_))), "missing sshd must be skipped: {result:?}");
         }
-        assert_eq!(shell_quote("/tmp/a'b"), "'/tmp/a'\\''b'");
+        assert_eq!(crate::host::single_quote("/tmp/a'b"), "'/tmp/a'\\''b'");
     }
 
     #[test]
