@@ -1,16 +1,14 @@
 # Crow
-
+ 
 <p align="center">
   <img width="150" height="150" alt="crow-logo" src="https://github.com/user-attachments/assets/3d9027d4-67b1-4548-a105-de92db8577a9" />
   <br />
   <strong>Native Linux Server Manager over SSH</strong><br>
   <em>A high-density operator terminal built with Rust and GPUI.</em>
 </p>
-
 <p align="center">
   <a href="https://github.com/errorware/crow/actions/workflows/rust.yml"><img src="https://github.com/errorware/crow/actions/workflows/rust.yml/badge.svg" alt="Rust"></a>
 </p>
-
 <p align="center">
   <a href="#overview">Overview</a> •
   <a href="#what-it-does">What it does</a> •
@@ -21,106 +19,105 @@
   <a href="#acknowledgements">Acknowledgements</a> •
   <a href="#license">License</a>
 </p>
-
 ---
-
+ 
 > [!WARNING]
-> **Crow is in active development.** It's reshaped and debugged constantly: features change or move between releases, things break, and the vault format can change. Try it on servers you can afford to experiment with, not production, and expect rough edges. Bug reports are welcome.
-
+> **Crow is in active development.** Features change or move between releases, things break, and the vault format can change. Try it on servers you can afford to experiment with, not production. Bug reports are welcome.
+ 
 ## Overview
-
+ 
 <img width="1494" height="911" alt="image" src="https://github.com/user-attachments/assets/24f12684-14eb-4a80-8943-8dc8f730ff36" />
-
-**Crow** is a native desktop app for operators and SREs who manage Linux servers over SSH. It's inspired by the density and keyboard speed of `k9s` and `lazygit`, drawn as a hardware-accelerated GUI with **GPUI**.
-
-Crow is **agentless**: it talks to your servers over plain SSH, reusing one connection per server, and never installs anything on them.
-
+Crow is a native desktop control plane for Linux server management over plain SSH. Broadly, it gives you what you'd get from a traditional shell, but with the bells and whistles of a dashboard-style UI. It bridges the gap between the grey-bearded SSH artisan and the neophyte, without taking anything away from either.
+ 
+I originally envisioned it as a one-stop shop for all my server management needs. Over the years I've used every combination of shells, shell wrappers, IDEs, external services, web apps and more esoteric things to get done what I can now do in Crow alone. I have way more freedom now than with any single product before.
+ 
+I can deploy a VM, provision and harden it, see patch states, and follow logs and services, without losing the ability to just jump into a shell and do things by hand when that gets me there faster.
+ 
+None of Crow's niceties are mandatory. You can keep working however you did before, and nothing gets in the way. That's by design. Of course, design and usability are subjective, so you're entitled to think it sucks too.
+ 
+It's agentless: Crow talks to your servers over plain SSH, reuses one connection per server, and never installs anything on them. The feel is borrowed from `k9s` and `lazygit`, dense and keyboard-driven, just drawn as a GPU-accelerated GUI.
+ 
+I've tested it on Ubuntu, Fedora and macOS with no issues so far. It could probably run on Windows, but I didn't want to complicate my life with PATHs and WSL, so that's backlogged for now.
+ 
+Other quality of life improvements include:
+ 
+- **crow-config**, a small library that parses different config file formats into one common structure Crow understands, so it can show them as structured, validated rows instead of raw text. This is easier said than done, so of course you can always just go and edit your configs the way you always did.
+- A built-in plugin system for extensibility.
+- A fleet map: your managed infrastructure in a more convenient representation. I'm working on editing things from there and adding more nodes and categories (users, networks, etc.) to the visualisation.
 Website: [crow.rs](https://crow.rs) · Community: [forum.errorware.net](https://forum.errorware.net)
-
+ 
 ---
-
+ 
 ## What it does
-
+ 
 ### Fleet
-- Every enrolled server with its health, environment (PROD / STAGE / DEV / LAB) and **region**, shown as a country flag. The region comes from the cloud provider, the machine's metadata service, or your own choice. Optionally (Settings → Servers, off by default), servers without cloud metadata are located by their public IP in a local copy of DB-IP's free country database: no server address is ever sent anywhere.
-- Filter by environment or region. Archive servers you no longer manage; their data is purged after a window you set.
-- **Add Server** checks the host key before trusting it, can bootstrap a password-only server onto Crow's own SSH key, and reads the machine's facts (distro, kernel, memory, disk, region).
-- **Import from providers**: list your Linode / UpCloud instances, link the servers already in the fleet by IP, and add the rest through Add Server.
-
+- All enrolled servers with health, environment (PROD / STAGE / DEV / LAB) and region (from the cloud provider, metadata service, or set by you). Optional offline IP-to-country lookup via DB-IP; no addresses leave your machine.
+- Add Server verifies the host key, can bootstrap a password-only server onto Crow's SSH key, and reads distro, kernel, memory and disk.
+- Import instances from Linode and UpCloud.
+- Archive servers you no longer manage; their data is purged after a set window.
 ### Fleet Setup
-Work across many servers at once. Changes to many servers list what they will do first, go one server at a time and stop at the first failure.
-- **Groups & policies**, and a **fleet map** of how Crow reaches each server, with the risks the posture check found.
-- **Patching**: who's behind on updates (apt, dnf, apk), and applying them, with orderly reboots.
-- **Rollouts**: a command or a config file across a group, with each server's diff before anything runs.
-- **Drift & search**: servers whose baselined files changed, and a search through every config file Crow has read.
-- **Hardening**: SSH and firewall findings with guarded fixes that prove a fresh login still works, or undo themselves.
-- **Certificates**, **people** (accounts and keys across the fleet, onboarding and offboarding), **log search** across servers, **checks** (HTTP, TCP and DNS from outside), **incidents**, **DR plans** and **team** members with roles.
-- **Audit log**: every change Crow made, on every server.
-
-### A server
-- **Overview**: live CPU, memory, disk and network; pending package updates; CVEs affecting installed packages (from [OSV](https://osv.dev)).
-- **History**: CPU, memory, disk and load over 24 hours or 7 days, sampled while Crow runs.
-- **Services, processes and sockets**: live search, filters, pagination, and actions with confirmation.
-- **Logs**: `journalctl` with unit, priority, time and PID filters, highlighted search matches, and an optional plain-English explanation from an AI provider you configure.
-- **Configs**: edit `sshd_config`, `/etc/hosts`, `pg_hba.conf` and ufw rules as structured, validated rows through [crow-config](https://github.com/errorware/crow-config). Edits are surgical, every change is a revision you can roll back, and values rated *never on prod* need a typed confirmation. Files are written atomically (temp file, then rename).
-- **Firewall**: ufw and firewalld (read and edit: rules, ports, services, rich rules; firewalld changes go to the running and saved config together), bare nftables/iptables rulesets (read-only, the raw ruleset one click away). A lock-out guard asks for a typed CONFIRM before any change that would stop the SSH port Crow is connected through from being allowed.
-- **Terminal**: a full terminal over the server's own connection, with tabs and split panes.
-- **Files**: browse, view files read-only, change permissions, and open a file in nano (through sudoedit when needed).
-- **Users** (create, sudo, passwords over stdin) and **cron**.
-- **Danger Zone**: destructive actions behind a typed keyword. For servers linked to a provider, **power off / reboot / boot and snapshots go through the provider**, so they work even when SSH is down. Fleet-wide (one host at a time, stopping at the first failure): rolling reboot, push baselines, **revoke sessions** (every SSH login but Crow's), and **rotate SSH host keys**: new keys are read over the connection the old key authenticated, re-pinned in known_hosts and proven with a fresh strict login, or everything is put back.
-
+Multi-server changes preview what they'll do, run one server at a time, and stop at the first failure.
+- Groups, policies and the fleet map, with posture-check risks
+- Patching (apt, dnf, apk) with orderly reboots
+- Rollouts of commands or config files, with a per-server diff first
+- Config drift detection and search across every file Crow has read
+- SSH and firewall hardening, with fixes that verify a fresh login still works or roll back
+- Certificates, user accounts and keys, cross-server log search, external checks (HTTP/TCP/DNS), incidents, DR plans, team roles
+- Audit log of every change Crow made
+### Per server
+- **Overview**: live CPU, memory, disk, network, pending updates, and CVEs from [OSV](https://osv.dev)
+- **History**: 24h / 7d metrics, sampled while Crow runs
+- **Services, processes, sockets**: search, filter, act with confirmation
+- **Logs**: `journalctl` with filters, plus optional AI explanations
+- **Configs**: `sshd_config`, `/etc/hosts`, `pg_hba.conf` and ufw as structured rows via [crow-config](https://github.com/errorware/crow-config). Every change is a revision you can roll back; writes are atomic.
+- **Firewall**: edit ufw and firewalld; read-only nftables/iptables. A lock-out guard asks for confirmation before anything that would block Crow's SSH port.
+- **Terminal** with tabs and split panes
+- **Files**: browse, view, chmod, edit in nano (via sudoedit when needed)
+- **Users and cron**
+- **Danger Zone**: destructive actions behind a typed keyword. Power and snapshots go through the provider when linked, so they work with SSH down. Fleet-wide rolling reboot, session revocation and host key rotation (verified, or reverted).
 ### Settings
-- Connection and SSH timeouts, auto-lock, archive retention, appearance. Only settings that change something are shown.
-- **Providers**: connect cloud accounts (Linode, UpCloud).
-- **Clankers**: AI providers for the Logs explanation (Anthropic, OpenAI-compatible).
-- **Personalisation**: a picture behind the Fleet list, the terminal font size, starting maximized, and the language.
-
+Timeouts, auto-lock, retention, appearance, cloud providers, AI providers ("Clankers": Anthropic or OpenAI-compatible), background image, font size and language.
+ 
 ### Languages
-Crow is in English, and can be in any language someone writes a pack for. A pack is one `.ftl` file in `~/.config/crow/languages/`; pick it in Settings → Personalisation → Language. Spanish and Japanese packs are in [`languages/`](languages/), and [`languages/README.md`](languages/README.md) explains how to make one. Commands, config files and the audit log's action names stay as they are in every language.
-
+English by default. A language pack is a single `.ftl` file in `~/.config/crow/languages/`. Spanish and Japanese ship in [`languages/`](languages/); see [`languages/README.md`](languages/README.md) to write one.
+ 
 ---
-
+ 
 ## Security
-
-Crow holds things that matter: provider tokens that can power servers off, AI keys, and SSH access to your fleet. Security has a cost, so Crow doesn't hide the trade-off. It shows you which **stance** you're in, and what that protects and exposes. The badge in the titlebar is always visible; click it for the details.
-
+ 
+Crow holds provider tokens, AI keys and SSH access to your fleet, so it makes you pick a security stance. The titlebar badge always shows which one you're in.
+ 
 | | **OPEN** (default) | **LOCKED** |
 |---|---|---|
-| How | No password; the OS keyring (Keychain, Secret Service, Credential Manager) holds Crow's encryption key | Master password + TOTP 2FA; the key is locked by your password |
-| Protects against | Someone copying `crow.db` or your backups | That, and anything or anyone using your computer while Crow is locked |
-| Exposed to | Anything running as you while you're logged in can read the key from the keyring; anyone at your unlocked desk can use Crow | Anyone at your computer while Crow is unlocked (it auto-locks when idle) |
-| Costs | Nothing to type | Unlock with password + 2FA; lose either and the stored secrets are gone for good |
-
-In both stances:
-- **Secrets** (provider tokens, AI keys) are encrypted with ChaCha20-Poly1305 under one random data key. That key is never written to disk unencrypted.
-- **Never on the command line or in logs**: secrets never appear in argv, logs or error messages. HTTP requests carry them to `curl` on stdin.
-- **Wiped from memory**: secrets are wiped when no longer needed, and locking wipes the ones Crow holds in memory and closes its SSH connections.
-- **Not encrypted**: the rest of `crow.db` (server list, settings, history) and your SSH keys in `~/.ssh`.
-- **Strict SSH**: host keys are always checked strictly, and agent and X11 forwarding are always off, whatever `~/.ssh/config` says.
-
-The first secret you save asks you to choose a stance on purpose. See [docs/security.md](docs/security.md) for the full model.
-
+| Key held by | OS keyring (Keychain, Secret Service, Credential Manager) | Master password + TOTP |
+| Protects against | Someone copying `crow.db` or backups | That, plus anyone using your machine while Crow is locked |
+| Exposed to | Anything running as you; anyone at your unlocked desk | Anyone at your machine while Crow is unlocked (auto-locks when idle) |
+| Cost | Nothing | Lose the password or 2FA and stored secrets are gone |
+ 
+Either way:
+- Secrets are encrypted with ChaCha20-Poly1305; the data key never touches disk unencrypted.
+- Secrets never appear in argv, logs or errors, and are wiped from memory when no longer needed.
+- Host keys are always checked strictly; agent and X11 forwarding are always off.
+- Not encrypted: the rest of `crow.db` and your SSH keys in `~/.ssh`.
+Full details in [docs/security.md](docs/security.md).
+ 
 ---
-
+ 
 ## Providers and plugins
-
-Crow's extensions are **plugins** described by crow-config manifests:
-
-- A **category** is a contract: `provider.hosts` (where servers come from) today, `provider.dns` next.
-- **Capabilities** say which parts of that contract a plugin supports (`instances.list`, `instances.power`, `snapshots`). Crow only offers what a provider declares.
-- **Modules** (planned) declare the categories they need rather than naming a provider.
-
+ 
+Plugins are described by crow-config manifests. A plugin implements a **category** (`provider.hosts` today, `provider.dns` next) and declares the **capabilities** it supports; Crow only offers what's declared.
+ 
 | Provider | Category | Capabilities |
 |---|---|---|
 | Linode | `provider.hosts` | list instances, power, backup snapshots |
 | UpCloud | `provider.hosts` | list instances, power |
-
-Providers are compiled in, one cargo feature each (`provider-linode`, `provider-upcloud`, both on by default). Their settings forms are generated from the manifest, and tokens are stored only in the encrypted vault.
-
-**Your own plugins.** Besides the built-in ones, Crow loads plugins you write or download: a folder with a `plugin.toml` and its scripts, dropped into `~/.config/crow/plugins/`. Crow shows every command a plugin can run before you accept it, pins its files (a changed file turns it off until you review it again), asks before anything changes, and records every run. A plugin's actions run on a server's page, across the fleet with a canary, or on this machine against an inventory Crow writes (Ansible, for example), and can add badges to the fleet. `crow --check-plugin <folder>` checks one before you share it. Examples are in [`plugins/`](plugins), including DevSec hardening through Ansible; how to write one is in [docs/plugins.md](docs/plugins.md).
-
+ 
+Providers are compiled in as cargo features (`provider-linode`, `provider-upcloud`, both on by default). Tokens live only in the encrypted vault.
+ 
+**Your own plugins** go in `~/.config/crow/plugins/` as a folder with a `plugin.toml` and scripts. Crow shows every command a plugin can run before you accept it, disables it if its files change, asks before making changes, and logs every run. Plugins can act on a single server, across the fleet with a canary, or locally against a generated inventory (e.g. Ansible). Validate one with `crow --check-plugin <folder>`. Examples in [`plugins/`](plugins), docs in [docs/plugins.md](docs/plugins.md).
+ 
 ### Repository layout
-
+ 
 ```
 crow/
 ├── src/                         # the app
@@ -132,69 +129,69 @@ crow/
 ├── languages/                   # language packs (Spanish, Japanese) and how to write one
 └── docs/
 ```
-
-The provider crates live here, next to the app they serve. [crow-config](https://github.com/errorware/crow-config), the general-purpose config engine, has its own repository.
-
+ 
+[crow-config](https://github.com/errorware/crow-config) has its own repository.
+ 
 ---
-
+ 
 ## Getting Started
-
+ 
 ### Download
-
+ 
 Prebuilt binaries for **Linux (x86_64)** and **macOS (Apple Silicon)** are attached to each [GitHub release](https://github.com/errorware/crow/releases), alongside SLSA provenance (`.intoto.jsonl`) you can check with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier).
-
+ 
 **Linux**: unpack and run the installer. It puts `crow` in `~/.local/bin` and adds Crow (with its icon) to your app launcher; `./install.sh --uninstall` removes it.
-
+ 
 ```bash
 tar -xzf crow-linux-x86_64.tar.gz
 cd crow-linux-x86_64 && ./install.sh
 ```
-
+ 
 **macOS**: unpack `crow-macos-arm64.tar.gz` and drag `Crow.app` to Applications. The app is ad-hoc signed but not notarized, so Gatekeeper blocks the first launch: right-click it and choose **Open**, or clear the quarantine flag once:
-
+ 
 ```bash
 xattr -dr com.apple.quarantine /Applications/Crow.app
 ```
-
-**Updates**: Crow checks the release list on GitHub once a day and shows `vX available` next to its version (Settings → General turns this off; nothing else is sent). Installing updates by themselves is opt-in, and only happens after [slsa-verifier](https://github.com/slsa-framework/slsa-verifier) (which must be on your PATH) confirms the release's signed provenance. Only an installed copy (`~/.local/bin/crow`, `Crow.app`) is replaced, and Crow offers a restart rather than restarting itself.
-
+ 
+**Updates**: Crow checks GitHub releases once a day and shows `vX available` next to its version (disable in Settings → General). Auto-install is opt-in and only runs after [slsa-verifier](https://github.com/slsa-framework/slsa-verifier) (must be on your PATH) confirms the release's provenance. Only an installed copy (`~/.local/bin/crow`, `Crow.app`) is replaced, and Crow offers a restart rather than restarting itself.
+ 
 ### Prerequisites
-
+ 
 A Rust toolchain (1.85+), native windowing and font libraries, and `curl` (Crow uses it for provider and AI requests).
-
+ 
 ```bash
 # Fedora / Bazzite
 sudo dnf install fontconfig-devel libxkbcommon-devel libxcb-devel wayland-devel
-
+ 
 # Ubuntu / Debian
 sudo apt install libfontconfig1-dev libxkbcommon-dev libxcb1-dev libwayland-dev
 ```
-
+ 
 For the Open stance on Linux you need a Secret Service provider (GNOME Keyring or KWallet); most desktops have one running.
-
+ 
 Crow uses **JetBrains Mono**:
 ```bash
 brew install --cask font-jetbrains-mono   # macOS
 brew install font-jetbrains-mono          # Linux (Homebrew)
 ```
-
+ 
 ### Build & Run
-
+ 
 Crow builds against crow-config from a sibling checkout:
-
+ 
 ```bash
 git clone git@github.com:errorware/crow-config.git crow-config-core
 git clone git@github.com:errorware/crow.git
 cd crow
-
+ 
 cargo test --workspace
 cargo run --release
 ```
-
+ 
 ---
-
+ 
 ## Keyboard Shortcuts
-
+ 
 | Shortcut | Action |
 | :--- | :--- |
 | `⌘K` / `Ctrl+K` | Command palette |
@@ -209,21 +206,23 @@ cargo run --release
 | `/` | Search the table (services, processes, users, logs) |
 | `Tab` / `⇧Tab` | Next / previous field in a form |
 | `Esc` | Close the dialog or form, or cancel |
-
+ 
 `Ctrl` works wherever `⌘` is shown.
-
+ 
 ---
-
+ 
 ## Acknowledgements
-
+ 
 Crow builds on GPUI, alacritty_terminal, the RustCrypto crates, SQLite and many more, and ships Tabler Icons, flag-icons, Dashboard Icons and JetBrains Mono. [ACKNOWLEDGEMENTS.md](ACKNOWLEDGEMENTS.md) lists them all with their licenses; the bundled assets carry their own in [`assets/`](assets/README.md).
-
+ 
 ---
-
+ 
 ## License
-
+ 
 Crow is licensed under the **AEUPL-1.2** (*The Ancient European Union Public License*).
-
+ 
 Free for anyone to use, copy, modify, and share for any non-commercial purpose without restriction. Commercial use requires a physical letter sent to the author written in Latin on genuine sheepskin parchment.
-
+ 
 See the [LICENSE](LICENSE) file or visit [aeupl.org](https://aeupl.org/) for full terms and conditions.
+
+Yes, it's a meme license. You're welcome. 
