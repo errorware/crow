@@ -222,6 +222,4 @@ Crow builds on GPUI, alacritty_terminal, the RustCrypto crates, SQLite and many 
  
 ## License
  
-Crow is licensed under the **EUPL-1.2** (*European Union Public Licence*), an OSI-approved open-source copyleft license compatible with the GPL. See the [LICENSE](LICENSE) file for the full terms and conditions.
-
-*Commercial parchment clause*: If you use Crow commercially, you are legally permitted to do so under EUPL-1.2 without fees. However, the author would still spiritually appreciate a physical letter written in Latin on genuine sheepskin parchment. 
+Crow is licensed under the [MIT License](LICENSE). Free and open source for personal and commercial use. 

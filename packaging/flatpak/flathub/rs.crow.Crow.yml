@@ -42,7 +42,7 @@ modules:
     sources:
       - type: git
         url: https://github.com/errorware/crow.git
-        tag: v0.8.3
+        tag: v0.8.4
         commit: 2310a35e0caefef5b70d109f08e8810f5e949774
         dest: crow
       - type: git

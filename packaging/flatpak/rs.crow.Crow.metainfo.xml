@@ -2,7 +2,7 @@
 <component type="desktop-application">
   <id>rs.crow.Crow</id>
   <metadata_license>CC0-1.0</metadata_license>
-  <project_license>EUPL-1.2</project_license>
+  <project_license>MIT</project_license>
   <name>Crow</name>
   <summary>Manage Linux servers over plain SSH</summary>
   <developer id="rs.crow">
@@ -60,6 +60,19 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.8.4" date="2026-11-11">
+      <description>
+        <p>Crow 0.8.4: Relicensed under MIT, background daemon and monitor service, automated provisioning verification, and standalone build support.</p>
+        <ul>
+          <li>License: switched to MIT License</li>
+          <li>Headless background service (crow --daemon) and performance bottleneck engine</li>
+          <li>Provisioning flow: automated port-22 polling with animated wave progress and live console feed</li>
+          <li>Cloud provisioning: improved dropdowns, filtering, and provider configuration</li>
+          <li>Build: standalone repository checkout without requiring sibling directory dependencies</li>
+          <li>Security: consolidated shell quoting and strict argument escaping</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.8.3" date="2026-11-05">
       <description>
         <p>The first release on Flathub.</p>

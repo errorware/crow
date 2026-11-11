@@ -2,7 +2,7 @@
 name = "crow-provider-aws"
 version = "0.1.0"
 edition = "2021"
-license = "EUPL-1.2"
+license = "MIT"
 authors = ["Nelson <nelson@errorware.net>"]
 readme = "README.md"
 description = "AWS EC2 provider for Crow: instances, power, EBS snapshots, and provisioning"
