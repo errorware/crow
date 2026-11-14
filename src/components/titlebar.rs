@@ -33,6 +33,49 @@ pub struct ServerTab {
     pub is_active: bool,
 }
 
+/// Drag payload for reordering server tabs in the titlebar.
+#[derive(Clone, Debug, PartialEq)]
+pub struct ServerTabDrag {
+    pub tab_id: String,
+    pub tab_name: String,
+    pub status_color: Rgba,
+}
+
+pub struct ServerTabDragGhost {
+    name: String,
+    status_color: Rgba,
+}
+
+impl Render for ServerTabDragGhost {
+    fn render(&mut self, _window: &mut Window, _cx: &mut Context<Self>) -> impl IntoElement {
+        div()
+            .flex()
+            .items_center()
+            .gap(px(7.0))
+            .px(px(14.0))
+            .h(px(28.0))
+            .bg(BG_PANEL)
+            .border_1()
+            .border_color(hex_rgb(0x38bdf8))
+            .shadow_lg()
+            .font_family(FONT_MONO)
+            .text_size(px(11.0))
+            .child(
+                div()
+                    .size(px(6.0))
+                    .rounded_full()
+                    .bg(self.status_color)
+                    .flex_none(),
+            )
+            .child(
+                div()
+                    .text_color(TEXT_MAX)
+                    .font_weight(FontWeight::SEMIBOLD)
+                    .child(self.name.clone()),
+            )
+    }
+}
+
 pub fn active_tab_gradient_bar() -> impl IntoElement {
     div()
         .absolute()
@@ -206,13 +249,22 @@ pub fn titlebar(
                             .child(tabler_icon(TablerIcon::X).size(px(11.0)).text_color(rgb(0x6b7280))),
                     )
             }))
-            // Server Tabs (each with close affordance)
+            // Server Tabs (each with drag reordering and close affordance)
             .children(tabs.iter().enumerate().map(|(idx, (tab, status_color))| {
                 let is_active = current_screen == Screen::Server && tab.id == active_tab_id;
                 let tab_id = tab.id.clone();
                 let close_tab_id = tab.id.clone();
                 let app_tab = app.clone();
                 let app_close = app.clone();
+                let app_drop = app.clone();
+                let payload = ServerTabDrag {
+                    tab_id: tab.id.clone(),
+                    tab_name: tab.name.clone(),
+                    status_color: *status_color,
+                };
+                let ghost_name = tab.name.clone();
+                let ghost_color = *status_color;
+                let target_tab_id = tab.id.clone();
 
                 div()
                     .id(ElementId::NamedInteger("server-tab".into(), idx as u64))
@@ -233,6 +285,31 @@ pub fn titlebar(
                             this.switch_tab(&tid, cx);
                             this.set_screen(Screen::Server, cx);
                         });
+                    })
+                    .on_drag(payload, move |_payload, _point, _window, cx| {
+                        let name = ghost_name.clone();
+                        let color = ghost_color;
+                        cx.new(|_| ServerTabDragGhost { name, status_color: color })
+                    })
+                    .drag_over::<ServerTabDrag>({
+                        let tgt_id = target_tab_id.clone();
+                        move |style, dragged, _window, _cx| {
+                            if dragged.tab_id != tgt_id {
+                                style.bg(BG_ROW_SELECTED).border_color(hex_rgb(0x38bdf8))
+                            } else {
+                                style
+                            }
+                        }
+                    })
+                    .on_drop::<ServerTabDrag>({
+                        let tgt_id = target_tab_id.clone();
+                        move |dragged, _window, cx| {
+                            let from_id = dragged.tab_id.clone();
+                            let to_id = tgt_id.clone();
+                            app_drop.update(cx, |this, cx| {
+                                this.reorder_tab(&from_id, &to_id, cx);
+                            });
+                        }
                     })
                     .children(if is_active {
                         Some(active_tab_gradient_bar())

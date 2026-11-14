@@ -85,11 +85,36 @@ impl CrowApp {
             cx.notify();
         }
     }
+
+    /// Reorders a server tab from source_id to target_id and persists to SQLite.
+    pub fn reorder_tab(&mut self, source_id: &str, target_id: &str, cx: &mut Context<Self>) {
+        if reorder_tab_list(&mut self.fleet.tabs, source_id, target_id) {
+            self.remember_tabs();
+            cx.notify();
+        }
+    }
+}
+
+/// Reorders tabs in a list. Returns true if the order changed.
+pub fn reorder_tab_list(tabs: &mut Vec<ServerTab>, source_id: &str, target_id: &str) -> bool {
+    if source_id == target_id {
+        return false;
+    }
+    let from_opt = tabs.iter().position(|t| t.id == source_id || t.name == source_id);
+    let to_opt = tabs.iter().position(|t| t.id == target_id || t.name == target_id);
+    if let (Some(from_idx), Some(to_idx)) = (from_opt, to_opt) {
+        let tab = tabs.remove(from_idx);
+        tabs.insert(to_idx, tab);
+        true
+    } else {
+        false
+    }
 }
 
 #[cfg(test)]
 mod tests {
-    use super::initial_tabs;
+    use super::{initial_tabs, reorder_tab_list};
+    use crate::components::titlebar::ServerTab;
     use crate::vault::ServerRecord;
 
     fn srv(id: &str) -> ServerRecord {
@@ -99,12 +124,37 @@ mod tests {
     #[test]
     fn open_tabs_come_back_as_they_were_left() {
         let servers: Vec<ServerRecord> = ["a", "b", "c", "d", "e", "f"].iter().map(|i| srv(i)).collect();
-        let ids = |t: Vec<crate::components::titlebar::ServerTab>| t.into_iter().map(|t| t.id).collect::<Vec<_>>();
+        let ids = |t: Vec<ServerTab>| t.into_iter().map(|t| t.id).collect::<Vec<_>>();
         // Nothing saved yet: the first five.
         assert_eq!(ids(initial_tabs(&servers, None)), ["a", "b", "c", "d", "e"]);
         // Saved: those, in that order; a server since removed is dropped.
         assert_eq!(ids(initial_tabs(&servers, Some("f,gone,b"))), ["f", "b"]);
         // Every tab closed stays closed.
         assert!(initial_tabs(&servers, Some("")).is_empty());
+    }
+
+    #[test]
+    fn reorder_tab_list_moves_and_clamps() {
+        let mut tabs = vec![
+            ServerTab { id: "a".into(), name: "A".into(), is_active: false },
+            ServerTab { id: "b".into(), name: "B".into(), is_active: false },
+            ServerTab { id: "c".into(), name: "C".into(), is_active: false },
+        ];
+
+        // Move "c" to "a" position -> [c, a, b]
+        assert!(reorder_tab_list(&mut tabs, "c", "a"));
+        let ids: Vec<_> = tabs.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, vec!["c", "a", "b"]);
+
+        // Move "c" to "b" position -> [a, b, c]
+        assert!(reorder_tab_list(&mut tabs, "c", "b"));
+        let ids: Vec<_> = tabs.iter().map(|t| t.id.as_str()).collect();
+        assert_eq!(ids, vec!["a", "b", "c"]);
+
+        // Same source and target is no-op
+        assert!(!reorder_tab_list(&mut tabs, "a", "a"));
+
+        // Unknown tab is no-op
+        assert!(!reorder_tab_list(&mut tabs, "nonexistent", "b"));
     }
 }
