@@ -10,6 +10,7 @@ use crate::components::icons::{TablerIcon, tabler_icon};
 use crate::metrics::ServerMetrics;
 use std::collections::{BTreeMap, HashMap};
 use gpui_kit::component::input::Input;
+use gpui_kit::component::{FocusableExt, Sizable};
 use crate::vault::{ChangeRecord, ServerRecord};
 use crate::views::fleet::state::{FleetHealth, FleetState};
 use crate::components::resize::{bottom_panel_height, resize_handle, BottomPanelResize};
@@ -622,7 +623,15 @@ pub fn fleet_overview_view(
                                                 .child(
                                                     div()
                                                         .w(px(200.0))
-                                                        .child(Input::new(input_state).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0))),
+                                                        .child(
+                                                            Input::new(input_state)
+                                                                .xsmall()
+                                                                .focus_ring(false)
+                                                                .font_family(FONT_MONO)
+                                                                .text_size(px(10.5))
+                                                                .bg(BG_APP)
+                                                                .rounded(px(2.0)),
+                                                        ),
                                                 )
                                                 .child(
                                                     div()
