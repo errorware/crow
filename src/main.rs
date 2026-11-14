@@ -1,4 +1,4 @@
-#![recursion_limit = "512"]
+#![recursion_limit = "2048"]
 use gpui_kit::*;
 
 #[macro_use]

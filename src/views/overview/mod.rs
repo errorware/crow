@@ -8,6 +8,8 @@ pub mod updates;
 pub mod summary;
 pub mod dashboard;
 pub mod sockets_map;
+pub mod unit_collector;
+pub mod unit_editor;
 
 #[allow(unused_imports)]
 pub use state::{OverviewState, SocketsViewMode, MapFilter};

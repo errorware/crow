@@ -340,6 +340,9 @@ pub struct CrowApp {
     pub run_toast: Option<fleet_run::RunToast>,
     /// The Edit server dialog, while it's open (ERR-166).
     pub edit_server: Option<edit_server::EditServer>,
+    /// Systemd unit viewer & editor modal, while it's open (ERR-229..ERR-233).
+    pub unit_editor: Option<crate::views::overview::unit_editor::UnitEditorState>,
+    pub unit_editor_inputs: Option<crate::views::overview::unit_editor::UnitEditorInputs>,
     /// Crow's own pages open as tabs (ERR-190), in order.
     pub page_tabs: Vec<page_tabs::PageTab>,
     /// Why a server can't be reached, and the fix (ERR-89).
@@ -592,6 +595,8 @@ impl CrowApp {
             fleet_runner: None,
             run_toast: None,
             edit_server: None,
+            unit_editor: None,
+            unit_editor_inputs: None,
             page_tabs: saved_pages,
             recovery: None,
             terminals: std::collections::HashMap::new(),

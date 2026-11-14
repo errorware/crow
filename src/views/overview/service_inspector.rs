@@ -276,9 +276,65 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
         .child(render_actions_row(is_active, app.clone()))
         // Confirm bar for disruptive actions
         .children(pending_action.map(|action| render_pending_confirm(&svc.name, &action, overview, app.clone())))
+        // Unit file management (View, Edit, Dry-Run & Rollback)
+        .child(section_divider(t!("overview-service-inspector-unit-definition")))
+        .child({
+            let app_unit = app.clone();
+            let unit_name = svc.name.clone();
+            div()
+                .id("btn-open-unit-editor")
+                .flex()
+                .items_center()
+                .justify_between()
+                .p(px(10.0))
+                .bg(hex_rgba(0x38bdf8, 0.08))
+                .border_1()
+                .border_color(hex_rgb(0x38bdf8))
+                .cursor_pointer()
+                .hover(|s| s.bg(hex_rgba(0x38bdf8, 0.16)))
+                .on_click(move |_ev, _window, cx| {
+                    let u = unit_name.clone();
+                    app_unit.update(cx, |this, cx| {
+                        this.open_unit_editor(&u, cx);
+                    });
+                })
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .child(tabler_icon(TablerIcon::FileText).size(px(15.0)).text_color(hex_rgb(0x38bdf8)))
+                        .child(
+                            div()
+                                .flex()
+                                .flex_col()
+                                .gap(px(2.0))
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(11.0))
+                                        .font_weight(FontWeight::BOLD)
+                                        .text_color(hex_rgb(0x38bdf8))
+                                        .child(t!("overview-service-inspector-view-edit-unit")),
+                                )
+                                .child(
+                                    div()
+                                        .font_family(FONT_MONO)
+                                        .text_size(px(9.5))
+                                        .text_color(TEXT_DIM)
+                                        .child(t!("overview-service-inspector-inspect-unit-file-dropins")),
+                                ),
+                        ),
+                )
+                .child(
+                    tabler_icon(TablerIcon::ChevronRight)
+                        .size(px(14.0))
+                        .text_color(hex_rgb(0x38bdf8)),
+                )
+        })
         // Recent Apply Pipeline history for this unit
         .children(if !recent.is_empty() {
-            Some(render_recent_actions(&recent))
+            Some(render_recent_actions(&recent, app.clone()))
         } else {
             None
         })
@@ -374,7 +430,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
 
 /// The durable Apply Pipeline audit trail for one unit — what changed, when,
 /// and whether it actually worked, sourced from the `change_records` table.
-fn render_recent_actions(records: &[ChangeRecord]) -> impl IntoElement {
+fn render_recent_actions(records: &[ChangeRecord], app: Entity<CrowApp>) -> impl IntoElement {
     div()
         .flex()
         .flex_col()
@@ -393,6 +449,9 @@ fn render_recent_actions(records: &[ChangeRecord]) -> impl IntoElement {
                         _ => (WARN, t!("overview-service-inspector-pending")),
                     };
                     let when = rec.started_at.split('T').nth(1).and_then(|t| t.get(0..8)).unwrap_or(&rec.started_at).to_string();
+                    let is_unit_edit = rec.action_kind == "service_unit_edit";
+                    let app_rb = app.clone();
+                    let rec_owned = rec.clone();
 
                     div()
                         .id(ElementId::NamedInteger("svc-recent-action".into(), idx as u64))
@@ -434,6 +493,32 @@ fn render_recent_actions(records: &[ChangeRecord]) -> impl IntoElement {
                                 .text_color(dot_color)
                                 .child(outcome_label),
                         )
+                        .children(if is_unit_edit {
+                            Some(
+                                div()
+                                    .id(ElementId::NamedInteger("btn-rail-rollback".into(), idx as u64))
+                                    .px(px(5.0))
+                                    .py(px(1.5))
+                                    .bg(BG_CONTROL)
+                                    .border_1()
+                                    .border_color(WARN)
+                                    .cursor_pointer()
+                                    .hover(|s| s.bg(WARN.opacity(0.15)))
+                                    .font_family(FONT_MONO)
+                                    .text_size(px(8.5))
+                                    .font_weight(FontWeight::BOLD)
+                                    .text_color(WARN)
+                                    .on_click(move |_ev, _window, cx| {
+                                        let r = rec_owned.clone();
+                                        app_rb.update(cx, |this, cx| {
+                                            this.rollback_unit_action(&r, cx);
+                                        });
+                                    })
+                                    .child(t!("overview-service-inspector-rollback")),
+                            )
+                        } else {
+                            None
+                        })
                 })),
         )
 }

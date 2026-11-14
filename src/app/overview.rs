@@ -1,5 +1,5 @@
 use gpui_kit::*;
-use gpui_kit::component::input::{InputEvent, InputState};
+use gpui_kit::component::input::{EditorState, InputEvent, InputState};
 
 use super::CrowApp;
 use crate::views::overview::state::{ProcessFilter, ServiceFilter};
@@ -7,9 +7,16 @@ use crate::components::sidebar::NavBadges;
 use crate::theme::{CRIT, OK, TEXT_FAINT, WARN};
 use crate::views::firewall::FirewallOperationalState;
 use crate::views::overview::summary::{summarize_services, summarize_sockets};
-use crate::vault::{ChangeRecord, Vault};
+use crate::vault::{ChangeRecord, ServerRecord, Vault};
 use crate::views::fleet::FleetState;
 use crate::views::overview::BlastRadiusInfo;
+use crate::views::config::text_editor::{highlighter_factory, CONFIG_LANGUAGE};
+use crate::views::overview::unit_collector::{
+    apply_unit_change, dry_run_verify_unit, inspect_unit_details, rollback_unit_change,
+};
+use crate::views::overview::unit_editor::{
+    unit_editor_modal, ApplyState, DryRunState, UnitEditorInputs, UnitEditorState, UnitEditorTab,
+};
 use crate::views::overview::collector::{
     collect_processes_for_server,
     collect_services_for_server,
@@ -718,6 +725,326 @@ impl CrowApp {
                 });
                 this.overview.service_eli5.insert(key, result);
                 this.refresh_clankers(cx);
+            });
+        })
+        .detach();
+    }
+
+    pub fn ensure_unit_editor_inputs(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(ref mut st) = self.unit_editor else {
+            self.unit_editor_inputs = None;
+            return;
+        };
+        if self.unit_editor_inputs.is_none() {
+            let content = st.pending_content.take().unwrap_or_else(|| st.current_editor_text.clone());
+            let editor = cx.new(|cx| {
+                let mut state = EditorState::new(window, cx).language(CONFIG_LANGUAGE).default_value(content);
+                state.set_highlighter_factory(highlighter_factory("override.conf"), cx);
+                state
+            });
+            let sub = cx.subscribe(&editor, |this, ed, ev: &InputEvent, cx| {
+                if matches!(ev, InputEvent::Change) {
+                    let text = ed.read(cx).value().to_string();
+                    if let Some(ref mut st) = this.unit_editor {
+                        st.current_editor_text = text;
+                    }
+                    cx.notify();
+                }
+            });
+            self.unit_editor_inputs = Some(UnitEditorInputs { editor, _change_sub: sub });
+        } else if let Some(content) = st.pending_content.take() {
+            if let Some(ref inputs) = self.unit_editor_inputs {
+                inputs.editor.update(cx, |e, cx| {
+                    e.set_value(content, window, cx);
+                });
+            }
+        }
+    }
+
+    pub fn unit_editor_view(&mut self, window: &mut Window, cx: &mut Context<Self>) -> Option<AnyElement> {
+        self.ensure_unit_editor_inputs(window, cx);
+        let st = self.unit_editor.as_ref()?;
+        let inputs = self.unit_editor_inputs.as_ref()?;
+        Some(unit_editor_modal(st, inputs, cx.entity().clone()).into_any_element())
+    }
+
+    pub fn open_unit_editor(&mut self, unit: &str, cx: &mut Context<Self>) {
+        let Some(srv) = self.fleet.active_server() else { return };
+        let unit_name = unit.to_string();
+        let server_id = srv.id.clone();
+        let server_name = srv.name.clone();
+
+        let recent_changes = recent_change_records(&self.vault, &self.fleet, &unit_name, 20);
+
+        let mut st = UnitEditorState::new(server_id, server_name, unit_name.clone(), recent_changes);
+        st.loading = true;
+        self.unit_editor = Some(st);
+        self.unit_editor_inputs = None;
+        cx.notify();
+
+        let srv_bg = srv.clone();
+        let unit_bg = unit_name.clone();
+        let unit_ui = unit_name.clone();
+
+        cx.spawn(async move |entity, cx| {
+            let res = cx
+                .background_executor()
+                .spawn(async move {
+                    inspect_unit_details(&srv_bg, &unit_bg)
+                })
+                .await;
+
+            let _ = entity.update(cx, |this, cx| {
+                let Some(ref mut st) = this.unit_editor else { return };
+                if st.unit_name != unit_ui { return };
+
+                match res {
+                    Ok(details) => {
+                        let init_content = if details.is_vendor {
+                            if let Some(ref c) = details.override_content {
+                                c.clone()
+                            } else {
+                                format!(
+                                    "### Drop-in override for {}\n### Directives here take precedence over {}\n### To reset a list directive (like ExecStart=), provide an empty key first:\n### ExecStart=\n### ExecStart=/path/to/binary args\n\n[Service]\n",
+                                    details.unit_name, details.fragment_path
+                                )
+                            }
+                        } else if details.is_custom {
+                            details.custom_unit_content.clone().unwrap_or_else(|| details.cat_content.clone())
+                        } else {
+                            details.cat_content.clone()
+                        };
+
+                        st.original_content = init_content.clone();
+                        st.current_editor_text = init_content.clone();
+                        st.pending_content = Some(init_content);
+                        st.details = Some(details);
+                        st.loading = false;
+                        st.load_error = None;
+                    }
+                    Err(e) => {
+                        st.loading = false;
+                        st.load_error = Some(e);
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    pub fn close_unit_editor(&mut self, cx: &mut Context<Self>) {
+        self.unit_editor = None;
+        self.unit_editor_inputs = None;
+        cx.notify();
+    }
+
+    pub fn switch_unit_editor_tab(&mut self, tab: UnitEditorTab, cx: &mut Context<Self>) {
+        let Some(ref mut st) = self.unit_editor else { return };
+        if st.active_tab == tab { return };
+        st.active_tab = tab;
+        st.dry_run_state = DryRunState::Idle;
+        st.apply_state = ApplyState::Idle;
+
+        if let Some(ref d) = st.details {
+            let content = match tab {
+                UnitEditorTab::CombinedView => String::new(),
+                UnitEditorTab::OverrideFile => {
+                    d.override_content.clone().unwrap_or_else(|| {
+                        format!(
+                            "### Drop-in override for {}\n### Directives here take precedence over {}\n\n[Service]\n",
+                            d.unit_name, d.fragment_path
+                        )
+                    })
+                }
+                UnitEditorTab::CustomUnitFile => {
+                    d.custom_unit_content.clone().unwrap_or_else(|| d.cat_content.clone())
+                }
+            };
+
+            if tab != UnitEditorTab::CombinedView {
+                st.original_content = content.clone();
+                st.current_editor_text = content.clone();
+                st.pending_content = Some(content);
+            }
+        }
+        cx.notify();
+    }
+
+    pub fn toggle_unit_restart_after_apply(&mut self, cx: &mut Context<Self>) {
+        if let Some(ref mut st) = self.unit_editor {
+            st.restart_after_apply = !st.restart_after_apply;
+            cx.notify();
+        }
+    }
+
+    pub fn toggle_unit_editor_history(&mut self, cx: &mut Context<Self>) {
+        if let Some(ref mut st) = self.unit_editor {
+            st.show_history = !st.show_history;
+            cx.notify();
+        }
+    }
+
+    pub fn run_unit_dry_run(&mut self, cx: &mut Context<Self>) {
+        let Some(srv) = self.fleet.active_server() else { return };
+        let Some(ref mut st) = self.unit_editor else { return };
+        let unit_name = st.unit_name.clone();
+        let fragment_path = st.details.as_ref().map(|d| d.fragment_path.clone()).unwrap_or_default();
+        let is_override = st.active_tab == UnitEditorTab::OverrideFile;
+        let candidate_content = st.current_editor_text.clone();
+
+        st.dry_run_state = DryRunState::Running;
+        cx.notify();
+
+        let srv_bg = srv.clone();
+        let unit_bg = unit_name.clone();
+        let unit_ui = unit_name.clone();
+
+        cx.spawn(async move |entity, cx| {
+            let res = cx
+                .background_executor()
+                .spawn(async move {
+                    dry_run_verify_unit(&srv_bg, &unit_bg, &fragment_path, is_override, &candidate_content)
+                })
+                .await;
+
+            let _ = entity.update(cx, |this, cx| {
+                let Some(ref mut st) = this.unit_editor else { return };
+                if st.unit_name != unit_ui { return };
+
+                match res {
+                    Ok(outcome) => {
+                        if outcome.success {
+                            st.dry_run_state = DryRunState::Passed(outcome.output);
+                        } else {
+                            st.dry_run_state = DryRunState::Failed(outcome.output);
+                        }
+                    }
+                    Err(e) => {
+                        st.dry_run_state = DryRunState::Failed(e);
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    pub fn apply_unit_editor_changes(&mut self, cx: &mut Context<Self>) {
+        let Some(srv) = self.fleet.active_server() else { return };
+        let Some(ref mut st) = self.unit_editor else { return };
+        let unit_name = st.unit_name.clone();
+        let target_path = st.target_file_path();
+        let new_content = st.current_editor_text.clone();
+        let restart_after = st.restart_after_apply;
+        let vault_db = self.vault.db();
+
+        st.apply_state = ApplyState::Applying;
+        cx.notify();
+
+        let srv_bg = srv.clone();
+        let srv_ui = srv.clone();
+        let unit_bg = unit_name.clone();
+        let unit_ui = unit_name.clone();
+        let content_bg = new_content.clone();
+        let content_ui = new_content.clone();
+
+        cx.spawn(async move |entity, cx| {
+            let res = cx
+                .background_executor()
+                .spawn(async move {
+                    let Ok(db) = vault_db.lock() else {
+                        return Err("Vault database is locked or busy".to_string());
+                    };
+                    apply_unit_change(&srv_bg, &unit_bg, &target_path, &content_bg, restart_after, &db)
+                })
+                .await;
+
+            let _ = entity.update(cx, |this, cx| {
+                let Some(ref mut st) = this.unit_editor else { return };
+                if st.unit_name != unit_ui { return };
+
+                match res {
+                    Ok(outcome) => {
+                        st.apply_state = ApplyState::Success(outcome.message);
+                        st.original_content = content_ui;
+                        st.recent_changes = recent_change_records(&this.vault, &this.fleet, &unit_ui, 20);
+                        this.refresh_unit_details_after_apply(&srv_ui, &unit_ui, cx);
+                    }
+                    Err(e) => {
+                        st.apply_state = ApplyState::Error(e);
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    fn refresh_unit_details_after_apply(&mut self, srv: &ServerRecord, unit: &str, cx: &mut Context<Self>) {
+        let srv_clone = srv.clone();
+        let unit_clone = unit.to_string();
+        let u_match = unit.to_string();
+        cx.spawn(async move |entity, cx| {
+            let details = cx
+                .background_executor()
+                .spawn(async move {
+                    inspect_unit_details(&srv_clone, &unit_clone).ok()
+                })
+                .await;
+
+            let _ = entity.update(cx, |this, cx| {
+                if let Some(ref mut st) = this.unit_editor {
+                    if st.unit_name == u_match && details.is_some() {
+                        st.details = details;
+                    }
+                }
+                cx.notify();
+            });
+        })
+        .detach();
+    }
+
+    pub fn rollback_unit_action(&mut self, record: &ChangeRecord, cx: &mut Context<Self>) {
+        let Some(srv) = self.fleet.active_server() else { return };
+        let record_clone = record.clone();
+        let unit_name = record.target.clone();
+        let vault_db = self.vault.db();
+
+        if let Some(ref mut st) = self.unit_editor {
+            st.rolling_back_id = Some(record.id.clone());
+            cx.notify();
+        }
+
+        let srv_bg = srv.clone();
+        let srv_ui = srv.clone();
+
+        cx.spawn(async move |entity, cx| {
+            let res = cx
+                .background_executor()
+                .spawn(async move {
+                    let Ok(db) = vault_db.lock() else {
+                        return Err("Vault database is locked or busy".to_string());
+                    };
+                    rollback_unit_change(&srv_bg, &record_clone, &db)
+                })
+                .await;
+
+            let _ = entity.update(cx, |this, cx| {
+                if let Some(ref mut st) = this.unit_editor {
+                    st.rolling_back_id = None;
+                    match res {
+                        Ok(msg) => {
+                            st.apply_state = ApplyState::Success(msg);
+                            st.recent_changes = recent_change_records(&this.vault, &this.fleet, &unit_name, 20);
+                            this.refresh_unit_details_after_apply(&srv_ui, &unit_name, cx);
+                        }
+                        Err(e) => {
+                            st.apply_state = ApplyState::Error(e);
+                        }
+                    }
+                }
+                cx.notify();
             });
         })
         .detach();
