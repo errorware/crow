@@ -307,6 +307,76 @@ impl CrowApp {
         cx.notify();
     }
 
+    /// Toggles the fleet bottom alerts/activity panel collapsed or open.
+    pub fn toggle_fleet_bottom_panel(&mut self, cx: &mut Context<Self>) {
+        if self.fleet.bottom_panel_collapsed {
+            self.expand_fleet_bottom_panel(cx);
+        } else {
+            self.collapse_fleet_bottom_panel(cx);
+        }
+    }
+
+    /// Snaps the fleet bottom panel shut to the bottom bar.
+    pub fn collapse_fleet_bottom_panel(&mut self, cx: &mut Context<Self>) {
+        if !self.fleet.bottom_panel_collapsed {
+            if self.fleet.bottom_panel_height >= crate::views::fleet::state::FLEET_PANEL_MIN_HEIGHT {
+                self.fleet.bottom_panel_last_height = self.fleet.bottom_panel_height;
+            }
+            self.fleet.bottom_panel_collapsed = true;
+            self.persist_fleet_bottom_panel_state();
+            cx.notify();
+        }
+    }
+
+    /// Snaps the fleet bottom panel open to its remembered or default height.
+    pub fn expand_fleet_bottom_panel(&mut self, cx: &mut Context<Self>) {
+        let target = if self.fleet.bottom_panel_last_height >= crate::views::fleet::state::FLEET_PANEL_MIN_HEIGHT {
+            self.fleet.bottom_panel_last_height
+        } else {
+            crate::views::fleet::state::FLEET_PANEL_DEFAULT_HEIGHT
+        };
+        self.expand_fleet_bottom_panel_to(target, cx);
+    }
+
+    /// Expands the fleet bottom panel to an explicit height.
+    pub fn expand_fleet_bottom_panel_to(&mut self, height: f32, cx: &mut Context<Self>) {
+        self.fleet.bottom_panel_collapsed = false;
+        self.fleet.bottom_panel_height = height.max(crate::views::fleet::state::FLEET_PANEL_MIN_HEIGHT);
+        self.fleet.bottom_panel_last_height = self.fleet.bottom_panel_height;
+        self.persist_fleet_bottom_panel_state();
+        cx.notify();
+    }
+
+    /// Handles drag resizing with snap-to-bottom behavior.
+    pub fn set_fleet_bottom_panel_drag(&mut self, raw_height: f32, max_height: f32, cx: &mut Context<Self>) {
+        if raw_height < crate::views::fleet::state::FLEET_PANEL_SNAP_THRESHOLD {
+            if !self.fleet.bottom_panel_collapsed {
+                self.collapse_fleet_bottom_panel(cx);
+            }
+        } else {
+            let clamped = raw_height.clamp(crate::views::fleet::state::FLEET_PANEL_MIN_HEIGHT, max_height);
+            self.fleet.bottom_panel_collapsed = false;
+            self.fleet.bottom_panel_height = clamped;
+            self.fleet.bottom_panel_last_height = clamped;
+            self.persist_fleet_bottom_panel_state();
+            cx.notify();
+        }
+    }
+
+    /// Persists bottom panel state to SQLite app_flags.
+    pub fn persist_fleet_bottom_panel_state(&self) {
+        if let Ok(db) = self.vault.db().lock() {
+            let _ = db.set_flag(
+                crate::views::fleet::state::FLEET_PANEL_COLLAPSED_FLAG,
+                if self.fleet.bottom_panel_collapsed { "1" } else { "0" },
+            );
+            let _ = db.set_flag(
+                crate::views::fleet::state::FLEET_PANEL_HEIGHT_FLAG,
+                &self.fleet.bottom_panel_last_height.to_string(),
+            );
+        }
+    }
+
     /// Recent purge audit records, newest first — the Archived tab's log.
     pub fn recent_purge_audit(&self) -> Vec<ChangeRecord> {
         self.vault

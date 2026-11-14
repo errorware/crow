@@ -501,6 +501,12 @@ impl CrowApp {
             .map(|st| crate::journal::retention::parse_journald_conf(&st.current_content))
             .unwrap_or(journal_retention);
 
+        let (saved_panel_collapsed, saved_panel_height) = vault.db().lock().ok().map(|db| {
+            let col = db.flag(crate::views::fleet::state::FLEET_PANEL_COLLAPSED_FLAG).as_deref() == Some("1");
+            let h = db.flag(crate::views::fleet::state::FLEET_PANEL_HEIGHT_FLAG).and_then(|s| s.parse::<f32>().ok()).unwrap_or(260.0);
+            (col, h)
+        }).unwrap_or((false, 260.0));
+
         let mut app = Self {
             focus_handle: cx.focus_handle(),
             vault,
@@ -514,6 +520,11 @@ impl CrowApp {
             fleet: {
                 let mut fleet = FleetState::new(servers, tabs, metrics_store, buffered_stores);
                 fleet.archived = archived;
+                fleet.bottom_panel_collapsed = saved_panel_collapsed;
+                if saved_panel_height >= crate::views::fleet::state::FLEET_PANEL_MIN_HEIGHT {
+                    fleet.bottom_panel_height = saved_panel_height;
+                    fleet.bottom_panel_last_height = saved_panel_height;
+                }
                 fleet
             },
             active_view: "overview".to_string(),

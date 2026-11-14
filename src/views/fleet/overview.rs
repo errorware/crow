@@ -13,7 +13,7 @@ use gpui_kit::component::input::Input;
 use gpui_kit::component::{FocusableExt, Sizable};
 use crate::vault::{ChangeRecord, ServerRecord};
 use crate::views::fleet::state::{FleetHealth, FleetState};
-use crate::components::resize::{bottom_panel_height, resize_handle, BottomPanelResize};
+use crate::components::resize::{resize_handle, BottomPanelResize};
 use crate::views::fleet::archived::{archive_confirm_overlay, archived_panel, fleet_view_tabs};
 use crate::views::fleet::lab_state::LocalLabState;
 
@@ -393,10 +393,10 @@ pub fn fleet_overview_view(
                 .on_drag_move::<BottomPanelResize>({
                     let app = app.clone();
                     move |ev, _window, cx| {
-                        let height = bottom_panel_height(ev, 120.0, 160.0);
+                        let raw_height = f32::from(ev.bounds.bottom() - ev.event.position.y);
+                        let max_height = (f32::from(ev.bounds.size.height) - 160.0).max(120.0);
                         app.update(cx, |this, cx| {
-                            this.fleet.bottom_panel_height = height;
-                            cx.notify();
+                            this.set_fleet_bottom_panel_drag(raw_height, max_height, cx);
                         });
                     }
                 })
@@ -1048,11 +1048,16 @@ pub fn fleet_overview_view(
                         ),
                 )
                 // Drag handle between the list and the panel
-                .child(resize_handle("fleet-panel-resize"))
+                .child({
+                    let app_handle = app.clone();
+                    resize_handle("fleet-panel-resize")
+                        .on_click(move |_ev, _window, cx| app_handle.update(cx, |this, cx| this.toggle_fleet_bottom_panel(cx)))
+                })
                 // Bottom panel: Fleet Alerts (left) & Activity Log (right)
                 .child(
                     div()
-                        .h(px(fleet.bottom_panel_height))
+                        .id("fleet-bottom-dock")
+                        .h(px(fleet.effective_bottom_panel_height()))
                         .flex_none()
                         .flex()
                         .min_h(px(0.0))
@@ -1068,8 +1073,11 @@ pub fn fleet_overview_view(
                                 .border_r_1()
                                 .border_color(BORDER_PANEL)
                         // Alerts Header
-                        .child(
+                        .child({
+                            let is_collapsed = fleet.bottom_panel_collapsed;
+                            let app_toggle = app.clone();
                             div()
+                                .id("fleet-alerts-header")
                                 .h(px(34.0))
                                 .flex_none()
                                 .flex()
@@ -1079,6 +1087,17 @@ pub fn fleet_overview_view(
                                 .border_b_1()
                                 .border_color(BORDER_PANEL)
                                 .gap(px(8.0))
+                                .when(is_collapsed, |s| s.cursor_pointer().hover(|h| h.bg(BG_ROW_HOVER)))
+                                .on_click(move |_ev, _window, cx| {
+                                    if is_collapsed {
+                                        app_toggle.update(cx, |this, cx| this.expand_fleet_bottom_panel(cx));
+                                    }
+                                })
+                                .child(
+                                    tabler_icon(if is_collapsed { TablerIcon::ChevronUp } else { TablerIcon::Bell })
+                                        .size(px(14.0))
+                                        .text_color(if open_lines.is_empty() { TEXT_DIMMER } else { WARN })
+                                )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
@@ -1091,25 +1110,56 @@ pub fn fleet_overview_view(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(px(10.0))
-                                        .text_color(TEXT_DIMMER)
+                                        .text_color(if open_lines.is_empty() { TEXT_DIMMER } else { WARN })
                                         .child(t!("fleet-overview-open", count = open_lines.len())),
                                 )
                                 .child(div().flex_1())
-                                .children(open_lines.iter().any(|l| l.id.is_some() && !l.acknowledged).then(|| {
-                                    let app = app.clone();
-                                    div()
-                                        .id("btn-ack-all-alerts")
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
-                                        .text_color(TEXT_DIM)
-                                        .cursor_pointer()
-                                        .hover(|s| s.text_color(TEXT_PRIMARY))
-                                        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.acknowledge_alerts(None, cx)))
-                                        .child(t!("fleet-overview-ack-all"))
-                                })),
-                        )
+                                .children(if is_collapsed {
+                                    Some(
+                                        div()
+                                            .font_family(FONT_MONO)
+                                            .text_size(px(9.5))
+                                            .text_color(TEXT_FAINT)
+                                            .child("expand ↑")
+                                            .into_any_element(),
+                                    )
+                                } else {
+                                    let app_ack = app.clone();
+                                    let app_col = app.clone();
+                                    Some(
+                                        div()
+                                            .flex()
+                                            .items_center()
+                                            .gap(px(8.0))
+                                            .children(open_lines.iter().any(|l| l.id.is_some() && !l.acknowledged).then(|| {
+                                                div()
+                                                    .id("btn-ack-all-alerts")
+                                                    .font_family(FONT_MONO)
+                                                    .text_size(px(10.0))
+                                                    .text_color(TEXT_DIM)
+                                                    .cursor_pointer()
+                                                    .hover(|s| s.text_color(TEXT_PRIMARY))
+                                                    .on_click(move |_ev, _window, cx| app_ack.update(cx, |this, cx| this.acknowledge_alerts(None, cx)))
+                                                    .child(t!("fleet-overview-ack-all"))
+                                            }))
+                                            .child(
+                                                div()
+                                                    .id("btn-collapse-fleet-alerts")
+                                                    .p(px(2.0))
+                                                    .cursor_pointer()
+                                                    .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                                    .text_color(TEXT_DIMMER)
+                                                    .on_click(move |_ev, _window, cx| {
+                                                        app_col.update(cx, |this, cx| this.collapse_fleet_bottom_panel(cx));
+                                                    })
+                                                    .child(tabler_icon(TablerIcon::ChevronDown).size(px(14.0)))
+                                            )
+                                            .into_any_element(),
+                                    )
+                                })
+                        })
                         // Alerts List
-                        .child(
+                        .children((!fleet.bottom_panel_collapsed).then(|| {
                             div()
                                 .id("fleet-alerts-list")
                                 .flex_1()
@@ -1201,8 +1251,8 @@ pub fn fleet_overview_view(
                                                     .child(msg.clone()),
                                             )
                                     }).collect::<Vec<_>>()
-                                }),
-                        )
+                                })
+                        }))
                         )
                         .child(
                             div()
@@ -1211,8 +1261,11 @@ pub fn fleet_overview_view(
                                 .flex()
                                 .flex_col()
                         // Activity Header
-                        .child(
+                        .child({
+                            let is_collapsed = fleet.bottom_panel_collapsed;
+                            let app_toggle = app.clone();
                             div()
+                                .id("fleet-activity-header")
                                 .h(px(34.0))
                                 .flex_none()
                                 .flex()
@@ -1221,6 +1274,18 @@ pub fn fleet_overview_view(
                                 .bg(BG_PANEL)
                                 .border_b_1()
                                 .border_color(BORDER_PANEL)
+                                .gap(px(8.0))
+                                .when(is_collapsed, |s| s.cursor_pointer().hover(|h| h.bg(BG_ROW_HOVER)))
+                                .on_click(move |_ev, _window, cx| {
+                                    if is_collapsed {
+                                        app_toggle.update(cx, |this, cx| this.expand_fleet_bottom_panel(cx));
+                                    }
+                                })
+                                .child(
+                                    tabler_icon(if is_collapsed { TablerIcon::ChevronUp } else { TablerIcon::Activity })
+                                        .size(px(14.0))
+                                        .text_color(TEXT_DIMMER)
+                                )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
@@ -1230,21 +1295,52 @@ pub fn fleet_overview_view(
                                         .child(t!("fleet-overview-activity")),
                                 )
                                 .child(div().flex_1())
-                                .child({
-                                    let app = app.clone();
-                                    div()
-                                        .id("btn-open-audit")
-                                        .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
-                                        .text_color(TEXT_DIMMER)
-                                        .cursor_pointer()
-                                        .hover(|s| s.text_color(TEXT_PRIMARY))
-                                        .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.open_audit(cx)))
-                                        .child(t!("fleet-overview-audit-log-all-hosts"))
-                                }),
-                        )
+                                .children(if is_collapsed {
+                                    Some(
+                                        div()
+                                            .font_family(FONT_MONO)
+                                            .text_size(px(9.5))
+                                            .text_color(TEXT_FAINT)
+                                            .child("expand ↑")
+                                            .into_any_element(),
+                                    )
+                                } else {
+                                    let app_audit = app.clone();
+                                    let app_col = app.clone();
+                                    Some(
+                                        div()
+                                            .flex()
+                                            .items_center()
+                                            .gap(px(8.0))
+                                            .child(
+                                                div()
+                                                    .id("btn-open-audit")
+                                                    .font_family(FONT_MONO)
+                                                    .text_size(px(10.0))
+                                                    .text_color(TEXT_DIMMER)
+                                                    .cursor_pointer()
+                                                    .hover(|s| s.text_color(TEXT_PRIMARY))
+                                                    .on_click(move |_ev, _window, cx| app_audit.update(cx, |this, cx| this.open_audit(cx)))
+                                                    .child(t!("fleet-overview-audit-log-all-hosts")),
+                                            )
+                                            .child(
+                                                div()
+                                                    .id("btn-collapse-fleet-activity")
+                                                    .p(px(2.0))
+                                                    .cursor_pointer()
+                                                    .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                                    .text_color(TEXT_DIMMER)
+                                                    .on_click(move |_ev, _window, cx| {
+                                                        app_col.update(cx, |this, cx| this.collapse_fleet_bottom_panel(cx));
+                                                    })
+                                                    .child(tabler_icon(TablerIcon::ChevronDown).size(px(14.0)))
+                                            )
+                                            .into_any_element(),
+                                    )
+                                })
+                        })
                         // Activity Log List
-                        .child(
+                        .children((!fleet.bottom_panel_collapsed).then(|| {
                             div()
                                 .id("fleet-activity-log")
                                 .flex_1()
@@ -1292,8 +1388,8 @@ pub fn fleet_overview_view(
                                                     .child(msg.clone()),
                                             )
                                     }).collect::<Vec<_>>()
-                                }),
-                        ),
+                                })
+                        }))
                         )
                 ),
         ) })

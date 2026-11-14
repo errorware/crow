@@ -8,6 +8,13 @@ use crate::host::{connection_state, transport_kind, ConnectionState, TransportKi
 use crate::metrics::{ServerMetrics, ServerTimeSeriesBuffer, SurgeAlert};
 use crate::vault::ServerRecord;
 
+pub const FLEET_PANEL_HEIGHT_FLAG: &str = "fleet.bottom_panel_height";
+pub const FLEET_PANEL_COLLAPSED_FLAG: &str = "fleet.bottom_panel_collapsed";
+pub const FLEET_PANEL_COLLAPSED_HEIGHT: f32 = 34.0;
+pub const FLEET_PANEL_MIN_HEIGHT: f32 = 120.0;
+pub const FLEET_PANEL_DEFAULT_HEIGHT: f32 = 260.0;
+pub const FLEET_PANEL_SNAP_THRESHOLD: f32 = 80.0;
+
 /// Enrolled servers, the open tabs over them, and their live metrics.
 pub struct FleetState {
     pub servers: Vec<ServerRecord>,
@@ -22,6 +29,10 @@ pub struct FleetState {
     pub active_surge_alert: Option<SurgeAlert>,
     /// Height of the Fleet page's alerts/activity panel (drag to resize).
     pub bottom_panel_height: f32,
+    /// Whether the bottom alerts/activity panel is collapsed shut to the bottom.
+    pub bottom_panel_collapsed: bool,
+    /// Last uncollapsed height so expanding restores user's preferred height.
+    pub bottom_panel_last_height: f32,
     /// Servers that left the fleet but were never deleted (ERR-32).
     pub archived: Vec<ServerRecord>,
     /// Which Fleet tab is showing: the active fleet or the archive.
@@ -75,7 +86,9 @@ impl FleetState {
             buffered_stores,
             metrics_lag_secs: 24,
             active_surge_alert: None,
-            bottom_panel_height: 260.0,
+            bottom_panel_height: FLEET_PANEL_DEFAULT_HEIGHT,
+            bottom_panel_collapsed: false,
+            bottom_panel_last_height: FLEET_PANEL_DEFAULT_HEIGHT,
             env_filter: Default::default(),
             region_bar_open: false,
             region_filter: None,
@@ -101,6 +114,16 @@ impl FleetState {
     /// Archived servers still holding data, with when their purge is due.
     pub fn archive_count(&self) -> usize {
         self.archived.len()
+    }
+
+    /// Effective rendering height of the bottom alerts & activity panel.
+    /// Returns 34px when collapsed shut, or clamped height (>= 120px) when open.
+    pub fn effective_bottom_panel_height(&self) -> f32 {
+        if self.bottom_panel_collapsed {
+            FLEET_PANEL_COLLAPSED_HEIGHT
+        } else {
+            self.bottom_panel_height.max(FLEET_PANEL_MIN_HEIGHT)
+        }
     }
 
     /// `server`'s live health: its SSH connection state and newest sample
@@ -238,6 +261,27 @@ mod tests {
         let srv = |name: &str, t: Option<i64>| ServerRecord { id: name.into(), name: name.into(), host_key_mtime: t, ..Default::default() };
         let ages = host_key_ages(&[srv("new", Some(now - 10 * day)), srv("old", Some(now - 800 * day)), srv("mid", Some(now - 400 * day)), srv("unread", None)], now);
         assert_eq!(ages, KeyAges { oldest: Some((800, "old".into())), buckets: [1, 1, 1], unknown: 1 });
+    }
+
+    #[test]
+    fn bottom_panel_collapse_expand_and_effective_height() {
+        let mut state = FleetState::new(Vec::new(), Vec::new(), HashMap::new(), HashMap::new());
+        assert_eq!(state.bottom_panel_height, FLEET_PANEL_DEFAULT_HEIGHT);
+        assert!(!state.bottom_panel_collapsed);
+        assert_eq!(state.effective_bottom_panel_height(), FLEET_PANEL_DEFAULT_HEIGHT);
+
+        // Collapse
+        state.bottom_panel_collapsed = true;
+        assert_eq!(state.effective_bottom_panel_height(), FLEET_PANEL_COLLAPSED_HEIGHT);
+
+        // Expand with custom height
+        state.bottom_panel_collapsed = false;
+        state.bottom_panel_height = 320.0;
+        assert_eq!(state.effective_bottom_panel_height(), 320.0);
+
+        // Clamped minimum when open
+        state.bottom_panel_height = 50.0;
+        assert_eq!(state.effective_bottom_panel_height(), FLEET_PANEL_MIN_HEIGHT);
     }
 }
 
