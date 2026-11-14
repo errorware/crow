@@ -141,8 +141,8 @@ pub fn unit_editor_modal(
                 .id("unit-editor-card")
                 .occlude()
                 .on_click(|_ev, _window, cx| cx.stop_propagation())
-                .w(px(920.0))
-                .h(px(660.0))
+                .w(px(960.0))
+                .h(px(680.0))
                 .bg(BG_PANEL)
                 .border_1()
                 .border_color(BORDER_DEFAULT)
@@ -200,7 +200,7 @@ pub fn unit_editor_modal(
                                 .child(tabler_icon(TablerIcon::X).size(px(16.0)).text_color(TEXT_DIM)),
                         ),
                 )
-                // 2. Tab Bar & Action Controls
+                // 2. Tab Bar
                 .child(
                     div()
                         .h(px(38.0))
@@ -217,7 +217,7 @@ pub fn unit_editor_modal(
                             let app_tab = app.clone();
                             render_tab(
                                 "tab-unit-cat",
-                                "Full Definition (systemctl cat)",
+                                "Full Definition",
                                 state.active_tab == UnitEditorTab::CombinedView,
                                 move |_ev, _window, cx| {
                                     app_tab.update(cx, |this, cx| {
@@ -279,106 +279,6 @@ pub fn unit_editor_modal(
                                 })
                                 .child(tabler_icon(TablerIcon::Clock).size(px(12.0)))
                                 .child(format!("Revisions ({hist_count})"))
-                        })
-                        // Verify (Dry Run) button
-                        .children(if is_editable {
-                            let is_verifying = matches!(state.dry_run_state, DryRunState::Running);
-                            Some(
-                                div()
-                                    .id("btn-unit-dry-run")
-                                    .flex()
-                                    .items_center()
-                                    .gap(px(5.0))
-                                    .px(px(10.0))
-                                    .py(px(4.0))
-                                    .bg(BG_CONTROL)
-                                    .border_1()
-                                    .border_color(BORDER_DEFAULT)
-                                    .cursor_pointer()
-                                    .hover(|s| s.bg(BG_ROW_HOVER))
-                                    .text_size(px(10.0))
-                                    .font_weight(FontWeight::BOLD)
-                                    .text_color(WARN)
-                                    .on_click(move |_ev, _window, cx| {
-                                        app_verify.update(cx, |this, cx| this.run_unit_dry_run(cx));
-                                    })
-                                    .child(if is_verifying {
-                                        tabler_icon(TablerIcon::Refresh).size(px(12.0))
-                                    } else {
-                                        tabler_icon(TablerIcon::ShieldCheck).size(px(12.0))
-                                    })
-                                    .child(if is_verifying { "Verifying…" } else { "Dry Run (Verify)" }),
-                            )
-                        } else {
-                            None
-                        })
-                        // Restart toggle checkbox
-                        .children(if is_editable {
-                            let checked = state.restart_after_apply;
-                            Some(
-                                div()
-                                    .id("btn-toggle-restart-after")
-                                    .flex()
-                                    .items_center()
-                                    .gap(px(5.0))
-                                    .px(px(6.0))
-                                    .py(px(4.0))
-                                    .cursor_pointer()
-                                    .hover(|s| s.text_color(TEXT_PRIMARY))
-                                    .text_size(px(10.0))
-                                    .text_color(if checked { TEXT_PRIMARY } else { TEXT_DIM })
-                                    .on_click(move |_ev, _window, cx| {
-                                        app_toggle_restart.update(cx, |this, cx| {
-                                            this.toggle_unit_restart_after_apply(cx);
-                                        });
-                                    })
-                                    .child(
-                                        div()
-                                            .size(px(12.0))
-                                            .border_1()
-                                            .border_color(if checked { OK } else { BORDER_DEFAULT })
-                                            .bg(if checked { OK.opacity(0.2) } else { hex_rgba(0, 0.0) })
-                                            .flex()
-                                            .items_center()
-                                            .justify_center()
-                                            .children(checked.then(|| {
-                                                tabler_icon(TablerIcon::Check).size(px(10.0)).text_color(OK)
-                                            })),
-                                    )
-                                    .child("Restart on apply"),
-                            )
-                        } else {
-                            None
-                        })
-                        // Apply & Reload button
-                        .children(if is_editable {
-                            let is_applying = matches!(state.apply_state, ApplyState::Applying);
-                            Some(
-                                div()
-                                    .id("btn-unit-apply")
-                                    .flex()
-                                    .items_center()
-                                    .gap(px(5.0))
-                                    .px(px(12.0))
-                                    .py(px(5.0))
-                                    .bg(OK)
-                                    .cursor_pointer()
-                                    .hover(|s| s.bg(hex_rgb(0x22c55e)))
-                                    .text_size(px(10.5))
-                                    .font_weight(FontWeight::BOLD)
-                                    .text_color(hex_rgb(0x0a0a0c))
-                                    .on_click(move |_ev, _window, cx| {
-                                        app_apply.update(cx, |this, cx| this.apply_unit_editor_changes(cx));
-                                    })
-                                    .child(if is_applying {
-                                        tabler_icon(TablerIcon::Refresh).size(px(12.0))
-                                    } else {
-                                        tabler_icon(TablerIcon::PlayerPlay).size(px(12.0))
-                                    })
-                                    .child(if is_applying { "Applying…" } else { "Apply & Reload" }),
-                            )
-                        } else {
-                            None
                         }),
                 )
                 // 3. Body: Editor or Full View
@@ -444,7 +344,159 @@ pub fn unit_editor_modal(
                     Some(render_history_drawer(state, app.clone()))
                 } else {
                     None
-                }),
+                })
+                // 6. Action Footer
+                .child(
+                    div()
+                        .h(px(48.0))
+                        .flex_none()
+                        .flex()
+                        .items_center()
+                        .px(px(16.0))
+                        .bg(BG_SUBHEAD)
+                        .border_t_1()
+                        .border_color(BORDER_PANEL)
+                        // Left: Target path or view indicator
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(px(6.0))
+                                .text_size(px(10.5))
+                                .text_color(TEXT_DIM)
+                                .child(tabler_icon(if is_editable { TablerIcon::FileText } else { TablerIcon::InfoCircle }).size(px(13.0)).text_color(if is_editable { WAND } else { TEXT_DIM }))
+                                .child(
+                                    div()
+                                        .child(if is_editable {
+                                            format!("Target: {}", state.target_file_path())
+                                        } else {
+                                            "Merged unit definition from systemctl cat (read-only)".to_string()
+                                        })
+                                )
+                        )
+                        .child(div().flex_1())
+                        // Right: Actions
+                        .children(if is_editable {
+                            let checked = state.restart_after_apply;
+                            let is_verifying = matches!(state.dry_run_state, DryRunState::Running);
+                            let is_applying = matches!(state.apply_state, ApplyState::Applying);
+                            let app_toggle_restart = app_toggle_restart.clone();
+                            let app_verify = app_verify.clone();
+                            let app_apply = app_apply.clone();
+
+                            Some(
+                                div()
+                                    .id("unit-editor-actions")
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(10.0))
+                                    // Restart toggle
+                                    .child(
+                                        div()
+                                            .id("btn-toggle-restart-after")
+                                            .flex()
+                                            .items_center()
+                                            .gap(px(5.0))
+                                            .px(px(6.0))
+                                            .py(px(4.0))
+                                            .cursor_pointer()
+                                            .hover(|s| s.text_color(TEXT_PRIMARY))
+                                            .text_size(px(10.0))
+                                            .text_color(if checked { TEXT_PRIMARY } else { TEXT_DIM })
+                                            .on_click(move |_ev, _window, cx| {
+                                                app_toggle_restart.update(cx, |this, cx| {
+                                                    this.toggle_unit_restart_after_apply(cx);
+                                                });
+                                            })
+                                            .child(
+                                                div()
+                                                    .size(px(12.0))
+                                                    .border_1()
+                                                    .border_color(if checked { OK } else { BORDER_DEFAULT })
+                                                    .bg(if checked { OK.opacity(0.2) } else { hex_rgba(0, 0.0) })
+                                                    .flex()
+                                                    .items_center()
+                                                    .justify_center()
+                                                    .children(checked.then(|| {
+                                                        tabler_icon(TablerIcon::Check).size(px(10.0)).text_color(OK)
+                                                    })),
+                                            )
+                                            .child("Restart on apply"),
+                                    )
+                                    // Dry Run button
+                                    .child(
+                                        div()
+                                            .id("btn-unit-dry-run")
+                                            .flex()
+                                            .items_center()
+                                            .gap(px(5.0))
+                                            .px(px(10.0))
+                                            .py(px(4.0))
+                                            .bg(BG_CONTROL)
+                                            .border_1()
+                                            .border_color(BORDER_DEFAULT)
+                                            .cursor_pointer()
+                                            .hover(|s| s.bg(BG_ROW_HOVER))
+                                            .text_size(px(10.0))
+                                            .font_weight(FontWeight::BOLD)
+                                            .text_color(WARN)
+                                            .on_click(move |_ev, _window, cx| {
+                                                app_verify.update(cx, |this, cx| this.run_unit_dry_run(cx));
+                                            })
+                                            .child(if is_verifying {
+                                                tabler_icon(TablerIcon::Refresh).size(px(12.0))
+                                            } else {
+                                                tabler_icon(TablerIcon::ShieldCheck).size(px(12.0))
+                                            })
+                                            .child(if is_verifying { "Verifying…" } else { "Dry Run (Verify)" }),
+                                    )
+                                    // Apply & Reload button
+                                    .child(
+                                        div()
+                                            .id("btn-unit-apply")
+                                            .flex()
+                                            .items_center()
+                                            .gap(px(5.0))
+                                            .px(px(12.0))
+                                            .py(px(5.0))
+                                            .bg(OK)
+                                            .cursor_pointer()
+                                            .hover(|s| s.bg(hex_rgb(0x22c55e)))
+                                            .text_size(px(10.5))
+                                            .font_weight(FontWeight::BOLD)
+                                            .text_color(hex_rgb(0x0a0a0c))
+                                            .on_click(move |_ev, _window, cx| {
+                                                app_apply.update(cx, |this, cx| this.apply_unit_editor_changes(cx));
+                                            })
+                                            .child(if is_applying {
+                                                tabler_icon(TablerIcon::Refresh).size(px(12.0))
+                                            } else {
+                                                tabler_icon(TablerIcon::PlayerPlay).size(px(12.0))
+                                            })
+                                            .child(if is_applying { "Applying…" } else { "Apply & Reload" }),
+                                    )
+                            )
+                        } else {
+                            let app_close_footer = app.clone();
+                            Some(
+                                div()
+                                    .id("btn-close-unit-footer")
+                                    .px(px(14.0))
+                                    .py(px(4.0))
+                                    .bg(BG_CONTROL)
+                                    .border_1()
+                                    .border_color(BORDER_DEFAULT)
+                                    .text_color(TEXT_MUTED)
+                                    .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
+                                    .cursor_pointer()
+                                    .text_size(px(10.0))
+                                    .on_click(move |_ev, _window, cx| {
+                                        app_close_footer.update(cx, |this, cx| this.close_unit_editor(cx));
+                                    })
+                                    .child("Close")
+                            )
+                        }),
+                ),
         )
 }
 
