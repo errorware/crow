@@ -1686,6 +1686,8 @@ fleet-overview-create = 作成
 fleet-overview-cancel = キャンセル
 fleet-overview-new-group = + 新しいグループ
 fleet-overview-host = ホスト
+fleet-overview-col-status = ステータス
+fleet-overview-col-group = グループ
 fleet-overview-address = アドレス
 fleet-overview-os = OS
 fleet-overview-role = 役割
@@ -1700,6 +1702,7 @@ fleet-overview-connect-remote-linux-servers-via = SSH でリモートの Linux �
 fleet-overview-add-remote-server-ssh = + リモートサーバーを追加（SSH）
 fleet-overview-fleet-alerts = フリートのアラート
 fleet-overview-open = 未解決 { $count }
+fleet-overview-expand-panel = 展開 ↑
 fleet-overview-ack-all = すべて確認
 fleet-overview-activity = アクティビティ
 fleet-overview-audit-log-all-hosts = 監査ログ · 全ホスト →
@@ -4121,5 +4124,16 @@ onboard-boot-polling-title = SSH ポート 22 をポーリング中（{ $interva
 onboard-boot-skip-manual = 手動設定へスキップ →
 onboard-boot-polling-live = ポーリング中
 onboard-boot-terminal-log = 起動・接続ライブログ
+
+unit-editor-revisions = リビジョン ({ $count })
+unit-editor-loading = ホストからユニット定義を読み込み中…
+unit-editor-restart-on-apply = 適用時に再起動
+unit-editor-close = 閉じる
+unit-editor-applying = 変更をアトミックに適用し、systemdを再読み込みして状態を検証中…
+unit-editor-dry-run-verified = ドライラン検証成功: { $out }
+unit-editor-verification-failed = 検証失敗: { $err }
+unit-editor-history-title = { $unit } のリビジョン履歴と1クリックロールバック
+unit-editor-no-history = このサービスにはまだ変更履歴がありません。
+
 
 

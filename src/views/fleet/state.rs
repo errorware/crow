@@ -126,6 +126,24 @@ impl FleetState {
         }
     }
 
+    /// All unique groups known to the fleet, starting with "default".
+    pub fn all_available_groups(&self) -> Vec<String> {
+        let mut all = vec!["default".to_string()];
+        for g in &self.groups {
+            let trimmed = g.trim();
+            if !trimmed.is_empty() && trimmed != "default" && !all.contains(&trimmed.to_string()) {
+                all.push(trimmed.to_string());
+            }
+        }
+        for s in &self.servers {
+            let trimmed = s.group_name.trim();
+            if !trimmed.is_empty() && trimmed != "default" && !all.contains(&trimmed.to_string()) {
+                all.push(trimmed.to_string());
+            }
+        }
+        all
+    }
+
     /// `server`'s live health: its SSH connection state and newest sample
     /// (not the lagged one the tables play back) (ERR-71).
     pub fn health(&self, server: &ServerRecord) -> FleetHealth {
@@ -282,6 +300,18 @@ mod tests {
         // Clamped minimum when open
         state.bottom_panel_height = 50.0;
         assert_eq!(state.effective_bottom_panel_height(), FLEET_PANEL_MIN_HEIGHT);
+    }
+
+    #[test]
+    fn all_available_groups_dedup_and_default_order() {
+        let mut state = FleetState::new(Vec::new(), Vec::new(), HashMap::new(), HashMap::new());
+        state.groups = vec!["prod".into(), "staging".into(), "default".into()];
+        state.servers = vec![
+            ServerRecord { id: "s1".into(), group_name: "prod".into(), ..Default::default() },
+            ServerRecord { id: "s2".into(), group_name: "edge-eu".into(), ..Default::default() },
+        ];
+        let groups = state.all_available_groups();
+        assert_eq!(groups, vec!["default", "prod", "staging", "edge-eu"]);
     }
 }
 

@@ -300,6 +300,7 @@ pub fn fleet_overview_view(
         }
     }
     group_counts.sort_by(|a, b| b.1.cmp(&a.1).then_with(|| a.0.cmp(&b.0)));
+    let available_groups = fleet.all_available_groups();
 
     let hosts: Vec<FleetHost> = hosts
         .into_iter()
@@ -369,6 +370,21 @@ pub fn fleet_overview_view(
         .flex()
         .flex_col()
         .bg(BG_APP)
+        // Outside-click dismissal scrim when an inline group dropdown is open
+        .children(fleet.group_assign_modal_server.is_some().then(|| {
+            let app_dismiss = app.clone();
+            div()
+                .id("group-dropdown-scrim")
+                .absolute()
+                .inset_0()
+                .occlude()
+                .bg(hex_rgba(0, 0.0))
+                .on_click(move |_ev, _window, cx| {
+                    app_dismiss.update(cx, |this, cx| {
+                        this.set_group_assign_target(None, cx);
+                    });
+                })
+        }))
         // 1. Fleet Stat Strip
         .child(fleet_stat_strip(
             &fleet.servers,
@@ -707,6 +723,8 @@ pub fn fleet_overview_view(
                                 // Same widths as the row cells below; fixed columns are
                                 // flex_none so header and rows can't shrink differently.
                                 .child(div().flex_grow(3.0).flex_basis(px(0.0)).min_w(px(140.0)).child(t!("fleet-overview-host")))
+                                .child(div().w(px(85.0)).flex_none().child(t!("fleet-overview-col-status")))
+                                .child(div().w(px(115.0)).flex_none().child(t!("fleet-overview-col-group")))
                                 .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(110.0)).child(t!("fleet-overview-address")))
                                 .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(120.0)).child(t!("fleet-overview-os")))
                                 .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(90.0)).pr(px(14.0)).text_align(TextAlign::Right).child(t!("fleet-overview-role")))
@@ -922,7 +940,7 @@ pub fn fleet_overview_view(
                                             );
 
                                             for host in group_list {
-                                                elements.push(render_fleet_host_row(&host, row_idx, &app).into_any_element());
+                                                elements.push(render_fleet_host_row(&host, row_idx, &app, fleet, &available_groups).into_any_element());
                                                 row_idx += 1;
                                             }
                                         }
@@ -978,7 +996,7 @@ pub fn fleet_overview_view(
                                         );
 
                                         for host in region_hosts {
-                                            elements.push(render_fleet_host_row(&host, row_idx, &app).into_any_element());
+                                            elements.push(render_fleet_host_row(&host, row_idx, &app, fleet, &available_groups).into_any_element());
                                             row_idx += 1;
                                         }
                                     }
@@ -1033,7 +1051,7 @@ pub fn fleet_overview_view(
                                         );
 
                                         for host in group_list {
-                                            elements.push(render_fleet_host_row(&host, row_idx, &app).into_any_element());
+                                            elements.push(render_fleet_host_row(&host, row_idx, &app, fleet, &available_groups).into_any_element());
                                             row_idx += 1;
                                         }
                                     }
@@ -1042,7 +1060,7 @@ pub fn fleet_overview_view(
                                     hosts
                                         .into_iter()
                                         .enumerate()
-                                        .map(|(idx, host)| render_fleet_host_row(&host, idx, &app).into_any_element())
+                                        .map(|(idx, host)| render_fleet_host_row(&host, idx, &app, fleet, &available_groups).into_any_element())
                                         .collect::<Vec<_>>()
                                 }),
                         ),
@@ -1120,7 +1138,7 @@ pub fn fleet_overview_view(
                                             .font_family(FONT_MONO)
                                             .text_size(px(9.5))
                                             .text_color(TEXT_FAINT)
-                                            .child("expand ↑")
+                                            .child(t!("fleet-overview-expand-panel"))
                                             .into_any_element(),
                                     )
                                 } else {
@@ -1152,7 +1170,7 @@ pub fn fleet_overview_view(
                                                     .on_click(move |_ev, _window, cx| {
                                                         app_col.update(cx, |this, cx| this.collapse_fleet_bottom_panel(cx));
                                                     })
-                                                    .child(tabler_icon(TablerIcon::ChevronDown).size(px(14.0)))
+                                                    .child(tabler_icon(TablerIcon::ChevronDown).size(px(14.0)).text_color(TEXT_DIMMER))
                                             )
                                             .into_any_element(),
                                     )
@@ -1301,7 +1319,7 @@ pub fn fleet_overview_view(
                                             .font_family(FONT_MONO)
                                             .text_size(px(9.5))
                                             .text_color(TEXT_FAINT)
-                                            .child("expand ↑")
+                                            .child(t!("fleet-overview-expand-panel"))
                                             .into_any_element(),
                                     )
                                 } else {
@@ -1333,7 +1351,7 @@ pub fn fleet_overview_view(
                                                     .on_click(move |_ev, _window, cx| {
                                                         app_col.update(cx, |this, cx| this.collapse_fleet_bottom_panel(cx));
                                                     })
-                                                    .child(tabler_icon(TablerIcon::ChevronDown).size(px(14.0)))
+                                                    .child(tabler_icon(TablerIcon::ChevronDown).size(px(14.0)).text_color(TEXT_DIMMER))
                                             )
                                             .into_any_element(),
                                     )
@@ -1547,13 +1565,13 @@ fn render_fleet_host_row(
     host: &FleetHost,
     idx: usize,
     app: &Entity<CrowApp>,
+    fleet: &FleetState,
+    available_groups: &[String],
 ) -> impl IntoElement {
     let app_host = app.clone();
     let host_id = host.id.clone();
     let app_terminal = app.clone();
     let terminal_id = host.id.clone();
-    let app_grp = app.clone();
-    let grp_server_id = host.id.clone();
     let is_even = idx % 2 == 0;
 
     let grp_display = if host.group.trim().is_empty() || host.group.trim() == "default" {
@@ -1612,7 +1630,7 @@ fn render_fleet_host_row(
                         .bg(host.status_color),
                 ),
         )
-        // Host name + pill + group badge
+        // Host name + containers / plugins
         .child(
             div()
                 .flex_grow(3.0)
@@ -1621,7 +1639,7 @@ fn render_fleet_host_row(
                 .flex()
                 .items_center()
                 .gap(px(6.0))
-                .mr(px(10.0))
+                .mr(px(8.0))
                 .overflow_hidden()
                 .child(if !host.country.is_empty() {
                     crate::components::flag::flag(&host.country, 11.0)
@@ -1645,32 +1663,6 @@ fn render_fleet_host_row(
                         })
                         .child(host.name.clone()),
                 )
-                .child(
-                    crate::components::button::badge(if host.status_color == TEXT_FAINTER { TEXT_DIM } else { host.status_color })
-                        .text_size(px(8.5))
-                        .child(host.pill.clone()),
-                )
-                .child(
-                    div()
-                        .id(SharedString::from(format!("fleet-grp-pill-{}", host.id)))
-                        .px(px(4.0))
-                        .py(px(1.5))
-                        .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .text_color(if grp_display == "NO GROUP" { TEXT_DIMMER } else { hex_rgb(0x38bdf8) })
-                        .text_size(px(8.5))
-                        .font_weight(FontWeight::BOLD)
-                        .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER).border_color(BORDER_STRONG))
-                        .on_click(move |_ev, _window, cx| {
-                            cx.stop_propagation();
-                            let sid = grp_server_id.clone();
-                            app_grp.update(cx, |this, cx| {
-                                this.set_group_assign_target(Some(sid), cx);
-                            });
-                        })
-                        .child(format!("{grp_display} ▾")),
-                )
                 // User plugins' badges (ERR-182), last: clipped when the
                 // cell is narrow, so they never cover the address.
                 .child(
@@ -1685,6 +1677,74 @@ fn render_fleet_host_row(
                         .children(crate::plugin_host::badges::for_server(&host.id).iter().map(|b| crate::components::plugin_badge::badge_chip(b, 8.5))),
                 ),
         )
+        // Status / Health badge (OK, CHECKING, DOWN, HOST KEY CHANGED)
+        .child(
+            div()
+                .w(px(85.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .child(
+                    crate::components::button::badge(if host.status_color == TEXT_FAINTER { TEXT_DIM } else { host.status_color })
+                        .text_size(px(8.5))
+                        .child(host.pill.clone()),
+                ),
+        )
+        // Group column with anchored inline dropdown
+        .child({
+            let is_dropdown_open = fleet.group_assign_modal_server.as_deref() == Some(&host.id);
+            let app_grp = app.clone();
+            let app_assign = app.clone();
+            let app_create = app.clone();
+            let s_id = host.id.clone();
+            let curr_grp = host.group.clone();
+            let groups = available_groups.to_vec();
+
+            div()
+                .relative()
+                .w(px(115.0))
+                .flex_none()
+                .flex()
+                .items_center()
+                .child(
+                    div()
+                        .id(SharedString::from(format!("fleet-grp-pill-{}", host.id)))
+                        .px(px(5.0))
+                        .py(px(2.0))
+                        .border_1()
+                        .border_color(if is_dropdown_open { hex_rgb(0x38bdf8) } else { BORDER_DEFAULT })
+                        .bg(if is_dropdown_open { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
+                        .text_color(if grp_display == "NO GROUP" { TEXT_DIMMER } else { hex_rgb(0x38bdf8) })
+                        .text_size(px(8.5))
+                        .font_weight(FontWeight::BOLD)
+                        .cursor_pointer()
+                        .hover(|s| s.bg(BG_ROW_HOVER).border_color(BORDER_STRONG))
+                        .on_click(move |_ev, _window, cx| {
+                            cx.stop_propagation();
+                            let sid = s_id.clone();
+                            app_grp.update(cx, |this, cx| {
+                                if this.fleet.group_assign_modal_server.as_deref() == Some(&sid) {
+                                    this.set_group_assign_target(None, cx);
+                                } else {
+                                    this.set_group_assign_target(Some(sid), cx);
+                                }
+                            });
+                        })
+                        .child(format!("{grp_display} ▾")),
+                )
+                .children(is_dropdown_open.then(|| {
+                    let server_id = host.id.clone();
+                    deferred(
+                        render_group_dropdown(
+                            &server_id,
+                            &curr_grp,
+                            &groups,
+                            app_assign,
+                            app_create,
+                        )
+                    ).with_priority(2)
+                }))
+        })
         // Address
         .child(
             div()
@@ -1869,6 +1929,156 @@ fn render_fleet_host_row(
                             });
                         })
                         .child(crate::components::icons::inherited_icon(TablerIcon::Terminal2, px(13.0))),
+                ),
+        )
+}
+
+fn render_group_dropdown(
+    server_id: &str,
+    current_group: &str,
+    groups: &[String],
+    app_assign: Entity<CrowApp>,
+    app_create: Entity<CrowApp>,
+) -> impl IntoElement {
+    let clean_current = if current_group.trim().is_empty() || current_group.trim() == "default" {
+        "default"
+    } else {
+        current_group.trim()
+    };
+
+    div()
+        .id("group-inline-dropdown")
+        .absolute()
+        .top(px(26.0))
+        .left_0()
+        .w(px(210.0))
+        .bg(BG_OVERLAY_PANEL)
+        .border_1()
+        .border_color(BORDER_STRONG)
+        .shadow_lg()
+        .occlude()
+        .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
+        .flex()
+        .flex_col()
+        .font_family(FONT_MONO)
+        // Subhead
+        .child(
+            div()
+                .h(px(24.0))
+                .px(px(8.0))
+                .bg(BG_PANEL)
+                .border_b_1()
+                .border_color(BORDER_PANEL)
+                .flex()
+                .items_center()
+                .justify_between()
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(6.0))
+                        .child(tabler_icon(TablerIcon::Folder).size(px(11.0)).text_color(hex_rgb(0x38bdf8)))
+                        .child(
+                            div()
+                                .text_size(px(9.5))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(TEXT_SECONDARY)
+                                .child(t!("fleet-overview-col-group")),
+                        ),
+                )
+                .child(
+                    div()
+                        .child(tabler_icon(TablerIcon::X).size(px(11.0)).text_color(TEXT_DIMMER)),
+                ),
+        )
+        // Groups list
+        .child(
+            div()
+                .id("group-dropdown-list")
+                .max_h(px(180.0))
+                .overflow_y_scrollbar()
+                .on_scroll_wheel(|_ev, _window, cx| cx.stop_propagation())
+                .children(groups.iter().map(|grp| {
+                    let is_active = if grp == "default" {
+                        clean_current == "default"
+                    } else {
+                        clean_current.eq_ignore_ascii_case(grp)
+                    };
+                    let display_name = if grp == "default" {
+                        t!("fleet-overview-no-group").to_string()
+                    } else {
+                        grp.to_uppercase()
+                    };
+                    let sid = server_id.to_string();
+                    let gname = grp.clone();
+                    let app = app_assign.clone();
+
+                    div()
+                        .id(SharedString::from(format!("group-opt-{grp}")))
+                        .h(px(26.0))
+                        .px(px(8.0))
+                        .bg(if is_active { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
+                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .cursor_pointer()
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .on_click(move |_ev, _window, cx| {
+                            let sid = sid.clone();
+                            let gname = gname.clone();
+                            app.update(cx, |this, cx| {
+                                this.assign_server_group(&sid, &gname, cx);
+                            });
+                        })
+                        .child(
+                            div()
+                                .flex()
+                                .items_center()
+                                .gap(px(6.0))
+                                .child(
+                                    div()
+                                        .text_size(px(10.0))
+                                        .font_weight(if is_active { FontWeight::BOLD } else { FontWeight::NORMAL })
+                                        .text_color(if is_active { TEXT_MAX } else { TEXT_PRIMARY })
+                                        .child(display_name),
+                                ),
+                        )
+                        .children(is_active.then(|| {
+                            div()
+                                .text_size(px(9.0))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(hex_rgb(0x38bdf8))
+                                .child("✓")
+                        }))
+                }))
+        )
+        // Bottom action: new group
+        .child(
+            div()
+                .id("group-dropdown-new-group")
+                .h(px(26.0))
+                .px(px(8.0))
+                .border_t_1()
+                .border_color(BORDER_PANEL)
+                .bg(BG_PANEL)
+                .hover(|s| s.bg(BG_ROW_HOVER))
+                .cursor_pointer()
+                .flex()
+                .items_center()
+                .gap(px(6.0))
+                .text_color(TEXT_SECONDARY)
+                .hover(|s| s.text_color(TEXT_PRIMARY))
+                .on_click(move |_ev, window, cx| {
+                    app_create.update(cx, |this, cx| {
+                        this.set_group_assign_target(None, cx);
+                        this.toggle_new_group_prompt(window, cx);
+                    });
+                })
+                .child(tabler_icon(TablerIcon::Plus).size(px(11.0)).text_color(TEXT_DIM))
+                .child(
+                    div()
+                        .text_size(px(9.5))
+                        .child(t!("fleet-overview-new-group")),
                 ),
         )
 }

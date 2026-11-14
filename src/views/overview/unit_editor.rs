@@ -277,8 +277,8 @@ pub fn unit_editor_modal(
                                         this.toggle_unit_editor_history(cx);
                                     });
                                 })
-                                .child(tabler_icon(TablerIcon::Clock).size(px(12.0)))
-                                .child(format!("Revisions ({hist_count})"))
+                                .child(tabler_icon(TablerIcon::Clock).size(px(12.0)).text_color(TEXT_DIM))
+                                .child(t!("unit-editor-revisions", count = hist_count))
                         }),
                 )
                 // 3. Body: Editor or Full View
@@ -299,8 +299,8 @@ pub fn unit_editor_modal(
                                     .gap(px(8.0))
                                     .text_size(px(12.0))
                                     .text_color(TEXT_DIM)
-                                    .child(tabler_icon(TablerIcon::Refresh).size(px(16.0)))
-                                    .child("Loading unit definition from host…")
+                                    .child(tabler_icon(TablerIcon::Refresh).size(px(16.0)).text_color(TEXT_DIM))
+                                    .child(t!("unit-editor-loading"))
                                     .into_any_element(),
                             )
                         } else if let Some(ref err) = state.load_error {
@@ -421,7 +421,7 @@ pub fn unit_editor_modal(
                                                         tabler_icon(TablerIcon::Check).size(px(10.0)).text_color(OK)
                                                     })),
                                             )
-                                            .child("Restart on apply"),
+                                            .child(t!("unit-editor-restart-on-apply")),
                                     )
                                     // Dry Run button
                                     .child(
@@ -444,9 +444,9 @@ pub fn unit_editor_modal(
                                                 app_verify.update(cx, |this, cx| this.run_unit_dry_run(cx));
                                             })
                                             .child(if is_verifying {
-                                                tabler_icon(TablerIcon::Refresh).size(px(12.0))
+                                                tabler_icon(TablerIcon::Refresh).size(px(12.0)).text_color(WARN)
                                             } else {
-                                                tabler_icon(TablerIcon::ShieldCheck).size(px(12.0))
+                                                tabler_icon(TablerIcon::ShieldCheck).size(px(12.0)).text_color(WARN)
                                             })
                                             .child(if is_verifying { "Verifying…" } else { "Dry Run (Verify)" }),
                                     )
@@ -469,9 +469,9 @@ pub fn unit_editor_modal(
                                                 app_apply.update(cx, |this, cx| this.apply_unit_editor_changes(cx));
                                             })
                                             .child(if is_applying {
-                                                tabler_icon(TablerIcon::Refresh).size(px(12.0))
+                                                tabler_icon(TablerIcon::Refresh).size(px(12.0)).text_color(hex_rgb(0x0a0a0c))
                                             } else {
-                                                tabler_icon(TablerIcon::PlayerPlay).size(px(12.0))
+                                                tabler_icon(TablerIcon::PlayerPlay).size(px(12.0)).text_color(hex_rgb(0x0a0a0c))
                                             })
                                             .child(if is_applying { "Applying…" } else { "Apply & Reload" }),
                                     )
@@ -493,7 +493,7 @@ pub fn unit_editor_modal(
                                     .on_click(move |_ev, _window, cx| {
                                         app_close_footer.update(cx, |this, cx| this.close_unit_editor(cx));
                                     })
-                                    .child("Close")
+                                    .child(t!("unit-editor-close"))
                             )
                         }),
                 ),
@@ -583,7 +583,7 @@ fn render_feedback_banner(state: &UnitEditorState) -> Option<Div> {
                     div()
                         .text_size(px(10.5))
                         .text_color(TEXT_SECONDARY)
-                        .child("Applying changes atomically, reloading systemd, and validating status…"),
+                        .child(t!("unit-editor-applying")),
                 ),
         ),
         (_, ApplyState::Success(msg)) => Some(
@@ -629,7 +629,7 @@ fn render_feedback_banner(state: &UnitEditorState) -> Option<Div> {
                     div()
                         .text_size(px(10.5))
                         .text_color(OK)
-                        .child(format!("Dry-run verified: {out}")),
+                        .child(t!("unit-editor-dry-run-verified", out = out)),
                 ),
         ),
         (DryRunState::Failed(err), _) => Some(
@@ -650,7 +650,7 @@ fn render_feedback_banner(state: &UnitEditorState) -> Option<Div> {
                         .text_size(px(10.5))
                         .line_height(px(15.0))
                         .text_color(CRIT)
-                        .child(format!("Verification failed: {err}")),
+                        .child(t!("unit-editor-verification-failed", err = err)),
                 ),
         ),
         _ => None,
@@ -682,7 +682,7 @@ fn render_history_drawer(state: &UnitEditorState, app: Entity<CrowApp>) -> impl 
                 .text_size(px(9.5))
                 .font_weight(FontWeight::BOLD)
                 .text_color(TEXT_DIM)
-                .child(format!("REVISION HISTORY & 1-CLICK ROLLBACK FOR {unit}")),
+                .child(t!("unit-editor-history-title", unit = unit)),
         )
         .child(
             div()
@@ -696,7 +696,7 @@ fn render_history_drawer(state: &UnitEditorState, app: Entity<CrowApp>) -> impl 
                             .p(px(12.0))
                             .text_size(px(10.5))
                             .text_color(TEXT_DIMMER)
-                            .child("No recorded changes for this service yet.")
+                            .child(t!("unit-editor-no-history"))
                             .into_any_element(),
                     )
                 } else {

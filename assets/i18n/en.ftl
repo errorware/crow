@@ -1704,6 +1704,8 @@ fleet-overview-create = CREATE
 fleet-overview-cancel = CANCEL
 fleet-overview-new-group = + NEW GROUP
 fleet-overview-host = HOST
+fleet-overview-col-status = STATUS
+fleet-overview-col-group = GROUP
 fleet-overview-address = ADDRESS
 fleet-overview-os = OS
 fleet-overview-role = ROLE
@@ -1718,6 +1720,7 @@ fleet-overview-connect-remote-linux-servers-via = Connect remote Linux servers v
 fleet-overview-add-remote-server-ssh = + ADD REMOTE SERVER (SSH)
 fleet-overview-fleet-alerts = FLEET ALERTS
 fleet-overview-open = { $count } open
+fleet-overview-expand-panel = expand ↑
 fleet-overview-ack-all = ACK ALL
 fleet-overview-activity = ACTIVITY
 fleet-overview-audit-log-all-hosts = audit log · all hosts →
@@ -4161,5 +4164,16 @@ onboard-boot-polling-title = POLLING SSH PORT 22 (EVERY { $interval }S)
 onboard-boot-skip-manual = SKIP TO MANUAL CONFIGURATION →
 onboard-boot-polling-live = POLLING ACTIVE
 onboard-boot-terminal-log = LIVE BOOT & CONNECTION LOG
+
+unit-editor-revisions = Revisions ({ $count })
+unit-editor-loading = Loading unit definition from host…
+unit-editor-restart-on-apply = Restart on apply
+unit-editor-close = Close
+unit-editor-applying = Applying changes atomically, reloading systemd, and validating status…
+unit-editor-dry-run-verified = Dry-run verified: { $out }
+unit-editor-verification-failed = Verification failed: { $err }
+unit-editor-history-title = REVISION HISTORY & 1-CLICK ROLLBACK FOR { $unit }
+unit-editor-no-history = No recorded changes for this service yet.
+
 
 
