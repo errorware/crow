@@ -98,6 +98,8 @@ pub fn titlebar(
     clock: crate::app::clock::ClockLine,
     // Crow's own pages open as tabs (ERR-190).
     page_tabs: &[crate::app::page_tabs::PageTab],
+    // Native fullscreen: macOS hides the traffic lights, so no clearance.
+    fullscreen: bool,
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
     let mut bar = div()
@@ -109,15 +111,18 @@ pub fn titlebar(
         .border_b_1()
         .border_color(BORDER_PANEL);
 
-    // 1. macOS native traffic lights clearance (only on macOS)
+    // 1. macOS native traffic lights clearance (only on macOS, and not in
+    // native fullscreen, where the traffic lights are hidden).
     #[cfg(target_os = "macos")]
-    {
+    if !fullscreen {
         bar = bar.child(
             div()
                 .w(px(76.0))
                 .flex_none(),
         );
     }
+    #[cfg(not(target_os = "macos"))]
+    let _ = fullscreen;
 
     // 2. Interactive Burger Menu + CROW Mark
     let app_burger = app.clone();

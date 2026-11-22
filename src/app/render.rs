@@ -255,6 +255,7 @@ impl Render for CrowApp {
                             &stance,
                             self.clock_line(self.fleet.active_server().map(|s| s.id).as_deref()),
                             &self.page_tabs,
+                            window.is_fullscreen(),
                             app_view.clone(),
                         ))
                         // 2. Main Screen Area
