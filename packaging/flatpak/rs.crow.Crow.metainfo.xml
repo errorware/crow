@@ -60,6 +60,18 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.8.6" date="2026-11-25">
+      <description>
+        <p>Crow 0.8.6: macOS ControlPath length fix, systemd unit editor, draggable server tabs, and fleet UI enhancements.</p>
+        <ul>
+          <li>SSH: fit control_dir within sun_path socket budget on macOS (GH#1)</li>
+          <li>Systemd: unit viewer, override editor, dry-run &amp; reversible rollback</li>
+          <li>Titlebar: drag-and-drop tab reordering with persistence</li>
+          <li>macOS: drop traffic-light spacer in native fullscreen</li>
+          <li>Fleet overview: dedicated status/group columns and collapsible bottom panel</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.8.5" date="2026-11-14">
       <description>
         <p>Crow 0.8.5: Fleet groups UI refinements and Rust 1.100 toolchain compatibility.</p>
