@@ -247,31 +247,80 @@ pub fn is_jump_target(id: &str) -> bool {
 }
 
 /// Where ssh keeps its multiplexing sockets. Unix socket paths are short
-/// (~104 bytes), so this stays near the root and ssh hashes the rest (%C).
+/// (~104 bytes on macOS, ~108 on Linux), so this stays near the root and ssh
+/// hashes the rest (%C).
 /// Where ssh keeps Crow's ControlMaster sockets: a folder only this user
-/// can use (ERR-110). Without a runtime dir it would sit in the shared
-/// /tmp, where another user could create it first; the folder is per uid,
-/// made 0700, and refused if it exists with another owner, other modes or
-/// as a symlink (then the cache dir is tried).
+/// can use (ERR-110). Candidates whose worst-case socket path would exceed
+/// `sockaddr_un.sun_path` (including OpenSSH's 17-char temp suffix for master
+/// socket binding) are skipped. The folder is per uid, made 0700, and refused
+/// if it exists with another owner, other modes or as a symlink.
 pub(crate) fn control_dir() -> PathBuf {
     #[cfg(unix)]
     {
         let uid = unsafe { libc::geteuid() };
-        let name = format!("crow-ssh-{uid}");
-        let candidates = [dirs::runtime_dir().unwrap_or_else(std::env::temp_dir), dirs::cache_dir().unwrap_or_else(std::env::temp_dir)];
-        for base in &candidates {
-            let dir = base.join(&name);
-            if private_dir(&dir, uid).is_ok() {
-                return dir;
-            }
+        let mut candidates: Vec<PathBuf> = Vec::new();
+        if let Some(d) = dirs::runtime_dir() {
+            candidates.push(d);
         }
-        // Nothing private to be had: ssh refuses the socket with a clear error.
-        candidates[1].join(name)
+        candidates.push(std::env::temp_dir());
+        candidates.push(PathBuf::from("/tmp"));
+        #[cfg(target_os = "macos")]
+        candidates.push(PathBuf::from("/private/tmp"));
+        if let Some(d) = dirs::cache_dir() {
+            candidates.push(d);
+        }
+        let mut seen = std::collections::HashSet::new();
+        candidates.retain(|p| seen.insert(p.clone()));
+        pick_control_dir(&candidates, uid)
     }
     #[cfg(not(unix))]
     {
         dirs::runtime_dir().unwrap_or_else(std::env::temp_dir).join("crow-ssh")
     }
+}
+
+/// Maximum length of a unix domain socket path, including null terminator,
+/// from OS `sockaddr_un.sun_path` (104 on macOS/BSD, 108 on Linux).
+#[cfg(unix)]
+pub(crate) fn max_sun_path_len() -> usize {
+    let addr: libc::sockaddr_un = unsafe { std::mem::zeroed() };
+    addr.sun_path.len()
+}
+
+/// The worst-case length of an OpenSSH control socket path for `dir`:
+/// `dir` + `/` (1) + `%C` (40 hex chars) + `-` (1) + route tag (up to 8 hex chars)
+/// + OpenSSH temp socket suffix `.` + 16 random chars (17) during master creation.
+#[cfg(unix)]
+pub(crate) fn worst_case_control_path_len(dir: &std::path::Path) -> usize {
+    const SSH_HASH_LEN: usize = 40;
+    const MAX_ROUTE_TAG_LEN: usize = 8;
+    const SSH_TEMP_SUFFIX_LEN: usize = 17;
+    dir.as_os_str().len() + 1 + SSH_HASH_LEN + 1 + MAX_ROUTE_TAG_LEN + SSH_TEMP_SUFFIX_LEN
+}
+
+#[cfg(unix)]
+pub(crate) fn control_path_fits_sun_path(dir: &std::path::Path) -> bool {
+    worst_case_control_path_len(dir) < max_sun_path_len()
+}
+
+#[cfg(unix)]
+fn pick_control_dir(candidates: &[PathBuf], uid: u32) -> PathBuf {
+    let name = format!("crow-ssh-{uid}");
+    let mut fitting_candidates = Vec::new();
+    for base in candidates {
+        let dir = base.join(&name);
+        if control_path_fits_sun_path(&dir) {
+            if private_dir(&dir, uid).is_ok() {
+                return dir;
+            }
+            fitting_candidates.push(dir);
+        }
+    }
+    if let Some(dir) = fitting_candidates.into_iter().next() {
+        return dir;
+    }
+    // Fallback if no candidate worked: standard /tmp
+    PathBuf::from("/tmp").join(name)
 }
 
 /// Makes `dir` (0700) if it's missing; if it exists, it must be a real
@@ -1252,8 +1301,12 @@ mod tests {
 
 #[cfg(all(test, unix))]
 mod control_dir_tests {
-    use super::private_dir;
+    use super::{
+        control_dir, control_path_fits_sun_path, max_sun_path_len, pick_control_dir, private_dir,
+        worst_case_control_path_len,
+    };
     use std::os::unix::fs::PermissionsExt;
+    use std::path::{Path, PathBuf};
 
     #[test]
     fn only_a_private_folder_of_this_user_is_used() {
@@ -1275,4 +1328,60 @@ mod control_dir_tests {
         std::fs::remove_dir_all(&base).unwrap();
     }
 
+    #[test]
+    fn control_dir_worst_case_fits_sun_path() {
+        let dir = control_dir();
+        let worst_len = worst_case_control_path_len(&dir);
+        let max_len = max_sun_path_len();
+        assert!(
+            control_path_fits_sun_path(&dir),
+            "control_dir '{}' worst-case length ({worst_len}) must fit in sun_path ({max_len})",
+            dir.display(),
+        );
+        // Also ensure it fits under the 104-byte macOS limit:
+        assert!(
+            worst_len < 104,
+            "control_dir '{}' worst-case length ({worst_len}) must fit in 104-byte sun_path limit",
+            dir.display(),
+        );
+    }
+
+    #[test]
+    fn skips_candidates_exceeding_sun_path_budget() {
+        let uid = unsafe { libc::geteuid() };
+        // macOS typical $TMPDIR is ~49 bytes (e.g. /var/folders/xx/<long>/T).
+        // Combined with crow-ssh-<uid> and OpenSSH socket format, it exceeds sun_path.
+        let long_base = PathBuf::from("/var/folders/0d/h37wg7jx1y361f9m4p_l94th0000gn/T");
+        let short_base = PathBuf::from("/tmp");
+
+        let long_dir = long_base.join(format!("crow-ssh-{uid}"));
+        assert!(
+            !control_path_fits_sun_path(&long_dir),
+            "long candidate path ({}) should exceed sun_path budget",
+            worst_case_control_path_len(&long_dir)
+        );
+
+        let chosen = pick_control_dir(&[long_base, short_base], uid);
+        assert_eq!(chosen, Path::new("/tmp").join(format!("crow-ssh-{uid}")));
+        assert!(control_path_fits_sun_path(&chosen));
+    }
+
+    #[test]
+    fn worst_case_path_length_bounds() {
+        // Overhead: / (1) + %C (40) + - (1) + route tag (8) + temp suffix (17) = 67 bytes.
+        let dir_10_chars = PathBuf::from("/tmp/12345");
+        assert_eq!(worst_case_control_path_len(&dir_10_chars), 10 + 67);
+
+        // macOS 104 bytes limit allows at most 103 characters (null-terminated).
+        // 103 - 67 = 36 bytes max for dir.
+        let fits_36 = PathBuf::from(format!("/{}", "a".repeat(35)));
+        assert_eq!(fits_36.as_os_str().len(), 36);
+        assert_eq!(worst_case_control_path_len(&fits_36), 103);
+        assert!(worst_case_control_path_len(&fits_36) < 104);
+
+        let exceeds_37 = PathBuf::from(format!("/{}", "a".repeat(36)));
+        assert_eq!(exceeds_37.as_os_str().len(), 37);
+        assert_eq!(worst_case_control_path_len(&exceeds_37), 104);
+        assert!(!(worst_case_control_path_len(&exceeds_37) < 104));
+    }
 }
