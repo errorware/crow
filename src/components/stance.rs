@@ -38,6 +38,7 @@ pub fn stance_badge(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
         .bg(color.opacity(0.08))
         .cursor_pointer()
         .hover(|s| s.bg(color.opacity(0.16)))
+        .occlude() // Windows: keeps it out of the titlebar's drag area
         .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // not a window drag
         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.toggle_stance_panel(cx)))
         .child(div().text_color(color).child(crate::components::icons::inherited_icon(icon, font_px(12.0))))

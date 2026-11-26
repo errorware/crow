@@ -83,7 +83,15 @@ pub fn window_frame(window: &mut Window, content: impl IntoElement) -> impl Into
 /// hands the window to the compositor to move. (Once the move starts, the
 /// compositor owns the pointer, so a separate double-click handler would
 /// never see the second click.)
+///
+/// Windows has no `start_window_move`, and gpui's `zoom` there only
+/// maximizes: the drag regions are marked `WindowControlArea::Drag` instead,
+/// so the system treats them as the caption and handles moving, Aero Snap
+/// and double-click maximize/restore itself.
 pub fn titlebar_mouse_down(ev: &MouseDownEvent, window: &mut Window) {
+    if cfg!(windows) {
+        return;
+    }
     if ev.click_count >= 2 {
         window.zoom_window();
     } else {

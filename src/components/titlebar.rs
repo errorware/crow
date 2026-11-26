@@ -387,6 +387,7 @@ pub fn titlebar(
                     .id("titlebar-drag-region")
                     .flex_1()
                     .h_full()
+                    .window_control_area(WindowControlArea::Drag)
                     .on_mouse_down(MouseButton::Left, |ev, window, _cx| crate::components::window_frame::titlebar_mouse_down(ev, window)),
             ),
     );
@@ -411,6 +412,7 @@ pub fn titlebar(
             .text_color(TEXT_FAINT)
             .border_l_1()
             .border_color(BORDER_PANEL)
+            .window_control_area(WindowControlArea::Drag)
             .on_mouse_down(MouseButton::Left, |ev, window, _cx| crate::components::window_frame::titlebar_mouse_down(ev, window))
             .child(crate::components::stance::stance_badge(stance, app.clone()))
             .child(div().child(meta_text))
@@ -426,6 +428,8 @@ pub fn titlebar(
                     .cursor_pointer()
                     .bg(if clock.menu_open { BG_ROW_HOVER } else { hex_rgba(0, 0.0) })
                     .hover(|s| s.bg(BG_ROW_HOVER))
+                    // Not part of the drag area (Windows: no HTCAPTION here).
+                    .occlude()
                     .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
                     .on_click(move |_ev, _window, cx| app_clock.update(cx, |this, cx| this.toggle_clock_menu(cx)))
                     .child(div().text_color(TEXT_DIMMER).child(t!("titlebar-you")))
