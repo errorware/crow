@@ -1,4 +1,5 @@
-# Builds Crow release binaries for Linux (x86_64) and macOS (Apple Silicon)
+# Builds Crow release binaries for Linux (x86_64) and macOS (Apple Silicon
+# and Intel)
 # and attaches them, with SHA256SUMS, to the GitHub release. When the
 # repository is public it also generates SLSA Build Level 3 provenance with
 # the OpenSSF generic generator
@@ -23,13 +24,38 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: ubuntu-latest
+          # Built inside an Ubuntu 22.04 container, not on the runner's own
+          # OS: a binary needs the glibc it was linked against or newer, and
+          # ubuntu-latest's glibc 2.43 locked out 24.04, Mint and Fedora 42
+          # (issue #2). The container outlives the ubuntu-22.04 runner label
+          # (retired April 2027).
+          - os: ubuntu-24.04
+            container: ubuntu:22.04
             asset: crow-linux-x86_64
+            # Highest glibc symbol version the binary may need.
+            max_glibc: "2.35"
           - os: macos-latest
             asset: crow-macos-arm64
+          # Intel Macs, cross-compiled on the Apple Silicon runner.
+          - os: macos-latest
+            asset: crow-macos-x86_64
+            target: x86_64-apple-darwin
     runs-on: ${{ matrix.os }}
+    container: ${{ matrix.container }}
 
     steps:
+      # Before checkout: the bare container has no git or CA certificates.
+      - name: Install system dependencies
+        if: runner.os == 'Linux'
+        env:
+          DEBIAN_FRONTEND: noninteractive
+        run: |
+          apt-get update
+          apt-get install -y --no-install-recommends \
+            ca-certificates curl git build-essential binutils pkg-config \
+            libfontconfig1-dev libfreetype6-dev \
+            libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev
+
       # Crow depends on crow-config-core/crow-config-schemas via a sibling path
       # (../crow-config-core/...), so both repos are checked out side by side.
       - uses: actions/checkout@v7
@@ -41,19 +67,42 @@ jobs:
           repository: errorware/crow-config
           path: crow-config-core
 
-      - name: Install system dependencies
-        if: runner.os == 'Linux'
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends \
-            pkg-config libfontconfig1-dev libfreetype6-dev \
-            libxcb1-dev libxkbcommon-dev libxkbcommon-x11-dev libwayland-dev
-
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - name: Build
         working-directory: crow
-        run: cargo build --locked --release
+        env:
+          TARGET: ${{ matrix.target }}
+        run: |
+          set -eu
+          if [ -n "$TARGET" ]; then
+            cargo build --locked --release --target "$TARGET"
+            mkdir -p target/release
+            cp "target/$TARGET/release/crow" target/release/crow
+          else
+            cargo build --locked --release
+          fi
+          file target/release/crow || true
+
+      # Fails the release if the binary would need a newer glibc than the
+      # oldest one we promise (see the matrix), so issue #2 can't come back.
+      - name: Check glibc baseline (Linux)
+        if: runner.os == 'Linux'
+        working-directory: crow
+        env:
+          MAX_GLIBC: ${{ matrix.max_glibc }}
+        run: |
+          set -eu
+          need=$(objdump -T target/release/crow | grep -o 'GLIBC_[0-9][0-9.]*' | sed 's/GLIBC_//' | sort -uV | tail -1)
+          echo "Needs glibc $need (allowed: $MAX_GLIBC)"
+          echo "Shared libraries:"
+          objdump -p target/release/crow | grep NEEDED
+          if [ "$(printf '%s\n%s\n' "$need" "$MAX_GLIBC" | sort -V | tail -1)" != "$MAX_GLIBC" ]; then
+            echo "::error::crow needs glibc $need, newer than the $MAX_GLIBC baseline"
+            exit 1
+          fi
 
       # Tarballs rather than bare files: artifact uploads and release downloads
       # drop the executable bit, a tar.gz keeps it.
@@ -101,6 +150,46 @@ jobs:
           path: crow/dist/${{ matrix.asset }}.tar.gz
           if-no-files-found: error
 
+  # The Linux binary starts on old and new distros. Crow links with full
+  # RELRO (all symbols bound at load), and LD_BIND_NOW makes sure of it, so a
+  # missing library or symbol fails here; --check-plugin needs no display.
+  smoke-linux:
+    needs: [build]
+    strategy:
+      fail-fast: false
+      matrix:
+        image: ["ubuntu:22.04", "ubuntu:24.04", "ubuntu:26.04", "debian:12", "fedora:latest"]
+    runs-on: ubuntu-24.04
+    container: ${{ matrix.image }}
+    steps:
+      - name: Install runtime libraries
+        run: |
+          if command -v apt-get >/dev/null; then
+            apt-get update
+            DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+              libfontconfig1 libfreetype6 libxcb1 libxkbcommon0 libxkbcommon-x11-0 libwayland-client0
+          else
+            dnf install -y fontconfig freetype libxcb libxkbcommon libxkbcommon-x11 libwayland-client
+          fi
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: crow-linux-x86_64
+
+      - uses: actions/checkout@v7
+        with:
+          path: src
+          sparse-checkout: plugins
+
+      - name: Run crow --check-plugin
+        env:
+          LD_BIND_NOW: "1"
+        run: |
+          set -eu
+          tar -xzf crow-linux-x86_64.tar.gz
+          ldd crow-linux-x86_64/crow
+          crow-linux-x86_64/crow --check-plugin src/plugins/motd-note
+
   # Matrix jobs can't merge outputs, so hashing happens once over every artifact.
   hash:
     needs: [build]
@@ -140,8 +229,8 @@ jobs:
   # The binaries go on the release whenever they built, whatever happens to
   # provenance (skipped while the repository is private, see above).
   release-assets:
-    needs: [build, provenance]
-    if: always() && github.event_name == 'release' && needs.build.result == 'success'
+    needs: [build, smoke-linux, provenance]
+    if: always() && github.event_name == 'release' && needs.build.result == 'success' && needs.smoke-linux.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write

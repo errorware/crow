@@ -144,7 +144,7 @@ crow/
  
 ### Download
  
-Prebuilt binaries for **Linux (x86_64)** and **macOS (Apple Silicon)** are attached to each [GitHub release](https://github.com/errorware/crow/releases), alongside SLSA provenance (`.intoto.jsonl`) you can check with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier).
+Prebuilt binaries for **Linux (x86_64, glibc 2.35+: Ubuntu 22.04, Debian 12, Fedora and newer)** and **macOS (Apple Silicon and Intel)** are attached to each [GitHub release](https://github.com/errorware/crow/releases), alongside SLSA provenance (`.intoto.jsonl`) you can check with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier).
  
 **Linux**: unpack and run the installer. It puts `crow` in `~/.local/bin` and adds Crow (with its icon) to your app launcher; `./install.sh --uninstall` removes it.
  
@@ -153,7 +153,7 @@ tar -xzf crow-linux-x86_64.tar.gz
 cd crow-linux-x86_64 && ./install.sh
 ```
  
-**macOS**: unpack `crow-macos-arm64.tar.gz` and drag `Crow.app` to Applications. The app is ad-hoc signed but not notarized, so Gatekeeper blocks the first launch: right-click it and choose **Open**, or clear the quarantine flag once:
+**macOS**: unpack `crow-macos-arm64.tar.gz` (Apple Silicon) or `crow-macos-x86_64.tar.gz` (Intel) and drag `Crow.app` to Applications. The app is ad-hoc signed but not notarized, so Gatekeeper blocks the first launch: right-click it and choose **Open**, or clear the quarantine flag once:
  
 ```bash
 xattr -dr com.apple.quarantine /Applications/Crow.app
