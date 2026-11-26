@@ -621,6 +621,7 @@ mod tests {
         assert_eq!(sheet.include_notes, ["/etc/ssh/sshd_config.d/99-secret.conf: couldn't read it: permission denied"]);
     }
 
+    #[cfg(unix)]
     #[test]
     fn includes_are_read_through_the_host_in_glob_order() {
         use crate::host::LocalHost;
@@ -721,6 +722,7 @@ mod tests {
         assert_eq!(scopes.last().unwrap().1.as_deref(), Some("User deploy"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn validation_skips_formats_without_file_validators_and_missing_tools() {
         use crate::host::LocalHost;

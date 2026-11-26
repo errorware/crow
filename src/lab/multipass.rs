@@ -755,6 +755,7 @@ mod tests {
     /// start and purge. Needs a working `multipass`; leaves nothing behind
     /// and never touches ~/.ssh:
     ///   CROW_LIVE_MULTIPASS=1 cargo test live_multipass -- --ignored --nocapture
+    #[cfg(unix)]
     #[test]
     #[ignore]
     fn live_multipass_launch_enroll_import_lifecycle() {

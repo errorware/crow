@@ -199,7 +199,10 @@ fn markdown_inner(plan: &Plan, target: &str, findings: &[(String, Vec<Finding>)]
 
 #[cfg(test)]
 mod tests {
-    use super::{check, format_backups, markdown, parse_backups, Drill, Plan};
+    use super::{format_backups, parse_backups};
+    #[cfg(unix)]
+    use super::{check, markdown, Drill, Plan};
+    #[cfg(unix)]
     use crate::host::LocalHost;
 
     #[test]
@@ -210,6 +213,7 @@ mod tests {
         assert_eq!(parse_backups(&format_backups(&b)), b);
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_plan_is_checked_against_the_files_for_real() {
         let dir = std::env::temp_dir().join(format!("crow-dr-{}", std::process::id()));

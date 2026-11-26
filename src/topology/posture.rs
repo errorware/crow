@@ -147,11 +147,13 @@ mod tests {
     }
 
     /// Runs a filter program over `input` the way the posture script does.
+    #[cfg(unix)]
     fn filters(program: &str, input: &str) -> bool {
         use crate::host::Host;
         crate::host::LocalHost.exec_stdin(&["sh", "-c", "awk \"$1\"", "t", program], input.as_bytes(), DEFAULT_TIMEOUT).is_ok()
     }
 
+    #[cfg(unix)]
     #[test]
     fn a_disabled_ufw_or_an_empty_chain_is_not_a_firewall() {
         // Ubuntu 24.04 after `ufw disable` (Linode, 2026-10-10): the input

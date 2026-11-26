@@ -700,7 +700,7 @@ impl SshHost {
         Ok((self.program.clone(), args))
     }
 
-    #[cfg(test)]
+    #[cfg(all(test, unix))]
     pub(crate) fn with_program(mut self, program: &str) -> Self {
         self.program = program.to_string();
         self.finish_args();
@@ -902,6 +902,7 @@ impl SshHost {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[cfg(unix)]
     use std::os::unix::fs::FileTypeExt;
 
     fn server(auth: &str, key_id: Option<&str>) -> ServerRecord {
@@ -971,10 +972,13 @@ mod tests {
         assert!(cmd.contains("-W 10.0.0.2:22 -- 1.1.1.1"), "{cmd}");
         assert!(!cmd.contains('%'));
         // Through a shell, as ssh runs it: the quoting holds.
-        let out = std::process::Command::new("sh").arg("-c").arg(format!("set -- {cmd}; printf '%s\\n' \"$@\"")).output().unwrap();
-        let words = String::from_utf8(out.stdout).unwrap();
-        let inner = words.lines().find(|l| l.starts_with("ProxyCommand=")).unwrap();
-        assert!(inner.ends_with("-W 10.0.0.2:22 -- 1.1.1.1"), "{inner}");
+        #[cfg(unix)]
+        {
+            let out = std::process::Command::new("sh").arg("-c").arg(format!("set -- {cmd}; printf '%s\\n' \"$@\"")).output().unwrap();
+            let words = String::from_utf8(out.stdout).unwrap();
+            let inner = words.lines().find(|l| l.starts_with("ProxyCommand=")).unwrap();
+            assert!(inner.ends_with("-W 10.0.0.2:22 -- 1.1.1.1"), "{inner}");
+        }
         assert_eq!(forward_target("fe80::1", 22), "[fe80::1]:22");
     }
 
@@ -1056,6 +1060,7 @@ mod tests {
     /// Runs SshHost against a stand-in `ssh` that executes the remote command
     /// with a local shell — the argv building, quoting and every exec-based
     /// file operation go through the same path a real server would.
+    #[cfg(unix)]
     #[test]
     fn end_to_end_through_a_fake_ssh_client() {
         let dir = std::env::temp_dir().join(format!("crow-fake-ssh-{}", std::process::id()));
@@ -1105,6 +1110,7 @@ mod tests {
     ///   CROW_LIVE_SSH="127.0.0.1:22222:root:/path/to/key" \
     ///   CROW_LIVE_KNOWN_HOSTS=/path/to/known_hosts cargo test live_ssh -- --ignored
     /// (a known_hosts file for that endpoint, e.g. from `ssh-keyscan -p 22222 127.0.0.1`).
+    #[cfg(unix)]
     #[test]
     #[ignore]
     fn live_ssh_round_trip() {
@@ -1230,6 +1236,7 @@ mod tests {
     /// Real sshd containers: a bastion on 127.0.0.1:22301, a second one only
     /// it can reach, and a server behind each (see the ERR-152 notes):
     ///   CROW_BASTION_LAB=/path/with/key+known_hosts cargo test live_bastion_chain -- --ignored --nocapture
+    #[cfg(unix)]
     #[test]
     #[ignore]
     fn live_bastion_chain() {

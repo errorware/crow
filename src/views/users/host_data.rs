@@ -394,6 +394,7 @@ mod tests {
     }
 
     /// The authorize/revoke scripts, run for real against a temp home.
+    #[cfg(unix)]
     #[test]
     fn authorize_and_revoke_round_trip_on_a_real_shell() {
         use crate::host::LocalHost;

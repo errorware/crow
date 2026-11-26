@@ -391,12 +391,12 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let gen = |name: &str| generate_keypair("K", KeyAlgorithm::Ed25519, None, "fleet", &dir, Some(name));
-        let (_, _, priv_path, pub_path) = gen("id_perm").unwrap();
+        let (_, _, priv_path, _pub_path) = gen("id_perm").unwrap();
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;
             assert_eq!(std::fs::metadata(&priv_path).unwrap().permissions().mode() & 0o777, 0o600);
-            assert_eq!(std::fs::metadata(&pub_path).unwrap().permissions().mode() & 0o022, 0, "public key not group/other-writable");
+            assert_eq!(std::fs::metadata(&_pub_path).unwrap().permissions().mode() & 0o022, 0, "public key not group/other-writable");
         }
         let before = std::fs::read(&priv_path).unwrap();
         assert!(gen("id_perm").unwrap_err().contains("already exists"));

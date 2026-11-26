@@ -218,6 +218,16 @@ fn query_systemd_status(home: &Path) -> ServiceStatus {
     }
 }
 
+#[cfg(target_os = "macos")]
+fn effective_uid() -> u32 {
+    unsafe { libc::geteuid() }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn effective_uid() -> u32 {
+    0
+}
+
 fn query_launchd_status(home: &Path) -> ServiceStatus {
     let path = launchd_plist_path(home);
     let installed = path.exists();
@@ -232,7 +242,7 @@ fn query_launchd_status(home: &Path) -> ServiceStatus {
         };
     }
 
-    let uid = unsafe { libc::geteuid() };
+    let uid = effective_uid();
     let target = format!("gui/{uid}/{LAUNCHD_LABEL}");
     let out = crate::sandbox::host_command(&["launchctl", "print", &target], None, None)
         .and_then(|mut c| c.output());
@@ -295,7 +305,7 @@ pub fn install_and_start() -> Result<ServiceStatus, String> {
             std::fs::write(&path, plist)
                 .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
 
-            let uid = unsafe { libc::geteuid() };
+            let uid = effective_uid();
             let domain = format!("gui/{uid}");
             let path_str = path.display().to_string();
             let _ = crate::sandbox::host_command(
@@ -334,7 +344,7 @@ pub fn stop_and_uninstall() -> Result<ServiceStatus, String> {
         }
         ServiceBackend::LaunchdUser => {
             let path = launchd_plist_path(&home);
-            let uid = unsafe { libc::geteuid() };
+            let uid = effective_uid();
             let domain = format!("gui/{uid}");
             let path_str = path.display().to_string();
             let _ = crate::sandbox::host_command(

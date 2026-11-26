@@ -69,9 +69,40 @@ fn ini_value(v: &str) -> String {
 
 fn write_private(path: &Path, text: &str) -> Result<(), String> {
     use std::io::Write;
-    use std::os::unix::fs::OpenOptionsExt;
-    let mut f = std::fs::OpenOptions::new().write(true).create(true).truncate(true).mode(0o600).open(path).map_err(|e| format!("{}: {e}", path.display()))?;
+    let mut opts = std::fs::OpenOptions::new();
+    opts.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        opts.mode(0o600);
+    }
+    let mut f = opts.open(path).map_err(|e| format!("{}: {e}", path.display()))?;
     f.write_all(text.as_bytes()).map_err(|e| format!("{}: {e}", path.display()))
+}
+
+/// Returns whether `dir` contains an executable named `cmd`.
+fn dir_has_executable(dir: &Path, cmd: &str) -> bool {
+    #[cfg(unix)]
+    {
+        let p = dir.join(cmd);
+        std::fs::metadata(&p).is_ok_and(|m| m.is_file() && std::os::unix::fs::PermissionsExt::mode(&m.permissions()) & 0o111 != 0)
+    }
+    #[cfg(windows)]
+    {
+        let direct = dir.join(cmd);
+        if direct.is_file() {
+            return true;
+        }
+        let pathext = std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into());
+        pathext
+            .split(';')
+            .filter(|ext| !ext.is_empty())
+            .any(|ext| dir.join(format!("{cmd}{ext}")).is_file())
+    }
+    #[cfg(not(any(unix, windows)))]
+    {
+        dir.join(cmd).is_file()
+    }
 }
 
 /// The commands in `requires` that aren't on PATH here.
@@ -80,23 +111,26 @@ pub fn missing_here(requires: &[String]) -> Vec<String> {
         use crate::host::Host;
         return requires.iter().filter(|c| crate::host::LocalHost.exec(&["sh", "-c", "command -v \"$1\"", "crow-which", c], std::time::Duration::from_secs(10)).is_err()).cloned().collect();
     }
-    let path = std::env::var("PATH").unwrap_or_default();
+    let path = std::env::var_os("PATH").unwrap_or_default();
     requires
         .iter()
-        .filter(|c| !std::env::split_paths(&path).any(|d| {
-            let p = d.join(c);
-            std::fs::metadata(&p).is_ok_and(|m| m.is_file() && std::os::unix::fs::PermissionsExt::mode(&m.permissions()) & 0o111 != 0)
-        }))
+        .filter(|c| !std::env::split_paths(&path).any(|d| dir_has_executable(&d, c)))
         .cloned()
         .collect()
 }
 
 /// A local action's environment: nothing of Crow's own but PATH and LANG.
 pub fn environment(data_dir: &Path, run_dir: &Path, declared: &BTreeMap<String, Template>, v: &Values) -> Result<Vec<(String, String)>, String> {
+    #[cfg(windows)]
+    let default_path = String::new();
+    #[cfg(not(windows))]
+    let default_path = "/usr/local/bin:/usr/bin:/bin".to_string();
+
+    let tmp_dir = run_dir.join("tmp").display().to_string();
     let mut env = vec![
-        ("PATH".to_string(), std::env::var("PATH").unwrap_or_else(|_| "/usr/local/bin:/usr/bin:/bin".into())),
+        ("PATH".to_string(), std::env::var("PATH").unwrap_or(default_path)),
         ("HOME".to_string(), data_dir.display().to_string()),
-        ("TMPDIR".to_string(), run_dir.join("tmp").display().to_string()),
+        ("TMPDIR".to_string(), tmp_dir.clone()),
         ("LANG".to_string(), "C.UTF-8".to_string()),
         ("TERM".to_string(), "dumb".to_string()),
         // Ansible prints for people, not colours for a terminal.
@@ -107,6 +141,19 @@ pub fn environment(data_dir: &Path, run_dir: &Path, declared: &BTreeMap<String, 
         // HOME (the data folder) the path can pass the 108-byte limit.
         ("ANSIBLE_SSH_CONTROL_PATH_DIR".to_string(), crate::host::ssh::control_dir().join("ansible").display().to_string()),
     ];
+    #[cfg(windows)]
+    {
+        // WinSock, DNS resolution, CryptoAPI, and cmd/OpenSSH require core
+        // Windows environment variables to remain set in a cleared env.
+        env.push(("USERPROFILE".to_string(), data_dir.display().to_string()));
+        env.push(("TEMP".to_string(), tmp_dir.clone()));
+        env.push(("TMP".to_string(), tmp_dir));
+        for key in ["SYSTEMROOT", "WINDIR", "COMSPEC", "PATHEXT", "SYSTEMDRIVE"] {
+            if let Ok(val) = std::env::var(key) {
+                env.push((key.to_string(), val));
+            }
+        }
+    }
     for (k, t) in declared {
         env.retain(|(name, _)| name != k);
         env.push((k.clone(), fill(t, v)?));
@@ -224,10 +271,13 @@ pub fn run_dir(data_dir: &Path, nonce: &str) -> Result<PathBuf, String> {
 
 #[cfg(test)]
 mod tests {
+    #[cfg(unix)]
     use std::collections::BTreeMap;
     use std::path::Path;
 
-    use super::{alias, argv, environment, missing_here, read_results, run, run_dir, write_targets, LocalPaths};
+    use super::{alias, argv, missing_here, read_results, write_targets, LocalPaths};
+    #[cfg(unix)]
+    use super::{environment, run, run_dir};
     use crate::plugin_host::manifest::Template;
     use crate::plugin_host::run::Values;
     use crate::vault::ServerRecord;
@@ -239,6 +289,7 @@ mod tests {
         d
     }
 
+    #[cfg(unix)]
     #[test]
     fn the_environment_is_cleared_and_home_is_the_data_folder() {
         let data = temp("env");
@@ -255,6 +306,7 @@ mod tests {
         assert!(r.stdout.trim_end().ends_with(&data.display().to_string()), "runs in the data folder");
     }
 
+    #[cfg(unix)]
     #[test]
     fn exit_codes_and_missing_programs() {
         let data = temp("exit");
@@ -265,6 +317,16 @@ mod tests {
         assert_eq!(missing_here(&["sh".to_string(), "crow-no-such-program".to_string()]), vec!["crow-no-such-program".to_string()]);
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn missing_here_finds_windows_executables() {
+        assert_eq!(
+            missing_here(&["cmd".to_string(), "crow-no-such-program".to_string()]),
+            vec!["crow-no-such-program".to_string()]
+        );
+    }
+
+    #[cfg(target_os = "linux")]
     #[test]
     fn stop_ends_the_whole_group() {
         use std::sync::atomic::{AtomicBool, Ordering};
@@ -291,7 +353,8 @@ mod tests {
         let cmd = vec![Template::parse("{data_dir}/venv/bin/python").unwrap(), Template::parse("{plugin_dir}/run.py").unwrap(), Template::parse("-i").unwrap(), Template::parse("{inventory}").unwrap()];
         assert_eq!(argv(Some(&cmd), None, None, &[], Path::new("/p"), &v).unwrap(), vec!["/d/venv/bin/python", "/p/run.py", "-i", "/r/inventory"]);
         let args = vec![Template::parse("{results}").unwrap()];
-        assert_eq!(argv(None, Some("x.py"), Some(crate::plugin_host::manifest::Interpreter::Python3), &args, Path::new("/p"), &v).unwrap(), vec!["python3", "/p/x.py", "/r/results"]);
+        let expected_script = Path::new("/p").join("x.py").display().to_string();
+        assert_eq!(argv(None, Some("x.py"), Some(crate::plugin_host::manifest::Interpreter::Python3), &args, Path::new("/p"), &v).unwrap(), vec!["python3".to_string(), expected_script, "/r/results".to_string()]);
     }
 
     #[test]
@@ -308,8 +371,11 @@ mod tests {
         let inventory = std::fs::read_to_string(&inv).unwrap();
         assert!(inventory.contains("web-1 ansible_host=web-1 ansible_user=deploy crow_server_id=s1 crow_server_name=web-1 crow_bastion=no"), "{inventory}");
         assert!(inventory.contains(&format!("ansible_ssh_common_args=\"-F {}\"", cfg.display())));
-        use std::os::unix::fs::PermissionsExt;
-        assert_eq!(std::fs::metadata(&cfg).unwrap().permissions().mode() & 0o777, 0o600);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(std::fs::metadata(&cfg).unwrap().permissions().mode() & 0o777, 0o600);
+        }
         let lab = ServerRecord { tags: vec!["test-node".into()], name: "lab".into(), ..s.clone() };
         assert!(write_targets(&dir, &[lab]).is_err());
         assert_eq!(alias(&ServerRecord { id: "x9".into(), name: "my server".into(), ..Default::default() }), "crow-x9");

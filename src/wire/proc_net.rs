@@ -96,6 +96,7 @@ pub fn collect_process_tree(root_pid: u32) -> Vec<u32> {
     // Also discover detached `ssh` ControlMaster `[mux]` processes whose
     // ControlPath lives in Crow's private `crow-ssh-<uid>` directory, since
     // OpenSSH daemonizes ControlMaster (`PPID = 1`).
+    #[cfg(target_os = "linux")]
     if let Ok(entries) = std::fs::read_dir("/proc") {
         let uid = unsafe { libc::geteuid() };
         let marker = format!("crow-ssh-{uid}");

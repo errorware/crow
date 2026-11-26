@@ -7,27 +7,27 @@
 //! Without CROW_WORKFLOWS every test returns at once, so `cargo test` stays
 //! offline. They share one profile and run in order (w01, w02, ...).
 
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod harness;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod w00_reset;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod w01_enroll;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod w02_bastion;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod w03_push_configs;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod w04_detach_bastion;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod w05_users;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod w06_hardening;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod w07_key_rotation;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod w08_host_keys;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod w09_drift;
-#[cfg(test)]
+#[cfg(all(test, unix))]
 mod w10_dokku;

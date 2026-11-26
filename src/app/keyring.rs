@@ -10,58 +10,63 @@ use gpui_kit::*;
 
 /// gpui's label for its credentials items; matched so either side finds
 /// what the other wrote.
+#[cfg(target_os = "linux")]
 const LABEL: &str = "zed-github-account";
 
 pub fn read(cx: &App, url: &str) -> Task<Result<Option<(String, Vec<u8>)>, String>> {
-    if !crate::sandbox::flatpak() {
-        let read = cx.read_credentials(url);
-        return cx.background_executor().spawn(async move { read.await.map_err(|e| format!("{e:#}")) });
-    }
-    let url = url.to_string();
-    cx.background_executor().spawn(async move {
-        let keyring = session_keyring().await?;
-        for item in keyring.search_items(&vec![("url", url.as_str())]).await.map_err(text)? {
-            if item.label().await.is_ok_and(|l| l == LABEL) {
-                let attributes = item.attributes().await.map_err(text)?;
-                let user = attributes.get("username").cloned().ok_or("Cannot find username in stored credentials")?;
-                item.unlock().await.map_err(text)?;
-                return Ok(Some((user, item.secret().await.map_err(text)?.to_vec())));
+    #[cfg(target_os = "linux")]
+    if crate::sandbox::flatpak() {
+        let url = url.to_string();
+        return cx.background_executor().spawn(async move {
+            let keyring = session_keyring().await?;
+            for item in keyring.search_items(&vec![("url", url.as_str())]).await.map_err(text)? {
+                if item.label().await.is_ok_and(|l| l == LABEL) {
+                    let attributes = item.attributes().await.map_err(text)?;
+                    let user = attributes.get("username").cloned().ok_or("Cannot find username in stored credentials")?;
+                    item.unlock().await.map_err(text)?;
+                    return Ok(Some((user, item.secret().await.map_err(text)?.to_vec())));
+                }
             }
-        }
-        Ok(None)
-    })
+            Ok(None)
+        });
+    }
+    let read = cx.read_credentials(url);
+    cx.background_executor().spawn(async move { read.await.map_err(|e| format!("{e:#}")) })
 }
 
 pub fn write(cx: &App, url: &str, user: &str, secret: &[u8]) -> Task<Result<(), String>> {
-    if !crate::sandbox::flatpak() {
-        let write = cx.write_credentials(url, user, secret);
-        return cx.background_executor().spawn(async move { write.await.map_err(|e| format!("{e:#}")) });
+    #[cfg(target_os = "linux")]
+    if crate::sandbox::flatpak() {
+        let (url, user, secret) = (url.to_string(), user.to_string(), secret.to_vec());
+        return cx.background_executor().spawn(async move {
+            let keyring = session_keyring().await?;
+            keyring.create_item(LABEL, &vec![("url", url.as_str()), ("username", user.as_str())], secret, true).await.map_err(text)
+        });
     }
-    let (url, user, secret) = (url.to_string(), user.to_string(), secret.to_vec());
-    cx.background_executor().spawn(async move {
-        let keyring = session_keyring().await?;
-        keyring.create_item(LABEL, &vec![("url", url.as_str()), ("username", user.as_str())], secret, true).await.map_err(text)
-    })
+    let write = cx.write_credentials(url, user, secret);
+    cx.background_executor().spawn(async move { write.await.map_err(|e| format!("{e:#}")) })
 }
 
 pub fn delete(cx: &App, url: &str) -> Task<Result<(), String>> {
-    if !crate::sandbox::flatpak() {
-        let delete = cx.delete_credentials(url);
-        return cx.background_executor().spawn(async move { delete.await.map_err(|e| format!("{e:#}")) });
-    }
-    let url = url.to_string();
-    cx.background_executor().spawn(async move {
-        let keyring = session_keyring().await?;
-        for item in keyring.search_items(&vec![("url", url.as_str())]).await.map_err(text)? {
-            if item.label().await.is_ok_and(|l| l == LABEL) {
-                item.delete().await.map_err(text)?;
+    #[cfg(target_os = "linux")]
+    if crate::sandbox::flatpak() {
+        let url = url.to_string();
+        return cx.background_executor().spawn(async move {
+            let keyring = session_keyring().await?;
+            for item in keyring.search_items(&vec![("url", url.as_str())]).await.map_err(text)? {
+                if item.label().await.is_ok_and(|l| l == LABEL) {
+                    item.delete().await.map_err(text)?;
+                }
             }
-        }
-        Ok(())
-    })
+            Ok(())
+        });
+    }
+    let delete = cx.delete_credentials(url);
+    cx.background_executor().spawn(async move { delete.await.map_err(|e| format!("{e:#}")) })
 }
 
 /// The Secret Service's default collection, unlocked.
+#[cfg(target_os = "linux")]
 async fn session_keyring() -> Result<oo7::Keyring, String> {
     let service = oo7::dbus::Service::new().await.map_err(text)?;
     let keyring = oo7::Keyring::DBus(service.default_collection().await.map_err(text)?);
@@ -69,6 +74,7 @@ async fn session_keyring() -> Result<oo7::Keyring, String> {
     Ok(keyring)
 }
 
+#[cfg(target_os = "linux")]
 fn text(e: impl std::fmt::Display) -> String {
     e.to_string()
 }

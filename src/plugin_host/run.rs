@@ -528,9 +528,12 @@ pub fn status_of_line(l: &serde_json::Value) -> Option<Status> {
 #[cfg(test)]
 mod tests {
     use std::collections::BTreeMap;
+    #[cfg(unix)]
     use std::path::Path;
 
-    use super::{check_value, fill, kv, quote, remote_program, settings_values, split_exit, status, summary, table, RunResult, ServerValues, State, Values};
+    use super::{check_value, fill, kv, quote, settings_values, status, summary, table, RunResult, State, Values};
+    #[cfg(unix)]
+    use super::{remote_program, split_exit, ServerValues};
     use crate::plugin_host::manifest::{self, Template};
 
     fn manifest(actions: &str) -> manifest::Manifest {
@@ -539,6 +542,7 @@ mod tests {
     }
 
     /// Runs `program` with a local `sh -s`, as a server would.
+    #[cfg(unix)]
     fn run_sh(program: &str) -> (String, String) {
         use std::io::Write;
         let mut child = std::process::Command::new("sh").arg("-s").stdin(std::process::Stdio::piped()).stdout(std::process::Stdio::piped()).stderr(std::process::Stdio::piped()).spawn().unwrap();
@@ -547,6 +551,7 @@ mod tests {
         (String::from_utf8_lossy(&out.stdout).into_owned(), String::from_utf8_lossy(&out.stderr).into_owned())
     }
 
+    #[cfg(unix)]
     #[test]
     fn hostile_values_stay_one_argument() {
         let m = manifest("[[action]]\nid = \"echo\"\nlabel = \"E\"\non = \"server\"\neffect = \"read\"\ncommand = [\"printf\", \"%s|\", \"{input.x}\", \"--{input.x}--\"]\nenv = { TOKEN = \"{secret.token}\" }\n[[action.input]]\nkey = \"x\"\nlabel = \"X\"\ntype = \"text\"\ncharset = \"any\"\n");
@@ -562,6 +567,7 @@ mod tests {
         assert_eq!(split_exit(&stderr, "n1"), (String::new(), Some(0)));
     }
 
+    #[cfg(unix)]
     #[test]
     fn secrets_reach_the_env_not_the_command_line() {
         let m = manifest("[[action]]\nid = \"env\"\nlabel = \"E\"\non = \"server\"\neffect = \"read\"\ncommand = [\"sh\", \"-c\", \"printf %s \\\"$TOKEN\\\"\"]\nenv = { TOKEN = \"{secret.token}\" }\n");
@@ -572,6 +578,7 @@ mod tests {
         assert_eq!(run_sh(&program).0, "hunter2");
     }
 
+    #[cfg(unix)]
     #[test]
     fn scripts_go_as_a_here_document_with_their_args() {
         let dir = std::env::temp_dir().join(format!("crow-plugin-run-{}", std::process::id()));
@@ -588,6 +595,7 @@ mod tests {
         assert!(remote_program(&m.actions[0], &[], &dir, &v, "n4").unwrap_err().contains("holds the line"));
     }
 
+    #[cfg(unix)]
     #[test]
     fn failures_keep_their_output_and_exit_code() {
         let m = manifest("[[action]]\nid = \"ff\"\nlabel = \"F\"\non = \"server\"\neffect = \"read\"\ncommand = [\"sh\", \"-c\", \"echo out; echo err >&2; exit 3\"]\n");
@@ -605,11 +613,13 @@ mod tests {
     }
 
     /// Processes whose command line is exactly `argv`.
+    #[cfg(target_os = "linux")]
     fn running(argv: &[&str]) -> usize {
         let want = argv.join("\0") + "\0";
         std::fs::read_dir("/proc").unwrap().filter_map(Result::ok).filter(|e| std::fs::read(e.path().join("cmdline")).is_ok_and(|c| c == want.as_bytes())).count()
     }
 
+    #[cfg(target_os = "linux")]
     #[test]
     fn stop_ends_the_action_and_what_it_started() {
         use std::sync::atomic::{AtomicBool, Ordering};

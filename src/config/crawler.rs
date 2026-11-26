@@ -550,6 +550,7 @@ mod tests {
     /// The remote code path (one scripted exec per batch) reads the same real
     /// /etc as the local one, in two round trips (more with systemd drop-in
     /// folders or PostgreSQL clusters) instead of one per dir/file.
+    #[cfg(unix)]
     #[test]
     fn remote_style_crawl_matches_local_in_two_round_trips() {
         struct Counting(std::sync::atomic::AtomicUsize);

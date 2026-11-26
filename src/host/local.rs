@@ -1,10 +1,100 @@
 use std::io::{Read, Write};
+#[cfg(unix)]
 use std::os::unix::fs::{MetadataExt, PermissionsExt};
 use std::path::Path;
 use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use super::{DirEntry, ExecOutput, Host, HostError};
+
+/// Replaces `dst` with `src` atomically where the OS supports it.
+/// On Windows, `std::fs::rename` fails when `dst` already exists, so use
+/// `MoveFileExW(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)`.
+pub(crate) fn replace_file(src: &Path, dst: &Path) -> std::io::Result<()> {
+    #[cfg(windows)]
+    {
+        use std::os::windows::ffi::OsStrExt;
+        use windows_sys::Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH};
+        let to_wide = |p: &Path| -> Vec<u16> {
+            p.as_os_str().encode_wide().chain(std::iter::once(0)).collect()
+        };
+        let src_w = to_wide(src);
+        let dst_w = to_wide(dst);
+        // SAFETY: both pointers are valid NUL-terminated UTF-16 buffers.
+        let ok = unsafe { MoveFileExW(src_w.as_ptr(), dst_w.as_ptr(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) };
+        if ok != 0 {
+            Ok(())
+        } else {
+            Err(std::io::Error::last_os_error())
+        }
+    }
+    #[cfg(not(windows))]
+    {
+        std::fs::rename(src, dst)
+    }
+}
+
+#[cfg(windows)]
+struct ProcessJob {
+    handle: windows_sys::Win32::Foundation::HANDLE,
+}
+
+#[cfg(windows)]
+impl ProcessJob {
+    fn for_child(child: &std::process::Child) -> Option<Self> {
+        use std::os::windows::io::AsRawHandle;
+        use windows_sys::Win32::Foundation::CloseHandle;
+        use windows_sys::Win32::System::JobObjects::{
+            AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
+            SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+            JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        };
+        // SAFETY: standard Win32 Job Object setup for a child we own.
+        unsafe {
+            let handle = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if handle.is_null() {
+                return None;
+            }
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            let set_ok = SetInformationJobObject(
+                handle,
+                JobObjectExtendedLimitInformation,
+                (&info as *const JOBOBJECT_EXTENDED_LIMIT_INFORMATION).cast(),
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            if set_ok == 0 {
+                CloseHandle(handle);
+                return None;
+            }
+            let assign_ok = AssignProcessToJobObject(handle, child.as_raw_handle());
+            if assign_ok == 0 {
+                CloseHandle(handle);
+                return None;
+            }
+            Some(Self { handle })
+        }
+    }
+
+    fn terminate(&self) {
+        use windows_sys::Win32::System::JobObjects::TerminateJobObject;
+        // SAFETY: handle is a live Job Object created by `for_child`.
+        unsafe {
+            let _ = TerminateJobObject(self.handle, 1);
+        }
+    }
+}
+
+#[cfg(windows)]
+impl Drop for ProcessJob {
+    fn drop(&mut self) {
+        use windows_sys::Win32::Foundation::CloseHandle;
+        // SAFETY: handle is owned exclusively by this struct.
+        unsafe {
+            let _ = CloseHandle(self.handle);
+        }
+    }
+}
 
 /// The machine Crow itself runs on: commands via `std::process`, files via `std::fs`.
 pub struct LocalHost;
@@ -61,15 +151,41 @@ impl Host for LocalHost {
         let mut out = Vec::new();
         for entry in std::fs::read_dir(path)?.flatten() {
             let (Ok(file_type), Ok(meta)) = (entry.file_type(), entry.metadata()) else { continue };
+            #[cfg(unix)]
+            let (size_bytes, mode, uid, gid, mtime) = (
+                meta.size(),
+                meta.mode() & 0o7777,
+                meta.uid(),
+                meta.gid(),
+                meta.mtime(),
+            );
+            #[cfg(not(unix))]
+            let (size_bytes, mode, uid, gid, mtime) = (
+                meta.len(),
+                if file_type.is_dir() {
+                    0o755
+                } else if meta.permissions().readonly() {
+                    0o444
+                } else {
+                    0o644
+                },
+                0u32,
+                0u32,
+                meta.modified()
+                    .ok()
+                    .and_then(|t| t.duration_since(std::time::UNIX_EPOCH).ok())
+                    .map(|d| d.as_secs() as i64)
+                    .unwrap_or(0),
+            );
             out.push(DirEntry {
                 name: entry.file_name().to_string_lossy().to_string(),
                 is_dir: file_type.is_dir(),
                 is_symlink: file_type.is_symlink(),
-                size_bytes: meta.size(),
-                mode: meta.mode() & 0o7777,
-                uid: meta.uid(),
-                gid: meta.gid(),
-                mtime: meta.mtime(),
+                size_bytes,
+                mode,
+                uid,
+                gid,
+                mtime,
             });
         }
         Ok(out)
@@ -93,10 +209,11 @@ impl Host for LocalHost {
                 return Err(e.into());
             }
         }
+        #[cfg(unix)]
         if let Ok(meta) = std::fs::metadata(target) {
             let _ = std::fs::set_permissions(&tmp, std::fs::Permissions::from_mode(meta.mode() & 0o7777));
         }
-        std::fs::rename(&tmp, target).map_err(|e| {
+        replace_file(&tmp, target).map_err(|e| {
             let _ = std::fs::remove_file(&tmp);
             HostError::from(e)
         })
@@ -261,19 +378,33 @@ pub fn run_streaming_with(
 /// `crate::sandbox::host_command`).
 pub fn stream_child(mut command: Command, stdin: &[u8], timeout: Duration, sink: &mut dyn FnMut(bool, &str), stop: &std::sync::atomic::AtomicBool) -> Result<ExecOutput, HostError> {
     use std::io::BufRead;
-    use std::os::unix::process::CommandExt;
     use std::sync::atomic::Ordering;
-    command.process_group(0).stdin(if stdin.is_empty() { Stdio::null() } else { Stdio::piped() }).stdout(Stdio::piped()).stderr(Stdio::piped());
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        command.process_group(0);
+    }
+    command.stdin(if stdin.is_empty() { Stdio::null() } else { Stdio::piped() }).stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = command.spawn()?;
+    #[cfg(windows)]
+    let job = ProcessJob::for_child(&child);
+    #[cfg(unix)]
     let group = child.id() as i32;
     let end_group = |child: &mut std::process::Child| {
-        // SAFETY: kill(2) on our own child's process group.
-        unsafe {
-            libc::kill(-group, libc::SIGTERM);
+        #[cfg(unix)]
+        {
+            // SAFETY: kill(2) on our own child's process group.
+            unsafe {
+                libc::kill(-group, libc::SIGTERM);
+            }
+            std::thread::sleep(Duration::from_millis(200));
+            unsafe {
+                libc::kill(-group, libc::SIGKILL);
+            }
         }
-        std::thread::sleep(Duration::from_millis(200));
-        unsafe {
-            libc::kill(-group, libc::SIGKILL);
+        #[cfg(windows)]
+        if let Some(ref j) = job {
+            j.terminate();
         }
         let _ = child.kill();
         let _ = child.wait();
@@ -362,6 +493,7 @@ pub fn stream_child(mut command: Command, stdin: &[u8], timeout: Duration, sink:
 mod tests {
     use super::*;
 
+    #[cfg(unix)]
     #[test]
     fn streaming_hands_over_lines_as_they_come_and_stops() {
         use std::sync::atomic::{AtomicBool, Ordering};
@@ -396,12 +528,46 @@ mod tests {
         assert!(started.elapsed() < Duration::from_secs(6), "{:?}", started.elapsed());
     }
 
+    #[cfg(windows)]
+    #[test]
+    fn streaming_and_exec_work_on_windows() {
+        use std::sync::atomic::{AtomicBool, Ordering};
+        let stop = AtomicBool::new(false);
+        let mut seen = Vec::new();
+        let out = run_command_streaming(&["cmd", "/c", "echo one & echo two 1>&2 & echo three"], &[], Duration::from_secs(5), &[], &mut |e, l| seen.push((e, l.trim().to_string())), &stop).unwrap();
+        assert!(out.stdout.contains("one") && out.stdout.contains("three"), "{}", out.stdout);
+        assert!(seen.iter().any(|(is_err, l)| *is_err && l == "two"), "{seen:?}");
+
+        let err = LocalHost.exec(&["cmd", "/c", "echo nope 1>&2 & exit /b 3"], Duration::from_secs(5)).unwrap_err();
+        assert!(matches!(err, HostError::Failed { status: 3, .. }), "{err:?}");
+
+        let started = Instant::now();
+        let mut n = 0;
+        let r = run_command_streaming(
+            &["cmd", "/c", "for /L %i in (1,1,500) do @echo tick & ping -n 1 127.0.0.1 >nul"],
+            &[],
+            Duration::from_secs(20),
+            &[],
+            &mut |_, _| {
+                n += 1;
+                if n == 2 {
+                    stop.store(true, Ordering::Relaxed);
+                }
+            },
+            &stop,
+        );
+        assert_eq!(r.unwrap_err(), HostError::Io("stopped".into()));
+        assert!(started.elapsed() < Duration::from_secs(8));
+    }
+
+    #[cfg(unix)]
     #[test]
     fn exec_captures_output_and_stdin() {
         let out = LocalHost.exec_stdin(&["cat"], b"hello", Duration::from_secs(5)).unwrap();
         assert_eq!(out.stdout, "hello");
     }
 
+    #[cfg(unix)]
     #[test]
     fn exec_reports_failure_and_timeout() {
         let err = LocalHost.exec(&["sh", "-c", "echo nope >&2; exit 3"], Duration::from_secs(5)).unwrap_err();
@@ -412,14 +578,17 @@ mod tests {
     #[test]
     fn atomic_write_replaces_content_and_keeps_mode() {
         let dir = std::env::temp_dir().join(format!("crow-host-test-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let path = dir.join("app.conf");
         std::fs::write(&path, "old").unwrap();
+        #[cfg(unix)]
         std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o640)).unwrap();
         let p = path.to_str().unwrap();
 
         LocalHost.write_file_atomic(p, "new").unwrap();
         assert_eq!(LocalHost.read_file(p).unwrap(), "new");
+        #[cfg(unix)]
         assert_eq!(std::fs::metadata(&path).unwrap().mode() & 0o777, 0o640);
 
         let listing = LocalHost.list_dir(dir.to_str().unwrap()).unwrap();
@@ -427,6 +596,7 @@ mod tests {
         std::fs::remove_dir_all(&dir).unwrap();
     }
 
+    #[cfg(unix)]
     #[test]
     fn default_file_methods_work_over_exec() {
         // Exercise the trait's exec-based defaults (what ContainerHost/SSH use)

@@ -441,6 +441,7 @@ mod tests {
     }
 
     /// Facts come from the machine itself: this one's kernel is what uname says.
+    #[cfg(unix)]
     #[test]
     fn gathers_real_facts_from_a_host() {
         let (facts, _) = gather_facts(&LocalHost);

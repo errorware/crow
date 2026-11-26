@@ -6,12 +6,20 @@
 
 use std::path::Path;
 use std::process::Command;
+#[cfg(target_os = "linux")]
 use std::sync::OnceLock;
 
 /// Running inside a Flatpak sandbox.
 pub fn flatpak() -> bool {
-    static IN: OnceLock<bool> = OnceLock::new();
-    *IN.get_or_init(|| Path::new("/.flatpak-info").exists())
+    #[cfg(target_os = "linux")]
+    {
+        static IN: OnceLock<bool> = OnceLock::new();
+        *IN.get_or_init(|| Path::new("/.flatpak-info").exists())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        false
+    }
 }
 
 /// Keeps the vault and settings where a native install keeps them
@@ -36,48 +44,49 @@ pub fn share_native_folders() {
 /// line, where every user could read it; PATH stays the host's own.
 pub fn host_command(argv: &[&str], env: Option<&[(String, String)]>, cwd: Option<&Path>) -> std::io::Result<Command> {
     let (program, args) = argv.split_first().ok_or_else(|| std::io::Error::other("empty command"))?;
-    if !flatpak() {
-        let mut c = Command::new(program);
-        c.args(args);
-        if let Some(env) = env {
-            c.env_clear().envs(env.iter().map(|(k, v)| (k, v)));
-        }
+    #[cfg(target_os = "linux")]
+    if flatpak() {
+        let mut c = Command::new("flatpak-spawn");
+        c.args(["--host", "--watch-bus"]);
         if let Some(cwd) = cwd {
-            c.current_dir(cwd);
+            c.arg(format!("--directory={}", cwd.display()));
         }
+        if let Some(env) = env.filter(|e| !e.is_empty()) {
+            use std::os::fd::AsRawFd;
+            use std::os::unix::process::CommandExt;
+            let (reader, mut writer) = std::io::pipe()?;
+            let mut blob = Vec::new();
+            for (k, v) in env.iter().filter(|(k, _)| k != "PATH") {
+                blob.extend_from_slice(format!("{k}={v}\0").as_bytes());
+            }
+            // Small enough for the pipe's buffer: written whole before spawning.
+            std::io::Write::write_all(&mut writer, &blob)?;
+            drop(writer);
+            let fd = reader.as_raw_fd();
+            c.arg(format!("--env-fd={fd}"));
+            // SAFETY: fcntl on a descriptor this closure owns, between fork and
+            // exec; it only lets the child inherit it.
+            unsafe {
+                c.pre_exec(move || {
+                    let _keep = &reader;
+                    if libc::fcntl(fd, libc::F_SETFD, 0) == -1 {
+                        return Err(std::io::Error::last_os_error());
+                    }
+                    Ok(())
+                });
+            }
+        }
+        c.arg("--").arg(program).args(args);
         return Ok(c);
     }
-    let mut c = Command::new("flatpak-spawn");
-    c.args(["--host", "--watch-bus"]);
+    let mut c = Command::new(program);
+    c.args(args);
+    if let Some(env) = env {
+        c.env_clear().envs(env.iter().map(|(k, v)| (k, v)));
+    }
     if let Some(cwd) = cwd {
-        c.arg(format!("--directory={}", cwd.display()));
+        c.current_dir(cwd);
     }
-    if let Some(env) = env.filter(|e| !e.is_empty()) {
-        use std::os::fd::AsRawFd;
-        use std::os::unix::process::CommandExt;
-        let (reader, mut writer) = std::io::pipe()?;
-        let mut blob = Vec::new();
-        for (k, v) in env.iter().filter(|(k, _)| k != "PATH") {
-            blob.extend_from_slice(format!("{k}={v}\0").as_bytes());
-        }
-        // Small enough for the pipe's buffer: written whole before spawning.
-        std::io::Write::write_all(&mut writer, &blob)?;
-        drop(writer);
-        let fd = reader.as_raw_fd();
-        c.arg(format!("--env-fd={fd}"));
-        // SAFETY: fcntl on a descriptor this closure owns, between fork and
-        // exec; it only lets the child inherit it.
-        unsafe {
-            c.pre_exec(move || {
-                let _keep = &reader;
-                if libc::fcntl(fd, libc::F_SETFD, 0) == -1 {
-                    return Err(std::io::Error::last_os_error());
-                }
-                Ok(())
-            });
-        }
-    }
-    c.arg("--").arg(program).args(args);
     Ok(c)
 }
 
@@ -100,7 +109,9 @@ pub fn host_terminal(program: String, args: Vec<String>) -> (String, Vec<String>
 #[cfg(test)]
 mod tests {
     use super::host_command;
+    use std::path::Path;
 
+    #[cfg(unix)]
     #[test]
     fn outside_a_sandbox_commands_run_as_given() {
         if super::flatpak() {
@@ -111,5 +122,14 @@ mod tests {
         assert_eq!(String::from_utf8_lossy(&out.stdout), "this:none\n/\n");
     }
 
-    use std::path::Path;
+    #[cfg(windows)]
+    #[test]
+    fn outside_a_sandbox_commands_run_as_given() {
+        let mut env = vec![("ONLY".to_string(), "this".to_string())];
+        if let Ok(sr) = std::env::var("SYSTEMROOT") {
+            env.push(("SYSTEMROOT".to_string(), sr));
+        }
+        let out = host_command(&["cmd", "/c", "echo %ONLY%"], Some(&env), Some(Path::new("C:\\"))).unwrap().output().unwrap();
+        assert_eq!(String::from_utf8_lossy(&out.stdout).trim(), "this");
+    }
 }

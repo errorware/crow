@@ -174,6 +174,7 @@ mod tests {
         PushTarget { server_id: "s1", server_name: "web-1", path, baseline, author: "me@box", login_user: "deploy", message: "Pushed the baseline", context: "fleet run: push baseline" }
     }
 
+    #[cfg(unix)]
     #[test]
     fn pushes_drifted_files_and_skips_matching_ones() {
         let dir = std::env::temp_dir().join(format!("crow-push-{}", std::process::id()));

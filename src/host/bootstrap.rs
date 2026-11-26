@@ -10,7 +10,9 @@
 //! argv, an environment variable or a file.
 
 use std::io::{Read, Write};
+#[cfg(unix)]
 use std::os::unix::net::UnixListener;
+#[cfg(unix)]
 use std::path::PathBuf;
 use std::time::Duration;
 
@@ -49,21 +51,26 @@ impl std::fmt::Display for BootstrapError {
     }
 }
 
-/// `(major, minor)` from `ssh -V` output such as `OpenSSH_9.6p1 Ubuntu-3, ...`.
+/// `(major, minor)` from `ssh -V` output such as `OpenSSH_9.6p1 Ubuntu-3, ...`
+/// or `OpenSSH_for_Windows_9.5p2, LibreSSL 3.8.2`.
 pub fn parse_openssh_version(text: &str) -> Option<(u32, u32)> {
     let v = text.split("OpenSSH_").nth(1)?;
-    let mut parts = v.split(|c: char| !c.is_ascii_digit());
+    let mut parts = v.split(|c: char| !c.is_ascii_digit()).filter(|s| !s.is_empty());
     Some((parts.next()?.parse().ok()?, parts.next()?.parse().ok()?))
 }
 
-/// Serves `password` to exactly one askpass connection, from a socket in a
-/// fresh 0700 directory. Dropping it removes the directory.
+/// Serves `password` to exactly one askpass connection.
+/// On Unix, uses a domain socket in a fresh 0700 directory.
+/// On Windows, uses a loopback TCP listener authenticated with a one-time
+/// 256-bit random bearer token so the password never touches argv, env or disk.
+#[cfg(unix)]
 struct AskpassServer {
     dir: PathBuf,
     sock: PathBuf,
     thread: Option<std::thread::JoinHandle<()>>,
 }
 
+#[cfg(unix)]
 impl AskpassServer {
     fn start(password: Zeroizing<String>) -> std::io::Result<Self> {
         use std::os::unix::fs::PermissionsExt;
@@ -81,8 +88,13 @@ impl AskpassServer {
         });
         Ok(Self { dir, sock, thread: Some(thread) })
     }
+
+    fn endpoint(&self) -> String {
+        self.sock.to_string_lossy().into_owned()
+    }
 }
 
+#[cfg(unix)]
 impl Drop for AskpassServer {
     fn drop(&mut self) {
         // Unblock the accept if ssh never asked, then clean up.
@@ -94,6 +106,75 @@ impl Drop for AskpassServer {
     }
 }
 
+#[cfg(not(unix))]
+struct AskpassServer {
+    port: u16,
+    token: Zeroizing<String>,
+    thread: Option<std::thread::JoinHandle<()>>,
+}
+
+#[cfg(not(unix))]
+impl AskpassServer {
+    fn start(password: Zeroizing<String>) -> std::io::Result<Self> {
+        use std::net::TcpListener;
+        let listener = TcpListener::bind(("127.0.0.1", 0))?;
+        let port = listener.local_addr()?.port();
+        let bytes: [u8; 32] = rand::random();
+        let token = Zeroizing::new(bytes.iter().map(|b| format!("{b:02x}")).collect::<String>());
+        let expected = token.clone();
+        let thread = std::thread::spawn(move || {
+            // One authenticated answer only: wrong token or second prompt gets nothing.
+            if let Ok((mut stream, _)) = listener.accept() {
+                let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+                let mut got = vec![0u8; expected.len()];
+                if stream.read_exact(&mut got).is_ok() {
+                    let eq = got.len() == expected.len()
+                        && got.iter().zip(expected.as_bytes()).fold(0u8, |acc, (a, b)| acc | (a ^ b)) == 0;
+                    if eq {
+                        let _ = stream.write_all(password.as_bytes());
+                    }
+                }
+            }
+        });
+        Ok(Self { port, token, thread: Some(thread) })
+    }
+
+    fn endpoint(&self) -> String {
+        format!("{}:{}", self.port, self.token.as_str())
+    }
+}
+
+#[cfg(not(unix))]
+impl Drop for AskpassServer {
+    fn drop(&mut self) {
+        let _ = std::net::TcpStream::connect(("127.0.0.1", self.port));
+        if let Some(t) = self.thread.take() {
+            let _ = t.join();
+        }
+    }
+}
+
+fn read_askpass_password(sock: &str) -> Option<Zeroizing<String>> {
+    #[cfg(unix)]
+    {
+        let mut stream = std::os::unix::net::UnixStream::connect(sock).ok()?;
+        let mut password = Zeroizing::new(String::new());
+        stream.read_to_string(&mut password).ok()?;
+        (!password.is_empty()).then_some(password)
+    }
+    #[cfg(not(unix))]
+    {
+        let (port_str, token) = sock.split_once(':')?;
+        let port: u16 = port_str.parse().ok()?;
+        let mut stream = std::net::TcpStream::connect(("127.0.0.1", port)).ok()?;
+        let _ = stream.set_read_timeout(Some(Duration::from_secs(5)));
+        stream.write_all(token.as_bytes()).ok()?;
+        let mut password = Zeroizing::new(String::new());
+        stream.read_to_string(&mut password).ok()?;
+        (!password.is_empty()).then_some(password)
+    }
+}
+
 /// The askpass side, run when ssh starts the Crow binary as `SSH_ASKPASS`.
 /// Answers password prompts only; returns the process exit code.
 pub fn askpass_main(sock: &str, prompt: &str) -> i32 {
@@ -101,11 +182,7 @@ pub fn askpass_main(sock: &str, prompt: &str) -> i32 {
     if !(p.contains("password") || p.contains("passphrase")) {
         return 1;
     }
-    let Ok(mut stream) = std::os::unix::net::UnixStream::connect(sock) else { return 1 };
-    let mut password = Zeroizing::new(String::new());
-    if stream.read_to_string(&mut password).is_err() || password.is_empty() {
-        return 1;
-    }
+    let Some(password) = read_askpass_password(sock) else { return 1 };
     println!("{}", password.as_str());
     0
 }
@@ -180,7 +257,7 @@ fn install_key_via(ssh: &str, askpass_program: &str, server: &ServerRecord, prox
     })
     .map_err(BootstrapError::Failed)?;
     let askpass = AskpassServer::start(password).map_err(|e| BootstrapError::Failed(t!("host-bootstrap-askpass-socket", e = e)))?;
-    let sock = askpass.sock.to_string_lossy().into_owned();
+    let sock = askpass.endpoint();
 
     let mut argv: Vec<&str> = vec![ssh];
     argv.extend(args.iter().map(String::as_str));
@@ -232,6 +309,7 @@ mod tests {
     #[test]
     fn parses_openssh_versions() {
         assert_eq!(parse_openssh_version("OpenSSH_9.6p1 Ubuntu-3ubuntu13, OpenSSL 3.0.13"), Some((9, 6)));
+        assert_eq!(parse_openssh_version("OpenSSH_for_Windows_9.5p2, LibreSSL 3.8.2"), Some((9, 5)));
         assert_eq!(parse_openssh_version("OpenSSH_8.4p1 Debian-5"), Some((8, 4)));
         assert_eq!(parse_openssh_version("OpenSSH_7.9p1"), Some((7, 9)));
         assert_eq!(parse_openssh_version("Dropbear v2022.83"), None);
@@ -254,20 +332,22 @@ mod tests {
     #[test]
     fn askpass_serves_the_password_once() {
         let server = AskpassServer::start(Zeroizing::new("s3cret pass".into())).unwrap();
-        let sock = server.sock.to_string_lossy().into_owned();
+        let sock = server.endpoint();
         assert_eq!(askpass_main(&sock, "Are you sure you want to continue connecting?"), 1);
-        // The real helper prints to stdout; read the socket the same way here.
-        let mut got = String::new();
-        std::os::unix::net::UnixStream::connect(&server.sock).unwrap().read_to_string(&mut got).unwrap();
-        assert_eq!(got, "s3cret pass");
+        // The real helper prints to stdout; read the IPC endpoint the same way here.
+        let got = read_askpass_password(&sock).unwrap();
+        assert_eq!(got.as_str(), "s3cret pass");
+        #[cfg(unix)]
         let dir = server.dir.clone();
         drop(server);
+        #[cfg(unix)]
         assert!(!dir.exists(), "socket directory removed");
     }
 
     /// End to end against a real password-only sshd:
     /// `CROW_LIVE_PW=host:port:user:password CROW_LIVE_KNOWN_HOSTS=/path cargo test live_password_bootstrap -- --ignored`
     /// (build the app first: the askpass helper is target/debug/crow).
+    #[cfg(unix)]
     #[test]
     #[ignore]
     fn live_password_bootstrap() {

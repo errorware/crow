@@ -89,7 +89,7 @@ fn screens_take_their_text_from_messages() {
     files.sort();
     let mut found = Vec::new();
     for path in files {
-        let rel = path.strip_prefix(root).unwrap().to_string_lossy().into_owned();
+        let rel = path.strip_prefix(root).unwrap().to_string_lossy().replace('\\', "/");
         let src = std::fs::read_to_string(&path).unwrap();
         for text in literals_in_sinks(&src) {
             if has_words(&text) && !allowed.iter().any(|(p, t)| *p == rel && *t == text) {

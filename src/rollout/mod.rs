@@ -138,8 +138,12 @@ pub fn run_command(host: &dyn Host, script: &str, as_root: bool) -> StepResult {
 
 #[cfg(test)]
 mod tests {
-    use super::{diff_stats, hunks, line_diff, run_command, stages, DiffKind};
+    use super::{diff_stats, hunks, line_diff, stages, DiffKind};
+    #[cfg(unix)]
+    use super::run_command;
+    #[cfg(unix)]
     use crate::host::LocalHost;
+    #[cfg(unix)]
     use crate::views::fleet::run::StepOutcome;
 
     #[test]
@@ -172,6 +176,7 @@ mod tests {
         assert!(stages(0, true, 3).is_empty());
     }
 
+    #[cfg(unix)]
     #[test]
     fn commands_report_their_output_and_failures() {
         assert_eq!(run_command(&LocalHost, "echo one\necho two", false), Ok(StepOutcome::Done("one\ntwo".into())));

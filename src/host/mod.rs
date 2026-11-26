@@ -395,7 +395,9 @@ mod tests {
 
     /// Runs commands on this machine but uses the trait's default (remote)
     /// file methods, counting round trips.
+    #[cfg(unix)]
     struct ShellHost(std::sync::atomic::AtomicUsize);
+    #[cfg(unix)]
     impl Host for ShellHost {
         fn label(&self) -> String {
             "shell".into()
@@ -406,6 +408,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn batched_reads_and_listings_take_one_round_trip_each() {
         let dir = std::env::temp_dir().join(format!("crow-batch-{}", std::process::id()));
@@ -461,6 +464,7 @@ mod tests {
         assert_eq!(host_for(&record("10.0.4.12", 22, &[])).label(), "ssh:ops@10.0.4.12");
     }
 
+    #[cfg(unix)]
     #[test]
     fn privileged_exec_runs_directly_as_root_or_via_sudo() {
         // As a normal user this goes through `sudo -n`, which either works

@@ -440,6 +440,7 @@ mod tests {
         assert_eq!(term.selection_to_string().as_deref(), Some("hello"), "double click selects the word");
     }
 
+    #[cfg(unix)]
     #[test]
     fn programs_turn_on_mouse_reporting_and_scrolling_as_arrows() {
         let size = GridSize { cols: 40, rows: 5, cell_w: 8, cell_h: 16 };
@@ -453,6 +454,29 @@ mod tests {
         let mode = s.mode();
         assert!(mode.contains(TermMode::MOUSE_DRAG | TermMode::SGR_MOUSE | TermMode::ALT_SCREEN), "{mode:?}");
         assert!(mode.contains(TermMode::ALTERNATE_SCROLL), "the wheel sends arrows in full-screen programs by default");
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn conpty_session_spawns_and_enters_alt_screen() {
+        let size = GridSize { cols: 40, rows: 5, cell_w: 8, cell_h: 16 };
+        let launch = Launch {
+            program: "powershell.exe".into(),
+            args: vec![
+                "-NoProfile".into(),
+                "-Command".into(),
+                "[Console]::Write(([char]27) + '[?1049h'); Start-Sleep 5".into(),
+            ],
+        };
+        let mut s = Session::spawn(&launch, size).expect("powershell runs in ConPTY");
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(8);
+        while !s.mode().contains(TermMode::ALT_SCREEN) && std::time::Instant::now() < deadline {
+            s.pump();
+            std::thread::sleep(std::time::Duration::from_millis(20));
+        }
+        let mode = s.mode();
+        assert!(mode.contains(TermMode::ALT_SCREEN), "{mode:?}");
+        assert!(mode.contains(TermMode::ALTERNATE_SCROLL));
     }
 
     #[test]
