@@ -69,7 +69,7 @@ fn ssh_settings() -> &'static RwLock<SshSettings> {
 }
 
 /// Applies saved settings to connections opened from now on.
-pub fn set_ssh_settings(s: SshSettings) {
+pub fn set_ssh_settings(#[allow(unused_mut)] mut s: SshSettings) {
     #[cfg(windows)]
     {
         s.control_master = false;
