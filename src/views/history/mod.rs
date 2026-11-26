@@ -67,8 +67,8 @@ pub fn history_view(cache: &HistoryCache, hover: Option<f32>, app: Entity<CrowAp
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(div().text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("history-history")))
-                .child(div().text_size(px(10.5)).text_color(TEXT_DIM).child(t!("history-one-sample-a-minute-while", readout = readout)))
+                .child(div().text_size(font_px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("history-history")))
+                .child(div().text_size(font_px(10.5)).text_color(TEXT_DIM).child(t!("history-one-sample-a-minute-while", readout = readout)))
                 .child(div().flex_1())
                 .child(range_button(Range::Day))
                 .child(range_button(Range::Week)),
@@ -111,9 +111,9 @@ fn chart(i: usize, title: &str, series: Series, max: f32, value: String, cache: 
                 .flex()
                 .items_baseline()
                 .gap(px(8.0))
-                .child(div().text_size(px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_DIMMER).child(title.to_string()))
+                .child(div().text_size(font_px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_DIMMER).child(title.to_string()))
                 .child(div().flex_1())
-                .child(div().text_size(px(11.0)).text_color(TEXT_PRIMARY).child(value)),
+                .child(div().text_size(font_px(11.0)).text_color(TEXT_PRIMARY).child(value)),
         )
         .child(
             div()
@@ -175,8 +175,8 @@ fn chart(i: usize, title: &str, series: Series, max: f32, value: String, cache: 
                     )
                     .size_full(),
                 )
-                .child(div().absolute().top(px(2.0)).left(px(4.0)).text_size(px(9.0)).text_color(TEXT_FAINT).child(format!("{max:.0}")))
-                .child(div().absolute().bottom(px(2.0)).left(px(4.0)).text_size(px(9.0)).text_color(TEXT_FAINT).child("0")),
+                .child(div().absolute().top(px(2.0)).left(px(4.0)).text_size(font_px(9.0)).text_color(TEXT_FAINT).child(format!("{max:.0}")))
+                .child(div().absolute().bottom(px(2.0)).left(px(4.0)).text_size(font_px(9.0)).text_color(TEXT_FAINT).child("0")),
         )
 }
 
@@ -188,7 +188,7 @@ fn legend(cache: &HistoryCache) -> impl IntoElement {
         .flex()
         .flex_col()
         .gap(px(4.0))
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .child(
             div()
                 .flex()

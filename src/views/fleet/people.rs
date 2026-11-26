@@ -15,7 +15,7 @@ use crate::theme::*;
 use crate::views::fleet::FleetState;
 
 fn mono(size: f32, color: Rgba) -> Div {
-    div().font_family(FONT_MONO).text_size(px(size)).text_color(color)
+    div().font_family(FONT_MONO).text_size(font_px(size)).text_color(color)
 }
 
 fn section(title: &'static str, note: impl Into<SharedString>) -> Div {
@@ -31,7 +31,7 @@ fn action(id: impl Into<SharedString>, text: impl Into<SharedString>, color: Rgb
         .border_1()
         .border_color(color.opacity(0.6))
         .font_family(FONT_MONO)
-        .text_size(px(9.5))
+        .text_size(font_px(9.5))
         .font_weight(FontWeight::BOLD)
         .text_color(color)
         .cursor_pointer()
@@ -48,7 +48,7 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) ->
         .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
         .bg(if on { BG_CONTROL_ALT } else { BG_CONTROL })
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
         .cursor_pointer()
         .hover(|s| s.bg(BG_ROW_HOVER))
@@ -92,12 +92,12 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                                 .border_1()
                                 .border_color(BORDER_DEFAULT)
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .text_color(TEXT_SECONDARY)
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                                 .on_click(move |_ev, _w, cx| app_read.update(cx, |this, cx| this.refresh_people(cx)))
-                                .child(inherited_icon(TablerIcon::Refresh, px(12.0)))
+                                .child(inherited_icon(TablerIcon::Refresh, font_px(12.0)))
                                 .child(if st.reading.is_empty() { t!("fleet-people-read-again").to_string() } else { t!("fleet-people-reading", count = st.reading.len()) }),
                         ),
                 )
@@ -137,7 +137,7 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                                         .child(mono(11.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).w(px(140.0)).flex_none().child(r.username.clone()))
                                         .child(div().flex_1().min_w(px(0.0)).flex().flex_wrap().gap(px(4.0)).children(r.on.iter().map(|p| {
                                             let mark = format!("{}{}{}{}", p.server, if p.sudo { " ★" } else { "" }, if p.locked { " ⊘" } else { "" }, if p.crow { " ◆" } else { "" });
-                                            div().px(px(5.0)).py(px(1.0)).bg(BG_CHIP).font_family(FONT_MONO).text_size(px(9.5)).text_color(if p.locked { TEXT_FAINT } else if p.sudo { WARN } else { TEXT_TERTIARY }).child(mark)
+                                            div().px(px(5.0)).py(px(1.0)).bg(BG_CHIP).font_family(FONT_MONO).text_size(font_px(9.5)).text_color(if p.locked { TEXT_FAINT } else if p.sudo { WARN } else { TEXT_TERTIARY }).child(mark)
                                         })))
                                         .child(mono(9.5, TEXT_FAINT).flex_none().child(t!("fleet-people-text", count = r.on.len()))),
                                 )
@@ -172,7 +172,7 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                         .flex_col()
                         .gap(px(6.0))
                         .child(section(t!("fleet-people-find-a-key-everywhere"), t!("fleet-people-every-key-in-any-authorized")))
-                        .children(st.key_query.as_ref().map(|i| div().max_w(px(560.0)).child(Input::new(i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0)))))
+                        .children(st.key_query.as_ref().map(|i| div().max_w(px(560.0)).child(Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0)))))
                         .children(found.into_iter().take(40).map(|k| {
                             let crow_key = k.opens.iter().any(|o| o.3);
                             let (app, blob, label) = (app.clone(), k.blob.clone(), k.label.clone());
@@ -188,7 +188,7 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                                 .child(mono(10.5, if k.enrolled { OK } else { TEXT_PRIMARY }).w(px(200.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(format!("{}{}", k.label, if k.enrolled { t!("fleet-people-crow") } else { "" })))
                                 .child(mono(9.5, TEXT_FAINT).w(px(170.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(k.fingerprint.clone()))
                                 .child(div().flex_1().min_w(px(0.0)).flex().flex_wrap().gap(px(4.0)).children(k.opens.iter().map(|(_, server, account, crow)| {
-                                    div().px(px(5.0)).py(px(1.0)).bg(BG_CHIP).font_family(FONT_MONO).text_size(px(9.5)).text_color(if *crow { OK } else { TEXT_TERTIARY }).child(format!("{account}@{server}{}", if *crow { " ◆" } else { "" }))
+                                    div().px(px(5.0)).py(px(1.0)).bg(BG_CHIP).font_family(FONT_MONO).text_size(font_px(9.5)).text_color(if *crow { OK } else { TEXT_TERTIARY }).child(format!("{account}@{server}{}", if *crow { " ◆" } else { "" }))
                                 })))
                                 .child(action(format!("revoke-{}", k.fingerprint), "REVOKE EVERYWHERE", CRIT).on_click(move |_ev, window, cx| {
                                     let (blob, label) = (blob.clone(), label.clone());
@@ -208,7 +208,7 @@ pub fn people_page(fleet: &FleetState, st: &PeopleState, known_keys: &[(String, 
                         .border_color(BORDER_PANEL)
                         .bg(BG_PANEL)
                         .child(section("ONBOARD", t!("fleet-people-an-account-with-their-key")))
-                        .child(div().flex().gap(px(8.0)).child(div().w(px(200.0)).children(st.new_user.as_ref().map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0))))).child(div().flex_1().children(st.new_key.as_ref().map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0))))))
+                        .child(div().flex().gap(px(8.0)).child(div().w(px(200.0)).children(st.new_user.as_ref().map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0))))).child(div().flex_1().children(st.new_key.as_ref().map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0))))))
                         .child(
                             div()
                                 .flex()

@@ -30,7 +30,7 @@ pub fn run_toast(toast: &RunToast, app: Entity<CrowApp>) -> impl IntoElement {
                 .border_color(ink)
                 .shadow_lg()
                 .font_family(FONT_MONO)
-                .text_size(px(11.0))
+                .text_size(font_px(11.0))
                 .child(div().pt(px(1.0)).child(tabler_icon(icon).size(px(14.0)).text_color(ink)))
                 .child(
                     div()
@@ -45,7 +45,7 @@ pub fn run_toast(toast: &RunToast, app: Entity<CrowApp>) -> impl IntoElement {
                             div()
                                 .id("run-toast-view")
                                 .pt(px(2.0))
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_SECONDARY)
                                 .cursor_pointer()

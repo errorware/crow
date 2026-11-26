@@ -105,7 +105,7 @@ pub fn logs_explorer_view(
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(12.0))
+                                .text_size(font_px(12.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_PRIMARY)
                                 .child(t!("logs-systemd-journal-logs")),
@@ -113,7 +113,7 @@ pub fn logs_explorer_view(
                         .child(
                             div()
                                 .font_family("JetBrains Mono")
-                                .text_size(px(10.5))
+                                .text_size(font_px(10.5))
                                 .text_color(TEXT_DIMMER)
                                 .child("journalctl -o json --output-fields=*"),
                         )
@@ -123,7 +123,7 @@ pub fn logs_explorer_view(
                                 .py(px(1.5))
                                 .bg(BG_CHIP)
                                 .text_color(TEXT_SECONDARY)
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .child(t!("logs-entries", filtered_count = filtered_count, total_count = total_count)),
                         ),
@@ -181,7 +181,7 @@ pub fn logs_explorer_view(
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(bound_color)
                                         .child(t!("logs-boundaries", bound_text = bound_text)),
@@ -214,7 +214,7 @@ pub fn logs_explorer_view(
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(if is_tail { OK } else { WARN })
                                         .child(if is_tail { t!("logs-live-tail-on") } else { t!("logs-paused") }),
@@ -233,14 +233,14 @@ pub fn logs_explorer_view(
                                 .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .on_click(move |_ev, _window, cx| {
                                     let text = export_snapshot.clone();
                                     app_export.update(cx, |this, cx| this.export_journal(text, export_lines, cx));
                                 })
                                 .child(t!("logs-export")),
                         )
-                        .children(export_note.map(|n| div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_DIMMER).child(n)))
+                        .children(export_note.map(|n| div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_DIMMER).child(n)))
                         // Clear button
                         .child(
                             div()
@@ -254,7 +254,7 @@ pub fn logs_explorer_view(
                                 .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .on_click(move |_ev, _window, cx| {
                                     app_clear.update(cx, |this, cx| {
                                         this.clear_journal(cx);
@@ -277,7 +277,7 @@ pub fn logs_explorer_view(
                 .border_b_1()
                 .border_color(BORDER_PANEL)
                 .font_family(FONT_MONO)
-                .text_size(px(9.5))
+                .text_size(font_px(9.5))
                 .child(div().text_color(TEXT_DIMMER).child(t!("logs-range")))
                 .children({
                     let ranges = [
@@ -419,7 +419,7 @@ pub fn logs_explorer_view(
                                 .bg(if is_sel { TEXT_PRIMARY } else { BG_CONTROL })
                                 .text_color(if is_sel { hex_rgb(0x0a0a0c) } else { TEXT_MUTED })
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .font_weight(FontWeight::BOLD)
                                 .cursor_pointer()
                                 .on_click(move |_ev, _window, cx| {
@@ -443,7 +443,7 @@ pub fn logs_explorer_view(
                                 .bg(if is_sel { CRIT } else { CRIT_BG })
                                 .text_color(if is_sel { hex_rgb(0x0a0a0c) } else { CRIT })
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .font_weight(FontWeight::BOLD)
                                 .cursor_pointer()
                                 .on_click(move |_ev, _window, cx| {
@@ -458,7 +458,7 @@ pub fn logs_explorer_view(
                                             .px(px(4.0))
                                             .py(px(0.5))
                                             .bg(hex_rgba(0, 0.2))
-                                            .text_size(px(9.0))
+                                            .text_size(font_px(9.0))
                                             .child(err_count.to_string()),
                                     )
                                 } else {
@@ -479,7 +479,7 @@ pub fn logs_explorer_view(
                                 .bg(if is_sel { WARN } else { WARN_BG })
                                 .text_color(if is_sel { hex_rgb(0x0a0a0c) } else { WARN })
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .font_weight(FontWeight::BOLD)
                                 .cursor_pointer()
                                 .on_click(move |_ev, _window, cx| {
@@ -494,7 +494,7 @@ pub fn logs_explorer_view(
                                             .px(px(4.0))
                                             .py(px(0.5))
                                             .bg(hex_rgba(0, 0.2))
-                                            .text_size(px(9.0))
+                                            .text_size(font_px(9.0))
                                             .child(warn_count.to_string()),
                                     )
                                 } else {
@@ -512,7 +512,7 @@ pub fn logs_explorer_view(
                                 .bg(if is_sel { TEXT_SECONDARY } else { BG_CONTROL })
                                 .text_color(if is_sel { hex_rgb(0x0a0a0c) } else { TEXT_MUTED })
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .font_weight(FontWeight::BOLD)
                                 .cursor_pointer()
                                 .on_click(move |_ev, _window, cx| {
@@ -550,7 +550,7 @@ pub fn logs_explorer_view(
                                         .hover(|s| s.text_color(TEXT_SECONDARY))
                                         .cursor_pointer()
                                         .font_family("JetBrains Mono")
-                                        .text_size(px(9.5))
+                                        .text_size(font_px(9.5))
                                         .child(if u == crate::journal::reader::KERNEL_UNIT { t!("logs-kernel").to_string() } else { clean_unit_display(&u) })
                                         .on_click(move |_ev, _window, cx| {
                                             let target = if u == "ALL" { None } else { Some(u.clone()) };
@@ -571,7 +571,7 @@ pub fn logs_explorer_view(
                                 .border_color(if on { hex_rgb(0x8ab4ff) } else { BORDER_DEFAULT })
                                 .text_color(if on { hex_rgb(0x8ab4ff) } else { TEXT_DIMMER })
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _window, cx| app_act.update(cx, |this, cx| this.toggle_journal_actions(cx)))
@@ -602,7 +602,7 @@ pub fn logs_explorer_view(
                                             .border_1()
                                             .border_color(hex_rgb(0x8ab4ff))
                                             .font_family(FONT_MONO)
-                                            .text_size(px(9.5))
+                                            .text_size(font_px(9.5))
                                             .font_weight(FontWeight::BOLD)
                                             .text_color(hex_rgb(0x8ab4ff))
                                             .child(t!("logs-pid", fpid = fpid))
@@ -624,7 +624,7 @@ pub fn logs_explorer_view(
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(9.5))
+                                                        .text_size(font_px(9.5))
                                                         .text_color(CRIT_INK_DIM)
                                                         .child(t!("logs-terminate-pid", fpid = fpid)),
                                                 )
@@ -639,7 +639,7 @@ pub fn logs_explorer_view(
                                                         .cursor_pointer()
                                                         .hover(|s| s.bg(BG_ROW_HOVER))
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(9.5))
+                                                        .text_size(font_px(9.5))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(CRIT)
                                                         .on_click(move |_ev, _window, cx| {
@@ -654,7 +654,7 @@ pub fn logs_explorer_view(
                                                         .id("journal-pid-kill-cancel")
                                                         .cursor_pointer()
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(9.5))
+                                                        .text_size(font_px(9.5))
                                                         .text_color(TEXT_DIM)
                                                         .hover(|s| s.text_color(TEXT_PRIMARY))
                                                         .on_click(move |_ev, _window, cx| {
@@ -678,7 +678,7 @@ pub fn logs_explorer_view(
                                                 .cursor_pointer()
                                                 .hover(|s| s.border_color(CRIT))
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(9.5))
+                                                .text_size(font_px(9.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(CRIT_INK_DIM)
                                                 .on_click(move |_ev, _window, cx| {
@@ -708,7 +708,7 @@ pub fn logs_explorer_view(
                                 .children(search.map(|input| {
                                     Input::new(input)
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.5))
+                                        .text_size(font_px(10.5))
                                         .bg(BG_APP)
                                         .rounded(px(2.0))
                                         .prefix(tabler_icon(TablerIcon::Search).size(px(11.0)).text_color(TEXT_DIMMER))
@@ -743,7 +743,7 @@ pub fn logs_explorer_view(
                 .border_b_1()
                 .border_color(BORDER_PANEL)
                 .font_family(FONT_MONO)
-                .text_size(px(9.5))
+                .text_size(font_px(9.5))
                 .font_weight(FontWeight::BOLD)
                 .text_color(TEXT_DIMMER)
                 .child(div().w(px(105.0)).child(t!("logs-timestamp")))
@@ -777,14 +777,14 @@ pub fn logs_explorer_view(
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
-                                    .text_size(px(12.0))
+                                    .text_size(font_px(12.0))
                                     .text_color(TEXT_MUTED)
                                     .child(t!("logs-no-journal-log-entries-matched")),
                             )
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
-                                    .text_size(px(10.5))
+                                    .text_size(font_px(10.5))
                                     .text_color(TEXT_FAINT)
                                     .child(t!("logs-try-clearing-the-search-query")),
                             )
@@ -874,11 +874,11 @@ fn render_journal_rows_deduped(
                     });
                 })
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .child(
                     div()
                         .w(px(14.0))
-                        .text_size(px(9.0))
+                        .text_size(font_px(9.0))
                         .text_color(TEXT_DIMMER)
                         .child(if is_collapsed { "▶" } else { "▼" }),
                 )
@@ -889,7 +889,7 @@ fn render_journal_rows_deduped(
                         .bg(hex_rgba(0xfacc15, 0.18))
                         .text_color(hex_rgb(0xfacc15))
                         .font_weight(FontWeight::BOLD)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .child(format!("×{}", count)),
                 )
                 .child(
@@ -908,7 +908,7 @@ fn render_journal_rows_deduped(
                 .child(
                     div()
                         .text_color(TEXT_FAINT)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .child(format!("{} → {}", first.timestamp_formatted, last.timestamp_formatted)),
                 )
                 .into_any_element(),
@@ -939,7 +939,7 @@ fn render_action_marker_row(entry: &JournalEntry, idx: usize) -> impl IntoElemen
         .border_b_1()
         .border_color(BORDER_PANEL)
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .child(div().flex_1().h(px(1.0)).bg(hex_rgba(0x8ab4ff, 0.25)))
         .child(
             div()
@@ -1007,7 +1007,7 @@ fn render_journal_row(
                     None
                 })
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 // 1. Timestamp
                 .child(
                     div()
@@ -1025,7 +1025,7 @@ fn render_journal_row(
                             crate::components::button::badge(entry.priority.badge_fg())
                                 .w(px(52.0))
                                 .justify_center()
-                                .text_size(px(8.5))
+                                .text_size(font_px(8.5))
                                 .child(entry.priority.label()),
                         ),
                 )
@@ -1156,7 +1156,7 @@ fn render_inspector_drawer(
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_TERTIARY)
                         .child(t!("logs-structured-systemd-journal-fields")),
@@ -1178,7 +1178,7 @@ fn render_inspector_drawer(
                                 .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.0))
+                                .text_size(font_px(9.0))
                                 .on_click(move |_ev, _window, cx| {
                                     cx.write_to_clipboard(ClipboardItem::new_string(copy_msg_str.clone()));
                                 })
@@ -1196,7 +1196,7 @@ fn render_inspector_drawer(
                                 .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.0))
+                                .text_size(font_px(9.0))
                                 .on_click(move |_ev, _window, cx| {
                                     cx.write_to_clipboard(ClipboardItem::new_string(copy_json_str.clone()));
                                 })
@@ -1221,7 +1221,7 @@ fn render_inspector_drawer(
                         .border_1()
                         .border_color(hex_rgb(0x1e2029))
                         .font_family(FONT_MONO)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .child(
                             div()
                                 .text_color(TEXT_DIMMER)
@@ -1250,7 +1250,7 @@ fn render_highlighted_message(msg: &str, terms: &[String]) -> impl IntoElement {
     let style = HighlightStyle { background_color: Some(hex_rgba(0xfacc15, 0.28).into()), color: Some(TEXT_MAX.into()), ..Default::default() };
     div()
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .child(StyledText::new(msg.to_string()).with_highlights(ranges.into_iter().map(|r| (r, style))))
 }
 
@@ -1271,12 +1271,12 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, app: Entity<CrowApp>) -
                 if let Some(rest) = l.trim().strip_prefix("VERDICT:") {
                     let rest = rest.trim();
                     let color = if rest.starts_with("PROBLEM") { CRIT } else if rest.starts_with("WORTH") { WARN } else { OK };
-                    return div().child(crate::components::button::badge(color).text_size(px(10.0)).py(px(2.0)).child(rest.to_string())).into_any_element();
+                    return div().child(crate::components::button::badge(color).text_size(font_px(10.0)).py(px(2.0)).child(rest.to_string())).into_any_element();
                 }
                 let heading = l.starts_with('#') || (l.len() > 2 && l.as_bytes()[0].is_ascii_digit() && l.as_bytes()[1] == b'.');
                 div().text_color(if heading { TEXT_MAX } else { TEXT_SECONDARY }).font_weight(if heading { FontWeight::BOLD } else { FontWeight::NORMAL }).child(l.trim_start_matches('#').trim_start().to_string()).into_any_element()
             }))
-            .child(div().pt(px(6.0)).text_size(px(9.0)).text_color(TEXT_FAINTER).child(t!("logs-lines-sent", provider = ai.provider, lines_sent = ai.lines_sent)))
+            .child(div().pt(px(6.0)).text_size(font_px(9.0)).text_color(TEXT_FAINTER).child(t!("logs-lines-sent", provider = ai.provider, lines_sent = ai.lines_sent)))
             .into_any_element(),
         (Some(Err(e)), _) => div().text_color(CRIT).child(e.clone()).into_any_element(),
         (None, false) => div().text_color(TEXT_FAINT).child(t!("logs-wand-hint")).into_any_element(),
@@ -1292,7 +1292,7 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, app: Entity<CrowApp>) -
         .flex()
         .flex_col()
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .child(
             div()
                 .h(px(34.0))
@@ -1328,7 +1328,7 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, app: Entity<CrowApp>) -
                                     .flex_col()
                                     .gap(px(5.0))
                                     .child(div().p(px(8.0)).bg(BG_WINDOW).border_l_2().border_color(accent).text_color(TEXT_PRIMARY).child(ai.picked.clone()))
-                                    .child(div().text_size(px(9.5)).text_color(TEXT_DIMMER).child(ai.scope.clone())),
+                                    .child(div().text_size(font_px(9.5)).text_color(TEXT_DIMMER).child(ai.scope.clone())),
                             )
                         })
                         .child(body),
@@ -1341,7 +1341,7 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, app: Entity<CrowApp>) -
                 .py(px(8.0))
                 .border_t_1()
                 .border_color(BORDER_PANEL)
-                .text_size(px(9.0))
+                .text_size(font_px(9.0))
                 .text_color(TEXT_FAINTER)
                 .child(match provider {
                     Some(p) => t!("logs-wand-sends", p = p),

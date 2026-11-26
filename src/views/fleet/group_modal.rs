@@ -81,7 +81,7 @@ pub fn group_assign_modal(
                                 .child(tabler_icon(TablerIcon::Folder).size(px(14.0)).text_color(hex_rgb(0x38bdf8)))
                                 .child(
                                     div()
-                                        .text_size(px(11.5))
+                                        .text_size(font_px(11.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_MAX)
                                         .child(t!("fleet-group-modal-group", server_name = server_name)),
@@ -107,7 +107,7 @@ pub fn group_assign_modal(
                     div()
                         .px(px(14.0))
                         .py(px(8.0))
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(TEXT_DIM)
                         .border_b_1()
                         .border_color(BORDER_PANEL)
@@ -156,7 +156,7 @@ pub fn group_assign_modal(
                                         .child(tabler_icon(TablerIcon::Folder).size(px(12.0)).text_color(if is_assigned { hex_rgb(0x38bdf8) } else { TEXT_DIM }))
                                         .child(
                                             div()
-                                                .text_size(px(11.0))
+                                                .text_size(font_px(11.0))
                                                 .text_color(if is_assigned { TEXT_MAX } else { TEXT_PRIMARY })
                                                 .font_weight(if is_assigned { FontWeight::BOLD } else { FontWeight::NORMAL })
                                                 .child(display_label),
@@ -164,7 +164,7 @@ pub fn group_assign_modal(
                                 )
                                 .children(is_assigned.then(|| {
                                     div()
-                                        .text_size(px(10.5))
+                                        .text_size(font_px(10.5))
                                         .text_color(OK)
                                         .font_weight(FontWeight::BOLD)
                                         .child("✓")

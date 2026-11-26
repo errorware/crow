@@ -68,7 +68,7 @@ pub fn ssh_attach_modal(
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(12.0))
+                                        .text_size(font_px(12.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_MAX)
                                         .child(t!("users-ssh-attach-modal-ssh-keychain-attachment", uname = uname)),
@@ -81,7 +81,7 @@ pub fn ssh_attach_modal(
                                         .py(px(1.5))
                                         .rounded_sm()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(9.0))
+                                        .text_size(font_px(9.0))
                                         .font_weight(FontWeight::BOLD)
                                         .child(t!("users-ssh-attach-modal-attached", count = user.authorized_keys.len())),
                                 ),
@@ -114,14 +114,14 @@ pub fn ssh_attach_modal(
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .text_color(TEXT_TERTIARY)
                                 .child(t!("users-ssh-attach-modal-target-file", target_auth_path = target_auth_path)),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.0))
+                                .text_size(font_px(9.0))
                                 .text_color(OK)
                                 .child(t!("users-ssh-attach-modal-permissions-0600-secure")),
                         ),
@@ -145,7 +145,7 @@ pub fn ssh_attach_modal(
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.5))
+                                        .text_size(font_px(10.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
                                         .child(t!("users-ssh-attach-modal-currently-authorized-keys-for-user")),
@@ -158,7 +158,7 @@ pub fn ssh_attach_modal(
                                         .border_color(BORDER_ROW)
                                         .rounded_sm()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .text_color(TEXT_MUTED)
                                         .child(t!("users-ssh-attach-modal-no-ssh-keys-currently-installed"))
                                         .into_any_element()
@@ -197,7 +197,7 @@ pub fn ssh_attach_modal(
                                                                         .bg(hex_rgba(0x38bdf8, 0.15))
                                                                         .rounded_sm()
                                                                         .font_family(FONT_MONO)
-                                                                        .text_size(px(8.5))
+                                                                        .text_size(font_px(8.5))
                                                                         .font_weight(FontWeight::BOLD)
                                                                         .text_color(hex_rgb(0x38bdf8))
                                                                         .child(k.algorithm.clone()),
@@ -205,7 +205,7 @@ pub fn ssh_attach_modal(
                                                                 .child(
                                                                     div()
                                                                         .font_family(FONT_MONO)
-                                                                        .text_size(px(11.0))
+                                                                        .text_size(font_px(11.0))
                                                                         .font_weight(FontWeight::BOLD)
                                                                         .text_color(TEXT_MAX)
                                                                         .child(k.name.clone()),
@@ -214,7 +214,7 @@ pub fn ssh_attach_modal(
                                                         .child(
                                                             div()
                                                                 .font_family(FONT_MONO)
-                                                                .text_size(px(9.0))
+                                                                .text_size(font_px(9.0))
                                                                 .text_color(TEXT_FAINT)
                                                                 .child(k.fingerprint.clone()),
                                                         ),
@@ -230,7 +230,7 @@ pub fn ssh_attach_modal(
                                                         .cursor_pointer()
                                                         .hover(|s| s.bg(hex_rgba(0xef4444, 0.25)))
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(9.0))
+                                                        .text_size(font_px(9.0))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(CRIT)
                                                         .on_click(move |_ev, _window, cx| {
@@ -260,7 +260,7 @@ pub fn ssh_attach_modal(
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(10.5))
+                                                .text_size(font_px(10.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_PRIMARY)
                                                 .child(t!("users-ssh-attach-modal-select-from-crow-ssh-keychain")),
@@ -268,7 +268,7 @@ pub fn ssh_attach_modal(
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(9.0))
+                                                .text_size(font_px(9.0))
                                                 .text_color(TEXT_FAINT)
                                                 .child(t!("users-ssh-attach-modal-enrolled-vault-keys", count = enrolled_keys.len())),
                                         ),
@@ -281,7 +281,7 @@ pub fn ssh_attach_modal(
                                         .border_color(BORDER_ROW)
                                         .rounded_sm()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .text_color(TEXT_MUTED)
                                         .child(t!("users-ssh-attach-modal-no-enrolled-keys-found-in"))
                                 } else {
@@ -330,7 +330,7 @@ pub fn ssh_attach_modal(
                                                                         })
                                                                         .rounded_sm()
                                                                         .font_family(FONT_MONO)
-                                                                        .text_size(px(8.5))
+                                                                        .text_size(font_px(8.5))
                                                                         .font_weight(FontWeight::BOLD)
                                                                         .text_color(if k.algorithm.to_lowercase().contains("ed25519") {
                                                                             hex_rgb(0x38bdf8)
@@ -342,7 +342,7 @@ pub fn ssh_attach_modal(
                                                                 .child(
                                                                     div()
                                                                         .font_family(FONT_MONO)
-                                                                        .text_size(px(11.0))
+                                                                        .text_size(font_px(11.0))
                                                                         .font_weight(FontWeight::BOLD)
                                                                         .text_color(TEXT_MAX)
                                                                         .child(k.name.clone()),
@@ -351,7 +351,7 @@ pub fn ssh_attach_modal(
                                                                     Some(
                                                                         div()
                                                                             .font_family(FONT_MONO)
-                                                                            .text_size(px(9.5))
+                                                                            .text_size(font_px(9.5))
                                                                             .text_color(TEXT_MUTED)
                                                                             .child(format!("({})", comm)),
                                                                     )
@@ -362,7 +362,7 @@ pub fn ssh_attach_modal(
                                                         .child(
                                                             div()
                                                                 .font_family(FONT_MONO)
-                                                                .text_size(px(9.0))
+                                                                .text_size(font_px(9.0))
                                                                 .text_color(TEXT_FAINT)
                                                                 .child(k.fingerprint.clone()),
                                                         ),
@@ -374,7 +374,7 @@ pub fn ssh_attach_modal(
                                                         .bg(OK_BG)
                                                         .rounded_sm()
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(9.0))
+                                                        .text_size(font_px(9.0))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(OK)
                                                         .child(t!("users-ssh-attach-modal-attached-2"))
@@ -390,7 +390,7 @@ pub fn ssh_attach_modal(
                                                         .cursor_pointer()
                                                         .hover(|s| s.bg(hex_rgba(0x8ab4ff, 0.3)))
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(9.5))
+                                                        .text_size(font_px(9.5))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(hex_rgb(0x8ab4ff))
                                                         .on_click(move |_ev, _window, cx| {

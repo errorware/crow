@@ -40,8 +40,8 @@ pub fn render_plugins_view(app: Entity<CrowApp>, plugins: &PluginsState, provide
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(div().font_family(FONT_MONO).text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-plugins-plugins-what-crow-connects-to")))
-                .child(crate::components::button::badge(TEXT_SECONDARY).text_size(px(9.5)).child(t!("settings-plugins-on", on = on, count = BUILTIN.len())))
+                .child(div().font_family(FONT_MONO).text_size(font_px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-plugins-plugins-what-crow-connects-to")))
+                .child(crate::components::button::badge(TEXT_SECONDARY).text_size(font_px(9.5)).child(t!("settings-plugins-on", on = on, count = BUILTIN.len())))
                 .child(div().flex_1())
                 .child(
                     div()
@@ -54,12 +54,12 @@ pub fn render_plugins_view(app: Entity<CrowApp>, plugins: &PluginsState, provide
                         .border_1()
                         .border_color(BORDER_DEFAULT)
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .text_color(TEXT_SECONDARY)
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                         .on_click(move |_ev, _window, cx| app_check.update(cx, |this, cx| this.check_all_plugins(cx)))
-                        .child(crate::components::icons::inherited_icon(TablerIcon::Refresh, px(12.0)))
+                        .child(crate::components::icons::inherited_icon(TablerIcon::Refresh, font_px(12.0)))
                         .child(t!("settings-plugins-re-check")),
                 ),
         )
@@ -72,7 +72,7 @@ pub fn render_plugins_view(app: Entity<CrowApp>, plugins: &PluginsState, provide
                 .flex()
                 .flex_col()
                 .gap(px(16.0))
-                .child(div().p(px(12.0)).bg(BG_OVERLAY_PANEL).border_1().border_color(BORDER_PANEL).font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(TEXT_MUTED).child(
+                .child(div().p(px(12.0)).bg(BG_OVERLAY_PANEL).border_1().border_color(BORDER_PANEL).font_family(FONT_MONO).text_size(font_px(10.5)).line_height(px(15.0)).text_color(TEXT_MUTED).child(
                     t!("settings-plugins-crow-does-nothing-with-these"),
                 ))
                 .child(super::user_plugins::user_plugins_section(&plugins.user, app.clone()))
@@ -81,7 +81,7 @@ pub fn render_plugins_view(app: Entity<CrowApp>, plugins: &PluginsState, provide
                         .flex()
                         .flex_col()
                         .gap(px(8.0))
-                        .child(div().flex().items_center().gap(px(8.0)).child(div().font_family(FONT_MONO).text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child(crate::i18n::tx(title))).child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).child(*category)))
+                        .child(div().flex().items_center().gap(px(8.0)).child(div().font_family(FONT_MONO).text_size(font_px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child(crate::i18n::tx(title))).child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_FAINT).child(*category)))
                         .children(BUILTIN.iter().filter(|p| p.category == *category).map(|p| card(p, plugins, provider_accounts, app.clone(), email)))
                 })),
         )
@@ -138,20 +138,20 @@ fn card(p: &'static BuiltinPlugin, plugins: &PluginsState, accounts: &[crate::va
                                 .child(div().size(px(10.0)).rounded_full().bg(if on { OK } else { TEXT_DIM })),
                         ),
                 )
-                .child(div().font_family(FONT_MONO).text_size(px(12.5)).font_weight(FontWeight::BOLD).text_color(if on { TEXT_PRIMARY } else { TEXT_SECONDARY }).child(crate::i18n::tx(p.name)))
+                .child(div().font_family(FONT_MONO).text_size(font_px(12.5)).font_weight(FontWeight::BOLD).text_color(if on { TEXT_PRIMARY } else { TEXT_SECONDARY }).child(crate::i18n::tx(p.name)))
                 .child(div().flex_1())
-                .child(div().flex().items_center().gap(px(6.0)).font_family(FONT_MONO).text_size(px(10.0)).child(div().size(px(6.0)).rounded_full().bg(color)).child(div().text_color(color).child(text))),
+                .child(div().flex().items_center().gap(px(6.0)).font_family(FONT_MONO).text_size(font_px(10.0)).child(div().size(px(6.0)).rounded_full().bg(color)).child(div().text_color(color).child(text))),
         )
-        .child(div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(TEXT_MUTED).child(crate::i18n::tx(p.about)))
+        .child(div().font_family(FONT_MONO).text_size(font_px(10.5)).line_height(px(15.0)).text_color(TEXT_MUTED).child(crate::i18n::tx(p.about)))
         .child(div().flex().flex_wrap().gap(px(4.0)).children(p.capabilities.iter().map(|c| {
-            div().px(px(5.0)).py(px(1.0)).bg(BG_CHIP).font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_TERTIARY).child(*c)
+            div().px(px(5.0)).py(px(1.0)).bg(BG_CHIP).font_family(FONT_MONO).text_size(font_px(9.0)).text_color(TEXT_TERTIARY).child(*c)
         })))
         // Accounts live with the providers; say how many and link there.
         .children((is_provider && on).then(|| {
             div()
                 .id(ElementId::Name(format!("plugin-accounts-{}", p.id).into()))
                 .font_family(FONT_MONO)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .text_color(hex_rgb(0x8ab4ff))
                 .cursor_pointer()
                 .hover(|s| s.text_color(TEXT_PRIMARY))

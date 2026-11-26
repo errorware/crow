@@ -193,7 +193,7 @@ impl OnboardState {
 const BASTION_BLUE: Rgba = Rgba { r: 0.376, g: 0.647, b: 0.98, a: 1.0 };
 
 fn mono(size: f32, color: Rgba) -> Div {
-    div().font_family(FONT_MONO).text_size(px(size)).text_color(color)
+    div().font_family(FONT_MONO).text_size(font_px(size)).text_color(color)
 }
 
 fn label(text: &'static str) -> Div {
@@ -207,7 +207,7 @@ fn hint(text: impl Into<SharedString>) -> Div {
 /// A wizard text field: gpui-component's input, styled like the app's other
 /// inputs (sharp corners, mono font).
 fn field(inputs: Option<&OnboardInputs>, which: OnboardFieldFocus) -> Div {
-    div().w_full().children(inputs.and_then(|i| i.get(which)).map(|state| Input::new(state).font_family(FONT_MONO).text_size(px(12.0)).bg(BG_APP).rounded(px(2.0))))
+    div().w_full().children(inputs.and_then(|i| i.get(which)).map(|state| Input::new(state).font_family(FONT_MONO).text_size(font_px(12.0)).bg(BG_APP).rounded(px(2.0))))
 }
 
 fn labeled(text: &'static str, body: impl IntoElement) -> Div {
@@ -229,7 +229,7 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, selected: bo
         .border_color(if selected { sel_border } else { BORDER_DEFAULT })
         .bg(if selected { BG_ROW_SELECTED } else { BG_CONTROL })
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
         .text_color(if selected { TEXT_MAX } else { TEXT_SECONDARY })
         .cursor_pointer()
@@ -283,7 +283,7 @@ fn button(id: &'static str, text: impl Into<SharedString>, primary: bool, enable
         .border_color(if primary && enabled { OK } else { BORDER_DEFAULT })
         .bg(if primary && enabled { OK } else { BG_CONTROL })
         .font_family(FONT_MONO)
-        .text_size(px(11.0))
+        .text_size(font_px(11.0))
         .font_weight(FontWeight::BOLD)
         .text_color(color)
         .when(enabled, |d| d.cursor_pointer().hover(move |s| if primary { s.bg(hex_rgb(0x32b55e)) } else { s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY) }))
@@ -373,7 +373,7 @@ pub fn onboard_view(
                             div()
                                 .flex_none()
                                 .font_family(FONT_MONO)
-                                .text_size(px(16.0))
+                                .text_size(font_px(16.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_MAX)
                                 .child(t!("onboard-add-server-2")),
@@ -383,7 +383,7 @@ pub fn onboard_view(
                                 .min_w(px(0.0))
                                 .truncate()
                                 .font_family(FONT_MONO)
-                                .text_size(px(11.5))
+                                .text_size(font_px(11.5))
                                 .text_color(TEXT_DIM)
                                 .child(t!("onboard-header-subtitle")),
                         ),
@@ -416,7 +416,7 @@ pub fn onboard_view(
                                 .px(px(12.0))
                                 .py(px(6.0))
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_FAINT)
                                 .child(t!("onboard-nav-existing-ssh")),
@@ -474,7 +474,7 @@ pub fn onboard_view(
                                         .min_w(px(0.0))
                                         .truncate()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.5))
+                                        .text_size(font_px(11.5))
                                         .font_weight(if active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                                         .text_color(if active {
                                             TEXT_PRIMARY
@@ -499,7 +499,7 @@ pub fn onboard_view(
                                 .border_t_1()
                                 .border_color(BORDER_PANEL)
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_FAINT)
                                 .child(t!("onboard-nav-cloud-provision")),
@@ -540,7 +540,7 @@ pub fn onboard_view(
                                         .min_w(px(0.0))
                                         .truncate()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.5))
+                                        .text_size(font_px(11.5))
                                         .font_weight(if is_cloud { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                                         .text_color(if is_cloud { TEXT_PRIMARY } else { TEXT_MUTED })
                                         .child(t!("onboard-nav-deploy-vm")),
@@ -575,14 +575,14 @@ pub fn onboard_view(
                                     div()
                                         .flex_none()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
+                                        .text_size(font_px(11.0))
                                         .font_weight(FontWeight::SEMIBOLD)
                                         .text_color(TEXT_PRIMARY)
                                         .child(sec_title),
                                 )
                                 .children(is_cloud.then(|| {
                                     crate::components::button::badge(OK)
-                                        .text_size(px(9.0))
+                                        .text_size(font_px(9.0))
                                         .child(t!("fleet-provision-ssh-vault-seeded"))
                                 }))
                                 .child(
@@ -590,7 +590,7 @@ pub fn onboard_view(
                                         .min_w(px(0.0))
                                         .truncate()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .text_color(TEXT_DIM)
                                         .child(sec_subtitle),
                                 ),
@@ -849,7 +849,7 @@ fn render_boot_wait_center(_app: Entity<CrowApp>, bw: &BootWaitState) -> impl In
                                         )
                                         .child(
                                             crate::components::button::badge(OK)
-                                                .text_size(px(9.0))
+                                                .text_size(font_px(9.0))
                                                 .child(bw.region_code.clone()),
                                         ),
                                 )
@@ -1472,7 +1472,7 @@ fn facts_grid(f: &DetectedFacts) -> impl IntoElement {
                 div().w(px(250.0)).flex().gap(px(8.0)).child(mono(9.5, TEXT_FAINT).w(px(78.0)).flex_none().child(k)).child(mono(10.5, TEXT_SECONDARY).flex_1().min_w(px(0.0)).overflow_hidden().text_ellipsis().whitespace_nowrap().child(v))
             })))
             .when(!f.schema_packs.is_empty(), |d| {
-                d.child(div().flex().flex_wrap().gap(px(4.0)).child(mono(9.5, TEXT_FAINT).mr(px(4.0)).child(t!("onboard-config-tools"))).children(f.schema_packs.iter().map(|(name, fg, bg)| div().px(px(5.0)).py(px(1.0)).bg(*bg).font_family(FONT_MONO).text_size(px(9.5)).text_color(*fg).child(name.clone()))))
+                d.child(div().flex().flex_wrap().gap(px(4.0)).child(mono(9.5, TEXT_FAINT).mr(px(4.0)).child(t!("onboard-config-tools"))).children(f.schema_packs.iter().map(|(name, fg, bg)| div().px(px(5.0)).py(px(1.0)).bg(*bg).font_family(FONT_MONO).text_size(font_px(9.5)).text_color(*fg).child(name.clone()))))
             })
             .when(!family.is_supported(), |d| d.child(mono(10.0, WARN).line_height(px(14.0)).child(t!("onboard-crow-knows-debian-and-red")))),
     )

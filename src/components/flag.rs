@@ -35,7 +35,7 @@ pub fn flag(code: &str, height: f32) -> AnyElement {
             .rounded_sm()
             .bg(BG_CHIP)
             .text_color(TEXT_DIM)
-            .text_size(px(height * 0.75))
+            .text_size(font_px(height * 0.75))
             .font_weight(FontWeight::BOLD)
             .child(code.to_ascii_uppercase())
             .into_any_element(),

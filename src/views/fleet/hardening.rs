@@ -12,7 +12,7 @@ use crate::security::hardening::{Accepted, Finding};
 use crate::theme::*;
 
 fn mono(size: f32, color: Rgba) -> Div {
-    div().font_family(FONT_MONO).text_size(px(size)).text_color(color)
+    div().font_family(FONT_MONO).text_size(font_px(size)).text_color(color)
 }
 
 fn action(id: impl Into<SharedString>, text: impl Into<SharedString>, color: Rgba) -> Stateful<Div> {
@@ -26,7 +26,7 @@ fn action(id: impl Into<SharedString>, text: impl Into<SharedString>, color: Rgb
         .border_1()
         .border_color(color.opacity(0.6))
         .font_family(FONT_MONO)
-        .text_size(px(9.5))
+        .text_size(font_px(9.5))
         .font_weight(FontWeight::BOLD)
         .text_color(color)
         .cursor_pointer()
@@ -45,11 +45,11 @@ fn header_button(id: &'static str, icon: Option<TablerIcon>, text: String) -> St
         .border_1()
         .border_color(BORDER_DEFAULT)
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .text_color(TEXT_SECONDARY)
         .cursor_pointer()
         .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
-        .children(icon.map(|i| inherited_icon(i, px(12.0))))
+        .children(icon.map(|i| inherited_icon(i, font_px(12.0))))
         .child(text)
 }
 
@@ -96,7 +96,7 @@ pub fn hardening_page(rows: &[ServerFindings], reason: Option<&Entity<InputState
                         .child(header_button("btn-hardening-report", None, t!("fleet-hardening-export-report-md").into()).on_click(move |_ev, _w, cx| app_report.update(cx, |this, cx| this.export_posture_report(cx)))),
                 )
                 .children(message.map(|(ok, m)| mono(10.5, if ok { OK } else { WARN }).line_height(px(15.0)).child(m)))
-                .child(div().flex().items_center().gap(px(10.0)).child(mono(9.5, TEXT_DIMMER).font_weight(FontWeight::SEMIBOLD).child(t!("fleet-hardening-reason-to-accept"))).child(div().flex_1().max_w(px(560.0)).children(reason.map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0))))))
+                .child(div().flex().items_center().gap(px(10.0)).child(mono(9.5, TEXT_DIMMER).font_weight(FontWeight::SEMIBOLD).child(t!("fleet-hardening-reason-to-accept"))).child(div().flex_1().max_w(px(560.0)).children(reason.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0))))))
                 .when(codes.iter().any(|(_, n)| *n > 1), |d| {
                     d.child(div().flex().flex_wrap().gap(px(6.0)).child(mono(9.5, TEXT_FAINT).mr(px(4.0)).child(t!("fleet-hardening-fix-everywhere"))).children(codes.into_iter().filter(|(_, n)| *n > 1).map(|(code, n)| {
                         let app = app.clone();

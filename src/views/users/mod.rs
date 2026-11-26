@@ -73,7 +73,7 @@ pub fn user_management_view(
         .bg(BG_PANEL)
         .border_b_1()
         .border_color(BORDER_PANEL)
-        .child(div().px(px(14.0)).h_full().flex().items_center().border_r_1().border_color(BORDER_PANEL).font_family(FONT_MONO).text_size(px(11.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(t!("users-users")))
+        .child(div().px(px(14.0)).h_full().flex().items_center().border_r_1().border_color(BORDER_PANEL).font_family(FONT_MONO).text_size(font_px(11.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(t!("users-users")))
         .child(render_table_controls(search, chips))
         .child(div().flex_1())
         .child(
@@ -86,7 +86,7 @@ pub fn user_management_view(
                 .border_color(OK)
                 .text_color(OK)
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .font_weight(FontWeight::BOLD)
                 .cursor_pointer()
                 .hover(|s| s.bg(OK_BG))
@@ -105,7 +105,7 @@ pub fn user_management_view(
         .border_b_1()
         .border_color(BORDER_PANEL)
         .font_family(FONT_MONO)
-        .text_size(px(9.5))
+        .text_size(font_px(9.5))
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(TEXT_DIMMER)
         .child(div().w(px(10.0)).flex_none())
@@ -193,7 +193,7 @@ pub fn user_management_view(
                 .items_center()
                 .gap(px(10.0))
                 .child(div().size(px(7.0)).rounded_full().bg(if users.pending.is_some() { WARN } else { OK }))
-                .child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_PRIMARY).child(msg))
+                .child(div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_PRIMARY).child(msg))
                 .child(
                     div()
                         .id("btn-dismiss-user-toast")
@@ -213,7 +213,7 @@ pub fn user_management_view(
 }
 
 fn message_row(text: String, color: Rgba) -> AnyElement {
-    div().p(px(20.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(color).child(text).into_any_element()
+    div().p(px(20.0)).font_family(FONT_MONO).text_size(font_px(11.0)).text_color(color).child(text).into_any_element()
 }
 
 fn status_badge(u: &SystemUserRecord) -> Div {
@@ -222,7 +222,7 @@ fn status_badge(u: &SystemUserRecord) -> Div {
         UserAccountStatus::Locked => (CRIT_BG, CRIT),
         UserAccountStatus::SystemDaemon => (BG_CHIP, TEXT_DIM),
     };
-    div().flex_none().rounded_sm().px(px(5.0)).py(px(1.5)).bg(bg).text_color(fg).text_size(px(8.5)).font_weight(FontWeight::BOLD).child(u.status().label())
+    div().flex_none().rounded_sm().px(px(5.0)).py(px(1.5)).bg(bg).text_color(fg).text_size(font_px(8.5)).font_weight(FontWeight::BOLD).child(u.status().label())
 }
 
 fn user_row(u: &SystemUserRecord, idx: usize, selected: bool, sudo_group: Option<&str>, app: Entity<CrowApp>) -> AnyElement {
@@ -267,20 +267,20 @@ fn user_row(u: &SystemUserRecord, idx: usize, selected: bool, sudo_group: Option
                 .items_center()
                 .gap(px(8.0))
                 .overflow_hidden()
-                .child(div().flex_none().text_size(px(11.5)).font_weight(if u.is_human() { FontWeight::SEMIBOLD } else { FontWeight::NORMAL }).text_color(if u.is_human() { TEXT_PRIMARY } else { TEXT_DIM }).child(u.username.clone()))
-                .children(is_admin.then(|| div().flex_none().rounded_sm().px(px(4.0)).py(px(1.0)).bg(WARN_BG).text_color(WARN).text_size(px(8.0)).font_weight(FontWeight::BOLD).child(t!("users-sudo"))))
-                .children((!full_name.is_empty() && full_name != u.username).then(|| div().min_w(px(0.0)).text_size(px(10.0)).text_color(TEXT_FAINT).child(full_name))),
+                .child(div().flex_none().text_size(font_px(11.5)).font_weight(if u.is_human() { FontWeight::SEMIBOLD } else { FontWeight::NORMAL }).text_color(if u.is_human() { TEXT_PRIMARY } else { TEXT_DIM }).child(u.username.clone()))
+                .children(is_admin.then(|| div().flex_none().rounded_sm().px(px(4.0)).py(px(1.0)).bg(WARN_BG).text_color(WARN).text_size(font_px(8.0)).font_weight(FontWeight::BOLD).child(t!("users-sudo"))))
+                .children((!full_name.is_empty() && full_name != u.username).then(|| div().min_w(px(0.0)).text_size(font_px(10.0)).text_color(TEXT_FAINT).child(full_name))),
         )
-        .child(div().w(px(60.0)).flex_none().text_align(TextAlign::Right).text_size(px(10.5)).text_color(TEXT_DIM).child(u.uid.to_string()))
-        .child(div().flex_grow(1.5).flex_basis(px(0.0)).min_w(px(120.0)).overflow_hidden().text_size(px(10.5)).text_color(TEXT_SECONDARY).child(groups))
-        .child(div().flex_grow(1.0).flex_basis(px(0.0)).min_w(px(110.0)).overflow_hidden().text_size(px(10.5)).text_color(TEXT_DIM).child(u.shell.clone()))
-        .child(div().w(px(50.0)).flex_none().text_align(TextAlign::Right).text_size(px(10.5)).text_color(if u.authorized_keys.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY }).child(u.authorized_keys.len().to_string()))
+        .child(div().w(px(60.0)).flex_none().text_align(TextAlign::Right).text_size(font_px(10.5)).text_color(TEXT_DIM).child(u.uid.to_string()))
+        .child(div().flex_grow(1.5).flex_basis(px(0.0)).min_w(px(120.0)).overflow_hidden().text_size(font_px(10.5)).text_color(TEXT_SECONDARY).child(groups))
+        .child(div().flex_grow(1.0).flex_basis(px(0.0)).min_w(px(110.0)).overflow_hidden().text_size(font_px(10.5)).text_color(TEXT_DIM).child(u.shell.clone()))
+        .child(div().w(px(50.0)).flex_none().text_align(TextAlign::Right).text_size(font_px(10.5)).text_color(if u.authorized_keys.is_empty() { TEXT_FAINTER } else { TEXT_PRIMARY }).child(u.authorized_keys.len().to_string()))
         .child(div().w(px(76.0)).flex_none().flex().child(status_badge(u)))
         .into_any_element()
 }
 
 fn inspector_section(title: &'static str) -> Div {
-    div().px(px(14.0)).pt(px(14.0)).pb(px(6.0)).font_family(FONT_MONO).text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(title)
+    div().px(px(14.0)).pt(px(14.0)).pb(px(6.0)).font_family(FONT_MONO).text_size(font_px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(title)
 }
 
 fn detail(label: &'static str, value: String) -> Div {
@@ -290,7 +290,7 @@ fn detail(label: &'static str, value: String) -> Div {
         .px(px(14.0))
         .py(px(3.0))
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .child(div().w(px(90.0)).flex_none().text_color(TEXT_FAINT).child(label))
         .child(div().flex_1().min_w(px(0.0)).overflow_hidden().text_color(TEXT_PRIMARY).child(value))
 }
@@ -304,7 +304,7 @@ fn action_button(id: String, label: String, color: Rgba, enabled: bool, on_click
         .border_color(if enabled { color.opacity(0.6) } else { BORDER_DEFAULT })
         .text_color(if enabled { color } else { TEXT_FAINTER })
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .font_weight(FontWeight::BOLD)
         .when(enabled, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _window, cx| on_click(cx)))
         .child(label)
@@ -335,11 +335,11 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
                     .flex()
                     .items_center()
                     .gap(px(8.0))
-                    .child(div().text_size(px(16.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child(u.username.clone()))
+                    .child(div().text_size(font_px(16.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child(u.username.clone()))
                     .child(status_badge(u))
-                    .children(u.is_sudoer().then(|| div().rounded_sm().px(px(5.0)).py(px(1.5)).bg(WARN_BG).text_color(WARN).text_size(px(8.5)).font_weight(FontWeight::BOLD).child(if is_root { t!("users-root") } else { t!("users-sudo") }))),
+                    .children(u.is_sudoer().then(|| div().rounded_sm().px(px(5.0)).py(px(1.5)).bg(WARN_BG).text_color(WARN).text_size(font_px(8.5)).font_weight(FontWeight::BOLD).child(if is_root { t!("users-root") } else { t!("users-sudo") }))),
             )
-            .children((!full_name.is_empty() && full_name != u.username).then(|| div().text_size(px(10.5)).text_color(TEXT_DIM).child(full_name))),
+            .children((!full_name.is_empty() && full_name != u.username).then(|| div().text_size(font_px(10.5)).text_color(TEXT_DIM).child(full_name))),
     );
 
     // Account details
@@ -355,7 +355,7 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
         div().flex().flex_wrap().gap(px(5.0)).px(px(14.0)).children(u.groups.iter().map(|g| {
             let is_primary = *g == u.primary_group;
             crate::components::button::badge(if Some(g.as_str()) == sudo_group { WARN } else { TEXT_SECONDARY })
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .child(if is_primary { t!("users-primary", g = g) } else { g.clone() })
         })),
     );
@@ -376,7 +376,7 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
     // SSH keys
     panel = panel.child(inspector_section(t!("users-authorized-ssh-keys")));
     if u.authorized_keys.is_empty() {
-        panel = panel.child(div().px(px(14.0)).py(px(2.0)).font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_FAINT).child(t!("users-no-keys-in-ssh-authorized")));
+        panel = panel.child(div().px(px(14.0)).py(px(2.0)).font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_FAINT).child(t!("users-no-keys-in-ssh-authorized")));
     }
     for (i, k) in u.authorized_keys.iter().enumerate() {
         let (app, n, id) = (app.clone(), name.clone(), k.id.clone());
@@ -399,8 +399,8 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
                         .flex()
                         .flex_col()
                         .gap(px(2.0))
-                        .child(div().text_size(px(10.5)).text_color(TEXT_PRIMARY).child(k.comment.clone().filter(|c| !c.is_empty()).unwrap_or_else(|| k.name.clone())))
-                        .child(div().overflow_hidden().text_size(px(9.5)).text_color(TEXT_FAINT).child(format!("{} · {}", k.algorithm, k.fingerprint))),
+                        .child(div().text_size(font_px(10.5)).text_color(TEXT_PRIMARY).child(k.comment.clone().filter(|c| !c.is_empty()).unwrap_or_else(|| k.name.clone())))
+                        .child(div().overflow_hidden().text_size(font_px(9.5)).text_color(TEXT_FAINT).child(format!("{} · {}", k.algorithm, k.fingerprint))),
                 )
                 .child(action_button(format!("user-revoke-{name}-{i}"), "REVOKE".into(), CRIT, !busy, move |cx| {
                     let (n, id) = (n.clone(), id.clone());
@@ -433,7 +433,7 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
                 .bg(if current { OK_BG } else { hex_rgba(0, 0.0) })
                 .text_color(if current { OK } else { TEXT_DIMMER })
                 .font_family(FONT_MONO)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .when(!current && !busy, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _window, cx| {
                     let (n, sh) = (n.clone(), sh.clone());
                     app.update(cx, |this, cx| this.user_set_shell(&n, &sh, cx));
@@ -445,7 +445,7 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
     // Password
     let form_open = users.password_for.as_deref() == Some(u.username.as_str());
     panel = panel.child(inspector_section(t!("users-password"))).child(
-        div().px(px(14.0)).py(px(2.0)).font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_SECONDARY).child(if u.is_locked {
+        div().px(px(14.0)).py(px(2.0)).font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_SECONDARY).child(if u.is_locked {
             t!("users-locked-no-password-login-setting")
         } else {
             t!("users-set-can-log-in-with")
@@ -469,10 +469,10 @@ fn inspector(u: &SystemUserRecord, users: &UsersState, password_inputs: Option<&
                         .flex()
                         .flex_col()
                         .gap(px(6.0))
-                        .child(gpui_kit::component::input::Input::new(&p.password).font_family(FONT_MONO).text_size(px(11.0)).rounded(px(2.0)))
-                        .child(gpui_kit::component::input::Input::new(&p.confirm).font_family(FONT_MONO).text_size(px(11.0)).rounded(px(2.0)))
+                        .child(gpui_kit::component::input::Input::new(&p.password).font_family(FONT_MONO).text_size(font_px(11.0)).rounded(px(2.0)))
+                        .child(gpui_kit::component::input::Input::new(&p.confirm).font_family(FONT_MONO).text_size(font_px(11.0)).rounded(px(2.0)))
                 }))
-                .child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).child(t!("users-set-with-chpasswd-over-stdin")))
+                .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_FAINT).child(t!("users-set-with-chpasswd-over-stdin")))
                 .child(
                     div()
                         .flex()

@@ -72,7 +72,7 @@ pub(crate) fn small_button(id: impl Into<ElementId>, label: &'static str, color:
         .border_1()
         .border_color(BORDER_DEFAULT)
         .font_family(FONT_MONO)
-        .text_size(px(9.5))
+        .text_size(font_px(9.5))
         .text_color(color)
         .cursor_pointer()
         .hover(|s| s.bg(BG_ROW_HOVER))
@@ -151,13 +151,13 @@ pub fn structured_editor(
             .bg(BG_PANEL)
             .border_b_1()
             .border_color(BORDER_PANEL)
-            .child(div().font_family(FONT_MONO).text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(file.clone()))
+            .child(div().font_family(FONT_MONO).text_size(font_px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(file.clone()))
             .child(
                 div()
                     .bg(hex_rgba(0x8ab4ff, 0.12))
                     .text_color(hex_rgb(0x8ab4ff))
                     .font_family(FONT_MONO)
-                    .text_size(px(9.0))
+                    .text_size(font_px(9.0))
                     .font_weight(FontWeight::BOLD)
                     .px(px(5.0))
                     .py(px(1.5))
@@ -169,7 +169,7 @@ pub fn structured_editor(
                     .bg(if is_modified { WARN_BG } else { OK_BG })
                     .text_color(if is_modified { WARN } else { OK })
                     .font_family(FONT_MONO)
-                    .text_size(px(9.0))
+                    .text_size(font_px(9.0))
                     .font_weight(FontWeight::BOLD)
                     .px(px(5.0))
                     .py(px(1.5))
@@ -275,7 +275,7 @@ pub fn structured_editor(
             .border_b_1()
             .border_color(BORDER_PANEL)
             .font_family(FONT_MONO)
-            .text_size(px(9.0))
+            .text_size(font_px(9.0))
             .font_weight(FontWeight::BOLD)
             .text_color(TEXT_FAINT)
             .child(div().w(px(LINE_W)).flex_none().child(t!("config-structured-editor-line")))
@@ -337,7 +337,7 @@ pub fn structured_editor(
                                 .px(px(14.0))
                                 .py(px(10.0))
                                 .font_family(FONT_MONO)
-                                .text_size(px(11.0))
+                                .text_size(font_px(11.0))
                                 .text_color(TEXT_FAINT)
                                 .child(t!("config-structured-editor-no-entries-only-comments-or"))
                         })),
@@ -353,7 +353,7 @@ fn notice(text: String, color: Rgba, tint: u32) -> Div {
         .border_b_1()
         .border_color(hex_rgba(tint, 0.25))
         .font_family(FONT_MONO)
-        .text_size(px(9.5))
+        .text_size(font_px(9.5))
         .text_color(color)
         .child(text)
 }
@@ -618,7 +618,7 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
                         .flex_none()
                         .pt(px(if table_cols { 3.0 } else { 0.0 }))
                         .font_family(FONT_MONO)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .text_color(TEXT_FAINTER)
                         .child(format!("L{}", row.source_span.start_line)),
                 )
@@ -633,16 +633,16 @@ fn render_row(ctx: RowCtx) -> impl IntoElement {
             div()
                 .pl(px(48.0))
                 .font_family(FONT_MONO)
-                .text_size(px(9.5))
+                .text_size(font_px(9.5))
                 .text_color(WARN)
                 .child(t!("config-structured-editor-scoped-to-match-read-only", s = s))
         }))
-        .children(note.map(|(text, warn)| div().pl(px(48.0)).font_family(FONT_MONO).text_size(px(9.5)).text_color(if warn { WARN } else { TEXT_DIM }).child(text)))
+        .children(note.map(|(text, warn)| div().pl(px(48.0)).font_family(FONT_MONO).text_size(font_px(9.5)).text_color(if warn { WARN } else { TEXT_DIM }).child(text)))
         .children((help.is_some() || docs.is_some()).then(|| {
             div()
                 .pl(px(48.0))
                 .font_family(FONT_MONO)
-                .text_size(px(9.5))
+                .text_size(font_px(9.5))
                 .text_color(TEXT_FAINT)
                 .child(match (help, docs) {
                     (Some(h), Some(d)) => format!("{h}  ·  {d}"),
@@ -728,10 +728,10 @@ fn render_field(ctx: FieldCtx) -> impl IntoElement {
                     .border_color(if on { OK } else { BORDER_STRONG })
                     .child(div().size(px(10.0)).rounded_full().bg(if on { OK } else { TEXT_DIM })),
             )
-            .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(color).child(label))
+            .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).text_color(color).child(label))
             .into_any_element()
     } else if let Some(input) = editing {
-        div().min_w(px(180.0)).child(Input::new(input).font_family(FONT_MONO).text_size(px(11.0))).into_any_element()
+        div().min_w(px(180.0)).child(Input::new(input).font_family(FONT_MONO).text_size(font_px(11.0))).into_any_element()
     } else {
         let (app_click, f, r, name, is_enum) = (app.clone(), file.to_string(), row_id.to_string(), field.name.clone(), field.options.is_some());
         let is_list = field.field_type == FieldType::StringList;
@@ -744,7 +744,7 @@ fn render_field(ctx: FieldCtx) -> impl IntoElement {
             .border_color(if locked { hex_rgba(0, 0.0) } else { BORDER_DEFAULT })
             .when(layout == FieldLayout::Column, |d| d.min_w(px(0.0)).max_w_full().truncate().px(px(4.0)).border_color(hex_rgba(0, 0.0)))
             .font_family(FONT_MONO)
-            .text_size(px(11.5))
+            .text_size(font_px(11.5))
             .text_color(color)
             .when(!locked, |d| {
                 d.cursor_pointer().hover(move |s| s.bg(BG_CONTROL).border_color(BORDER_DEFAULT)).on_click(move |_ev, window, cx| {
@@ -784,7 +784,7 @@ fn render_field(ctx: FieldCtx) -> impl IntoElement {
         .gap(px(1.0))
         .when(in_column, |d| d.min_w(px(0.0)))
         .children(show_label.then(|| {
-            div().font_family(FONT_MONO).text_size(px(8.5)).text_color(TEXT_FAINTER).child(field.name.to_uppercase())
+            div().font_family(FONT_MONO).text_size(font_px(8.5)).text_color(TEXT_FAINTER).child(field.name.to_uppercase())
         }))
         .child(
             div()
@@ -793,14 +793,14 @@ fn render_field(ctx: FieldCtx) -> impl IntoElement {
                 .gap(px(6.0))
                 .when(in_column, |d| d.min_w(px(0.0)))
                 .children((layout == FieldLayout::KeyValue).then(|| {
-                    div().min_w(px(170.0)).font_family(FONT_MONO).text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(field.name.clone())
+                    div().min_w(px(170.0)).font_family(FONT_MONO).text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(field.name.clone())
                 }))
                 .child(value_el)
                 .children(risk_label(current_risk.as_ref()).filter(|_| current_risk != Some(RiskLevel::Recommended) && !in_column).map(|l| {
-                    div().font_family(FONT_MONO).text_size(px(8.5)).font_weight(FontWeight::BOLD).text_color(color).child(l)
+                    div().font_family(FONT_MONO).text_size(font_px(8.5)).font_weight(FontWeight::BOLD).text_color(color).child(l)
                 })),
         )
-        .children(field.validation_error.clone().map(|e| div().font_family(FONT_MONO).text_size(px(9.5)).text_color(CRIT).child(e)))
+        .children(field.validation_error.clone().map(|e| div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(CRIT).child(e)))
         .children(options)
 }
 
@@ -827,11 +827,11 @@ fn render_options(file: &str, row_id: &str, field: &FieldIr, app: Entity<CrowApp
                     let (f, r, n, v) = (f.clone(), r.clone(), n.clone(), v.clone());
                     app_pick.update(cx, |this, cx| this.set_structured_value(&f, &r, &n, serde_json::Value::String(v), cx));
                 })
-                .child(div().w(px(150.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(risk_color(opt.risk.as_ref())).child(opt.value.clone()))
+                .child(div().w(px(150.0)).font_family(FONT_MONO).text_size(font_px(11.0)).text_color(risk_color(opt.risk.as_ref())).child(opt.value.clone()))
                 .children(risk_label(opt.risk.as_ref()).map(|l| {
-                    div().w(px(96.0)).font_family(FONT_MONO).text_size(px(8.5)).font_weight(FontWeight::BOLD).text_color(risk_color(opt.risk.as_ref())).child(l)
+                    div().w(px(96.0)).font_family(FONT_MONO).text_size(font_px(8.5)).font_weight(FontWeight::BOLD).text_color(risk_color(opt.risk.as_ref())).child(l)
                 }))
-                .child(div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_TERTIARY).child(opt.label.clone()))
+                .child(div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_TERTIARY).child(opt.label.clone()))
         }))
     }
 }
@@ -894,8 +894,8 @@ fn render_add_section(file: &str, format: StructuredFormat, ir: &ConfigDocumentI
                     let (f, n, v) = (f.clone(), n.clone(), v.clone());
                     app_pick.update(cx, |this, cx| this.insert_structured_row(&f, Some((n, v)), cx));
                 })
-                .child(div().w(px(200.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_PRIMARY).child(name))
-                .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(risk_color(risk.as_ref())).child(value))
+                .child(div().w(px(200.0)).font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_PRIMARY).child(name))
+                .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).text_color(risk_color(risk.as_ref())).child(value))
         }))
 }
 
@@ -921,9 +921,9 @@ fn render_section_add(format: StructuredFormat, suggestions: Vec<(&'static str, 
                 .flex()
                 .items_center()
                 .gap(px(8.0))
-                .child(div().w(px(200.0)).flex_none().child(Input::new(add.key).font_family(FONT_MONO).text_size(px(11.0))))
-                .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child(if format == StructuredFormat::Nginx || crate::config::plugins::is_flat_directives(format) { "" } else { "=" }))
-                .child(div().flex_1().min_w(px(0.0)).child(Input::new(add.value).font_family(FONT_MONO).text_size(px(11.0))))
+                .child(div().w(px(200.0)).flex_none().child(Input::new(add.key).font_family(FONT_MONO).text_size(font_px(11.0))))
+                .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_FAINT).child(if format == StructuredFormat::Nginx || crate::config::plugins::is_flat_directives(format) { "" } else { "=" }))
+                .child(div().flex_1().min_w(px(0.0)).child(Input::new(add.value).font_family(FONT_MONO).text_size(font_px(11.0))))
                 .child(small_button("btn-section-add", t!("config-structured-editor-add"), OK).on_click(move |_ev, _window, cx| {
                     app_ok.update(cx, |this, cx| this.commit_section_add(cx));
                 }))
@@ -931,7 +931,7 @@ fn render_section_add(format: StructuredFormat, suggestions: Vec<(&'static str, 
                     app_cancel.update(cx, |this, cx| this.cancel_section_add(cx));
                 })),
         )
-        .children(help.map(|h| div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_TERTIARY).child(h)))
+        .children(help.map(|h| div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_TERTIARY).child(h)))
         .children(shown.into_iter().enumerate().map(|(i, (key, help, start))| {
             let app_pick = app.clone();
             div()
@@ -946,10 +946,10 @@ fn render_section_add(format: StructuredFormat, suggestions: Vec<(&'static str, 
                 .on_click(move |_ev, window, cx| {
                     app_pick.update(cx, |this, cx| this.pick_section_key(key, start, window, cx));
                 })
-                .child(div().w(px(190.0)).flex_none().font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_PRIMARY).child(key))
-                .child(div().flex_1().min_w(px(0.0)).truncate().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_TERTIARY).child(help))
+                .child(div().w(px(190.0)).flex_none().font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_PRIMARY).child(key))
+                .child(div().flex_1().min_w(px(0.0)).truncate().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_TERTIARY).child(help))
         }))
-        .child(div().font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINTER).child(if format == StructuredFormat::Nginx {
+        .child(div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(TEXT_FAINTER).child(if format == StructuredFormat::Nginx {
             t!("config-structured-editor-added-at-the-end-of")
         } else if crate::config::plugins::is_flat_directives(format) {
             t!("config-structured-editor-added-at-the-end-of-2")
@@ -974,21 +974,21 @@ fn render_risk_confirm(confirm: &RiskConfirm, app: Entity<CrowApp>) -> impl Into
         .child(
             div()
                 .font_family(FONT_MONO)
-                .text_size(px(11.0))
+                .text_size(font_px(11.0))
                 .font_weight(FontWeight::BOLD)
                 .text_color(CRIT)
                 .child(t!("config-structured-editor-this-change-introduces-values-rated")),
         )
         .children(confirm.findings.iter().map(|(field, value, meaning)| {
-            div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_SECONDARY).child(format!("  {field} {value} — {meaning}"))
+            div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_SECONDARY).child(format!("  {field} {value} — {meaning}"))
         }))
         .child(
             div()
                 .flex()
                 .items_center()
                 .gap(px(8.0))
-                .child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_TERTIARY).child(t!("config-structured-editor-type-to-stage-it", risk_confirm_keyword = RISK_CONFIRM_KEYWORD)))
-                .children(confirm.input.as_ref().map(|input| div().w(px(160.0)).child(Input::new(input).font_family(FONT_MONO).text_size(px(11.0)))))
+                .child(div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_TERTIARY).child(t!("config-structured-editor-type-to-stage-it", risk_confirm_keyword = RISK_CONFIRM_KEYWORD)))
+                .children(confirm.input.as_ref().map(|input| div().w(px(160.0)).child(Input::new(input).font_family(FONT_MONO).text_size(font_px(11.0)))))
                 .child(small_button("btn-risk-confirm", t!("config-structured-editor-stage-anyway"), CRIT).on_click(move |_ev, _window, cx| {
                     app_ok.update(cx, |this, cx| this.confirm_risky_stage(cx));
                 }))
@@ -996,5 +996,5 @@ fn render_risk_confirm(confirm: &RiskConfirm, app: Entity<CrowApp>) -> impl Into
                     app_cancel.update(cx, |this, cx| this.cancel_risky_stage(cx));
                 })),
         )
-        .children(confirm.error.clone().map(|e| div().font_family(FONT_MONO).text_size(px(10.0)).text_color(CRIT).child(e)))
+        .children(confirm.error.clone().map(|e| div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(CRIT).child(e)))
 }

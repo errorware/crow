@@ -63,7 +63,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(11.0))
+                                .text_size(font_px(11.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_PRIMARY)
                                 .child(t!("config-managed-files-config-files")),
@@ -77,7 +77,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .text_color(TEXT_FAINT)
                                 .child(format!("{}/{}", filtered_files.len(), files.len())),
                         )
@@ -117,7 +117,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                     .border_b_1()
                     .border_color(WARN)
                     .font_family(FONT_MONO)
-                    .text_size(px(9.5))
+                    .text_size(font_px(9.5))
                     .text_color(WARN)
                     .child(t!("config-managed-files-unverified-distro-generic-scan-only")),
             )
@@ -145,7 +145,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                     div()
                         .flex_1()
                         .child(if let Some(input) = search_input {
-                            div().child(Input::new(input).appearance(false).font_family(FONT_MONO).text_size(px(11.0)))
+                            div().child(Input::new(input).appearance(false).font_family(FONT_MONO).text_size(font_px(11.0)))
                         } else {
                             div()
                         })
@@ -199,7 +199,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(hex_rgb(0x8ab4ff))
                                 .child(t!("config-managed-files-crow-ui-mapped")),
@@ -207,7 +207,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.0))
+                                .text_size(font_px(9.0))
                                 .text_color(TEXT_FAINT)
                                 .child(mapped_files.len().to_string()),
                         ),
@@ -268,7 +268,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                         .flex_1()
                                         .min_w(px(0.0))
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
+                                        .text_size(font_px(11.0))
                                         .font_weight(if is_sel { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                                         .text_color(if is_sel { TEXT_MAX } else { TEXT_PRIMARY })
                                         .child(f.name.clone()),
@@ -278,7 +278,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                         .bg(pill_bg)
                                         .text_color(pill_fg)
                                         .font_family(FONT_MONO)
-                                        .text_size(px(8.5))
+                                        .text_size(font_px(8.5))
                                         .font_weight(FontWeight::BOLD)
                                         .px(px(4.0))
                                         .py(px(1.5))
@@ -293,7 +293,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                 .items_center()
                                 .justify_between()
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .text_color(TEXT_FAINTER)
                                 .child(f.path_dir.clone())
                                 .children(if let Some(pack) = f.schema_pack {
@@ -318,7 +318,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_MUTED)
                                 .child(t!("config-managed-files-system-configs-raw")),
@@ -326,7 +326,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.0))
+                                .text_size(font_px(9.0))
                                 .text_color(TEXT_FAINT)
                                 .child(raw_files.len().to_string()),
                         ),
@@ -393,7 +393,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                         .flex_1()
                                         .min_w(px(0.0))
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
+                                        .text_size(font_px(11.0))
                                         .font_weight(if is_sel { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                                         .text_color(if is_sel { TEXT_MAX } else { TEXT_SECONDARY })
                                         .child(f.name.clone()),
@@ -403,7 +403,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                         .bg(pill_bg)
                                         .text_color(pill_fg)
                                         .font_family(FONT_MONO)
-                                        .text_size(px(8.5))
+                                        .text_size(font_px(8.5))
                                         .font_weight(FontWeight::BOLD)
                                         .px(px(4.0))
                                         .py(px(1.0))
@@ -418,7 +418,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                 .items_center()
                                 .justify_between()
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .text_color(TEXT_FAINTER)
                                 .child(f.path_dir.clone())
                                 .child(f.display_size()),
@@ -438,7 +438,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_DIMMER)
                         .child(t!("config-managed-files-schema-packs-active")),
@@ -446,7 +446,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .text_color(TEXT_DIM)
                         .child(t!("config-managed-files-systemd-postgres-openssh-ufw")),
                 ),

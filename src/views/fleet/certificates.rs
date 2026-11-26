@@ -13,7 +13,7 @@ use crate::theme::*;
 use crate::views::fleet::FleetState;
 
 fn mono(size: f32, color: Rgba) -> Div {
-    div().font_family(FONT_MONO).text_size(px(size)).text_color(color)
+    div().font_family(FONT_MONO).text_size(font_px(size)).text_color(color)
 }
 
 pub fn certificates_page(fleet: &FleetState, st: &CertificatesState, app: Entity<CrowApp>) -> impl IntoElement {
@@ -52,12 +52,12 @@ pub fn certificates_page(fleet: &FleetState, st: &CertificatesState, app: Entity
                                 .border_1()
                                 .border_color(BORDER_DEFAULT)
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .text_color(TEXT_SECONDARY)
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                                 .on_click(move |_ev, _w, cx| app_refresh.update(cx, |this, cx| this.refresh_certificates(true, cx)))
-                                .child(inherited_icon(TablerIcon::Refresh, px(12.0)))
+                                .child(inherited_icon(TablerIcon::Refresh, font_px(12.0)))
                                 .child(if st.reading.is_empty() { t!("fleet-certificates-read-again").to_string() } else { t!("fleet-certificates-reading", count = st.reading.len()) }),
                         ),
                 )
@@ -124,7 +124,7 @@ pub fn certificates_page(fleet: &FleetState, st: &CertificatesState, app: Entity
                                         .border_1()
                                         .border_color(OK.opacity(0.6))
                                         .font_family(FONT_MONO)
-                                        .text_size(px(9.5))
+                                        .text_size(font_px(9.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(OK)
                                         .cursor_pointer()

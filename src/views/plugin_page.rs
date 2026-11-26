@@ -30,7 +30,7 @@ pub struct PageData<'a> {
 }
 
 fn title(text: String) -> Div {
-    div().text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child(text)
+    div().text_size(font_px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child(text)
 }
 
 fn panel() -> Div {
@@ -50,12 +50,12 @@ fn when_ago(ts: i64) -> String {
 /// What a read block shows while its action hasn't answered, or why it can't.
 fn pending_or_error(slot: Option<&RunSlot>) -> Option<Div> {
     match slot {
-        None => Some(div().text_size(px(10.5)).text_color(TEXT_DIMMER).child(t!("plugin-page-not-read-yet"))),
-        Some(s) if s.running && s.last.is_none() => Some(div().text_size(px(10.5)).text_color(TEXT_DIMMER).child(t!("plugin-page-reading"))),
+        None => Some(div().text_size(font_px(10.5)).text_color(TEXT_DIMMER).child(t!("plugin-page-not-read-yet"))),
+        Some(s) if s.running && s.last.is_none() => Some(div().text_size(font_px(10.5)).text_color(TEXT_DIMMER).child(t!("plugin-page-reading"))),
         Some(RunSlot { last: Some(r), .. }) if !r.ok => {
             let why = r.error.clone().unwrap_or_else(|| r.stderr.trim().lines().last().unwrap_or_default().to_string());
             let code = r.exit_code.map(|c| t!("plugin-page-exit", code = c)).unwrap_or_default();
-            Some(div().flex().flex_col().gap(px(2.0)).child(div().text_size(px(10.5)).text_color(CRIT).child(why)).when(!code.is_empty(), |d| d.child(div().text_size(px(9.5)).text_color(TEXT_FAINT).child(code))))
+            Some(div().flex().flex_col().gap(px(2.0)).child(div().text_size(font_px(10.5)).text_color(CRIT).child(why)).when(!code.is_empty(), |d| d.child(div().text_size(font_px(9.5)).text_color(TEXT_FAINT).child(code))))
         }
         _ => None,
     }
@@ -75,7 +75,7 @@ fn block_view(i: usize, b: &Block, d: &PageData, app: &Entity<CrowApp>) -> AnyEl
                     State::Bad => CRIT,
                     State::Unknown => TEXT_DIM,
                 };
-                div().flex().items_center().gap(px(8.0)).child(div().size(px(9.0)).rounded_full().bg(color)).child(div().text_size(px(12.5)).font_weight(FontWeight::BOLD).text_color(color).child(st.label)).into_any_element()
+                div().flex().items_center().gap(px(8.0)).child(div().size(px(9.0)).rounded_full().bg(color)).child(div().text_size(font_px(12.5)).font_weight(FontWeight::BOLD).text_color(color).child(st.label)).into_any_element()
             };
             // A local action tells each server's status in {results}, even
             // when the run as a whole failed.
@@ -86,7 +86,7 @@ fn block_view(i: usize, b: &Block, d: &PageData, app: &Entity<CrowApp>) -> AnyEl
                     let r = slot.and_then(|s| s.last.as_ref()).expect("a read result");
                     match run::status(&r.stdout) {
                         Ok(st) => shown(st),
-                        Err(e) => div().text_size(px(10.5)).text_color(CRIT).child(t!("plugin-page-unreadable", why = e)).into_any_element(),
+                        Err(e) => div().text_size(font_px(10.5)).text_color(CRIT).child(t!("plugin-page-unreadable", why = e)).into_any_element(),
                     }
                 }),
             };
@@ -100,9 +100,9 @@ fn block_view(i: usize, b: &Block, d: &PageData, app: &Entity<CrowApp>) -> AnyEl
                         .flex()
                         .flex_col()
                         .gap(px(3.0))
-                        .children(pairs.into_iter().map(|(k, v)| div().flex().gap(px(12.0)).text_size(px(10.5)).child(div().w(px(180.0)).flex_none().truncate().text_color(TEXT_DIM).child(k)).child(div().min_w(px(0.0)).text_color(TEXT_PRIMARY).child(v))))
+                        .children(pairs.into_iter().map(|(k, v)| div().flex().gap(px(12.0)).text_size(font_px(10.5)).child(div().w(px(180.0)).flex_none().truncate().text_color(TEXT_DIM).child(k)).child(div().min_w(px(0.0)).text_color(TEXT_PRIMARY).child(v))))
                         .into_any_element(),
-                    Err(e) => div().text_size(px(10.5)).text_color(CRIT).child(t!("plugin-page-unreadable", why = e)).into_any_element(),
+                    Err(e) => div().text_size(font_px(10.5)).text_color(CRIT).child(t!("plugin-page-unreadable", why = e)).into_any_element(),
                 }
             });
             panel().children(heading.map(title)).child(body).into_any_element()
@@ -111,10 +111,10 @@ fn block_view(i: usize, b: &Block, d: &PageData, app: &Entity<CrowApp>) -> AnyEl
             let body = pending_or_error(slot).map(IntoElement::into_any_element).unwrap_or_else(|| {
                 let r = slot.and_then(|s| s.last.as_ref()).expect("a read result");
                 match run::table(&action.expect("checked").output, &r.stdout) {
-                    Ok((_, rows)) if rows.is_empty() => div().text_size(px(10.5)).text_color(TEXT_DIM).child(t!("plugin-page-no-rows")).into_any_element(),
+                    Ok((_, rows)) if rows.is_empty() => div().text_size(font_px(10.5)).text_color(TEXT_DIM).child(t!("plugin-page-no-rows")).into_any_element(),
                     Ok((cols, rows)) => {
                         let n = cols.len().max(1);
-                        let cell = |text: String, head: bool| div().flex_1().min_w(px(0.0)).truncate().px(px(8.0)).py(px(4.0)).text_size(px(10.5)).text_color(if head { TEXT_FAINT } else { TEXT_PRIMARY }).when(head, |d| d.font_weight(FontWeight::BOLD)).child(text);
+                        let cell = |text: String, head: bool| div().flex_1().min_w(px(0.0)).truncate().px(px(8.0)).py(px(4.0)).text_size(font_px(10.5)).text_color(if head { TEXT_FAINT } else { TEXT_PRIMARY }).when(head, |d| d.font_weight(FontWeight::BOLD)).child(text);
                         div()
                             .flex()
                             .flex_col()
@@ -128,7 +128,7 @@ fn block_view(i: usize, b: &Block, d: &PageData, app: &Entity<CrowApp>) -> AnyEl
                             }))
                             .into_any_element()
                     }
-                    Err(e) => div().text_size(px(10.5)).text_color(CRIT).child(t!("plugin-page-unreadable", why = e)).into_any_element(),
+                    Err(e) => div().text_size(font_px(10.5)).text_color(CRIT).child(t!("plugin-page-unreadable", why = e)).into_any_element(),
                 }
             });
             panel().children(heading.map(title)).child(body).into_any_element()
@@ -147,19 +147,19 @@ fn block_view(i: usize, b: &Block, d: &PageData, app: &Entity<CrowApp>) -> AnyEl
             let label = |id: &str| m.actions.iter().find(|a| a.id == id).map_or(id.to_string(), |a| a.label.clone());
             panel()
                 .child(title(if d.fleet { t!("plugin-page-runs-fleet") } else { t!("plugin-page-runs") }.to_string()))
-                .when(d.runs.is_empty(), |p| p.child(div().text_size(px(10.5)).text_color(TEXT_DIM).child(t!("plugin-page-no-runs"))))
+                .when(d.runs.is_empty(), |p| p.child(div().text_size(font_px(10.5)).text_color(TEXT_DIM).child(t!("plugin-page-no-runs"))))
                 .children(d.runs.iter().take(20).map(|r| {
                     div()
                         .flex()
                         .items_center()
                         .gap(px(10.0))
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .child(div().w(px(110.0)).flex_none().text_color(TEXT_FAINT).child(when_ago(r.started_at)))
                         .child(div().w(px(14.0)).flex_none().text_color(if r.ok { OK } else { CRIT }).child(if r.ok { "✓" } else { "✗" }))
                         .when(d.fleet, |row| row.child(div().w(px(130.0)).flex_none().truncate().text_color(TEXT_PRIMARY).child(d.server_names.get(&r.server_id).cloned().unwrap_or_else(|| r.server_id.clone()))))
                         .child(div().w(px(160.0)).flex_none().truncate().text_color(TEXT_SECONDARY).child(label(&r.action_id)))
-                        .when(r.dry_run, |row| row.child(div().flex_none().px(px(4.0)).bg(BG_CHIP).text_size(px(9.0)).text_color(TEXT_TERTIARY).child(t!("plugin-page-dry-run-chip"))))
-                        .when(r.stopped, |row| row.child(div().flex_none().px(px(4.0)).bg(WARN_BG).text_size(px(9.0)).text_color(WARN_INK).child(t!("plugin-page-stopped-chip"))))
+                        .when(r.dry_run, |row| row.child(div().flex_none().px(px(4.0)).bg(BG_CHIP).text_size(font_px(9.0)).text_color(TEXT_TERTIARY).child(t!("plugin-page-dry-run-chip"))))
+                        .when(r.stopped, |row| row.child(div().flex_none().px(px(4.0)).bg(WARN_BG).text_size(font_px(9.0)).text_color(WARN_INK).child(t!("plugin-page-stopped-chip"))))
                         .child(div().min_w(px(0.0)).truncate().text_color(TEXT_DIM).child(r.summary.clone()))
                 }))
                 .into_any_element()
@@ -182,7 +182,7 @@ fn action_button(n: usize, a: &Action, d: &PageData, app: Entity<CrowApp>) -> im
         .py(px(5.0))
         .border_1()
         .border_color(if usable { color } else { BORDER_ROW })
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .font_weight(FontWeight::BOLD)
         .text_color(if usable { color } else { TEXT_FAINT })
         .when(usable && !running, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, window, cx| app.update(cx, |this, cx| if fleet { this.press_fleet_plugin_action(&plugin, &action, window, cx) } else { this.press_plugin_action(&plugin, &action, cx) })))
@@ -223,7 +223,7 @@ pub fn console(plugin: &str, action: &str, server: &str, slot: &RunSlot, app: En
                 .flex()
                 .items_center()
                 .gap(px(10.0))
-                .child(div().text_size(px(9.5)).text_color(status.1).child(status.0))
+                .child(div().text_size(font_px(9.5)).text_color(status.1).child(status.0))
                 .child(div().flex_1())
                 .when(slot.running, |d| {
                     d.child(
@@ -234,7 +234,7 @@ pub fn console(plugin: &str, action: &str, server: &str, slot: &RunSlot, app: En
                             .border_1()
                             .border_color(CRIT)
                             .text_color(CRIT)
-                            .text_size(px(10.0))
+                            .text_size(font_px(10.0))
                             .font_weight(FontWeight::BOLD)
                             .when(!stopping, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.stop_plugin_run(&p, &a, &s, cx))))
                             .child(if stopping { t!("plugin-page-stopping") } else { t!("plugin-page-stop") }),
@@ -250,10 +250,10 @@ pub fn console(plugin: &str, action: &str, server: &str, slot: &RunSlot, app: En
                 .bg(BG_WINDOW)
                 .border_1()
                 .border_color(BORDER_ROW)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .children(lines.into_iter().skip(tail).map(|(is_err, l)| div().text_color(if is_err { TEXT_DIM } else { TEXT_PRIMARY }).child(l)).collect::<Vec<_>>()),
         ))
-        .when(truncated, |d| d.child(div().text_size(px(9.5)).text_color(WARN).child(t!("plugin-page-truncated"))))
+        .when(truncated, |d| d.child(div().text_size(font_px(9.5)).text_color(WARN).child(t!("plugin-page-truncated"))))
 }
 
 /// A change or danger action about to run: what it will run, its inputs,
@@ -282,10 +282,10 @@ pub fn confirm_panel(a: &Action, d: &PageData, app: Entity<CrowApp>) -> impl Int
         .border_1()
         .border_color(color)
         .bg(if danger { CRIT_STRIP_BG } else { BG_OVERLAY_PANEL })
-        .child(div().text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(color).child(if danger { t!("plugin-page-danger-title", label = a.label) } else { t!("plugin-page-change-title", label = a.label) }))
+        .child(div().text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(color).child(if danger { t!("plugin-page-danger-title", label = a.label) } else { t!("plugin-page-change-title", label = a.label) }))
         .children(crate::components::english_beside::english_beside(english))
-        .children(a.help.clone().map(|h| div().text_size(px(10.0)).text_color(TEXT_DIM).child(h)))
-        .child(div().px(px(8.0)).py(px(5.0)).bg(BG_WINDOW).border_1().border_color(BORDER_ROW).text_size(px(10.5)).text_color(TEXT_PRIMARY).child(format!("{}{runs}", if a.root { "# " } else { "$ " })))
+        .children(a.help.clone().map(|h| div().text_size(font_px(10.0)).text_color(TEXT_DIM).child(h)))
+        .child(div().px(px(8.0)).py(px(5.0)).bg(BG_WINDOW).border_1().border_color(BORDER_ROW).text_size(font_px(10.5)).text_color(TEXT_PRIMARY).child(format!("{}{runs}", if a.root { "# " } else { "$ " })))
         .children(a.inputs.iter().map(|f| {
             let field: AnyElement = match f.kind {
                 FieldKind::Text | FieldKind::Number => match d.state.pending_inputs.iter().find(|(k, _)| k == &f.key) {
@@ -317,7 +317,7 @@ pub fn confirm_panel(a: &Action, d: &PageData, app: Entity<CrowApp>) -> impl Int
                                 .py(px(3.0))
                                 .border_1()
                                 .border_color(if on { TEXT_PRIMARY } else { BORDER_ROW })
-                                .text_size(px(10.5))
+                                .text_size(font_px(10.5))
                                 .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
                                 .cursor_pointer()
                                 .on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.pick_plugin_input(&key, next.clone(), cx)))
@@ -327,7 +327,7 @@ pub fn confirm_panel(a: &Action, d: &PageData, app: Entity<CrowApp>) -> impl Int
                 }
                 FieldKind::Secret => div().into_any_element(),
             };
-            div().flex().items_center().gap(px(10.0)).child(div().w(px(180.0)).flex_none().text_size(px(10.5)).text_color(TEXT_SECONDARY).child(f.label.clone())).child(field)
+            div().flex().items_center().gap(px(10.0)).child(div().w(px(180.0)).flex_none().text_size(font_px(10.5)).text_color(TEXT_SECONDARY).child(f.label.clone())).child(field)
         }))
         .children(dry.map(|x| {
             div()
@@ -347,14 +347,14 @@ pub fn confirm_panel(a: &Action, d: &PageData, app: Entity<CrowApp>) -> impl Int
                                 .border_1()
                                 .border_color(TEXT_SECONDARY)
                                 .text_color(TEXT_SECONDARY)
-                                .text_size(px(10.5))
+                                .text_size(font_px(10.5))
                                 .font_weight(FontWeight::BOLD)
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                 .on_click(move |_ev, _w, cx| app_dry.update(cx, |this, cx| this.dry_run_pending(cx)))
                                 .child(t!("plugin-page-dry-run", label = x.label)),
                         )
-                        .child(div().text_size(px(10.0)).text_color(TEXT_DIM).child(t!("plugin-page-dry-run-needed"))),
+                        .child(div().text_size(font_px(10.0)).text_color(TEXT_DIM).child(t!("plugin-page-dry-run-needed"))),
                 )
                 .children(dry_slot.map(|s| console(&d.plugin.id, &x.id, d.server_id, s, app.clone())))
         }))
@@ -364,12 +364,12 @@ pub fn confirm_panel(a: &Action, d: &PageData, app: Entity<CrowApp>) -> impl Int
                     .flex()
                     .items_center()
                     .gap(px(10.0))
-                    .child(div().text_size(px(10.5)).text_color(CRIT_INK).child(t!("plugin-page-type-to-confirm", keyword = a.keyword.clone().unwrap_or_else(|| "CONFIRM".into()))))
+                    .child(div().text_size(font_px(10.5)).text_color(CRIT_INK).child(t!("plugin-page-type-to-confirm", keyword = a.keyword.clone().unwrap_or_else(|| "CONFIRM".into()))))
                     .children(d.state.keyword_input.as_ref().map(|i| div().w(px(180.0)).child(Input::new(i).font_family(FONT_MONO).bg(BG_APP).border_color(BORDER_DANGER_BTN)))),
             )
             .children(crate::components::english_beside::english_beside(t_beside!("plugin-page-type-to-confirm", keyword = a.keyword.clone().unwrap_or_else(|| "CONFIRM".into()))))
         })
-        .children(pending.error.clone().map(|e| div().text_size(px(10.5)).text_color(CRIT).child(e)))
+        .children(pending.error.clone().map(|e| div().text_size(font_px(10.5)).text_color(CRIT).child(e)))
         .child(
             div()
                 .flex()
@@ -381,7 +381,7 @@ pub fn confirm_panel(a: &Action, d: &PageData, app: Entity<CrowApp>) -> impl Int
                         .py(px(5.0))
                         .bg(color)
                         .text_color(hex_rgb(0x0a0a0c))
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .font_weight(FontWeight::BOLD)
                         .cursor_pointer()
                         .on_click(move |_ev, window, cx| app_run.update(cx, |this, cx| this.confirm_plugin_run(window, cx)))
@@ -395,7 +395,7 @@ pub fn confirm_panel(a: &Action, d: &PageData, app: Entity<CrowApp>) -> impl Int
                         .border_1()
                         .border_color(BORDER_DEFAULT)
                         .text_color(TEXT_SECONDARY)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_ROW_HOVER))
                         .on_click(move |_ev, _w, cx| app_cancel.update(cx, |this, cx| this.cancel_plugin_run(cx)))
@@ -424,8 +424,8 @@ pub fn plugin_page(d: PageData, app: Entity<CrowApp>) -> impl IntoElement {
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(div().text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(d.page.label.to_uppercase()))
-                .child(div().text_size(px(10.0)).text_color(TEXT_FAINT).child(t!("plugin-page-from", name = d.plugin.name(), version = m.map(|m| m.plugin.version.clone()).unwrap_or_default())))
+                .child(div().text_size(font_px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(d.page.label.to_uppercase()))
+                .child(div().text_size(font_px(10.0)).text_color(TEXT_FAINT).child(t!("plugin-page-from", name = d.plugin.name(), version = m.map(|m| m.plugin.version.clone()).unwrap_or_default())))
                 .child(div().flex_1())
                 .child(
                     div()
@@ -434,7 +434,7 @@ pub fn plugin_page(d: PageData, app: Entity<CrowApp>) -> impl IntoElement {
                         .py(px(5.0))
                         .border_1()
                         .border_color(BORDER_DEFAULT)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .text_color(TEXT_SECONDARY)
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_ROW_HOVER))
@@ -466,7 +466,7 @@ pub fn plugin_page(d: PageData, app: Entity<CrowApp>) -> impl IntoElement {
                         .flex()
                         .items_center()
                         .gap(px(10.0))
-                        .child(div().flex_1().text_size(px(10.5)).text_color(if installed { OK_INK } else { WARN_INK }).child(if installed { t!("plugin-page-installed") } else { t!("plugin-page-needs-install") }))
+                        .child(div().flex_1().text_size(font_px(10.5)).text_color(if installed { OK_INK } else { WARN_INK }).child(if installed { t!("plugin-page-installed") } else { t!("plugin-page-needs-install") }))
                         .when(installed && !running, |d| {
                             d.child(
                                 div()
@@ -476,7 +476,7 @@ pub fn plugin_page(d: PageData, app: Entity<CrowApp>) -> impl IntoElement {
                                     .border_1()
                                     .border_color(BORDER_STRONG)
                                     .text_color(TEXT_SECONDARY)
-                                    .text_size(px(10.5))
+                                    .text_size(font_px(10.5))
                                     .font_weight(FontWeight::BOLD)
                                     .cursor_pointer()
                                     .hover(|s| s.bg(BG_ROW_HOVER))
@@ -492,7 +492,7 @@ pub fn plugin_page(d: PageData, app: Entity<CrowApp>) -> impl IntoElement {
                                 .border_1()
                                 .border_color(WARN)
                                 .text_color(WARN)
-                                .text_size(px(10.5))
+                                .text_size(font_px(10.5))
                                 .font_weight(FontWeight::BOLD)
                                 .when(!running, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _w, cx| app_install.update(cx, |this, cx| this.run_plugin_setup(&id, cx))))
                                 .child(if running { t!("settings-user-plugins-installing") } else { t!("settings-user-plugins-install") }),
@@ -527,7 +527,7 @@ pub fn plugin_fleet_page(d: PageData, targets: (&crate::app::user_plugin_fleet::
             .border_1()
             .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
             .bg(if on { BG_CONTROL_ALT } else { BG_CONTROL })
-            .text_size(px(10.0))
+            .text_size(font_px(10.0))
             .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
             .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
             .cursor_pointer()
@@ -536,7 +536,7 @@ pub fn plugin_fleet_page(d: PageData, targets: (&crate::app::user_plugin_fleet::
     };
     let canary = servers.first().map(|s| s.id.clone()).filter(|_| st.use_canary);
     let m = d.plugin.report.manifest.as_ref();
-    let label = |t: &'static str| div().text_size(px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(t);
+    let label = |t: &'static str| div().text_size(font_px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(t);
     div()
         .size_full()
         .flex()
@@ -554,8 +554,8 @@ pub fn plugin_fleet_page(d: PageData, targets: (&crate::app::user_plugin_fleet::
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(div().text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(d.page.label.to_uppercase()))
-                .child(div().text_size(px(10.0)).text_color(TEXT_FAINT).child(t!("plugin-page-from", name = d.plugin.name(), version = m.map(|m| m.plugin.version.clone()).unwrap_or_default()))),
+                .child(div().text_size(font_px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(d.page.label.to_uppercase()))
+                .child(div().text_size(font_px(10.0)).text_color(TEXT_FAINT).child(t!("plugin-page-from", name = d.plugin.name(), version = m.map(|m| m.plugin.version.clone()).unwrap_or_default()))),
         )
         .child(
             div()
@@ -587,8 +587,8 @@ pub fn plugin_fleet_page(d: PageData, targets: (&crate::app::user_plugin_fleet::
                                     })
                                 })),
                         )
-                        .child(div().text_size(px(10.0)).text_color(TEXT_DIM).child(t!("plugin-fleet-count", count = servers.len())))
-                        .children(left_out.iter().take(8).map(|(name, why)| div().text_size(px(9.5)).text_color(TEXT_FAINT).child(format!("{name} · {why}"))))
+                        .child(div().text_size(font_px(10.0)).text_color(TEXT_DIM).child(t!("plugin-fleet-count", count = servers.len())))
+                        .children(left_out.iter().take(8).map(|(name, why)| div().text_size(font_px(9.5)).text_color(TEXT_FAINT).child(format!("{name} · {why}"))))
                         .child(label(t!("fleet-rollouts-canary-runs-first-alone")))
                         .child(
                             div()
@@ -613,7 +613,7 @@ pub fn plugin_fleet_page(d: PageData, targets: (&crate::app::user_plugin_fleet::
                             chip(format!("pf-batch-{n}"), n.to_string(), st.batch == n).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_plugin_fleet_batch(n, cx)))
                         }))),
                 )
-                .children(d.state.message.clone().filter(|(ok, _)| !ok).map(|(_, m)| div().text_size(px(10.5)).text_color(CRIT).child(m)))
+                .children(d.state.message.clone().filter(|(ok, _)| !ok).map(|(_, m)| div().text_size(font_px(10.5)).text_color(CRIT).child(m)))
                 .children(d.page.blocks.iter().enumerate().map(|(i, b)| block_view(i, b, &d, &app))),
         )
 }

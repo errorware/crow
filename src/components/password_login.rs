@@ -107,9 +107,9 @@ pub fn password_login_dialog(flow: &PasswordLoginFlow, app: Entity<CrowApp>) -> 
                 .flex_col()
                 .gap(px(12.0))
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
-                .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("password-login-turn-off-ssh-password-login", server_name = flow.server_name)))
+                .child(div().text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("password-login-turn-off-ssh-password-login", server_name = flow.server_name)))
                 .child(body)
                 .child(
                     div()

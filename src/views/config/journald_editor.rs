@@ -56,21 +56,21 @@ pub fn journald_editor(
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(13.0))
+                                .text_size(font_px(13.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_PRIMARY)
                                 .child("journald.conf"),
                         )
                         .child(
                             crate::components::button::badge(if is_persistent { OK } else { CRIT })
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .child(if is_persistent { t!("config-journald-editor-crash-safe") } else { t!("config-journald-editor-volatile-risk") }),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .text_color(TEXT_TERTIARY)
                                 .child("/etc/systemd/journald.conf"),
                         )
@@ -79,7 +79,7 @@ pub fn journald_editor(
                                 .bg(WARN_BG)
                                 .text_color(WARN)
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.0))
+                                .text_size(font_px(9.0))
                                 .font_weight(FontWeight::BOLD)
                                 .px(px(6.0))
                                 .py(px(2.0))
@@ -89,7 +89,7 @@ pub fn journald_editor(
                                 .bg(OK_BG)
                                 .text_color(OK)
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.0))
+                                .text_size(font_px(9.0))
                                 .font_weight(FontWeight::BOLD)
                                 .px(px(6.0))
                                 .py(px(2.0))
@@ -104,7 +104,7 @@ pub fn journald_editor(
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .text_color(TEXT_MUTED)
                                 .child(t!("config-journald-editor-usage", disk_usage_display = telemetry.disk_usage_display(), max_use_display = config.max_use_display())),
                         )
@@ -130,7 +130,7 @@ pub fn journald_editor(
                                 .text_color(if is_modified { rgb(0x0a0a0c) } else { TEXT_MUTED })
                                 .font_weight(FontWeight::BOLD)
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .cursor_pointer()
                                 .hover(|s| s.bg(hex_rgb(0x34d399)))
                                 .on_click(move |_ev, _window, cx| {
@@ -144,7 +144,7 @@ pub fn journald_editor(
                             div()
                                 .id("btn-journald-history")
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .text_color(if configs.show_history { OK } else { TEXT_TERTIARY })
                                 .border_1()
                                 .border_color(if configs.show_history { OK } else { BORDER_DEFAULT })
@@ -186,7 +186,7 @@ pub fn journald_editor(
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(11.0))
+                                .text_size(font_px(11.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_PRIMARY)
                                 .child(t!("config-journald-editor-why-default-linux-journal-configs")),
@@ -194,7 +194,7 @@ pub fn journald_editor(
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .text_color(TEXT_SECONDARY)
                                 .child(t!("config-journald-editor-by-default-systemd-journal-uses")),
                         ),
@@ -285,7 +285,7 @@ pub fn journald_editor(
                                     .border_color(if is_sel { TEXT_PRIMARY } else { BORDER_DEFAULT })
                                     .text_color(if is_sel { TEXT_PRIMARY } else { TEXT_SECONDARY })
                                     .font_family(FONT_MONO)
-                                    .text_size(px(10.0))
+                                    .text_size(font_px(10.0))
                                     .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
                                     .cursor_pointer()
                                     .hover(|s| s.bg(BG_ROW_HOVER))
@@ -327,7 +327,7 @@ pub fn journald_editor(
                                     .border_color(if is_sel { TEXT_PRIMARY } else { BORDER_DEFAULT })
                                     .text_color(if is_sel { TEXT_PRIMARY } else { TEXT_SECONDARY })
                                     .font_family(FONT_MONO)
-                                    .text_size(px(10.0))
+                                    .text_size(font_px(10.0))
                                     .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
                                     .cursor_pointer()
                                     .hover(|s| s.bg(BG_ROW_HOVER))
@@ -366,7 +366,7 @@ pub fn journald_editor(
                                     .border_color(if is_sel { TEXT_PRIMARY } else { BORDER_DEFAULT })
                                     .text_color(if is_sel { TEXT_PRIMARY } else { TEXT_SECONDARY })
                                     .font_family(FONT_MONO)
-                                    .text_size(px(10.0))
+                                    .text_size(font_px(10.0))
                                     .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
                                     .cursor_pointer()
                                     .hover(|s| s.bg(BG_ROW_HOVER))
@@ -396,14 +396,14 @@ pub fn journald_editor(
                                     .border_1()
                                     .border_color(BORDER_DEFAULT)
                                     .font_family(FONT_MONO)
-                                    .text_size(px(10.0))
+                                    .text_size(font_px(10.0))
                                     .text_color(TEXT_PRIMARY)
                                     .child(t!("config-journald-editor-entries-s", rate_limit_burst = config.rate_limit_burst, rate_limit_interval_sec = config.rate_limit_interval_sec)),
                             )
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
-                                    .text_size(px(9.5))
+                                    .text_size(font_px(9.5))
                                     .text_color(OK)
                                     .child(t!("config-journald-editor-anti-flood-enabled")),
                             ),
@@ -433,7 +433,7 @@ fn render_setting_row(
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
                         .child(name.to_string()),
@@ -441,7 +441,7 @@ fn render_setting_row(
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .text_color(TEXT_MUTED)
                         .child(description.to_string()),
                 ),
@@ -479,7 +479,7 @@ where
         .child(
             div()
                 .font_family(FONT_MONO)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .font_weight(if is_selected { FontWeight::BOLD } else { FontWeight::NORMAL })
                 .text_color(if is_selected { accent } else { TEXT_PRIMARY })
                 .child(label.to_string()),
@@ -487,7 +487,7 @@ where
         .child(
             div()
                 .font_family(FONT_MONO)
-                .text_size(px(8.5))
+                .text_size(font_px(8.5))
                 .text_color(TEXT_MUTED)
                 .child(hint.to_string()),
         )

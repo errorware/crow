@@ -46,7 +46,7 @@ pub fn raw_config_editor(
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(12.0))
+                        .text_size(font_px(12.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
                         .child(state.filename.clone()),
@@ -56,7 +56,7 @@ pub fn raw_config_editor(
                         .bg(hex_rgba(0xffffff, 0.06))
                         .text_color(TEXT_MUTED)
                         .font_family(FONT_MONO)
-                        .text_size(px(9.0))
+                        .text_size(font_px(9.0))
                         .font_weight(FontWeight::BOLD)
                         .px(px(5.0))
                         .py(px(1.5))
@@ -68,7 +68,7 @@ pub fn raw_config_editor(
                         .bg(if is_modified { WARN_BG } else { OK_BG })
                         .text_color(if is_modified { WARN } else { OK })
                         .font_family(FONT_MONO)
-                        .text_size(px(9.0))
+                        .text_size(font_px(9.0))
                         .font_weight(FontWeight::BOLD)
                         .px(px(5.0))
                         .py(px(1.5))
@@ -85,7 +85,7 @@ pub fn raw_config_editor(
                         .items_center()
                         .gap(px(4.0))
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(TEXT_MUTED)
                         .child(t!("config-raw-editor-author"))
                         .child(
@@ -100,7 +100,7 @@ pub fn raw_config_editor(
                     div()
                         .id("btn-raw-history")
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(TEXT_TERTIARY)
                         .border_1()
                         .border_color(BORDER_DEFAULT)
@@ -121,7 +121,7 @@ pub fn raw_config_editor(
                     div()
                         .id("btn-raw-structured")
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(hex_rgb(0x8ab4ff))
                         .border_1()
                         .border_color(BORDER_DEFAULT)
@@ -168,7 +168,7 @@ pub fn raw_config_editor(
                             .cursor_pointer()
                             .hover(|s| s.bg(hex_rgba(0x10b981, 0.3)))
                             .font_family(FONT_MONO)
-                            .text_size(px(10.0))
+                            .text_size(font_px(10.0))
                             .font_weight(FontWeight::BOLD)
                             .text_color(OK)
                             .on_click(move |_ev, _window, cx| {
@@ -196,7 +196,7 @@ pub fn raw_config_editor(
                         .bordered(false)
                         .readonly(read_only)
                         .font_family(FONT_MONO)
-                        .text_size(px(11.5)),
+                        .text_size(font_px(11.5)),
                 ),
         )
         // 3. Status Bar
@@ -212,7 +212,7 @@ pub fn raw_config_editor(
                 .border_t_1()
                 .border_color(BORDER_PANEL)
                 .font_family(FONT_MONO)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .text_color(TEXT_FAINT)
                 .child(
                     div()

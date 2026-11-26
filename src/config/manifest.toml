@@ -209,6 +209,21 @@ options = [
 ]
 
 [[fields]]
+name = "appearance.gui_font_size"
+type = "enum"
+required = false
+help = "Font size for the user interface: 10 pt (Compact) through 16 pt (Huge). Default is 12 pt."
+options = [
+  { value = "10", label = "10 pt · Compact", risk = "recommended" },
+  { value = "11", label = "11 pt · Small", risk = "recommended" },
+  { value = "12", label = "12 pt · Default", risk = "recommended" },
+  { value = "13", label = "13 pt · Medium", risk = "recommended" },
+  { value = "14", label = "14 pt · Large", risk = "recommended" },
+  { value = "15", label = "15 pt · Extra Large", risk = "recommended" },
+  { value = "16", label = "16 pt · Huge", risk = "recommended" }
+]
+
+[[fields]]
 name = "appearance.terminal_font_size"
 type = "integer"
 required = false

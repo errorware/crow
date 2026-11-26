@@ -36,7 +36,7 @@ pub fn render(state: &VaultFormState, inputs: Option<&VaultFormInputs>, app: Ent
         .flex_col()
         .gap(px(10.0))
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .child(
             div()
                 .flex()
@@ -62,7 +62,7 @@ pub fn render(state: &VaultFormState, inputs: Option<&VaultFormInputs>, app: Ent
                         .children(Stance::Open.exposed().iter().map(|e| div().flex().gap(px(6.0)).child(div().text_color(WARN).child("•")).child(div().flex_1().min_w(px(0.0)).line_height(px(15.0)).text_color(TEXT_SECONDARY).child(*e))))
                 }))
                 .children(inputs.map(|i| {
-                    div().flex().flex_col().gap(px(6.0)).max_w(px(420.0)).children(i.inputs.iter().map(|(_, input)| Input::new(input).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0))))
+                    div().flex().flex_col().gap(px(6.0)).max_w(px(420.0)).children(i.inputs.iter().map(|(_, input)| Input::new(input).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0))))
                 }))
                 .children((form == VaultForm::GoOpen).then(|| {
                     let ack = state.ack;

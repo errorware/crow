@@ -43,7 +43,7 @@ pub struct NewUserInputs {
 }
 
 fn field(input: Option<&Entity<InputState>>) -> Div {
-    div().w_full().children(input.map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(11.5)).bg(BG_APP).rounded(px(2.0))))
+    div().w_full().children(input.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.5)).bg(BG_APP).rounded(px(2.0))))
 }
 
 /// `shells`: offered login shells; `groups`: supplementary groups that
@@ -110,7 +110,7 @@ pub fn new_user_modal(
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(12.5))
+                                        .text_size(font_px(12.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_MAX)
                                         .child(t!("users-new-user-modal-provision-new-system-user")),
@@ -146,7 +146,7 @@ pub fn new_user_modal(
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_MUTED)
                                         .child(t!("users-new-user-modal-login-username-posix")),
@@ -162,7 +162,7 @@ pub fn new_user_modal(
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_MUTED)
                                         .child(t!("users-new-user-modal-full-name-gecos-metadata")),
@@ -176,9 +176,9 @@ pub fn new_user_modal(
                                 .flex()
                                 .flex_col()
                                 .gap(px(4.0))
-                                .child(div().font_family(FONT_MONO).text_size(px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MUTED).child(t!("users-new-user-modal-password-optional")))
+                                .child(div().font_family(FONT_MONO).text_size(font_px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MUTED).child(t!("users-new-user-modal-password-optional")))
                                 .child(div().flex().gap(px(8.0)).child(div().flex_1().child(field(inputs.map(|i| &i.password)))).child(div().flex_1().child(field(inputs.map(|i| &i.password_confirm)))))
-                                .child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(if mismatch { CRIT } else { TEXT_FAINT }).child(if mismatch {
+                                .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(if mismatch { CRIT } else { TEXT_FAINT }).child(if mismatch {
                                     t!("users-new-user-modal-the-passwords-dont-match")
                                 } else if state.password.is_empty() {
                                     t!("users-new-user-modal-leave-empty-for-key-only")
@@ -202,7 +202,7 @@ pub fn new_user_modal(
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(10.0))
+                                                .text_size(font_px(10.0))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_MUTED)
                                                 .child(t!("users-new-user-modal-login-shell")),
@@ -219,7 +219,7 @@ pub fn new_user_modal(
                                                 .bg(if current { OK_BG } else { BG_APP })
                                                 .text_color(if current { OK } else { TEXT_DIMMER })
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(10.0))
+                                                .text_size(font_px(10.0))
                                                 .when(!current, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _window, cx| {
                                                     let sh = sh.clone();
                                                     app.update(cx, |this, cx| {
@@ -239,7 +239,7 @@ pub fn new_user_modal(
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(10.0))
+                                                .text_size(font_px(10.0))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_MUTED)
                                                 .child(t!("users-new-user-modal-initial-privileges")),
@@ -266,7 +266,7 @@ pub fn new_user_modal(
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(11.0))
+                                                        .text_size(font_px(11.0))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(if current_sudo { OK } else { TEXT_MUTED })
                                                         .child(match (current_sudo, sudo_group) {
@@ -287,7 +287,7 @@ pub fn new_user_modal(
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_MUTED)
                                         .child(t!("users-new-user-modal-supplementary-groups-usermod-ag")),
@@ -311,7 +311,7 @@ pub fn new_user_modal(
                                                 .cursor_pointer()
                                                 .hover(|s| s.bg(BG_ROW_HOVER))
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(9.5))
+                                                .text_size(font_px(9.5))
                                                 .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
                                                 .text_color(if is_sel { hex_rgb(0x8ab4ff) } else { TEXT_TERTIARY })
                                                 .on_click(move |_ev, _window, cx| {
@@ -351,14 +351,14 @@ pub fn new_user_modal(
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .text_color(TEXT_SECONDARY)
                                         .child(t!("users-new-user-modal-create-user-home-directory-home")),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(if current_home { OK } else { TEXT_MUTED })
                                         .child(if current_home { t!("users-new-user-modal-enabled") } else { t!("users-new-user-modal-disabled") }),
@@ -380,7 +380,7 @@ pub fn new_user_modal(
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .text_color(TEXT_FAINT)
                                 .child(t!("users-new-user-modal-executes-under-sudo")),
                         )
@@ -398,7 +398,7 @@ pub fn new_user_modal(
                                         .cursor_pointer()
                                         .hover(|s| s.bg(hex_rgb(0x34d399)))
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.5))
+                                        .text_size(font_px(10.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(rgb(0x0a0a0c))
                                         .on_click(move |_ev, _window, cx| {

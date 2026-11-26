@@ -31,7 +31,7 @@ pub fn render_table_controls(search: Option<&Entity<InputState>>, chips: Vec<Chi
             div().w(px(240.0)).child(
                 Input::new(input)
                     .font_family(FONT_MONO)
-                    .text_size(px(11.0))
+                    .text_size(font_px(11.0))
                     .bg(BG_APP)
                     .rounded(px(2.0))
                     .prefix(tabler_icon(TablerIcon::Search).size(px(11.0)).text_color(TEXT_DIMMER)),
@@ -52,7 +52,7 @@ pub fn render_table_controls(search: Option<&Entity<InputState>>, chips: Vec<Chi
                 .cursor_pointer()
                 .hover(|s| s.bg(BG_ROW_HOVER))
                 .font_family(FONT_MONO)
-                .text_size(px(9.5))
+                .text_size(font_px(9.5))
                 .font_weight(FontWeight::BOLD)
                 .text_color(if chip.is_on { TEXT_PRIMARY } else { TEXT_DIMMER })
                 .on_click(move |_ev, _window, cx| on_click(cx))

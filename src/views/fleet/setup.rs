@@ -66,7 +66,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                     div()
                         .flex_none()
                         .font_family(FONT_MONO)
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_PRIMARY)
                         .child(sec_title),
@@ -76,7 +76,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                         .min_w(px(0.0))
                         .truncate()
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(TEXT_DIM)
                         .child(sec_subtitle),
                 ),
@@ -100,34 +100,34 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-enrolled-servers")))
-                        .child(div().text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(total_servers.to_string())),
+                        .child(div().text_size(font_px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-enrolled-servers")))
+                        .child(div().text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(total_servers.to_string())),
                 )
                 .child(
                     div()
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-fleet-groups")))
-                        .child(div().text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(hex_rgb(0x38bdf8)).child(group_map.len().to_string())),
+                        .child(div().text_size(font_px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-fleet-groups")))
+                        .child(div().text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(hex_rgb(0x38bdf8)).child(group_map.len().to_string())),
                 )
                 .child(
                     div()
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-unique-tags")))
-                        .child(div().text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(hex_rgb(0xa78bfa)).child(tag_counts.len().to_string())),
+                        .child(div().text_size(font_px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-unique-tags")))
+                        .child(div().text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(hex_rgb(0xa78bfa)).child(tag_counts.len().to_string())),
                 )
                 .child(
                     div()
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(div().text_size(px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-host-keys-pinned")))
+                        .child(div().text_size(font_px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-host-keys-pinned")))
                         .child(
                             div()
-                                .text_size(px(11.5))
+                                .text_size(font_px(11.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(if total_servers == 0 { TEXT_MUTED } else if missing_keys > 0 { WARN } else { OK })
                                 .child(if total_servers == 0 {
@@ -162,7 +162,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.5))
+                                        .text_size(font_px(11.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
                                         .child(t!("fleet-setup-fleet-topology-group-assignments")),
@@ -177,7 +177,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                         .border_color(hex_rgb(0x38bdf8))
                                         .text_color(hex_rgb(0x38bdf8))
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .cursor_pointer()
                                         .hover(|s| s.bg(BG_ROW_HOVER))
@@ -200,7 +200,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                     .border_color(BORDER_ROW)
                                     .rounded_sm()
                                     .font_family(FONT_MONO)
-                                    .text_size(px(11.0))
+                                    .text_size(font_px(11.0))
                                     .text_color(TEXT_FAINT)
                                     .child(t!("fleet-setup-no-servers-currently-enrolled-in"))
                                     .into_any_element(),
@@ -236,7 +236,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                                     .child(tabler_icon(TablerIcon::Folder).size(px(13.0)).text_color(hex_rgb(0x38bdf8)))
                                                     .child(
                                                         div()
-                                                            .text_size(px(11.5))
+                                                            .text_size(font_px(11.5))
                                                             .font_weight(FontWeight::BOLD)
                                                             .text_color(TEXT_MAX)
                                                             .child(group_name),
@@ -244,7 +244,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                             )
                                             .child(
                                                 crate::components::button::badge(TEXT_SECONDARY)
-                                                    .text_size(px(9.5))
+                                                    .text_size(font_px(9.5))
                                                     .child(t!("fleet-setup-text", member_count = member_count)),
                                             ),
                                     )
@@ -293,14 +293,14 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                                             )
                                                             .child(
                                                                 div()
-                                                                    .text_size(px(11.0))
+                                                                    .text_size(font_px(11.0))
                                                                     .font_weight(FontWeight::BOLD)
                                                                     .text_color(TEXT_PRIMARY)
                                                                     .child(srv.name.clone()),
                                                             )
                                                             .child(
                                                                 div()
-                                                                    .text_size(px(10.0))
+                                                                    .text_size(font_px(10.0))
                                                                     .text_color(TEXT_MUTED)
                                                                     .child(format!("{}:{}", srv.host, srv.port)),
                                                             ),
@@ -312,7 +312,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                                             .gap(px(6.0))
                                                             .children(srv.tags.iter().map(|t| {
                                                                 crate::components::button::badge(hex_rgb(0xa78bfa))
-                                                                    .text_size(px(8.5))
+                                                                    .text_size(font_px(8.5))
                                                                     .child(t.clone())
                                                             }))
                                                             .child({
@@ -325,7 +325,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                                                     .bg(BG_CONTROL)
                                                                     .border_1()
                                                                     .border_color(BORDER_DEFAULT)
-                                                                    .text_size(px(9.0))
+                                                                    .text_size(font_px(9.0))
                                                                     .text_color(TEXT_SECONDARY)
                                                                     .cursor_pointer()
                                                                     .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_MAX).border_color(BORDER_STRONG))
@@ -373,7 +373,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                         .child(tabler_icon(TablerIcon::Key).size(px(14.0)).text_color(hex_rgb(0xfacc15)))
                                         .child(
                                             div()
-                                                .text_size(px(11.5))
+                                                .text_size(font_px(11.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_MAX)
                                                 .child(t!("fleet-setup-host-keys")),
@@ -381,7 +381,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                 )
                                 .child(
                                     div()
-                                        .text_size(px(10.5))
+                                        .text_size(font_px(10.5))
                                         .text_color(TEXT_DIM)
                                         .child(t!("fleet-setup-crow-pins-each-servers-host")),
                                 )
@@ -422,7 +422,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                         .child(tabler_icon(TablerIcon::AdjustmentsHorizontal).size(px(14.0)).text_color(hex_rgb(0xa78bfa)))
                                         .child(
                                             div()
-                                                .text_size(px(11.5))
+                                                .text_size(font_px(11.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_MAX)
                                                 .child(t!("fleet-setup-fleet-tag-taxonomy")),
@@ -431,7 +431,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                 .children(if tag_counts.is_empty() {
                                     vec![
                                         div()
-                                            .text_size(px(10.5))
+                                            .text_size(font_px(10.5))
                                             .text_color(TEXT_FAINT)
                                             .child(t!("fleet-setup-no-custom-tags-defined-assign"))
                                             .into_any_element(),
@@ -453,8 +453,8 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                                     .flex()
                                                     .items_center()
                                                     .gap(px(6.0))
-                                                    .child(div().text_size(px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(tag))
-                                                    .child(div().text_size(px(9.0)).text_color(TEXT_MUTED).child(count.to_string()))
+                                                    .child(div().text_size(font_px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(tag))
+                                                    .child(div().text_size(font_px(9.0)).text_color(TEXT_MUTED).child(count.to_string()))
                                             }))
                                             .into_any_element(),
                                     ]
@@ -480,7 +480,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                         .child(tabler_icon(TablerIcon::ShieldCheck).size(px(14.0)).text_color(OK))
                                         .child(
                                             div()
-                                                .text_size(px(11.5))
+                                                .text_size(font_px(11.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_MAX)
                                                 .child(t!("fleet-setup-agentless-execution-guarantee")),
@@ -488,7 +488,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                 )
                                 .child(
                                     div()
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .text_color(TEXT_DIM)
                                         .child(t!("fleet-setup-crow-talks-plain-ssh-and")),
                                 ),
@@ -512,7 +512,7 @@ fn render_policy_row(label: &'static str, count: usize, color: Rgba) -> impl Int
         .justify_between()
         .py(px(2.0))
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .child(
             div()
                 .flex()
@@ -548,8 +548,8 @@ fn screen_header(title: &'static str, about: &'static str) -> impl IntoElement {
                 .flex()
                 .items_baseline()
                 .gap(px(10.0))
-                .child(div().flex_none().font_family(FONT_MONO).text_size(px(16.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child(title))
-                .child(div().min_w(px(0.0)).truncate().font_family(FONT_MONO).text_size(px(11.5)).text_color(TEXT_DIM).child(about)),
+                .child(div().flex_none().font_family(FONT_MONO).text_size(font_px(16.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child(title))
+                .child(div().min_w(px(0.0)).truncate().font_family(FONT_MONO).text_size(font_px(11.5)).text_color(TEXT_DIM).child(about)),
         )
 
 }
@@ -661,7 +661,7 @@ fn setup_nav(page: crate::views::fleet::state::SetupPage, plugin_page: Option<&(
             .px(px(12.0))
             .bg(if on { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
             .children(on.then(|| left_indicator(TEXT_PRIMARY)))
-            .text_size(px(11.5))
+            .text_size(font_px(11.5))
             .font_weight(if on { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
             .text_color(if on { TEXT_PRIMARY } else { TEXT_MUTED })
             .cursor_pointer()
@@ -696,12 +696,12 @@ fn setup_nav(page: crate::views::fleet::state::SetupPage, plugin_page: Option<&(
                 .flex()
                 .flex_col()
                 .pb(px(8.0))
-                .child(div().px(px(14.0)).pt(px(8.0)).pb(px(4.0)).truncate().text_size(px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(heading))
+                .child(div().px(px(14.0)).pt(px(8.0)).pb(px(4.0)).truncate().text_size(font_px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(heading))
                 .children(items.into_iter().map(|(id, icon, label, to)| item(id, icon, label, to)))
         }))
         // User plugins' fleet pages (ERR-181).
         .when(!plugin_pages.is_empty(), |d| {
-            d.child(div().px(px(14.0)).pt(px(8.0)).pb(px(4.0)).truncate().text_size(px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(t!("fleet-setup-nav-plugins")))
+            d.child(div().px(px(14.0)).pt(px(8.0)).pb(px(4.0)).truncate().text_size(font_px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(t!("fleet-setup-nav-plugins")))
                 .children(plugin_pages.into_iter().enumerate().map(|(i, (plugin, pg, label, icon))| {
                     let on = page == SetupPage::Plugin && plugin_page.is_some_and(|(p, g)| *p == plugin && *g == pg);
                     let app = app.clone();
@@ -715,7 +715,7 @@ fn setup_nav(page: crate::views::fleet::state::SetupPage, plugin_page: Option<&(
                         .border_l_2()
                         .border_color(if on { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
                         .when(on, |d| d.bg(BG_ROW_SELECTED))
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
                         .text_color(if on { TEXT_PRIMARY } else { TEXT_TERTIARY })
                         .cursor_pointer()
@@ -743,7 +743,7 @@ pub fn topology_view(page: crate::views::fleet::state::TopologyPage, content: Op
             .border_b_2()
             .border_color(if on { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
             .font_family(FONT_MONO)
-            .text_size(px(10.5))
+            .text_size(font_px(10.5))
             .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
             .text_color(if on { TEXT_PRIMARY } else { TEXT_TERTIARY })
             .cursor_pointer()

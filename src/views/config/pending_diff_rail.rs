@@ -75,7 +75,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
                         .child(title),
@@ -83,7 +83,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(header_color)
                         .child(header_stats),
                 )
@@ -91,7 +91,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(TEXT_DIM)
                         .child(t!("config-pending-diff-rail-unified", sel_file = sel_file)),
                 ),
@@ -116,14 +116,14 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(TEXT_MUTED)
                         .child(t!("config-pending-diff-rail-author")),
                 )
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
                         .child(default_author.clone()),
@@ -149,7 +149,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                     .mx(px(12.0))
                                     .mt(px(8.0))
                                     .font_family(FONT_MONO)
-                                    .text_size(px(9.5))
+                                    .text_size(font_px(9.5))
                                     .text_color(TEXT_DIM)
                                     .cursor_pointer()
                                     .hover(|s| s.text_color(TEXT_PRIMARY))
@@ -180,7 +180,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                             .items_center()
                             .gap(px(8.0))
                             .font_family(FONT_MONO)
-                            .text_size(px(11.0))
+                            .text_size(font_px(11.0))
                             .text_color(OK)
                             .child(tabler_icon(TablerIcon::Check).size(px(14.0)).text_color(OK))
                             .child(div().child(t!("config-pending-diff-rail-no-unsaved-edits")))
@@ -201,7 +201,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_DIMMER)
                                 .child(t!("config-pending-diff-rail-on-save")),
@@ -213,7 +213,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                 .items_start()
                                 .gap(px(9.0))
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.5))
+                                .text_size(font_px(10.5))
                                 .child(div().w(px(12.0)).flex_none().text_color(color).child(if ok { "✓" } else { "!" }))
                                 .child(div().flex_1().min_w(px(0.0)).text_color(if ok { TEXT_SECONDARY } else { WARN }).child(text))
                         })),
@@ -238,7 +238,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_DIMMER)
                                         .child(t!("config-pending-diff-rail-version-history-revisions", count = revisions.len())),
@@ -246,7 +246,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(9.5))
+                                        .text_size(font_px(9.5))
                                         .text_color(OK)
                                         .child(if active_rev == 0 { t!("config-pending-diff-rail-on-host-not-recorded").to_string() } else { t!("config-pending-diff-rail-on-host-v", active_rev = active_rev) }),
                                 ),
@@ -294,7 +294,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(10.0))
+                                                        .text_size(font_px(10.0))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(if is_current { OK } else { TEXT_PRIMARY })
                                                         .child(format!("v{}", rev.version)),
@@ -302,7 +302,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(9.0))
+                                                        .text_size(font_px(9.0))
                                                         .text_color(TEXT_FAINT)
                                                         .child(rev.timestamp.clone()),
                                                 ),
@@ -311,7 +311,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                             Some(
                                                 div()
                                                     .font_family(FONT_MONO)
-                                                    .text_size(px(9.0))
+                                                    .text_size(font_px(9.0))
                                                     .text_color(TEXT_FAINT)
                                                     .child(t!("config-pending-diff-rail-hash-only"))
                                                     .into_any_element()
@@ -325,7 +325,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                                     .bg(BG_CONTROL)
                                                     .hover(|s| s.bg(BG_ROW_HOVER))
                                                     .font_family(FONT_MONO)
-                                                    .text_size(px(9.0))
+                                                    .text_size(font_px(9.0))
                                                     .text_color(TEXT_SECONDARY)
                                                     .cursor_pointer()
                                                     .on_click(move |_ev, _window, cx| {
@@ -342,7 +342,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                             Some(
                                                 div()
                                                     .font_family(FONT_MONO)
-                                                    .text_size(px(9.0))
+                                                    .text_size(font_px(9.0))
                                                     .font_weight(FontWeight::BOLD)
                                                     .text_color(OK)
                                                     .child(t!("config-pending-diff-rail-current"))
@@ -356,7 +356,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                         .items_center()
                                         .gap(px(4.0))
                                         .font_family(FONT_MONO)
-                                        .text_size(px(9.5))
+                                        .text_size(font_px(9.5))
                                         .text_color(TEXT_MUTED)
                                         .child(t!("config-pending-diff-rail-by"))
                                         .child(
@@ -394,7 +394,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(9.5))
+                                        .text_size(font_px(9.5))
                                         .text_color(if outside { WARN } else { TEXT_TERTIARY })
                                         .child(if restorable { rev.message } else { format!("{} · {}", rev.message, crate::config::history::MISSING_CONTENT) }),
                                 )
@@ -410,7 +410,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                 .border_t_1()
                 .border_color(hex_rgba(tint, 0.3))
                 .font_family(FONT_MONO)
-                .text_size(px(9.5))
+                .text_size(font_px(9.5))
                 .text_color(color)
                 .child(text)
         }))
@@ -431,7 +431,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                     div()
                         .id("btn-rail-revert")
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .text_color(if is_modified { CRIT } else { TEXT_MUTED })
                         .border_1()
                         .border_color(if is_modified { hex_rgba(0xef4444, 0.4) } else { BORDER_KEY })
@@ -454,7 +454,7 @@ pub fn pending_diff_rail(configs: &ConfigsState, file: &str, app: Entity<CrowApp
                     div()
                         .id("btn-rail-apply")
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .font_weight(FontWeight::BOLD)
                         .text_color(rgb(0x0a0a0c))
                         .bg(if is_modified { OK } else { TEXT_DIMMER })
@@ -481,7 +481,7 @@ fn diff_block(old: String, new: String, lines: Vec<crate::config::ConfigDiffLine
         .border_color(BORDER_PANEL)
         .py(px(8.0))
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .flex()
         .flex_col()
         .child(div().px(px(12.0)).py(px(1.0)).text_color(TEXT_FAINT).child(old))
@@ -537,13 +537,13 @@ fn baseline_section(configs: &ConfigsState, file: &str, st: &crate::config::Conf
             .py(px(3.0))
             .border_1()
             .border_color(BORDER_DEFAULT)
-            .text_size(px(9.5))
+            .text_size(font_px(9.5))
             .text_color(TEXT_SECONDARY)
             .cursor_pointer()
             .hover(|s| s.bg(BG_ROW_HOVER))
             .child(label)
     };
-    let mut body = div().flex().flex_col().gap(px(5.0)).text_size(px(10.5));
+    let mut body = div().flex().flex_col().gap(px(5.0)).text_size(font_px(10.5));
     match applied {
         None => {
             body = body.child(div().text_color(TEXT_DIM).child(t!("config-pending-diff-rail-none-pinned-pin-as-baseline", filename = st.filename, scope_label = scope_label(&configs.baseline_scope))));
@@ -568,7 +568,7 @@ fn baseline_section(configs: &ConfigsState, file: &str, st: &crate::config::Conf
                     }
                     _ => Vec::new(),
                 })
-                .child(div().text_size(px(9.5)).text_color(TEXT_FAINT).child(t!("config-pending-diff-rail-pinned-from-for-by", from_server = b.from_server, scope_label = scope_label(&b.baseline.scope), set_by = b.baseline.set_by)))
+                .child(div().text_size(font_px(9.5)).text_color(TEXT_FAINT).child(t!("config-pending-diff-rail-pinned-from-for-by", from_server = b.from_server, scope_label = scope_label(&b.baseline.scope), set_by = b.baseline.set_by)))
                 .child(
                     div()
                         .flex()
@@ -598,6 +598,6 @@ fn baseline_section(configs: &ConfigsState, file: &str, st: &crate::config::Conf
         .flex_col()
         .gap(px(7.0))
         .font_family(FONT_MONO)
-        .child(div().text_size(px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_DIMMER).child(t!("config-pending-diff-rail-baseline-2")))
+        .child(div().text_size(font_px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_DIMMER).child(t!("config-pending-diff-rail-baseline-2")))
         .child(body)
 }

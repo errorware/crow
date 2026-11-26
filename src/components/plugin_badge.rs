@@ -24,7 +24,7 @@ pub fn badge_chip(b: &BadgeView, size: f32) -> Div {
         .gap(px(size * 0.45))
         .px(px(size * 0.6))
         .font_weight(FontWeight::NORMAL)
-        .text_size(px(size))
+        .text_size(font_px(size))
         .child(div().size(px(size * 0.6)).rounded_full().bg(c))
         .child(div().max_w(px(220.0)).truncate().child(b.text.clone()))
 }

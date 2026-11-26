@@ -11,7 +11,7 @@ use crate::theme::*;
 use crate::views::fleet::FleetState;
 
 fn mono(size: f32, color: Rgba) -> Div {
-    div().font_family(FONT_MONO).text_size(px(size)).text_color(color)
+    div().font_family(FONT_MONO).text_size(font_px(size)).text_color(color)
 }
 
 fn label(t: &'static str) -> Div {
@@ -27,7 +27,7 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) ->
         .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
         .bg(if on { BG_CONTROL_ALT } else { BG_CONTROL })
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
         .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
         .cursor_pointer()
@@ -36,11 +36,11 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) ->
 }
 
 fn editor(e: &Entity<gpui_kit::component::input::EditorState>, h: f32) -> impl IntoElement {
-    div().h(px(h)).border_1().border_color(BORDER_DEFAULT).bg(BG_APP).child(Editor::new(e).h_full().appearance(false).bordered(false).font_family(FONT_MONO).text_size(px(11.0)))
+    div().h(px(h)).border_1().border_color(BORDER_DEFAULT).bg(BG_APP).child(Editor::new(e).h_full().appearance(false).bordered(false).font_family(FONT_MONO).text_size(font_px(11.0)))
 }
 
 fn input(i: &Entity<gpui_kit::component::input::InputState>) -> impl IntoElement {
-    Input::new(i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0))
+    Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0))
 }
 
 pub fn dr_page(fleet: &FleetState, st: &DrState, inputs: Option<&DrInputs>, app: Entity<CrowApp>) -> impl IntoElement {

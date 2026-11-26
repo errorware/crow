@@ -14,7 +14,7 @@ use crate::theme::*;
 use crate::views::fleet::FleetState;
 
 fn mono(size: f32, color: Rgba) -> Div {
-    div().font_family(FONT_MONO).text_size(px(size)).text_color(color)
+    div().font_family(FONT_MONO).text_size(font_px(size)).text_color(color)
 }
 
 fn section(title: &'static str, note: impl Into<SharedString>) -> Div {
@@ -30,7 +30,7 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) ->
         .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
         .bg(if on { BG_CONTROL_ALT } else { BG_CONTROL })
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
         .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
         .cursor_pointer()
@@ -48,7 +48,7 @@ fn action(id: &'static str, text: &'static str, color: Rgba) -> Stateful<Div> {
         .border_1()
         .border_color(color.opacity(0.6))
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .font_weight(FontWeight::BOLD)
         .text_color(color)
         .cursor_pointer()
@@ -174,12 +174,12 @@ pub fn patching_page(fleet: &FleetState, st: &PatchingState, app: Entity<CrowApp
                                         .border_1()
                                         .border_color(BORDER_DEFAULT)
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .text_color(TEXT_SECONDARY)
                                         .cursor_pointer()
                                         .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                                         .on_click(move |_ev, _w, cx| app_refresh.update(cx, |this, cx| this.scan_fleet_updates(true, cx)))
-                                        .child(inherited_icon(TablerIcon::Refresh, px(12.0)))
+                                        .child(inherited_icon(TablerIcon::Refresh, font_px(12.0)))
                                         .child(if scanning { t!("fleet-patching-reading", count = st.scanning.len()) } else { t!("fleet-patching-refresh").to_string() }),
                                 ),
                         )
@@ -264,7 +264,7 @@ pub fn patching_page(fleet: &FleetState, st: &PatchingState, app: Entity<CrowApp
                                 .items_center()
                                 .gap(px(12.0))
                                 .child(mono(11.0, TEXT_PRIMARY).w(px(160.0)).flex_none().child(format!("{g} ({members})")))
-                                .child(div().w(px(240.0)).flex_none().children(st.window_inputs.get(g).map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0)))))
+                                .child(div().w(px(240.0)).flex_none().children(st.window_inputs.get(g).map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0)))))
                                 .child(match (st.window_errors.get(g), open_now) {
                                     (Some(e), _) => mono(10.0, CRIT).child(e.clone()),
                                     (None, Some(true)) => mono(10.0, OK).child(t!("fleet-patching-open-now")),

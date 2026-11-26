@@ -167,7 +167,7 @@ impl Render for CrowApp {
                         let data = crate::views::plugin_page::PageData { plugin, page, server_id: &canary, state: &self.plugins.user, runs, needs_install, fleet: true, server_names: names };
                         crate::views::plugin_page::plugin_fleet_page(data, (&self.plugins.user.fleet, &self.fleet.groups, &servers, &left_out), app_view.clone()).into_any_element()
                     }
-                    None => div().p(px(20.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_DIM).child(t!("plugin-page-not-accepted")).into_any_element(),
+                    None => div().p(px(20.0)).font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_DIM).child(t!("plugin-page-not-accepted")).into_any_element(),
                 })
             }
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Audit) => Some(crate::views::audit::audit_view(&audit, &self.audit_filter, app_view.clone()).into_any_element()),
@@ -203,6 +203,10 @@ impl Render for CrowApp {
         };
         let vault_status = self.vault.status();
         let stance = self.stance_report();
+        let font_size = self.gui_font_size();
+        let font_scale = self.gui_font_scale();
+        window.set_rem_size(px(16.0 * font_scale));
+        crate::theme::update_theme_font_size(font_size, cx);
 
         let app_root = crate::theme::language_font(div())
             .track_focus(&self.focus_handle)
@@ -219,7 +223,7 @@ impl Render for CrowApp {
             .bg(BG_WINDOW)
             .text_color(TEXT_PRIMARY)
             .font_family(FONT_MONO)
-            .text_size(px(12.0))
+            .text_size(font_px(12.0))
             .flex()
             .flex_col()
             .overflow_hidden()
@@ -307,14 +311,14 @@ impl Render for CrowApp {
                                                         div()
                                                             .font_family(FONT_MONO)
                                                             .font_weight(FontWeight::BOLD)
-                                                            .text_size(px(13.0))
+                                                            .text_size(font_px(13.0))
                                                             .text_color(TEXT_MAX)
                                                             .child(t!("app-render-no-active-server-selected")),
                                                     )
                                                     .child(
                                                         div()
                                                             .font_family(FONT_MONO)
-                                                            .text_size(px(11.0))
+                                                            .text_size(font_px(11.0))
                                                             .text_color(TEXT_DIM)
                                                             .child(t!("app-render-select-a-server-tab-or")),
                                                     )
@@ -337,7 +341,7 @@ impl Render for CrowApp {
                                                                     .cursor_pointer()
                                                                     .font_family(FONT_MONO)
                                                                     .font_weight(FontWeight::BOLD)
-                                                                    .text_size(px(11.0))
+                                                                    .text_size(font_px(11.0))
                                                                     .on_click(move |_ev, _window, cx| {
                                                                         app_fleet.update(cx, |this, cx| {
                                                                             this.set_screen(Screen::Fleet, cx);
@@ -358,7 +362,7 @@ impl Render for CrowApp {
                                                                     .cursor_pointer()
                                                                     .font_family(FONT_MONO)
                                                                     .font_weight(FontWeight::BOLD)
-                                                                    .text_size(px(11.0))
+                                                                    .text_size(font_px(11.0))
                                                                     .on_click(move |_ev, _window, cx| {
                                                                         app_add.update(cx, |this, cx| {
                                                                             this.set_screen(Screen::Onboard, cx);
@@ -570,7 +574,7 @@ impl Render for CrowApp {
                                                                         let data = crate::views::plugin_page::PageData { plugin, page, server_id: &server_id, state: &self.plugins.user, runs, needs_install, fleet: false, server_names: Default::default() };
                                                                         Some(div().size_full().child(crate::views::plugin_page::plugin_page(data, app_view.clone())))
                                                                     }
-                                                                    _ => Some(div().size_full().p(px(20.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_DIM).child(t!("plugin-page-not-accepted"))),
+                                                                    _ => Some(div().size_full().p(px(20.0)).font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_DIM).child(t!("plugin-page-not-accepted"))),
                                                                 }
                                                             } else if self.active_view == "danger" {
                                                                 Some(div().size_full().child(danger_zone(&self.danger, self.active_provider_actions().as_ref(), app_view.clone())))
@@ -612,7 +616,7 @@ impl Render for CrowApp {
                                                                                 .child(
                                                                                     div()
                                                                                         .font_family(FONT_MONO)
-                                                                                        .text_size(px(11.0))
+                                                                                        .text_size(font_px(11.0))
                                                                                         .font_weight(FontWeight::SEMIBOLD)
                                                                                         .text_color(TEXT_PRIMARY)
                                                                                         .child(self.active_view.to_uppercase()),
@@ -626,7 +630,7 @@ impl Render for CrowApp {
                                                                                 .justify_center()
                                                                                 .gap(px(8.0))
                                                                                 .font_family(FONT_MONO)
-                                                                                .text_size(px(11.5))
+                                                                                .text_size(font_px(11.5))
                                                                                 .text_color(TEXT_FAINT)
                                                                                 .child(div().size(px(6.0)).rounded_full().bg(OK))
                                                                                 .child(t!("app-render-not-built-yet", active_view = self.active_view)),

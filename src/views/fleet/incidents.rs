@@ -12,7 +12,7 @@ use crate::theme::*;
 use crate::views::fleet::FleetState;
 
 fn mono(size: f32, color: Rgba) -> Div {
-    div().font_family(FONT_MONO).text_size(px(size)).text_color(color)
+    div().font_family(FONT_MONO).text_size(font_px(size)).text_color(color)
 }
 
 fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<Div> {
@@ -24,7 +24,7 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<
         .border_color(BORDER_DEFAULT)
         .bg(BG_CONTROL)
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .text_color(TEXT_SECONDARY)
         .cursor_pointer()
         .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))

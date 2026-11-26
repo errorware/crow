@@ -27,6 +27,9 @@ pub struct SettingOption {
 }
 
 pub fn format_field_label(leaf: &str) -> String {
+    if leaf == "gui_font_size" {
+        return "GUI Font Size".into();
+    }
     let mut out = String::new();
     let mut prev_is_sep = true;
     for c in leaf.chars() {
@@ -50,7 +53,9 @@ pub fn format_display_value(leaf: &str, field: Option<&FieldIr>) -> String {
                 if *b { t!("settings-config-table-yes").to_string() } else { t!("settings-config-table-no").to_string() }
             }
             serde_json::Value::Number(n) => {
-                if leaf.ends_with("_ms") {
+                if leaf == "gui_font_size" || leaf == "terminal_font_size" {
+                    format!("{} pt", n)
+                } else if leaf.ends_with("_ms") {
                     t!("settings-config-table-ms", n = n)
                 } else if leaf.ends_with("_sec") || leaf.ends_with("_secs") || leaf.ends_with("_seconds") {
                     format!("{} s", n)
@@ -61,7 +66,9 @@ pub fn format_display_value(leaf: &str, field: Option<&FieldIr>) -> String {
                 }
             }
             serde_json::Value::String(s) => {
-                if s.is_empty() {
+                if leaf == "gui_font_size" || leaf == "terminal_font_size" {
+                    format!("{} pt", s)
+                } else if s.is_empty() {
                     t!("settings-config-table-empty").to_string()
                 } else {
                     s.clone()
@@ -100,6 +107,19 @@ pub fn get_field_options(
     }
 
     match leaf {
+        "gui_font_size" => (
+            vec![
+                SettingOption { value: "10".into(), label: "10 pt".into(), desc: "Compact UI font size (83%)".into() },
+                SettingOption { value: "11".into(), label: "11 pt".into(), desc: "Small UI font size (92%)".into() },
+                SettingOption { value: "12".into(), label: "12 pt".into(), desc: "Default UI font size (100%)".into() },
+                SettingOption { value: "13".into(), label: "13 pt".into(), desc: "Medium UI font size (108%)".into() },
+                SettingOption { value: "14".into(), label: "14 pt".into(), desc: "Large UI font size (117%)".into() },
+                SettingOption { value: "15".into(), label: "15 pt".into(), desc: "Extra Large UI font size (125%)".into() },
+                SettingOption { value: "16".into(), label: "16 pt".into(), desc: "Huge UI font size (133%)".into() },
+            ],
+            None,
+            true,
+        ),
         "connect_timeout_sec" => (
             vec![
                 SettingOption { value: "5".into(), label: "5s".into(), desc: t!("settings-config-table-aggressive-timeout").into() },
@@ -189,7 +209,7 @@ pub fn personalisation_block(bg: &(&FleetBackground, Option<std::path::PathBuf>)
             .border_color(color)
             .text_color(color)
             .font_family(FONT_MONO)
-            .text_size(px(10.5))
+            .text_size(font_px(10.5))
             .font_weight(FontWeight::BOLD)
             .cursor_pointer()
             .hover(|s| s.bg(BG_ROW_HOVER))
@@ -216,8 +236,8 @@ pub fn personalisation_block(bg: &(&FleetBackground, Option<std::path::PathBuf>)
                 .justify_center()
                 .child(match (state.rendered.clone(), source) {
                     (Some(p), Some(_)) => img(p).size_full().object_fit(ObjectFit::Cover).into_any_element(),
-                    (_, Some(_)) => div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_FAINT).child(t!("settings-config-table-preparing")).into_any_element(),
-                    _ => inherited_icon(TablerIcon::Photo, px(28.0)).text_color(TEXT_FAINTER).into_any_element(),
+                    (_, Some(_)) => div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_FAINT).child(t!("settings-config-table-preparing")).into_any_element(),
+                    _ => inherited_icon(TablerIcon::Photo, font_px(28.0)).text_color(TEXT_FAINTER).into_any_element(),
                 }),
         )
         .child(
@@ -228,9 +248,9 @@ pub fn personalisation_block(bg: &(&FleetBackground, Option<std::path::PathBuf>)
                 .flex_col()
                 .gap(px(6.0))
                 .font_family(FONT_MONO)
-                .child(div().text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-config-table-fleet-page-background")))
-                .child(div().text_size(px(10.0)).text_color(TEXT_DIM).child(t!("settings-config-table-a-picture-behind-the-server")))
-                .children(state.error.clone().map(|e| div().text_size(px(10.0)).text_color(CRIT).child(e)))
+                .child(div().text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-config-table-fleet-page-background")))
+                .child(div().text_size(font_px(10.0)).text_color(TEXT_DIM).child(t!("settings-config-table-a-picture-behind-the-server")))
+                .children(state.error.clone().map(|e| div().text_size(font_px(10.0)).text_color(CRIT).child(e)))
                 .child(
                     div()
                         .flex()
@@ -313,7 +333,7 @@ pub fn render_config_section(
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_PRIMARY)
                         .child(title),
@@ -324,7 +344,7 @@ pub fn render_config_section(
                         .min_w(px(0.0))
                         .truncate()
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(TEXT_DIMMER)
                         .child(sub),
                 ),
@@ -360,11 +380,11 @@ pub fn render_config_section(
                                                 .flex()
                                                 .items_center()
                                                 .gap(px(8.0))
-                                                .child(div().font_family(FONT_MONO).text_size(px(14.0)).text_color(CRIT).child("⚠"))
+                                                .child(div().font_family(FONT_MONO).text_size(font_px(14.0)).text_color(CRIT).child("⚠"))
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(12.5))
+                                                        .text_size(font_px(12.5))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(TEXT_PRIMARY)
                                                         .child(t!("settings-config-table-password-logon-is-not-configured")),
@@ -372,14 +392,14 @@ pub fn render_config_section(
                                         )
                                         .child(
                                             crate::components::button::badge(CRIT_INK_DIM)
-                                                .text_size(px(9.5))
+                                                .text_size(font_px(9.5))
                                                 .child(t!("settings-config-table-disabled-default")),
                                         ),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
+                                        .text_size(font_px(11.0))
                                         .text_color(TEXT_MUTED)
                                         .line_height(px(16.0))
                                         .child(t!("settings-config-table-without-a-password-anyone-using")),
@@ -408,7 +428,7 @@ pub fn render_config_section(
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(11.0))
+                                                        .text_size(font_px(11.0))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(BG_WINDOW)
                                                         .child(t!("settings-config-table-set-password-2fa")),
@@ -437,11 +457,11 @@ pub fn render_config_section(
                                                 .flex()
                                                 .items_center()
                                                 .gap(px(8.0))
-                                                .child(div().font_family(FONT_MONO).text_size(px(14.0)).text_color(OK).child("🛡"))
+                                                .child(div().font_family(FONT_MONO).text_size(font_px(14.0)).text_color(OK).child("🛡"))
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(12.5))
+                                                        .text_size(font_px(12.5))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(TEXT_PRIMARY)
                                                         .child(t!("settings-config-table-password-2fa-vault-configured")),
@@ -449,14 +469,14 @@ pub fn render_config_section(
                                         )
                                         .child(
                                             crate::components::button::badge(OK_INK)
-                                                .text_size(px(9.5))
+                                                .text_size(font_px(9.5))
                                                 .child(t!("settings-config-table-locked-stance")),
                                         ),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
+                                        .text_size(font_px(11.0))
                                         .text_color(TEXT_MUTED)
                                         .line_height(px(16.0))
                                         .child(t!("settings-config-table-database-and-keys-are-secured")),
@@ -484,7 +504,7 @@ pub fn render_config_section(
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(11.0))
+                                                        .text_size(font_px(11.0))
                                                         .text_color(TEXT_PRIMARY)
                                                         .child(t!("settings-config-table-lock-vault-now-l")),
                                                 ),
@@ -496,13 +516,13 @@ pub fn render_config_section(
                     None
                 })
                 .children((section == SettingsSection::Security && is_auth_enabled).then(|| vault_manage::render(vault_form.0, vault_form.1, app.clone())))
-                .children(settings.edit_error.clone().map(|e| div().px(px(14.0)).py(px(8.0)).font_family(FONT_MONO).text_size(px(10.5)).text_color(CRIT).child(e)))
+                .children(settings.edit_error.clone().map(|e| div().px(px(14.0)).py(px(8.0)).font_family(FONT_MONO).text_size(font_px(10.5)).text_color(CRIT).child(e)))
                 .children((hidden_settings > 0).then(|| {
                     div()
                         .px(px(14.0))
                         .py(px(8.0))
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(TEXT_FAINT)
                         .child(t!("settings-config-table-more-in-this-section-not", hidden_settings = hidden_settings, hidden_settings2 = if hidden_settings == 1 { t!("settings-config-table-its") } else { t!("settings-config-table-theyre") }))
                 }))
@@ -557,14 +577,14 @@ pub fn render_config_section(
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(11.0))
+                                                        .text_size(font_px(11.0))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(if is_changed { WARN } else { TEXT_PRIMARY })
                                                         .child(label),
                                                 )
                                                 .children(is_changed.then(|| {
                                                     crate::components::button::badge(WARN)
-                                                        .text_size(px(8.5))
+                                                        .text_size(font_px(8.5))
                                                         .font_weight(FontWeight::BOLD)
                                                         .child(t!("settings-config-table-changed"))
                                                 })),
@@ -572,7 +592,7 @@ pub fn render_config_section(
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(10.0))
+                                                .text_size(font_px(10.0))
                                                 .text_color(TEXT_MUTED)
                                                 .line_height(relative(1.4))
                                                 .child(desc),
@@ -595,7 +615,7 @@ pub fn render_config_section(
                                                 .border_color(if is_open { OK } else { BORDER_DEFAULT })
                                                 .text_color(if is_open { OK } else { TEXT_PRIMARY })
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(10.5))
+                                                .text_size(font_px(10.5))
                                                 .font_weight(FontWeight::MEDIUM)
                                                 .cursor_pointer()
                                                 .hover(|s| s.bg(BG_ROW_HOVER))
@@ -610,7 +630,7 @@ pub fn render_config_section(
                                                 .items_center()
                                                 .gap(px(6.0))
                                                 .child(display_val.clone())
-                                                .child(div().text_size(px(8.0)).text_color(TEXT_FAINTER).child(if is_open { "▲" } else { "▼" })),
+                                                .child(div().text_size(font_px(8.0)).text_color(TEXT_FAINTER).child(if is_open { "▲" } else { "▼" })),
                                         )
                                         .children(is_changed.then(|| {
                                             div()
@@ -622,7 +642,7 @@ pub fn render_config_section(
                                                 .border_color(BORDER_DEFAULT)
                                                 .text_color(TEXT_FAINT)
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(9.5))
+                                                .text_size(font_px(9.5))
                                                 .cursor_pointer()
                                                 .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                                                 .on_click(move |_ev, _window, cx| {
@@ -694,7 +714,7 @@ pub fn render_config_section(
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(10.5))
+                                                        .text_size(font_px(10.5))
                                                         .font_weight(if is_active { FontWeight::BOLD } else { FontWeight::NORMAL })
                                                         .text_color(if is_active { OK } else { TEXT_PRIMARY })
                                                         .child(opt.label),
@@ -702,7 +722,7 @@ pub fn render_config_section(
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(9.5))
+                                                        .text_size(font_px(9.5))
                                                         .text_color(TEXT_FAINTER)
                                                         .child(format!("· {}", opt.desc)),
                                                 ),
@@ -710,7 +730,7 @@ pub fn render_config_section(
                                         .children(is_active.then(|| {
                                             div()
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(10.0))
+                                                .text_size(font_px(10.0))
                                                 .text_color(OK)
                                                 .child("✓")
                                         }))
@@ -727,7 +747,7 @@ pub fn render_config_section(
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(9.5))
+                                                .text_size(font_px(9.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(TEXT_DIMMER)
                                                 .child(t!("settings-config-table-or-enter-custom-value")),
@@ -739,7 +759,7 @@ pub fn render_config_section(
                                                     .child(
                                                         Input::new(input)
                                                             .font_family(FONT_MONO)
-                                                            .text_size(px(11.0))
+                                                            .text_size(font_px(11.0))
                                                             .bg(BG_APP)
                                                             .rounded(px(2.0))
                                                     )
@@ -747,7 +767,7 @@ pub fn render_config_section(
                                             } else {
                                                 div()
                                                     .font_family(FONT_MONO)
-                                                    .text_size(px(11.0))
+                                                    .text_size(font_px(11.0))
                                                     .text_color(TEXT_MUTED)
                                                     .child(custom_input.clone())
                                                     .into_any_element()
@@ -763,7 +783,7 @@ pub fn render_config_section(
                                                 .border_color(BORDER_DEFAULT)
                                                 .text_color(BG_WINDOW)
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(9.5))
+                                                .text_size(font_px(9.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .cursor_pointer()
                                                 .hover(|s| s.bg(rgb(0x4ade80)))

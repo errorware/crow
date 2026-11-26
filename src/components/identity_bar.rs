@@ -77,7 +77,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(15.0))
+                                .text_size(font_px(15.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_PRIMARY)
                                 .child(server_name.to_string()),
@@ -89,7 +89,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         .items_center()
                         .gap(px(8.0))
                         .font_family("JetBrains Mono")
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .child(match server {
                             // Click to copy the address (ERR-191).
                             Some(s) => crate::components::copy_flash::copyable(format!("identity-ip-{}", s.id), endpoint_str, s.host.clone(), TEXT_DIM).into_any_element(),
@@ -127,11 +127,11 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .text_color(if status_color == CRIT { CRIT } else { TEXT_SECONDARY })
                         .child(status_text.to_lowercase()),
                 )
-                .children(status_detail.map(|d| div().max_w(px(320.0)).overflow_hidden().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).child(d))),
+                .children(status_detail.map(|d| div().max_w(px(320.0)).overflow_hidden().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_FAINT).child(d))),
         )
         // 3. What the server is, in one line. Only the environment has color
         //    (outlined, for prod and staging); facts Crow doesn't have yet
@@ -148,7 +148,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                 .border_r_1()
                 .border_color(BORDER_PANEL)
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .children(distro.map(|d| {
                     div()
                         .flex()
@@ -158,7 +158,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         // The distro's logo (Dashboard Icons, Apache-2.0).
                         .children(crate::components::distro_icon::distro_icon(&d, 16.0))
                         .child(div().text_color(TEXT_SECONDARY).child(d))
-                        .when(!distro_family.is_supported(), |el| el.child(div().text_size(px(9.5)).text_color(WARN).child(t!("identity-bar-unverified"))))
+                        .when(!distro_family.is_supported(), |el| el.child(div().text_size(font_px(9.5)).text_color(WARN).child(t!("identity-bar-unverified"))))
                 }))
                 .children(kernel.map(|k| fact(t!("identity-bar-kernel"), k)))
                 .children(role.map(|r| fact(t!("identity-bar-role"), r)))
@@ -216,7 +216,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         "STAGE" | "STAGING" => WARN,
                         _ => TEXT_DIM,
                     };
-                    crate::components::button::badge(fg).text_size(px(9.5)).child(env_str.to_uppercase())
+                    crate::components::button::badge(fg).text_size(font_px(9.5)).child(env_str.to_uppercase())
                 })
                 // User plugins' badges (ERR-182).
                 .children(server.map(|s| crate::plugin_host::badges::for_server(&s.id)).unwrap_or_default().iter().map(|b| crate::components::plugin_badge::badge_chip(b, 9.5))),
@@ -240,8 +240,8 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                 .hover(|s| s.border_color(BORDER_STRONG))
                 .on_click(move |_ev, _window, cx| app_clone.update(cx, |this, cx| this.toggle_palette(cx)))
                 .child(tabler_icon(TablerIcon::Search).size(px(13.0)).text_color(TEXT_FAINT))
-                .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child(t!("identity-bar-search")))
-                .child(div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_MUTED).bg(BG_KEY).border_1().border_color(BORDER_KEY).px(px(5.0)).py(px(1.0)).child("⌘K")),
+                .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_FAINT).child(t!("identity-bar-search")))
+                .child(div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_MUTED).bg(BG_KEY).border_1().border_color(BORDER_KEY).px(px(5.0)).py(px(1.0)).child("⌘K")),
         )
         // 6. Actions that do something: a provider snapshot, a fresh SSH
         //    connection. Left out where they don't apply.
@@ -301,7 +301,7 @@ fn header_button(id: &'static str, label: &'static str) -> Stateful<Div> {
         .cursor_pointer()
         .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .text_color(TEXT_SECONDARY)
         .child(label)
 }
@@ -334,7 +334,7 @@ pub fn connection_banner(server: Option<&ServerRecord>, jump: JumpInfo, app: Ent
             .items_center()
             .gap(px(8.0))
             .font_family(FONT_MONO)
-            .text_size(px(10.5))
+            .text_size(font_px(10.5))
             .text_color(CRIT_INK_DIM)
             .child(div().flex_none().font_weight(FontWeight::BOLD).child(format!("✕ {}", state.label())))
             .child(div().flex_1().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().child(match &jump {
@@ -415,7 +415,7 @@ fn region_picker(s: &ServerRecord, app: Entity<CrowApp>) -> impl IntoElement {
         .flex()
         .flex_col()
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .child(
             div()
                 .flex()

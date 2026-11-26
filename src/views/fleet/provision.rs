@@ -61,18 +61,18 @@ pub fn provision_panel(
                                 .flex()
                                 .items_center()
                                 .gap(px(10.0))
-                                .child(inherited_icon(TablerIcon::Cloud, px(16.0)))
+                                .child(inherited_icon(TablerIcon::Cloud, font_px(16.0)))
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(12.5))
+                                        .text_size(font_px(12.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
                                         .child(t!("fleet-provision-modal-title")),
                                 )
                                 .child(
                                     crate::components::button::badge(OK)
-                                        .text_size(px(9.0))
+                                        .text_size(font_px(9.0))
                                         .child(t!("fleet-provision-ssh-vault-seeded")),
                                 ),
                         )
@@ -138,7 +138,7 @@ pub fn render_provision_form_body(
         .flex_col()
         .gap(px(16.0))
         .font_family(FONT_MONO)
-        .text_size(px(11.0))
+        .text_size(font_px(11.0))
         // Error banner if any
         .children(state.error.as_ref().map(|err| {
             div()
@@ -147,7 +147,7 @@ pub fn render_provision_form_body(
                 .border_1()
                 .border_color(CRIT.opacity(0.4))
                 .text_color(CRIT)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .child(format!("⚠ {err}"))
         }))
         // 1. Account selector
@@ -164,7 +164,7 @@ pub fn render_provision_form_body(
                     .justify_center()
                     .gap(px(8.0))
                     .text_color(TEXT_DIMMER)
-                    .child(inherited_icon(TablerIcon::Refresh, px(14.0)))
+                    .child(inherited_icon(TablerIcon::Refresh, font_px(14.0)))
                     .child(t!("fleet-provision-loading-catalog")),
             )
         } else if let Some(cat) = &state.catalog {
@@ -257,7 +257,7 @@ fn render_account_section(state: &ProvisionState, accounts: &[ProviderAccount], 
             div()
                 .text_color(TEXT_DIM)
                 .font_weight(FontWeight::BOLD)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .child(t!("fleet-provision-provider-account")),
         )
         .child(
@@ -293,13 +293,13 @@ fn render_label_section(inputs: Option<&ProvisionInputs>) -> impl IntoElement {
             div()
                 .text_color(TEXT_DIM)
                 .font_weight(FontWeight::BOLD)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .child(t!("fleet-provision-instance-label")),
         )
         .children(inputs.map(|i| {
             div()
                 .w_full()
-                .child(Input::new(&i.label).font_family(FONT_MONO).text_size(px(12.0)).bg(BG_APP).rounded(px(2.0)))
+                .child(Input::new(&i.label).font_family(FONT_MONO).text_size(font_px(12.0)).bg(BG_APP).rounded(px(2.0)))
         }))
 }
 
@@ -313,13 +313,13 @@ fn render_tags_section(inputs: Option<&ProvisionInputs>) -> impl IntoElement {
             div()
                 .text_color(TEXT_DIM)
                 .font_weight(FontWeight::BOLD)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .child(t!("fleet-provision-tags")),
         )
         .children(inputs.map(|i| {
             div()
                 .w_full()
-                .child(Input::new(&i.tags).font_family(FONT_MONO).text_size(px(12.0)).bg(BG_APP).rounded(px(2.0)))
+                .child(Input::new(&i.tags).font_family(FONT_MONO).text_size(font_px(12.0)).bg(BG_APP).rounded(px(2.0)))
         }))
 }
 
@@ -384,13 +384,13 @@ fn render_options_section(
                     div()
                         .text_color(TEXT_DIM)
                         .font_weight(FontWeight::BOLD)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .child(title.to_string()),
                 )
                 .child(
                     div()
                         .text_color(TEXT_FAINT)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .child(if filtered_count == total_count {
                             format!("{total_count}")
                         } else {
@@ -428,7 +428,7 @@ fn render_options_section(
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
-                                    .text_size(px(10.0))
+                                    .text_size(font_px(10.0))
                                     .font_weight(if is_cat_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
                                     .text_color(if is_cat_sel { TEXT_MAX } else { TEXT_SECONDARY })
                                     .child(cat_label),
@@ -436,7 +436,7 @@ fn render_options_section(
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
-                                    .text_size(px(9.0))
+                                    .text_size(font_px(9.0))
                                     .text_color(if is_cat_sel { TEXT_PRIMARY } else { TEXT_FAINT })
                                     .child(format!("{count}")),
                             )
@@ -468,14 +468,13 @@ fn render_options_section(
                         .min_w(px(0.0))
                         .truncate()
                         .font_family(FONT_MONO)
-                        .text_size(px(11.5))
+                        .text_size(font_px(11.5))
                         .text_color(TEXT_PRIMARY)
                         .child(selected_label),
                 )
                 .child(
                     inherited_icon(
-                        if is_open { TablerIcon::ChevronUp } else { TablerIcon::ChevronDown },
-                        px(14.0),
+                        if is_open { TablerIcon::ChevronUp } else { TablerIcon::ChevronDown }, font_px(14.0),
                     )
                     .text_color(TEXT_DIM),
                 ),
@@ -536,7 +535,7 @@ fn render_options_section(
                                         .min_w(px(0.0))
                                         .truncate()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
+                                        .text_size(font_px(11.0))
                                         .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
                                         .text_color(if is_sel { TEXT_MAX } else { TEXT_SECONDARY })
                                         .child(opt_label),
@@ -559,7 +558,7 @@ fn render_ssh_keys_section(
             div()
                 .text_color(TEXT_DIM)
                 .font_weight(FontWeight::BOLD)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .child(t!("fleet-provision-vault-ssh-key")),
         )
         .child(
@@ -581,7 +580,7 @@ fn render_ssh_keys_section(
         .child(
             div()
                 .text_color(TEXT_FAINT)
-                .text_size(px(9.5))
+                .text_size(font_px(9.5))
                 .child(t!("fleet-provision-vault-ssh-key-help")),
         )
 }
@@ -599,7 +598,7 @@ fn chip(id: String, label: String, selected: bool, on_click: impl Fn(&mut App) +
         .bg(if selected { BG_ROW_SELECTED } else { BG_CONTROL })
         .text_color(if selected { TEXT_MAX } else { TEXT_SECONDARY })
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
         .cursor_pointer()
         .hover(|s| s.border_color(BORDER_STRONG).bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
@@ -626,7 +625,7 @@ fn action_btn(
         .bg(if enabled { BG_PANEL } else { BG_APP })
         .text_color(if enabled { color } else { TEXT_FAINTER })
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .font_weight(FontWeight::BOLD)
         .when(enabled, |d| {
             d.cursor_pointer()

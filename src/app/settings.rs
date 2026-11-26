@@ -76,6 +76,22 @@ impl CrowApp {
         });
     }
 
+    /// The GUI base font size (Personalisation), 10–20 points (default 12).
+    pub fn gui_font_size(&self) -> f32 {
+        self.config.saved_int("appearance.gui_font_size").map_or(12.0, |v| (v as f32).clamp(10.0, 20.0))
+    }
+
+    /// The scale factor for the GUI based on `gui_font_size` (12.0 = 1.0).
+    pub fn gui_font_scale(&self) -> f32 {
+        self.gui_font_size() / 12.0
+    }
+
+    /// Pushes a new GUI font size into config and saves immediately.
+    pub fn set_gui_font_size(&mut self, size: f32, cx: &mut Context<Self>) {
+        let size_str = format!("{:.0}", size.clamp(10.0, 20.0));
+        self.update_config_field("appearance.gui_font_size", serde_json::Value::String(size_str), cx);
+    }
+
     /// The terminal's font size (Personalisation), 9–24 points.
     pub fn terminal_font_size(&self) -> f32 {
         self.config.saved_int("appearance.terminal_font_size").map_or(crate::views::terminal::DEFAULT_FONT_SIZE, |v| v.clamp(9, 24) as f32)
@@ -188,5 +204,19 @@ impl CrowApp {
             input,
             _events: events,
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn test_gui_font_size_default_and_clamping() {
+        let clamp_size = |val: Option<i64>| val.map_or(12.0, |v| (v as f32).clamp(10.0, 20.0));
+        assert_eq!(clamp_size(None), 12.0);
+        assert_eq!(clamp_size(Some(8)), 10.0);
+        assert_eq!(clamp_size(Some(25)), 20.0);
+        assert_eq!(clamp_size(Some(14)), 14.0);
+        let default_scale = clamp_size(None) / 12.0;
+        assert_eq!(default_scale, 1.0);
     }
 }

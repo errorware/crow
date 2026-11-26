@@ -73,7 +73,7 @@ fn bottlenecks_banner(bottlenecks: &[crate::metrics::alerts::Alert], app: Entity
                 .gap(px(8.0))
                 .child(
                     div()
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .font_weight(FontWeight::BOLD)
                         .text_color(border_c)
                         .child(t!("overview-bottlenecks-detected", count = bottlenecks.len())),
@@ -82,7 +82,7 @@ fn bottlenecks_banner(bottlenecks: &[crate::metrics::alerts::Alert], app: Entity
                 .child(
                     div()
                         .id("btn-overview-bottleneck-history")
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(hex_rgb(0x8ab4ff))
                         .cursor_pointer()
                         .hover(|s| s.text_color(TEXT_PRIMARY))
@@ -98,8 +98,8 @@ fn bottlenecks_banner(bottlenecks: &[crate::metrics::alerts::Alert], app: Entity
                 .flex()
                 .items_center()
                 .gap(px(8.0))
-                .child(crate::components::button::badge(c).text_size(px(9.0)).child(b.level.clone()))
-                .child(div().text_size(px(10.5)).text_color(TEXT_PRIMARY).child(b.detail.clone()))
+                .child(crate::components::button::badge(c).text_size(font_px(9.0)).child(b.level.clone()))
+                .child(div().text_size(font_px(10.5)).text_color(TEXT_PRIMARY).child(b.detail.clone()))
         }))
 }
 
@@ -121,13 +121,13 @@ fn card(title: &'static str, view: &'static str, app: Entity<CrowApp>) -> Div {
                 .px(px(12.0))
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(div().font_family(FONT_MONO).text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(title))
+                .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(title))
                 .child(div().flex_1())
                 .child(
                     div()
                         .id(SharedString::from(format!("open-{view}")))
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(hex_rgb(0x8ab4ff))
                         .cursor_pointer()
                         .hover(|s| s.text_color(TEXT_PRIMARY))
@@ -145,17 +145,17 @@ fn stats(items: Vec<(String, &'static str, Rgba)>) -> Div {
         div()
             .flex()
             .flex_col()
-            .child(div().font_family(FONT_MONO).text_size(px(22.0)).font_weight(FontWeight::BOLD).text_color(color).child(value))
-            .child(div().font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINT).child(label))
+            .child(div().font_family(FONT_MONO).text_size(font_px(22.0)).font_weight(FontWeight::BOLD).text_color(color).child(value))
+            .child(div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(TEXT_FAINT).child(label))
     }))
 }
 
 fn section_label(text: &'static str) -> Div {
-    div().px(px(12.0)).pt(px(10.0)).pb(px(4.0)).font_family(FONT_MONO).text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINTER).child(text)
+    div().px(px(12.0)).pt(px(10.0)).pb(px(4.0)).font_family(FONT_MONO).text_size(font_px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINTER).child(text)
 }
 
 fn empty_line(text: &'static str) -> Div {
-    div().px(px(12.0)).py(px(6.0)).font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_FAINT).child(text)
+    div().px(px(12.0)).py(px(6.0)).font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_FAINT).child(text)
 }
 
 /// A clickable list line: left text, right text.
@@ -170,8 +170,8 @@ fn link_row(id: SharedString, left: String, right: String, right_color: Rgba, on
         .cursor_pointer()
         .hover(|s| s.bg(BG_ROW_HOVER))
         .on_click(move |_ev, window, cx| on_click(window, cx))
-        .child(div().flex_1().min_w(px(0.0)).overflow_hidden().font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_SECONDARY).child(left))
-        .child(div().flex_none().font_family(FONT_MONO).text_size(px(10.5)).text_color(right_color).child(right))
+        .child(div().flex_1().min_w(px(0.0)).overflow_hidden().font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_SECONDARY).child(left))
+        .child(div().flex_none().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(right_color).child(right))
 }
 
 fn services_card(s: &ServiceSummary, app: Entity<CrowApp>) -> impl IntoElement {
@@ -266,14 +266,14 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
         .px(px(12.0))
         .border_b_1()
         .border_color(BORDER_PANEL)
-        .child(div().font_family(FONT_MONO).text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("overview-dashboard-updates-security")))
+        .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("overview-dashboard-updates-security")))
         .child(div().flex_1())
-        .children((!sec.checked_label.is_empty()).then(|| div().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).mr(px(10.0)).child(t!("overview-dashboard-checked", checked_label = sec.checked_label))))
+        .children((!sec.checked_label.is_empty()).then(|| div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_FAINT).mr(px(10.0)).child(t!("overview-dashboard-checked", checked_label = sec.checked_label))))
         .child(
             div()
                 .id("security-refresh")
                 .font_family(FONT_MONO)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .text_color(if sec.loading { TEXT_FAINT } else { hex_rgb(0x8ab4ff) })
                 .when(!sec.loading, |d| d.cursor_pointer().hover(|s| s.text_color(TEXT_PRIMARY)).on_click(move |_ev, _window, cx| app_refresh.update(cx, |this, cx| this.refresh_security(true, cx))))
                 .child(if sec.loading { t!("overview-dashboard-checking") } else { t!("overview-dashboard-refresh") }),
@@ -282,7 +282,7 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
     let body = match &sec.updates {
         None if sec.loading => body.child(empty_line(t!("overview-dashboard-reading-the-package-manager-and"))),
         None => body.child(empty_line(t!("overview-dashboard-not-checked-yet"))),
-        Some(Err(e)) => body.child(div().px(px(12.0)).py(px(8.0)).font_family(FONT_MONO).text_size(px(10.5)).text_color(CRIT).child(e.clone())),
+        Some(Err(e)) => body.child(div().px(px(12.0)).py(px(8.0)).font_family(FONT_MONO).text_size(font_px(10.5)).text_color(CRIT).child(e.clone())),
         Some(Ok(u)) => {
             let security = u.security_count();
             let fixable = sec.cves.as_ref().and_then(|c| c.as_ref().ok()).map(|c| c.fixable_count());
@@ -304,7 +304,7 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
                         .border_1()
                         .border_color(color.opacity(0.6))
                         .font_family(FONT_MONO)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .font_weight(FontWeight::BOLD)
                         .text_color(color)
                         .cursor_pointer()
@@ -363,7 +363,7 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
                         b = b
                             .child(link_row(SharedString::from(format!("dash-cve-{i}")), format!("{}  {}", v.label(), pkg), v.severity.clone().unwrap_or_else(|| "unrated".into()), color, move |_w, cx| cx.open_url(&url)))
                             .children((!v.summary.is_empty()).then(|| {
-                                div().px(px(12.0)).pl(px(24.0)).pb(px(4.0)).overflow_hidden().font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_FAINT).child(v.summary.clone())
+                                div().px(px(12.0)).pl(px(24.0)).pb(px(4.0)).overflow_hidden().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_FAINT).child(v.summary.clone())
                             }));
                     }
                     if fixed.len() > 10 {
@@ -394,16 +394,16 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
                         .px(px(12.0))
                         .py(px(3.0))
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .child(div().flex_1().min_w(px(0.0)).overflow_hidden().text_color(if p.security { TEXT_PRIMARY } else { TEXT_SECONDARY }).child(p.name.clone()))
-                        .children(p.security.then(|| div().flex_none().text_size(px(8.5)).font_weight(FontWeight::BOLD).text_color(CRIT).child(t!("overview-dashboard-security"))))
+                        .children(p.security.then(|| div().flex_none().text_size(font_px(8.5)).font_weight(FontWeight::BOLD).text_color(CRIT).child(t!("overview-dashboard-security"))))
                         .child(div().flex_none().max_w(px(220.0)).overflow_hidden().text_color(TEXT_FAINT).child(versions)),
                 );
             }
             if pending.len() > 12 {
                 b = b.child(empty_line_owned(t!("overview-dashboard-more-2", pending = pending.len() - 12)));
             }
-            b.child(div().px(px(12.0)).pt(px(8.0)).font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINTER).child(t!("overview-dashboard-cve-data-osv-dev-crow")))
+            b.child(div().px(px(12.0)).pt(px(8.0)).font_family(FONT_MONO).text_size(font_px(9.0)).text_color(TEXT_FAINTER).child(t!("overview-dashboard-cve-data-osv-dev-crow")))
         }
     };
     div()
@@ -421,9 +421,9 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
 }
 
 fn info_line(text: String, color: Rgba) -> Div {
-    div().px(px(12.0)).py(px(3.0)).font_family(FONT_MONO).text_size(px(10.5)).text_color(color).child(text)
+    div().px(px(12.0)).py(px(3.0)).font_family(FONT_MONO).text_size(font_px(10.5)).text_color(color).child(text)
 }
 
 fn empty_line_owned(text: String) -> Div {
-    div().px(px(12.0)).py(px(4.0)).font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_FAINT).child(text)
+    div().px(px(12.0)).py(px(4.0)).font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_FAINT).child(text)
 }

@@ -11,11 +11,11 @@ use crate::notify::email::{Delivery, EmailSettings, Security};
 use crate::theme::*;
 
 fn label(text: &'static str) -> Div {
-    div().font_family(FONT_MONO).text_size(px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(text)
+    div().font_family(FONT_MONO).text_size(font_px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(text)
 }
 
 fn field(text: &'static str, input: &Entity<InputState>) -> Div {
-    div().flex_1().min_w(px(0.0)).flex().flex_col().gap(px(4.0)).child(label(text)).child(Input::new(input).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0)))
+    div().flex_1().min_w(px(0.0)).flex().flex_col().gap(px(4.0)).child(label(text)).child(Input::new(input).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0)))
 }
 
 fn segment(id: String, text: &'static str, selected: bool) -> Stateful<Div> {
@@ -32,7 +32,7 @@ fn segment(id: String, text: &'static str, selected: bool) -> Stateful<Div> {
         .cursor_pointer()
         .hover(|s| s.bg(BG_ROW_HOVER))
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
         .text_color(if selected { TEXT_PRIMARY } else { TEXT_DIM })
         .child(text)
@@ -49,7 +49,7 @@ fn button(id: &'static str, text: &'static str, primary: bool) -> Stateful<Div> 
         .border_color(if primary { OK } else { BORDER_DEFAULT })
         .bg(if primary { OK_BG } else { hex_rgba(0, 0.0) })
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .font_weight(FontWeight::BOLD)
         .text_color(if primary { OK } else { TEXT_SECONDARY })
         .cursor_pointer()
@@ -58,7 +58,7 @@ fn button(id: &'static str, text: &'static str, primary: bool) -> Stateful<Div> 
 }
 
 fn note(ok: bool, text: String) -> Div {
-    div().font_family(FONT_MONO).text_size(px(10.0)).line_height(px(14.0)).text_color(if ok { OK } else { CRIT }).child(text)
+    div().font_family(FONT_MONO).text_size(font_px(10.0)).line_height(px(14.0)).text_color(if ok { OK } else { CRIT }).child(text)
 }
 
 fn ago(ts: i64) -> String {
@@ -108,7 +108,7 @@ pub fn email_form(app: Entity<CrowApp>, st: &EmailState, inputs: Option<&EmailIn
         .child(div().flex().flex_col().gap(px(4.0)).child(label(t!("settings-email-form-critical-alerts"))).child(delivery_row(true, crit)))
         .child(div().flex().flex_col().gap(px(4.0)).child(label(t!("settings-email-form-warnings"))).child(delivery_row(false, warn)))
         .child(div().flex().gap(px(8.0)).child(field(t!("settings-email-form-digest-every-minutes"), &inputs.digest)).child(field(t!("settings-email-form-quiet-hours-digests-wait"), &inputs.quiet)))
-        .child(div().font_family(FONT_MONO).text_size(px(10.0)).line_height(px(14.0)).text_color(TEXT_FAINT).child(
+        .child(div().font_family(FONT_MONO).text_size(font_px(10.0)).line_height(px(14.0)).text_color(TEXT_FAINT).child(
             t!("settings-email-form-resolved-alerts-send-nothing-alerts"),
         ))
         .child(

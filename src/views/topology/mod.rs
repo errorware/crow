@@ -89,7 +89,7 @@ fn chip(id: impl Into<ElementId>, label: String, on: bool) -> Stateful<Div> {
         .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
         .bg(if on { BG_NAV_ACTIVE } else { BG_CONTROL })
         .font_family(FONT_MONO)
-        .text_size(px(9.5))
+        .text_size(font_px(9.5))
         .text_color(if on { TEXT_PRIMARY } else { TEXT_TERTIARY })
         .cursor_pointer()
         .hover(|s| s.bg(BG_ROW_HOVER))
@@ -146,10 +146,10 @@ fn toolbar(app_state: &CrowApp, graph: &Graph, app: Entity<CrowApp>) -> impl Int
                 .flex()
                 .items_center()
                 .gap(px(8.0))
-                .child(div().font_family(FONT_MONO).text_size(px(9.5)).text_color(if st.scanning { hex_rgb(JUMP_BLUE) } else { TEXT_FAINT }).child(checked))
+                .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(if st.scanning { hex_rgb(JUMP_BLUE) } else { TEXT_FAINT }).child(checked))
                 .child(chip("topo-scan", t!("topology-check-posture").into(), false).on_click(move |_ev, _w, cx| app_scan.update(cx, |t, cx| t.check_posture(cx))))
                 .child(icon_button("topo-zoom-out", TablerIcon::Minus, false).on_click(move |_ev, _w, cx| app_out.update(cx, |t, cx| t.topology_zoom(1.0 / 1.2, (300.0, 200.0), cx))))
-                .child(div().min_w(px(36.0)).flex().justify_center().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_SECONDARY).child(format!("{:.0}%", st.zoom * 100.0)))
+                .child(div().min_w(px(36.0)).flex().justify_center().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_SECONDARY).child(format!("{:.0}%", st.zoom * 100.0)))
                 .child(icon_button("topo-zoom-in", TablerIcon::Plus, false).on_click(move |_ev, _w, cx| app_in.update(cx, |t, cx| t.topology_zoom(1.2, (300.0, 200.0), cx))))
                 .child(chip("topo-fit", t!("topology-reset-view").into(), false).on_click(move |_ev, _w, cx| app_fit.update(cx, |t, cx| t.topology_reset_view(cx)))),
         )
@@ -252,7 +252,7 @@ fn map_area(app_state: &CrowApp, graph: &Graph, placed: &Layout, app: Entity<Cro
         .child(edges)
         .children(placed.lanes.iter().map(|(text, x, y)| {
             let (sx, sy) = screen((*x, *y));
-            div().absolute().left(px(sx)).top(px(sy)).font_family(FONT_MONO).text_size(px(9.0 * zoom.max(0.8))).font_weight(FontWeight::BOLD).text_color(TEXT_FAINTER).child(text.clone())
+            div().absolute().left(px(sx)).top(px(sy)).font_family(FONT_MONO).text_size(font_px(9.0 * zoom.max(0.8))).font_weight(FontWeight::BOLD).text_color(TEXT_FAINTER).child(text.clone())
         }))
         .children(graph.nodes.iter().enumerate().filter_map(|(i, n)| {
             let at = placed.at.get(&n.id)?;
@@ -265,7 +265,7 @@ fn map_area(app_state: &CrowApp, graph: &Graph, placed: &Layout, app: Entity<Cro
                 .left(px(pan.0 + 260.0))
                 .top(px(pan.1 + 8.0))
                 .font_family(FONT_MONO)
-                .text_size(px(11.0))
+                .text_size(font_px(11.0))
                 .text_color(TEXT_FAINT)
                 .child(t!("topology-no-servers-yet-enroll-one"))
         }))
@@ -286,7 +286,7 @@ fn legend() -> impl IntoElement {
         .border_1()
         .border_color(BORDER_PANEL)
         .font_family(FONT_MONO)
-        .text_size(px(9.0))
+        .text_size(font_px(9.0))
         .text_color(TEXT_TERTIARY)
         .child(item(hex_rgb(0x9aa4b2), t!("topology-ssh")))
         .child(item(hex_rgb(JUMP_BLUE), t!("topology-via-jump-host")))
@@ -360,11 +360,11 @@ fn node_card(i: usize, n: &Node, (x, y): (f32, f32), zoom: f32, selected: bool, 
 }
 
 fn row(label: &'static str, value: String) -> impl IntoElement {
-    div().flex().gap(px(8.0)).font_family(FONT_MONO).text_size(px(10.0)).child(div().w(px(96.0)).flex_none().text_color(TEXT_FAINT).child(label)).child(div().flex_1().min_w(px(0.0)).text_color(TEXT_SECONDARY).child(value))
+    div().flex().gap(px(8.0)).font_family(FONT_MONO).text_size(font_px(10.0)).child(div().w(px(96.0)).flex_none().text_color(TEXT_FAINT).child(label)).child(div().flex_1().min_w(px(0.0)).text_color(TEXT_SECONDARY).child(value))
 }
 
 fn heading(text: &'static str) -> impl IntoElement {
-    div().pt(px(8.0)).font_family(FONT_MONO).text_size(px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_TERTIARY).child(text)
+    div().pt(px(8.0)).font_family(FONT_MONO).text_size(font_px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_TERTIARY).child(text)
 }
 
 /// The drawer for the selected node: what it is, its risks and where they
@@ -392,7 +392,7 @@ fn inspector(app_state: &CrowApp, graph: &Graph, n: &Node, app: Entity<CrowApp>)
                 .flex()
                 .gap(px(8.0))
                 .font_family(FONT_MONO)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .child(div().w(px(36.0)).flex_none().font_weight(FontWeight::BOLD).text_color(level_color(Some(r.level))).child(if r.level == Level::Crit { "CRIT" } else { "WARN" }))
                 .child(div().flex_1().min_w(px(0.0)).text_color(TEXT_SECONDARY).child(r.text.clone()))
                 .child(div().flex_none().text_color(TEXT_FAINTER).child(r.source)),
@@ -417,7 +417,7 @@ fn inspector(app_state: &CrowApp, graph: &Graph, n: &Node, app: Entity<CrowApp>)
         }
         body = body.child(heading(t!("topology-posture")));
         match posture {
-            None => body = body.child(div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_FAINT).child(t!("topology-not-checked-yet-check-posture"))),
+            None => body = body.child(div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_FAINT).child(t!("topology-not-checked-yet-check-posture"))),
             Some(p) => {
                 let or_unknown = |v: Option<String>| v.unwrap_or_else(|| t!("topology-couldnt-read-needs-root").into());
                 body = body
@@ -450,7 +450,7 @@ fn inspector(app_state: &CrowApp, graph: &Graph, n: &Node, app: Entity<CrowApp>)
                     .px(px(4.0))
                     .py(px(1.0))
                     .font_family(FONT_MONO)
-                    .text_size(px(10.0))
+                    .text_size(font_px(10.0))
                     .cursor_pointer()
                     .hover(|s| s.bg(BG_ROW_HOVER))
                     .on_click(move |_ev, _w, cx| {
@@ -504,8 +504,8 @@ fn inspector(app_state: &CrowApp, graph: &Graph, n: &Node, app: Entity<CrowApp>)
                         .flex()
                         .flex_col()
                         .gap(px(2.0))
-                        .child(div().font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINT).child(kind_label(n.kind)))
-                        .child(div().font_family(FONT_MONO).text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(n.label.clone())),
+                        .child(div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(TEXT_FAINT).child(kind_label(n.kind)))
+                        .child(div().font_family(FONT_MONO).text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(n.label.clone())),
                 )
                 .child(icon_button("topo-inspector-close", TablerIcon::X, false).on_click(move |_ev, _w, cx| app_close.update(cx, |t, cx| t.topology_select(None, cx)))),
         )

@@ -14,7 +14,7 @@ use crate::theme::*;
 use crate::views::fleet::FleetState;
 
 fn mono(size: f32, color: Rgba) -> Div {
-    div().font_family(FONT_MONO).text_size(px(size)).text_color(color)
+    div().font_family(FONT_MONO).text_size(font_px(size)).text_color(color)
 }
 
 fn label(text: &'static str) -> Div {
@@ -30,7 +30,7 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) ->
         .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
         .bg(if on { BG_CONTROL_ALT } else { BG_CONTROL })
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
         .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
         .cursor_pointer()
@@ -80,7 +80,7 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                     .flex()
                     .flex_col()
                     .gap(px(6.0))
-                    .child(div().h(px(150.0)).border_1().border_color(BORDER_DEFAULT).bg(BG_APP).child(Editor::new(&inputs.script).h_full().appearance(false).bordered(false).font_family(FONT_MONO).text_size(px(11.0))))
+                    .child(div().h(px(150.0)).border_1().border_color(BORDER_DEFAULT).bg(BG_APP).child(Editor::new(&inputs.script).h_full().appearance(false).bordered(false).font_family(FONT_MONO).text_size(font_px(11.0))))
                     .child(
                         div()
                             .id("rollout-as-root")
@@ -101,7 +101,7 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                     .flex_col()
                     .gap(px(6.0))
                     .child(label(t!("fleet-rollouts-path-enter-reads-every-servers")))
-                    .child(div().flex().gap(px(6.0)).child(div().flex_1().child(Input::new(&inputs.path).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0)))).child(chip("rollout-read", t!("fleet-rollouts-read"), false).on_click(move |_ev, _w, cx| app_read.update(cx, |this, cx| this.read_rollout_preview(cx)))))
+                    .child(div().flex().gap(px(6.0)).child(div().flex_1().child(Input::new(&inputs.path).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0)))).child(chip("rollout-read", t!("fleet-rollouts-read"), false).on_click(move |_ev, _w, cx| app_read.update(cx, |this, cx| this.read_rollout_preview(cx)))))
                     .when(!baselines.is_empty(), |d| {
                         d.child(div().flex().flex_wrap().gap(px(4.0)).child(mono(9.5, TEXT_FAINT).mr(px(4.0)).child(t!("fleet-rollouts-from-a-baseline"))).children(baselines.iter().enumerate().map(|(i, b)| {
                             let (app, path, rev) = (app.clone(), b.path.clone(), b.revision_id.clone());
@@ -112,7 +112,7 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                         })))
                     })
                     .child(label(t!("fleet-rollouts-new-content")))
-                    .child(div().h(px(260.0)).border_1().border_color(BORDER_DEFAULT).bg(BG_APP).child(Editor::new(&inputs.content).h_full().appearance(false).bordered(false).font_family(FONT_MONO).text_size(px(11.0))))
+                    .child(div().h(px(260.0)).border_1().border_color(BORDER_DEFAULT).bg(BG_APP).child(Editor::new(&inputs.content).h_full().appearance(false).bordered(false).font_family(FONT_MONO).text_size(font_px(11.0))))
                     .child(mono(9.5, TEXT_FAINT).line_height(px(13.0)).child(t!("fleet-rollouts-each-server-checks-it-with"))),
             )
         })
@@ -291,7 +291,7 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                                 .border_color(WARN)
                                 .bg(WARN.opacity(0.08))
                                 .font_family(FONT_MONO)
-                                .text_size(px(11.0))
+                                .text_size(font_px(11.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(WARN)
                                 .cursor_pointer()

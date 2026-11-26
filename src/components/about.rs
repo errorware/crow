@@ -92,7 +92,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                         .bg(BG_PANEL)
                         .border_b_1()
                         .border_color(BORDER_PANEL)
-                        .child(div().text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child(t!("about-about-crow")))
+                        .child(div().text_size(font_px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child(t!("about-about-crow")))
                         .child(crate::components::icon_button::icon_button("about-close-btn", TablerIcon::X, false).on_click(move |_ev, _window, cx| app_x.update(cx, |this, cx| this.close_about_modal(cx)))),
                 )
                 .child(
@@ -146,11 +146,11 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                                         .flex()
                                                         .items_baseline()
                                                         .gap(px(10.0))
-                                                        .child(div().text_size(px(22.0)).font_weight(FontWeight::EXTRA_BOLD).text_color(TEXT_MAX).child(t!("about-crow")))
-                                                        .child(div().text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(OK).child(format!("v{version}"))),
+                                                        .child(div().text_size(font_px(22.0)).font_weight(FontWeight::EXTRA_BOLD).text_color(TEXT_MAX).child(t!("about-crow")))
+                                                        .child(div().text_size(font_px(12.0)).font_weight(FontWeight::BOLD).text_color(OK).child(format!("v{version}"))),
                                                 )
-                                                .child(div().text_size(px(11.0)).text_color(TEXT_SECONDARY).child(t!("about-native-linux-server-manager-over")))
-                                                .child(div().text_size(px(10.0)).text_color(TEXT_FAINT).child(format!("{} · {} · {profile}", std::env::consts::OS, std::env::consts::ARCH))),
+                                                .child(div().text_size(font_px(11.0)).text_color(TEXT_SECONDARY).child(t!("about-native-linux-server-manager-over")))
+                                                .child(div().text_size(font_px(10.0)).text_color(TEXT_FAINT).child(format!("{} · {} · {profile}", std::env::consts::OS, std::env::consts::ARCH))),
                                         ),
                                 )
                                 // Where to find the project
@@ -199,7 +199,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                                 .child(info_row(t!("about-geoip-data"), crate::geoip::ATTRIBUTION))
                                                 .child(info_row(t!("about-font"), t!("about-jetbrains-mono-ofl-1-1")))
                                                 .child(heading(t!("about-license")))
-                                                .child(div().text_size(px(10.0)).line_height(px(15.0)).text_color(TEXT_DIM).child(t!("about-license-summary"))),
+                                                .child(div().text_size(font_px(10.0)).line_height(px(15.0)).text_color(TEXT_DIM).child(t!("about-license-summary"))),
                                         ),
                                 )
                                 // Footer
@@ -232,7 +232,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                                     });
                                                 })
                                                 .child(tabler_icon(TablerIcon::Copy).size(px(12.0)).text_color(if copied_toast { OK } else { TEXT_SECONDARY }))
-                                                .child(div().font_weight(FontWeight::BOLD).text_size(px(10.5)).text_color(if copied_toast { OK } else { TEXT_PRIMARY }).child(if copied_toast { t!("about-copied-system-info") } else { t!("about-copy-system-info") })),
+                                                .child(div().font_weight(FontWeight::BOLD).text_size(font_px(10.5)).text_color(if copied_toast { OK } else { TEXT_PRIMARY }).child(if copied_toast { t!("about-copied-system-info") } else { t!("about-copy-system-info") })),
                                         )
                                         .child(
                                             div()
@@ -243,7 +243,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                                 .border_1()
                                                 .border_color(BORDER_STRONG)
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_size(px(11.0))
+                                                .text_size(font_px(11.0))
                                                 .text_color(TEXT_MAX)
                                                 .cursor_pointer()
                                                 .hover(|s| s.bg(BG_ROW_HOVER))
@@ -262,7 +262,7 @@ fn link_row(id: &'static str, label: &'static str, url: &'static str) -> impl In
         .flex()
         .items_center()
         .gap(px(10.0))
-        .text_size(px(11.0))
+        .text_size(font_px(11.0))
         .child(div().w(px(80.0)).flex_none().text_color(TEXT_MUTED).child(label))
         .child(
             div()
@@ -276,7 +276,7 @@ fn link_row(id: &'static str, label: &'static str, url: &'static str) -> impl In
 }
 
 fn heading(title: &'static str) -> impl IntoElement {
-    div().pt(px(4.0)).text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(title)
+    div().pt(px(4.0)).text_size(font_px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(title)
 }
 
 /// The offered release: notes, skip, and install (when installing is on)
@@ -294,7 +294,7 @@ fn update_panel(update: &UpdateState, auto_install: bool, app: Entity<CrowApp>) 
             .border_color(color)
             .cursor_pointer()
             .font_family(FONT_MONO)
-            .text_size(px(10.0))
+            .text_size(font_px(10.0))
             .font_weight(FontWeight::BOLD)
             .text_color(color)
             .hover(|s| s.bg(BG_ROW_HOVER))
@@ -313,12 +313,12 @@ fn update_panel(update: &UpdateState, auto_install: bool, app: Entity<CrowApp>) 
             .children(update.available.as_ref().map(|r| {
                 div()
                     .font_family(FONT_MONO)
-                    .text_size(px(11.0))
+                    .text_size(font_px(11.0))
                     .font_weight(FontWeight::BOLD)
                     .text_color(OK)
                     .child(t!("about-crow-is-available", version = r.version, r = if r.prerelease { t!("about-pre-release") } else { "" }))
             }))
-            .children(update.note.clone().map(|n| div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_PRIMARY).child(n)))
+            .children(update.note.clone().map(|n| div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_PRIMARY).child(n)))
             .child(
                 div()
                     .flex()
@@ -337,7 +337,7 @@ fn update_panel(update: &UpdateState, auto_install: bool, app: Entity<CrowApp>) 
                     }),
             )
             .when(!auto_install && update.available.is_some(), |d| {
-                d.child(div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_MUTED).child(t!("about-crow-doesnt-download-anything-unless")))
+                d.child(div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_MUTED).child(t!("about-crow-doesnt-download-anything-unless")))
             }),
     )
 }
@@ -346,7 +346,7 @@ fn info_row(label: &'static str, value: &str) -> impl IntoElement {
     div()
         .flex()
         .gap(px(12.0))
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .child(div().w(px(110.0)).flex_none().text_color(TEXT_MUTED).child(label))
         .child(div().flex_1().min_w(px(0.0)).text_color(TEXT_PRIMARY).child(value.to_string()))
 }

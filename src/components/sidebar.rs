@@ -105,7 +105,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                         div()
                             .flex_1()
                             .font_family(FONT_MONO)
-                            .text_size(px(11.5))
+                            .text_size(font_px(11.5))
                             .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                             .text_color(if is_active { TEXT_PRIMARY } else { TEXT_TERTIARY })
                             .child(item.label),
@@ -113,7 +113,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                     .child(
                         div()
                             .font_family("JetBrains Mono")
-                            .text_size(px(10.0))
+                            .text_size(font_px(10.0))
                             .text_color(badge_color)
                             .child(badge_text),
                     );
@@ -140,7 +140,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                     .border_t_1()
                     .border_color(BORDER_PANEL)
                     .font_family(FONT_MONO)
-                    .text_size(px(9.0))
+                    .text_size(font_px(9.0))
                     .font_weight(FontWeight::BOLD)
                     .text_color(TEXT_FAINT)
                     .when(!collapsed, |d| d.child(t!("sidebar-plugins"))),
@@ -173,7 +173,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                                 .min_w(px(0.0))
                                 .truncate()
                                 .font_family(FONT_MONO)
-                                .text_size(px(11.5))
+                                .text_size(font_px(11.5))
                                 .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                                 .text_color(if is_active { TEXT_PRIMARY } else { TEXT_TERTIARY })
                                 .child(label.clone()),
@@ -203,7 +203,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                         .justify_between()
                         .items_center()
                         .font_family(FONT_MONO)
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .text_color(TEXT_FAINT)
                         .cursor_pointer()
                         .on_click(move |_ev, _window, cx| {
@@ -274,7 +274,7 @@ fn danger_nav(is_active: bool, collapsed: bool, app: Entity<CrowApp>) -> impl In
             div()
                 .flex_1()
                 .font_family(FONT_MONO)
-                .text_size(px(11.5))
+                .text_size(font_px(11.5))
                 .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                 .text_color(ink)
                 .child(t!("sidebar-danger-zone"))

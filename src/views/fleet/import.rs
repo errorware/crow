@@ -59,13 +59,13 @@ pub fn import_panel(state: &ImportState, app: Entity<CrowApp>) -> impl IntoEleme
                 .flex_col()
                 .gap(px(10.0))
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .child(
                     div()
                         .flex()
                         .items_center()
                         .gap(px(10.0))
-                        .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("fleet-import-import-from-providers")))
+                        .child(div().text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("fleet-import-import-from-providers")))
                         .child(div().text_color(TEXT_DIMMER).child(if state.loading > 0 {
                             t!("fleet-import-asking-account-s", loading = state.loading)
                         } else {

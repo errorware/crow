@@ -35,7 +35,7 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
         .border_t_1()
         .border_color(BORDER_PANEL)
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .text_color(TEXT_DIM)
         .child(
             div()

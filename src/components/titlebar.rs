@@ -59,7 +59,7 @@ impl Render for ServerTabDragGhost {
             .border_color(hex_rgb(0x38bdf8))
             .shadow_lg()
             .font_family(FONT_MONO)
-            .text_size(px(11.0))
+            .text_size(font_px(11.0))
             .child(
                 div()
                     .size(px(6.0))
@@ -151,7 +151,7 @@ pub fn titlebar(
             .child(
                 div()
                     .font_family(FONT_MONO)
-                    .text_size(px(11.5))
+                    .text_size(font_px(11.5))
                     .font_weight(FontWeight::BOLD)
                     .text_color(menu_ink)
                     .child(t!("titlebar-crow")),
@@ -197,7 +197,7 @@ pub fn titlebar(
                     .child(
                         div()
                             .font_family(FONT_MONO)
-                            .text_size(px(11.0))
+                            .text_size(font_px(11.0))
                             .font_weight(if is_fleet_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                             .text_color(if is_fleet_active { TEXT_PRIMARY } else { TEXT_MUTED })
                             .child(t!("titlebar-fleet")),
@@ -232,7 +232,7 @@ pub fn titlebar(
                     .child(
                         div()
                             .font_family(FONT_MONO)
-                            .text_size(px(11.0))
+                            .text_size(font_px(11.0))
                             .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                             .text_color(if is_active { TEXT_MAX } else { TEXT_MUTED })
                             .child(page.label()),
@@ -331,7 +331,7 @@ pub fn titlebar(
                     .child(
                         div()
                             .font_family(FONT_MONO)
-                            .text_size(px(11.0))
+                            .text_size(font_px(11.0))
                             .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                             .text_color(if is_active { TEXT_MAX } else { TEXT_MUTED })
                             .child(tab.name.clone()),
@@ -407,7 +407,7 @@ pub fn titlebar(
             .gap(px(14.0))
             .px(px(14.0))
             .font_family(FONT_MONO)
-            .text_size(px(10.5))
+            .text_size(font_px(10.5))
             .text_color(TEXT_FAINT)
             .border_l_1()
             .border_color(BORDER_PANEL)
@@ -774,7 +774,7 @@ pub fn burger_menu_overlay(
                             .border_t_1()
                             .border_color(if idx == 0 { hex_rgba(0, 0.0) } else { BORDER_DEFAULT })
                             .font_family(FONT_MONO)
-                            .text_size(px(9.5))
+                            .text_size(font_px(9.5))
                             .font_weight(FontWeight::SEMIBOLD)
                             .text_color(TEXT_DIMMER)
                             .child(item.label);
@@ -879,7 +879,7 @@ pub fn burger_menu_overlay(
                                 .min_w(px(0.0))
                                 .truncate()
                                 .font_family(FONT_MONO)
-                                .text_size(px(11.5))
+                                .text_size(font_px(11.5))
                                 .font_weight(if item.is_featured || is_active { FontWeight::BOLD } else { FontWeight::NORMAL })
                                 .text_color(if item.is_danger {
                                     CRIT_INK_DIM
@@ -901,7 +901,7 @@ pub fn burger_menu_overlay(
                                     .border_1()
                                     .border_color(if item.is_featured { hex_rgba(0x4ade80, 0.45) } else { BORDER_KEY })
                                     .font_family(FONT_MONO)
-                                    .text_size(px(10.0))
+                                    .text_size(font_px(10.0))
                                     .text_color(if item.is_featured { hex_rgb(0x4ade80) } else { TEXT_MUTED })
                                     .child(item.shortcut),
                             )
@@ -974,7 +974,7 @@ pub fn clock_menu_overlay(app: Entity<CrowApp>, zones: &[chrono_tz::Tz], selecte
                 .flex()
                 .flex_col()
                 .font_family(FONT_MONO)
-                .text_size(px(11.0))
+                .text_size(font_px(11.0))
                 .child(
                     div()
                         .h(px(24.0))
@@ -983,7 +983,7 @@ pub fn clock_menu_overlay(app: Entity<CrowApp>, zones: &[chrono_tz::Tz], selecte
                         .items_center()
                         .px(px(12.0))
                         .bg(BG_PANEL)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_DIMMER)
                         .child(t!("titlebar-clock-your-time-in")),
@@ -1004,7 +1004,7 @@ pub fn clock_menu_overlay(app: Entity<CrowApp>, zones: &[chrono_tz::Tz], selecte
                         .text_color(TEXT_DIM)
                         .hover(|s| s.bg(BG_KEY).text_color(TEXT_PRIMARY))
                         .on_click(move |_ev, _window, cx| app_manage.update(cx, |this, cx| this.open_time_zone_settings(cx)))
-                        .child(crate::components::icons::inherited_icon(TablerIcon::Settings, px(12.0)).size(px(12.0)))
+                        .child(crate::components::icons::inherited_icon(TablerIcon::Settings, font_px(12.0)).size(px(12.0)))
                         .child(if zones.is_empty() { t!("titlebar-clock-add-zones") } else { t!("titlebar-clock-manage-zones") }),
                 ),
         )

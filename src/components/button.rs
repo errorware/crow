@@ -57,7 +57,7 @@ pub fn button(id: impl Into<ElementId>, tone: Tone) -> Stateful<Div> {
         .border_1()
         .border_color(tone.edge())
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .font_weight(FontWeight::BOLD)
         .text_color(tone.ink())
         .cursor_pointer()
@@ -77,7 +77,7 @@ pub fn badge(color: Rgba) -> Div {
         .rounded_full()
         .bg(color.opacity(0.14))
         .font_family(FONT_MONO)
-        .text_size(px(9.0))
+        .text_size(font_px(9.0))
         .font_weight(FontWeight::BOLD)
         .text_color(color)
 }

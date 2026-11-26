@@ -50,8 +50,8 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames
             .text_color(TEXT_DIM)
             .cursor_pointer()
             .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
-            .child(inherited_icon(icon, px(12.0)))
-            .child(div().text_size(px(9.5)).child(keys))
+            .child(inherited_icon(icon, font_px(12.0)))
+            .child(div().text_size(font_px(9.5)).child(keys))
     };
     let multi = ws.tabs.get(ws.active).is_some_and(|t| t.root.panes().len() > 1);
     div()
@@ -99,7 +99,7 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames
                                 .overflow_hidden()
                                 .whitespace_nowrap()
                                 .text_ellipsis()
-                                .text_size(px(11.0))
+                                .text_size(font_px(11.0))
                                 .font_weight(if active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                                 .text_color(if active { TEXT_MAX } else { TEXT_MUTED })
                                 .child(ws.tab_title(i)),
@@ -119,7 +119,7 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames
                                     cx.stop_propagation();
                                     app_close.update(cx, |this, cx| this.terminal_close_tab(i, cx));
                                 })
-                                .child(inherited_icon(TablerIcon::X, px(10.0))),
+                                .child(inherited_icon(TablerIcon::X, font_px(10.0))),
                         )
                 }))
                 .child({
@@ -159,7 +159,7 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames
                     div()
                         .p(px(16.0))
                         .font_family(FONT_MONO)
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .text_color(TEXT_DIM)
                         .child(t!("terminal-no-terminals-open-opens-one", shortcut = shortcut("⌘T", t!("terminal-ctrl-shift-t"))))
                 })),
@@ -196,7 +196,7 @@ fn rename_panel(r: &TabRename, app: Entity<CrowApp>) -> impl IntoElement {
             }
         })
         .child(gpui_kit::component::input::Input::new(&r.input))
-        .child(div().text_size(px(9.5)).text_color(TEXT_FAINT).child(t!("terminal-enter-renames-esc-cancels-empty")))
+        .child(div().text_size(font_px(9.5)).text_color(TEXT_FAINT).child(t!("terminal-enter-renames-esc-cancels-empty")))
 }
 
 fn node_view(node: &Node, ws: &TerminalWorkspace, frames: &mut HashMap<PaneId, Frame>, focused: Option<PaneId>, multi: bool, look: Look, app: Entity<CrowApp>) -> AnyElement {
@@ -300,7 +300,7 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, l
                 .border_1()
                 .border_color(BORDER_DEFAULT)
                 .font_family(FONT_MONO)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .text_color(TEXT_DIM)
                 .child(t!("terminal-lines-back-type-to-return", scrolled = scrolled))
         }))
@@ -316,7 +316,7 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, l
                 .border_t_1()
                 .border_color(BORDER_PANEL)
                 .font_family(FONT_MONO)
-                .text_size(px(11.0))
+                .text_size(font_px(11.0))
                 .text_color(c)
                 .child(text)
         }))

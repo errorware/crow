@@ -45,7 +45,7 @@ pub fn fleet_view_tabs(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEle
         .child(div().flex_1())
         .children(fleet.notice.as_ref().map(|notice| {
             div()
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .text_color(TEXT_DIMMER)
                 .child(notice.clone())
         }))
@@ -61,7 +61,7 @@ fn tab_chip(id: &'static str, label: &str, is_on: bool, on_click: impl Fn(&mut A
         .bg(if is_on { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
         .text_color(if is_on { TEXT_MAX } else { TEXT_DIMMER })
         .font_weight(if is_on { FontWeight::BOLD } else { FontWeight::NORMAL })
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .cursor_pointer()
         .hover(|s| s.bg(BG_ROW_HOVER))
         .on_click(move |_ev, _window, cx| on_click(cx))
@@ -82,7 +82,7 @@ fn danger_chip(is_on: bool, on_click: impl Fn(&mut App) + 'static) -> impl IntoE
         .bg(if is_on { CRIT_BG } else { hex_rgba(0, 0.0) })
         .text_color(if is_on { CRIT } else { CRIT_INK_DIM })
         .font_weight(if is_on { FontWeight::BOLD } else { FontWeight::NORMAL })
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .cursor_pointer()
         .hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT))
         .on_click(move |_ev, _window, cx| on_click(cx))
@@ -129,7 +129,7 @@ fn archived_header() -> impl IntoElement {
         .border_b_1()
         .border_color(BORDER_PANEL)
         .font_family(FONT_MONO)
-        .text_size(px(9.5))
+        .text_size(font_px(9.5))
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(TEXT_DIMMER)
         .child(div().w(px(3.0)).flex_none().child(""))
@@ -167,7 +167,7 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
         .border_color(BORDER_ROW)
         .hover(|s| s.bg(BG_ROW_HOVER))
         .font_family(FONT_MONO)
-        .text_size(px(11.5))
+        .text_size(font_px(11.5))
         .child(left_indicator(if purged { TEXT_FAINTER } else { WARN }))
         .child(
             div()
@@ -185,7 +185,7 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
                         .rounded_sm()
                         .bg(BG_CHIP)
                         .text_color(TEXT_DIM)
-                        .text_size(px(8.5))
+                        .text_size(font_px(8.5))
                         .font_weight(FontWeight::BOLD)
                         .child(t!("fleet-archived-archived-2")),
                 ),
@@ -205,7 +205,7 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
                 .flex_none()
                 .child(
                     crate::components::button::badge(env_fg)
-                        .text_size(px(8.5))
+                        .text_size(font_px(8.5))
                         .child(srv.env.clone()),
                 ),
         )
@@ -215,18 +215,18 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
                 .flex_basis(px(0.0))
                 .min_w(px(90.0))
                 .overflow_hidden()
-                .text_size(px(11.0))
+                .text_size(font_px(11.0))
                 .text_color(TEXT_TERTIARY)
                 .child(srv.role.clone()),
         )
-        .child(div().w(px(96.0)).flex_none().text_color(TEXT_DIM).text_size(px(10.5)).child(archived_on_text(srv)))
+        .child(div().w(px(96.0)).flex_none().text_color(TEXT_DIM).text_size(font_px(10.5)).child(archived_on_text(srv)))
         .child(
             div()
                 .flex_grow(2.0)
                 .flex_basis(px(0.0))
                 .min_w(px(150.0))
                 .overflow_hidden()
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .text_color(if purged { TEXT_FAINTER } else { WARN })
                 .child(purge_status_text(srv, purge_days)),
         )
@@ -249,7 +249,7 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
                         .bg(OK_BG)
                         .text_color(OK)
                         .font_family(FONT_MONO)
-                        .text_size(px(9.0))
+                        .text_size(font_px(9.0))
                         .font_weight(FontWeight::BOLD)
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_ROW_HOVER))
@@ -289,14 +289,14 @@ fn empty_archived_state() -> AnyElement {
             div()
                 .font_family(FONT_MONO)
                 .font_weight(FontWeight::BOLD)
-                .text_size(px(13.0))
+                .text_size(font_px(13.0))
                 .text_color(TEXT_MAX)
                 .child(t!("fleet-archived-no-archived-servers")),
         )
         .child(
             div()
                 .font_family(FONT_MONO)
-                .text_size(px(11.0))
+                .text_size(font_px(11.0))
                 .text_color(TEXT_DIM)
                 .child(t!("fleet-archived-archiving-takes-a-server-out")),
         )
@@ -325,7 +325,7 @@ fn purge_log(audit: &[ChangeRecord]) -> impl IntoElement {
                 .border_b_1()
                 .border_color(BORDER_PANEL)
                 .font_family(FONT_MONO)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .child(div().font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("fleet-archived-purge-log")))
                 .child(div().text_color(TEXT_DIMMER).child(t!("fleet-archived-record-s-crows-own-audit", count = audit.len()))),
         )
@@ -341,7 +341,7 @@ fn purge_log(audit: &[ChangeRecord]) -> impl IntoElement {
                         .px(px(12.0))
                         .py(px(8.0))
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .text_color(TEXT_DIMMER)
                         .child(t!("fleet-archived-nothing-has-been-purged-yet"))
                         .into_any_element()]
@@ -356,7 +356,7 @@ fn purge_log(audit: &[ChangeRecord]) -> impl IntoElement {
                                 .px(px(12.0))
                                 .py(px(2.0))
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.5))
+                                .text_size(font_px(10.5))
                                 .child(div().w(px(150.0)).flex_none().text_color(TEXT_FAINTER).child(when))
                                 .child(div().w(px(120.0)).flex_none().text_color(TEXT_SECONDARY).child(rec.target.clone()))
                                 .child(div().flex_1().text_color(TEXT_DIMMER).child(rec.before_state.clone()))
@@ -405,7 +405,7 @@ pub fn archive_confirm_overlay(srv: &ServerRecord, purge_due: &str, app: Entity<
                         .border_b_1()
                         .border_color(BORDER_PANEL)
                         .font_family(FONT_MONO)
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_MAX)
                         .child(tabler_icon(TablerIcon::AlertTriangle).size(px(13.0)).text_color(WARN))
@@ -418,7 +418,7 @@ pub fn archive_confirm_overlay(srv: &ServerRecord, purge_due: &str, app: Entity<
                         .gap(px(8.0))
                         .p(px(14.0))
                         .font_family(FONT_MONO)
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .text_color(TEXT_SECONDARY)
                         .child(t!("fleet-archived-leaves-the-active-fleet-crow", name = srv.name))
                         .child(
@@ -441,7 +441,7 @@ pub fn archive_confirm_overlay(srv: &ServerRecord, purge_due: &str, app: Entity<
                         .px(px(14.0))
                         .pb(px(14.0))
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .child(
                             div()
                                 .id("archive-cancel")

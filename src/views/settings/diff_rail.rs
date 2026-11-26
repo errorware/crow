@@ -45,7 +45,7 @@ pub fn render_diff_rail(
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_PRIMARY)
                         .child(t!("settings-diff-rail-pending-diff")),
@@ -53,7 +53,7 @@ pub fn render_diff_rail(
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(if total_changed > 0 { WARN } else { TEXT_DIMMER })
                         .child(diff_badge),
                 ),
@@ -67,7 +67,7 @@ pub fn render_diff_rail(
                 .border_b_1()
                 .border_color(BORDER_PANEL)
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .line_height(relative(1.5))
                 .child(
                     div()
@@ -75,7 +75,7 @@ pub fn render_diff_rail(
                         .items_center()
                         .gap(px(6.0))
                         .text_color(OK)
-                        .child(inherited_icon(TablerIcon::Check, px(12.0)))
+                        .child(inherited_icon(TablerIcon::Check, font_px(12.0)))
                         .child(t!("settings-diff-rail-configuration-in-sync")),
                 )
                 .child(
@@ -95,7 +95,7 @@ pub fn render_diff_rail(
                 .border_b_1()
                 .border_color(BORDER_PANEL)
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .line_height(relative(1.55))
                 .children(diff_lines.into_iter().map(|line| {
                     let (bg_c, text_c) = match line.kind {
@@ -130,11 +130,11 @@ pub fn render_diff_rail(
                             .flex()
                             .items_center()
                             .gap(px(7.0))
-                            .child(div().font_family(FONT_MONO).text_size(px(10.0)).text_color(WARN).child("▲"))
+                            .child(div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(WARN).child("▲"))
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
-                                    .text_size(px(10.0))
+                                    .text_size(font_px(10.0))
                                     .font_weight(FontWeight::BOLD)
                                     .text_color(WARN)
                                     .child(t!("settings-diff-rail-affects-live-sessions")),
@@ -143,7 +143,7 @@ pub fn render_diff_rail(
                     .child(
                         div()
                             .font_family(FONT_MONO)
-                            .text_size(px(10.5))
+                            .text_size(font_px(10.5))
                             .line_height(relative(1.5))
                             .text_color(TEXT_TERTIARY)
                             .child(t!("settings-diff-rail-pending-ssh-connection-changes-take")),
@@ -163,19 +163,19 @@ pub fn render_diff_rail(
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_DIMMER)
                         .child(t!("settings-diff-rail-keychain")),
                 )
-                .children(keychain.is_empty().then(|| div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_FAINT).child(t!("settings-diff-rail-no-keys-enrolled-yet"))))
+                .children(keychain.is_empty().then(|| div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_FAINT).child(t!("settings-diff-rail-no-keys-enrolled-yet"))))
                 .children(keychain.iter().map(|(name, note, dot)| {
                     div()
                         .flex()
                         .items_center()
                         .gap(px(9.0))
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .child(
                             div()
                                 .size(px(6.0))

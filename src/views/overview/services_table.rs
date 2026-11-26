@@ -51,7 +51,7 @@ pub fn services_table(
                         .border_r_1()
                         .border_color(BORDER_PANEL)
                         .font_family(FONT_MONO)
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .font_weight(FontWeight::SEMIBOLD)
                         .text_color(TEXT_PRIMARY)
                         .child(active_tab.to_uppercase()),
@@ -96,7 +96,7 @@ pub fn services_table(
                                     .bg(if !is_map { hex_rgba(0xffffff, 0.08) } else { hex_rgba(0, 0.0) })
                                     .hover(|s| s.bg(BG_ROW_HOVER))
                                     .font_family(FONT_MONO)
-                                    .text_size(px(10.0))
+                                    .text_size(font_px(10.0))
                                     .font_weight(if !is_map { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                                     .text_color(if !is_map { TEXT_PRIMARY } else { TEXT_SECONDARY })
                                     .on_click(move |_ev, _window, cx| {
@@ -117,7 +117,7 @@ pub fn services_table(
                                     .bg(if is_map { hex_rgba(0x8ab4ff, 0.16) } else { hex_rgba(0, 0.0) })
                                     .hover(|s| s.bg(BG_ROW_HOVER))
                                     .font_family(FONT_MONO)
-                                    .text_size(px(10.0))
+                                    .text_size(font_px(10.0))
                                     .font_weight(if is_map { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                                     .text_color(if is_map { hex_rgb(0x8ab4ff) } else { TEXT_SECONDARY })
                                     .on_click(move |_ev, _window, cx| {
@@ -149,7 +149,7 @@ pub fn services_table(
                             .bg(if is_open { hex_rgba(0x8ab4ff, 0.12) } else { hex_rgba(0, 0.0) })
                             .hover(|s| s.bg(BG_ROW_HOVER))
                             .font_family(FONT_MONO)
-                            .text_size(px(10.5))
+                            .text_size(font_px(10.5))
                             .font_weight(if is_open { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                             .text_color(if is_open { hex_rgb(0x8ab4ff) } else { TEXT_SECONDARY })
                             .on_click(move |_ev, _window, cx| {
@@ -183,7 +183,7 @@ pub fn services_table(
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
-                                    .text_size(px(10.5))
+                                    .text_size(font_px(10.5))
                                     .text_color(TEXT_TERTIARY)
                                     .child(match active_tab {
                                         "sockets" => t!("overview-services-table-sort-port"),
@@ -194,7 +194,7 @@ pub fn services_table(
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
-                                    .text_size(px(10.0))
+                                    .text_size(font_px(10.0))
                                     .text_color(TEXT_MUTED)
                                     .bg(BG_KEY)
                                     .border_1()
@@ -344,7 +344,7 @@ fn render_pager(table: TablePage, total: usize, page: usize, app: Entity<CrowApp
             .border_t_1()
             .border_color(BORDER_PANEL)
             .font_family(FONT_MONO)
-            .text_size(px(10.5))
+            .text_size(font_px(10.5))
             .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-of", first = first, last = last, total = total)))
             .child(div().flex_1())
             .child(button("table-page-prev", t!("overview-services-table-prev"), page.checked_sub(1)))
@@ -376,7 +376,7 @@ fn render_group_toggle(active_tab: &str, overview: &OverviewState, app: Entity<C
         .hover(|s| s.text_color(TEXT_SECONDARY))
         .cursor_pointer()
         .font_family(FONT_MONO)
-        .text_size(px(9.5))
+        .text_size(font_px(9.5))
         .font_weight(FontWeight::BOLD)
         .on_click(move |_ev, _window, cx| {
             app.update(cx, |this, cx| {
@@ -417,7 +417,7 @@ fn render_counts_cluster(
                 .gap(px(12.0))
                 .px(px(12.0))
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-processes", total = total)))
                 .child(div().text_color(OK).child(t!("overview-services-table-running", running = running)))
                 .children(if high_cpu > 0 {
@@ -437,7 +437,7 @@ fn render_counts_cluster(
                 .gap(px(12.0))
                 .px(px(12.0))
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-sockets", total = total)))
                 .child(div().text_color(OK).child(t!("overview-services-table-listening", listen = listen)))
                 .children(if estab > 0 {
@@ -458,7 +458,7 @@ fn render_counts_cluster(
                 .gap(px(12.0))
                 .px(px(12.0))
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-units", total = total)))
                 .child(div().text_color(OK).child(t!("overview-services-table-active", active = active)))
                 .children(if degraded > 0 {
@@ -502,7 +502,7 @@ fn render_column_header(active_tab: &str, (local_w, peer_w): (f32, f32)) -> impl
         .border_b_1()
         .border_color(BORDER_PANEL)
         .font_family(FONT_MONO)
-        .text_size(px(9.5))
+        .text_size(font_px(9.5))
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(TEXT_DIMMER);
 
@@ -567,7 +567,7 @@ fn render_group_header(
         .child(
             div()
                 .w(px(12.0))
-                .text_size(px(9.0))
+                .text_size(font_px(9.0))
                 .text_color(TEXT_DIMMER)
                 .child(if is_collapsed { "▶" } else { "▼" }),
         )
@@ -576,7 +576,7 @@ fn render_group_header(
             div()
                 .flex_1()
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .font_weight(FontWeight::BOLD)
                 .text_color(TEXT_PRIMARY)
                 .child(label),
@@ -584,7 +584,7 @@ fn render_group_header(
         .child(
             div()
                 .font_family(FONT_MONO)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .text_color(TEXT_DIMMER)
                 .child(format!("{} {}{}", count, noun, if count == 1 { "" } else { "s" })),
         )
@@ -598,7 +598,7 @@ fn render_group_header(
                         .w(px(70.0))
                         .text_right()
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .text_color(TEXT_SECONDARY)
                         .child(cpu),
                 )
@@ -607,7 +607,7 @@ fn render_group_header(
                         .w(px(70.0))
                         .text_right()
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .text_color(TEXT_SECONDARY)
                         .child(mem),
                 )
@@ -644,7 +644,7 @@ fn empty_state(message: &'static str) -> AnyElement {
         .items_center()
         .justify_center()
         .font_family(FONT_MONO)
-        .text_size(px(11.0))
+        .text_size(font_px(11.0))
         .text_color(TEXT_DIMMER)
         .child(message)
         .into_any_element()
@@ -755,7 +755,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                 .h(px(29.0))
                 .bg(row_bg)
                 .font_family(FONT_MONO)
-                .text_size(px(11.5))
+                .text_size(font_px(11.5))
                 .cursor_pointer()
                 .hover(|s| s.bg(BG_ROW_HOVER))
                 .on_click({
@@ -776,7 +776,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                     div()
                         .w(px(26.0))
                         .text_center()
-                        .text_size(px(9.0))
+                        .text_size(font_px(9.0))
                         .text_color(svc.status_color())
                         .child(if is_failed { "■" } else { "●" }),
                 )
@@ -798,7 +798,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                             div()
                                 .bg(pill_bg)
                                 .text_color(svc.status_color())
-                                .text_size(px(9.0))
+                                .text_size(font_px(9.0))
                                 .font_weight(FontWeight::BOLD)
                                 .px(px(5.0))
                                 .py(px(2.0))
@@ -830,7 +830,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                         .justify_end()
                         .gap(px(3.0))
                         .pr(px(10.0))
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .child(
                             div()
                                 .id(ElementId::NamedInteger("btn-restart".into(), idx as u64))
@@ -885,7 +885,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                     .child(
                         div()
                             .font_family(FONT_MONO)
-                            .text_size(px(11.5))
+                            .text_size(font_px(11.5))
                             .text_color(CRIT_INK)
                             .child(t!("overview-services-table-restart", name = svc.name, blast_radius_text = blast_radius_text(overview, &svc.name))),
                     )
@@ -894,7 +894,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                         div()
                             .id(ElementId::NamedInteger("btn-cancel-svc".into(), idx as u64))
                             .font_family(FONT_MONO)
-                            .text_size(px(10.5))
+                            .text_size(font_px(10.5))
                             .text_color(TEXT_TERTIARY)
                             .border_1()
                             .border_color(BORDER_KEY)
@@ -917,7 +917,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                         div()
                             .id(ElementId::NamedInteger("btn-exec-restart".into(), idx as u64))
                             .font_family(FONT_MONO)
-                            .text_size(px(10.5))
+                            .text_size(font_px(10.5))
                             .font_weight(FontWeight::BOLD)
                             .text_color(hex_rgb(0x0a0a0c))
                             .bg(CRIT)
@@ -1041,7 +1041,7 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                 .h(px(28.0))
                 .bg(row_bg)
                 .font_family(FONT_MONO)
-                .text_size(px(11.0))
+                .text_size(font_px(11.0))
                 .cursor_pointer()
                 .hover(|s| s.bg(BG_ROW_HOVER))
                 .on_click(move |_ev, _window, cx| {
@@ -1080,7 +1080,7 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                             div()
                                 .bg(hex_rgb(0x14161b))
                                 .text_color(proc_item.stat_color())
-                                .text_size(px(9.0))
+                                .text_size(font_px(9.0))
                                 .font_weight(FontWeight::BOLD)
                                 .px(px(4.0))
                                 .py(px(1.5))
@@ -1145,7 +1145,7 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                     .child(
                         div()
                             .font_family(FONT_MONO)
-                            .text_size(px(11.5))
+                            .text_size(font_px(11.5))
                             .text_color(CRIT_INK)
                             .child(t!("overview-services-table-terminate-pid-send-sigterm", comm = comm, pid = pid)),
                     )
@@ -1154,7 +1154,7 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                         div()
                             .id(ElementId::NamedInteger("btn-cancel-proc".into(), idx as u64))
                             .font_family(FONT_MONO)
-                            .text_size(px(10.5))
+                            .text_size(font_px(10.5))
                             .text_color(TEXT_TERTIARY)
                             .border_1()
                             .border_color(BORDER_KEY)
@@ -1174,7 +1174,7 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                         div()
                             .id(ElementId::NamedInteger("btn-exec-kill".into(), idx as u64))
                             .font_family(FONT_MONO)
-                            .text_size(px(10.5))
+                            .text_size(font_px(10.5))
                             .font_weight(FontWeight::BOLD)
                             .text_color(hex_rgb(0x0a0a0c))
                             .bg(CRIT)
@@ -1236,7 +1236,7 @@ fn render_sockets_rows(
                     .h(px(28.0))
                     .bg(row_bg)
                     .font_family(FONT_MONO)
-                    .text_size(px(11.0))
+                    .text_size(font_px(11.0))
                     .cursor_pointer()
                     .hover(|s| s.bg(BG_ROW_HOVER))
                     .on_click(move |_ev, _window, cx| {
@@ -1264,7 +1264,7 @@ fn render_sockets_rows(
                                     .rounded_sm()
                                     .bg(hex_rgb(0x14161b))
                                     .text_color(sock.proto_color())
-                                    .text_size(px(9.0))
+                                    .text_size(font_px(9.0))
                                     .font_weight(FontWeight::BOLD)
                                     .px(px(4.0))
                                     .py(px(1.5))
@@ -1298,7 +1298,7 @@ fn render_sockets_rows(
                                     .gap(px(4.0))
                                     .whitespace_nowrap()
                                     .text_color(TEXT_DIM)
-                                    .text_size(px(9.5))
+                                    .text_size(font_px(9.5))
                                     .cursor_pointer()
                                     .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                                     .child(div().size(px(5.0)).flex_none().rounded_full().bg(fw_match.color()))
@@ -1342,7 +1342,7 @@ fn render_sockets_rows(
                                 div()
                                     .text_color(sock.state_color())
                                     .font_weight(FontWeight::SEMIBOLD)
-                                    .text_size(px(10.0))
+                                    .text_size(font_px(10.0))
                                     .child(sock.state.clone()),
                             ),
                     )

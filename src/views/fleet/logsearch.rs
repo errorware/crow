@@ -13,7 +13,7 @@ use crate::theme::*;
 use crate::views::fleet::FleetState;
 
 fn mono(size: f32, color: Rgba) -> Div {
-    div().font_family(FONT_MONO).text_size(px(size)).text_color(color)
+    div().font_family(FONT_MONO).text_size(font_px(size)).text_color(color)
 }
 
 fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) -> Stateful<Div> {
@@ -25,7 +25,7 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) ->
         .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
         .bg(if on { BG_CONTROL_ALT } else { BG_CONTROL })
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
         .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
         .cursor_pointer()
@@ -38,7 +38,7 @@ fn label(t: &'static str) -> Div {
 }
 
 fn input(i: Option<&Entity<gpui_kit::component::input::InputState>>) -> impl IntoElement {
-    div().flex_1().children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0))))
+    div().flex_1().children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0))))
 }
 
 pub fn log_search_page(fleet: &FleetState, st: &LogSearchState, app: Entity<CrowApp>) -> impl IntoElement {
@@ -99,7 +99,7 @@ pub fn log_search_page(fleet: &FleetState, st: &LogSearchState, app: Entity<Crow
                                 .border_color(OK)
                                 .bg(OK.opacity(0.1))
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.5))
+                                .text_size(font_px(10.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(OK)
                                 .cursor_pointer()
@@ -186,7 +186,7 @@ pub fn log_search_page(fleet: &FleetState, st: &LogSearchState, app: Entity<Crow
                         .child(mono(10.0, TEXT_TERTIARY).w(px(120.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(h.server.clone()))
                         .child(mono(9.5, e.priority.color()).w(px(56.0)).flex_none().child(e.priority.label()))
                         .child(mono(9.5, TEXT_DIM).w(px(150.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(if e.unit.is_empty() { e.syslog_identifier.clone() } else { e.unit.clone() }))
-                        .child(div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_SECONDARY).child(StyledText::new(msg).with_highlights(highlights)))
+                        .child(div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_SECONDARY).child(StyledText::new(msg).with_highlights(highlights)))
                 })),
         )
 }

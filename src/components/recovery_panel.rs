@@ -45,7 +45,7 @@ pub fn recovery_panel(panel: &RecoveryPanel, server_name: &str, app: Entity<Crow
                 .border_1()
                 .border_color(BORDER_DANGER)
                 .font_family(FONT_MONO)
-                .text_size(px(11.0))
+                .text_size(font_px(11.0))
                 .child(
                     div()
                         .px(px(16.0))
@@ -59,8 +59,8 @@ pub fn recovery_panel(panel: &RecoveryPanel, server_name: &str, app: Entity<Crow
                             div()
                                 .flex()
                                 .gap(px(8.0))
-                                .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child(d.map(|d| d.title.clone()).unwrap_or_else(|| t!("recovery-panel-checking").into())))
-                                .child(div().text_size(px(13.0)).text_color(TEXT_MAX).child(server_name.to_string())),
+                                .child(div().text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child(d.map(|d| d.title.clone()).unwrap_or_else(|| t!("recovery-panel-checking").into())))
+                                .child(div().text_size(font_px(13.0)).text_color(TEXT_MAX).child(server_name.to_string())),
                         )
                         .children(d.and_then(|d| crate::components::english_beside::english_beside(crate::i18n::english_of(&d.title, "host-diagnose-"))))
                         .child(div().text_color(TEXT_SECONDARY).child(d.map(|d| d.what.clone()).unwrap_or_default())),
@@ -91,7 +91,7 @@ pub fn recovery_panel(panel: &RecoveryPanel, server_name: &str, app: Entity<Crow
                         .gap(px(5.0))
                         .border_b_1()
                         .border_color(BORDER_ROW)
-                        .child(div().text_size(px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_DIMMER).child(t!("recovery-panel-what-to-do")))
+                        .child(div().text_size(font_px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_DIMMER).child(t!("recovery-panel-what-to-do")))
                         .children(d.steps.iter().enumerate().map(|(i, s)| {
                             div().flex().gap(px(8.0)).child(div().flex_none().text_color(TEXT_DIM).child(format!("{}.", i + 1))).child(div().flex_1().min_w(px(0.0)).text_color(TEXT_SECONDARY).child(s.clone()))
                         }))

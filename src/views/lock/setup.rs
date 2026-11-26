@@ -104,14 +104,14 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(18.0))
+                                        .text_size(font_px(18.0))
                                         .text_color(CRIT)
                                         .child("⚠"),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(13.5))
+                                        .text_size(font_px(13.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
                                         .child(t!("lock-setup-security-notice-enabling-password-logon")),
@@ -119,7 +119,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                         )
                         .child(
                             crate::components::button::badge(CRIT)
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .child(t!("lock-setup-mandatory-2fa")),
                         ),
@@ -134,7 +134,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(12.0))
+                                .text_size(font_px(12.0))
                                 .text_color(TEXT_SECONDARY)
                                 .line_height(px(18.0))
                                 .child(t!("lock-setup-you-are-about-to-activate")),
@@ -152,7 +152,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.5))
+                                        .text_size(font_px(11.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
                                         .child(t!("lock-setup-1-password-means-password-and")),
@@ -160,7 +160,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
+                                        .text_size(font_px(11.0))
                                         .text_color(TEXT_MUTED)
                                         .line_height(px(16.0))
                                         .child(t!("lock-setup-there-is-no-password-only")),
@@ -179,7 +179,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.5))
+                                        .text_size(font_px(11.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
                                         .child(t!("lock-setup-2-what-the-password-protects")),
@@ -187,7 +187,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
+                                        .text_size(font_px(11.0))
                                         .text_color(TEXT_MUTED)
                                         .line_height(px(16.0))
                                         .child(t!("lock-setup-crow-encrypts-its-secrets-provider")),
@@ -206,7 +206,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.5))
+                                        .text_size(font_px(11.5))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(CRIT_INK_DIM)
                                         .child(t!("lock-setup-3-no-cloud-backup-or")),
@@ -214,7 +214,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
+                                        .text_size(font_px(11.0))
                                         .text_color(TEXT_MUTED)
                                         .line_height(px(16.0))
                                         .child(t!("lock-setup-this-is-a-local-only")),
@@ -248,7 +248,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(11.5))
+                                                .text_size(font_px(11.5))
                                                 .text_color(TEXT_SECONDARY)
                                                 .child(t!("lock-setup-cancel")),
                                         ),
@@ -270,7 +270,7 @@ fn render_warning_step(app: Entity<CrowApp>) -> impl IntoElement {
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(12.0))
+                                                .text_size(font_px(12.0))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(rgb(0x050507))
                                                 .child(t!("lock-setup-i-understand-setup-password-2fa")),
@@ -289,7 +289,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
     let show_pwd = state.show_password;
     // Groups of four, easier to read and type: "ABCD EFGH …".
     let totp_secret = state.totp_secret.chars().collect::<Vec<_>>().chunks(4).map(|c| c.iter().collect::<String>()).collect::<Vec<_>>().join(" ");
-    let input = |i: Option<&Entity<InputState>>| i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(13.0)).bg(BG_WINDOW).rounded(px(2.0)));
+    let input = |i: Option<&Entity<InputState>>| i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(13.0)).bg(BG_WINDOW).rounded(px(2.0)));
 
     let app_toggle_show = app.clone();
     let app_copy = app.clone();
@@ -332,14 +332,14 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(18.0))
+                                        .text_size(font_px(18.0))
                                         .text_color(OK)
                                         .child("⬢"),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(14.0))
+                                        .text_size(font_px(14.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
                                         .child(t!("lock-setup-configure-password-mandatory-2fa")),
@@ -347,7 +347,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                         )
                         .child(
                             crate::components::button::badge(OK)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .child(t!("lock-setup-step-2-of-2")),
                         ),
                 )
@@ -371,7 +371,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                     .items_center()
                                     .gap(px(8.0))
                                     .font_family(FONT_MONO)
-                                    .text_size(px(11.5))
+                                    .text_size(font_px(11.5))
                                     .text_color(CRIT_INK_DIM)
                                     .child("⚠")
                                     .child(error_text),
@@ -393,7 +393,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(10.5))
+                                                .text_size(font_px(10.5))
                                                 .font_weight(FontWeight::SEMIBOLD)
                                                 .text_color(TEXT_MUTED)
                                                 .child(t!("lock-setup-master-password")),
@@ -402,7 +402,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                             div()
                                                 .id("btn-toggle-setup-show")
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(10.0))
+                                                .text_size(font_px(10.0))
                                                 .text_color(TEXT_DIMMER)
                                                 .cursor_pointer()
                                                 .hover(|s| s.text_color(TEXT_PRIMARY))
@@ -423,7 +423,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.5))
+                                        .text_size(font_px(10.5))
                                         .font_weight(FontWeight::SEMIBOLD)
                                         .text_color(TEXT_MUTED)
                                         .child(t!("lock-setup-confirm-master-password")),
@@ -453,7 +453,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(11.0))
+                                                        .text_size(font_px(11.0))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(OK)
                                                         .child(t!("lock-setup-mandatory-two-factor-authentication-totp")),
@@ -461,7 +461,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                         )
                                         .child(
                                             crate::components::button::badge(OK)
-                                                .text_size(px(9.5))
+                                                .text_size(font_px(9.5))
                                                 .font_weight(FontWeight::BOLD)
                                                 .child(t!("lock-setup-required")),
                                         ),
@@ -482,7 +482,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                                 .flex()
                                                 .flex_col()
                                                 .gap(px(8.0))
-                                                .child(div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(TEXT_MUTED).child(t!("lock-setup-scan-the-code-with-your")))
+                                                .child(div().font_family(FONT_MONO).text_size(font_px(10.5)).line_height(px(15.0)).text_color(TEXT_MUTED).child(t!("lock-setup-scan-the-code-with-your")))
                                                 .child(
                                                     div()
                                                         .p(px(8.0))
@@ -490,7 +490,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                                         .border_1()
                                                         .border_color(BORDER_DEFAULT)
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(12.0))
+                                                        .text_size(font_px(12.0))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(OK)
                                                         .child(totp_secret),
@@ -504,7 +504,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                                         .border_1()
                                                         .border_color(if state.secret_copied { OK } else { BORDER_DEFAULT })
                                                         .font_family(FONT_MONO)
-                                                        .text_size(px(10.0))
+                                                        .text_size(font_px(10.0))
                                                         .font_weight(FontWeight::BOLD)
                                                         .text_color(if state.secret_copied { OK } else { TEXT_SECONDARY })
                                                         .cursor_pointer()
@@ -517,7 +517,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.5))
+                                        .text_size(font_px(10.5))
                                         .text_color(TEXT_MUTED)
                                         .child(t!("lock-setup-enter-6-digit-code-to")),
                                 )
@@ -551,7 +551,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(11.0))
+                                                .text_size(font_px(11.0))
                                                 .text_color(TEXT_SECONDARY)
                                                 .child(t!("lock-setup-back")),
                                         ),
@@ -575,7 +575,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(12.0))
+                                                .text_size(font_px(12.0))
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_color(rgb(0x050507))
                                                 .child(t!("lock-setup-activate-password-2fa")),
@@ -583,7 +583,7 @@ fn render_credentials_step(app: Entity<CrowApp>, setup_state: &SetupState, input
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
-                                                .text_size(px(11.0))
+                                                .text_size(font_px(11.0))
                                                 .text_color(rgb(0x050507))
                                                 .child("↵"),
                                         ),

@@ -22,5 +22,5 @@ pub fn icon_button(id: impl Into<ElementId>, icon: TablerIcon, destructive: bool
         .cursor_pointer()
         .text_color(TEXT_DIM)
         .map(|d| if destructive { d.hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT)) } else { d.hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY)) })
-        .child(inherited_icon(icon, px(12.0)).size(px(12.0)).justify_center())
+        .child(inherited_icon(icon, font_px(12.0)).size(px(12.0)).justify_center())
 }

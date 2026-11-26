@@ -73,7 +73,7 @@ fn tool_button(id: &'static str, label: impl Into<SharedString>, color: Rgba) ->
         .cursor_pointer()
         .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .text_color(color)
         .child(label.into())
 }
@@ -163,9 +163,9 @@ fn render_active_firewall(
                     .border_r_1()
                     .border_color(BORDER_PANEL)
                     .font_family(FONT_MONO)
-                    .child(div().text_size(px(11.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(t!("firewall-firewall")))
+                    .child(div().text_size(font_px(11.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(t!("firewall-firewall")))
                     .child(div().flex().items_center().gap(px(6.0)).child(div().size(px(6.0)).rounded_full().bg(OK)).child(
-                        div().text_size(px(10.5)).text_color(TEXT_DIM).child(t!("firewall-on", short_name = summary.backend.short_name().to_lowercase(), total_rules = total_rules)),
+                        div().text_size(font_px(10.5)).text_color(TEXT_DIM).child(t!("firewall-on", short_name = summary.backend.short_name().to_lowercase(), total_rules = total_rules)),
                     )),
             )
             .child(render_table_controls(search, chips))
@@ -247,13 +247,13 @@ fn render_active_firewall(
         .border_b_1()
         .border_color(BORDER_PANEL)
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
-        .child(div().text_size(px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(t!("firewall-defaults")))
+        .text_size(font_px(10.5))
+        .child(div().text_size(font_px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(t!("firewall-defaults")))
         .child(policy("incoming", summary.default_incoming.label().to_string(), incoming_open))
         .child(policy("outgoing", summary.default_outgoing.label().to_string(), false))
         .child(policy("routed", summary.default_forward.label().to_string(), false))
         .when(writable, |d| {
-            d.child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_DEFAULT)).child(div().text_size(px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(t!("firewall-quick-open"))).children(
+            d.child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_DEFAULT)).child(div().text_size(font_px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(t!("firewall-quick-open"))).children(
                 common_quick_ports().iter().map(|qp| {
                     let open = summary.rules.iter().any(|r| r.action == RuleAction::Allow && r.port == qp.port.to_string());
                     let (port, proto, name, app) = (qp.port, qp.protocol, qp.name, app.clone());
@@ -285,7 +285,7 @@ fn render_active_firewall(
         .border_b_1()
         .border_color(BORDER_PANEL)
         .font_family(FONT_MONO)
-        .text_size(px(9.5))
+        .text_size(font_px(9.5))
         .font_weight(FontWeight::SEMIBOLD)
         .text_color(TEXT_DIMMER)
         .child(div().w(px(28.0)).flex_none().child("#"))
@@ -302,11 +302,11 @@ fn render_active_firewall(
             .p(px(14.0))
             .flex()
             .flex_col()
-            .children(summary.raw_output.lines().map(|line| div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_SECONDARY).child(if line.is_empty() { " ".to_string() } else { line.to_string() })))
+            .children(summary.raw_output.lines().map(|line| div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_SECONDARY).child(if line.is_empty() { " ".to_string() } else { line.to_string() })))
             .into_any_element()]
     } else if filtered_rules.is_empty() {
         let text = if total_rules == 0 { t!("firewall-no-rules-yet-everything-follows") } else { t!("firewall-no-rules-match-try-all") };
-        vec![div().px(px(14.0)).py(px(18.0)).font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_FAINT).child(text).into_any_element()]
+        vec![div().px(px(14.0)).py(px(18.0)).font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_FAINT).child(text).into_any_element()]
     } else {
         filtered_rules.iter().map(|rule| render_rule_row(rule, writable, app.clone()).into_any_element()).collect()
     };
@@ -352,7 +352,7 @@ fn render_active_firewall(
                 .items_center()
                 .gap(px(8.0))
                 .child(tabler_icon(TablerIcon::Check).size(px(14.0)).text_color(OK))
-                .child(div().font_family(FONT_MONO).text_size(px(11.0)).text_color(TEXT_PRIMARY).child(msg))
+                .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_PRIMARY).child(msg))
         }))
         .children(modal_element)
 }
@@ -372,7 +372,7 @@ fn render_rule_row(rule: &FirewallRule, writable: bool, app: Entity<CrowApp>) ->
         .border_color(BORDER_ROW)
         .hover(|s| s.bg(BG_ROW_HOVER))
         .font_family(FONT_MONO)
-        .text_size(px(11.0))
+        .text_size(font_px(11.0))
         .child(div().w(px(28.0)).flex_none().text_color(TEXT_FAINT).child(rule.number.to_string()))
         .child(div().w(px(64.0)).flex_none().font_weight(FontWeight::SEMIBOLD).text_color(action_color(rule.action)).child(rule.action.label().to_string()))
         .child(div().w(px(44.0)).flex_none().text_color(TEXT_DIM).child(rule.direction.label().to_lowercase()))
@@ -384,7 +384,7 @@ fn render_rule_row(rule: &FirewallRule, writable: bool, app: Entity<CrowApp>) ->
                 .items_center()
                 .gap(px(6.0))
                 .child(div().text_color(TEXT_PRIMARY).child(rule.display_port_proto()))
-                .when(rule.is_ipv6, |d| d.child(div().text_size(px(9.0)).text_color(TEXT_FAINT).child("v6"))),
+                .when(rule.is_ipv6, |d| d.child(div().text_size(font_px(9.0)).text_color(TEXT_FAINT).child("v6"))),
         )
         .child(div().flex_grow(1.0).flex_basis(px(0.0)).min_w(px(130.0)).overflow_hidden().text_color(if anywhere(&rule.source) { TEXT_DIM } else { TEXT_PRIMARY }).child(rule.source.clone()))
         .child(div().flex_grow(1.0).flex_basis(px(0.0)).min_w(px(110.0)).overflow_hidden().text_color(if anywhere(&rule.destination) { TEXT_DIM } else { TEXT_PRIMARY }).child(rule.destination.clone()))
@@ -416,7 +416,7 @@ fn lockout_strip(confirm: &LockoutConfirm, app: Entity<CrowApp>) -> impl IntoEle
             .border_color(color)
             .cursor_pointer()
             .font_family(FONT_MONO)
-            .text_size(px(10.0))
+            .text_size(font_px(10.0))
             .font_weight(FontWeight::BOLD)
             .text_color(color)
             .child(label)
@@ -431,16 +431,16 @@ fn lockout_strip(confirm: &LockoutConfirm, app: Entity<CrowApp>) -> impl IntoEle
         .bg(CRIT_BG)
         .border_b_1()
         .border_color(CRIT)
-        .child(div().font_family(FONT_MONO).text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child(t!("firewall-this-could-lock-you-out")))
-        .child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_PRIMARY).child(confirm.reason.clone()))
-        .children(confirm.commands.iter().map(|c| div().font_family(FONT_MONO).text_size(px(10.0)).text_color(TEXT_SECONDARY).child(format!("  {}", commands::describe(c)))))
+        .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child(t!("firewall-this-could-lock-you-out")))
+        .child(div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_PRIMARY).child(confirm.reason.clone()))
+        .children(confirm.commands.iter().map(|c| div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_SECONDARY).child(format!("  {}", commands::describe(c)))))
         .child(
             div()
                 .flex()
                 .items_center()
                 .gap(px(8.0))
-                .child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(TEXT_TERTIARY).child(t!("firewall-type-confirm-to-apply-it")))
-                .children(confirm.input.as_ref().map(|input| div().w(px(160.0)).child(gpui_kit::component::input::Input::new(input).font_family(FONT_MONO).text_size(px(11.0)))))
+                .child(div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_TERTIARY).child(t!("firewall-type-confirm-to-apply-it")))
+                .children(confirm.input.as_ref().map(|input| div().w(px(160.0)).child(gpui_kit::component::input::Input::new(input).font_family(FONT_MONO).text_size(font_px(11.0)))))
                 .child(button("btn-fw-lockout-confirm", t!("firewall-apply-anyway"), CRIT).on_click(move |_ev, _window, cx| {
                     app_ok.update(cx, |this, cx| this.confirm_firewall_lockout(cx));
                 }))
@@ -448,7 +448,7 @@ fn lockout_strip(confirm: &LockoutConfirm, app: Entity<CrowApp>) -> impl IntoEle
                     app_cancel.update(cx, |this, cx| this.cancel_firewall_lockout(cx));
                 })),
         )
-        .children(confirm.error.clone().map(|e| div().font_family(FONT_MONO).text_size(px(10.0)).text_color(CRIT).child(e)))
+        .children(confirm.error.clone().map(|e| div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(CRIT).child(e)))
 }
 
 fn notice_strip(text: String, color: Rgba) -> impl IntoElement {
@@ -460,7 +460,7 @@ fn notice_strip(text: String, color: Rgba) -> impl IntoElement {
         .border_b_1()
         .border_color(BORDER_PANEL)
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .text_color(color)
         .child(text)
 }

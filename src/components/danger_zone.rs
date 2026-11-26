@@ -98,7 +98,7 @@ fn action_btn(id: &'static str, label: impl Into<SharedString>, app: Entity<Crow
     div()
         .id(id)
         .font_family("JetBrains Mono")
-        .text_size(px(11.0))
+        .text_size(font_px(11.0))
         .text_color(CRIT_INK_DIM)
         .border_1()
         .border_color(BORDER_DANGER_BTN)
@@ -131,9 +131,9 @@ pub fn action_row(title: &'static str, detail: impl Into<SharedString>, buttons:
                 .flex()
                 .flex_col()
                 .gap(px(3.0))
-                .child(div().text_size(px(12.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(title))
+                .child(div().text_size(font_px(12.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(title))
                 .children(crate::components::english_beside::english_beside(crate::i18n::english_of(title, "danger-zone-")))
-                .child(div().text_size(px(11.0)).text_color(TEXT_DIM).child(detail.into())),
+                .child(div().text_size(font_px(11.0)).text_color(TEXT_DIM).child(detail.into())),
         )
         .child(div().flex().flex_none().gap(px(8.0)).children(buttons))
 }
@@ -163,7 +163,7 @@ pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>,
         let app = app.clone();
         let list = div()
             .id("btn-danger-snapshots")
-            .text_size(px(11.0))
+            .text_size(font_px(11.0))
             .text_color(TEXT_SECONDARY)
             .border_1()
             .border_color(BORDER_DEFAULT)
@@ -181,7 +181,7 @@ pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>,
         action_row(
             t!("danger-zone-rotate-host-keys"),
             t!("danger-zone-not-built-yet"),
-            vec![div().id("btn-danger-rotate-keys").text_size(px(11.0)).text_color(TEXT_FAINTER).border_1().border_color(BORDER_DEFAULT).px(px(10.0)).py(px(4.0)).child(t!("danger-zone-not-yet-built")).into_any_element()],
+            vec![div().id("btn-danger-rotate-keys").text_size(font_px(11.0)).text_color(TEXT_FAINTER).border_1().border_color(BORDER_DEFAULT).px(px(10.0)).py(px(4.0)).child(t!("danger-zone-not-yet-built")).into_any_element()],
         )
         .into_any_element(),
     );
@@ -195,7 +195,7 @@ pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>,
             t!("danger-zone-removes-it-from-the-fleet"),
             vec![div()
                 .id("btn-danger-archive")
-                .text_size(px(11.0))
+                .text_size(font_px(11.0))
                 .font_weight(FontWeight::BOLD)
                 .text_color(CRIT_INK)
                 .border_1()
@@ -232,14 +232,14 @@ pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>,
                 .border_b_1()
                 .border_color(BORDER_DANGER)
                 .child(danger_triangle())
-                .child(div().text_size(px(11.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child(t!("danger-zone-danger-zone")))
+                .child(div().text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child(t!("danger-zone-danger-zone")))
                 .child(div().flex_1())
-                .child(div().text_size(px(10.0)).text_color(TEXT_DIMMER).child(t!("danger-zone-type-the-actions-keyword-to"))),
+                .child(div().text_size(font_px(10.0)).text_color(TEXT_DIMMER).child(t!("danger-zone-type-the-actions-keyword-to"))),
         )
         .children(danger.pending_action.clone().map(|action| {
             div().flex().items_center().min_h(px(46.0)).bg(CRIT_STRIP_BG).border_b_1().border_color(BORDER_DANGER).child(render_confirm_prompt(&action, danger, app.clone()))
         }))
-        .children(danger.last_result.as_ref().map(|msg| div().px(px(16.0)).py(px(8.0)).border_b_1().border_color(BORDER_DANGER).text_size(px(10.5)).text_color(TEXT_SECONDARY).child(msg.clone())))
+        .children(danger.last_result.as_ref().map(|msg| div().px(px(16.0)).py(px(8.0)).border_b_1().border_color(BORDER_DANGER).text_size(font_px(10.5)).text_color(TEXT_SECONDARY).child(msg.clone())))
         .child(div().flex().flex_col().max_w(px(920.0)).children(rows))
 }
 
@@ -259,13 +259,13 @@ fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<Cro
                 .flex()
                 .flex_col()
                 .gap(px(2.0))
-                .child(div().font_family(FONT_MONO).text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(CRIT_INK).child(danger_action_title(action)))
+                .child(div().font_family(FONT_MONO).text_size(font_px(10.5)).font_weight(FontWeight::BOLD).text_color(CRIT_INK).child(danger_action_title(action)))
                 .children(crate::components::english_beside::english_beside(crate::i18n::english_of(danger_action_title(action), "danger-zone-what-"))),
         )
         .child(
             div()
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .text_color(CRIT_INK)
                 .child(t!("danger-zone-type-to-confirm", keyword = keyword)),
         )
@@ -285,7 +285,7 @@ fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<Cro
             div()
                 .id("btn-danger-confirm-execute")
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .font_weight(FontWeight::BOLD)
                 .text_color(hex_rgb(0x0a0a0c))
                 .bg(CRIT)
@@ -304,7 +304,7 @@ fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<Cro
             div()
                 .id("btn-danger-confirm-cancel")
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .text_color(TEXT_TERTIARY)
                 .cursor_pointer()
                 .hover(|s| s.text_color(TEXT_PRIMARY))
@@ -318,7 +318,7 @@ fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<Cro
         .children(danger.error.as_ref().map(|err| {
             div()
                 .font_family(FONT_MONO)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .text_color(CRIT)
                 .child(err.clone())
         }))

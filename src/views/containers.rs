@@ -30,7 +30,7 @@ const W_RESTARTS: f32 = 70.0;
 const W_RUNTIME: f32 = 110.0;
 
 fn mono(size: f32, color: Rgba) -> Div {
-    div().font_family(FONT_MONO).text_size(px(size)).text_color(color)
+    div().font_family(FONT_MONO).text_size(font_px(size)).text_color(color)
 }
 
 fn button(id: impl Into<SharedString>, label: &'static str, color: Rgba) -> Stateful<Div> {
@@ -43,7 +43,7 @@ fn button(id: impl Into<SharedString>, label: &'static str, color: Rgba) -> Stat
         .border_1()
         .border_color(color.opacity(0.5))
         .font_family(FONT_MONO)
-        .text_size(px(9.5))
+        .text_size(font_px(9.5))
         .font_weight(FontWeight::BOLD)
         .text_color(color)
         .cursor_pointer()
@@ -112,9 +112,9 @@ fn header(st: &ContainersState, server_name: &str, app: Entity<CrowApp>) -> impl
         .child(mono(12.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(t!("containers-containers", server_name = server_name)))
         .children(scan.map(|s| {
             let running = s.containers.iter().filter(|c| c.is_running()).count();
-            crate::components::button::badge(TEXT_SECONDARY).text_size(px(9.5)).child(t!("containers-running-2", running = running, count = s.containers.len()))
+            crate::components::button::badge(TEXT_SECONDARY).text_size(font_px(9.5)).child(t!("containers-running-2", running = running, count = s.containers.len()))
         }))
-        .children(scan.into_iter().flat_map(|s| s.usable().map(|r| r.describe(s.login_is_root)).collect::<Vec<_>>()).map(|text| div().px(px(6.0)).py(px(2.0)).bg(BG_CHIP).font_family(FONT_MONO).text_size(px(9.5)).text_color(TEXT_TERTIARY).child(text)))
+        .children(scan.into_iter().flat_map(|s| s.usable().map(|r| r.describe(s.login_is_root)).collect::<Vec<_>>()).map(|text| div().px(px(6.0)).py(px(2.0)).bg(BG_CHIP).font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_TERTIARY).child(text)))
         .child(div().flex_1())
         .child(
             div()
@@ -127,12 +127,12 @@ fn header(st: &ContainersState, server_name: &str, app: Entity<CrowApp>) -> impl
                 .border_1()
                 .border_color(BORDER_DEFAULT)
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .text_color(TEXT_SECONDARY)
                 .cursor_pointer()
                 .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.refresh_containers(cx)))
-                .child(inherited_icon(TablerIcon::Refresh, px(12.0)))
+                .child(inherited_icon(TablerIcon::Refresh, font_px(12.0)))
                 .child(if st.loading { t!("containers-reading") } else { t!("containers-refresh") }),
         )
 }
@@ -210,7 +210,7 @@ fn stack_section(stack: &Stack, scan: &Scan, st: &ContainersState, app: Entity<C
                 .items_center()
                 .gap(px(8.0))
                 .pb(px(6.0))
-                .child(inherited_icon(TablerIcon::Box, px(13.0)).text_color(TEXT_DIM))
+                .child(inherited_icon(TablerIcon::Box, font_px(13.0)).text_color(TEXT_DIM))
                 .child(mono(10.5, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(stack.project.clone()))
                 .child(mono(9.5, if stack.running == members.len() { OK } else { WARN }).child(t!("containers-running-3", running = stack.running, count = members.len())))
                 .children(scan.total_usage(&stack.containers).map(|(cpu, mem)| mono(9.5, TEXT_TERTIARY).child(t!("containers-stack-uses", cpu = format!("{cpu:.1}%"), mem = human_size(mem)))))
@@ -334,7 +334,7 @@ fn ports_cell(c: &Container) -> impl IntoElement {
             .items_center()
             .gap(px(4.0))
             .child(mono(10.0, if exposed { TEXT_SECONDARY } else { TEXT_DIM }).child(text))
-            .when(exposed, |d| d.child(crate::components::button::badge(WARN.opacity(0.85)).text_size(px(8.5)).child(t!("containers-all-nets"))))
+            .when(exposed, |d| d.child(crate::components::button::badge(WARN.opacity(0.85)).text_size(font_px(8.5)).child(t!("containers-all-nets"))))
     }))
 }
 
@@ -372,7 +372,7 @@ fn row(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl IntoEl
                 .gap(px(8.0))
                 .child(div().flex_none().size(px(7.0)).rounded_full().bg(color))
                 .child(mono(11.0, TEXT_PRIMARY).whitespace_nowrap().overflow_hidden().text_ellipsis().child(c.name.clone()))
-                .children(c.dokku_target().map(|_| crate::components::button::badge(OK).text_size(px(8.5)).child(t!("containers-dokku-badge"))))
+                .children(c.dokku_target().map(|_| crate::components::button::badge(OK).text_size(font_px(8.5)).child(t!("containers-dokku-badge"))))
                 .children(c.service().filter(|s| !c.name.contains(*s)).map(|s| mono(9.5, TEXT_FAINT).child(s.to_string()))),
         )
         .when(!compact, |d| d.child(mono(10.5, TEXT_TERTIARY).w(px(W_IMAGE)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(c.image.clone())))
@@ -402,7 +402,7 @@ fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl Int
             .border_b_2()
             .border_color(if active { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
             .font_family(FONT_MONO)
-            .text_size(px(10.0))
+            .text_size(font_px(10.0))
             .font_weight(FontWeight::BOLD)
             .text_color(if active { TEXT_PRIMARY } else { TEXT_DIM })
             .cursor_pointer()
@@ -480,7 +480,7 @@ fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl Int
                                 .cursor_pointer()
                                 .hover(|s| s.bg(WAND.opacity(0.14)).text_color(WAND))
                                 .on_click(move |_ev, _window, cx| app_wand.update(cx, |this, cx| this.explain_container(cx)))
-                                .child(inherited_icon(TablerIcon::Wand, px(14.0))),
+                                .child(inherited_icon(TablerIcon::Wand, font_px(14.0))),
                         )
                         .child(
                             div()
@@ -493,7 +493,7 @@ fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl Int
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                                 .on_click(move |_ev, _window, cx| app_close.update(cx, |this, cx| this.close_container_drawer(cx)))
-                                .child(inherited_icon(TablerIcon::X, px(14.0))),
+                                .child(inherited_icon(TablerIcon::X, font_px(14.0))),
                         ),
                 )
                 .child(mono(10.5, TEXT_TERTIARY).child(format!("{} · {} · {}", c.image, c.short_id(), c.runtime.label())))
@@ -554,7 +554,7 @@ fn drawer(c: &Container, st: &ContainersState, app: Entity<CrowApp>) -> impl Int
                         crate::components::button::button(SharedString::from(format!("container-range-{}", r.label())), crate::components::button::Tone::Neutral)
                             .px(px(6.0))
                             .py(px(1.0))
-                            .text_size(px(9.0))
+                            .text_size(font_px(9.0))
                             .when(on, |b| b.bg(BG_ROW_SELECTED).text_color(TEXT_PRIMARY))
                             .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_container_usage_range(r, cx)))
                             .child(r.label())

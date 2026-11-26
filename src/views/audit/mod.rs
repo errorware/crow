@@ -67,7 +67,7 @@ pub fn audit_view(items: &[AuditItem], filter: &AuditFilter, app: Entity<CrowApp
                 .flex()
                 .flex_col()
                 .children(if shown.is_empty() {
-                    vec![div().p(px(16.0)).text_size(px(11.0)).text_color(TEXT_MUTED).child(t!("audit-nothing-recorded-yet")).into_any_element()]
+                    vec![div().p(px(16.0)).text_size(font_px(11.0)).text_color(TEXT_MUTED).child(t!("audit-nothing-recorded-yet")).into_any_element()]
                 } else {
                     shown.into_iter().map(|i| audit_row(i, now)).collect()
                 }),
@@ -112,12 +112,12 @@ fn filter_row(
         .py(px(6.0))
         .border_b_1()
         .border_color(BORDER_ROW)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .child(div().w(px(56.0)).text_color(TEXT_DIMMER).child(label))
         .child(chip(format!("audit-{label}-all").into(), t!("audit-all").into(), all_selected, all, app.clone()))
         .children(chips.into_iter().enumerate().map(|(n, (text, selected, next))| chip(format!("audit-{label}-{n}").into(), text, selected, next, app.clone())))
         .child(div().flex_1())
-        .children(trailing_summary.map(|s| div().text_size(px(10.0)).text_color(TEXT_DIM).child(s)))
+        .children(trailing_summary.map(|s| div().text_size(font_px(10.0)).text_color(TEXT_DIM).child(s)))
 }
 
 fn audit_row(i: &AuditItem, now: chrono::DateTime<Local>) -> AnyElement {
@@ -134,7 +134,7 @@ fn audit_row(i: &AuditItem, now: chrono::DateTime<Local>) -> AnyElement {
         .py(px(6.0))
         .border_b_1()
         .border_color(BORDER_ROW)
-        .text_size(px(11.0))
+        .text_size(font_px(11.0))
         .child(div().w(px(96.0)).flex_none().text_color(TEXT_FAINT).child(model::when_label(i.at, now)))
         .child(div().w(px(14.0)).flex_none().text_color(color).child(mark))
         .child(div().w(px(150.0)).flex_none().text_color(TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(i.server.clone()))
@@ -147,7 +147,7 @@ fn audit_row(i: &AuditItem, now: chrono::DateTime<Local>) -> AnyElement {
                 .flex_col()
                 .gap(px(2.0))
                 .child(div().text_color(if i.outcome == Outcome::Failed { CRIT } else { TEXT_SECONDARY }).child(i.text.clone()))
-                .children(i.detail.clone().map(|d| div().text_size(px(10.0)).text_color(TEXT_FAINT).child(d))),
+                .children(i.detail.clone().map(|d| div().text_size(font_px(10.0)).text_color(TEXT_FAINT).child(d))),
         )
         .into_any_element()
 }

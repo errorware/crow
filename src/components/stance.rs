@@ -40,7 +40,7 @@ pub fn stance_badge(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
         .hover(|s| s.bg(color.opacity(0.16)))
         .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // not a window drag
         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.toggle_stance_panel(cx)))
-        .child(div().text_color(color).child(crate::components::icons::inherited_icon(icon, px(12.0))))
+        .child(div().text_color(color).child(crate::components::icons::inherited_icon(icon, font_px(12.0))))
         .child(div().font_weight(FontWeight::BOLD).text_color(color).child(t!("stance-2fa")))
         .children((weak > 0).then(|| div().font_weight(FontWeight::BOLD).text_color(CRIT).child(t!("stance-text", weak = weak))))
 }
@@ -50,7 +50,7 @@ fn list(title: &'static str, color: Rgba, items: impl IntoIterator<Item = String
         .flex()
         .flex_col()
         .gap(px(4.0))
-        .child(div().text_size(px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(title))
+        .child(div().text_size(font_px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(title))
         .children(items.into_iter().map(move |t| {
             div()
                 .flex()
@@ -108,15 +108,15 @@ pub fn stance_panel(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
                 .flex_col()
                 .gap(px(14.0))
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
                 .child(
                     div()
                         .flex()
                         .items_baseline()
                         .gap(px(10.0))
-                        .child(div().text_size(px(9.5)).text_color(TEXT_FAINT).child(t!("stance-security-stance")))
-                        .child(div().text_size(px(15.0)).font_weight(FontWeight::BOLD).text_color(color).child(stance.label()))
+                        .child(div().text_size(font_px(9.5)).text_color(TEXT_FAINT).child(t!("stance-security-stance")))
+                        .child(div().text_size(font_px(15.0)).font_weight(FontWeight::BOLD).text_color(color).child(stance.label()))
                         .child(div().text_color(TEXT_DIMMER).child(match stance {
                             Stance::Open => t!("stance-no-vault-password-key-held"),
                             Stance::Locked => t!("stance-vault-password-2fa-key-locked"),
@@ -186,7 +186,7 @@ fn stance_card(stance: Stance, action: AnyElement, extra: Option<AnyElement>) ->
                 .flex()
                 .items_baseline()
                 .gap(px(8.0))
-                .child(div().text_size(px(14.0)).font_weight(FontWeight::BOLD).text_color(color).child(stance.label()))
+                .child(div().text_size(font_px(14.0)).font_weight(FontWeight::BOLD).text_color(color).child(stance.label()))
                 .child(div().text_color(TEXT_DIMMER).child(match stance {
                     Stance::Open => t!("stance-no-password"),
                     Stance::Locked => t!("stance-password-2fa"),
@@ -255,9 +255,9 @@ pub fn stance_choice_modal(acknowledged: bool, app: Entity<CrowApp>) -> impl Int
                 .flex_col()
                 .gap(px(14.0))
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
-                .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("stance-where-should-this-secret-stand")))
+                .child(div().text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("stance-where-should-this-secret-stand")))
                 .child(div().line_height(px(15.0)).text_color(TEXT_MUTED).child(t!("stance-crow-is-about-to-store")))
                 .child(div().flex().gap(px(12.0)).child(stance_card(Stance::Open, open_action, Some(tick))).child(stance_card(Stance::Locked, locked_action, None)))
                 .child(

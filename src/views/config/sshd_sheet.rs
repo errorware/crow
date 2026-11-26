@@ -90,7 +90,7 @@ pub fn sshd_sheet_view(file: &str, sheet: &SshdSheet, read_only: bool, login_use
                 .border_b_1()
                 .border_color(BORDER_PANEL)
                 .font_family(FONT_MONO)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .text_color(WARN)
                 .child(t!("config-sshd-sheet-some-files-this-config-includes"))
                 .children(include_notes.into_iter().map(|n| div().text_color(TEXT_SECONDARY).child(n)))
@@ -140,10 +140,10 @@ fn posture_panel(file: &str, sheet: &SshdSheet, read_only: bool, login_user: &st
                 .py(px(6.0))
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(div().text_size(px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(t!("config-sshd-sheet-security-posture")))
-                .child(div().text_size(px(9.5)).text_color(if risky.is_empty() { OK } else { WARN }).child(summary))
+                .child(div().text_size(font_px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(t!("config-sshd-sheet-security-posture")))
+                .child(div().text_size(font_px(9.5)).text_color(if risky.is_empty() { OK } else { WARN }).child(summary))
                 .child(div().flex_1())
-                .child(div().text_size(px(9.5)).text_color(TEXT_FAINTER).child(t!("config-sshd-sheet-fine", count = fine.len()))),
+                .child(div().text_size(font_px(9.5)).text_color(TEXT_FAINTER).child(t!("config-sshd-sheet-fine", count = fine.len()))),
         )
         .children(risky.into_iter().enumerate().map(|(i, item)| {
             let color = risk_color(item.risk.as_ref());
@@ -171,15 +171,15 @@ fn posture_panel(file: &str, sheet: &SshdSheet, read_only: bool, login_user: &st
                         .flex()
                         .items_baseline()
                         .gap(px(8.0))
-                        .child(div().text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(item.row.name.clone()))
-                        .child(div().text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(color).child(item.value.clone()))
-                        .children(risk_label(item.risk.as_ref()).map(|l| div().text_size(px(9.0)).font_weight(FontWeight::BOLD).text_color(color).child(l))),
+                        .child(div().text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(item.row.name.clone()))
+                        .child(div().text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(color).child(item.value.clone()))
+                        .children(risk_label(item.risk.as_ref()).map(|l| div().text_size(font_px(9.0)).font_weight(FontWeight::BOLD).text_color(color).child(l))),
                 )
                 .child(
                     div()
                         .flex_1()
                         .min_w(px(160.0))
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(TEXT_DIM)
                         .child([meaning, where_set].into_iter().flatten().collect::<Vec<_>>().join(" · ")),
                 )
@@ -196,7 +196,7 @@ fn posture_panel(file: &str, sheet: &SshdSheet, read_only: bool, login_user: &st
                         .py(px(3.0))
                         .border_1()
                         .border_color(OK.opacity(0.6))
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(OK)
                         .cursor_pointer()
@@ -222,7 +222,7 @@ fn posture_panel(file: &str, sheet: &SshdSheet, read_only: bool, login_user: &st
                 .gap_y(px(4.0))
                 .px(px(10.0))
                 .py(px(7.0))
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .child(div().text_color(OK).child("✓"))
                 .children(fine.into_iter().map(|item| {
                     div()
@@ -246,8 +246,8 @@ fn section(title: String, count: usize) -> Div {
             .border_b_1()
             .border_color(BORDER_PANEL)
             .font_family(FONT_MONO)
-            .child(div().text_size(px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_TERTIARY).child(title))
-            .child(div().text_size(px(9.5)).text_color(TEXT_FAINTER).child(count.to_string())),
+            .child(div().text_size(font_px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_TERTIARY).child(title))
+            .child(div().text_size(font_px(9.5)).text_color(TEXT_FAINTER).child(count.to_string())),
     )
 }
 
@@ -265,7 +265,7 @@ fn directive_row(file: &str, row: &SheetRow, key: &str, read_only: bool, active_
     // The value: options as clickable choices, anything else as text.
     let options = row.def.as_ref().and_then(|d| d.options.clone());
     let value_col: AnyElement = if let Some(input) = editing.map(|e| e.input) {
-        div().w_full().max_w(px(420.0)).child(Input::new(input).font_family(FONT_MONO).text_size(px(11.5)).bg(BG_APP).rounded(px(2.0))).into_any_element()
+        div().w_full().max_w(px(420.0)).child(Input::new(input).font_family(FONT_MONO).text_size(font_px(11.5)).bg(BG_APP).rounded(px(2.0))).into_any_element()
     } else if let Some(options) = options.filter(|_| !row.shadowed) {
         div()
             .flex()
@@ -281,7 +281,7 @@ fn directive_row(file: &str, row: &SheetRow, key: &str, read_only: bool, active_
                     .py(px(3.0))
                     .border_1()
                     .font_family(FONT_MONO)
-                    .text_size(px(10.5))
+                    .text_size(font_px(10.5))
                     .border_color(if selected { color } else { BORDER_DEFAULT })
                     .bg(if selected { color.opacity(0.12) } else { hex_rgba(0, 0.0) })
                     .text_color(if selected { color } else { TEXT_DIMMER })
@@ -318,7 +318,7 @@ fn directive_row(file: &str, row: &SheetRow, key: &str, read_only: bool, active_
             .border_1()
             .border_color(if is_set { BORDER_DEFAULT } else { BORDER_PANEL })
             .font_family(FONT_MONO)
-            .text_size(px(11.0))
+            .text_size(font_px(11.0))
             .text_color(if is_set { TEXT_PRIMARY } else { TEXT_DIMMER })
             .when(!read_only, |d| {
                 d.cursor_pointer().hover(|s| s.bg(BG_CONTROL)).on_click(move |_ev, window, cx| {
@@ -382,23 +382,23 @@ fn directive_row(file: &str, row: &SheetRow, key: &str, read_only: bool, active_
                 .gap_y(px(2.0))
                 .child(
                     div()
-                        .text_size(px(11.5))
+                        .text_size(font_px(11.5))
                         .font_weight(if is_set { FontWeight::BOLD } else { FontWeight::NORMAL })
                         .text_color(if row.shadowed { TEXT_FAINT } else if is_set { TEXT_PRIMARY } else { TEXT_SECONDARY })
                         .child(row.name.clone()),
                 )
                 .children(risk_label(risk.as_ref()).filter(|_| is_risky(risk.as_ref()) && !row.shadowed).map(|l| {
                     let c = risk_color(risk.as_ref());
-                    div().px(px(4.0)).border_1().border_color(c.opacity(0.5)).text_size(px(8.5)).font_weight(FontWeight::BOLD).text_color(c).child(l)
+                    div().px(px(4.0)).border_1().border_color(c.opacity(0.5)).text_size(font_px(8.5)).font_weight(FontWeight::BOLD).text_color(c).child(l)
                 }))
-                .children((!is_set && effective.is_some()).then(|| crate::components::button::badge(TEXT_FAINTER).text_size(px(9.0)).child(t!("config-sshd-sheet-default"))))
+                .children((!is_set && effective.is_some()).then(|| crate::components::button::badge(TEXT_FAINTER).text_size(font_px(9.0)).child(t!("config-sshd-sheet-default"))))
                 .child(div().flex_1())
-                .children((!location.is_empty()).then(|| div().text_size(px(9.0)).text_color(if row.shadowed { WARN_INK } else { TEXT_FAINTER }).child(location)))
+                .children((!location.is_empty()).then(|| div().text_size(font_px(9.0)).text_color(if row.shadowed { WARN_INK } else { TEXT_FAINTER }).child(location)))
                 .children(reset),
         )
-        .children(help.map(|h| div().text_size(px(10.0)).line_height(px(14.0)).text_color(TEXT_DIMMER).child(h)))
+        .children(help.map(|h| div().text_size(font_px(10.0)).line_height(px(14.0)).text_color(TEXT_DIMMER).child(h)))
         .child(div().pt(px(2.0)).child(value_col))
-        .children(meaning.filter(|_| !row.shadowed).map(|m| div().text_size(px(9.5)).text_color(TEXT_FAINT).child(format!("→ {m}"))))
+        .children(meaning.filter(|_| !row.shadowed).map(|m| div().text_size(font_px(9.5)).text_color(TEXT_FAINT).child(format!("→ {m}"))))
 }
 
 #[cfg(test)]

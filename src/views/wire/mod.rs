@@ -95,7 +95,7 @@ pub fn wire_view(
                 .border_b_1()
                 .border_color(if *ok { OK_BORDER } else { CRIT_BORDER })
                 .font_family(FONT_MONO)
-                .text_size(px(11.0))
+                .text_size(font_px(11.0))
                 .text_color(if *ok { OK } else { CRIT })
                 .child(msg.clone())
         }))
@@ -177,7 +177,7 @@ fn render_header(
                             div()
                                 .font_family(FONT_MONO)
                                 .font_weight(FontWeight::BOLD)
-                                .text_size(px(12.5))
+                                .text_size(font_px(12.5))
                                 .text_color(TEXT_MAX)
                                 .child(t!("wire-title")),
                         )
@@ -189,7 +189,7 @@ fn render_header(
                                 .border_1()
                                 .border_color(BORDER_STRONG)
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .text_color(ACCENT_CYAN)
                                 .child(t!("wire-badge-dual-witness")),
                         ),
@@ -197,7 +197,7 @@ fn render_header(
                 .child(
                     div()
                         .font_family(FONT_SANS)
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .text_color(TEXT_DIM)
                         .child(t!("wire-subtitle")),
                 ),
@@ -221,7 +221,7 @@ fn render_header(
                         .cursor_pointer()
                         .font_family(FONT_MONO)
                         .font_weight(FontWeight::BOLD)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .on_click(move |_ev, _window, cx| {
                             app_silence.update(cx, |this, cx| this.toggle_wire_silence(cx));
                         })
@@ -244,7 +244,7 @@ fn render_header(
                         .hover(|s| s.bg(BG_ROW_HOVER))
                         .cursor_pointer()
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .on_click(move |_ev, _window, cx| {
                             app_scan.update(cx, |this, cx| this.refresh_wire_sockets(cx));
                         })
@@ -263,7 +263,7 @@ fn render_header(
                         .hover(|s| s.bg(BG_ROW_HOVER))
                         .cursor_pointer()
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .on_click(move |_ev, _window, cx| {
                             app_export.update(cx, |this, cx| this.export_wire_jsonl(cx));
                         })
@@ -282,7 +282,7 @@ fn render_header(
                         .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                         .cursor_pointer()
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .on_click(move |_ev, _window, cx| {
                             app_clear.update(cx, |this, cx| this.clear_wire_history(cx));
                         })
@@ -311,7 +311,7 @@ fn render_stat_strip(
             .child(
                 div()
                     .font_family(FONT_MONO)
-                    .text_size(px(9.5))
+                    .text_size(font_px(9.5))
                     .text_color(TEXT_DIM)
                     .child(label),
             )
@@ -319,14 +319,14 @@ fn render_stat_strip(
                 div()
                     .font_family(FONT_MONO)
                     .font_weight(FontWeight::BOLD)
-                    .text_size(px(13.0))
+                    .text_size(font_px(13.0))
                     .text_color(color)
                     .child(value),
             )
             .child(
                 div()
                     .font_family(FONT_MONO)
-                    .text_size(px(9.5))
+                    .text_size(font_px(9.5))
                     .text_color(TEXT_FAINT)
                     .child(sub),
             )
@@ -436,7 +436,7 @@ fn render_filter_bar(
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .font_weight(FontWeight::BOLD)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .on_click(move |_ev, _window, cx| {
                                     app_ledger.update(cx, |this, cx| this.set_wire_mode(WireViewMode::Ledger, cx));
                                 })
@@ -454,7 +454,7 @@ fn render_filter_bar(
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .font_weight(FontWeight::BOLD)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .on_click(move |_ev, _window, cx| {
                                     app_proc.update(cx, |this, cx| this.set_wire_mode(WireViewMode::KernelSockets, cx));
                                 })
@@ -473,7 +473,7 @@ fn render_filter_bar(
                                 .text_color(if state.category_filter.is_none() { TEXT_MAX } else { TEXT_DIM })
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .on_click(move |_ev, _window, cx| {
                                     app_all_cat.update(cx, |this, cx| this.set_wire_category(None, cx));
                                 })
@@ -492,7 +492,7 @@ fn render_filter_bar(
                                 .text_color(if active { TEXT_MAX } else { TEXT_DIM })
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .on_click(move |_ev, _window, cx| {
                                     app_c.update(cx, |this, cx| {
                                         let next = if this.wire.category_filter == Some(cat) { None } else { Some(cat) };
@@ -523,7 +523,7 @@ fn render_filter_bar(
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .text_color(TEXT_FAINT)
                         .child(t!("wire-destinations-label")),
                 )
@@ -538,7 +538,7 @@ fn render_filter_bar(
                         .text_color(if state.destination_filter.is_none() { TEXT_MAX } else { TEXT_DIM })
                         .cursor_pointer()
                         .font_family(FONT_MONO)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .on_click(move |_ev, _window, cx| {
                             app_all_dest.update(cx, |this, cx| this.set_wire_destination(None, cx));
                         })
@@ -558,7 +558,7 @@ fn render_filter_bar(
                         .text_color(if active { TEXT_MAX } else { TEXT_PRIMARY })
                         .cursor_pointer()
                         .font_family(FONT_MONO)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .on_click(move |_ev, _window, cx| {
                             let d = dest_owned.clone();
                             app_d.update(cx, |this, cx| {
@@ -598,7 +598,7 @@ fn render_ledger_table(
                 .items_center()
                 .gap(px(8.0))
                 .font_family(FONT_MONO)
-                .text_size(px(9.5))
+                .text_size(font_px(9.5))
                 .text_color(TEXT_DIM)
                 .child(div().w(px(54.0)).child(t!("wire-col-seq")))
                 .child(div().w(px(86.0)).child(t!("wire-col-time")))
@@ -630,7 +630,7 @@ fn render_ledger_table(
                             .items_center()
                             .justify_center()
                             .font_family(FONT_MONO)
-                            .text_size(px(11.0))
+                            .text_size(font_px(11.0))
                             .text_color(TEXT_FAINT)
                             .child(t!("wire-empty-ledger"))
                             .into_any_element(),
@@ -677,7 +677,7 @@ fn render_ledger_row(
         .items_center()
         .gap(px(8.0))
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .on_click(move |_ev, _window, cx| {
             app.update(cx, |this, cx| {
                 let next = if this.wire.selected_seq == Some(seq) { None } else { Some(seq) };
@@ -696,7 +696,7 @@ fn render_ledger_row(
                         .bg(BG_ELEVATED)
                         .border_1()
                         .border_color(BORDER_DEFAULT)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .text_color(ACCENT_CYAN)
                         .child(ev.category.badge()),
                 ),
@@ -748,7 +748,7 @@ fn render_ledger_row(
                         .bg(status_bg)
                         .border_1()
                         .border_color(status_color)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .text_color(status_color)
                         .child(status_label),
                 ),
@@ -774,7 +774,7 @@ fn render_kernel_sockets_table(
                 .border_b_1()
                 .border_color(BORDER_PANEL)
                 .font_family(FONT_MONO)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .text_color(TEXT_DIM)
                 .child(t!(
                     "wire-proc-explainer",
@@ -794,7 +794,7 @@ fn render_kernel_sockets_table(
                 .items_center()
                 .gap(px(8.0))
                 .font_family(FONT_MONO)
-                .text_size(px(9.5))
+                .text_size(font_px(9.5))
                 .text_color(TEXT_DIM)
                 .child(div().w(px(140.0)).child(t!("wire-proc-col-process")))
                 .child(div().w(px(68.0)).child(t!("wire-proc-col-proto")))
@@ -822,7 +822,7 @@ fn render_kernel_sockets_table(
                             .items_center()
                             .justify_center()
                             .font_family(FONT_MONO)
-                            .text_size(px(11.0))
+                            .text_size(font_px(11.0))
                             .text_color(OK)
                             .child(t!("wire-proc-empty"))
                             .into_any_element(),
@@ -867,7 +867,7 @@ fn render_kernel_sockets_table(
                                 .items_center()
                                 .gap(px(8.0))
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.5))
+                                .text_size(font_px(10.5))
                                 .child(
                                     div()
                                         .w(px(140.0))
@@ -899,7 +899,7 @@ fn render_kernel_sockets_table(
                                                 .bg(attr_bg)
                                                 .border_1()
                                                 .border_color(attr_color)
-                                                .text_size(px(9.5))
+                                                .text_size(font_px(9.5))
                                                 .text_color(attr_color)
                                                 .child(attr_text),
                                         ),
@@ -929,14 +929,14 @@ fn render_inspector_drawer(
             .child(
                 div()
                     .font_family(FONT_MONO)
-                    .text_size(px(10.0))
+                    .text_size(font_px(10.0))
                     .text_color(TEXT_DIM)
                     .child(k),
             )
             .child(
                 div()
                     .font_family(FONT_MONO)
-                    .text_size(px(10.5))
+                    .text_size(font_px(10.5))
                     .text_color(TEXT_MAX)
                     .child(v),
             )
@@ -972,7 +972,7 @@ fn render_inspector_drawer(
                             div()
                                 .font_family(FONT_MONO)
                                 .font_weight(FontWeight::BOLD)
-                                .text_size(px(11.5))
+                                .text_size(font_px(11.5))
                                 .text_color(TEXT_MAX)
                                 .child(format!("{} #{}", t!("wire-drawer-title"), ev.seq)),
                         )
@@ -984,7 +984,7 @@ fn render_inspector_drawer(
                                 .border_1()
                                 .border_color(BORDER_STRONG)
                                 .font_family(FONT_MONO)
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .text_color(ACCENT_CYAN)
                                 .child(ev.category.badge()),
                         ),
@@ -996,7 +996,7 @@ fn render_inspector_drawer(
                         .py(px(2.0))
                         .cursor_pointer()
                         .font_family(FONT_MONO)
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .text_color(TEXT_DIM)
                         .hover(|s| s.text_color(TEXT_MAX))
                         .on_click(move |_ev, _window, cx| {
@@ -1047,7 +1047,7 @@ fn render_inspector_drawer(
                         .border_1()
                         .border_color(CRIT_BORDER)
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .text_color(CRIT)
                         .child(err.clone())
                 }))
@@ -1061,7 +1061,7 @@ fn render_inspector_drawer(
                             div()
                                 .font_family(FONT_MONO)
                                 .font_weight(FontWeight::BOLD)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .text_color(TEXT_DIM)
                                 .child(t!("wire-drawer-request")),
                         )
@@ -1073,7 +1073,7 @@ fn render_inspector_drawer(
                                 .border_1()
                                 .border_color(BORDER_DEFAULT)
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.5))
+                                .text_size(font_px(10.5))
                                 .text_color(TEXT_PRIMARY)
                                 .child(if ev.request_payload.trim().is_empty() {
                                     t!("wire-drawer-empty").into()
@@ -1092,7 +1092,7 @@ fn render_inspector_drawer(
                             div()
                                 .font_family(FONT_MONO)
                                 .font_weight(FontWeight::BOLD)
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .text_color(TEXT_DIM)
                                 .child(t!("wire-drawer-response")),
                         )
@@ -1104,7 +1104,7 @@ fn render_inspector_drawer(
                                 .border_1()
                                 .border_color(BORDER_DEFAULT)
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.5))
+                                .text_size(font_px(10.5))
                                 .text_color(TEXT_PRIMARY)
                                 .child(if ev.response_payload.trim().is_empty() {
                                     t!("wire-drawer-empty").into()

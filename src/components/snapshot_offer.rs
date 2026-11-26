@@ -46,9 +46,9 @@ pub fn snapshot_offer(offer: &SnapshotOffer, app: Entity<CrowApp>) -> impl IntoE
                 .flex_col()
                 .gap(px(10.0))
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
-                .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("snapshot-offer-snapshot-the-whole-server-at", provider = offer.provider)))
+                .child(div().text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("snapshot-offer-snapshot-the-whole-server-at", provider = offer.provider)))
                 .child(div().line_height(px(15.0)).text_color(TEXT_MUTED).child(t!("snapshot-offer-youre-about-to-apply-a", file = offer.file, description = offer.description, provider = offer.provider)))
                 .children(offer.error.clone().map(|e| div().text_color(CRIT).child(e)))
                 .child(

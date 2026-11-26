@@ -164,7 +164,7 @@ pub fn unit_editor_modal(
                         .child(tabler_icon(TablerIcon::FileText).size(px(18.0)).text_color(OK))
                         .child(
                             div()
-                                .text_size(px(13.0))
+                                .text_size(font_px(13.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_PRIMARY)
                                 .child(format!("{} · {}", state.unit_name, state.server_name)),
@@ -177,13 +177,13 @@ pub fn unit_editor_modal(
                                 .border_1()
                                 .border_color(if is_vendor { hex_rgb(0x38bdf8) } else { hex_rgb(0xa855f7) })
                                 .text_color(if is_vendor { hex_rgb(0x38bdf8) } else { hex_rgb(0xa855f7) })
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .child(if is_vendor { "VENDOR (DROP-IN SAFE)" } else { "CUSTOM UNIT (/etc)" }),
                         )
                         .child(
                             div()
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .text_color(TEXT_DIM)
                                 .child(fragment_path.to_string()),
                         )
@@ -270,7 +270,7 @@ pub fn unit_editor_modal(
                                 .border_color(if state.show_history { OK } else { BORDER_DEFAULT })
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER))
-                                .text_size(px(10.0))
+                                .text_size(font_px(10.0))
                                 .text_color(if state.show_history { OK } else { TEXT_SECONDARY })
                                 .on_click(move |_ev, _window, cx| {
                                     app_toggle_hist.update(cx, |this, cx| {
@@ -297,7 +297,7 @@ pub fn unit_editor_modal(
                                     .items_center()
                                     .justify_center()
                                     .gap(px(8.0))
-                                    .text_size(px(12.0))
+                                    .text_size(font_px(12.0))
                                     .text_color(TEXT_DIM)
                                     .child(tabler_icon(TablerIcon::Refresh).size(px(16.0)).text_color(TEXT_DIM))
                                     .child(t!("unit-editor-loading"))
@@ -314,7 +314,7 @@ pub fn unit_editor_modal(
                                     .gap(px(8.0))
                                     .p(px(24.0))
                                     .child(tabler_icon(TablerIcon::AlertTriangle).size(px(24.0)).text_color(CRIT))
-                                    .child(div().text_size(px(12.0)).text_color(CRIT).child(err.clone()))
+                                    .child(div().text_size(font_px(12.0)).text_color(CRIT).child(err.clone()))
                                     .into_any_element(),
                             )
                         } else if state.active_tab == UnitEditorTab::CombinedView {
@@ -331,7 +331,7 @@ pub fn unit_editor_modal(
                                             .appearance(false)
                                             .bordered(false)
                                             .font_family(FONT_MONO)
-                                            .text_size(px(11.5)),
+                                            .text_size(font_px(11.5)),
                                     )
                                     .into_any_element(),
                             )
@@ -362,7 +362,7 @@ pub fn unit_editor_modal(
                                 .flex()
                                 .items_center()
                                 .gap(px(6.0))
-                                .text_size(px(10.5))
+                                .text_size(font_px(10.5))
                                 .text_color(TEXT_DIM)
                                 .child(tabler_icon(if is_editable { TablerIcon::FileText } else { TablerIcon::InfoCircle }).size(px(13.0)).text_color(if is_editable { WAND } else { TEXT_DIM }))
                                 .child(
@@ -401,7 +401,7 @@ pub fn unit_editor_modal(
                                             .py(px(4.0))
                                             .cursor_pointer()
                                             .hover(|s| s.text_color(TEXT_PRIMARY))
-                                            .text_size(px(10.0))
+                                            .text_size(font_px(10.0))
                                             .text_color(if checked { TEXT_PRIMARY } else { TEXT_DIM })
                                             .on_click(move |_ev, _window, cx| {
                                                 app_toggle_restart.update(cx, |this, cx| {
@@ -437,7 +437,7 @@ pub fn unit_editor_modal(
                                             .border_color(BORDER_DEFAULT)
                                             .cursor_pointer()
                                             .hover(|s| s.bg(BG_ROW_HOVER))
-                                            .text_size(px(10.0))
+                                            .text_size(font_px(10.0))
                                             .font_weight(FontWeight::BOLD)
                                             .text_color(WARN)
                                             .on_click(move |_ev, _window, cx| {
@@ -462,7 +462,7 @@ pub fn unit_editor_modal(
                                             .bg(OK)
                                             .cursor_pointer()
                                             .hover(|s| s.bg(hex_rgb(0x22c55e)))
-                                            .text_size(px(10.5))
+                                            .text_size(font_px(10.5))
                                             .font_weight(FontWeight::BOLD)
                                             .text_color(hex_rgb(0x0a0a0c))
                                             .on_click(move |_ev, _window, cx| {
@@ -489,7 +489,7 @@ pub fn unit_editor_modal(
                                     .text_color(TEXT_MUTED)
                                     .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
                                     .cursor_pointer()
-                                    .text_size(px(10.0))
+                                    .text_size(font_px(10.0))
                                     .on_click(move |_ev, _window, cx| {
                                         app_close_footer.update(cx, |this, cx| this.close_unit_editor(cx));
                                     })
@@ -513,7 +513,7 @@ fn render_tab(
         .border_1()
         .border_color(if active { TEXT_PRIMARY } else { BORDER_DEFAULT })
         .bg(if active { BG_CONTROL_ALT } else { BG_CONTROL })
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .font_weight(if active { FontWeight::BOLD } else { FontWeight::NORMAL })
         .text_color(if active { TEXT_PRIMARY } else { TEXT_DIM })
         .cursor_pointer()
@@ -554,7 +554,7 @@ fn render_combined_cat_view(state: &UnitEditorState) -> impl IntoElement {
 
             div()
                 .font_family(FONT_MONO)
-                .text_size(px(11.0))
+                .text_size(font_px(11.0))
                 .line_height(px(17.0))
                 .font_weight(if is_header || is_section { FontWeight::BOLD } else { FontWeight::NORMAL })
                 .text_color(color)
@@ -581,7 +581,7 @@ fn render_feedback_banner(state: &UnitEditorState) -> Option<Div> {
                 .child(tabler_icon(TablerIcon::Refresh).size(px(14.0)).text_color(OK))
                 .child(
                     div()
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .text_color(TEXT_SECONDARY)
                         .child(t!("unit-editor-applying")),
                 ),
@@ -598,7 +598,7 @@ fn render_feedback_banner(state: &UnitEditorState) -> Option<Div> {
                 .border_t_1()
                 .border_color(OK)
                 .child(tabler_icon(TablerIcon::Check).size(px(14.0)).text_color(OK))
-                .child(div().text_size(px(10.5)).font_weight(FontWeight::BOLD).text_color(OK).child(msg.clone())),
+                .child(div().text_size(font_px(10.5)).font_weight(FontWeight::BOLD).text_color(OK).child(msg.clone())),
         ),
         (_, ApplyState::Error(err)) => Some(
             div()
@@ -611,7 +611,7 @@ fn render_feedback_banner(state: &UnitEditorState) -> Option<Div> {
                 .border_t_1()
                 .border_color(CRIT)
                 .child(tabler_icon(TablerIcon::AlertTriangle).size(px(14.0)).text_color(CRIT))
-                .child(div().text_size(px(10.5)).text_color(CRIT).child(err.clone())),
+                .child(div().text_size(font_px(10.5)).text_color(CRIT).child(err.clone())),
         ),
         (DryRunState::Passed(out), _) => Some(
             div()
@@ -627,7 +627,7 @@ fn render_feedback_banner(state: &UnitEditorState) -> Option<Div> {
                 .child(tabler_icon(TablerIcon::Check).size(px(14.0)).text_color(OK))
                 .child(
                     div()
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .text_color(OK)
                         .child(t!("unit-editor-dry-run-verified", out = out)),
                 ),
@@ -647,7 +647,7 @@ fn render_feedback_banner(state: &UnitEditorState) -> Option<Div> {
                 .child(
                     div()
                         .flex_1()
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .line_height(px(15.0))
                         .text_color(CRIT)
                         .child(t!("unit-editor-verification-failed", err = err)),
@@ -679,7 +679,7 @@ fn render_history_drawer(state: &UnitEditorState, app: Entity<CrowApp>) -> impl 
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .text_size(px(9.5))
+                .text_size(font_px(9.5))
                 .font_weight(FontWeight::BOLD)
                 .text_color(TEXT_DIM)
                 .child(t!("unit-editor-history-title", unit = unit)),
@@ -694,7 +694,7 @@ fn render_history_drawer(state: &UnitEditorState, app: Entity<CrowApp>) -> impl 
                     Some(
                         div()
                             .p(px(12.0))
-                            .text_size(px(10.5))
+                            .text_size(font_px(10.5))
                             .text_color(TEXT_DIMMER)
                             .child(t!("unit-editor-no-history"))
                             .into_any_element(),
@@ -721,7 +721,7 @@ fn render_history_drawer(state: &UnitEditorState, app: Entity<CrowApp>) -> impl 
                         .py(px(5.0))
                         .border_b_1()
                         .border_color(BORDER_PANEL)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .child(div().size(px(6.0)).rounded_full().bg(dot_color).flex_none())
                         .child(
                             div()
@@ -759,7 +759,7 @@ fn render_history_drawer(state: &UnitEditorState, app: Entity<CrowApp>) -> impl 
                                 .border_color(WARN)
                                 .cursor_pointer()
                                 .hover(|s| s.bg(WARN.opacity(0.15)))
-                                .text_size(px(9.5))
+                                .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(WARN)
                                 .on_click(move |_ev, _window, cx| {

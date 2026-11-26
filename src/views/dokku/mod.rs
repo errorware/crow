@@ -32,7 +32,7 @@ const W_SERVICES: f32 = 160.0;
 const W_DEPLOY: f32 = 120.0;
 
 fn mono(size: f32, color: Rgba) -> Div {
-    div().font_family(FONT_MONO).text_size(px(size)).text_color(color)
+    div().font_family(FONT_MONO).text_size(font_px(size)).text_color(color)
 }
 
 fn button(id: impl Into<SharedString>, label: impl Into<SharedString>, color: Rgba) -> Stateful<Div> {
@@ -46,7 +46,7 @@ fn button(id: impl Into<SharedString>, label: impl Into<SharedString>, color: Rg
         .border_1()
         .border_color(color.opacity(0.5))
         .font_family(FONT_MONO)
-        .text_size(px(9.5))
+        .text_size(font_px(9.5))
         .font_weight(FontWeight::BOLD)
         .text_color(color)
         .cursor_pointer()
@@ -66,7 +66,7 @@ fn chip(id: impl Into<SharedString>, label: impl Into<SharedString>, active: boo
         .border_color(if active { TEXT_PRIMARY } else { BORDER_DEFAULT })
         .bg(if active { BG_CONTROL_ALT } else { BG_CONTROL })
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .font_weight(if active { FontWeight::BOLD } else { FontWeight::NORMAL })
         .text_color(if active { TEXT_PRIMARY } else { TEXT_SECONDARY })
         .cursor_pointer()
@@ -78,7 +78,7 @@ fn text_input(i: Option<&Entity<InputState>>) -> impl IntoElement {
     div()
         .flex_1()
         .min_w(px(0.0))
-        .children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0))))
+        .children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0))))
 }
 
 fn app_state_color(a: &DokkuApp) -> Rgba {
@@ -209,7 +209,7 @@ fn header(st: &DokkuState, server_name: &str, app: Entity<CrowApp>) -> impl Into
                         .py(px(2.0))
                         .bg(BG_CHIP)
                         .font_family(FONT_MONO)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .text_color(TEXT_TERTIARY)
                         .child(format!("v{}", s.version))
                 }),
@@ -222,7 +222,7 @@ fn header(st: &DokkuState, server_name: &str, app: Entity<CrowApp>) -> impl Into
                         .py(px(2.0))
                         .bg(BG_CHIP)
                         .font_family(FONT_MONO)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .text_color(TEXT_SECONDARY)
                         .child(format!("*.{d}"))
                 }),
@@ -234,7 +234,7 @@ fn header(st: &DokkuState, server_name: &str, app: Entity<CrowApp>) -> impl Into
             } else {
                 TEXT_SECONDARY
             })
-            .text_size(px(9.5))
+            .text_size(font_px(9.5))
             .child(t!("dokku-apps-running-count", running = running, total = s.apps.len()))
         }))
         .child(div().flex_1())
@@ -303,12 +303,12 @@ fn header(st: &DokkuState, server_name: &str, app: Entity<CrowApp>) -> impl Into
                 .border_1()
                 .border_color(BORDER_DEFAULT)
                 .font_family(FONT_MONO)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .text_color(TEXT_SECONDARY)
                 .cursor_pointer()
                 .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                 .on_click(move |_ev, _window, cx| a_ref.update(cx, |this, cx| this.refresh_dokku(cx)))
-                .child(inherited_icon(TablerIcon::Refresh, px(12.0)))
+                .child(inherited_icon(TablerIcon::Refresh, font_px(12.0)))
                 .child(if st.loading {
                     t!("dokku-reading")
                 } else {
@@ -333,7 +333,7 @@ fn bootstrap_panel(st: &DokkuState, app: Entity<CrowApp>) -> impl IntoElement {
                 .flex()
                 .items_center()
                 .gap(px(8.0))
-                .child(inherited_icon(TablerIcon::Rocket, px(15.0)).text_color(WARN))
+                .child(inherited_icon(TablerIcon::Rocket, font_px(15.0)).text_color(WARN))
                 .child(
                     mono(12.0, TEXT_PRIMARY)
                         .font_weight(FontWeight::BOLD)
@@ -623,7 +623,7 @@ fn top_panel_view(
                             .children((!ver.is_empty()).then(|| mono(9.5, TEXT_FAINT).child(ver)))
                             .child(if installed {
                                 crate::components::button::badge(OK)
-                                    .text_size(px(9.0))
+                                    .text_size(font_px(9.0))
                                     .child(t!("dokku-plugin-installed"))
                                     .into_any_element()
                             } else {
@@ -671,7 +671,7 @@ fn top_panel_view(
                                 .bg(BG_APP)
                                 .border_1()
                                 .border_color(BORDER_PANEL)
-                                .child(inherited_icon(TablerIcon::Key, px(12.0)).text_color(TEXT_DIM))
+                                .child(inherited_icon(TablerIcon::Key, font_px(12.0)).text_color(TEXT_DIM))
                                 .child(
                                     mono(10.5, TEXT_PRIMARY)
                                         .font_weight(FontWeight::BOLD)
@@ -687,7 +687,7 @@ fn top_panel_view(
                                 )
                                 .child(if is_auth {
                                     crate::components::button::badge(OK)
-                                        .text_size(px(9.0))
+                                        .text_size(font_px(9.0))
                                         .child(t!("dokku-key-authorized"))
                                         .into_any_element()
                                 } else {
@@ -904,7 +904,7 @@ fn app_row(
                 .when(a.ssl_enabled, |d| {
                     d.child(
                         crate::components::button::badge(OK)
-                            .text_size(px(8.5))
+                            .text_size(font_px(8.5))
                             .child(t!("dokku-badge-tls")),
                     )
                 }),
@@ -1031,7 +1031,7 @@ fn service_row(
                 .child(div().flex_none().size(px(7.0)).rounded_full().bg(color))
                 .child(
                     crate::components::button::badge(TEXT_SECONDARY)
-                        .text_size(px(8.5))
+                        .text_size(font_px(8.5))
                         .child(s.kind.label()),
                 )
                 .child(
@@ -1145,7 +1145,7 @@ fn app_drawer(
             .border_b_2()
             .border_color(if active { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
             .font_family(FONT_MONO)
-            .text_size(px(10.0))
+            .text_size(font_px(10.0))
             .font_weight(FontWeight::BOLD)
             .text_color(if active { TEXT_PRIMARY } else { TEXT_DIM })
             .cursor_pointer()
@@ -1224,7 +1224,7 @@ fn app_drawer(
                                 .on_click(move |_ev, _w, cx| {
                                     app_wand.update(cx, |this, cx| this.explain_dokku_selection(cx))
                                 })
-                                .child(inherited_icon(TablerIcon::Wand, px(14.0))),
+                                .child(inherited_icon(TablerIcon::Wand, font_px(14.0))),
                         )
                         .child(
                             div()
@@ -1239,7 +1239,7 @@ fn app_drawer(
                                 .on_click(move |_ev, _w, cx| {
                                     app_close.update(cx, |this, cx| this.close_dokku_drawer(cx))
                                 })
-                                .child(inherited_icon(TablerIcon::X, px(14.0))),
+                                .child(inherited_icon(TablerIcon::X, font_px(14.0))),
                         ),
                 )
                 .when(st.eli5_open, |d| {
@@ -1685,7 +1685,7 @@ fn drawer_env_tab(
                     .items_end()
                     .gap(px(6.0))
                     .child(div().flex_1().min_w(px(0.0)).children(inputs.map(|i| {
-                        Textarea::new(&i.dotenv_blob).h(px(110.0)).w_full().font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP)
+                        Textarea::new(&i.dotenv_blob).h(px(110.0)).w_full().font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP)
                     })))
                     .child(
                         button("btn-dokku-env-stage-blob", t!("dokku-btn-import-dotenv"), OK)
@@ -1761,7 +1761,7 @@ fn drawer_env_tab(
                         .when(is_service_var, |d| {
                             d.child(
                                 crate::components::button::badge(WARN)
-                                    .text_size(px(8.0))
+                                    .text_size(font_px(8.0))
                                     .child(t!("dokku-badge-linked")),
                             )
                         })
@@ -2047,7 +2047,7 @@ fn drawer_services_tab(
                 .border_color(if is_linked { OK.opacity(0.5) } else { BORDER_PANEL })
                 .child(
                     crate::components::button::badge(TEXT_SECONDARY)
-                        .text_size(px(8.5))
+                        .text_size(font_px(8.5))
                         .child(svc.kind.label()),
                 )
                 .child(
@@ -2396,7 +2396,7 @@ fn service_drawer(
                         .child(div().flex_none().size(px(8.0)).rounded_full().bg(color))
                         .child(
                             crate::components::button::badge(TEXT_SECONDARY)
-                                .text_size(px(9.0))
+                                .text_size(font_px(9.0))
                                 .child(svc.kind.label()),
                         )
                         .child(
@@ -2418,7 +2418,7 @@ fn service_drawer(
                                 .on_click(move |_ev, _w, cx| {
                                     app_close.update(cx, |this, cx| this.close_dokku_drawer(cx))
                                 })
-                                .child(inherited_icon(TablerIcon::X, px(14.0))),
+                                .child(inherited_icon(TablerIcon::X, font_px(14.0))),
                         ),
                 )
                 .child(

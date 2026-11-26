@@ -183,7 +183,7 @@ pub fn tabler_icon(icon: TablerIcon) -> Svg {
 /// around it, like a glyph would. `tabler_icon` needs an explicit
 /// `.text_color(...)`: an svg doesn't inherit the parent's text colour and
 /// is invisible without one.
-pub fn inherited_icon(icon: TablerIcon, size: Pixels) -> Div {
+pub fn inherited_icon(icon: TablerIcon, size: impl Into<AbsoluteLength>) -> Div {
     div().flex_none().flex().items_center().text_size(size).child(icon)
 }
 

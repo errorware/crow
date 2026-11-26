@@ -17,7 +17,7 @@ use crate::vault::BASELINE_FLEET;
 use crate::views::fleet::FleetState;
 
 fn mono(size: f32, color: Rgba) -> Div {
-    div().font_family(FONT_MONO).text_size(px(size)).text_color(color)
+    div().font_family(FONT_MONO).text_size(font_px(size)).text_color(color)
 }
 
 fn section(title: &'static str, note: impl Into<SharedString>) -> Div {
@@ -34,7 +34,7 @@ fn action(id: impl Into<SharedString>, text: impl Into<SharedString>, color: Rgb
         .border_1()
         .border_color(color.opacity(0.6))
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .font_weight(FontWeight::BOLD)
         .text_color(color)
         .cursor_pointer()
@@ -69,7 +69,7 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
         .flex_col()
         .gap(px(8.0))
         .child(section(t!("fleet-drift-search-every-servers-configs"), t!("fleet-drift-from-what-crow-has-read")))
-        .children(st.search.as_ref().map(|i| div().max_w(px(640.0)).child(Input::new(i).font_family(FONT_MONO).text_size(px(11.5)).bg(BG_APP).rounded(px(2.0)))))
+        .children(st.search.as_ref().map(|i| div().max_w(px(640.0)).child(Input::new(i).font_family(FONT_MONO).text_size(font_px(11.5)).bg(BG_APP).rounded(px(2.0)))))
         .when(st.searched.len() >= 2, |d| {
             d.child(mono(9.5, TEXT_FAINT).child(match st.hits.len() {
                 0 => t!("fleet-drift-nothing-found-crow-searches-the").to_string(),
@@ -121,12 +121,12 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
                         .border_1()
                         .border_color(BORDER_DEFAULT)
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(TEXT_SECONDARY)
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                         .on_click(move |_ev, _w, cx| app_check.update(cx, |this, cx| this.check_drift(true, cx)))
-                        .child(inherited_icon(TablerIcon::Refresh, px(12.0)))
+                        .child(inherited_icon(TablerIcon::Refresh, font_px(12.0)))
                         .child(if st.checking.is_empty() { t!("fleet-drift-check-now").to_string() } else { t!("fleet-drift-reading", count = st.checking.len()) }),
                 ),
         )

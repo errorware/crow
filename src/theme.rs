@@ -133,6 +133,36 @@ pub fn init_obsidian_theme(cx: &mut App) {
     Theme::sync_base(cx);
 }
 
+use std::sync::atomic::{AtomicU32, Ordering};
+
+static FONT_SCALE_BITS: AtomicU32 = AtomicU32::new(1.0f32.to_bits());
+
+pub fn set_font_scale(scale: f32) {
+    FONT_SCALE_BITS.store(scale.to_bits(), Ordering::Relaxed);
+}
+
+pub fn font_scale() -> f32 {
+    f32::from_bits(FONT_SCALE_BITS.load(Ordering::Relaxed))
+}
+
+/// Sizing for fonts and text elements that scales dynamically with GUI zoom / font size.
+/// Evaluates to `rems(pixels / 16.0)` so that GPUI's `window.rem_size()` controls the actual pixel size.
+#[inline]
+pub fn font_px(pixels: f32) -> Rems {
+    rems(pixels / 16.0)
+}
+
+/// Updates the theme's font sizes and the application font scale based on GUI font size (12 pt base).
+pub fn update_theme_font_size(gui_font_size: f32, cx: &mut App) {
+    use gpui_kit::component::theme::Theme;
+    let scale = (gui_font_size / 12.0).clamp(0.8, 2.0);
+    set_font_scale(scale);
+    let theme = Theme::global_mut(cx);
+    theme.font_size = px(16.0 * scale);
+    theme.mono_font_size = px(13.0 * scale);
+    Theme::sync_base(cx);
+}
+
 #[cfg(test)]
 mod scrollbar_guard {
     /// GPUI's `overflow_y_scroll` scrolls without drawing a scrollbar (ERR-17);

@@ -85,14 +85,14 @@ fn segment(id: String, label: &'static str, selected: bool, accent: Rgba) -> Sta
         .cursor_pointer()
         .hover(|s| s.bg(BG_ROW_HOVER))
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
         .text_color(if selected { accent } else { TEXT_DIM })
         .child(label)
 }
 
 fn field_label(text: &'static str) -> Div {
-    div().font_family(FONT_MONO).text_size(px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(text)
+    div().font_family(FONT_MONO).text_size(font_px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(text)
 }
 
 /// A preset that fills a field.
@@ -106,7 +106,7 @@ fn preset(id: String, label: &'static str) -> Stateful<Div> {
         .cursor_pointer()
         .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .text_color(TEXT_DIM)
         .child(label)
 }
@@ -124,7 +124,7 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
         (t!("firewall-new-rule-modal-will-run"), vec![state.generate_ufw_command()], true)
     };
 
-    let input = |i: Option<&Entity<InputState>>| div().flex_1().min_w(px(0.0)).children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(px(11.5)).bg(BG_APP)));
+    let input = |i: Option<&Entity<InputState>>| div().flex_1().min_w(px(0.0)).children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.5)).bg(BG_APP)));
 
     div()
         .id("new-rule-modal-backdrop")
@@ -162,8 +162,8 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                         .border_b_1()
                         .border_color(BORDER_PANEL)
                         .font_family(FONT_MONO)
-                        .child(div().text_size(px(11.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(t!("firewall-new-rule-modal-add-rule")))
-                        .child(div().text_size(px(10.5)).text_color(TEXT_DIM).child(backend.short_name().to_lowercase()))
+                        .child(div().text_size(font_px(11.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(t!("firewall-new-rule-modal-add-rule")))
+                        .child(div().text_size(font_px(10.5)).text_color(TEXT_DIM).child(backend.short_name().to_lowercase()))
                         .child(div().flex_1())
                         .child(
                             div()
@@ -234,8 +234,8 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                                 .flex_col()
                                 .gap(px(4.0))
                                 .font_family(FONT_MONO)
-                                .child(div().text_size(px(9.0)).font_weight(FontWeight::SEMIBOLD).text_color(if preview_ok { TEXT_DIMMER } else { CRIT }).child(preview_title))
-                                .children(cmd_preview.into_iter().map(|line| div().text_size(px(11.0)).text_color(if preview_ok { TEXT_SECONDARY } else { CRIT_INK }).child(line))),
+                                .child(div().text_size(font_px(9.0)).font_weight(FontWeight::SEMIBOLD).text_color(if preview_ok { TEXT_DIMMER } else { CRIT }).child(preview_title))
+                                .children(cmd_preview.into_iter().map(|line| div().text_size(font_px(11.0)).text_color(if preview_ok { TEXT_SECONDARY } else { CRIT_INK }).child(line))),
                         ),
                 )
                 .child(
@@ -249,14 +249,14 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                         .border_t_1()
                         .border_color(BORDER_PANEL)
                         .font_family(FONT_MONO)
-                        .child(div().flex_1().text_size(px(9.5)).text_color(TEXT_FAINT).child(t!("firewall-new-rule-modal-enter-adds-it-esc-or")))
+                        .child(div().flex_1().text_size(font_px(9.5)).text_color(TEXT_FAINT).child(t!("firewall-new-rule-modal-enter-adds-it-esc-or")))
                         .child(
                             div()
                                 .id("btn-cancel-new-rule")
                                 .px(px(9.0))
                                 .py(px(4.0))
                                 .cursor_pointer()
-                                .text_size(px(10.5))
+                                .text_size(font_px(10.5))
                                 .text_color(TEXT_DIM)
                                 .hover(|s| s.text_color(TEXT_PRIMARY))
                                 .on_click(move |_ev, _window, cx| app_cancel.update(cx, |this, cx| this.close_new_firewall_rule_modal(cx)))
@@ -271,7 +271,7 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                                 .border_color(OK)
                                 .cursor_pointer()
                                 .hover(|s| s.bg(OK_BG))
-                                .text_size(px(10.5))
+                                .text_size(font_px(10.5))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(OK)
                                 .on_click(move |_ev, _window, cx| app_submit.update(cx, |this, cx| this.submit_new_firewall_rule(cx)))

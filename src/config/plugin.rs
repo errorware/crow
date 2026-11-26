@@ -62,6 +62,7 @@ host_key_max_age_days = "365"
 fleet_background = ""
 fleet_background_opacity = "10"
 fleet_background_blur = "8"
+gui_font_size = "12"
 terminal_font_size = 13
 start_maximized = false
 language = "en"
@@ -72,7 +73,7 @@ time_zone = ""
 
 /// The [appearance] section with defaults, appended to config files written
 /// before Personalisation existed.
-pub const APPEARANCE_DEFAULTS: &str = "\n[appearance]\nfleet_background = \"\"\nfleet_background_opacity = \"10\"\nfleet_background_blur = \"8\"\nterminal_font_size = 13\nstart_maximized = false\nlanguage = \"en\"\ntime_zones = \"\"\ntime_zone = \"\"\n";
+pub const APPEARANCE_DEFAULTS: &str = "\n[appearance]\nfleet_background = \"\"\nfleet_background_opacity = \"10\"\nfleet_background_blur = \"8\"\ngui_font_size = \"12\"\nterminal_font_size = 13\nstart_maximized = false\nlanguage = \"en\"\ntime_zones = \"\"\ntime_zone = \"\"\n";
 
 /// The [servers] section with defaults, appended to config files written
 /// before archiving existed (ERR-32).

@@ -188,7 +188,7 @@ pub fn settings_view(
                             div()
                                 .flex_none()
                                 .font_family(FONT_MONO)
-                                .text_size(px(16.0))
+                                .text_size(font_px(16.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_MAX)
                                 .child(t!("settings-settings")),
@@ -198,7 +198,7 @@ pub fn settings_view(
                                 .min_w(px(0.0))
                                 .truncate()
                                 .font_family(FONT_MONO)
-                                .text_size(px(11.5))
+                                .text_size(font_px(11.5))
                                 .text_color(TEXT_DIM)
                                 .child(status_subtitle),
                         ),
@@ -283,7 +283,7 @@ pub fn settings_view(
                                         .min_w(px(0.0))
                                         .truncate()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.5))
+                                        .text_size(font_px(11.5))
                                         .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                                         .text_color(if is_active { TEXT_PRIMARY } else { TEXT_MUTED })
                                         .child(label),
@@ -291,7 +291,7 @@ pub fn settings_view(
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .text_color(badge_c.unwrap_or(TEXT_FAINT))
                                         .child(badge),
                                 )

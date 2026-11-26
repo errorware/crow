@@ -53,14 +53,14 @@ pub fn render_agent_view(
                 .border_color(BORDER_PANEL)
                 .child(
                     div()
-                        .text_size(px(12.0))
+                        .text_size(font_px(12.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
                         .child(t!("settings-agent-header-title")),
                 )
                 .child(
                     badge(if enrolled_count > 0 { OK } else { TEXT_SECONDARY })
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .child(t!(
                             "settings-agent-enrolled-count",
                             enrolled = enrolled_count,
@@ -88,14 +88,14 @@ pub fn render_agent_view(
                         .px(px(10.0))
                         .border_1()
                         .border_color(BORDER_DEFAULT)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .text_color(TEXT_SECONDARY)
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                         .on_click(move |_ev, _window, cx| {
                             app_refresh.update(cx, |this, cx| this.refresh_agent_state(cx))
                         })
-                        .child(inherited_icon(TablerIcon::Refresh, px(12.0)))
+                        .child(inherited_icon(TablerIcon::Refresh, font_px(12.0)))
                         .child(t!("settings-plugins-re-check")),
                 ),
         )
@@ -116,7 +116,7 @@ pub fn render_agent_view(
                         .bg(BG_OVERLAY_PANEL)
                         .border_1()
                         .border_color(BORDER_PANEL)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .line_height(px(15.0))
                         .text_color(TEXT_MUTED)
                         .child(t!("settings-agent-intro")),
@@ -128,7 +128,7 @@ pub fn render_agent_view(
                         .bg(if *ok { BG_CONTROL_ALT } else { CRIT_ROW_BG })
                         .border_1()
                         .border_color(if *ok { OK } else { CRIT })
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .text_color(if *ok { OK } else { CRIT })
                         .child(msg.clone())
                 }))
@@ -140,7 +140,7 @@ pub fn render_agent_view(
                             .bg(WARN_BG)
                             .border_1()
                             .border_color(WARN)
-                            .text_size(px(10.5))
+                            .text_size(font_px(10.5))
                             .text_color(WARN)
                             .child(t!("settings-agent-vault-password-warning")),
                     )
@@ -206,15 +206,15 @@ fn service_control_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoEl
                 .gap(px(10.0))
                 .child(
                     div()
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
                         .child(t!("settings-agent-service-card-title")),
                 )
-                .child(badge(status_color).text_size(px(9.5)).child(status_label))
+                .child(badge(status_color).text_size(font_px(9.5)).child(status_label))
                 .child(
                     div()
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(TEXT_DIM)
                         .child(format!("{backend_label} · {pid_text}")),
                 )
@@ -273,7 +273,7 @@ fn service_control_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoEl
                 .border_color(BORDER_ROW)
                 .child(
                     div()
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(TEXT_DIMMER)
                         .child(t!("settings-agent-poll-interval")),
                 )
@@ -287,7 +287,7 @@ fn service_control_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoEl
                         .border_1()
                         .border_color(if selected { OK } else { BORDER_DEFAULT })
                         .bg(if selected { BG_CONTROL_ALT } else { BG_CONTROL })
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
                         .text_color(if selected { TEXT_PRIMARY } else { TEXT_DIM })
                         .cursor_pointer()
@@ -305,8 +305,8 @@ fn meta_kv(label: String, value: String) -> Div {
         .flex()
         .flex_col()
         .gap(px(2.0))
-        .child(div().text_size(px(9.0)).text_color(TEXT_FAINT).child(label))
-        .child(div().text_size(px(10.5)).text_color(TEXT_SECONDARY).child(value))
+        .child(div().text_size(font_px(9.0)).text_color(TEXT_FAINT).child(label))
+        .child(div().text_size(font_px(10.5)).text_color(TEXT_SECONDARY).child(value))
 }
 
 fn bottleneck_rules_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoElement {
@@ -357,14 +357,14 @@ fn bottleneck_rules_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoE
                 .gap(px(10.0))
                 .child(
                     div()
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
                         .child(t!("settings-agent-bottlenecks-card-title")),
                 )
                 .child(
                     div()
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(TEXT_DIM)
                         .child(t!("settings-agent-bottlenecks-card-subtitle")),
                 ),
@@ -385,8 +385,8 @@ fn bottleneck_rules_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoE
                         .flex()
                         .flex_col()
                         .gap(px(2.0))
-                        .child(div().text_size(px(10.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(title))
-                        .child(div().text_size(px(9.5)).text_color(TEXT_MUTED).child(desc)),
+                        .child(div().text_size(font_px(10.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(title))
+                        .child(div().text_size(font_px(9.5)).text_color(TEXT_MUTED).child(desc)),
                 )
                 .child(
                     div()
@@ -396,7 +396,7 @@ fn bottleneck_rules_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoE
                         .border_1()
                         .border_color(if enabled { OK } else { BORDER_DEFAULT })
                         .bg(if enabled { BG_CONTROL_ALT } else { BG_CONTROL })
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(if enabled { OK } else { TEXT_DIM })
                         .cursor_pointer()
@@ -437,14 +437,14 @@ fn enrollment_table_card(
                 .gap(px(10.0))
                 .child(
                     div()
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
                         .child(t!("settings-agent-enrollment-card-title")),
                 )
                 .child(
                     div()
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .text_color(TEXT_DIM)
                         .child(t!("settings-agent-enrollment-card-subtitle")),
                 )
@@ -468,7 +468,7 @@ fn enrollment_table_card(
             d.child(
                 div()
                     .py(px(12.0))
-                    .text_size(px(10.5))
+                    .text_size(font_px(10.5))
                     .text_color(TEXT_FAINT)
                     .child(t!("settings-agent-no-servers-in-fleet")),
             )
@@ -506,17 +506,17 @@ fn enrollment_table_card(
                                 .gap(px(8.0))
                                 .child(
                                     div()
-                                        .text_size(px(11.0))
+                                        .text_size(font_px(11.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(TEXT_PRIMARY)
                                         .child(srv.name.clone()),
                                 )
                                 .when(!srv.env.is_empty(), |d| {
-                                    d.child(badge(TEXT_DIM).text_size(px(9.0)).child(srv.env.to_uppercase()))
+                                    d.child(badge(TEXT_DIM).text_size(font_px(9.0)).child(srv.env.to_uppercase()))
                                 })
                                 .child(
                                     div()
-                                        .text_size(px(10.0))
+                                        .text_size(font_px(10.0))
                                         .text_color(TEXT_DIM)
                                         .child(format!("{}@{}:{}", srv.login_user, srv.host, srv.port)),
                                 ),
@@ -527,13 +527,13 @@ fn enrollment_table_card(
                                 .flex()
                                 .items_center()
                                 .gap(px(6.0))
-                                .child(badge(c).text_size(px(9.0)).child(b.level.clone()))
-                                .child(div().text_size(px(10.0)).text_color(c).child(b.detail.clone()))
+                                .child(badge(c).text_size(font_px(9.0)).child(b.level.clone()))
+                                .child(div().text_size(font_px(10.0)).text_color(c).child(b.detail.clone()))
                         })),
                 )
                 .child(
                     div()
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .text_color(TEXT_FAINT)
                         .child(t!("settings-agent-last-sample-row", when = last_sample)),
                 )
@@ -545,7 +545,7 @@ fn enrollment_table_card(
                         .border_1()
                         .border_color(if enrolled { OK } else { BORDER_DEFAULT })
                         .bg(if enrolled { BG_CONTROL_ALT } else { BG_CONTROL })
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(if enrolled { OK } else { TEXT_DIM })
                         .cursor_pointer()

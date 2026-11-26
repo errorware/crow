@@ -39,10 +39,10 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                 .bg(BG_PANEL)
                 .border_b_1()
                 .border_color(BORDER_PANEL)
-                .child(div().font_family(FONT_MONO).text_size(px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-providers-providers-where-your-servers-live")))
+                .child(div().font_family(FONT_MONO).text_size(font_px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-providers-providers-where-your-servers-live")))
                 .child(
                     crate::components::button::badge(TEXT_SECONDARY)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .child(t!("settings-providers-set-up", configured = configured, count = factories.len())),
                 )
                 .child(div().flex_1())
@@ -64,12 +64,12 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                                 .border_1()
                                 .border_color(BORDER_DEFAULT)
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.5))
+                                .text_size(font_px(10.5))
                                 .text_color(TEXT_SECONDARY)
                                 .cursor_pointer()
                                 .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
                                 .on_click(move |_ev, _window, cx| app1.update(cx, |this, cx| this.open_import(cx)))
-                                .child(inherited_icon(TablerIcon::Download, px(12.0)))
+                                .child(inherited_icon(TablerIcon::Download, font_px(12.0)))
                                 .child(t!("settings-providers-import-instances")),
                         )
                 })),
@@ -99,13 +99,13 @@ fn intro() -> impl IntoElement {
         .border_color(BORDER_PANEL)
         .flex()
         .gap(px(10.0))
-        .child(div().text_color(TEXT_PRIMARY).child(inherited_icon(TablerIcon::Cloud, px(16.0))))
+        .child(div().text_color(TEXT_PRIMARY).child(inherited_icon(TablerIcon::Cloud, font_px(16.0))))
         .child(
             div()
                 .flex_1()
                 .min_w(px(0.0))
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .line_height(px(15.0))
                 .text_color(TEXT_MUTED)
                 .child(t!("settings-providers-connect-the-cloud-accounts-your")),
@@ -124,7 +124,7 @@ pub(crate) fn notice(text: String, color: Rgba, link: Option<Entity<CrowApp>>, d
         .items_center()
         .gap(px(10.0))
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .child(div().flex_1().min_w(px(0.0)).text_color(color).child(text))
         .children(dismiss.map(|app| {
             icon_button("secrets-notice-dismiss", TablerIcon::X, false)
@@ -162,13 +162,13 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
         .flex()
         .items_center()
         .gap(px(10.0))
-        .child(div().font_family(FONT_MONO).text_size(px(12.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(manifest.display_name().to_string()))
+        .child(div().font_family(FONT_MONO).text_size(font_px(12.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(manifest.display_name().to_string()))
         .child(tag(manifest.plugin.category.clone().unwrap_or_default(), TEXT_DIMMER))
         .children(manifest.plugin.capabilities.iter().map(|c| tag(c.clone(), TEXT_SECONDARY)))
         .child(div().flex_1())
-        .children(account.and_then(|a| a.last_check_at.as_deref()).map(|t| div().font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINTER).child(t!("settings-providers-checked", short_time = short_time(t)))));
+        .children(account.and_then(|a| a.last_check_at.as_deref()).map(|t| div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(TEXT_FAINTER).child(t!("settings-providers-checked", short_time = short_time(t)))));
 
-    let status_line = div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(14.0)).text_color(status.1).child(status.0);
+    let status_line = div().font_family(FONT_MONO).text_size(font_px(10.5)).line_height(px(14.0)).text_color(status.1).child(status.0);
 
     let (a_edit, a_test, a_remove) = (app.clone(), app.clone(), app.clone());
     let (p_edit, p_test, p_remove) = (plugin.clone(), plugin.clone(), plugin.clone());
@@ -207,12 +207,12 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
         .children((open_stance && can_act(manifest)).then(|| {
             div()
                 .font_family(FONT_MONO)
-                .text_size(px(10.0))
+                .text_size(font_px(10.0))
                 .line_height(px(13.5))
                 .text_color(WARN)
                 .child(t!("settings-providers-crow-is-open-anyone-at"))
         }))
-        .children(state.errors.get(&plugin).map(|e| div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(14.0)).text_color(CRIT).child(t!("settings-providers-not-saved", e = e))))
+        .children(state.errors.get(&plugin).map(|e| div().font_family(FONT_MONO).text_size(font_px(10.5)).line_height(px(14.0)).text_color(CRIT).child(t!("settings-providers-not-saved", e = e))))
         .children(editing.then(|| form(&factory, state, inputs, app.clone())))
         .child(actions)
 }
@@ -253,13 +253,13 @@ fn form(factory: &ProviderFactory, state: &ProvidersState, inputs: Option<&Provi
                             div()
                                 .flex()
                                 .gap(px(6.0))
-                                .text_size(px(11.0))
+                                .text_size(font_px(11.0))
                                 .text_color(TEXT_PRIMARY)
                                 .child(def.label.clone().unwrap_or_else(|| def.name.clone()))
                                 .children((def.required == Some(true)).then(|| div().text_color(WARN).child("*")))
-                                .children(secret.then(|| div().text_size(px(9.0)).text_color(TEXT_FAINT).child(t!("settings-providers-secret-vault")))),
+                                .children(secret.then(|| div().text_size(font_px(9.0)).text_color(TEXT_FAINT).child(t!("settings-providers-secret-vault")))),
                         )
-                        .children(def.help.clone().map(|h| div().text_size(px(9.5)).line_height(px(13.0)).text_color(TEXT_FAINT).child(h))),
+                        .children(def.help.clone().map(|h| div().text_size(font_px(9.5)).line_height(px(13.0)).text_color(TEXT_FAINT).child(h))),
                 )
                 .child(
                     div()
@@ -267,7 +267,7 @@ fn form(factory: &ProviderFactory, state: &ProvidersState, inputs: Option<&Provi
                         .flex()
                         .items_center()
                         .gap(px(8.0))
-                        .children(input.map(|i| div().flex_1().max_w(px(420.0)).child(Input::new(&i).font_family(FONT_MONO).text_size(px(11.0)).bg(BG_APP).rounded(px(2.0)))))
+                        .children(input.map(|i| div().flex_1().max_w(px(420.0)).child(Input::new(&i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0)))))
                         .children(clearable.then(|| {
                             button(format!("provider-clear-{plugin}-{key}"), t!("settings-providers-clear").into(), TEXT_DIMMER, true, move |cx| {
                                 let (p, k) = (plugin.clone(), key.clone());
@@ -292,7 +292,7 @@ fn can_act(manifest: &crow_config_core::PluginManifest) -> bool {
 }
 
 fn tag(text: String, color: Rgba) -> impl IntoElement {
-    crate::components::button::badge(color).text_size(px(9.0)).child(text)
+    crate::components::button::badge(color).text_size(font_px(9.0)).child(text)
 }
 
 fn button(id: String, label: String, color: Rgba, enabled: bool, on_click: impl Fn(&mut App) + 'static) -> Stateful<Div> {
@@ -304,7 +304,7 @@ fn button(id: String, label: String, color: Rgba, enabled: bool, on_click: impl 
         .border_color(if enabled { color.opacity(0.6) } else { BORDER_DEFAULT })
         .text_color(if enabled { color } else { TEXT_FAINTER })
         .font_family(FONT_MONO)
-        .text_size(px(10.0))
+        .text_size(font_px(10.0))
         .font_weight(FontWeight::BOLD)
         .when(enabled, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _window, cx| on_click(cx)))
         .child(label)

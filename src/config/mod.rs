@@ -37,6 +37,7 @@ pub const WIRED_SETTINGS: &[&str] = &[
     "appearance.fleet_background",
     "appearance.fleet_background_opacity",
     "appearance.fleet_background_blur",
+    "appearance.gui_font_size",
     "appearance.terminal_font_size",
     "appearance.start_maximized",
     "appearance.language",
@@ -131,6 +132,7 @@ impl CrowConfigManager {
         };
         // Keys added to an existing section later go inside it: a second
         // [appearance] header would make the file invalid TOML.
+        let text = add_missing_key(&text, "appearance", "gui_font_size", "gui_font_size = \"12\"");
         let text = add_missing_key(&text, "appearance", "terminal_font_size", "terminal_font_size = 13");
         let text = add_missing_key(&text, "appearance", "start_maximized", "start_maximized = false");
         let text = add_missing_key(&text, "appearance", "language", "language = \"en\"");

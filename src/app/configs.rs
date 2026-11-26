@@ -10,7 +10,7 @@ use gpui_kit::component::input::InputState;
 
 use super::CrowApp;
 use crate::config::plugins::{self, apply_edit as apply_structured_edit, editor_for, ConfigEditor, RiskFinding, StructuredFormat};
-use crate::theme::{FONT_MONO, TEXT_FAINT};
+use crate::theme::*;
 use crate::views::config::journald_editor::journald_editor;
 use crate::views::config::raw_config_editor;
 use crate::views::config::structured_editor::{structured_editor, ActiveFieldEdit, SectionAddView};
@@ -528,7 +528,7 @@ impl CrowApp {
                 .flex_1()
                 .p(px(20.0))
                 .font_family(FONT_MONO)
-                .text_size(px(11.0))
+                .text_size(font_px(11.0))
                 .text_color(TEXT_FAINT)
                 .child(t!("app-configs-no-config-file-selected"))
                 .into_any_element(),

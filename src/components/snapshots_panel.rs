@@ -60,14 +60,14 @@ pub fn snapshots_panel(panel: &SnapshotsPanel, app: Entity<CrowApp>) -> impl Int
                 .flex_col()
                 .gap(px(10.0))
                 .font_family(FONT_MONO)
-                .text_size(px(10.5))
+                .text_size(font_px(10.5))
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
                 .child(
                     div()
                         .flex()
                         .items_center()
                         .gap(px(10.0))
-                        .child(div().text_size(px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("snapshots-panel-snapshots", server = panel.server)))
+                        .child(div().text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("snapshots-panel-snapshots", server = panel.server)))
                         .child(div().text_color(TEXT_DIMMER).child(t!("snapshots-panel-at", provider = panel.provider)))
                         .child(div().flex_1())
                         .child(

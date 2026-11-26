@@ -332,6 +332,21 @@ impl CrowApp {
             self.open_fleet_setup(cx);
         } else if key == "m" && is_mod && is_shift {
             self.open_topology(cx);
+        } else if (key == "=" || key == "+") && is_mod {
+            let current = self.gui_font_size();
+            if current < 20.0 {
+                self.set_gui_font_size(current + 1.0, cx);
+            }
+            return true;
+        } else if (key == "-" || key == "_") && is_mod {
+            let current = self.gui_font_size();
+            if current > 10.0 {
+                self.set_gui_font_size(current - 1.0, cx);
+            }
+            return true;
+        } else if key == "0" && is_mod {
+            self.set_gui_font_size(12.0, cx);
+            return true;
         }
         false
     }

@@ -21,7 +21,7 @@ pub fn time_zones_block(config: &CrowConfigManager, state: &ClockState, app: Ent
     let hits = clock::search_zones(&state.query, HITS);
     let local = clock::local_name().unwrap_or_else(|| t!("settings-time-zones-unknown").to_string());
 
-    let header = |label: SharedString| div().pt(px(4.0)).text_size(px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(label);
+    let header = |label: SharedString| div().pt(px(4.0)).text_size(font_px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(label);
 
     div()
         .mx(px(14.0))
@@ -34,8 +34,8 @@ pub fn time_zones_block(config: &CrowConfigManager, state: &ClockState, app: Ent
         .flex_col()
         .gap(px(8.0))
         .font_family(FONT_MONO)
-        .child(div().text_size(px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-time-zones-title")))
-        .child(div().text_size(px(10.0)).text_color(TEXT_DIM).child(t!("settings-time-zones-about")))
+        .child(div().text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-time-zones-title")))
+        .child(div().text_size(font_px(10.0)).text_color(TEXT_DIM).child(t!("settings-time-zones-about")))
         .child(
             div()
                 .flex()
@@ -45,7 +45,7 @@ pub fn time_zones_block(config: &CrowConfigManager, state: &ClockState, app: Ent
                 .child(zone_row(0, Zone::Local, t!("settings-time-zones-this-computer").to_string(), local, selected == Zone::Local, false, now, app.clone()))
                 .children(zones.iter().enumerate().map(|(i, z)| zone_row(i + 1, Zone::Named(*z), clock::city(z.name()), z.name().to_string(), selected == Zone::Named(*z), true, now, app.clone()))),
         )
-        .when(zones.is_empty(), |d| d.child(div().text_size(px(10.0)).text_color(TEXT_FAINT).child(t!("settings-time-zones-none-yet"))))
+        .when(zones.is_empty(), |d| d.child(div().text_size(font_px(10.0)).text_color(TEXT_FAINT).child(t!("settings-time-zones-none-yet"))))
         .child(header(t!("settings-time-zones-add").into()))
         .children(state.search.as_ref().map(|input| div().w(px(360.0)).child(gpui_kit::component::input::Input::new(input).font_family(FONT_MONO).bg(BG_APP))))
         .when(!hits.is_empty(), |d| {
@@ -58,7 +58,7 @@ pub fn time_zones_block(config: &CrowConfigManager, state: &ClockState, app: Ent
                     .children(hits.into_iter().enumerate().map(|(i, tz)| hit_row(i, tz, zones.contains(&tz), now, app.clone()))),
             )
         })
-        .when(hits_empty_for(&state.query), |d| d.child(div().text_size(px(10.0)).text_color(TEXT_FAINT).child(t!("settings-time-zones-no-match", query = state.query.trim()))))
+        .when(hits_empty_for(&state.query), |d| d.child(div().text_size(font_px(10.0)).text_color(TEXT_FAINT).child(t!("settings-time-zones-no-match", query = state.query.trim()))))
 }
 
 fn hits_empty_for(query: &str) -> bool {
@@ -93,10 +93,10 @@ fn zone_row(i: usize, zone: Zone, label: String, name: String, selected: bool, r
             app_pick.update(cx, |this, cx| this.select_time_zone(match zone { Zone::Named(tz) => Some(tz), Zone::Local => None }, cx));
         })
         .child(div().size(px(9.0)).flex_none().border_1().border_color(if selected { OK } else { BORDER_STRONG }).when(selected, |d| d.bg(OK)))
-        .child(div().flex_none().text_size(px(11.0)).text_color(TEXT_PRIMARY).child(label))
-        .child(div().flex_1().min_w(px(0.0)).truncate().text_size(px(9.5)).text_color(TEXT_FAINT).child(name))
-        .child(div().flex_none().text_size(px(10.0)).text_color(TEXT_SECONDARY).child(time))
-        .child(div().w(px(76.0)).flex_none().text_right().text_size(px(9.5)).text_color(TEXT_DIM).child(offset))
+        .child(div().flex_none().text_size(font_px(11.0)).text_color(TEXT_PRIMARY).child(label))
+        .child(div().flex_1().min_w(px(0.0)).truncate().text_size(font_px(9.5)).text_color(TEXT_FAINT).child(name))
+        .child(div().flex_none().text_size(font_px(10.0)).text_color(TEXT_SECONDARY).child(time))
+        .child(div().w(px(76.0)).flex_none().text_right().text_size(font_px(9.5)).text_color(TEXT_DIM).child(offset))
         .child(div().w(px(20.0)).flex_none().when(removable, |d| {
             let Zone::Named(tz) = zone else { return d };
             d.child(
@@ -124,9 +124,9 @@ fn hit_row(i: usize, tz: chrono_tz::Tz, added: bool, now: chrono::DateTime<chron
         .py(px(5.0))
         .border_b_1()
         .border_color(BORDER_ROW)
-        .child(div().flex_1().min_w(px(0.0)).truncate().text_size(px(10.5)).text_color(if added { TEXT_FAINT } else { TEXT_PRIMARY }).child(tz.name()))
-        .child(div().flex_none().text_size(px(10.0)).text_color(TEXT_SECONDARY).child(time))
-        .child(div().w(px(76.0)).flex_none().text_right().text_size(px(9.5)).text_color(TEXT_DIM).child(offset))
+        .child(div().flex_1().min_w(px(0.0)).truncate().text_size(font_px(10.5)).text_color(if added { TEXT_FAINT } else { TEXT_PRIMARY }).child(tz.name()))
+        .child(div().flex_none().text_size(font_px(10.0)).text_color(TEXT_SECONDARY).child(time))
+        .child(div().w(px(76.0)).flex_none().text_right().text_size(font_px(9.5)).text_color(TEXT_DIM).child(offset))
         .child(div().w(px(20.0)).flex_none().map(|d| {
             if added {
                 d.flex().justify_center().child(crate::components::icons::tabler_icon(TablerIcon::Check).size(px(12.0)).text_color(OK))

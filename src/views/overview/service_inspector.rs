@@ -61,7 +61,7 @@ pub fn service_inspector_rail(vault: &Vault, fleet: &FleetState, overview: &Over
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
                         .child(t!("overview-service-inspector-service-manager")),
@@ -70,7 +70,7 @@ pub fn service_inspector_rail(vault: &Vault, fleet: &FleetState, overview: &Over
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(9.5))
+                        .text_size(font_px(9.5))
                         .text_color(TEXT_DIMMER)
                         .child("systemctl"),
                 ),
@@ -93,7 +93,7 @@ pub fn service_inspector_rail(vault: &Vault, fleet: &FleetState, overview: &Over
                     .child(
                         div()
                             .font_family(FONT_MONO)
-                            .text_size(px(11.0))
+                            .text_size(font_px(11.0))
                             .text_color(TEXT_DIMMER)
                             .text_align(TextAlign::Center)
                             .child(t!("overview-service-inspector-select-a-service-on-the")),
@@ -115,7 +115,7 @@ fn info_cell(label: &str, value: String, value_color: Rgba) -> impl IntoElement 
         .child(
             div()
                 .font_family(FONT_MONO)
-                .text_size(px(9.0))
+                .text_size(font_px(9.0))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(TEXT_DIMMER)
                 .child(label.to_string()),
@@ -123,7 +123,7 @@ fn info_cell(label: &str, value: String, value_color: Rgba) -> impl IntoElement 
         .child(
             div()
                 .font_family(FONT_MONO)
-                .text_size(px(12.5))
+                .text_size(font_px(12.5))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(value_color)
                 .child(value),
@@ -169,7 +169,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(14.0))
+                                .text_size(font_px(14.0))
                                 .font_weight(FontWeight::BOLD)
                                 .text_color(TEXT_PRIMARY)
                                 .child(svc.name.clone()),
@@ -191,7 +191,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                                     let unit = unit.clone();
                                     app_wand.update(cx, |this, cx| this.toggle_service_eli5(&unit, cx));
                                 })
-                                .child(crate::components::icons::inherited_icon(crate::components::icons::TablerIcon::Wand, px(14.0)))
+                                .child(crate::components::icons::inherited_icon(crate::components::icons::TablerIcon::Wand, font_px(14.0)))
                         }),
                 )
                 .child(
@@ -203,7 +203,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                             div()
                                 .bg(pill_bg)
                                 .text_color(svc.status_color())
-                                .text_size(px(9.0))
+                                .text_size(font_px(9.0))
                                 .font_weight(FontWeight::BOLD)
                                 .px(px(5.0))
                                 .py(px(2.0))
@@ -212,7 +212,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                         .child(
                             div()
                                 .font_family(FONT_MONO)
-                                .text_size(px(10.5))
+                                .text_size(font_px(10.5))
                                 .text_color(TEXT_DIM)
                                 .child(svc.description.clone()),
                         ),
@@ -247,7 +247,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .text_color(CRIT_INK)
                         .child(t!("overview-service-inspector-did-not-reach-the-expected", unit = unit)),
                 )
@@ -260,7 +260,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                         .cursor_pointer()
                         .hover(|s| s.bg(hex_rgb(0xef4444)))
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(hex_rgb(0x0a0a0c))
                         .on_click(move |_ev, _window, cx| {
@@ -312,7 +312,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
+                                        .text_size(font_px(11.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(hex_rgb(0x38bdf8))
                                         .child(t!("overview-service-inspector-view-edit-unit")),
@@ -320,7 +320,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(9.5))
+                                        .text_size(font_px(9.5))
                                         .text_color(TEXT_DIM)
                                         .child(t!("overview-service-inspector-inspect-unit-file-dropins")),
                                 ),
@@ -361,7 +361,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                 .child(
                     div()
                         .font_family(FONT_MONO)
-                        .text_size(px(11.0))
+                        .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
                         .text_color(TEXT_PRIMARY)
                         .child(t!("overview-service-inspector-view-logs-for-this-unit")),
@@ -406,7 +406,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(11.0))
+                                        .text_size(font_px(11.0))
                                         .font_weight(FontWeight::BOLD)
                                         .text_color(OK)
                                         .child(t!("overview-service-inspector-edit", file = file)),
@@ -414,7 +414,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
-                                        .text_size(px(9.5))
+                                        .text_size(font_px(9.5))
                                         .text_color(TEXT_DIM)
                                         .child(t!("overview-service-inspector-open-in-crow-config-structured")),
                                 ),
@@ -463,7 +463,7 @@ fn render_recent_actions(records: &[ChangeRecord], app: Entity<CrowApp>) -> impl
                         .border_b_1()
                         .border_color(BORDER_PANEL)
                         .font_family(FONT_MONO)
-                        .text_size(px(10.0))
+                        .text_size(font_px(10.0))
                         .child(div().size(px(6.0)).rounded_full().bg(dot_color).flex_none())
                         .child(
                             div()
@@ -481,7 +481,7 @@ fn render_recent_actions(records: &[ChangeRecord], app: Entity<CrowApp>) -> impl
                         .children(rec.blast_radius.clone().map(|b| {
                             div()
                                 .text_color(TEXT_DIMMER)
-                                .text_size(px(9.0))
+                                .text_size(font_px(9.0))
                                 .child(b)
                         }))
                         .child(
@@ -505,7 +505,7 @@ fn render_recent_actions(records: &[ChangeRecord], app: Entity<CrowApp>) -> impl
                                     .cursor_pointer()
                                     .hover(|s| s.bg(WARN.opacity(0.15)))
                                     .font_family(FONT_MONO)
-                                    .text_size(px(8.5))
+                                    .text_size(font_px(8.5))
                                     .font_weight(FontWeight::BOLD)
                                     .text_color(WARN)
                                     .on_click(move |_ev, _window, cx| {
@@ -531,7 +531,7 @@ fn section_divider(label: &str) -> impl IntoElement {
         .child(
             div()
                 .font_family(FONT_MONO)
-                .text_size(px(9.5))
+                .text_size(font_px(9.5))
                 .font_weight(FontWeight::SEMIBOLD)
                 .text_color(TEXT_DIMMER)
                 .child(label.to_string()),
@@ -560,7 +560,7 @@ fn action_button(
         .cursor_pointer()
         .hover(|s| s.bg(BG_ROW_HOVER))
         .font_family(FONT_MONO)
-        .text_size(px(10.5))
+        .text_size(font_px(10.5))
         .font_weight(FontWeight::BOLD)
         .text_color(fg)
         .on_click(on_click)
@@ -664,7 +664,7 @@ fn render_pending_confirm(unit_name: &str, action: &str, overview: &OverviewStat
         .child(
             div()
                 .font_family(FONT_MONO)
-                .text_size(px(11.0))
+                .text_size(font_px(11.0))
                 .text_color(CRIT_INK)
                 .child(format!(
                     "{} {}? {}",
@@ -688,7 +688,7 @@ fn render_pending_confirm(unit_name: &str, action: &str, overview: &OverviewStat
                         .cursor_pointer()
                         .hover(|s| s.bg(BG_ROW_HOVER))
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .text_color(TEXT_TERTIARY)
                         .on_click(move |_ev, _window, cx| {
                             app_cancel.update(cx, |this, cx| {
@@ -709,7 +709,7 @@ fn render_pending_confirm(unit_name: &str, action: &str, overview: &OverviewStat
                         .cursor_pointer()
                         .hover(|s| s.bg(hex_rgb(0xef4444)))
                         .font_family(FONT_MONO)
-                        .text_size(px(10.5))
+                        .text_size(font_px(10.5))
                         .font_weight(FontWeight::BOLD)
                         .text_color(hex_rgb(0x0a0a0c))
                         .on_click(move |_ev, _window, cx| {
@@ -731,8 +731,8 @@ pub(crate) fn render_eli5(loading: bool, result: Option<&Result<crate::views::ov
     use crate::ai::Severity;
     let body = div().flex().flex_col().gap(px(8.0)).p(px(12.0)).bg(WAND.opacity(0.05)).border_1().border_color(WAND.opacity(0.35));
     match (loading, result) {
-        (true, _) | (false, None) => body.child(div().font_family(FONT_MONO).text_size(px(10.5)).text_color(WAND).child(t!("overview-service-inspector-asking-the-clanker-what-this"))),
-        (false, Some(Err(e))) => body.child(div().font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(CRIT).child(e.clone())),
+        (true, _) | (false, None) => body.child(div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(WAND).child(t!("overview-service-inspector-asking-the-clanker-what-this"))),
+        (false, Some(Err(e))) => body.child(div().font_family(FONT_MONO).text_size(font_px(10.5)).line_height(px(15.0)).text_color(CRIT).child(e.clone())),
         (false, Some(Ok(e))) => body
             .children(e.severity.as_ref().map(|(level, reason)| {
                 let (label, color) = match level {
@@ -745,8 +745,8 @@ pub(crate) fn render_eli5(loading: bool, result: Option<&Result<crate::views::ov
                     .flex()
                     .items_start()
                     .gap(px(8.0))
-                    .child(crate::components::button::badge(color).flex_none().text_size(px(9.0)).font_weight(FontWeight::BOLD).child(label))
-                    .child(div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(px(10.5)).line_height(px(15.0)).text_color(TEXT_SECONDARY).child(t!("overview-service-inspector-to-stop-or-restart", reason = reason)))
+                    .child(crate::components::button::badge(color).flex_none().text_size(font_px(9.0)).font_weight(FontWeight::BOLD).child(label))
+                    .child(div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(font_px(10.5)).line_height(px(15.0)).text_color(TEXT_SECONDARY).child(t!("overview-service-inspector-to-stop-or-restart", reason = reason)))
             }))
             // One line per point, its label ("If you stop it:") bold.
             .children(e.body.lines().map(str::trim).filter(|l| !l.is_empty()).map(|line| {
@@ -757,13 +757,13 @@ pub(crate) fn render_eli5(loading: bool, result: Option<&Result<crate::views::ov
                 };
                 div()
                     .font_family(FONT_MONO)
-                    .text_size(px(11.0))
+                    .text_size(font_px(11.0))
                     .line_height(px(16.0))
                     .text_color(TEXT_PRIMARY)
                     .children(label.map(|l| div().font_weight(FontWeight::BOLD).text_color(WAND).child(l)))
                     .child(rest)
             }))
-            .child(div().font_family(FONT_MONO).text_size(px(9.0)).text_color(TEXT_FAINT).child(match &e.primary_failed {
+            .child(div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(TEXT_FAINT).child(match &e.primary_failed {
                 Some(why) => t!("overview-service-inspector-via-the-backup-the-primary", via = e.via, why = why),
                 None => t!("overview-service-inspector-via-an-ais-reading-check", via = e.via),
             })),
