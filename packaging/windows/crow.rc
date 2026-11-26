@@ -1,8 +1,8 @@
 1 ICON "crow.ico"
 
 1 VERSIONINFO
-FILEVERSION 0,8,9,0
-PRODUCTVERSION 0,8,9,0
+FILEVERSION 0,8,10,0
+PRODUCTVERSION 0,8,10,0
 FILEOS 0x40004
 FILETYPE 0x1
 BEGIN
@@ -12,12 +12,12 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "Errorware"
             VALUE "FileDescription", "Crow - Native Linux Server Manager over SSH"
-            VALUE "FileVersion", "0.8.9"
+            VALUE "FileVersion", "0.8.10"
             VALUE "InternalName", "crow"
             VALUE "LegalCopyright", "Copyright (c) Errorware (MIT License)"
             VALUE "OriginalFilename", "crow.exe"
             VALUE "ProductName", "Crow"
-            VALUE "ProductVersion", "0.8.9"
+            VALUE "ProductVersion", "0.8.10"
         END
     END
     BLOCK "VarFileInfo"

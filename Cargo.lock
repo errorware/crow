@@ -1505,7 +1505,7 @@ dependencies = [
 
 [[package]]
 name = "crow-rs"
-version = "0.8.9"
+version = "0.8.10"
 dependencies = [
  "alacritty_terminal",
  "argon2",
