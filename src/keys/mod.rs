@@ -105,9 +105,9 @@ pub struct EditKeyModalState {
     pub error_message: Option<String>,
 }
 
-/// Expands a leading '~' into the user's home directory.
+/// Expands a leading '~' (`~/` or `~\`) into the user's home directory.
 pub fn expand_tilde(path_str: &str) -> PathBuf {
-    if let Some(stripped) = path_str.strip_prefix("~/") {
+    if let Some(stripped) = path_str.strip_prefix("~/").or_else(|| path_str.strip_prefix("~\\")) {
         if let Some(home) = dirs::home_dir() {
             return home.join(stripped);
         }
@@ -123,7 +123,7 @@ pub fn expand_tilde(path_str: &str) -> PathBuf {
 pub fn contract_tilde(path: &Path) -> String {
     if let Some(home) = dirs::home_dir() {
         if let Ok(rel) = path.strip_prefix(&home) {
-            return format!("~/{}", rel.display());
+            return format!("~/{}", rel.display().to_string().replace('\\', "/"));
         }
     }
     path.display().to_string()
@@ -145,14 +145,19 @@ fn write_new_file(path: &Path, content: &[u8], mode: u32) -> std::io::Result<()>
         use std::os::unix::fs::OpenOptionsExt;
         opts.mode(mode);
     }
-    #[cfg(not(unix))]
+    opts.open(path)?.write_all(content)?;
+    #[cfg(windows)]
+    if mode == 0o600 {
+        crate::platform::restrict_to_current_user(path)?;
+    }
+    #[cfg(not(any(unix, windows)))]
     let _ = mode;
-    opts.open(path)?.write_all(content)
+    Ok(())
 }
 
 #[cfg(not(unix))]
-pub fn set_private_key_permissions(_path: &Path) -> std::io::Result<()> {
-    Ok(())
+pub fn set_private_key_permissions(path: &Path) -> std::io::Result<()> {
+    crate::platform::restrict_to_current_user(path)
 }
 
 fn format_algorithm_label(algo: &Algorithm) -> String {
@@ -442,6 +447,7 @@ mod tests {
     fn test_tilde_helpers() {
         let expanded = expand_tilde("~/.ssh");
         assert!(expanded.is_absolute());
+        assert_eq!(expand_tilde("~\\.ssh"), expanded);
         let contracted = contract_tilde(&expanded);
         assert_eq!(contracted, "~/.ssh");
     }

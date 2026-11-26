@@ -643,12 +643,8 @@ impl CrowApp {
     }
 }
 
-/// Opens a web link in the default browser. The URL is one argument, never
+/// Opens a web link in the default browser. The URL is validated and never
 /// passed through a shell.
 pub(super) fn open_url(url: &str) {
-    #[cfg(target_os = "macos")]
-    let opener = "open";
-    #[cfg(not(target_os = "macos"))]
-    let opener = "xdg-open";
-    let _ = std::process::Command::new(opener).arg(url).stdin(std::process::Stdio::null()).stdout(std::process::Stdio::null()).stderr(std::process::Stdio::null()).spawn();
+    crate::platform::open_url(url);
 }

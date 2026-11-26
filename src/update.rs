@@ -82,7 +82,9 @@ fn curl(args: &[&str]) -> Result<Vec<u8>, String> {
         summary: format!("GET {url}"),
         request_payload: format!("curl {}", args.join(" ")),
     })?;
-    let out = match Command::new("curl")
+    let mut cmd = Command::new("curl");
+    crate::platform::configure_background_command(&mut cmd);
+    let out = match cmd
         .args(["-fsSL", "--proto", "=https", "--max-time", "300", "-A", concat!("crow/", env!("CARGO_PKG_VERSION"))])
         .args(args)
         .output()
@@ -162,7 +164,9 @@ pub fn install(release: &Release) -> Result<String, String> {
         let provenance = dir.join("provenance.intoto.jsonl");
         curl(&["-o", &archive.to_string_lossy(), &archive_url])?;
         curl(&["-o", &provenance.to_string_lossy(), &provenance_url])?;
-        let out = Command::new(&verifier)
+        let mut verify_cmd = Command::new(&verifier);
+        crate::platform::configure_background_command(&mut verify_cmd);
+        let out = verify_cmd
             .args(["verify-artifact", &archive.to_string_lossy(), "--provenance-path", &provenance.to_string_lossy()])
             .args(["--source-uri", &format!("github.com/{REPO}"), "--source-tag", &release.tag])
             .output()
@@ -200,6 +204,7 @@ fn swap_app(new: &Path, target: &Path) -> Result<(), String> {
 }
 
 fn run(cmd: &mut Command) -> Result<(), String> {
+    crate::platform::configure_background_command(cmd);
     let out = cmd.output().map_err(|e| e.to_string())?;
     if out.status.success() {
         Ok(())

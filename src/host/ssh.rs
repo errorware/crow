@@ -58,7 +58,8 @@ pub struct SshSettings {
 
 impl Default for SshSettings {
     fn default() -> Self {
-        Self { connect_timeout: 8, keepalive_interval: 15, control_master: true }
+        // Win32-OpenSSH does not support ControlMaster/ControlPersist multiplexing.
+        Self { connect_timeout: 8, keepalive_interval: 15, control_master: cfg!(unix) }
     }
 }
 
@@ -68,7 +69,11 @@ fn ssh_settings() -> &'static RwLock<SshSettings> {
 }
 
 /// Applies saved settings to connections opened from now on.
-pub fn set_ssh_settings(s: SshSettings) {
+pub fn set_ssh_settings(mut s: SshSettings) {
+    #[cfg(windows)]
+    {
+        s.control_master = false;
+    }
     if let Ok(mut current) = ssh_settings().write() {
         *current = s;
     }
@@ -85,12 +90,18 @@ fn base_options(settings: &SshSettings) -> Vec<String> {
         "ForwardX11=no".to_string(),
         "ServerAliveCountMax=2".to_string(),
     ];
-    let configured = [
+    #[cfg_attr(not(unix), allow(unused_mut))]
+    let mut configured = vec![
         format!("ConnectTimeout={}", settings.connect_timeout.max(1)),
         format!("ServerAliveInterval={}", settings.keepalive_interval.max(1)),
-        format!("ControlMaster={}", if settings.control_master { "auto" } else { "no" }),
-        format!("ControlPersist={}", if settings.control_master { "600" } else { "no" }),
     ];
+    #[cfg(unix)]
+    {
+        configured.push(format!("ControlMaster={}", if settings.control_master { "auto" } else { "no" }));
+        configured.push(format!("ControlPersist={}", if settings.control_master { "600" } else { "no" }));
+    }
+    #[cfg(not(unix))]
+    let _ = settings.control_master;
     fixed.into_iter().chain(configured).flat_map(|o| ["-o".to_string(), o]).collect()
 }
 
@@ -430,6 +441,42 @@ fn forward_target(host: &str, port: u16) -> String {
     }
 }
 
+/// Quotes one argument for Windows `CommandLineToArgvW` / Win32-OpenSSH
+/// `ProxyCommand` execution. Single quotes are literal on Windows, so paths
+/// or nested ProxyCommands with spaces/quotes must use double quotes.
+pub fn windows_proxy_quote(arg: &str) -> String {
+    if !arg.is_empty() && !arg.chars().any(|c| c.is_ascii_whitespace() || c == '"') {
+        return arg.to_string();
+    }
+    let mut out = String::with_capacity(arg.len() + 2);
+    out.push('"');
+    let mut backslashes = 0usize;
+    for c in arg.chars() {
+        match c {
+            '\\' => backslashes += 1,
+            '"' => {
+                for _ in 0..(backslashes * 2 + 1) {
+                    out.push('\\');
+                }
+                out.push('"');
+                backslashes = 0;
+            }
+            _ => {
+                for _ in 0..backslashes {
+                    out.push('\\');
+                }
+                backslashes = 0;
+                out.push(c);
+            }
+        }
+    }
+    for _ in 0..(backslashes * 2) {
+        out.push('\\');
+    }
+    out.push('"');
+    out
+}
+
 /// The `ProxyCommand` that reaches `host:port` through `chain` (nearest
 /// first): an ssh to the last bastion that forwards stdio (`-W`), itself
 /// going through the bastions before it. Every hop gets Crow's fixed
@@ -445,7 +492,9 @@ pub fn proxy_command(program: &str, settings: &SshSettings, chain: &[Hop], host:
             _ => a,
         });
     }
-    argv.extend(["-o".into(), "ControlPath=none".into(), "-p".into(), last.port.to_string()]);
+    #[cfg(unix)]
+    argv.extend(["-o".into(), "ControlPath=none".into()]);
+    argv.extend(["-p".into(), last.port.to_string()]);
     if !last.user.is_empty() {
         argv.extend(["-l".into(), last.user.clone()]);
     }
@@ -463,7 +512,11 @@ pub fn proxy_command(program: &str, settings: &SshSettings, chain: &[Hop], host:
     if let Some(bad) = argv.iter().find(|a| a.contains('%') && !a.starts_with("ProxyCommand=")) {
         return Err(t!("host-ssh-holds-a-which-ssh-would", bad = format!("{:?}", bad)));
     }
-    Ok(argv.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" "))
+    #[cfg(windows)]
+    let quoted = argv.iter().map(|a| windows_proxy_quote(a)).collect::<Vec<_>>().join(" ");
+    #[cfg(not(windows))]
+    let quoted = argv.iter().map(|a| shell_quote(a)).collect::<Vec<_>>().join(" ");
+    Ok(quoted)
 }
 
 /// The bastions on the way to `server`, from what the app has synced.
@@ -541,8 +594,13 @@ impl SshHost {
         let port = if server.port == 0 { 22 } else { server.port };
         let settings = ssh_settings().read().map(|s| *s).unwrap_or_default();
         let mut args = base_options(&settings);
-        args.push("-o".into());
-        args.push(format!("ControlPath={}/%C-{}", control_dir.display(), route_tag(&chain)));
+        #[cfg(unix)]
+        {
+            args.push("-o".into());
+            args.push(format!("ControlPath={}/%C-{}", control_dir.display(), route_tag(&chain)));
+        }
+        #[cfg(not(unix))]
+        let _ = (&control_dir, route_tag(&chain));
         args.extend(["-p".into(), port.to_string()]);
         if !server.login_user.is_empty() {
             args.extend(["-l".into(), server.login_user.clone()]);
@@ -709,10 +767,7 @@ impl SshHost {
 }
 
 fn expand_home(path: &str) -> String {
-    match (path.strip_prefix("~/"), dirs::home_dir()) {
-        (Some(rest), Some(home)) => home.join(rest).display().to_string(),
-        _ => path.to_string(),
-    }
+    crate::keys::expand_tilde(path).display().to_string()
 }
 
 /// Maps an ssh client failure (exit 255) to a connection state.
@@ -735,29 +790,37 @@ impl Host for SshHost {
 
     /// Closes the multiplexed connection this server's ControlMaster holds
     /// (ERR-32): `ssh -O exit` with the same options resolves to the same `%C`
-    /// control socket that `exec_stdin` opened.
+    /// control socket that `exec_stdin` opened. On Windows (where Win32-OpenSSH
+    /// has no ControlMaster multiplexing), this is a clean no-op.
     fn close_connection(&self) -> bool {
-        let span = crate::wire::begin(crate::wire::WireStart {
-            category: crate::wire::WireCategory::Ssh,
-            protocol: "SSH",
-            caller: crate::wire::current_caller("ssh.close_mux"),
-            target_label: self.label.clone(),
-            remote_host: self.dest.0.clone(),
-            remote_port: self.dest.1,
-            via_hop: self.via_hop(),
-            summary: "ssh -O exit (ControlMaster teardown)".into(),
-            request_payload: "ssh -O exit".into(),
-        });
-        let mut argv: Vec<&str> = vec![self.program.as_str(), "-O", "exit"];
-        argv.extend(self.args.iter().map(String::as_str));
-        match run_command(&argv, &[], Duration::from_secs(5)) {
-            Ok(out) => {
-                span.finish_ok(0, out.stdout.len() as u64, &out.stdout);
-                true
-            }
-            Err(e) => {
-                span.finish_err(crate::wire::WireStatus::Error, &e.to_string(), &e.to_string());
-                false
+        #[cfg(windows)]
+        {
+            return false;
+        }
+        #[cfg(not(windows))]
+        {
+            let span = crate::wire::begin(crate::wire::WireStart {
+                category: crate::wire::WireCategory::Ssh,
+                protocol: "SSH",
+                caller: crate::wire::current_caller("ssh.close_mux"),
+                target_label: self.label.clone(),
+                remote_host: self.dest.0.clone(),
+                remote_port: self.dest.1,
+                via_hop: self.via_hop(),
+                summary: "ssh -O exit (ControlMaster teardown)".into(),
+                request_payload: "ssh -O exit".into(),
+            });
+            let mut argv: Vec<&str> = vec![self.program.as_str(), "-O", "exit"];
+            argv.extend(self.args.iter().map(String::as_str));
+            match run_command(&argv, &[], Duration::from_secs(5)) {
+                Ok(out) => {
+                    span.finish_ok(0, out.stdout.len() as u64, &out.stdout);
+                    true
+                }
+                Err(e) => {
+                    span.finish_err(crate::wire::WireStatus::Error, &e.to_string(), &e.to_string());
+                    false
+                }
             }
         }
     }
@@ -918,6 +981,7 @@ mod tests {
         }
     }
 
+    #[cfg(unix)]
     #[test]
     fn each_route_to_a_server_gets_its_own_connection() {
         let control = |chain: Vec<Hop>| SshHost::new(&server("publickey", Some("k1")), Some("/keys/id".into()), chain, "/run/crow".into()).args.into_iter().find(|a| a.starts_with("ControlPath=")).unwrap();
@@ -937,16 +1001,47 @@ mod tests {
         let h = SshHost::new(&server("publickey", Some("k1")), Some("/keys/id".into()), vec![hop], "/run/crow".into());
         let a = h.args.join(" ");
         assert!(a.contains("BatchMode=yes") && a.contains("StrictHostKeyChecking=yes"));
+        #[cfg(unix)]
         assert!(a.contains("ControlMaster=auto") && a.contains("ControlPath=/run/crow/%C-") && !a.contains("%C-direct"));
+        #[cfg(windows)]
+        assert!(!a.contains("ControlMaster=") && !a.contains("ControlPath=") && !a.contains("ControlPersist="));
         assert!(a.contains("-p 2222") && a.contains("-l ops"));
         assert!(a.contains("-i /keys/id -o IdentitiesOnly=yes"));
         let proxy = h.args.iter().find(|a| a.starts_with("ProxyCommand=")).expect("a bastion means a ProxyCommand");
         assert!(proxy.contains("-l root") && proxy.contains("-i /keys/bastion") && proxy.contains("-W 10.0.4.12:2222 -- bastion.lan"), "{proxy}");
-        assert!(proxy.contains("BatchMode=yes") && proxy.contains("StrictHostKeyChecking=yes") && proxy.contains("ControlPath=none"), "the hop keeps Crow's security options: {proxy}");
+        assert!(proxy.contains("BatchMode=yes") && proxy.contains("StrictHostKeyChecking=yes"), "the hop keeps Crow's security options: {proxy}");
+        #[cfg(unix)]
+        assert!(proxy.contains("ControlPath=none"), "{proxy}");
         assert!(!a.contains(" -J "), "no -J: it would drop the hop's options");
         assert!(h.label().ends_with("via bastion"));
         assert_eq!(&h.args[h.args.len() - 2..], ["--", "10.0.4.12"]);
         assert!(h.unsupported.is_none());
+    }
+
+    #[test]
+    fn windows_proxy_command_quotes_spaces_with_double_quotes() {
+        assert_eq!(windows_proxy_quote("ssh"), "ssh");
+        assert_eq!(
+            windows_proxy_quote(r"C:\Users\John Doe\.ssh\id_ed25519"),
+            r#""C:\Users\John Doe\.ssh\id_ed25519""#
+        );
+        assert_eq!(
+            windows_proxy_quote(r#"ProxyCommand=ssh -i "C:\Users\John Doe\k" -W 10.0.0.2:22 -- 1.1.1.1"#),
+            r#""ProxyCommand=ssh -i \"C:\Users\John Doe\k\" -W 10.0.0.2:22 -- 1.1.1.1""#
+        );
+        #[cfg(windows)]
+        {
+            let hop = Hop {
+                name: "b".into(),
+                host: "bastion.lan".into(),
+                port: 22,
+                user: "ops".into(),
+                key_path: Some(r"C:\Users\John Doe\.ssh\id_ed25519".into()),
+            };
+            let cmd = proxy_command("ssh", &SshSettings::default(), &[hop], "10.0.0.5", 22).unwrap();
+            assert!(cmd.contains(r#"-i "C:\Users\John Doe\.ssh\id_ed25519""#), "{cmd}");
+            assert!(!cmd.contains('\''), "Windows ProxyCommand must not use POSIX single quotes: {cmd}");
+        }
     }
 
     fn rec(id: &str, host: &str, jump: Option<&str>, auth: &str, key: Option<&str>) -> ServerRecord {
@@ -1179,12 +1274,16 @@ mod tests {
     fn settings_reach_the_ssh_options_and_security_ones_stay_fixed() {
         let args = base_options(&SshSettings { connect_timeout: 20, keepalive_interval: 30, control_master: false }).join(" ");
         assert!(args.contains("ConnectTimeout=20") && args.contains("ServerAliveInterval=30"));
+        #[cfg(unix)]
         assert!(args.contains("ControlMaster=no") && args.contains("ControlPersist=no"));
         for fixed in ["BatchMode=yes", "StrictHostKeyChecking=yes", "ForwardAgent=no", "ForwardX11=no"] {
             assert!(args.contains(fixed), "{fixed} is always set");
         }
         let default = base_options(&SshSettings::default()).join(" ");
+        #[cfg(unix)]
         assert!(default.contains("ControlMaster=auto") && default.contains("ControlPersist=600"));
+        #[cfg(windows)]
+        assert!(!default.contains("ControlMaster=") && !default.contains("ControlPersist="));
     }
 
     #[test]

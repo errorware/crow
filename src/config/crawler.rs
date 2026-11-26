@@ -373,15 +373,17 @@ pub fn crawl_all_configs(host: &dyn Host, family: DistroFamily) -> Vec<Discovere
         }
     }
 
-    // Check user's crow config path (~/.config/crow/config.toml) — Crow's own
-    // settings, so only when crawling the machine Crow runs on.
-    if let Some(home) = dirs::home_dir().filter(|_| host.is_local()) {
-        let crow_cfg = home.join(".config").join("crow").join("config.toml");
+    // Check user's crow config path (~/.config/crow/config.toml on Unix,
+    // %APPDATA%\crow\config.toml on Windows) — Crow's own settings, so only
+    // when crawling the machine Crow runs on.
+    if host.is_local() {
+        let cfg_dir = crate::platform::crow_config_dir();
+        let crow_cfg = cfg_dir.join("config.toml");
         if crow_cfg.exists() && seen_paths.insert(crow_cfg.clone()) {
             let size = fs::metadata(&crow_cfg).map(|m| m.len()).unwrap_or(1200);
             discovered.push(DiscoveredConfigFile {
                 name: "config.toml".to_string(),
-                path_dir: format!("{}/.config/crow", home.display()),
+                path_dir: cfg_dir.display().to_string(),
                 full_path: crow_cfg,
                 schema_kind: Some(SchemaKind::Crow),
                 is_schema_mapped: true,

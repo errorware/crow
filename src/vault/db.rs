@@ -389,18 +389,32 @@ pub(crate) fn private_files(path: &Path, own_dir: bool) {
             }
         }
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        let _ = std::fs::OpenOptions::new().create(true).append(true).open(path);
+        let (Some(dir), Some(name)) = (path.parent(), path.file_name().and_then(|n| n.to_str())) else { return };
+        if own_dir {
+            let _ = crate::platform::restrict_to_current_user(dir);
+        }
+        let Ok(entries) = std::fs::read_dir(dir) else { return };
+        for e in entries.flatten() {
+            let n = e.file_name();
+            let n = n.to_string_lossy();
+            let ours = n == name || n.strip_prefix(name).is_some_and(|rest| rest.starts_with('-') || rest.starts_with('.'));
+            if ours && e.file_type().is_ok_and(|t| t.is_file()) {
+                let _ = crate::platform::restrict_to_current_user(&e.path());
+            }
+        }
+    }
+    #[cfg(not(any(unix, windows)))]
     let _ = (path, own_dir);
 }
 
 impl VaultDb {
-    /// Returns the default path for Crow's SQLite database (~/.config/crow/crow.db).
+    /// Returns the default path for Crow's SQLite database
+    /// (`~/.config/crow/crow.db` on Unix, `%APPDATA%\crow\crow.db` on Windows).
     pub fn default_path() -> PathBuf {
-        if let Some(config_dir) = dirs::config_dir() {
-            config_dir.join("crow").join("crow.db")
-        } else {
-            PathBuf::from("crow.db")
-        }
+        crate::platform::crow_config_dir().join("crow.db")
     }
 
     /// Opens or creates the SQLite vault at the specified path (or default path if None).

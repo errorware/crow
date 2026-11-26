@@ -1,8 +1,10 @@
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 #![recursion_limit = "2048"]
 use gpui_kit::*;
 
 #[macro_use]
 pub mod i18n;
+pub mod platform;
 pub mod agent;
 pub mod ai;
 pub mod appearance;
@@ -60,20 +62,24 @@ fn main() {
     // English, for the people who write them.
     let args: Vec<String> = std::env::args().collect();
     if args.get(1).map(String::as_str) == Some("--check-language") {
+        platform::attach_parent_console();
         std::process::exit(i18n::pack::check_file_main(args.get(2).map(String::as_str)));
     }
     // `crow --check-plugin DIR`: what a plugin declares, and whether Crow
     // would load it (ERR-176).
     if args.get(1).map(String::as_str) == Some("--check-plugin") {
+        platform::attach_parent_console();
         std::process::exit(plugin_host::check::check_dir_main(args.get(2).map(String::as_str)));
     }
     // `crow --daemon` / `crow --daemon-once` (aliases `--agent`, `--agent-once`, `--watch`):
     // headless local background telemetry and performance bottleneck monitor (ERR-207, ERR-226).
     let first_arg = args.get(1).map(String::as_str);
     if matches!(first_arg, Some("--daemon" | "--agent" | "--watch")) {
+        platform::attach_parent_console();
         std::process::exit(agent::agent_main(false));
     }
     if matches!(first_arg, Some("--daemon-once" | "--agent-once" | "--watch-once")) {
+        platform::attach_parent_console();
         std::process::exit(agent::agent_main(true));
     }
 

@@ -131,7 +131,9 @@ fn download(path: &std::path::Path) -> Result<(), String> {
             summary: format!("GET {url}"),
             request_payload: format!("GET {url} -> {}", gz.display()),
         })?;
-        let out = match std::process::Command::new("curl")
+        let mut cmd = std::process::Command::new("curl");
+        crate::platform::configure_background_command(&mut cmd);
+        let out = match cmd
             .args(["-fsSL", "--proto", "=https", "--max-time", "120", "-o"])
             .arg(&gz)
             .arg(&url)
@@ -161,7 +163,7 @@ fn download(path: &std::path::Path) -> Result<(), String> {
             let _ = std::fs::remove_file(&tmp);
             return Err(e);
         }
-        return std::fs::rename(&tmp, path).map_err(|e| e.to_string());
+        return crate::platform::replace_file(&tmp, path).map_err(|e| e.to_string());
     }
     Err(t!("geoip-the-geoip-database-couldnt-be-2", last = last))
 }

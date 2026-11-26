@@ -98,7 +98,9 @@ pub fn run(check: &Check) -> Outcome {
                 Err(msg) => return fail(msg, None),
             };
             // Only the start of the body is kept, for the keyword.
-            let out = std::process::Command::new("curl")
+            let mut cmd = std::process::Command::new("curl");
+            crate::platform::configure_background_command(&mut cmd);
+            let out = cmd
                 .args(["-sS", "-v", "-L", "--max-redirs", "5", "--max-time", "10", "--max-filesize", "2000000", "-A", "Crow uptime check", "-w", "\n@@crow %{http_code} %{time_total}", "--", url])
                 .output();
             let out = match out {

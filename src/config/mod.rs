@@ -100,13 +100,7 @@ pub struct CrowConfigManager {
 
 impl CrowConfigManager {
     pub fn config_path() -> PathBuf {
-        if let Some(home) = dirs::home_dir() {
-            home.join(".config").join("crow").join("config.toml")
-        } else if let Some(dir) = dirs::config_dir() {
-            dir.join("crow").join("config.toml")
-        } else {
-            PathBuf::from(".crow_config.toml")
-        }
+        crate::platform::crow_config_dir().join("config.toml")
     }
 
     pub fn load() -> Self {

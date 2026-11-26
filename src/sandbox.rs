@@ -80,6 +80,7 @@ pub fn host_command(argv: &[&str], env: Option<&[(String, String)]>, cwd: Option
         return Ok(c);
     }
     let mut c = Command::new(program);
+    crate::platform::configure_background_command(&mut c);
     c.args(args);
     if let Some(env) = env {
         c.env_clear().envs(env.iter().map(|(k, v)| (k, v)));

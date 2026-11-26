@@ -101,7 +101,7 @@ fn set_current(lang: Language) {
 
 /// Where language packs live.
 pub fn languages_dir() -> PathBuf {
-    dirs::home_dir().unwrap_or_default().join(".config").join("crow").join("languages")
+    crate::platform::crow_config_dir().join("languages")
 }
 
 /// Switches to `code` ("en", a pack's code, or the pseudo-locale). Unknown or

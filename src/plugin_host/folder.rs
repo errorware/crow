@@ -12,7 +12,7 @@ use super::check::{check_dir, Report};
 
 /// Where user plugins live, one folder each.
 pub fn plugins_dir() -> PathBuf {
-    dirs::home_dir().unwrap_or_default().join(".config").join("crow").join("plugins")
+    crate::platform::crow_config_dir().join("plugins")
 }
 
 /// What you decided about a plugin, kept in the vault by its hash.

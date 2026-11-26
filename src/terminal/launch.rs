@@ -42,9 +42,33 @@ pub fn launch_for(server: &ServerRecord) -> Result<Launch, String> {
             Ok(Launch { program, args })
         }
         TransportKind::Local => {
-            let shell = std::env::var("SHELL").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| "/bin/sh".into());
-            Ok(Launch { program: shell, args: vec!["-l".into()] })
+            #[cfg(windows)]
+            {
+                Ok(windows_local_shell())
+            }
+            #[cfg(not(windows))]
+            {
+                let shell = std::env::var("SHELL").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| "/bin/sh".into());
+                Ok(Launch { program: shell, args: vec!["-l".into()] })
+            }
         }
+    }
+}
+
+#[cfg(windows)]
+fn windows_local_shell() -> Launch {
+    let on_path = |exe: &str| {
+        std::env::var_os("PATH").is_some_and(|paths| {
+            std::env::split_paths(&paths).any(|dir| dir.join(exe).is_file())
+        })
+    };
+    if on_path("pwsh.exe") {
+        Launch { program: "pwsh.exe".into(), args: Vec::new() }
+    } else if on_path("powershell.exe") {
+        Launch { program: "powershell.exe".into(), args: Vec::new() }
+    } else {
+        let comspec = std::env::var("COMSPEC").ok().filter(|s| !s.is_empty()).unwrap_or_else(|| "cmd.exe".into());
+        Launch { program: comspec, args: Vec::new() }
     }
 }
 
@@ -74,5 +98,15 @@ mod tests {
     fn password_servers_have_no_terminal() {
         let srv = ServerRecord { host: "10.0.0.5".into(), auth_method: "password".into(), ..Default::default() };
         assert!(launch_for(&srv).is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn local_terminal_picks_windows_shell() {
+        let srv = ServerRecord { host: "localhost".into(), port: 22, ..Default::default() };
+        let l = launch_for(&srv).unwrap();
+        let lower = l.program.to_lowercase();
+        assert!(lower.contains("pwsh") || lower.contains("powershell") || lower.contains("cmd"), "got {}", l.program);
+        assert!(l.args.is_empty());
     }
 }

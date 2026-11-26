@@ -1519,6 +1519,7 @@ dependencies = [
  "crow-provider-linode",
  "crow-provider-upcloud",
  "dirs 7.0.0",
+ "embed-resource",
  "flate2",
  "fluent-bundle",
  "fluent-syntax",

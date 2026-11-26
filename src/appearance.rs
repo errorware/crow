@@ -13,7 +13,7 @@ use std::path::{Path, PathBuf};
 const MAX_WIDTH: u32 = 1920;
 
 pub fn backgrounds_dir() -> PathBuf {
-    dirs::home_dir().unwrap_or_default().join(".config").join("crow").join("backgrounds")
+    crate::platform::crow_config_dir().join("backgrounds")
 }
 
 /// Copies `source` into the backgrounds folder, shrunk and as PNG, and

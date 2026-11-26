@@ -28,13 +28,8 @@ pub fn sha256_hex(text: &str) -> String {
 
 /// Who is making a change: the local account and machine running Crow.
 pub fn local_author() -> String {
-    let user = std::env::var("USER").or_else(|_| std::env::var("LOGNAME")).unwrap_or_else(|_| "unknown".into());
-    let host = std::fs::read_to_string("/proc/sys/kernel/hostname")
-        .ok()
-        .or_else(|| std::process::Command::new("hostname").output().ok().and_then(|o| String::from_utf8(o.stdout).ok()))
-        .map(|h| h.trim().to_string())
-        .filter(|h| !h.is_empty());
-    match host {
+    let user = crate::platform::current_username().unwrap_or_else(|| "unknown".into());
+    match crate::platform::current_hostname() {
         Some(h) => format!("{user}@{h}"),
         None => user,
     }

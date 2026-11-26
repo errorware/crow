@@ -32,10 +32,17 @@ impl CrowApp {
         // The root keeps focus unless a gpui Input (or another focusable
         // child) took it; key events still bubble up to here.
         let typing = window.focused(cx).is_some_and(|f| f != self.focus_handle);
+        // On Windows, `modifiers.platform` is the Windows key and AltGr sets
+        // `control && alt`; only plain Ctrl triggers Crow shortcuts there.
+        let is_mod = if cfg!(target_os = "windows") {
+            ev.keystroke.modifiers.control && !ev.keystroke.modifiers.alt
+        } else {
+            ev.keystroke.modifiers.platform || ev.keystroke.modifiers.control
+        };
         let k = KeyPress {
             ev,
             key: &key,
-            is_mod: ev.keystroke.modifiers.platform || ev.keystroke.modifiers.control,
+            is_mod,
             is_shift: ev.keystroke.modifiers.shift,
             typing,
         };

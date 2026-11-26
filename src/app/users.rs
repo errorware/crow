@@ -232,7 +232,7 @@ impl CrowApp {
         let srv = self.fleet.active_server()?;
         Some(match transport_kind(&srv) {
             TransportKind::Ssh => srv.login_user.clone(),
-            TransportKind::Local => std::env::var("USER").ok()?,
+            TransportKind::Local => crate::platform::current_username()?,
             TransportKind::Container => "root".to_string(),
         })
     }

@@ -26,10 +26,7 @@ impl CrowApp {
         let path = srv.key_id.as_ref().and_then(|id| self.keys.enrolled.iter().find(|k| &k.id == id)).and_then(|k| k.private_key_path.clone());
         match (srv.auth_method.as_str(), path) {
             ("publickey", Some(p)) => {
-                let full = match (p.strip_prefix("~/"), dirs::home_dir()) {
-                    (Some(rest), Some(home)) => home.join(rest),
-                    _ => std::path::PathBuf::from(&p),
-                };
+                let full = crate::keys::expand_tilde(&p);
                 KeyTried::File { exists: full.exists(), path: p }
             }
             _ => KeyTried::Agent,

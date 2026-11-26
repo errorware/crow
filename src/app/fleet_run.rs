@@ -147,7 +147,9 @@ impl CrowApp {
                     }
                     None if kind == TransportKind::Container => {
                         let engine = if srv.tags.iter().any(|t| t == "docker") { "docker" } else { "podman" };
-                        let out = std::process::Command::new(engine).args(["restart", "--", &srv.name]).output().map_err(|e| e.to_string())?;
+                        let mut cmd = std::process::Command::new(engine);
+                        crate::platform::configure_background_command(&mut cmd);
+                        let out = cmd.args(["restart", "--", &srv.name]).output().map_err(|e| e.to_string())?;
                         if out.status.success() { Ok(()) } else { Err(String::from_utf8_lossy(&out.stderr).trim().to_string()) }
                     }
                     None => host.exec_privileged(&["systemctl", "reboot"], &[], crate::host::DEFAULT_TIMEOUT).map(|_| ()).map_err(|e| e.to_string()),

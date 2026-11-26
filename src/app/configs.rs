@@ -693,7 +693,7 @@ impl CrowApp {
                 return Err(reason.clone());
             }
             // Who Crow is there: the server's login, or this machine's user.
-            let login = self.configs_server().map(|s| s.login_user.clone()).unwrap_or_else(|| std::env::var("USER").unwrap_or_default());
+            let login = self.configs_server().map(|s| s.login_user.clone()).unwrap_or_else(|| crate::platform::current_username().unwrap_or_default());
             return crate::config::sudoers::install_sudoers(host.as_ref(), &state.path.to_string_lossy(), &state.current_content, &login).map_err(|e| format!("{file}: {e}"));
         }
         if state.write_blocked.is_none() {

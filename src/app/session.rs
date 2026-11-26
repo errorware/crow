@@ -134,8 +134,8 @@ impl CrowApp {
         if self.setup_state.totp_qr.is_none() {
             let account = format!(
                 "{}@{}",
-                std::env::var("USER").unwrap_or_else(|_| "crow".into()),
-                std::fs::read_to_string("/etc/hostname").map(|h| h.trim().to_string()).unwrap_or_else(|_| t!("app-session-this-computer").into())
+                crate::platform::current_username().unwrap_or_else(|| "crow".into()),
+                crate::platform::current_hostname().unwrap_or_else(|| t!("app-session-this-computer").into())
             );
             self.setup_state.totp_qr = crate::vault::totp_qr_png(&self.setup_state.totp_secret, &account)
                 .ok()

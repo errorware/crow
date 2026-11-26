@@ -77,7 +77,10 @@ fn write_private(path: &Path, text: &str) -> Result<(), String> {
         opts.mode(0o600);
     }
     let mut f = opts.open(path).map_err(|e| format!("{}: {e}", path.display()))?;
-    f.write_all(text.as_bytes()).map_err(|e| format!("{}: {e}", path.display()))
+    f.write_all(text.as_bytes()).map_err(|e| format!("{}: {e}", path.display()))?;
+    drop(f);
+    let _ = crate::platform::restrict_to_current_user(path);
+    Ok(())
 }
 
 /// Returns whether `dir` contains an executable named `cmd`.

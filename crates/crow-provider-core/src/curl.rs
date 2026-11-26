@@ -89,7 +89,14 @@ pub fn parse_output(out: &str) -> Result<HttpResponse, ProviderError> {
 
 impl Http for CurlHttp {
     fn send(&self, request: &HttpRequest) -> Result<HttpResponse, ProviderError> {
-        let mut child = Command::new("curl")
+        let mut cmd = Command::new("curl");
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+            cmd.creation_flags(CREATE_NO_WINDOW);
+        }
+        let mut child = cmd
             .args(["--config", "-"])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())

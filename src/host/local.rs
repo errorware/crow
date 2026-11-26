@@ -6,33 +6,7 @@ use std::process::{Command, Stdio};
 use std::time::{Duration, Instant};
 
 use super::{DirEntry, ExecOutput, Host, HostError};
-
-/// Replaces `dst` with `src` atomically where the OS supports it.
-/// On Windows, `std::fs::rename` fails when `dst` already exists, so use
-/// `MoveFileExW(MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH)`.
-pub(crate) fn replace_file(src: &Path, dst: &Path) -> std::io::Result<()> {
-    #[cfg(windows)]
-    {
-        use std::os::windows::ffi::OsStrExt;
-        use windows_sys::Win32::Storage::FileSystem::{MoveFileExW, MOVEFILE_REPLACE_EXISTING, MOVEFILE_WRITE_THROUGH};
-        let to_wide = |p: &Path| -> Vec<u16> {
-            p.as_os_str().encode_wide().chain(std::iter::once(0)).collect()
-        };
-        let src_w = to_wide(src);
-        let dst_w = to_wide(dst);
-        // SAFETY: both pointers are valid NUL-terminated UTF-16 buffers.
-        let ok = unsafe { MoveFileExW(src_w.as_ptr(), dst_w.as_ptr(), MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) };
-        if ok != 0 {
-            Ok(())
-        } else {
-            Err(std::io::Error::last_os_error())
-        }
-    }
-    #[cfg(not(windows))]
-    {
-        std::fs::rename(src, dst)
-    }
-}
+use crate::platform::{configure_background_command, replace_file};
 
 #[cfg(windows)]
 struct ProcessJob {
@@ -287,6 +261,7 @@ pub(super) fn run_on_host_streaming(argv: &[&str], stdin: &[u8], timeout: Durati
 }
 
 fn run_child(mut command: Command, stdin: &[u8], timeout: Duration) -> Result<ExecOutput, HostError> {
+    configure_background_command(&mut command);
     let mut child = command
         .stdin(if stdin.is_empty() { Stdio::null() } else { Stdio::piped() })
         .stdout(Stdio::piped())
@@ -384,6 +359,7 @@ pub fn stream_child(mut command: Command, stdin: &[u8], timeout: Duration, sink:
         use std::os::unix::process::CommandExt;
         command.process_group(0);
     }
+    configure_background_command(&mut command);
     command.stdin(if stdin.is_empty() { Stdio::null() } else { Stdio::piped() }).stdout(Stdio::piped()).stderr(Stdio::piped());
     let mut child = command.spawn()?;
     #[cfg(windows)]
