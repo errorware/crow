@@ -60,6 +60,16 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.8.9" date="2026-11-26">
+      <description>
+        <p>Crow 0.8.9: Adjustable GUI font size and interface zooming.</p>
+        <ul>
+          <li>Configurable GUI font size in Settings → Personalisation with presets from 10 pt (Compact) to 16 pt (Huge) and custom values</li>
+          <li>Global live zoom shortcuts: Ctrl/Cmd + / = to zoom in, Ctrl/Cmd - / _ to zoom out, and Ctrl/Cmd 0 to reset to default (12 pt)</li>
+          <li>App-wide dynamic typography and icon scaling across all headers, cards, tables, badges, sidebars, and modals</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.8.8" date="2026-11-26">
       <description>
         <p>Crow 0.8.8: Native Windows 11 support with DirectX 11 GPUI rendering, Win32-OpenSSH integration, Windows Credential Manager vault, Task Scheduler daemon, and portable release packaging.</p>
