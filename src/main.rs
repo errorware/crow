@@ -51,6 +51,7 @@ use app::CrowApp;
 
 fn main() {
     crate::sandbox::share_native_folders();
+    crate::update::cleanup_old_binary();
     // Started by ssh as its askpass helper during a password bootstrap
     // (host::bootstrap): answer the prompt and exit, no window.
     if let Ok(sock) = std::env::var(host::bootstrap::ASKPASS_SOCK_ENV) {

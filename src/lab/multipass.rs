@@ -65,6 +65,7 @@ pub enum Platform {
     /// until it's layered in, and system users only in /usr/lib/passwd.
     LinuxOstree,
     Linux,
+    Windows,
     Other,
 }
 
@@ -77,6 +78,8 @@ pub fn platform() -> Platform {
         } else {
             Platform::Linux
         }
+    } else if cfg!(target_os = "windows") {
+        Platform::Windows
     } else {
         Platform::Other
     }
@@ -87,6 +90,7 @@ pub fn platform() -> Platform {
 pub fn install_steps(platform: Platform, has_snap: bool, has_nobody: bool) -> Vec<InstallStep> {
     match platform {
         Platform::MacOs => vec![step(t!("lab-multipass-install-multipass-with-homebrew"), "brew install --cask multipass")],
+        Platform::Windows => vec![step(t!("lab-multipass-install-multipass-from-canonical"), "winget install Canonical.Multipass")],
         Platform::Other => vec![step(t!("lab-multipass-install-multipass-from-canonical"), "https://canonical.com/multipass/install")],
         Platform::Linux | Platform::LinuxOstree => {
             let mut steps = Vec::new();
@@ -150,7 +154,29 @@ fn has_nobody_in_etc() -> bool {
 }
 
 fn has_command(name: &str) -> bool {
-    LocalHost.exec(&["sh", "-c", "command -v \"$1\"", "crow-which", name], QUICK).is_ok()
+    if crate::sandbox::flatpak() {
+        return LocalHost.exec(&["sh", "-c", "command -v \"$1\"", "crow-which", name], QUICK).is_ok();
+    }
+    let Some(paths) = std::env::var_os("PATH") else {
+        return false;
+    };
+    #[cfg(windows)]
+    let exts: Vec<String> = std::env::var("PATHEXT")
+        .unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into())
+        .split(';')
+        .filter(|e| !e.is_empty())
+        .map(String::from)
+        .collect();
+    std::env::split_paths(&paths).any(|dir| {
+        if dir.join(name).is_file() {
+            return true;
+        }
+        #[cfg(windows)]
+        if exts.iter().any(|ext| dir.join(format!("{name}{ext}")).is_file()) {
+            return true;
+        }
+        false
+    })
 }
 
 /// Checks for the client and its daemon.

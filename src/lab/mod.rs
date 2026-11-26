@@ -76,6 +76,13 @@ impl LocalTestNode {
 /// Scans the local host for existing test containers and VMs
 pub fn scan_local_test_nodes(enrolled_servers: &[ServerRecord]) -> Vec<LocalTestNode> {
     let mut nodes = Vec::new();
+    let mut seen_names = std::collections::HashSet::new();
+
+    let mark_enrolled = |node: &mut LocalTestNode| {
+        node.is_enrolled = enrolled_servers.iter().any(|s| {
+            s.host == "127.0.0.1" && s.port == node.ssh_port.unwrap_or(0) || s.name == node.name
+        });
+    };
 
     // 1. Query podman containers (which also includes distrobox containers)
     if let Ok(output) = crate::sandbox::host_command(&["podman", "ps", "-a", "--format", "json"], None, None).and_then(|mut c| c.output()) {
@@ -83,10 +90,22 @@ pub fn scan_local_test_nodes(enrolled_servers: &[ServerRecord]) -> Vec<LocalTest
             let json_str = String::from_utf8_lossy(&output.stdout);
             if let Ok(parsed) = parse_podman_json(&json_str) {
                 for mut node in parsed {
-                    // Check if already enrolled in Crow
-                    node.is_enrolled = enrolled_servers.iter().any(|s| {
-                        s.host == "127.0.0.1" && s.port == node.ssh_port.unwrap_or(0) || s.name == node.name
-                    });
+                    mark_enrolled(&mut node);
+                    if seen_names.insert(node.name.clone()) {
+                        nodes.push(node);
+                    }
+                }
+            }
+        }
+    }
+
+    // 2. Query Docker / Docker Desktop containers
+    if let Ok(output) = crate::sandbox::host_command(&["docker", "ps", "-a", "--format", "json"], None, None).and_then(|mut c| c.output()) {
+        if output.status.success() {
+            let json_str = String::from_utf8_lossy(&output.stdout);
+            for mut node in parse_docker_ndjson(&json_str) {
+                mark_enrolled(&mut node);
+                if seen_names.insert(node.name.clone()) {
                     nodes.push(node);
                 }
             }
@@ -165,6 +184,68 @@ pub fn parse_podman_json(json_str: &str) -> Result<Vec<LocalTestNode>, serde_jso
     }
 
     Ok(nodes)
+}
+
+#[derive(Deserialize)]
+struct DockerContainerEntry {
+    #[serde(rename = "ID")]
+    id: Option<String>,
+    #[serde(rename = "Names")]
+    names: Option<String>,
+    #[serde(rename = "Image")]
+    image: Option<String>,
+    #[serde(rename = "State")]
+    state: Option<String>,
+    #[serde(rename = "Ports")]
+    ports: Option<String>,
+}
+
+/// Extracts a host port mapped to container port 22 (or the first published host port)
+/// from Docker's `Ports` string such as `"0.0.0.0:2222->22/tcp, [::]:2222->22/tcp"`.
+fn parse_docker_ssh_port(ports: &str) -> Option<u16> {
+    let mut first_any = None;
+    for part in ports.split(',') {
+        let part = part.trim();
+        let Some((host_side, container_side)) = part.split_once("->") else { continue };
+        let host_port = host_side.rsplit(':').next()?.parse::<u16>().ok()?;
+        if container_side.starts_with("22/") || container_side == "22" {
+            return Some(host_port);
+        }
+        if first_any.is_none() {
+            first_any = Some(host_port);
+        }
+    }
+    first_any
+}
+
+/// Parses `docker ps -a --format json` NDJSON lines into `LocalTestNode` entries.
+pub fn parse_docker_ndjson(ndjson: &str) -> Vec<LocalTestNode> {
+    let mut nodes = Vec::new();
+    for line in ndjson.lines().map(str::trim).filter(|l| !l.is_empty()) {
+        let Ok(e) = serde_json::from_str::<DockerContainerEntry>(line) else { continue };
+        let name = e
+            .names
+            .as_deref()
+            .and_then(|n| n.split(',').next())
+            .map(str::trim)
+            .filter(|n| !n.is_empty())
+            .unwrap_or("unnamed")
+            .to_string();
+        let id = e.id.unwrap_or_else(|| name.clone());
+        let image = e.image.unwrap_or_else(|| "unknown".into());
+        let state = e.state.unwrap_or_else(|| "stopped".into());
+        let ssh_port = e.ports.as_deref().and_then(parse_docker_ssh_port);
+        nodes.push(LocalTestNode {
+            id,
+            name,
+            engine: LocalLabEngine::Docker,
+            image,
+            state,
+            ssh_port,
+            is_enrolled: false,
+        });
+    }
+    nodes
 }
 
 /// Starts a local test node using its container manager
@@ -309,5 +390,20 @@ mod tests {
         assert_eq!(rec.host, "127.0.0.1");
         assert_eq!(rec.port, 2222);
         assert_eq!(rec.env, "LAB");
+    }
+
+    #[test]
+    fn test_parse_docker_ndjson() {
+        let sample = r#"{"ID":"deadbeef1234","Names":"lab-ubuntu","Image":"ubuntu:24.04","State":"running","Ports":"0.0.0.0:2222->22/tcp, [::]:2222->22/tcp"}
+{"ID":"cafebabe5678","Names":"lab-db","Image":"postgres:17","State":"exited","Ports":""}"#;
+        let nodes = parse_docker_ndjson(sample);
+        assert_eq!(nodes.len(), 2);
+        assert_eq!(nodes[0].name, "lab-ubuntu");
+        assert_eq!(nodes[0].engine, LocalLabEngine::Docker);
+        assert_eq!(nodes[0].ssh_port, Some(2222));
+        assert!(nodes[0].is_running());
+        assert_eq!(nodes[1].name, "lab-db");
+        assert_eq!(nodes[1].ssh_port, None);
+        assert!(!nodes[1].is_running());
     }
 }

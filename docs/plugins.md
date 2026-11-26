@@ -3,7 +3,8 @@
 A Crow plugin is a folder: a `plugin.toml` that says what the plugin can do, plus the scripts it uses. There is no compiled code. Crow runs the plugin's commands over its own SSH connections, asks before anything changes, records every run, and shows the results with the same tables, badges and consoles as its built-in pages.
 
 ```
-~/.config/crow/plugins/
+~/.config/crow/plugins/          # Linux / macOS
+%APPDATA%\crow\plugins\          # Windows
 └── restic-check/
     ├── plugin.toml
     ├── status.sh
@@ -11,7 +12,7 @@ A Crow plugin is a folder: a `plugin.toml` that says what the plugin can do, plu
         └── es.ftl
 ```
 
-The folder name is the plugin's `id`.
+The folder name is the plugin's `id`. Server-side plugins (`on = "server"`) execute over SSH and work identically on Linux, macOS, and Windows; local plugins (`on = "local"`) that invoke Unix tools (`sh`, `ansible-playbook`) require Unix tools or WSL on Windows.
 
 ## How Crow keeps a plugin honest
 

@@ -8,8 +8,8 @@ Security costs something: typing a password, carrying a second factor, the risk 
 
 ### OPEN (the default)
 
-- **How**: no vault password. Crow's encryption key is held by the OS credential store: macOS Keychain or Secret Service on Linux (GNOME Keyring, KWallet).
-- **Protects against**: someone copying `~/.config/crow/crow.db`, or your backups. The secrets in it are encrypted, and the key isn't in the file.
+- **How**: no vault password. Crow's encryption key is held by the OS credential store: macOS Keychain, Secret Service on Linux (GNOME Keyring, KWallet), or Windows Credential Manager.
+- **Protects against**: someone copying `~/.config/crow/crow.db` (`%APPDATA%\crow\crow.db` on Windows), or your backups. The secrets in it are encrypted, and the key isn't in the file.
 - **Exposed to**: anything running as your user while you're logged in, because your login unlocks the keyring and any program can ask it for Crow's key. Also anyone at your unlocked computer: they can open Crow and use everything in it, including provider tokens that power servers off.
 - **Costs**: nothing.
 
@@ -31,7 +31,7 @@ You can switch either way from Settings → Vault & Security (going back to Open
 - **Config history**: every version of a config file Crow wrote or found on a server is sealed under the same data key, because config files can hold credentials. If there's no key (no OS keyring and no vault password), Crow keeps only each version's SHA-256: it can still tell a file changed, not what it said, and such versions can't be restored. Crow creates the key in the OS keyring for this without asking you to choose a stance, since it only ever makes things safer; storing provider tokens and AI keys still waits for your choice.
 - **The data key**: never written to disk unencrypted. It's held by the OS keyring (Open) or stored wrapped by your password-derived key (Locked). Changing the password or the stance re-wraps this one key; the entries don't change.
 - **Not encrypted**: the rest of `crow.db` (server list, settings, the change log with file paths and hashes, metrics), `config.toml`, and your SSH private keys in `~/.ssh`. Unless an SSH key has a passphrase, anything running as you can use it, in either stance.
-- **Who can read the file**: only your account. Crow keeps its folder at `0700` and `crow.db` (with its `-wal`, `-shm` and any `crow.db.*` copies) at `0600`, fixing them on every start.
+- **Who can read the file**: only your account. On Linux/macOS Crow keeps its folder at `0700` and `crow.db` (with its `-wal`, `-shm` and any `crow.db.*` copies) at `0600`, fixing them on every start; on Windows Crow applies a protected user-only NTFS DACL (stripping inherited ACEs) to its folder, vault files, and generated SSH private keys.
 
 ## How secrets are handled
 
@@ -47,7 +47,7 @@ You can switch either way from Settings → Vault & Security (going back to Open
 - Host keys are checked strictly and recorded when you add a server; a changed key is refused. Rotating host keys (Fleet → Danger Zone) fetches the new public keys over the connection the old key already authenticated, so the re-pin is trustworthy; it's only kept once a brand-new login with strict checking succeeds. Other machines that SSH to those servers will see a changed key and must re-verify it.
 - Agent and X11 forwarding are always off, whatever `~/.ssh/config` says.
 - Servers Crow logs into with a passphrase-free key file (its own `crow_ed25519`, for example) don't use your SSH agent at all (`IdentityAgent=none`), so agents that ask you to approve each use of a key (1Password, Secretive) can't stall Crow. Passphrase-protected keys and agent logins still use the agent; when that agent asks for approvals, the connection panel says so.
-- Crow reuses one connection per server (ControlMaster) and closes them when it locks.
+- On Linux and macOS, Crow reuses one connection per server (ControlMaster) and closes them when it locks. On Windows, Win32-OpenSSH does not support ControlMaster multiplexing, so each command uses a clean connection.
 - Crow is agentless: it never installs anything on your servers.
 - Revoke all sessions (Fleet → Danger Zone) ends every SSH connection to each server except Crow's own, which it finds from inside the connection; if it can't, it ends nothing. Console logins and keys are untouched, so anyone whose key still works can log back in: rotate or remove keys for that.
 - Firewall changes (ufw, firewalld) are played against the rules Crow read before they run. If one would stop the SSH port Crow is connected through from being allowed, or Crow can't tell (enabling ufw, reloading a firewalld whose saved config differs), it waits for a typed CONFIRM. Raw nftables/iptables rulesets are only read, never written.

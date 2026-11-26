@@ -1,20 +1,24 @@
 //! Cross-platform user-level background service manager for `crow --agent` (ERR-206).
 //!
-//! Installs, starts, stops, and removes the user service with zero `sudo`/root
+//! Installs, starts, stops, and removes the user service with zero `sudo`/root/admin
 //! privileges and zero host environment pollution:
 //! - Linux: `~/.config/systemd/user/rs.crow.Crow-agent.service` (`systemd --user`)
 //! - macOS: `~/Library/LaunchAgents/rs.crow.Crow.agent.plist` (`launchd`)
+//! - Windows: per-user Task Scheduler task `CrowAgent` (`schtasks`, logon trigger)
 
 use std::path::{Path, PathBuf};
 
 pub const SYSTEMD_UNIT_NAME: &str = "rs.crow.Crow-agent.service";
 pub const LAUNCHD_LABEL: &str = "rs.crow.Crow.agent";
 pub const LAUNCHD_PLIST_NAME: &str = "rs.crow.Crow.agent.plist";
+pub const WINDOWS_TASK_NAME: &str = "CrowAgent";
+pub const WINDOWS_TASK_XML_NAME: &str = "crow-agent-task.xml";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ServiceBackend {
     SystemdUser,
     LaunchdUser,
+    WindowsTaskScheduler,
     Unsupported,
 }
 
@@ -24,6 +28,8 @@ impl ServiceBackend {
             Self::LaunchdUser
         } else if cfg!(target_os = "linux") {
             Self::SystemdUser
+        } else if cfg!(target_os = "windows") {
+            Self::WindowsTaskScheduler
         } else {
             Self::Unsupported
         }
@@ -33,6 +39,7 @@ impl ServiceBackend {
         match self {
             Self::SystemdUser => "systemd --user",
             Self::LaunchdUser => "macOS LaunchAgent",
+            Self::WindowsTaskScheduler => "Windows Task Scheduler",
             Self::Unsupported => "Unsupported OS",
         }
     }
@@ -61,11 +68,15 @@ pub fn launchd_plist_path(home: &Path) -> PathBuf {
         .join(LAUNCHD_PLIST_NAME)
 }
 
+pub fn windows_task_xml_path() -> PathBuf {
+    crate::platform::crow_config_dir().join(WINDOWS_TASK_XML_NAME)
+}
+
 pub fn current_unit_path() -> Option<PathBuf> {
-    let home = dirs::home_dir()?;
     match ServiceBackend::current() {
-        ServiceBackend::SystemdUser => Some(systemd_unit_path(&home)),
-        ServiceBackend::LaunchdUser => Some(launchd_plist_path(&home)),
+        ServiceBackend::SystemdUser => Some(systemd_unit_path(&dirs::home_dir()?)),
+        ServiceBackend::LaunchdUser => Some(launchd_plist_path(&dirs::home_dir()?)),
+        ServiceBackend::WindowsTaskScheduler => Some(windows_task_xml_path()),
         ServiceBackend::Unsupported => None,
     }
 }
@@ -126,6 +137,48 @@ pub fn generate_launchd_plist(exe_path: &Path) -> String {
     )
 }
 
+/// Generates the Windows Task Scheduler XML definition for `crow --daemon`.
+/// Runs under the current user's logon session with no admin privileges, hidden
+/// window, and automatic restart on failure.
+pub fn generate_windows_task_xml(exe_path: &Path) -> String {
+    let escaped = xml_escape(&exe_path.display().to_string());
+    format!(
+        "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n\
+         <Task version=\"1.2\" xmlns=\"http://schemas.microsoft.com/windows/2004/02/mit/task\">\n\
+           <RegistrationInfo>\n\
+             <Description>Crow Fleet Background Monitor &amp; Daemon</Description>\n\
+           </RegistrationInfo>\n\
+           <Triggers>\n\
+             <LogonTrigger>\n\
+               <Enabled>true</Enabled>\n\
+             </LogonTrigger>\n\
+           </Triggers>\n\
+           <Settings>\n\
+             <MultipleInstancesPolicy>IgnoreNew</MultipleInstancesPolicy>\n\
+             <DisallowStartIfOnBatteries>false</DisallowStartIfOnBatteries>\n\
+             <StopIfGoingOnBatteries>false</StopIfGoingOnBatteries>\n\
+             <AllowHardTerminate>true</AllowHardTerminate>\n\
+             <StartWhenAvailable>true</StartWhenAvailable>\n\
+             <RunOnlyIfNetworkAvailable>false</RunOnlyIfNetworkAvailable>\n\
+             <AllowStartOnDemand>true</AllowStartOnDemand>\n\
+             <Enabled>true</Enabled>\n\
+             <Hidden>true</Hidden>\n\
+             <ExecutionTimeLimit>PT0S</ExecutionTimeLimit>\n\
+             <RestartOnFailure>\n\
+               <Interval>PT1M</Interval>\n\
+               <Count>999</Count>\n\
+             </RestartOnFailure>\n\
+           </Settings>\n\
+           <Actions Context=\"Author\">\n\
+             <Exec>\n\
+               <Command>{escaped}</Command>\n\
+               <Arguments>--daemon</Arguments>\n\
+             </Exec>\n\
+           </Actions>\n\
+         </Task>\n"
+    )
+}
+
 fn xml_escape(s: &str) -> String {
     s.replace('&', "&amp;")
         .replace('<', "&lt;")
@@ -137,6 +190,10 @@ fn xml_escape(s: &str) -> String {
 /// Queries the current OS user-service status without modifying anything.
 pub fn query_status() -> ServiceStatus {
     let backend = ServiceBackend::current();
+    match backend {
+        ServiceBackend::WindowsTaskScheduler => return query_windows_task_status(),
+        _ => {}
+    }
     let Some(home) = dirs::home_dir() else {
         return ServiceStatus {
             backend: Some(backend),
@@ -148,10 +205,61 @@ pub fn query_status() -> ServiceStatus {
     match backend {
         ServiceBackend::SystemdUser => query_systemd_status(&home),
         ServiceBackend::LaunchdUser => query_launchd_status(&home),
+        ServiceBackend::WindowsTaskScheduler => query_windows_task_status(),
         ServiceBackend::Unsupported => ServiceStatus {
             backend: Some(backend),
-            detail: "Background user service is supported on Linux and macOS".into(),
+            detail: "Background user service is supported on Linux, macOS, and Windows".into(),
             ..Default::default()
+        },
+    }
+}
+
+fn parse_schtasks_status(output: &str) -> (bool, String) {
+    for line in output.lines() {
+        if let Some((k, v)) = line.split_once(':') {
+            if k.trim().eq_ignore_ascii_case("Status") {
+                let st = v.trim().to_string();
+                let running = st.eq_ignore_ascii_case("Running");
+                return (running, st);
+            }
+        }
+    }
+    (false, "Unknown".into())
+}
+
+fn query_windows_task_status() -> ServiceStatus {
+    let path = windows_task_xml_path();
+    let out = crate::sandbox::host_command(
+        &["schtasks", "/Query", "/TN", WINDOWS_TASK_NAME, "/FO", "LIST"],
+        None,
+        None,
+    )
+    .and_then(|mut c| c.output());
+
+    match out {
+        Ok(o) if o.status.success() => {
+            let text = String::from_utf8_lossy(&o.stdout);
+            let (running, state_str) = parse_schtasks_status(&text);
+            ServiceStatus {
+                backend: Some(ServiceBackend::WindowsTaskScheduler),
+                unit_path: Some(path),
+                installed: true,
+                running,
+                service_pid: None,
+                detail: if running {
+                    "Active (Task Scheduler)".into()
+                } else {
+                    format!("Installed ({state_str})")
+                },
+            }
+        }
+        _ => ServiceStatus {
+            backend: Some(ServiceBackend::WindowsTaskScheduler),
+            unit_path: Some(path),
+            installed: false,
+            running: false,
+            service_pid: None,
+            detail: "Not installed".into(),
         },
     }
 }
@@ -317,12 +425,38 @@ pub fn install_and_start() -> Result<ServiceStatus, String> {
             run_host_checked(&["launchctl", "bootstrap", &domain, &path_str])?;
             Ok(query_launchd_status(&home))
         }
-        ServiceBackend::Unsupported => Err("Background service is only supported on Linux and macOS".into()),
+        ServiceBackend::WindowsTaskScheduler => {
+            let path = windows_task_xml_path();
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent)
+                    .map_err(|e| format!("Failed to create {}: {e}", parent.display()))?;
+            }
+            let xml = generate_windows_task_xml(&exe);
+            std::fs::write(&path, xml)
+                .map_err(|e| format!("Failed to write {}: {e}", path.display()))?;
+            let path_str = path.display().to_string();
+            run_host_checked(&["schtasks", "/Create", "/TN", WINDOWS_TASK_NAME, "/XML", &path_str, "/F"])?;
+            run_host_checked(&["schtasks", "/Run", "/TN", WINDOWS_TASK_NAME])?;
+            Ok(query_windows_task_status())
+        }
+        ServiceBackend::Unsupported => Err("Background service is only supported on Linux, macOS, and Windows".into()),
     }
 }
 
 /// Stops and removes the user service file.
 pub fn stop_and_uninstall() -> Result<ServiceStatus, String> {
+    if ServiceBackend::current() == ServiceBackend::WindowsTaskScheduler {
+        let _ = crate::sandbox::host_command(&["schtasks", "/End", "/TN", WINDOWS_TASK_NAME], None, None)
+            .and_then(|mut c| c.output());
+        let _ = crate::sandbox::host_command(&["schtasks", "/Delete", "/TN", WINDOWS_TASK_NAME, "/F"], None, None)
+            .and_then(|mut c| c.output());
+        let path = windows_task_xml_path();
+        if path.exists() {
+            std::fs::remove_file(&path)
+                .map_err(|e| format!("Failed to remove {}: {e}", path.display()))?;
+        }
+        return Ok(query_windows_task_status());
+    }
     let home = dirs::home_dir().ok_or_else(|| "Could not determine HOME directory".to_string())?;
 
     match ServiceBackend::current() {
@@ -359,7 +493,8 @@ pub fn stop_and_uninstall() -> Result<ServiceStatus, String> {
             }
             Ok(query_launchd_status(&home))
         }
-        ServiceBackend::Unsupported => Err("Background service is only supported on Linux and macOS".into()),
+        ServiceBackend::WindowsTaskScheduler => Ok(query_windows_task_status()),
+        ServiceBackend::Unsupported => Err("Background service is only supported on Linux, macOS, and Windows".into()),
     }
 }
 
@@ -404,5 +539,16 @@ mod tests {
         assert!(plist.contains("<string>/Applications/Crow.app/Contents/MacOS/crow</string>"));
         assert!(plist.contains("<string>--daemon</string>"));
         assert!(plist.contains("<key>RunAtLoad</key>"));
+    }
+
+    #[test]
+    fn generates_windows_task_scheduler_xml() {
+        let xml = generate_windows_task_xml(Path::new(r"C:\Users\ops\AppData\Local\Programs\Crow\crow.exe"));
+        assert!(xml.contains("<LogonTrigger>"));
+        assert!(xml.contains("<Hidden>true</Hidden>"));
+        assert!(xml.contains(r"<Command>C:\Users\ops\AppData\Local\Programs\Crow\crow.exe</Command>"));
+        assert!(xml.contains("<Arguments>--daemon</Arguments>"));
+        assert_eq!(parse_schtasks_status("TaskName: \\CrowAgent\nStatus: Running\n"), (true, "Running".into()));
+        assert_eq!(parse_schtasks_status("TaskName: \\CrowAgent\nStatus: Ready\n"), (false, "Ready".into()));
     }
 }

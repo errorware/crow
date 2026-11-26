@@ -38,7 +38,7 @@ None of Crow's niceties are mandatory. You can keep working however you did befo
  
 It's agentless: Crow talks to your servers over plain SSH, reuses one connection per server, and never installs anything on them. The feel is borrowed from `k9s` and `lazygit`, dense and keyboard-driven, just drawn as a GPU-accelerated GUI.
  
-I've tested it on Ubuntu, Fedora and macOS with no issues so far. It could probably run on Windows, but I didn't want to complicate my life with PATHs and WSL, so that's backlogged for now.
+Tested on Ubuntu, Fedora, macOS, and Windows 11.
  
 Other quality of life improvements include:
  
@@ -93,7 +93,7 @@ Crow holds provider tokens, AI keys and SSH access to your fleet, so it makes yo
  
 | | **OPEN** (default) | **LOCKED** |
 |---|---|---|
-| Key held by | OS keyring (Keychain, Secret Service) | Master password + TOTP |
+| Key held by | OS keyring (Keychain, Secret Service, Windows Credential Manager) | Master password + TOTP |
 | Protects against | Someone copying `crow.db` or backups | That, plus anyone using your machine while Crow is locked |
 | Exposed to | Anything running as you; anyone at your unlocked desk | Anyone at your machine while Crow is unlocked (auto-locks when idle) |
 | Cost | Nothing | Lose the password or 2FA and stored secrets are gone |
@@ -144,7 +144,7 @@ crow/
  
 ### Download
  
-Prebuilt binaries for **Linux (x86_64, glibc 2.35+: Ubuntu 22.04, Debian 12, Fedora and newer)** and **macOS (Apple Silicon and Intel)** are attached to each [GitHub release](https://github.com/errorware/crow/releases), alongside SLSA provenance (`.intoto.jsonl`) you can check with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier).
+Prebuilt binaries for **Linux (x86_64, glibc 2.35+: Ubuntu 22.04, Debian 12, Fedora and newer)**, **macOS (Apple Silicon and Intel)**, and **Windows 11 (x86_64)** are attached to each [GitHub release](https://github.com/errorware/crow/releases), alongside SLSA provenance (`.intoto.jsonl`) you can check with [slsa-verifier](https://github.com/slsa-framework/slsa-verifier).
  
 **Linux**: unpack and run the installer. It puts `crow` in `~/.local/bin` and adds Crow (with its icon) to your app launcher; `./install.sh --uninstall` removes it.
  
@@ -158,12 +158,14 @@ cd crow-linux-x86_64 && ./install.sh
 ```bash
 xattr -dr com.apple.quarantine /Applications/Crow.app
 ```
- 
-**Updates**: Crow checks GitHub releases once a day and shows `vX available` next to its version (disable in Settings → General). Auto-install is opt-in and only runs after [slsa-verifier](https://github.com/slsa-framework/slsa-verifier) (must be on your PATH) confirms the release's provenance. Only an installed copy (`~/.local/bin/crow`, `Crow.app`) is replaced, and Crow offers a restart rather than restarting itself.
+
+**Windows 11**: unpack `crow-windows-x86_64.zip` and run `crow.exe` (extract to `%LOCALAPPDATA%\Programs\Crow\` for opt-in self-updates). Windows 11 ships OpenSSH Client (`ssh.exe`), `curl.exe`, and `tar.exe` out of the box; config and vault files live in `%APPDATA%\crow\`. Because the binary is not Authenticode-signed yet, Windows SmartScreen warns on first launch — choose **More info → Run anyway**. Microsoft's Win32-OpenSSH does not support `ControlMaster` multiplexing, so Crow disables it automatically on Windows.
+
+**Updates**: Crow checks GitHub releases once a day and shows `vX available` next to its version (disable in Settings → General). Auto-install is opt-in and only runs after [slsa-verifier](https://github.com/slsa-framework/slsa-verifier) (must be on your PATH) confirms the release's provenance. Only an installed copy (`~/.local/bin/crow`, `Crow.app`, `%LOCALAPPDATA%\Programs\Crow\crow.exe`) is replaced, and Crow offers a restart rather than restarting itself.
  
 ### Prerequisites
  
-A Rust toolchain (1.85+), native windowing and font libraries, and `curl` (Crow uses it for provider and AI requests).
+A Rust toolchain (1.85+), native windowing and font libraries (Linux) or Visual Studio **Desktop development with C++** + Windows SDK (Windows), and `curl` (built-in on macOS and Windows 11).
  
 ```bash
 # Fedora / Bazzite

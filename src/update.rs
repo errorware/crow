@@ -121,12 +121,27 @@ pub fn asset_name() -> Option<&'static str> {
     match (std::env::consts::OS, std::env::consts::ARCH) {
         ("linux", "x86_64") => Some("crow-linux-x86_64.tar.gz"),
         ("macos", "aarch64") => Some("crow-macos-arm64.tar.gz"),
+        ("macos", "x86_64") => Some("crow-macos-x86_64.tar.gz"),
+        ("windows", "x86_64") => Some("crow-windows-x86_64.zip"),
         _ => None,
     }
 }
 
+/// Removes a leftover `crow.exe.old` renamed aside during a previous Windows
+/// self-update. Safe no-op on other OSes or when no `.old` file exists.
+pub fn cleanup_old_binary() {
+    #[cfg(windows)]
+    if let Ok(exe) = std::env::current_exe() {
+        let old = exe.with_extension("exe.old");
+        if old.is_file() {
+            let _ = std::fs::remove_file(old);
+        }
+    }
+}
+
 /// Where this copy of Crow is installed, if it's an installed copy: the
-/// binary in `~/.local/bin` (or `$XDG_BIN_HOME`), or the `Crow.app` bundle.
+/// binary in `~/.local/bin` (or `$XDG_BIN_HOME`), the `Crow.app` bundle,
+/// or `%LOCALAPPDATA%\Programs\Crow\crow.exe` on Windows.
 pub fn installed_target(exe: &Path) -> Result<PathBuf, String> {
     if std::env::consts::OS == "macos" {
         return exe
@@ -134,6 +149,16 @@ pub fn installed_target(exe: &Path) -> Result<PathBuf, String> {
             .find(|p| p.extension().is_some_and(|e| e == "app"))
             .map(Path::to_path_buf)
             .ok_or_else(|| t!("update-this-crow-runs-from-rather", exe = exe.display()));
+    }
+    if std::env::consts::OS == "windows" {
+        let installed = dirs::data_local_dir()
+            .map(|d| d.join("Programs").join("Crow").join("crow.exe"))
+            .ok_or(t!("update-no-home-directory"))?;
+        let exe_canon = exe.canonicalize().unwrap_or_else(|_| exe.to_path_buf());
+        if installed.canonicalize().ok().as_deref() == Some(exe_canon.as_path()) {
+            return Ok(installed);
+        }
+        return Err(t!("update-this-crow-runs-from-rather-2", exe = exe_canon.display(), installed = installed.display()));
     }
     let bin = std::env::var_os("XDG_BIN_HOME").map(PathBuf::from).or_else(|| dirs::home_dir().map(|h| h.join(".local/bin"))).ok_or(t!("update-no-home-directory"))?;
     let exe = exe.canonicalize().unwrap_or_else(|_| exe.to_path_buf());
@@ -176,17 +201,43 @@ pub fn install(release: &Release) -> Result<String, String> {
         }
         let unpacked = dir.join("unpacked");
         std::fs::create_dir_all(&unpacked).map_err(|e| e.to_string())?;
-        run(Command::new("tar").arg("-xzf").arg(&archive).arg("-C").arg(&unpacked))?;
-        if std::env::consts::OS == "macos" {
-            swap_app(&unpacked.join("Crow.app"), &target)
+        if std::env::consts::OS == "windows" {
+            // Windows 11 built-in bsdtar unpacks .zip natively.
+            run(Command::new("tar").arg("-xf").arg(&archive).arg("-C").arg(&unpacked))?;
+            let nested = unpacked.join(name.trim_end_matches(".zip")).join("crow.exe");
+            let new_exe = if nested.is_file() { nested } else { unpacked.join("crow.exe") };
+            if !new_exe.is_file() {
+                return Err(format!("crow.exe not found in {name}"));
+            }
+            swap_windows_exe(&new_exe, &target)
         } else {
-            // The release's own installer: binary, desktop entry, icons.
-            let installer = unpacked.join(name.trim_end_matches(".tar.gz")).join("install.sh");
-            run(Command::new("sh").arg(&installer))
+            run(Command::new("tar").arg("-xzf").arg(&archive).arg("-C").arg(&unpacked))?;
+            if std::env::consts::OS == "macos" {
+                swap_app(&unpacked.join("Crow.app"), &target)
+            } else {
+                // The release's own installer: binary, desktop entry, icons.
+                let installer = unpacked.join(name.trim_end_matches(".tar.gz")).join("install.sh");
+                run(Command::new("sh").arg(&installer))
+            }
         }
     })();
     let _ = std::fs::remove_dir_all(&dir);
     result.map(|()| t!("update-crow-is-installed-verified-restart", version = release.version))
+}
+
+/// Replaces a running Windows `crow.exe` by renaming it aside to `crow.exe.old`
+/// (Windows allows renaming a running executable even though it blocks overwrite),
+/// then copying the verified new binary into place. `cleanup_old_binary()` removes
+/// `crow.exe.old` on the next launch.
+fn swap_windows_exe(new: &Path, target: &Path) -> Result<(), String> {
+    let aside = target.with_extension("exe.old");
+    let _ = std::fs::remove_file(&aside);
+    std::fs::rename(target, &aside).map_err(|e| format!("couldn't move running crow.exe aside: {e}"))?;
+    if let Err(e) = std::fs::copy(new, target) {
+        let _ = std::fs::rename(&aside, target);
+        return Err(format!("couldn't install new crow.exe: {e}"));
+    }
+    Ok(())
 }
 
 /// Replaces `target` (an .app) with `new`: the old bundle is moved aside
@@ -214,7 +265,28 @@ fn run(cmd: &mut Command) -> Result<(), String> {
 }
 
 fn which(program: &str) -> Option<PathBuf> {
-    std::env::var_os("PATH").and_then(|paths| std::env::split_paths(&paths).map(|p| p.join(program)).find(|p| p.is_file()))
+    let paths = std::env::var_os("PATH")?;
+    #[cfg(windows)]
+    let exts: Vec<String> = std::env::var("PATHEXT")
+        .unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".into())
+        .split(';')
+        .filter(|e| !e.is_empty())
+        .map(String::from)
+        .collect();
+    for dir in std::env::split_paths(&paths) {
+        let direct = dir.join(program);
+        if direct.is_file() {
+            return Some(direct);
+        }
+        #[cfg(windows)]
+        for ext in &exts {
+            let cand = dir.join(format!("{program}{ext}"));
+            if cand.is_file() {
+                return Some(cand);
+            }
+        }
+    }
+    None
 }
 
 /// Starts the installed Crow and leaves; the caller quits right after.
@@ -260,5 +332,21 @@ mod tests {
     #[test]
     fn garbage_from_github_is_an_error_not_a_crash() {
         assert!(parse_releases("{\"message\": \"Not Found\"}").is_err());
+    }
+
+    #[test]
+    fn windows_exe_swap_moves_old_aside_and_installs_new() {
+        let dir = std::env::temp_dir().join(format!("crow-win-swap-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("crow.exe");
+        let new = dir.join("new.exe");
+        std::fs::write(&target, b"old-binary").unwrap();
+        std::fs::write(&new, b"new-binary").unwrap();
+
+        swap_windows_exe(&new, &target).unwrap();
+        assert_eq!(std::fs::read(&target).unwrap(), b"new-binary");
+        assert_eq!(std::fs::read(target.with_extension("exe.old")).unwrap(), b"old-binary");
+        let _ = std::fs::remove_dir_all(&dir);
     }
 }

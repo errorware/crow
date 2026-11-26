@@ -235,7 +235,23 @@ pub fn run(argv: &[String], cwd: &Path, env: &[(String, String)], timeout: Durat
             let error = match e {
                 _ if stop.load(std::sync::atomic::Ordering::Relaxed) => "stopped".to_string(),
                 HostError::Timeout => format!("timed out after {}s, and was stopped", timeout.as_secs()),
-                HostError::Io(m) if m.contains("No such file") => format!("{}: not found", argv.first().cloned().unwrap_or_default()),
+                HostError::Io(m)
+                    if m.contains("No such file")
+                        || m.contains("program not found")
+                        || m.contains("cannot find the file") =>
+                {
+                    let prog = argv.first().cloned().unwrap_or_default();
+                    #[cfg(windows)]
+                    if matches!(prog.as_str(), "sh" | "bash" | "ansible-playbook") {
+                        format!("{prog}: not found on Windows (this local plugin requires Unix tools or WSL)")
+                    } else {
+                        format!("{prog}: not found")
+                    }
+                    #[cfg(not(windows))]
+                    {
+                        format!("{prog}: not found")
+                    }
+                }
                 other => other.to_string(),
             };
             span.finish_err(crate::wire::WireStatus::Error, &error, &err);

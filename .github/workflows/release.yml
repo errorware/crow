@@ -1,5 +1,5 @@
-# Builds Crow release binaries for Linux (x86_64) and macOS (Apple Silicon
-# and Intel)
+# Builds Crow release binaries for Linux (x86_64), macOS (Apple Silicon
+# and Intel), and Windows (x86_64)
 # and attaches them, with SHA256SUMS, to the GitHub release. When the
 # repository is public it also generates SLSA Build Level 3 provenance with
 # the OpenSSF generic generator
@@ -40,6 +40,9 @@ jobs:
           - os: macos-latest
             asset: crow-macos-x86_64
             target: x86_64-apple-darwin
+          - os: windows-latest
+            asset: crow-windows-x86_64
+            ext: zip
     runs-on: ${{ matrix.os }}
     container: ${{ matrix.container }}
 
@@ -72,6 +75,7 @@ jobs:
           targets: ${{ matrix.target }}
 
       - name: Build
+        if: runner.os != 'Windows'
         working-directory: crow
         env:
           TARGET: ${{ matrix.target }}
@@ -85,6 +89,12 @@ jobs:
             cargo build --locked --release
           fi
           file target/release/crow || true
+
+      - name: Build (Windows)
+        if: runner.os == 'Windows'
+        working-directory: crow
+        shell: pwsh
+        run: cargo build --locked --release
 
       # Fails the release if the binary would need a newer glibc than the
       # oldest one we promise (see the matrix), so issue #2 can't come back.
@@ -144,10 +154,24 @@ jobs:
           codesign --force --deep --sign - dist/Crow.app
           tar -czf "dist/${{ matrix.asset }}.tar.gz" -C dist Crow.app
 
+      # Windows: portable zip with crow.exe (icon & version metadata embedded
+      # via build.rs) and bundled licenses.
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        working-directory: crow
+        shell: pwsh
+        run: |
+          $root = "dist\${{ matrix.asset }}"
+          New-Item -ItemType Directory -Force -Path "$root\licenses\distro-icons" | Out-Null
+          Copy-Item target\release\crow.exe "$root\"
+          Copy-Item LICENSE "$root\"
+          Copy-Item assets\distro\LICENSE, assets\distro\NOTICE.md "$root\licenses\distro-icons\"
+          Compress-Archive -Path $root -DestinationPath "dist\${{ matrix.asset }}.zip" -Force
+
       - uses: actions/upload-artifact@v7
         with:
           name: ${{ matrix.asset }}
-          path: crow/dist/${{ matrix.asset }}.tar.gz
+          path: crow/dist/${{ matrix.asset }}.${{ matrix.ext || 'tar.gz' }}
           if-no-files-found: error
 
   # The Linux binary starts on old and new distros. Crow links with full
@@ -190,6 +214,25 @@ jobs:
           ldd crow-linux-x86_64/crow
           crow-linux-x86_64/crow --check-plugin src/plugins/motd-note
 
+  smoke-windows:
+    needs: [build]
+    runs-on: windows-latest
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: crow-windows-x86_64
+
+      - uses: actions/checkout@v7
+        with:
+          path: src
+          sparse-checkout: plugins
+
+      - name: Run crow.exe --check-plugin
+        shell: pwsh
+        run: |
+          Expand-Archive -Path crow-windows-x86_64.zip -DestinationPath . -Force
+          .\crow-windows-x86_64\crow.exe --check-plugin src\plugins\motd-note
+
   # Matrix jobs can't merge outputs, so hashing happens once over every artifact.
   hash:
     needs: [build]
@@ -207,7 +250,7 @@ jobs:
         working-directory: dist
         run: |
           set -euo pipefail
-          echo "hashes=$(sha256sum *.tar.gz | base64 -w0)" >> "${GITHUB_OUTPUT}"
+          echo "hashes=$(sha256sum *.tar.gz *.zip | base64 -w0)" >> "${GITHUB_OUTPUT}"
 
   # SLSA provenance goes into Sigstore's public transparency log, which
   # names the repository, so the generator refuses private repositories
@@ -229,8 +272,8 @@ jobs:
   # The binaries go on the release whenever they built, whatever happens to
   # provenance (skipped while the repository is private, see above).
   release-assets:
-    needs: [build, smoke-linux, provenance]
-    if: always() && github.event_name == 'release' && needs.build.result == 'success' && needs.smoke-linux.result == 'success'
+    needs: [build, smoke-linux, smoke-windows, provenance]
+    if: always() && github.event_name == 'release' && needs.build.result == 'success' && needs.smoke-linux.result == 'success' && needs.smoke-windows.result == 'success'
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -242,9 +285,9 @@ jobs:
 
       - name: Checksums
         working-directory: dist
-        run: sha256sum *.tar.gz > SHA256SUMS
+        run: sha256sum *.tar.gz *.zip > SHA256SUMS
 
       - name: Attach binaries to release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "${{ github.event.release.tag_name }}" dist/*.tar.gz dist/SHA256SUMS --repo "${{ github.repository }}"
+        run: gh release upload "${{ github.event.release.tag_name }}" dist/*.tar.gz dist/*.zip dist/SHA256SUMS --repo "${{ github.repository }}"
