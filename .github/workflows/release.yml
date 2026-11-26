@@ -231,7 +231,8 @@ jobs:
         shell: pwsh
         run: |
           Expand-Archive -Path crow-windows-x86_64.zip -DestinationPath . -Force
-          .\crow-windows-x86_64\crow.exe --check-plugin src\plugins\motd-note
+          $p = Start-Process -FilePath .\crow-windows-x86_64\crow.exe -ArgumentList "--check-plugin","src\plugins\motd-note" -Wait -PassThru -NoNewWindow
+          if ($p.ExitCode -ne 0) { exit $p.ExitCode }
 
   # Matrix jobs can't merge outputs, so hashing happens once over every artifact.
   hash:

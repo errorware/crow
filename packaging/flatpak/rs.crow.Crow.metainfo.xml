@@ -60,6 +60,16 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.8.8" date="2026-11-26">
+      <description>
+        <p>Crow 0.8.8: Native Windows 11 support with DirectX 11 GPUI rendering, Win32-OpenSSH integration, Windows Credential Manager vault, Task Scheduler daemon, and portable release packaging.</p>
+        <ul>
+          <li>Windows 11: full native x86_64 MSVC build with embedded icon/version metadata and GUI subsystem</li>
+          <li>Windows SSH &amp; Terminal: Win32-OpenSSH compatibility, loopback askpass IPC, PowerShell ConPTY shell, and NTFS user-only DACLs</li>
+          <li>Windows Services &amp; Monitoring: Task Scheduler background agent, IP Helper socket witness, Docker Desktop lab scan, and zip self-updater</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.8.7" date="2026-11-26">
       <description>
         <p>Crow 0.8.7: glibc 2.35 baseline for broad Linux distro compatibility, multi-distro smoke testing, and Intel Mac release builds.</p>
