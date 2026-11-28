@@ -10,6 +10,9 @@
   <a href="https://github.com/errorware/crow/actions/workflows/rust.yml"><img src="https://github.com/errorware/crow/actions/workflows/rust.yml/badge.svg" alt="Rust"></a>
 </p>
 <p align="center">
+ <a href="https://devhunt.org/tool/crow" target="_blank" title="Crow on DevHunt"><img src="https://devhunt.org/badge/crow.svg" alt="Crow - Featured on DevHunt" width="220" height="54" /></a>
+</p>
+<p align="center">
   <a href="#overview">Overview</a> •
   <a href="#what-it-does">What it does</a> •
   <a href="#security">Security</a> •
@@ -19,15 +22,16 @@
   <a href="#acknowledgements">Acknowledgements</a> •
   <a href="#license">License</a>
 </p>
+
 ---
  
 > [!WARNING]
 > **Crow is in active development.** Features change or move between releases, things break, and the vault format can change. Try it on servers you can afford to experiment with, not production. Bug reports are welcome.
  
 ## Overview
- 
-<img width="1494" height="911" alt="image" src="https://github.com/user-attachments/assets/24f12684-14eb-4a80-8943-8dc8f730ff36" />
-
+<p align="center">
+ <img width="1494" height="911" alt="image" src="https://github.com/user-attachments/assets/24f12684-14eb-4a80-8943-8dc8f730ff36" />
+</p>
 Crow is a native desktop control plane for Linux server management over plain SSH. Broadly, it gives you what you'd get from a traditional shell, but with the bells and whistles of a dashboard-style UI. It bridges the gap between the grey-bearded SSH artisan and the neophyte, without taking anything away from either.
 
 I originally envisioned it as a one-stop shop for all my server management needs. Over the years I've used every combination of shells, shell wrappers, IDEs, external services, web apps and more esoteric things to get done what I can now do in Crow alone. I have way more freedom now than with any single product before.
