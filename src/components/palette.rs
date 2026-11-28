@@ -8,12 +8,12 @@ use crate::theme::*;
 
 fn category_color(category: &str) -> Rgba {
     match category {
-        "SERVER" | "TERMINAL" => hex_rgb(0x8ab4ff),
+        "SERVER" | "TERMINAL" => accent(),
         "SERVICE" | "PROCESS" => hex_rgb(0xbb9af7),
-        "CONFIG" => OK,
-        "ACTION" => WARN,
+        "CONFIG" => theme().ok,
+        "ACTION" => theme().warn,
         "KEY" => hex_rgb(0xd6a24a),
-        _ => TEXT_DIM,
+        _ => text_dim(),
     }
 }
 
@@ -44,9 +44,9 @@ pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str, scope: Option<St
                 .flex()
                 .flex_col()
                 .overflow_hidden()
-                .bg(BG_OVERLAY_PANEL)
+                .bg(bg_overlay_panel())
                 .border_1()
-                .border_color(BORDER_STRONG)
+                .border_color(border_strong())
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
                 // Before the input sees them: arrows move the selection, Esc closes.
                 .capture_key_down(move |ev: &KeyDownEvent, window, cx| {
@@ -84,13 +84,13 @@ pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str, scope: Option<St
                         .h(px(44.0))
                         .px(px(14.0))
                         .border_b_1()
-                        .border_color(BORDER_DEFAULT)
-                        .child(div().font_family(FONT_MONO).text_size(font_px(13.0)).text_color(TEXT_FAINTER).child("›"))
+                        .border_color(border_default())
+                        .child(div().font_family(FONT_MONO).text_size(font_px(13.0)).text_color(text_fainter()).child("›"))
                         .children(scope.map(|name| {
-                            crate::components::button::badge(hex_rgb(0x8ab4ff)).flex_none().text_size(font_px(10.5)).child(format!("{name} ›"))
+                            crate::components::button::badge(accent()).flex_none().text_size(font_px(10.5)).child(format!("{name} ›"))
                         }))
                         .child(div().flex_1().min_w(px(0.0)).children(input.map(|i| Input::new(i).appearance(false).font_family(FONT_MONO).text_size(font_px(13.0)))))
-                        .child(div().flex_none().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_DIMMER).child(count)),
+                        .child(div().flex_none().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(text_dimmer()).child(count)),
                 )
                 .child(
                     div()
@@ -99,7 +99,7 @@ pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str, scope: Option<St
                         .flex_col()
                         .overflow_y_scrollbar()
                         .children(results.is_empty().then(|| {
-                            div().px(px(14.0)).py(px(14.0)).font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_FAINT).child(t!("palette-nothing-matches-try-a-server"))
+                            div().px(px(14.0)).py(px(14.0)).font_family(FONT_MONO).text_size(font_px(11.0)).text_color(text_faint()).child(t!("palette-nothing-matches-try-a-server"))
                         }))
                         .children(results.iter().enumerate().map(|(idx, item)| {
                             let is_sel = idx == selected;
@@ -112,22 +112,22 @@ pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str, scope: Option<St
                                 .gap(px(10.0))
                                 .h(px(32.0))
                                 .px(px(14.0))
-                                .bg(if is_sel { BG_KEY } else { hex_rgba(0, 0.0) })
-                                .children(is_sel.then(|| left_indicator(TEXT_PRIMARY)))
+                                .bg(if is_sel { bg_key() } else { hex_rgba(0, 0.0) })
+                                .children(is_sel.then(|| left_indicator(text_primary())))
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     let e = entry.clone();
                                     app_run.update(cx, |this, cx| this.palette_run(e, cx));
                                 })
                                 .child(div().w(px(68.0)).flex_none().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(category_color(item.category)).child(item.category))
                                 // The characters the query matched, picked out.
-                                .child(div().flex_none().max_w(px(300.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(font_px(12.0)).text_color(if is_sel { TEXT_MAX } else { TEXT_SECONDARY }).child(
+                                .child(div().flex_none().max_w(px(300.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(font_px(12.0)).text_color(if is_sel { text_max() } else { text_secondary() }).child(
                                     StyledText::new(item.label.clone()).with_highlights(crate::palette::match_ranges(query, &item.label).into_iter().map(|r| (r, HighlightStyle { color: Some(hex_rgb(0xfbbf24).into()), font_weight: Some(FontWeight::BOLD), ..Default::default() }))),
                                 ))
-                                .child(div().flex_1().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_FAINT).child(item.hint.clone()))
+                                .child(div().flex_1().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(text_faint()).child(item.hint.clone()))
                                 .children(is_sel.then(|| {
-                                    div().flex_none().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_MUTED).bg(BG_KEY).border_1().border_color(BORDER_KEY).px(px(5.0)).py(px(1.0)).child("⏎")
+                                    div().flex_none().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(text_muted()).bg(bg_key()).border_1().border_color(border_key()).px(px(5.0)).py(px(1.0)).child("⏎")
                                 }))
                         })),
                 )
@@ -139,11 +139,11 @@ pub fn palette_overlay(app: Entity<CrowApp>, scope_label: &str, scope: Option<St
                         .h(px(30.0))
                         .px(px(14.0))
                         .border_t_1()
-                        .border_color(BORDER_DEFAULT)
-                        .bg(BG_PANEL)
+                        .border_color(border_default())
+                        .bg(bg_panel())
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(t!("palette-navigate"))
                         .child(t!("palette-open"))
                         .child(t!("palette-into-a-server"))

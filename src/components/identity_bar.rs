@@ -24,14 +24,14 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
     // Live transport state: this machine needs no connection; SSH servers
     // report what their last command saw.
     let (status_color, status_text, status_detail): (Rgba, &str, Option<String>) = match server {
-        None => (OK, t!("identity-bar-local"), None),
+        None => (theme().ok, t!("identity-bar-local"), None),
         Some(s) => match transport_kind(s) {
-            TransportKind::Local => (OK, t!("identity-bar-local"), None),
-            TransportKind::Container => (OK, t!("identity-bar-lab-container"), None),
+            TransportKind::Local => (theme().ok, t!("identity-bar-local"), None),
+            TransportKind::Container => (theme().ok, t!("identity-bar-lab-container"), None),
             TransportKind::Ssh => match connection_state(&s.id) {
-                None => (TEXT_FAINT, t!("identity-bar-connecting"), None),
-                Some(ConnectionState::Connected) => (OK, t!("identity-bar-connected"), None),
-                Some(state) => (CRIT, state.label(), state.detail().map(str::to_string)),
+                None => (text_faint(), t!("identity-bar-connecting"), None),
+                Some(ConnectionState::Connected) => (theme().ok, t!("identity-bar-connected"), None),
+                Some(state) => (theme().crit, state.label(), state.detail().map(str::to_string)),
             },
         },
     };
@@ -50,9 +50,9 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
         .flex_none()
         .flex()
         .items_center()
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         // 1. Server identity, with where it lives (ERR-36)
         .child(
             div()
@@ -71,7 +71,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         } else {
                             tabler_icon(TablerIcon::Server)
                                 .size(px(14.0))
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .into_any_element()
                         })
                         .child(
@@ -79,7 +79,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(15.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(server_name.to_string()),
                         ),
                 )
@@ -92,21 +92,21 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         .text_size(font_px(9.5))
                         .child(match server {
                             // Click to copy the address (ERR-191).
-                            Some(s) => crate::components::copy_flash::copyable(format!("identity-ip-{}", s.id), endpoint_str, s.host.clone(), TEXT_DIM).into_any_element(),
-                            None => div().text_color(TEXT_DIM).child(endpoint_str).into_any_element(),
+                            Some(s) => crate::components::copy_flash::copyable(format!("identity-ip-{}", s.id), endpoint_str, s.host.clone(), text_dim()).into_any_element(),
+                            None => div().text_color(text_dim()).child(endpoint_str).into_any_element(),
                         })
                         .children(jump.map(|(name, down)| {
                             div()
-                                .text_color(if down { CRIT } else { TEXT_DIM })
+                                .text_color(if down { theme().crit } else { text_dim() })
                                 .child(if down { t!("identity-bar-via-unreachable", name = name) } else { t!("identity-bar-via", name = name) })
                         }))
                         .children(server.map(|s| {
                             let app = app.clone();
                             div()
                                 .id("identity-region")
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .cursor_pointer()
-                                .hover(|h| h.text_color(TEXT_PRIMARY))
+                                .hover(|h| h.text_color(text_primary()))
                                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.toggle_region_picker(cx)))
                                 .child(format!("· {}", region_label(s)))
                         })),
@@ -122,16 +122,16 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                 .pr(px(16.0))
                 .h_full()
                 .border_r_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(div().size(px(6.0)).rounded_full().bg(status_color).flex_none())
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
-                        .text_color(if status_color == CRIT { CRIT } else { TEXT_SECONDARY })
+                        .text_color(if status_color == theme().crit { theme().crit } else { text_secondary() })
                         .child(status_text.to_lowercase()),
                 )
-                .children(status_detail.map(|d| div().max_w(px(320.0)).overflow_hidden().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_FAINT).child(d))),
+                .children(status_detail.map(|d| div().max_w(px(320.0)).overflow_hidden().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(text_faint()).child(d))),
         )
         // 3. What the server is, in one line. Only the environment has color
         //    (outlined, for prod and staging); facts Crow doesn't have yet
@@ -146,7 +146,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                 .min_w(px(0.0))
                 .overflow_hidden()
                 .border_r_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.5))
                 .children(distro.map(|d| {
@@ -157,8 +157,8 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         .gap(px(6.0))
                         // The distro's logo (Dashboard Icons, Apache-2.0).
                         .children(crate::components::distro_icon::distro_icon(&d, 16.0))
-                        .child(div().text_color(TEXT_SECONDARY).child(d))
-                        .when(!distro_family.is_supported(), |el| el.child(div().text_size(font_px(9.5)).text_color(WARN).child(t!("identity-bar-unverified"))))
+                        .child(div().text_color(text_secondary()).child(d))
+                        .when(!distro_family.is_supported(), |el| el.child(div().text_size(font_px(9.5)).text_color(theme().warn).child(t!("identity-bar-unverified"))))
                 }))
                 .children(kernel.map(|k| fact(t!("identity-bar-kernel"), k)))
                 .children(role.map(|r| fact(t!("identity-bar-role"), r)))
@@ -173,10 +173,10 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         .items_center()
                         .gap(px(5.0))
                         .cursor_pointer()
-                        .hover(|h| h.text_color(TEXT_PRIMARY))
-                        .text_color(if none { TEXT_DIM } else { TEXT_SECONDARY })
+                        .hover(|h| h.text_color(text_primary()))
+                        .text_color(if none { text_dim() } else { text_secondary() })
                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_group_assign_target(Some(s_id.clone()), cx)))
-                        .child(div().text_color(TEXT_FAINT).child(t!("identity-bar-group")))
+                        .child(div().text_color(text_faint()).child(t!("identity-bar-group")))
                         .child(if none { t!("identity-bar-none").to_string() } else { format!("{} ▾", s.group_name.trim()) })
                 }))
                 // A bastion others can be reached through (ERR-152): click to switch.
@@ -189,8 +189,8 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         .items_center()
                         .gap(px(5.0))
                         .cursor_pointer()
-                        .hover(|h| h.text_color(TEXT_PRIMARY))
-                        .text_color(if is_bastion { hex_rgb(0x60a5fa) } else { TEXT_FAINT })
+                        .hover(|h| h.text_color(text_primary()))
+                        .text_color(if is_bastion { hex_rgb(0x60a5fa) } else { text_faint() })
                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_bastion(&id, !is_bastion, cx)))
                         .child(if is_bastion { t!("identity-bar-bastion") } else { t!("identity-bar-bastion-no") })
                 }))
@@ -204,17 +204,17 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                         .items_center()
                         .gap(px(5.0))
                         .cursor_pointer()
-                        .hover(|h| h.text_color(TEXT_PRIMARY))
-                        .text_color(if enrolled { OK } else { TEXT_FAINT })
+                        .hover(|h| h.text_color(text_primary()))
+                        .text_color(if enrolled { theme().ok } else { text_faint() })
                         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_server_agent_enrolled(&id, !enrolled, cx)))
                         .child(if enrolled { t!("identity-bar-agent-on") } else { t!("identity-bar-agent-off") })
                 }))
                 // The environment closes the details.
                 .child({
                     let fg = match env_str.to_uppercase().as_str() {
-                        "PROD" => CRIT,
-                        "STAGE" | "STAGING" => WARN,
-                        _ => TEXT_DIM,
+                        "PROD" => theme().crit,
+                        "STAGE" | "STAGING" => theme().warn,
+                        _ => text_dim(),
                     };
                     crate::components::button::badge(fg).text_size(font_px(9.5)).child(env_str.to_uppercase())
                 })
@@ -234,14 +234,14 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
                 .px(px(8.0))
                 .mr(px(8.0))
                 .border_1()
-                .border_color(BORDER_DEFAULT)
-                .bg(BG_APP)
+                .border_color(border_default())
+                .bg(bg_app())
                 .cursor_pointer()
-                .hover(|s| s.border_color(BORDER_STRONG))
+                .hover(|s| s.border_color(border_strong()))
                 .on_click(move |_ev, _window, cx| app_clone.update(cx, |this, cx| this.toggle_palette(cx)))
-                .child(tabler_icon(TablerIcon::Search).size(px(13.0)).text_color(TEXT_FAINT))
-                .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_FAINT).child(t!("identity-bar-search")))
-                .child(div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_MUTED).bg(BG_KEY).border_1().border_color(BORDER_KEY).px(px(5.0)).py(px(1.0)).child("⌘K")),
+                .child(tabler_icon(TablerIcon::Search).size(px(13.0)).text_color(text_faint()))
+                .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).text_color(text_faint()).child(t!("identity-bar-search")))
+                .child(div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(text_muted()).bg(bg_key()).border_1().border_color(border_key()).px(px(5.0)).py(px(1.0)).child("⌘K")),
         )
         // 6. Actions that do something: a provider snapshot, a fresh SSH
         //    connection. Left out where they don't apply.
@@ -284,7 +284,7 @@ pub fn identity_bar(server: Option<&ServerRecord>, jump: JumpInfo, is_bastion: b
 
 /// "kernel 6.8.0", label dimmer than the value.
 fn fact(label: &'static str, value: String) -> impl IntoElement {
-    div().flex().flex_none().items_center().gap(px(5.0)).child(div().text_color(TEXT_FAINT).child(label)).child(div().text_color(TEXT_SECONDARY).child(value))
+    div().flex().flex_none().items_center().gap(px(5.0)).child(div().text_color(text_faint()).child(label)).child(div().text_color(text_secondary()).child(value))
 }
 
 fn header_button(id: &'static str, label: &'static str) -> Stateful<Div> {
@@ -297,12 +297,12 @@ fn header_button(id: &'static str, label: &'static str) -> Stateful<Div> {
         .mr(px(8.0))
         .px(px(9.0))
         .border_1()
-        .border_color(BORDER_DEFAULT)
+        .border_color(border_default())
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
         .font_family(FONT_MONO)
         .text_size(font_px(10.5))
-        .text_color(TEXT_SECONDARY)
+        .text_color(text_secondary())
         .child(label)
 }
 
@@ -326,16 +326,16 @@ pub fn connection_banner(server: Option<&ServerRecord>, jump: JumpInfo, app: Ent
             .h(px(crate::components::stat_strip::STATUS_STRIP_HEIGHT))
             .flex_none()
             .px(px(16.0))
-            .bg(CRIT_STRIP_BG)
+            .bg(theme().crit_strip_bg)
             .border_t_1()
             .border_b_1()
-            .border_color(BORDER_DANGER)
+            .border_color(border_danger())
             .flex()
             .items_center()
             .gap(px(8.0))
             .font_family(FONT_MONO)
             .text_size(font_px(10.5))
-            .text_color(CRIT_INK_DIM)
+            .text_color(theme().crit_ink_dim)
             .child(div().flex_none().font_weight(FontWeight::BOLD).child(format!("✕ {}", state.label())))
             .child(div().flex_1().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().child(match &jump {
                 // The likeliest cause, said first.
@@ -348,9 +348,9 @@ pub fn connection_banner(server: Option<&ServerRecord>, jump: JumpInfo, app: Ent
                 div()
                     .id("link-recovery")
                     .flex_none()
-                    .text_color(hex_rgb(0x8ab4ff))
+                    .text_color(accent())
                     .cursor_pointer()
-                    .hover(|h| h.text_color(TEXT_PRIMARY).underline())
+                    .hover(|h| h.text_color(text_primary()).underline())
                     .on_click(move |_ev, window, cx| {
                         let id = id.clone();
                         app.update(cx, |this, cx| this.open_recovery(&id, window, cx));
@@ -364,9 +364,9 @@ pub fn connection_banner(server: Option<&ServerRecord>, jump: JumpInfo, app: Ent
                 div()
                     .id("link-setup-key-login")
                     .flex_none()
-                    .text_color(hex_rgb(0x8ab4ff))
+                    .text_color(accent())
                     .cursor_pointer()
-                    .hover(|h| h.text_color(TEXT_PRIMARY).underline())
+                    .hover(|h| h.text_color(text_primary()).underline())
                     .on_click(move |_ev, _window, cx| {
                         let srv = srv.clone();
                         app.update(cx, |this, cx| this.start_onboarding_for(&srv, cx));
@@ -399,16 +399,16 @@ fn region_picker(s: &ServerRecord, app: Entity<CrowApp>) -> impl IntoElement {
     let id = s.id.clone();
     let (app_detect, app_clear, id_detect, id_clear) = (app.clone(), app.clone(), id.clone(), id.clone());
     let action = |el_id: &'static str, label: &'static str, color: Rgba| {
-        div().id(el_id).px(px(8.0)).py(px(3.0)).border_1().border_color(color).text_color(color).font_weight(FontWeight::BOLD).cursor_pointer().hover(|h| h.bg(BG_ROW_HOVER)).child(label)
+        div().id(el_id).px(px(8.0)).py(px(3.0)).border_1().border_color(color).text_color(color).font_weight(FontWeight::BOLD).cursor_pointer().hover(|h| h.bg(bg_row_hover())).child(label)
     };
     div()
         .absolute()
         .top(px(46.0))
         .left(px(16.0))
         .w(px(300.0))
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_1()
-        .border_color(BORDER_DEFAULT)
+        .border_color(border_default())
         .rounded_md()
         .shadow_lg()
         .occlude()
@@ -422,15 +422,15 @@ fn region_picker(s: &ServerRecord, app: Entity<CrowApp>) -> impl IntoElement {
                 .gap(px(6.0))
                 .p(px(8.0))
                 .border_b_1()
-                .border_color(BORDER_PANEL)
-                .child(action("region-detect", "DETECT FROM CLOUD", OK).on_click(move |_ev, _window, cx| {
+                .border_color(border_panel())
+                .child(action("region-detect", "DETECT FROM CLOUD", theme().ok).on_click(move |_ev, _window, cx| {
                     let id = id_detect.clone();
                     app_detect.update(cx, |this, cx| {
                         this.region_picker_open = false;
                         this.detect_server_regions(Some(id), cx);
                     })
                 }))
-                .child(action("region-clear", "CLEAR", TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
+                .child(action("region-clear", "CLEAR", text_secondary()).on_click(move |_ev, _window, cx| {
                     let id = id_clear.clone();
                     app_clear.update(cx, |this, cx| this.set_server_region(&id, None, cx))
                 })),
@@ -446,10 +446,10 @@ fn region_picker(s: &ServerRecord, app: Entity<CrowApp>) -> impl IntoElement {
                     .gap(px(8.0))
                     .px(px(10.0))
                     .py(px(4.0))
-                    .bg(if selected { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
-                    .text_color(if selected { TEXT_MAX } else { TEXT_SECONDARY })
+                    .bg(if selected { bg_row_selected() } else { hex_rgba(0, 0.0) })
+                    .text_color(if selected { text_max() } else { text_secondary() })
                     .cursor_pointer()
-                    .hover(|h| h.bg(BG_ROW_HOVER))
+                    .hover(|h| h.bg(bg_row_hover()))
                     .on_click(move |_ev, _window, cx| {
                         let id = id.clone();
                         app.update(cx, |this, cx| this.set_server_region(&id, Some(cc), cx))

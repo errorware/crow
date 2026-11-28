@@ -18,9 +18,9 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
     let open: Vec<&AlertLine> = alerts.iter().filter(|a| !a.resolved && !a.acknowledged).collect();
     let crit = open.iter().any(|a| a.level == "CRIT");
     let (dot, summary) = match open.len() {
-        0 => (OK, t!("status-bar-no-open-alerts").to_string()),
-        1 => (if crit { CRIT } else { WARN }, t!("status-bar-1-open-alert").to_string()),
-        n => (if crit { CRIT } else { WARN }, t!("status-bar-open-alerts", n = n)),
+        0 => (theme().ok, t!("status-bar-no-open-alerts").to_string()),
+        1 => (if crit { theme().crit } else { theme().warn }, t!("status-bar-1-open-alert").to_string()),
+        n => (if crit { theme().crit } else { theme().warn }, t!("status-bar-open-alerts", n = n)),
     };
     // Alerts live on the Fleet screen: clicking takes you there.
     let latest = open.first().map(|a| format!("{} · {} · {}", a.host, a.message, a.age));
@@ -31,12 +31,12 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
         .flex_none()
         .flex()
         .items_center()
-        .bg(BG_CHROME)
+        .bg(bg_chrome())
         .border_t_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .font_family(FONT_MONO)
         .text_size(font_px(10.5))
-        .text_color(TEXT_DIM)
+        .text_color(text_dim())
         .child(
             div()
                 .id("status-alerts")
@@ -49,13 +49,13 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
                 .flex_shrink(1.0)
                 .overflow_hidden()
                 .border_r_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER))
+                .hover(|s| s.bg(bg_row_hover()))
                 .on_click(move |_ev, _window, cx| app_alerts.update(cx, |this, cx| this.set_screen(Screen::Fleet, cx)))
                 .child(div().size(px(6.0)).rounded_full().bg(dot).flex_none())
-                .child(div().flex_none().text_color(if open.is_empty() { TEXT_DIM } else { TEXT_SECONDARY }).child(summary))
-                .children(latest.map(|l| div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(TEXT_DIMMER).child(l))),
+                .child(div().flex_none().text_color(if open.is_empty() { text_dim() } else { text_secondary() }).child(summary))
+                .children(latest.map(|l| div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(text_dimmer()).child(l))),
         )
         .child(
             div()
@@ -79,10 +79,10 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
                                 .size(px(6.0))
                                 .flex_none()
                                 .rounded_full()
-                                .bg(hex_rgb(0x8ab4ff))
+                                .bg(accent())
                                 .with_animation("status-job-pulse", Animation::new(std::time::Duration::from_millis(1200)).repeat().with_easing(pulsating_between(0.25, 1.0)), |d, t| d.opacity(t)),
                         )
-                        .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(hex_rgb(0x8ab4ff)).child(j.to_string()))
+                        .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(accent()).child(j.to_string()))
                 }))
                 // A fleet run going on in the background: click to watch it.
                 .children(run.map(|r| {
@@ -99,10 +99,10 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
                                 .size(px(6.0))
                                 .flex_none()
                                 .rounded_full()
-                                .bg(WARN)
+                                .bg(theme().warn)
                                 .with_animation("status-run-pulse", Animation::new(std::time::Duration::from_millis(1200)).repeat().with_easing(pulsating_between(0.25, 1.0)), |d, t| d.opacity(t)),
                         )
-                        .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(WARN).child(r.to_string()))
+                        .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(theme().warn).child(r.to_string()))
                 }))
                 .children(notice.map(|n| {
                     let app = app.clone();
@@ -111,7 +111,7 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
                         .items_center()
                         .gap(px(8.0))
                         .min_w(px(0.0))
-                        .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(TEXT_SECONDARY).child(n.to_string()))
+                        .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(text_secondary()).child(n.to_string()))
                         .child(
                             icon_button("status-notice-dismiss", TablerIcon::X, false)
                                 .on_click(move |_ev, _window, cx| {
@@ -128,11 +128,11 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
             let counters = crate::wire::counters();
             let silenced = crate::wire::is_silenced();
             let (wire_dot, wire_color, wire_text) = if silenced {
-                (CRIT, CRIT, t!("status-bar-wire-silenced").to_string())
+                (theme().crit, theme().crit, t!("status-bar-wire-silenced").to_string())
             } else if counters.in_flight > 0 {
-                (WARN, WARN, t!("status-bar-wire-active", total = counters.total_calls, active = counters.in_flight))
+                (theme().warn, theme().warn, t!("status-bar-wire-active", total = counters.total_calls, active = counters.in_flight))
             } else {
-                (OK, TEXT_SECONDARY, t!("status-bar-wire-calls", total = counters.total_calls))
+                (theme().ok, text_secondary(), t!("status-bar-wire-calls", total = counters.total_calls))
             };
             div()
                 .id("status-wire")
@@ -143,9 +143,9 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
                 .gap(px(7.0))
                 .px(px(12.0))
                 .border_l_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER))
+                .hover(|s| s.bg(bg_row_hover()))
                 .on_click(move |_ev, _window, cx| {
                     app_wire.update(cx, |this, cx| this.open_wire(cx));
                 })
@@ -161,8 +161,8 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
                 .gap(px(12.0))
                 .px(px(12.0))
                 .border_l_1()
-                .border_color(BORDER_PANEL)
-                .text_color(TEXT_FAINT)
+                .border_color(border_panel())
+                .text_color(text_faint())
                 .child(t!("status-bar-agentless-ssh"))
                 .child(concat!("crow v", env!("CARGO_PKG_VERSION")))
                 // A newer version (ERR-88): details in About.
@@ -171,10 +171,10 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
                         .id("status-update-available")
                         .px(px(6.0))
                         .border_1()
-                        .border_color(OK)
-                        .text_color(OK)
+                        .border_color(theme().ok)
+                        .text_color(theme().ok)
                         .cursor_pointer()
-                        .hover(|s| s.bg(OK_BG))
+                        .hover(|s| s.bg(theme().ok_bg))
                         .on_click(move |_e, _w, cx| app_update.update(cx, |this, cx| this.open_about_modal(cx)))
                         .child(t!("status-bar-v-available", v = v))
                 })),

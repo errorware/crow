@@ -23,7 +23,7 @@ pub fn non_operational_view(
     div()
         .id("firewall-non-operational-view")
         .size_full()
-        .bg(BG_APP)
+        .bg(bg_app())
         .flex()
         .flex_col()
         .items_center()
@@ -32,9 +32,9 @@ pub fn non_operational_view(
         .child(
             div()
                 .w(px(640.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .p(px(22.0))
                 .flex()
                 .flex_col()
@@ -45,7 +45,7 @@ pub fn non_operational_view(
                         .flex()
                         .items_start()
                         .gap(px(14.0))
-                        .child(div().pt(px(2.0)).child(tabler_icon(TablerIcon::AlertTriangle).size(px(16.0)).text_color(WARN)))
+                        .child(div().pt(px(2.0)).child(tabler_icon(TablerIcon::AlertTriangle).size(px(16.0)).text_color(theme().warn)))
                         .child(
                             div()
                                 .flex_1()
@@ -57,14 +57,14 @@ pub fn non_operational_view(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(12.0))
                                         .font_weight(FontWeight::SEMIBOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(t!("firewall-non-operational-no-firewall-running")),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(backend.label().to_string()),
                                 ),
                         ),
@@ -73,9 +73,9 @@ pub fn non_operational_view(
                 .child(
                     div()
                         .p(px(14.0))
-                        .bg(BG_APP)
+                        .bg(bg_app())
                         .border_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .flex()
                         .flex_col()
                         .gap(px(6.0))
@@ -84,14 +84,14 @@ pub fn non_operational_view(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
                                 .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(TEXT_DIMMER)
+                                .text_color(text_dimmer())
                                 .child(t!("firewall-non-operational-why")),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.0))
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(reason.to_string()),
                         ),
                 )
@@ -106,7 +106,7 @@ pub fn non_operational_view(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
                                 .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(TEXT_DIMMER)
+                                .text_color(text_dimmer())
                                 .child(t!("firewall-non-operational-firewall-tools-on-the-host")),
                         )
                         .child(
@@ -119,13 +119,13 @@ pub fn non_operational_view(
                                         div()
                                             .font_family(FONT_MONO)
                                             .text_size(font_px(10.5))
-                                            .text_color(TEXT_FAINT)
+                                            .text_color(text_faint())
                                             .child(t!("firewall-non-operational-no-standard-packet-filter-binaries"))
                                             .into_any_element(),
                                     ]
                                 } else {
                                     detected_binaries.iter().map(|b| {
-                                        crate::components::button::badge(TEXT_SECONDARY)
+                                        crate::components::button::badge(text_secondary())
                                             .text_size(font_px(10.0))
                                             .child(b.clone())
                                             .into_any_element()
@@ -137,9 +137,9 @@ pub fn non_operational_view(
                 .child(
                     div()
                         .p(px(12.0))
-                        .bg(BG_APP)
+                        .bg(bg_app())
                         .border_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .flex()
                         .flex_col()
                         .gap(px(6.0))
@@ -148,14 +148,14 @@ pub fn non_operational_view(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
                                 .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(TEXT_DIMMER)
+                                .text_color(text_dimmer())
                                 .child(if ufw || backend == FirewallBackend::Firewalld { t!("firewall-non-operational-to-turn-it-on") } else { t!("firewall-non-operational-to-set-one-up-ufw") }),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.0))
-                                .text_color(TEXT_SECONDARY)
+                                .text_color(text_secondary())
                                 .child(recommended),
                         ),
                 )
@@ -175,12 +175,12 @@ pub fn non_operational_view(
                                 .px(px(10.0))
                                 .py(px(4.0))
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
-                                .text_color(TEXT_SECONDARY)
+                                .text_color(text_secondary())
                                 .on_click(move |_ev, _window, cx| {
                                     app_config.update(cx, |this, cx| {
                                         // Open Config first: entering it resets the selection
@@ -200,13 +200,13 @@ pub fn non_operational_view(
                                 .px(px(10.0))
                                 .py(px(4.0))
                                 .border_1()
-                                .border_color(OK)
+                                .border_color(theme().ok)
                                 .cursor_pointer()
-                                .hover(|s| s.bg(OK_BG))
+                                .hover(|s| s.bg(theme().ok_bg))
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(OK)
+                                .text_color(theme().ok)
                                 .on_click(move |_ev, _window, cx| {
                                     app_enable.update(cx, |this, cx| {
                                         this.toggle_firewall_active(cx);

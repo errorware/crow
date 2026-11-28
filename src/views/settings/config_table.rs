@@ -212,14 +212,14 @@ pub fn personalisation_block(bg: &(&FleetBackground, Option<std::path::PathBuf>)
             .text_size(font_px(10.5))
             .font_weight(FontWeight::BOLD)
             .cursor_pointer()
-            .hover(|s| s.bg(BG_ROW_HOVER))
+            .hover(|s| s.bg(bg_row_hover()))
     };
     div()
         .m(px(14.0))
         .p(px(14.0))
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .flex()
         .gap(px(16.0))
         .child(
@@ -227,17 +227,17 @@ pub fn personalisation_block(bg: &(&FleetBackground, Option<std::path::PathBuf>)
                 .w(px(240.0))
                 .h(px(135.0))
                 .flex_none()
-                .bg(BG_APP)
+                .bg(bg_app())
                 .border_1()
-                .border_color(BORDER_DEFAULT)
+                .border_color(border_default())
                 .overflow_hidden()
                 .flex()
                 .items_center()
                 .justify_center()
                 .child(match (state.rendered.clone(), source) {
                     (Some(p), Some(_)) => img(p).size_full().object_fit(ObjectFit::Cover).into_any_element(),
-                    (_, Some(_)) => div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_FAINT).child(t!("settings-config-table-preparing")).into_any_element(),
-                    _ => inherited_icon(TablerIcon::Photo, font_px(28.0)).text_color(TEXT_FAINTER).into_any_element(),
+                    (_, Some(_)) => div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(text_faint()).child(t!("settings-config-table-preparing")).into_any_element(),
+                    _ => inherited_icon(TablerIcon::Photo, font_px(28.0)).text_color(text_fainter()).into_any_element(),
                 }),
         )
         .child(
@@ -248,16 +248,16 @@ pub fn personalisation_block(bg: &(&FleetBackground, Option<std::path::PathBuf>)
                 .flex_col()
                 .gap(px(6.0))
                 .font_family(FONT_MONO)
-                .child(div().text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-config-table-fleet-page-background")))
-                .child(div().text_size(font_px(10.0)).text_color(TEXT_DIM).child(t!("settings-config-table-a-picture-behind-the-server")))
-                .children(state.error.clone().map(|e| div().text_size(font_px(10.0)).text_color(CRIT).child(e)))
+                .child(div().text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(t!("settings-config-table-fleet-page-background")))
+                .child(div().text_size(font_px(10.0)).text_color(text_dim()).child(t!("settings-config-table-a-picture-behind-the-server")))
+                .children(state.error.clone().map(|e| div().text_size(font_px(10.0)).text_color(theme().crit).child(e)))
                 .child(
                     div()
                         .flex()
                         .gap(px(8.0))
                         .pt(px(6.0))
-                        .child(button("btn-choose-background", OK).on_click(move |_ev, _window, cx| app_choose.update(cx, |this, cx| this.choose_fleet_background(cx))).child(if source.is_some() { t!("settings-config-table-change-picture") } else { t!("settings-config-table-choose-picture") }))
-                        .children(source.is_some().then(|| button("btn-remove-background", TEXT_SECONDARY).on_click(move |_ev, _window, cx| app_remove.update(cx, |this, cx| this.remove_fleet_background(cx))).child(t!("settings-config-table-remove")))),
+                        .child(button("btn-choose-background", theme().ok).on_click(move |_ev, _window, cx| app_choose.update(cx, |this, cx| this.choose_fleet_background(cx))).child(if source.is_some() { t!("settings-config-table-change-picture") } else { t!("settings-config-table-choose-picture") }))
+                        .children(source.is_some().then(|| button("btn-remove-background", text_secondary()).on_click(move |_ev, _window, cx| app_remove.update(cx, |this, cx| this.remove_fleet_background(cx))).child(t!("settings-config-table-remove")))),
                 ),
         )
 }
@@ -317,7 +317,7 @@ pub fn render_config_section(
         .min_w(px(0.0))
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         // Section Header
         .child(
             div()
@@ -326,16 +326,16 @@ pub fn render_config_section(
                 .flex()
                 .items_center()
                 .px(px(14.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .gap(px(10.0))
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(title),
                 )
                 .child(
@@ -345,7 +345,7 @@ pub fn render_config_section(
                         .truncate()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(sub),
                 ),
         )
@@ -364,9 +364,9 @@ pub fn render_config_section(
                             div()
                                 .m(px(14.0))
                                 .p(px(16.0))
-                                .bg(BG_OVERLAY_PANEL)
+                                .bg(bg_overlay_panel())
                                 .border_1()
-                                .border_color(CRIT)
+                                .border_color(theme().crit)
                                 .flex()
                                 .flex_col()
                                 .gap(px(10.0))
@@ -380,18 +380,18 @@ pub fn render_config_section(
                                                 .flex()
                                                 .items_center()
                                                 .gap(px(8.0))
-                                                .child(div().font_family(FONT_MONO).text_size(font_px(14.0)).text_color(CRIT).child("⚠"))
+                                                .child(div().font_family(FONT_MONO).text_size(font_px(14.0)).text_color(theme().crit).child("⚠"))
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(12.5))
                                                         .font_weight(FontWeight::BOLD)
-                                                        .text_color(TEXT_PRIMARY)
+                                                        .text_color(text_primary())
                                                         .child(t!("settings-config-table-password-logon-is-not-configured")),
                                                 ),
                                         )
                                         .child(
-                                            crate::components::button::badge(CRIT_INK_DIM)
+                                            crate::components::button::badge(theme().crit_ink_dim)
                                                 .text_size(font_px(9.5))
                                                 .child(t!("settings-config-table-disabled-default")),
                                         ),
@@ -400,7 +400,7 @@ pub fn render_config_section(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
-                                        .text_color(TEXT_MUTED)
+                                        .text_color(text_muted())
                                         .line_height(px(16.0))
                                         .child(t!("settings-config-table-without-a-password-anyone-using")),
                                 )
@@ -414,9 +414,9 @@ pub fn render_config_section(
                                                 .id("btn-enable-auth")
                                                 .px(px(12.0))
                                                 .py(px(6.0))
-                                                .bg(OK)
+                                                .bg(theme().ok)
                                                 .border_1()
-                                                .border_color(BORDER_DEFAULT)
+                                                .border_color(border_default())
                                                 .cursor_pointer()
                                                 .hover(|s| s.bg(rgb(0x4ade80)))
                                                 .on_click(move |_ev, _window, cx| {
@@ -430,7 +430,7 @@ pub fn render_config_section(
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(11.0))
                                                         .font_weight(FontWeight::BOLD)
-                                                        .text_color(BG_WINDOW)
+                                                        .text_color(bg_window())
                                                         .child(t!("settings-config-table-set-password-2fa")),
                                                 ),
                                         ),
@@ -441,9 +441,9 @@ pub fn render_config_section(
                             div()
                                 .m(px(14.0))
                                 .p(px(16.0))
-                                .bg(BG_OVERLAY_PANEL)
+                                .bg(bg_overlay_panel())
                                 .border_1()
-                                .border_color(OK)
+                                .border_color(theme().ok)
                                 .flex()
                                 .flex_col()
                                 .gap(px(10.0))
@@ -457,18 +457,18 @@ pub fn render_config_section(
                                                 .flex()
                                                 .items_center()
                                                 .gap(px(8.0))
-                                                .child(div().font_family(FONT_MONO).text_size(font_px(14.0)).text_color(OK).child("🛡"))
+                                                .child(div().font_family(FONT_MONO).text_size(font_px(14.0)).text_color(theme().ok).child("🛡"))
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(12.5))
                                                         .font_weight(FontWeight::BOLD)
-                                                        .text_color(TEXT_PRIMARY)
+                                                        .text_color(text_primary())
                                                         .child(t!("settings-config-table-password-2fa-vault-configured")),
                                                 ),
                                         )
                                         .child(
-                                            crate::components::button::badge(OK_INK)
+                                            crate::components::button::badge(theme().ok_ink)
                                                 .text_size(font_px(9.5))
                                                 .child(t!("settings-config-table-locked-stance")),
                                         ),
@@ -477,7 +477,7 @@ pub fn render_config_section(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
-                                        .text_color(TEXT_MUTED)
+                                        .text_color(text_muted())
                                         .line_height(px(16.0))
                                         .child(t!("settings-config-table-database-and-keys-are-secured")),
                                 )
@@ -491,11 +491,11 @@ pub fn render_config_section(
                                                 .id("btn-lock-vault-now")
                                                 .px(px(12.0))
                                                 .py(px(6.0))
-                                                .bg(hex_rgb(0x1a1a24))
+                                                .bg(bg_control())
                                                 .border_1()
-                                                .border_color(BORDER_DEFAULT)
+                                                .border_color(border_default())
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(hex_rgb(0x222230)))
+                                                .hover(|s| s.bg(bg_row_hover()))
                                                 .on_click(move |_ev, _window, cx| {
                                                     app_lock_now.update(cx, |this, cx| {
                                                         this.lock(cx);
@@ -505,7 +505,7 @@ pub fn render_config_section(
                                                     div()
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(11.0))
-                                                        .text_color(TEXT_PRIMARY)
+                                                        .text_color(text_primary())
                                                         .child(t!("settings-config-table-lock-vault-now-l")),
                                                 ),
                                         ),
@@ -516,14 +516,14 @@ pub fn render_config_section(
                     None
                 })
                 .children((section == SettingsSection::Security && is_auth_enabled).then(|| vault_manage::render(vault_form.0, vault_form.1, app.clone())))
-                .children(settings.edit_error.clone().map(|e| div().px(px(14.0)).py(px(8.0)).font_family(FONT_MONO).text_size(font_px(10.5)).text_color(CRIT).child(e)))
+                .children(settings.edit_error.clone().map(|e| div().px(px(14.0)).py(px(8.0)).font_family(FONT_MONO).text_size(font_px(10.5)).text_color(theme().crit).child(e)))
                 .children((hidden_settings > 0).then(|| {
                     div()
                         .px(px(14.0))
                         .py(px(8.0))
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .child(t!("settings-config-table-more-in-this-section-not", hidden_settings = hidden_settings, hidden_settings2 = if hidden_settings == 1 { t!("settings-config-table-its") } else { t!("settings-config-table-theyre") }))
                 }))
                 .children(sec_rows.into_iter().enumerate().map(|(idx, row)| {
@@ -549,9 +549,9 @@ pub fn render_config_section(
 
                     div()
                         .p(px(14.0))
-                        .bg(if is_even { BG_APP } else { BG_PANEL })
+                        .bg(if is_even { bg_app() } else { bg_panel() })
                         .border_b_1()
-                        .border_color(BORDER_ROW)
+                        .border_color(border_row())
                         .flex()
                         .flex_col()
                         .gap(px(6.0))
@@ -579,11 +579,11 @@ pub fn render_config_section(
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(11.0))
                                                         .font_weight(FontWeight::BOLD)
-                                                        .text_color(if is_changed { WARN } else { TEXT_PRIMARY })
+                                                        .text_color(if is_changed { theme().warn } else { text_primary() })
                                                         .child(label),
                                                 )
                                                 .children(is_changed.then(|| {
-                                                    crate::components::button::badge(WARN)
+                                                    crate::components::button::badge(theme().warn)
                                                         .text_size(font_px(8.5))
                                                         .font_weight(FontWeight::BOLD)
                                                         .child(t!("settings-config-table-changed"))
@@ -593,7 +593,7 @@ pub fn render_config_section(
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
-                                                .text_color(TEXT_MUTED)
+                                                .text_color(text_muted())
                                                 .line_height(relative(1.4))
                                                 .child(desc),
                                         ),
@@ -610,15 +610,15 @@ pub fn render_config_section(
                                                 .id(ElementId::NamedInteger("btn-setting-dropdown".into(), idx as u64))
                                                 .px(px(10.0))
                                                 .py(px(5.0))
-                                                .bg(if is_open { BG_ROW_SELECTED } else { BG_CONTROL })
+                                                .bg(if is_open { bg_row_selected() } else { bg_control() })
                                                 .border_1()
-                                                .border_color(if is_open { OK } else { BORDER_DEFAULT })
-                                                .text_color(if is_open { OK } else { TEXT_PRIMARY })
+                                                .border_color(if is_open { theme().ok } else { border_default() })
+                                                .text_color(if is_open { theme().ok } else { text_primary() })
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.5))
                                                 .font_weight(FontWeight::MEDIUM)
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                                .hover(|s| s.bg(bg_row_hover()))
                                                 .on_click(move |_ev, _window, cx| {
                                                     let rid = row_id_toggle.clone();
                                                     let ival = init_val.clone();
@@ -630,21 +630,21 @@ pub fn render_config_section(
                                                 .items_center()
                                                 .gap(px(6.0))
                                                 .child(display_val.clone())
-                                                .child(div().text_size(font_px(8.0)).text_color(TEXT_FAINTER).child(if is_open { "▲" } else { "▼" })),
+                                                .child(div().text_size(font_px(8.0)).text_color(text_fainter()).child(if is_open { "▲" } else { "▼" })),
                                         )
                                         .children(is_changed.then(|| {
                                             div()
                                                 .id(ElementId::NamedInteger("btn-reset-field".into(), idx as u64))
                                                 .px(px(6.0))
                                                 .py(px(5.0))
-                                                .bg(BG_CONTROL)
+                                                .bg(bg_control())
                                                 .border_1()
-                                                .border_color(BORDER_DEFAULT)
-                                                .text_color(TEXT_FAINT)
+                                                .border_color(border_default())
+                                                .text_color(text_faint())
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(9.5))
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                                .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                                                 .on_click(move |_ev, _window, cx| {
                                                     let rid = row_id_reset.clone();
                                                     app_reset.update(cx, |this, cx| {
@@ -666,9 +666,9 @@ pub fn render_config_section(
                                 .id(ElementId::NamedInteger("dropdown-panel".into(), idx as u64))
                                 .mt(px(4.0))
                                 .p(px(6.0))
-                                .bg(BG_PANEL)
+                                .bg(bg_panel())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .flex()
                                 .flex_col()
                                 .gap(px(4.0))
@@ -683,8 +683,8 @@ pub fn render_config_section(
                                         .id(ElementId::NamedInteger(format!("opt-{}", row.row_id).into(), opt_idx as u64))
                                         .px(px(8.0))
                                         .py(px(5.0))
-                                        .bg(if is_active { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .bg(if is_active { bg_row_selected() } else { hex_rgba(0, 0.0) })
+                                        .hover(|s| s.bg(bg_row_hover()))
                                         .cursor_pointer()
                                         .flex()
                                         .items_center()
@@ -716,14 +716,14 @@ pub fn render_config_section(
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(10.5))
                                                         .font_weight(if is_active { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                                        .text_color(if is_active { OK } else { TEXT_PRIMARY })
+                                                        .text_color(if is_active { theme().ok } else { text_primary() })
                                                         .child(opt.label),
                                                 )
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(9.5))
-                                                        .text_color(TEXT_FAINTER)
+                                                        .text_color(text_fainter())
                                                         .child(format!("· {}", opt.desc)),
                                                 ),
                                         )
@@ -731,7 +731,7 @@ pub fn render_config_section(
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
-                                                .text_color(OK)
+                                                .text_color(theme().ok)
                                                 .child("✓")
                                         }))
                                 }))
@@ -740,7 +740,7 @@ pub fn render_config_section(
                                         .mt(px(4.0))
                                         .pt(px(6.0))
                                         .border_t_1()
-                                        .border_color(BORDER_PANEL)
+                                        .border_color(border_panel())
                                         .flex()
                                         .items_center()
                                         .gap(px(8.0))
@@ -749,7 +749,7 @@ pub fn render_config_section(
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(9.5))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_DIMMER)
+                                                .text_color(text_dimmer())
                                                 .child(t!("settings-config-table-or-enter-custom-value")),
                                         )
                                         .child(
@@ -760,7 +760,7 @@ pub fn render_config_section(
                                                         Input::new(input)
                                                             .font_family(FONT_MONO)
                                                             .text_size(font_px(11.0))
-                                                            .bg(BG_APP)
+                                                            .bg(bg_app())
                                                             .rounded(px(2.0))
                                                     )
                                                     .into_any_element()
@@ -768,7 +768,7 @@ pub fn render_config_section(
                                                 div()
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(11.0))
-                                                    .text_color(TEXT_MUTED)
+                                                    .text_color(text_muted())
                                                     .child(custom_input.clone())
                                                     .into_any_element()
                                             }
@@ -778,10 +778,10 @@ pub fn render_config_section(
                                                 .id("btn-apply-custom-value")
                                                 .px(px(8.0))
                                                 .py(px(4.0))
-                                                .bg(OK)
+                                                .bg(theme().ok)
                                                 .border_1()
-                                                .border_color(BORDER_DEFAULT)
-                                                .text_color(BG_WINDOW)
+                                                .border_color(border_default())
+                                                .text_color(bg_window())
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(9.5))
                                                 .font_weight(FontWeight::BOLD)
@@ -817,20 +817,20 @@ pub fn render_config_section(
                 .items_center()
                 .justify_between()
                 .px(px(14.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_t_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .id("btn-reset-section")
                         .px(px(9.0))
                         .py(px(5.0))
-                        .bg(BG_CONTROL)
+                        .bg(bg_control())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .text_color(if has_section_changes { WARN } else { TEXT_FAINT })
+                        .border_color(border_default())
+                        .text_color(if has_section_changes { theme().warn } else { text_faint() })
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| {
                             if has_section_changes {
                                 let prefix = sec_prefix_id.clone();
@@ -847,12 +847,12 @@ pub fn render_config_section(
                         .id("btn-edit-config-toml")
                         .px(px(9.0))
                         .py(px(5.0))
-                        .bg(BG_CONTROL)
+                        .bg(bg_control())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .text_color(TEXT_SECONDARY)
+                        .border_color(border_default())
+                        .text_color(text_secondary())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| {
                             app_edit.read(cx).open_config_file();
                         })
@@ -864,13 +864,13 @@ pub fn render_config_section(
                         .id("btn-save-settings")
                         .px(px(11.0))
                         .py(px(6.0))
-                        .bg(if total_changed > 0 { OK } else { BG_CONTROL })
+                        .bg(if total_changed > 0 { theme().ok } else { bg_control() })
                         .border_1()
-                        .border_color(if total_changed > 0 { OK } else { BORDER_DEFAULT })
-                        .text_color(if total_changed > 0 { BG_WINDOW } else { TEXT_FAINT })
+                        .border_color(if total_changed > 0 { theme().ok } else { border_default() })
+                        .text_color(if total_changed > 0 { bg_window() } else { text_faint() })
                         .font_weight(FontWeight::BOLD)
                         .cursor_pointer()
-                        .hover(|s| s.bg(if total_changed > 0 { rgb(0x4ade80) } else { BG_CONTROL }))
+                        .hover(|s| s.bg(if total_changed > 0 { rgb(0x4ade80) } else { bg_control() }))
                         .on_click(move |_ev, _window, cx| {
                             if total_changed > 0 {
                                 app_save.update(cx, |this, cx| {

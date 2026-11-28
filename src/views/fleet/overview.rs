@@ -73,13 +73,13 @@ pub fn fleet_stat_strip(
     };
     let load_val = avg_load.map(|l| format!("{:.2}", l)).unwrap_or_else(|| "—".to_string());
     let vcpu_note = if total_vcpu > 0 { t!("fleet-overview-avg-1m-load-vcpu", total_vcpu = total_vcpu) } else { t!("fleet-overview-no-metrics-yet").to_string() };
-    let alert_color = if crit > 0 { CRIT } else if warn > 0 { WARN } else if server_count == 0 { TEXT_MUTED } else { OK };
+    let alert_color = if crit > 0 { theme().crit } else if warn > 0 { theme().warn } else if server_count == 0 { text_muted() } else { theme().ok };
 
     // From each server's host key file times (ERR-81).
     let ages = crate::views::fleet::state::host_key_ages(servers, chrono::Utc::now().timestamp());
     let (oldest_key_val, oldest_key_unit, oldest_key_note, oldest_key_color) = match &ages.oldest {
-        None if server_count == 0 => ("—".to_string(), "".to_string(), t!("fleet-overview-none-enrolled").to_string(), TEXT_MUTED),
-        None => ("—".to_string(), "".to_string(), t!("fleet-overview-not-read-yet").to_string(), TEXT_MUTED),
+        None if server_count == 0 => ("—".to_string(), "".to_string(), t!("fleet-overview-none-enrolled").to_string(), text_muted()),
+        None => ("—".to_string(), "".to_string(), t!("fleet-overview-not-read-yet").to_string(), text_muted()),
         Some((days, name)) => {
             let (val, unit) = if *days >= 365 { (format!("{:.1}", *days as f64 / 365.25), "y") } else { (days.to_string(), "d") };
             // Past the rotation policy (ERR-98): how many, in amber.
@@ -92,31 +92,31 @@ pub fn fleet_stat_strip(
             if ages.unknown > 0 {
                 note = t!("fleet-overview-not-read-yet-2", note = note, unknown = ages.unknown);
             }
-            (val, unit.to_string(), note, if overdue > 0 { WARN } else { TEXT_PRIMARY })
+            (val, unit.to_string(), note, if overdue > 0 { theme().warn } else { text_primary() })
         }
     };
     // Files that mean something other than their baseline, as of each
     // server's last config read (ERR-74).
     let (drift_val, drift_unit, drift_note, drift_fg) = match drift {
-        None => ("—".to_string(), "".to_string(), t!("fleet-overview-not-computed-yet").to_string(), TEXT_MUTED),
-        Some([]) => ("—".to_string(), "".to_string(), t!("fleet-overview-no-baselines-pinned").to_string(), TEXT_MUTED),
+        None => ("—".to_string(), "".to_string(), t!("fleet-overview-not-computed-yet").to_string(), text_muted()),
+        Some([]) => ("—".to_string(), "".to_string(), t!("fleet-overview-no-baselines-pinned").to_string(), text_muted()),
         Some(entries) => {
             let drifted: Vec<_> = entries.iter().filter(|e| e.drift.is_drift()).collect();
             let servers: std::collections::BTreeSet<&str> = drifted.iter().map(|e| e.server_id.as_str()).collect();
             match drifted.len() {
-                0 => ("0".to_string(), "".to_string(), t!("fleet-overview-match-baselines-as-last-read", count = entries.len()), OK),
-                n => (n.to_string(), "".to_string(), t!("fleet-overview-on-as-last-read", count = servers.len()), WARN),
+                0 => ("0".to_string(), "".to_string(), t!("fleet-overview-match-baselines-as-last-read", count = entries.len()), theme().ok),
+                n => (n.to_string(), "".to_string(), t!("fleet-overview-on-as-last-read", count = servers.len()), theme().warn),
             }
         }
     };
 
     let stats = [
-        (t!("fleet-overview-servers"), server_count.to_string(), "".to_string(), group_note, TEXT_PRIMARY),
+        (t!("fleet-overview-servers"), server_count.to_string(), "".to_string(), group_note, text_primary()),
         (t!("fleet-overview-open-alerts"), (crit + warn).to_string(), "".to_string(), t!("fleet-overview-crit-warn", crit = crit, warn = warn), alert_color),
         (t!("fleet-overview-config-drift"), drift_val, drift_unit, drift_note, drift_fg),
-        (t!("fleet-overview-fleet-load"), load_val, "".to_string(), vcpu_note, TEXT_PRIMARY),
+        (t!("fleet-overview-fleet-load"), load_val, "".to_string(), vcpu_note, text_primary()),
         (t!("fleet-overview-oldest-host-key"), oldest_key_val, oldest_key_unit, oldest_key_note, oldest_key_color),
-        (t!("fleet-overview-connected"), connected_count.to_string(), format!("/{}", server_count), t!("fleet-overview-reachable-over-their-transport").to_string(), if connected_count < server_count { WARN } else { TEXT_PRIMARY }),
+        (t!("fleet-overview-connected"), connected_count.to_string(), format!("/{}", server_count), t!("fleet-overview-reachable-over-their-transport").to_string(), if connected_count < server_count { theme().warn } else { text_primary() }),
     ];
 
     div()
@@ -124,9 +124,9 @@ pub fn fleet_stat_strip(
         .flex_none()
         .flex()
         .items_stretch()
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .children(stats.into_iter().map(|(label, val, unit, note, fg)| {
             div()
                 .flex_1()
@@ -135,14 +135,14 @@ pub fn fleet_stat_strip(
                 .justify_center()
                 .px(px(14.0))
                 .border_r_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .gap(px(2.0))
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(label),
                 )
                 .child(
@@ -162,14 +162,14 @@ pub fn fleet_stat_strip(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.0))
-                                .text_color(TEXT_MUTED)
+                                .text_color(text_muted())
                                 .child(unit),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
-                                .text_color(TEXT_DIMMER)
+                                .text_color(text_dimmer())
                                 .ml(px(6.0))
                                 .child(note),
                         ),
@@ -212,10 +212,10 @@ pub fn fleet_overview_view(
                 FleetHealth::Down { label, .. } => (label.to_string(), true),
             };
             let env_fg = match s.env.as_str() {
-                "PROD" => CRIT,
-                "STAGE" => WARN,
-                "DEV" => OK,
-                _ => TEXT_DIM,
+                "PROD" => theme().crit,
+                "STAGE" => theme().warn,
+                "DEV" => theme().ok,
+                _ => text_dim(),
             };
             // Numbers only from a probe that answered; a failed one keeps
             // stale or default values that aren't readings.
@@ -248,7 +248,7 @@ pub fn fleet_overview_view(
                 disk,
                 uptime,
                 alerts: alert_lines.iter().filter(|l| !l.resolved && l.host == s.name).count().to_string(),
-                alert_color: if is_crit { CRIT } else { TEXT_FAINT },
+                alert_color: if is_crit { theme().crit } else { text_faint() },
                 status_color,
                 is_critical_border: is_crit,
                 pill,
@@ -258,7 +258,7 @@ pub fn fleet_overview_view(
                 containers: containers.get(&s.id).and_then(|scan| scan.summary()).map(|(running, total, unhealthy, restarting)| {
                     // The cell is narrow: the color says something's wrong,
                     // the container's alert says what.
-                    let color = if unhealthy > 0 { CRIT } else if restarting > 0 { WARN } else { TEXT_DIM };
+                    let color = if unhealthy > 0 { theme().crit } else if restarting > 0 { theme().warn } else { text_dim() };
                     (format!("{running}/{total}"), color)
                 }),
             }
@@ -321,9 +321,9 @@ pub fn fleet_overview_view(
     // What an empty alert list means: reachability is all Crow watches yet.
     let checking = health.values().filter(|h| **h == FleetHealth::Checking).count();
     let (quiet_note, quiet_color) = match (fleet.servers.len(), checking) {
-        (0, _) => (t!("fleet-overview-no-servers-enrolled").to_string(), TEXT_MUTED),
-        (_, 0) => (t!("fleet-overview-all-reachable", connected_count = connected_count), OK),
-        (_, n) => (t!("fleet-overview-checking-2", n = n), TEXT_MUTED),
+        (0, _) => (t!("fleet-overview-no-servers-enrolled").to_string(), text_muted()),
+        (_, 0) => (t!("fleet-overview-all-reachable", connected_count = connected_count), theme().ok),
+        (_, n) => (t!("fleet-overview-checking-2", n = n), text_muted()),
     };
     // Each reachable server once — metrics_store also keys by name.
     let readings: Vec<&ServerMetrics> = fleet.servers.iter()
@@ -338,9 +338,9 @@ pub fn fleet_overview_view(
     // acknowledged ones are dimmed.
     let alerts: Vec<(&'static str, Rgba, Rgba, String, String, String)> = alert_lines.iter().map(|l| {
         let (fg, bg) = match (l.level, l.acknowledged || l.resolved) {
-            (_, true) => (TEXT_DIM, BG_CHIP),
-            ("CRIT", _) => (CRIT, CRIT_BG),
-            _ => (WARN, WARN_BG),
+            (_, true) => (text_dim(), bg_chip()),
+            ("CRIT", _) => (theme().crit, theme().crit_bg),
+            _ => (theme().warn, theme().warn_bg),
         };
         let msg = if l.acknowledged && !l.resolved { t!("fleet-overview-acknowledged", message = l.message) } else { l.message.clone() };
         (l.level, fg, bg, l.host.clone(), msg, l.age.clone())
@@ -358,9 +358,9 @@ pub fn fleet_overview_view(
         (
             crate::views::audit::model::when_label(i.at, now),
             i.server.clone(),
-            TEXT_FAINT,
+            text_faint(),
             i.text.clone(),
-            if failed { CRIT } else { TEXT_PRIMARY },
+            if failed { theme().crit } else { text_primary() },
         )
     }).collect();
 
@@ -369,7 +369,7 @@ pub fn fleet_overview_view(
         .size_full()
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         // Outside-click dismissal scrim when an inline group dropdown is open
         .children(fleet.group_assign_modal_server.is_some().then(|| {
             let app_dismiss = app.clone();
@@ -436,9 +436,9 @@ pub fn fleet_overview_view(
                                 .flex()
                                 .items_center()
                                 .px(px(14.0))
-                                .bg(BG_PANEL)
+                                .bg(bg_panel())
                                 .border_b_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                                 .gap(px(14.0))
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
@@ -484,7 +484,7 @@ pub fn fleet_overview_view(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.5))
-                                        .text_color(TEXT_DIMMER)
+                                        .text_color(text_dimmer())
                                         .child(if visible_count == server_count { t!("fleet-overview-hosts-sort-health-click-to", server_count = server_count) } else { t!("fleet-overview-of-hosts-click-to-open", visible_count = visible_count, server_count = server_count) }),
                                 ),
                         )
@@ -498,9 +498,9 @@ pub fn fleet_overview_view(
                                 .items_center()
                                 .gap(px(6.0))
                                 .px(px(14.0))
-                                .bg(BG_APP)
+                                .bg(bg_app())
                                 .border_b_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
                                 .children(region_counts.iter().map(|(cc, n)| {
@@ -516,11 +516,11 @@ pub fn fleet_overview_view(
                                         .px(px(7.0))
                                         .py(px(2.0))
                                         .border_1()
-                                        .border_color(if on { TEXT_SECONDARY } else { BORDER_DEFAULT })
-                                        .bg(if on { BG_CHIP } else { hex_rgba(0, 0.0) })
-                                        .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+                                        .border_color(if on { text_secondary() } else { border_default() })
+                                        .bg(if on { bg_chip() } else { hex_rgba(0, 0.0) })
+                                        .text_color(if on { text_primary() } else { text_dim() })
                                         .cursor_pointer()
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .hover(|s| s.bg(bg_row_hover()))
                                         .on_click(move |_ev, _window, cx| {
                                             let target = target.clone();
                                             app.update(cx, |this, cx| this.set_fleet_region_filter(target, cx));
@@ -529,18 +529,18 @@ pub fn fleet_overview_view(
                                         .child(format!("{label} {n}"))
                                 }))
                                 .child(div().flex_1())
-                                .children(fleet.region_note.clone().map(|n| div().text_color(TEXT_FAINT).child(n)))
+                                .children(fleet.region_note.clone().map(|n| div().text_color(text_faint()).child(n)))
                                 .child(
                                     div()
                                         .id("fleet-detect-regions")
                                         .px(px(8.0))
                                         .py(px(2.0))
                                         .border_1()
-                                        .border_color(if fleet.region_detecting { BORDER_DEFAULT } else { OK })
-                                        .text_color(if fleet.region_detecting { TEXT_FAINT } else { OK })
+                                        .border_color(if fleet.region_detecting { border_default() } else { theme().ok })
+                                        .text_color(if fleet.region_detecting { text_faint() } else { theme().ok })
                                         .font_weight(FontWeight::BOLD)
                                         .when(!fleet.region_detecting, |d| {
-                                            d.cursor_pointer().hover(|s| s.bg(OK_BG)).on_click(move |_ev, _window, cx| app_detect.update(cx, |this, cx| this.detect_server_regions(None, cx)))
+                                            d.cursor_pointer().hover(|s| s.bg(theme().ok_bg)).on_click(move |_ev, _window, cx| app_detect.update(cx, |this, cx| this.detect_server_regions(None, cx)))
                                         })
                                         .child(if fleet.region_detecting { t!("fleet-overview-detecting") } else { t!("fleet-overview-detect-regions") }),
                                 )
@@ -558,9 +558,9 @@ pub fn fleet_overview_view(
                                 .items_center()
                                 .px(px(12.0))
                                 .gap(px(6.0))
-                                .bg(BG_SUBHEAD)
+                                .bg(bg_subhead())
                                 .border_b_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
                                 .child(
@@ -568,8 +568,8 @@ pub fn fleet_overview_view(
                                         .flex()
                                         .items_center()
                                         .gap(px(4.0))
-                                        .text_color(TEXT_DIMMER)
-                                        .child(tabler_icon(TablerIcon::Folder).size(px(12.0)).text_color(TEXT_DIMMER))
+                                        .text_color(text_dimmer())
+                                        .child(tabler_icon(TablerIcon::Folder).size(px(12.0)).text_color(text_dimmer()))
                                         .child(t!("fleet-overview-group")),
                                 )
                                 .child({
@@ -581,11 +581,11 @@ pub fn fleet_overview_view(
                                         .px(px(6.0))
                                         .py(px(2.0))
                                         .border_1()
-                                        .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                        .bg(if on { BG_ROW_SELECTED } else { BG_PANEL })
-                                        .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+                                        .border_color(if on { text_primary() } else { border_default() })
+                                        .bg(if on { bg_row_selected() } else { bg_panel() })
+                                        .text_color(if on { text_primary() } else { text_dim() })
                                         .cursor_pointer()
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .hover(|s| s.bg(bg_row_hover()))
                                         .on_click(move |_ev, _window, cx| {
                                             app.update(cx, |this, cx| this.set_fleet_group_filter(None, cx));
                                         })
@@ -608,11 +608,11 @@ pub fn fleet_overview_view(
                                         .px(px(6.0))
                                         .py(px(2.0))
                                         .border_1()
-                                        .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                        .bg(if on { BG_ROW_SELECTED } else { BG_PANEL })
-                                        .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+                                        .border_color(if on { text_primary() } else { border_default() })
+                                        .bg(if on { bg_row_selected() } else { bg_panel() })
+                                        .text_color(if on { text_primary() } else { text_dim() })
                                         .cursor_pointer()
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .hover(|s| s.bg(bg_row_hover()))
                                         .on_click(move |_ev, _window, cx| {
                                             let target = target.clone();
                                             app.update(cx, |this, cx| this.set_fleet_group_filter(target, cx));
@@ -645,7 +645,7 @@ pub fn fleet_overview_view(
                                                                 .focus_ring(false)
                                                                 .font_family(FONT_MONO)
                                                                 .text_size(font_px(10.5))
-                                                                .bg(BG_APP)
+                                                                .bg(bg_app())
                                                                 .rounded(px(2.0)),
                                                         ),
                                                 )
@@ -654,13 +654,13 @@ pub fn fleet_overview_view(
                                                         .id("btn-fleet-create-group")
                                                         .px(px(8.0))
                                                         .py(px(2.0))
-                                                        .bg(OK_BG)
+                                                        .bg(theme().ok_bg)
                                                         .border_1()
-                                                        .border_color(OK)
-                                                        .text_color(OK)
+                                                        .border_color(theme().ok)
+                                                        .text_color(theme().ok)
                                                         .font_weight(FontWeight::BOLD)
                                                         .cursor_pointer()
-                                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                                        .hover(|s| s.bg(bg_row_hover()))
                                                         .on_click(move |_ev, _window, cx| {
                                                             app_create.update(cx, |this, cx| this.create_new_group(cx));
                                                         })
@@ -672,10 +672,10 @@ pub fn fleet_overview_view(
                                                         .px(px(8.0))
                                                         .py(px(2.0))
                                                         .border_1()
-                                                        .border_color(BORDER_DEFAULT)
-                                                        .text_color(TEXT_DIM)
+                                                        .border_color(border_default())
+                                                        .text_color(text_dim())
                                                         .cursor_pointer()
-                                                        .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
+                                                        .hover(|s| s.text_color(text_primary()).bg(bg_row_hover()))
                                                         .on_click(move |_ev, window, cx| {
                                                             app_cancel.update(cx, |this, cx| this.toggle_new_group_prompt(window, cx));
                                                         })
@@ -692,11 +692,11 @@ pub fn fleet_overview_view(
                                             .px(px(8.0))
                                             .py(px(2.0))
                                             .border_1()
-                                            .border_color(hex_rgb(0x38bdf8))
-                                            .text_color(hex_rgb(0x38bdf8))
+                                            .border_color(accent())
+                                            .text_color(accent())
                                             .font_weight(FontWeight::BOLD)
                                             .cursor_pointer()
-                                            .hover(|s| s.bg(BG_ROW_HOVER))
+                                            .hover(|s| s.bg(bg_row_hover()))
                                             .on_click(move |_ev, window, cx| {
                                                 app_new.update(cx, |this, cx| this.toggle_new_group_prompt(window, cx));
                                             })
@@ -712,13 +712,13 @@ pub fn fleet_overview_view(
                                 .flex()
                                 .items_center()
                                 .px(px(12.0))
-                                .bg(BG_SUBHEAD)
+                                .bg(bg_subhead())
                                 .border_b_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
                                 .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(TEXT_DIMMER)
+                                .text_color(text_dimmer())
                                 .child(div().w(px(22.0)).flex_none().child(""))
                                 // Same widths as the row cells below; fixed columns are
                                 // flex_none so header and rows can't shrink differently.
@@ -760,15 +760,15 @@ pub fn fleet_overview_view(
                                                 div()
                                                     .size(px(48.0))
                                                     .border_1()
-                                                    .border_color(BORDER_STRONG)
-                                                    .bg(BG_PANEL)
+                                                    .border_color(border_strong())
+                                                    .bg(bg_panel())
                                                     .flex()
                                                     .items_center()
                                                     .justify_center()
                                                     .child(
                                                         tabler_icon(TablerIcon::Server)
                                                             .size(px(24.0))
-                                                            .text_color(TEXT_MUTED),
+                                                            .text_color(text_muted()),
                                                     ),
                                             )
                                             .child(
@@ -782,14 +782,14 @@ pub fn fleet_overview_view(
                                                             .font_family(FONT_MONO)
                                                             .font_weight(FontWeight::BOLD)
                                                             .text_size(font_px(13.0))
-                                                            .text_color(TEXT_MAX)
+                                                            .text_color(text_max())
                                                             .child(t!("fleet-overview-no-servers-enrolled-2")),
                                                     )
                                                     .child(
                                                         div()
                                                             .font_family(FONT_MONO)
                                                             .text_size(font_px(11.0))
-                                                            .text_color(TEXT_DIM)
+                                                            .text_color(text_dim())
                                                             .child(t!("fleet-overview-connect-remote-linux-servers-via")),
                                                     ),
                                             )
@@ -806,11 +806,11 @@ pub fn fleet_overview_view(
                                                             .id("btn-empty-local-lab")
                                                             .px(px(14.0))
                                                             .py(px(7.0))
-                                                            .bg(OK_BG)
+                                                            .bg(theme().ok_bg)
                                                             .border_1()
-                                                            .border_color(OK)
-                                                            .text_color(OK)
-                                                            .hover(|s| s.bg(BG_ROW_HOVER))
+                                                            .border_color(theme().ok)
+                                                            .text_color(theme().ok)
+                                                            .hover(|s| s.bg(bg_row_hover()))
                                                             .cursor_pointer()
                                                             .font_family(FONT_MONO)
                                                             .font_weight(FontWeight::BOLD)
@@ -827,11 +827,11 @@ pub fn fleet_overview_view(
                                                             .id("btn-empty-add-server")
                                                             .px(px(14.0))
                                                             .py(px(7.0))
-                                                            .bg(BG_PANEL)
+                                                            .bg(bg_panel())
                                                             .border_1()
-                                                            .border_color(BORDER_STRONG)
-                                                            .text_color(TEXT_PRIMARY)
-                                                            .hover(|s| s.bg(BG_ROW_HOVER))
+                                                            .border_color(border_strong())
+                                                            .text_color(text_primary())
+                                                            .hover(|s| s.bg(bg_row_hover()))
                                                             .cursor_pointer()
                                                             .font_family(FONT_MONO)
                                                             .font_weight(FontWeight::BOLD)
@@ -875,20 +875,20 @@ pub fn fleet_overview_view(
                                                 .flex()
                                                 .items_center()
                                                 .px(px(12.0))
-                                                .bg(BG_SUBHEAD)
+                                                .bg(bg_subhead())
                                                 .border_b_1()
-                                                .border_color(BORDER_PANEL)
+                                                .border_color(border_panel())
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_PRIMARY)
+                                                .text_color(text_primary())
                                                 .child(crate::components::flag::flag(&cc, 11.0))
                                                 .child(div().ml(px(6.0)).child(region_display))
                                                 .child(
                                                     div()
                                                         .ml(px(8.0))
                                                         .text_size(font_px(9.0))
-                                                        .text_color(TEXT_DIMMER)
+                                                        .text_color(text_dimmer())
                                                         .child(t!("fleet-overview-host-count", count = region_count)),
                                                 )
                                                 .into_any_element(),
@@ -920,20 +920,20 @@ pub fn fleet_overview_view(
                                                     .items_center()
                                                     .pl(px(24.0))
                                                     .pr(px(12.0))
-                                                    .bg(BG_APP)
+                                                    .bg(bg_app())
                                                     .border_b_1()
-                                                    .border_color(BORDER_PANEL)
+                                                    .border_color(border_panel())
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(9.5))
                                                     .font_weight(FontWeight::BOLD)
-                                                    .text_color(TEXT_SECONDARY)
-                                                    .child(tabler_icon(TablerIcon::Folder).size(px(11.0)).text_color(hex_rgb(0x38bdf8)))
+                                                    .text_color(text_secondary())
+                                                    .child(tabler_icon(TablerIcon::Folder).size(px(11.0)).text_color(accent()))
                                                     .child(div().ml(px(6.0)).child(display_name))
                                                     .child(
                                                         div()
                                                             .ml(px(8.0))
                                                             .text_size(font_px(9.0))
-                                                            .text_color(TEXT_DIMMER)
+                                                            .text_color(text_dimmer())
                                                             .child(t!("fleet-overview-host-count", count = host_count)),
                                                     )
                                                     .into_any_element(),
@@ -976,20 +976,20 @@ pub fn fleet_overview_view(
                                                 .flex()
                                                 .items_center()
                                                 .px(px(12.0))
-                                                .bg(BG_SUBHEAD)
+                                                .bg(bg_subhead())
                                                 .border_b_1()
-                                                .border_color(BORDER_PANEL)
+                                                .border_color(border_panel())
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_SECONDARY)
+                                                .text_color(text_secondary())
                                                 .child(crate::components::flag::flag(&cc, 11.0))
                                                 .child(div().ml(px(6.0)).child(region_display))
                                                 .child(
                                                     div()
                                                         .ml(px(8.0))
                                                         .text_size(font_px(9.0))
-                                                        .text_color(TEXT_DIMMER)
+                                                        .text_color(text_dimmer())
                                                         .child(t!("fleet-overview-host-count", count = host_count)),
                                                 )
                                                 .into_any_element(),
@@ -1031,20 +1031,20 @@ pub fn fleet_overview_view(
                                                 .flex()
                                                 .items_center()
                                                 .px(px(12.0))
-                                                .bg(BG_SUBHEAD)
+                                                .bg(bg_subhead())
                                                 .border_b_1()
-                                                .border_color(BORDER_PANEL)
+                                                .border_color(border_panel())
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_SECONDARY)
-                                                .child(tabler_icon(TablerIcon::Folder).size(px(12.0)).text_color(hex_rgb(0x38bdf8)))
+                                                .text_color(text_secondary())
+                                                .child(tabler_icon(TablerIcon::Folder).size(px(12.0)).text_color(accent()))
                                                 .child(div().ml(px(6.0)).child(display_name))
                                                 .child(
                                                     div()
                                                         .ml(px(8.0))
                                                         .text_size(font_px(9.0))
-                                                        .text_color(TEXT_DIMMER)
+                                                        .text_color(text_dimmer())
                                                         .child(t!("fleet-overview-host-count", count = host_count)),
                                                 )
                                                 .into_any_element(),
@@ -1079,9 +1079,9 @@ pub fn fleet_overview_view(
                         .flex_none()
                         .flex()
                         .min_h(px(0.0))
-                        .bg(BG_RAIL)
+                        .bg(bg_rail())
                         .overflow_hidden()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .child(
                             div()
                                 .flex_1()
@@ -1089,7 +1089,7 @@ pub fn fleet_overview_view(
                                 .flex()
                                 .flex_col()
                                 .border_r_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                         // Alerts Header
                         .child({
                             let is_collapsed = fleet.bottom_panel_collapsed;
@@ -1101,11 +1101,11 @@ pub fn fleet_overview_view(
                                 .flex()
                                 .items_center()
                                 .px(px(12.0))
-                                .bg(BG_PANEL)
+                                .bg(bg_panel())
                                 .border_b_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                                 .gap(px(8.0))
-                                .when(is_collapsed, |s| s.cursor_pointer().hover(|h| h.bg(BG_ROW_HOVER)))
+                                .when(is_collapsed, |s| s.cursor_pointer().hover(|h| h.bg(bg_row_hover())))
                                 .on_click(move |_ev, _window, cx| {
                                     if is_collapsed {
                                         app_toggle.update(cx, |this, cx| this.expand_fleet_bottom_panel(cx));
@@ -1114,21 +1114,21 @@ pub fn fleet_overview_view(
                                 .child(
                                     tabler_icon(if is_collapsed { TablerIcon::ChevronUp } else { TablerIcon::Bell })
                                         .size(px(14.0))
-                                        .text_color(if open_lines.is_empty() { TEXT_DIMMER } else { WARN })
+                                        .text_color(if open_lines.is_empty() { text_dimmer() } else { theme().warn })
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
                                         .font_weight(FontWeight::SEMIBOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(t!("fleet-overview-fleet-alerts")),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
-                                        .text_color(if open_lines.is_empty() { TEXT_DIMMER } else { WARN })
+                                        .text_color(if open_lines.is_empty() { text_dimmer() } else { theme().warn })
                                         .child(t!("fleet-overview-open", count = open_lines.len())),
                                 )
                                 .child(div().flex_1())
@@ -1137,7 +1137,7 @@ pub fn fleet_overview_view(
                                         div()
                                             .font_family(FONT_MONO)
                                             .text_size(font_px(9.5))
-                                            .text_color(TEXT_FAINT)
+                                            .text_color(text_faint())
                                             .child(t!("fleet-overview-expand-panel"))
                                             .into_any_element(),
                                     )
@@ -1154,9 +1154,9 @@ pub fn fleet_overview_view(
                                                     .id("btn-ack-all-alerts")
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(10.0))
-                                                    .text_color(TEXT_DIM)
+                                                    .text_color(text_dim())
                                                     .cursor_pointer()
-                                                    .hover(|s| s.text_color(TEXT_PRIMARY))
+                                                    .hover(|s| s.text_color(text_primary()))
                                                     .on_click(move |_ev, _window, cx| app_ack.update(cx, |this, cx| this.acknowledge_alerts(None, cx)))
                                                     .child(t!("fleet-overview-ack-all"))
                                             }))
@@ -1165,12 +1165,12 @@ pub fn fleet_overview_view(
                                                     .id("btn-collapse-fleet-alerts")
                                                     .p(px(2.0))
                                                     .cursor_pointer()
-                                                    .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
-                                                    .text_color(TEXT_DIMMER)
+                                                    .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
+                                                    .text_color(text_dimmer())
                                                     .on_click(move |_ev, _window, cx| {
                                                         app_col.update(cx, |this, cx| this.collapse_fleet_bottom_panel(cx));
                                                     })
-                                                    .child(tabler_icon(TablerIcon::ChevronDown).size(px(14.0)).text_color(TEXT_DIMMER))
+                                                    .child(tabler_icon(TablerIcon::ChevronDown).size(px(14.0)).text_color(text_dimmer()))
                                             )
                                             .into_any_element(),
                                     )
@@ -1192,10 +1192,10 @@ pub fn fleet_overview_view(
                                         .px(px(12.0))
                                         .py(px(6.0))
                                         .border_b_1()
-                                        .border_color(BORDER_ROW)
+                                        .border_color(border_row())
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(n)
                                 }))
                                 .children(if alerts.is_empty() {
@@ -1208,7 +1208,7 @@ pub fn fleet_overview_view(
                                             .gap(px(8.0))
                                             .font_family(FONT_MONO)
                                             .text_size(font_px(10.5))
-                                            .text_color(TEXT_MUTED)
+                                            .text_color(text_muted())
                                             .child(div().size(px(6.0)).rounded_full().bg(quiet_color))
                                             .child(quiet_note.clone()),
                                     ).into_iter().collect::<Vec<_>>()
@@ -1222,10 +1222,10 @@ pub fn fleet_overview_view(
                                             .px(px(12.0))
                                             .py(px(7.0))
                                             .border_b_1()
-                                            .border_color(BORDER_ROW)
-                                            .bg(if *lvl == "CRIT" { CRIT_LOG_BG } else { hex_rgba(0, 0.0) })
+                                            .border_color(border_row())
+                                            .bg(if *lvl == "CRIT" { theme().crit_log_bg } else { hex_rgba(0, 0.0) })
                                             .children(if *lvl == "CRIT" {
-                                                Some(left_indicator(CRIT))
+                                                Some(left_indicator(theme().crit))
                                             } else {
                                                 None
                                             })
@@ -1250,14 +1250,14 @@ pub fn fleet_overview_view(
                                                             .flex_1()
                                                             .font_family(FONT_MONO)
                                                             .text_size(font_px(11.0))
-                                                            .text_color(TEXT_SECONDARY)
+                                                            .text_color(text_secondary())
                                                             .child(host.clone()),
                                                     )
                                                     .child(
                                                         div()
                                                             .font_family(FONT_MONO)
                                                             .text_size(font_px(10.0))
-                                                            .text_color(TEXT_FAINT)
+                                                            .text_color(text_faint())
                                                             .child(age.clone()),
                                                     ),
                                             )
@@ -1265,7 +1265,7 @@ pub fn fleet_overview_view(
                                                 div()
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(10.5))
-                                                    .text_color(if *lvl == "CRIT" { CRIT_INK } else { WARN_INK })
+                                                    .text_color(if *lvl == "CRIT" { theme().crit_ink } else { theme().warn_ink })
                                                     .child(msg.clone()),
                                             )
                                     }).collect::<Vec<_>>()
@@ -1289,11 +1289,11 @@ pub fn fleet_overview_view(
                                 .flex()
                                 .items_center()
                                 .px(px(12.0))
-                                .bg(BG_PANEL)
+                                .bg(bg_panel())
                                 .border_b_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                                 .gap(px(8.0))
-                                .when(is_collapsed, |s| s.cursor_pointer().hover(|h| h.bg(BG_ROW_HOVER)))
+                                .when(is_collapsed, |s| s.cursor_pointer().hover(|h| h.bg(bg_row_hover())))
                                 .on_click(move |_ev, _window, cx| {
                                     if is_collapsed {
                                         app_toggle.update(cx, |this, cx| this.expand_fleet_bottom_panel(cx));
@@ -1302,14 +1302,14 @@ pub fn fleet_overview_view(
                                 .child(
                                     tabler_icon(if is_collapsed { TablerIcon::ChevronUp } else { TablerIcon::Activity })
                                         .size(px(14.0))
-                                        .text_color(TEXT_DIMMER)
+                                        .text_color(text_dimmer())
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
                                         .font_weight(FontWeight::SEMIBOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(t!("fleet-overview-activity")),
                                 )
                                 .child(div().flex_1())
@@ -1318,7 +1318,7 @@ pub fn fleet_overview_view(
                                         div()
                                             .font_family(FONT_MONO)
                                             .text_size(font_px(9.5))
-                                            .text_color(TEXT_FAINT)
+                                            .text_color(text_faint())
                                             .child(t!("fleet-overview-expand-panel"))
                                             .into_any_element(),
                                     )
@@ -1335,9 +1335,9 @@ pub fn fleet_overview_view(
                                                     .id("btn-open-audit")
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(10.0))
-                                                    .text_color(TEXT_DIMMER)
+                                                    .text_color(text_dimmer())
                                                     .cursor_pointer()
-                                                    .hover(|s| s.text_color(TEXT_PRIMARY))
+                                                    .hover(|s| s.text_color(text_primary()))
                                                     .on_click(move |_ev, _window, cx| app_audit.update(cx, |this, cx| this.open_audit(cx)))
                                                     .child(t!("fleet-overview-audit-log-all-hosts")),
                                             )
@@ -1346,12 +1346,12 @@ pub fn fleet_overview_view(
                                                     .id("btn-collapse-fleet-activity")
                                                     .p(px(2.0))
                                                     .cursor_pointer()
-                                                    .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
-                                                    .text_color(TEXT_DIMMER)
+                                                    .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
+                                                    .text_color(text_dimmer())
                                                     .on_click(move |_ev, _window, cx| {
                                                         app_col.update(cx, |this, cx| this.collapse_fleet_bottom_panel(cx));
                                                     })
-                                                    .child(tabler_icon(TablerIcon::ChevronDown).size(px(14.0)).text_color(TEXT_DIMMER))
+                                                    .child(tabler_icon(TablerIcon::ChevronDown).size(px(14.0)).text_color(text_dimmer()))
                                             )
                                             .into_any_element(),
                                     )
@@ -1371,7 +1371,7 @@ pub fn fleet_overview_view(
                                             .py(px(14.0))
                                             .font_family(FONT_MONO)
                                             .text_size(font_px(10.5))
-                                            .text_color(TEXT_DIMMER)
+                                            .text_color(text_dimmer())
                                             .child(t!("fleet-overview-no-recent-fleet-activity-recorded")),
                                     ).into_iter().collect::<Vec<_>>()
                                 } else {
@@ -1387,7 +1387,7 @@ pub fn fleet_overview_view(
                                             .child(
                                                 div()
                                                     .w(px(84.0))
-                                                    .text_color(TEXT_FAINTER)
+                                                    .text_color(text_fainter())
                                                     .flex_none()
                                                     .child(ts.clone()),
                                             )
@@ -1425,9 +1425,9 @@ pub fn fleet_overview_view(
                 .h(px(32.0))
                 .flex_none()
                 .px(px(14.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_t_1()
-                .border_color(BORDER_DEFAULT)
+                .border_color(border_default())
                 .flex()
                 .items_center()
                 .justify_between()
@@ -1438,21 +1438,21 @@ pub fn fleet_overview_view(
                         .flex()
                         .items_center()
                         .gap(px(8.0))
-                        .child(tabler_icon(TablerIcon::InfoCircle).size(px(13.0)).text_color(hex_rgb(0x38bdf8)))
-                        .child(div().text_size(font_px(11.0)).text_color(TEXT_MAX).child(notice.clone())),
+                        .child(tabler_icon(TablerIcon::InfoCircle).size(px(13.0)).text_color(accent()))
+                        .child(div().text_size(font_px(11.0)).text_color(text_max()).child(notice.clone())),
                 )
                 .child(
                     div()
                         .id("btn-dismiss-fleet-notice")
                         .px(px(8.0))
                         .py(px(2.0))
-                        .bg(BG_CONTROL)
+                        .bg(bg_control())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_MUTED)
+                        .text_color(text_muted())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_MAX))
+                        .hover(|s| s.bg(bg_row_hover()).text_color(text_max()))
                         .on_click(move |_ev, _window, cx| {
                             app_dismiss.update(cx, |this, cx| {
                                 this.fleet.notice = None;
@@ -1509,13 +1509,13 @@ fn fleet_danger_page(app: Entity<CrowApp>) -> impl IntoElement {
                 .items_center()
                 .gap(px(9.0))
                 .px(px(16.0))
-                .bg(CRIT_STRIP_BG)
+                .bg(theme().crit_strip_bg)
                 .border_b_1()
-                .border_color(BORDER_DANGER)
+                .border_color(border_danger())
                 .child(danger_triangle())
-                .child(div().text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child(t!("fleet-overview-fleet-wide")))
+                .child(div().text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(theme().crit).child(t!("fleet-overview-fleet-wide")))
                 .child(div().flex_1())
-                .child(div().text_size(font_px(10.0)).text_color(TEXT_DIMMER).child(t!("fleet-overview-one-host-at-a-time"))),
+                .child(div().text_size(font_px(10.0)).text_color(text_dimmer()).child(t!("fleet-overview-one-host-at-a-time"))),
         )
         .child(
             div()
@@ -1536,12 +1536,12 @@ fn fleet_action_live(id: &'static str, label: String) -> Stateful<Div> {
         .px(px(10.0))
         .py(px(4.0))
         .border_1()
-        .border_color(BORDER_DANGER_BTN)
-        .hover(|s| s.bg(CRIT_BG).text_color(CRIT))
+        .border_color(border_danger_btn())
+        .hover(|s| s.bg(theme().crit_bg).text_color(theme().crit))
         .cursor_pointer()
         .font_family(FONT_MONO)
         .text_size(font_px(11.0))
-        .text_color(CRIT_INK_DIM)
+        .text_color(theme().crit_ink_dim)
         .child(label)
 }
 
@@ -1552,12 +1552,12 @@ fn fleet_tab(id: SharedString, label: String, selected: bool) -> Stateful<Div> {
         .px(px(8.0))
         .py(px(2.0))
         .border_1()
-        .border_color(if selected { BORDER_CONTROL_SEL } else { hex_rgba(0, 0.0) })
-        .bg(if selected { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
-        .text_color(if selected { TEXT_MAX } else { TEXT_MUTED })
+        .border_color(if selected { border_control_sel() } else { hex_rgba(0, 0.0) })
+        .bg(if selected { bg_row_selected() } else { hex_rgba(0, 0.0) })
+        .text_color(if selected { text_max() } else { text_muted() })
         .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
         .cursor_pointer()
-        .hover(|s| s.text_color(TEXT_PRIMARY))
+        .hover(|s| s.text_color(text_primary()))
         .child(label)
 }
 
@@ -1589,22 +1589,22 @@ fn render_fleet_host_row(
         .items_center()
         .px(px(12.0))
         .bg(if host.is_selected {
-            BG_ROW_SELECTED
+            bg_row_selected()
         } else if is_even {
-            BG_APP
+            bg_panel()
         } else {
-            BG_ROW_ALT
+            bg_row_alt()
         })
         .border_b_1()
-        .border_color(BORDER_ROW)
+        .border_color(border_row())
         .children(if host.is_selected {
-            Some(left_indicator(TEXT_PRIMARY))
+            Some(left_indicator(text_primary()))
         } else if host.is_critical_border {
-            Some(left_indicator(CRIT))
+            Some(left_indicator(theme().crit))
         } else {
             None
         })
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .cursor_pointer()
         .on_click(move |_ev, _window, cx| {
             let hid = host_id.clone();
@@ -1646,7 +1646,7 @@ fn render_fleet_host_row(
                 } else {
                     tabler_icon(TablerIcon::Server)
                         .size(px(12.0))
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .into_any_element()
                 })
                 .child(
@@ -1657,9 +1657,9 @@ fn render_fleet_host_row(
                             FontWeight::NORMAL
                         })
                         .text_color(if host.is_selected {
-                            TEXT_MAX
+                            text_max()
                         } else {
-                            TEXT_PRIMARY
+                            text_primary()
                         })
                         .child(host.name.clone()),
                 )
@@ -1685,7 +1685,7 @@ fn render_fleet_host_row(
                 .flex()
                 .items_center()
                 .child(
-                    crate::components::button::badge(if host.status_color == TEXT_FAINTER { TEXT_DIM } else { host.status_color })
+                    crate::components::button::badge(if host.status_color == text_fainter() { text_dim() } else { host.status_color })
                         .text_size(font_px(8.5))
                         .child(host.pill.clone()),
                 ),
@@ -1712,13 +1712,13 @@ fn render_fleet_host_row(
                         .px(px(5.0))
                         .py(px(2.0))
                         .border_1()
-                        .border_color(if is_dropdown_open { hex_rgb(0x38bdf8) } else { BORDER_DEFAULT })
-                        .bg(if is_dropdown_open { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
-                        .text_color(if grp_display == "NO GROUP" { TEXT_DIMMER } else { hex_rgb(0x38bdf8) })
+                        .border_color(if is_dropdown_open { accent() } else { border_default() })
+                        .bg(if is_dropdown_open { bg_row_selected() } else { hex_rgba(0, 0.0) })
+                        .text_color(if grp_display == "NO GROUP" { text_dimmer() } else { accent() })
                         .text_size(font_px(8.5))
                         .font_weight(FontWeight::BOLD)
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER).border_color(BORDER_STRONG))
+                        .hover(|s| s.bg(bg_row_hover()).border_color(border_strong()))
                         .on_click(move |_ev, _window, cx| {
                             cx.stop_propagation();
                             let sid = s_id.clone();
@@ -1754,7 +1754,7 @@ fn render_fleet_host_row(
                 .overflow_hidden()
                 .flex()
                 // Click to copy the address (ERR-191).
-                .child(crate::components::copy_flash::copyable(format!("fleet-ip-{}", host.id), host.ip.clone(), host.addr.clone(), TEXT_DIM)),
+                .child(crate::components::copy_flash::copyable(format!("fleet-ip-{}", host.id), host.ip.clone(), host.addr.clone(), text_dim())),
         )
         // OS: the distro's logo (Dashboard Icons, Apache-2.0) and its short name.
         .child(
@@ -1768,7 +1768,7 @@ fn render_fleet_host_row(
                 .overflow_hidden()
                 // No logo (not Linux, or not read yet): its space, so names line up.
                 .child(crate::components::distro_icon::distro_icon(&host.distro, 14.0).unwrap_or_else(|| div().size(px(14.0)).flex_none().into_any_element()))
-                .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(TEXT_DIM).child({
+                .child(div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(text_dim()).child({
                     let short = crate::components::distro_icon::short_name(&host.distro);
                     if short.is_empty() { "—".to_string() } else { short }
                 })),
@@ -1783,7 +1783,7 @@ fn render_fleet_host_row(
                 .overflow_hidden()
                 .text_align(TextAlign::Right)
                 .text_size(font_px(11.0))
-                .text_color(TEXT_TERTIARY)
+                .text_color(text_tertiary())
                 .child(host.role.clone()),
         )
         // Env
@@ -1811,25 +1811,25 @@ fn render_fleet_host_row(
                     div()
                         .w(px(34.0))
                         .h(px(3.0))
-                        .bg(hex_rgb(0x1a1b21))
+                        .bg(bg_control_alt())
                         .flex_none()
                         .child(
                             div()
                                 .w(px(34.0 * (host.cpu_pct as f32 / 100.0)))
                                 .h(px(3.0))
                                 .bg(if host.cpu_pct > 85 {
-                                    CRIT
+                                    theme().crit
                                 } else if host.cpu_pct > 60 {
-                                    WARN
+                                    theme().warn
                                 } else {
-                                    OK
+                                    theme().ok
                                 }),
                         ),
                 )
                 .child(
                     div()
                         .text_size(font_px(10.5))
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .child(host.cpu_label.clone()),
                 ),
         )
@@ -1845,25 +1845,25 @@ fn render_fleet_host_row(
                     div()
                         .w(px(34.0))
                         .h(px(3.0))
-                        .bg(hex_rgb(0x1a1b21))
+                        .bg(bg_control_alt())
                         .flex_none()
                         .child(
                             div()
                                 .w(px(34.0 * (host.mem_pct as f32 / 100.0)))
                                 .h(px(3.0))
                                 .bg(if host.mem_pct > 85 {
-                                    CRIT
+                                    theme().crit
                                 } else if host.mem_pct > 60 {
-                                    WARN
+                                    theme().warn
                                 } else {
-                                    OK
+                                    theme().ok
                                 }),
                         ),
                 )
                 .child(
                     div()
                         .text_size(font_px(10.5))
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .child(host.mem_label.clone()),
                 ),
         )
@@ -1874,9 +1874,9 @@ fn render_fleet_host_row(
                 .flex_none()
                 .text_align(TextAlign::Right)
                 .text_color(if host.disk.starts_with("7") || host.disk.starts_with("8") {
-                    WARN
+                    theme().warn
                 } else {
-                    TEXT_PRIMARY
+                    text_primary()
                 })
                 .child(host.disk.clone()),
         )
@@ -1886,7 +1886,7 @@ fn render_fleet_host_row(
                 .w(px(80.0))
                 .flex_none()
                 .text_align(TextAlign::Right)
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .child(host.uptime.clone()),
         )
         // Alerts
@@ -1916,10 +1916,10 @@ fn render_fleet_host_row(
                         .px(px(7.0))
                         .py(px(2.0))
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .text_color(TEXT_DIM)
+                        .border_color(border_default())
+                        .text_color(text_dim())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_CONTROL).text_color(TEXT_PRIMARY).border_color(TEXT_DIM))
+                        .hover(|s| s.bg(bg_control()).text_color(text_primary()).border_color(text_dim()))
                         .on_click(move |_ev, _window, cx| {
                             let id = terminal_id.clone();
                             cx.stop_propagation();
@@ -1952,9 +1952,9 @@ fn render_group_dropdown(
         .top(px(26.0))
         .left_0()
         .w(px(210.0))
-        .bg(BG_OVERLAY_PANEL)
+        .bg(bg_overlay_panel())
         .border_1()
-        .border_color(BORDER_STRONG)
+        .border_color(border_strong())
         .shadow_lg()
         .occlude()
         .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
@@ -1966,9 +1966,9 @@ fn render_group_dropdown(
             div()
                 .h(px(24.0))
                 .px(px(8.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .items_center()
                 .justify_between()
@@ -1977,18 +1977,18 @@ fn render_group_dropdown(
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(tabler_icon(TablerIcon::Folder).size(px(11.0)).text_color(hex_rgb(0x38bdf8)))
+                        .child(tabler_icon(TablerIcon::Folder).size(px(11.0)).text_color(accent()))
                         .child(
                             div()
                                 .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_SECONDARY)
+                                .text_color(text_secondary())
                                 .child(t!("fleet-overview-col-group")),
                         ),
                 )
                 .child(
                     div()
-                        .child(tabler_icon(TablerIcon::X).size(px(11.0)).text_color(TEXT_DIMMER)),
+                        .child(tabler_icon(TablerIcon::X).size(px(11.0)).text_color(text_dimmer())),
                 ),
         )
         // Groups list
@@ -2017,8 +2017,8 @@ fn render_group_dropdown(
                         .id(SharedString::from(format!("group-opt-{grp}")))
                         .h(px(26.0))
                         .px(px(8.0))
-                        .bg(if is_active { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .bg(if is_active { bg_row_selected() } else { hex_rgba(0, 0.0) })
+                        .hover(|s| s.bg(bg_row_hover()))
                         .cursor_pointer()
                         .flex()
                         .items_center()
@@ -2039,7 +2039,7 @@ fn render_group_dropdown(
                                     div()
                                         .text_size(font_px(10.0))
                                         .font_weight(if is_active { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                        .text_color(if is_active { TEXT_MAX } else { TEXT_PRIMARY })
+                                        .text_color(if is_active { text_max() } else { text_primary() })
                                         .child(display_name),
                                 ),
                         )
@@ -2047,7 +2047,7 @@ fn render_group_dropdown(
                             div()
                                 .text_size(font_px(9.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(hex_rgb(0x38bdf8))
+                                .text_color(accent())
                                 .child("✓")
                         }))
                 }))
@@ -2059,22 +2059,22 @@ fn render_group_dropdown(
                 .h(px(26.0))
                 .px(px(8.0))
                 .border_t_1()
-                .border_color(BORDER_PANEL)
-                .bg(BG_PANEL)
-                .hover(|s| s.bg(BG_ROW_HOVER))
+                .border_color(border_panel())
+                .bg(bg_panel())
+                .hover(|s| s.bg(bg_row_hover()))
                 .cursor_pointer()
                 .flex()
                 .items_center()
                 .gap(px(6.0))
-                .text_color(TEXT_SECONDARY)
-                .hover(|s| s.text_color(TEXT_PRIMARY))
+                .text_color(text_secondary())
+                .hover(|s| s.text_color(text_primary()))
                 .on_click(move |_ev, window, cx| {
                     app_create.update(cx, |this, cx| {
                         this.set_group_assign_target(None, cx);
                         this.toggle_new_group_prompt(window, cx);
                     });
                 })
-                .child(tabler_icon(TablerIcon::Plus).size(px(11.0)).text_color(TEXT_DIM))
+                .child(tabler_icon(TablerIcon::Plus).size(px(11.0)).text_color(text_dim()))
                 .child(
                     div()
                         .text_size(font_px(9.5))

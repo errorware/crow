@@ -30,7 +30,7 @@ pub fn services_table(
         .h_full()
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         // 1. Panel Header
         .child(
             div()
@@ -38,9 +38,9 @@ pub fn services_table(
                 .flex_none()
                 .flex()
                 .items_center()
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 // Page title (each table is its own page in the sidebar)
                 .child(
                     div()
@@ -49,11 +49,11 @@ pub fn services_table(
                         .flex()
                         .items_center()
                         .border_r_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(active_tab.to_uppercase()),
                 )
                 // Services and Processes: live search and filter chips.
@@ -82,7 +82,7 @@ pub fn services_table(
                             .flex()
                             .items_center()
                             .border_l_1()
-                            .border_color(BORDER_PANEL)
+                            .border_color(border_panel())
                             .px(px(6.0))
                             .gap(px(3.0))
                             .child(
@@ -93,12 +93,12 @@ pub fn services_table(
                                     .items_center()
                                     .px(px(8.0))
                                     .cursor_pointer()
-                                    .bg(if !is_map { hex_rgba(0xffffff, 0.08) } else { hex_rgba(0, 0.0) })
-                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                    .when(!is_map, |s| s.bg(bg_control()))
+                                    .hover(|s| s.bg(bg_row_hover()))
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(10.0))
                                     .font_weight(if !is_map { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                                    .text_color(if !is_map { TEXT_PRIMARY } else { TEXT_SECONDARY })
+                                    .text_color(if !is_map { text_primary() } else { text_secondary() })
                                     .on_click(move |_ev, _window, cx| {
                                         app_tbl.update(cx, |this, cx| {
                                             this.set_sockets_subview(SocketsViewMode::Table, cx);
@@ -114,12 +114,12 @@ pub fn services_table(
                                     .items_center()
                                     .px(px(8.0))
                                     .cursor_pointer()
-                                    .bg(if is_map { hex_rgba(0x8ab4ff, 0.16) } else { hex_rgba(0, 0.0) })
-                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                    .when(is_map, |s| s.bg(accent_bg()))
+                                    .hover(|s| s.bg(bg_row_hover()))
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(10.0))
                                     .font_weight(if is_map { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                                    .text_color(if is_map { hex_rgb(0x8ab4ff) } else { TEXT_SECONDARY })
+                                    .text_color(if is_map { accent() } else { text_secondary() })
                                     .on_click(move |_ev, _window, cx| {
                                         app_map.update(cx, |this, cx| {
                                             this.set_sockets_subview(SocketsViewMode::Map, cx);
@@ -144,14 +144,14 @@ pub fn services_table(
                             .gap(px(6.0))
                             .px(px(12.0))
                             .border_l_1()
-                            .border_color(BORDER_PANEL)
+                            .border_color(border_panel())
                             .cursor_pointer()
-                            .bg(if is_open { hex_rgba(0x8ab4ff, 0.12) } else { hex_rgba(0, 0.0) })
-                            .hover(|s| s.bg(BG_ROW_HOVER))
+                            .when(is_open, |s| s.bg(accent_bg()))
+                            .hover(|s| s.bg(bg_row_hover()))
                             .font_family(FONT_MONO)
                             .text_size(font_px(10.5))
                             .font_weight(if is_open { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                            .text_color(if is_open { hex_rgb(0x8ab4ff) } else { TEXT_SECONDARY })
+                            .text_color(if is_open { accent() } else { text_secondary() })
                             .on_click(move |_ev, _window, cx| {
                                 app_drawer.update(cx, |this, cx| {
                                     this.toggle_socket_drawer(cx);
@@ -160,7 +160,7 @@ pub fn services_table(
                             .child(
                                 tabler_icon(if is_open { TablerIcon::ChevronDown } else { TablerIcon::Terminal2 })
                                     .size(px(12.0))
-                                    .text_color(if is_open { hex_rgb(0x8ab4ff) } else { TEXT_DIMMER }),
+                                    .text_color(if is_open { accent() } else { text_dimmer() }),
                             )
                             .child(if is_open { t!("overview-services-table-log-drawer-active") } else { t!("overview-services-table-log-drawer") }),
                     )
@@ -179,12 +179,12 @@ pub fn services_table(
                             .gap(px(7.0))
                             .px(px(12.0))
                             .border_l_1()
-                            .border_color(BORDER_PANEL)
+                            .border_color(border_panel())
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(10.5))
-                                    .text_color(TEXT_TERTIARY)
+                                    .text_color(text_tertiary())
                                     .child(match active_tab {
                                         "sockets" => t!("overview-services-table-sort-port"),
                                         "services" => t!("overview-services-table-sort-status-name"),
@@ -195,10 +195,10 @@ pub fn services_table(
                                 div()
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(10.0))
-                                    .text_color(TEXT_MUTED)
-                                    .bg(BG_KEY)
+                                    .text_color(text_muted())
+                                    .bg(bg_key())
                                     .border_1()
-                                    .border_color(BORDER_KEY)
+                                    .border_color(border_key())
                                     .px(px(5.0))
                                     .py(px(1.0))
                                     .child("s"),
@@ -233,6 +233,7 @@ pub fn services_table(
                     .flex_1()
                     .min_h(px(0.0))
                     .overflow_y_scrollbar()
+                    .bg(bg_panel())
                     .flex()
                     .flex_col()
                     .children(match active_tab {
@@ -327,9 +328,9 @@ fn render_pager(table: TablePage, total: usize, page: usize, app: Entity<CrowApp
             .px(px(8.0))
             .py(px(2.0))
             .border_1()
-            .border_color(BORDER_DEFAULT)
-            .text_color(if target.is_some() { TEXT_SECONDARY } else { TEXT_FAINTER })
-            .when_some(target, |d, p| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_table_page(table, p, cx))))
+            .border_color(border_default())
+            .text_color(if target.is_some() { text_secondary() } else { text_fainter() })
+            .when_some(target, |d, p| d.cursor_pointer().hover(|s| s.bg(bg_row_hover())).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_table_page(table, p, cx))))
             .child(label)
     };
     Some(
@@ -340,15 +341,15 @@ fn render_pager(table: TablePage, total: usize, page: usize, app: Entity<CrowApp
             .items_center()
             .gap(px(8.0))
             .px(px(14.0))
-            .bg(BG_PANEL)
+            .bg(bg_panel())
             .border_t_1()
-            .border_color(BORDER_PANEL)
+            .border_color(border_panel())
             .font_family(FONT_MONO)
             .text_size(font_px(10.5))
-            .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-of", first = first, last = last, total = total)))
+            .child(div().text_color(text_dimmer()).child(t!("overview-services-table-of", first = first, last = last, total = total)))
             .child(div().flex_1())
             .child(button("table-page-prev", t!("overview-services-table-prev"), page.checked_sub(1)))
-            .child(div().text_color(TEXT_FAINT).child(format!("{} / {}", page + 1, pages)))
+            .child(div().text_color(text_faint()).child(format!("{} / {}", page + 1, pages)))
             .child(button("table-page-next", t!("overview-services-table-next"), (page + 1 < pages).then_some(page + 1))),
     )
 }
@@ -370,10 +371,10 @@ fn render_group_toggle(active_tab: &str, overview: &OverviewState, app: Entity<C
         .gap(px(5.0))
         .px(px(10.0))
         .border_l_1()
-        .border_color(BORDER_PANEL)
-        .bg(if is_on { BG_CHIP } else { hex_rgba(0, 0.0) })
-        .text_color(if is_on { TEXT_PRIMARY } else { TEXT_DIMMER })
-        .hover(|s| s.text_color(TEXT_SECONDARY))
+        .border_color(border_panel())
+        .bg(if is_on { bg_chip() } else { hex_rgba(0, 0.0) })
+        .text_color(if is_on { text_primary() } else { text_dimmer() })
+        .hover(|s| s.text_color(text_secondary()))
         .cursor_pointer()
         .font_family(FONT_MONO)
         .text_size(font_px(9.5))
@@ -390,7 +391,7 @@ fn render_group_toggle(active_tab: &str, overview: &OverviewState, app: Entity<C
         .child(
             tabler_icon(TablerIcon::Filter)
                 .size(px(10.0))
-                .text_color(if is_on { TEXT_PRIMARY } else { TEXT_DIMMER }),
+                .text_color(if is_on { text_primary() } else { text_dimmer() }),
         )
         .child(label)
 }
@@ -418,10 +419,10 @@ fn render_counts_cluster(
                 .px(px(12.0))
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.5))
-                .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-processes", total = total)))
-                .child(div().text_color(OK).child(t!("overview-services-table-running", running = running)))
+                .child(div().text_color(text_dimmer()).child(t!("overview-services-table-processes", total = total)))
+                .child(div().text_color(theme().ok).child(t!("overview-services-table-running", running = running)))
                 .children(if high_cpu > 0 {
-                    Some(div().text_color(WARN).child(t!("overview-services-table-high-cpu", high_cpu = high_cpu)))
+                    Some(div().text_color(theme().warn).child(t!("overview-services-table-high-cpu", high_cpu = high_cpu)))
                 } else {
                     None
                 })
@@ -438,10 +439,10 @@ fn render_counts_cluster(
                 .px(px(12.0))
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.5))
-                .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-sockets", total = total)))
-                .child(div().text_color(OK).child(t!("overview-services-table-listening", listen = listen)))
+                .child(div().text_color(text_dimmer()).child(t!("overview-services-table-sockets", total = total)))
+                .child(div().text_color(theme().ok).child(t!("overview-services-table-listening", listen = listen)))
                 .children(if estab > 0 {
-                    Some(div().text_color(hex_rgb(0x38bdf8)).child(t!("overview-services-table-established", estab = estab)))
+                    Some(div().text_color(accent()).child(t!("overview-services-table-established", estab = estab)))
                 } else {
                     None
                 })
@@ -459,15 +460,15 @@ fn render_counts_cluster(
                 .px(px(12.0))
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.5))
-                .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-units", total = total)))
-                .child(div().text_color(OK).child(t!("overview-services-table-active", active = active)))
+                .child(div().text_color(text_dimmer()).child(t!("overview-services-table-units", total = total)))
+                .child(div().text_color(theme().ok).child(t!("overview-services-table-active", active = active)))
                 .children(if degraded > 0 {
-                    Some(div().text_color(WARN).child(t!("overview-services-table-degraded", degraded = degraded)))
+                    Some(div().text_color(theme().warn).child(t!("overview-services-table-degraded", degraded = degraded)))
                 } else {
                     None
                 })
                 .children(if failed > 0 {
-                    Some(div().text_color(CRIT).child(t!("overview-services-table-failed", failed = failed)))
+                    Some(div().text_color(theme().crit).child(t!("overview-services-table-failed", failed = failed)))
                 } else {
                     None
                 })
@@ -498,13 +499,13 @@ fn render_column_header(active_tab: &str, (local_w, peer_w): (f32, f32)) -> impl
         .flex_none()
         .flex()
         .items_center()
-        .bg(BG_SUBHEAD)
+        .bg(bg_subhead())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .font_family(FONT_MONO)
         .text_size(font_px(9.5))
         .font_weight(FontWeight::SEMIBOLD)
-        .text_color(TEXT_DIMMER);
+        .text_color(text_dimmer());
 
     match active_tab {
         "processes" => header_box
@@ -558,17 +559,17 @@ fn render_group_header(
         .h(px(26.0))
         .px(px(12.0))
         .gap(px(8.0))
-        .bg(BG_SUBHEAD)
+        .bg(bg_subhead())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .on_click(on_toggle)
         .child(
             div()
                 .w(px(12.0))
                 .text_size(font_px(9.0))
-                .text_color(TEXT_DIMMER)
+                .text_color(text_dimmer())
                 .child(if is_collapsed { "▶" } else { "▼" }),
         )
         .children(dot_color.map(|c| div().size(px(6.0)).rounded_full().bg(c).flex_none()))
@@ -578,14 +579,14 @@ fn render_group_header(
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.5))
                 .font_weight(FontWeight::BOLD)
-                .text_color(TEXT_PRIMARY)
+                .text_color(text_primary())
                 .child(label),
         )
         .child(
             div()
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.0))
-                .text_color(TEXT_DIMMER)
+                .text_color(text_dimmer())
                 .child(format!("{} {}{}", count, noun, if count == 1 { "" } else { "s" })),
         )
         .children(trailing.map(|(cpu, mem)| {
@@ -599,7 +600,7 @@ fn render_group_header(
                         .text_right()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .child(cpu),
                 )
                 .child(
@@ -608,7 +609,7 @@ fn render_group_header(
                         .text_right()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .child(mem),
                 )
         }))
@@ -630,10 +631,10 @@ fn status_rank(status: &str) -> u8 {
 
 fn status_group_color(status: &str) -> Rgba {
     match status {
-        "FAILED" => CRIT,
-        "DEGRADED" | "PENDING" => WARN,
-        "ACTIVE" => OK,
-        _ => TEXT_MUTED,
+        "FAILED" => theme().crit,
+        "DEGRADED" | "PENDING" => theme().warn,
+        "ACTIVE" => theme().ok,
+        _ => text_muted(),
     }
 }
 
@@ -645,7 +646,7 @@ fn empty_state(message: &'static str) -> AnyElement {
         .justify_center()
         .font_family(FONT_MONO)
         .text_size(font_px(11.0))
-        .text_color(TEXT_DIMMER)
+        .text_color(text_dimmer())
         .child(message)
         .into_any_element()
 }
@@ -724,17 +725,17 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
     let is_failed = svc.status == "FAILED";
     let cpu_num: f32 = svc.cpu.parse().unwrap_or(0.0);
     let pill_bg = match svc.status.as_str() {
-        "ACTIVE" => OK_BG,
-        "DEGRADED" | "PENDING" => WARN_BG,
-        _ => CRIT_BG,
+        "ACTIVE" => theme().ok_bg,
+        "DEGRADED" | "PENDING" => theme().warn_bg,
+        _ => theme().crit_bg,
     };
 
     let row_bg = if is_focus {
-        BG_ROW_SELECTED
+        bg_row_selected()
     } else if idx % 2 == 1 {
-        BG_ROW_ALT
+        bg_row_alt()
     } else {
-        hex_rgba(0, 0.0)
+        bg_panel()
     };
 
     let svc_name = svc.name.clone();
@@ -757,7 +758,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                 .font_family(FONT_MONO)
                 .text_size(font_px(11.5))
                 .cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER))
+                .hover(|s| s.bg(bg_row_hover()))
                 .on_click({
                     let name = svc_name.clone();
                     move |_ev, _window, cx| {
@@ -767,7 +768,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                     }
                 })
                 .children(if is_focus {
-                    Some(left_indicator(TEXT_PRIMARY))
+                    Some(left_indicator(text_primary()))
                 } else {
                     None
                 })
@@ -790,7 +791,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                         .gap(px(8.0))
                         .child(
                             div()
-                                .text_color(if is_focus { TEXT_MAX } else { TEXT_SECONDARY })
+                                .text_color(if is_focus { text_max() } else { text_secondary() })
                                 .font_weight(if is_focus { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                                 .child(svc.name.clone()),
                         )
@@ -807,21 +808,21 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                         ),
                 )
                 // Col 3: PID
-                .child(div().w(px(84.0)).text_color(TEXT_DIM).child(svc.pid.clone()))
+                .child(div().w(px(84.0)).text_color(text_dim()).child(svc.pid.clone()))
                 // Col 4: CPU %
                 .child(
                     div()
                         .w(px(74.0))
                         .text_right()
-                        .text_color(if cpu_num > 15.0 { TEXT_MAX } else { TEXT_SECONDARY })
+                        .text_color(if cpu_num > 15.0 { text_max() } else { text_secondary() })
                         .child(svc.cpu.clone()),
                 )
                 // Col 5: MEM %
-                .child(div().w(px(72.0)).text_right().text_color(TEXT_SECONDARY).child(svc.mem.clone()))
+                .child(div().w(px(72.0)).text_right().text_color(text_secondary()).child(svc.mem.clone()))
                 // Col 6: RSS
-                .child(div().w(px(72.0)).text_right().text_color(TEXT_DIM).child(svc.rss.clone()))
+                .child(div().w(px(72.0)).text_right().text_color(text_dim()).child(svc.rss.clone()))
                 // Col 7: UPTIME
-                .child(div().w(px(84.0)).text_right().text_color(TEXT_DIM).child(svc.uptime.clone()))
+                .child(div().w(px(84.0)).text_right().text_color(text_dim()).child(svc.uptime.clone()))
                 // Col 8: ACTIONS
                 .child(
                     div()
@@ -837,9 +838,9 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                                 .px(px(6.0))
                                 .py(px(2.0))
                                 .border_1()
-                                .border_color(if is_focus { BORDER_STRONG } else { BORDER_ROW })
+                                .border_color(if is_focus { border_strong() } else { border_row() })
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click({
                                     let name = svc_name.clone();
                                     move |_ev, _window, cx| {
@@ -851,7 +852,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                                 .child(
                                     tabler_icon(TablerIcon::Refresh)
                                         .size(px(10.0))
-                                        .text_color(if is_focus { TEXT_SECONDARY } else { TEXT_FAINT }),
+                                        .text_color(if is_focus { text_secondary() } else { text_faint() }),
                                 ),
                         )
                         .child(
@@ -859,11 +860,11 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                                 .px(px(6.0))
                                 .py(px(2.0))
                                 .border_1()
-                                .border_color(if is_focus { BORDER_STRONG } else { BORDER_ROW })
+                                .border_color(if is_focus { border_strong() } else { border_row() })
                                 .child(
                                     tabler_icon(TablerIcon::PlayerStop)
                                         .size(px(10.0))
-                                        .text_color(if is_focus { TEXT_SECONDARY } else { TEXT_FAINT }),
+                                        .text_color(if is_focus { text_secondary() } else { text_faint() }),
                                 ),
                         ),
                 ),
@@ -880,13 +881,13 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                     .h(px(34.0))
                     .pl(px(28.0))
                     .pr(px(12.0))
-                    .bg(CRIT_ROW_BG)
-                    .child(left_indicator(CRIT))
+                    .bg(theme().crit_row_bg)
+                    .child(left_indicator(theme().crit))
                     .child(
                         div()
                             .font_family(FONT_MONO)
                             .text_size(font_px(11.5))
-                            .text_color(CRIT_INK)
+                            .text_color(theme().crit_ink)
                             .child(t!("overview-services-table-restart", name = svc.name, blast_radius_text = blast_radius_text(overview, &svc.name))),
                     )
                     .child(div().flex_1())
@@ -895,13 +896,13 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                             .id(ElementId::NamedInteger("btn-cancel-svc".into(), idx as u64))
                             .font_family(FONT_MONO)
                             .text_size(font_px(10.5))
-                            .text_color(TEXT_TERTIARY)
+                            .text_color(text_tertiary())
                             .border_1()
-                            .border_color(BORDER_KEY)
+                            .border_color(border_key())
                             .px(px(8.0))
                             .py(px(3.0))
                             .cursor_pointer()
-                            .hover(|s| s.bg(BG_ROW_HOVER))
+                            .hover(|s| s.bg(bg_row_hover()))
                             .on_click({
                                 let name = svc_name.clone();
                                 move |_ev, _window, cx| {
@@ -911,7 +912,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                                 }
                             })
                             .child(t!("overview-services-table-cancel"))
-                            .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-esc"))),
+                            .child(div().text_color(text_dimmer()).child(t!("overview-services-table-esc"))),
                     )
                     .child(
                         div()
@@ -920,7 +921,7 @@ fn render_service_row(svc: &ServiceUnit, idx: usize, overview: &OverviewState, a
                             .text_size(font_px(10.5))
                             .font_weight(FontWeight::BOLD)
                             .text_color(hex_rgb(0x0a0a0c))
-                            .bg(CRIT)
+                            .bg(theme().crit)
                             .px(px(9.0))
                             .py(px(4.0))
                             .cursor_pointer()
@@ -1017,11 +1018,11 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
     let comm = proc_item.command.clone();
 
     let row_bg = if is_focus {
-        BG_ROW_SELECTED
+        bg_row_selected()
     } else if idx % 2 == 1 {
-        BG_ROW_ALT
+        bg_row_alt()
     } else {
-        hex_rgba(0, 0.0)
+        bg_panel()
     };
 
     let app_row = app.clone();
@@ -1043,33 +1044,33 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                 .font_family(FONT_MONO)
                 .text_size(font_px(11.0))
                 .cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER))
+                .hover(|s| s.bg(bg_row_hover()))
                 .on_click(move |_ev, _window, cx| {
                     app_row.update(cx, |this, cx| {
                         this.focus_process(pid, cx);
                     });
                 })
                 .children(if is_focus {
-                    Some(left_indicator(TEXT_PRIMARY))
+                    Some(left_indicator(text_primary()))
                 } else {
                     None
                 })
                 // Col 1: PID
-                .child(div().w(px(74.0)).pl(px(12.0)).text_color(hex_rgb(0x38bdf8)).child(proc_item.pid.to_string()))
+                .child(div().w(px(74.0)).pl(px(12.0)).text_color(accent()).child(proc_item.pid.to_string()))
                 // Col 2: USER
-                .child(div().w(px(96.0)).text_color(TEXT_SECONDARY).child(proc_item.user.clone()))
+                .child(div().w(px(96.0)).text_color(text_secondary()).child(proc_item.user.clone()))
                 // Col 3: CPU %
                 .child(
                     div()
                         .w(px(70.0))
                         .text_right()
-                        .text_color(if proc_item.cpu > 15.0 { TEXT_MAX } else { TEXT_SECONDARY })
+                        .text_color(if proc_item.cpu > 15.0 { text_max() } else { text_secondary() })
                         .child(format!("{:.1}", proc_item.cpu)),
                 )
                 // Col 4: MEM %
-                .child(div().w(px(70.0)).text_right().text_color(TEXT_SECONDARY).child(format!("{:.1}", proc_item.mem)))
+                .child(div().w(px(70.0)).text_right().text_color(text_secondary()).child(format!("{:.1}", proc_item.mem)))
                 // Col 5: RSS
-                .child(div().w(px(74.0)).text_right().text_color(TEXT_DIM).child(proc_item.rss.clone()))
+                .child(div().w(px(74.0)).text_right().text_color(text_dim()).child(proc_item.rss.clone()))
                 // Col 6: STAT
                 .child(
                     div()
@@ -1078,7 +1079,7 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                         .justify_center()
                         .child(
                             div()
-                                .bg(hex_rgb(0x14161b))
+                                .bg(bg_chip())
                                 .text_color(proc_item.stat_color())
                                 .text_size(font_px(9.0))
                                 .font_weight(FontWeight::BOLD)
@@ -1088,14 +1089,14 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                         ),
                 )
                 // Col 7: TIME
-                .child(div().w(px(80.0)).text_right().text_color(TEXT_FAINT).child(proc_item.time.clone()))
+                .child(div().w(px(80.0)).text_right().text_color(text_faint()).child(proc_item.time.clone()))
                 // Col 8: COMMAND
                 .child(
                     div()
                         .flex_1()
                         .min_w(px(0.0))
                         .pl(px(12.0))
-                        .text_color(if is_focus { TEXT_MAX } else { TEXT_PRIMARY })
+                        .text_color(if is_focus { text_max() } else { text_primary() })
                         .font_weight(if is_focus { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                         .child(proc_item.command.clone()),
                 )
@@ -1112,9 +1113,9 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                                 .px(px(6.0))
                                 .py(px(2.0))
                                 .border_1()
-                                .border_color(if is_focus { BORDER_STRONG } else { BORDER_ROW })
+                                .border_color(if is_focus { border_strong() } else { border_row() })
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_term.update(cx, |this, cx| {
                                         this.toggle_process_confirm(pid, cx);
@@ -1123,7 +1124,7 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                                 .child(
                                     tabler_icon(TablerIcon::PlayerStop)
                                         .size(px(10.0))
-                                        .text_color(if is_focus { CRIT } else { TEXT_FAINT }),
+                                        .text_color(if is_focus { theme().crit } else { text_faint() }),
                                 ),
                         ),
                 ),
@@ -1140,13 +1141,13 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                     .h(px(34.0))
                     .pl(px(28.0))
                     .pr(px(12.0))
-                    .bg(CRIT_ROW_BG)
-                    .child(left_indicator(CRIT))
+                    .bg(theme().crit_row_bg)
+                    .child(left_indicator(theme().crit))
                     .child(
                         div()
                             .font_family(FONT_MONO)
                             .text_size(font_px(11.5))
-                            .text_color(CRIT_INK)
+                            .text_color(theme().crit_ink)
                             .child(t!("overview-services-table-terminate-pid-send-sigterm", comm = comm, pid = pid)),
                     )
                     .child(div().flex_1())
@@ -1155,20 +1156,20 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                             .id(ElementId::NamedInteger("btn-cancel-proc".into(), idx as u64))
                             .font_family(FONT_MONO)
                             .text_size(font_px(10.5))
-                            .text_color(TEXT_TERTIARY)
+                            .text_color(text_tertiary())
                             .border_1()
-                            .border_color(BORDER_KEY)
+                            .border_color(border_key())
                             .px(px(8.0))
                             .py(px(3.0))
                             .cursor_pointer()
-                            .hover(|s| s.bg(BG_ROW_HOVER))
+                            .hover(|s| s.bg(bg_row_hover()))
                             .on_click(move |_ev, _window, cx| {
                                 app_cancel.update(cx, |this, cx| {
                                     this.toggle_process_confirm(pid, cx);
                                 });
                             })
                             .child(t!("overview-services-table-cancel"))
-                            .child(div().text_color(TEXT_DIMMER).child(t!("overview-services-table-esc"))),
+                            .child(div().text_color(text_dimmer()).child(t!("overview-services-table-esc"))),
                     )
                     .child(
                         div()
@@ -1177,7 +1178,7 @@ fn render_process_row(proc_item: &ProcessUnit, idx: usize, app: Entity<CrowApp>)
                             .text_size(font_px(10.5))
                             .font_weight(FontWeight::BOLD)
                             .text_color(hex_rgb(0x0a0a0c))
-                            .bg(CRIT)
+                            .bg(theme().crit)
                             .px(px(9.0))
                             .py(px(4.0))
                             .cursor_pointer()
@@ -1215,11 +1216,11 @@ fn render_sockets_rows(
         let sock_id = format!("{}:{}:{}", sock.protocol, sock.local_port, idx);
 
         let row_bg = if is_focus {
-            BG_ROW_SELECTED
+            bg_row_selected()
         } else if idx % 2 == 1 {
-            BG_ROW_ALT
+            bg_row_alt()
         } else {
-            hex_rgba(0, 0.0)
+            bg_panel()
         };
 
         let app_row = app.clone();
@@ -1238,7 +1239,7 @@ fn render_sockets_rows(
                     .font_family(FONT_MONO)
                     .text_size(font_px(11.0))
                     .cursor_pointer()
-                    .hover(|s| s.bg(BG_ROW_HOVER))
+                    .hover(|s| s.bg(bg_row_hover()))
                     .on_click(move |_ev, _window, cx| {
                         let sid = sock_id.clone();
                         app_row.update(cx, |this, cx| {
@@ -1246,7 +1247,7 @@ fn render_sockets_rows(
                         });
                     })
                     .children(if is_focus {
-                        Some(left_indicator(TEXT_PRIMARY))
+                        Some(left_indicator(text_primary()))
                     } else {
                         None
                     })
@@ -1262,7 +1263,7 @@ fn render_sockets_rows(
                                 div()
                                     .flex_none()
                                     .rounded_sm()
-                                    .bg(hex_rgb(0x14161b))
+                                    .bg(bg_chip())
                                     .text_color(sock.proto_color())
                                     .text_size(font_px(9.0))
                                     .font_weight(FontWeight::BOLD)
@@ -1297,10 +1298,10 @@ fn render_sockets_rows(
                                     .items_center()
                                     .gap(px(4.0))
                                     .whitespace_nowrap()
-                                    .text_color(TEXT_DIM)
+                                    .text_color(text_dim())
                                     .text_size(font_px(9.5))
                                     .cursor_pointer()
-                                    .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                    .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                                     .child(div().size(px(5.0)).flex_none().rounded_full().bg(fw_match.color()))
                                     .on_click(move |_ev, _window, cx| {
                                         let p = port_val.clone();
@@ -1321,9 +1322,9 @@ fn render_sockets_rows(
                             .flex()
                             .items_center()
                             .gap(px(2.0))
-                            .child(div().text_color(TEXT_SECONDARY).child(sock.local_addr.clone()))
-                            .child(div().text_color(TEXT_DIMMER).child(":"))
-                            .child(div().text_color(hex_rgb(0x38bdf8)).font_weight(FontWeight::BOLD).child(sock.local_port.clone()))
+                            .child(div().text_color(text_secondary()).child(sock.local_addr.clone()))
+                            .child(div().text_color(text_dimmer()).child(":"))
+                            .child(div().text_color(accent()).font_weight(FontWeight::BOLD).child(sock.local_port.clone()))
                             .children(fw_pill)
                     })
                     // Col 3: PEER ENDPOINT
@@ -1331,7 +1332,7 @@ fn render_sockets_rows(
                         div()
                             .w(px(peer_w))
                             .flex_none()
-                            .text_color(TEXT_MUTED)
+                            .text_color(text_muted())
                             .child(format!("{}:{}", sock.peer_addr, sock.peer_port)),
                     )
                     // Col 4: STATE
@@ -1351,7 +1352,7 @@ fn render_sockets_rows(
                         div()
                             .flex_1()
                             .min_w(px(0.0))
-                            .text_color(if is_focus { TEXT_MAX } else { TEXT_PRIMARY })
+                            .text_color(if is_focus { text_max() } else { text_primary() })
                             .font_weight(if is_focus { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                             .child(sock.process.clone()),
                     )
@@ -1361,7 +1362,7 @@ fn render_sockets_rows(
                             .w(px(74.0))
                             .text_right()
                             .pr(px(12.0))
-                            .text_color(TEXT_DIM)
+                            .text_color(text_dim())
                             .child(sock.pid.map(|p| p.to_string()).unwrap_or_else(|| "—".to_string())),
                     ),
             )

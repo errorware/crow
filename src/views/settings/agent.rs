@@ -37,7 +37,7 @@ pub fn render_agent_view(
         .min_w(px(0.0))
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         .font_family(FONT_MONO)
         // Top Header Bar
         .child(
@@ -48,18 +48,18 @@ pub fn render_agent_view(
                 .items_center()
                 .gap(px(10.0))
                 .px(px(14.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .text_size(font_px(12.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(t!("settings-agent-header-title")),
                 )
                 .child(
-                    badge(if enrolled_count > 0 { OK } else { TEXT_SECONDARY })
+                    badge(if enrolled_count > 0 { theme().ok } else { text_secondary() })
                         .text_size(font_px(9.5))
                         .child(t!(
                             "settings-agent-enrolled-count",
@@ -87,11 +87,11 @@ pub fn render_agent_view(
                         .h(px(26.0))
                         .px(px(10.0))
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .text_size(font_px(10.5))
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                         .on_click(move |_ev, _window, cx| {
                             app_refresh.update(cx, |this, cx| this.refresh_agent_state(cx))
                         })
@@ -113,23 +113,23 @@ pub fn render_agent_view(
                 .child(
                     div()
                         .p(px(12.0))
-                        .bg(BG_OVERLAY_PANEL)
+                        .bg(bg_overlay_panel())
                         .border_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .text_size(font_px(10.5))
                         .line_height(px(15.0))
-                        .text_color(TEXT_MUTED)
+                        .text_color(text_muted())
                         .child(t!("settings-agent-intro")),
                 )
                 // Optional notice banner
                 .children(agent.notice.as_ref().map(|(ok, msg)| {
                     div()
                         .p(px(10.0))
-                        .bg(if *ok { BG_CONTROL_ALT } else { CRIT_ROW_BG })
+                        .bg(if *ok { bg_control_alt() } else { theme().crit_row_bg })
                         .border_1()
-                        .border_color(if *ok { OK } else { CRIT })
+                        .border_color(if *ok { theme().ok } else { theme().crit })
                         .text_size(font_px(10.5))
-                        .text_color(if *ok { OK } else { CRIT })
+                        .text_color(if *ok { theme().ok } else { theme().crit })
                         .child(msg.clone())
                 }))
                 // Optional Vault password warning
@@ -137,11 +137,11 @@ pub fn render_agent_view(
                     d.child(
                         div()
                             .p(px(10.0))
-                            .bg(WARN_BG)
+                            .bg(theme().warn_bg)
                             .border_1()
-                            .border_color(WARN)
+                            .border_color(theme().warn)
                             .text_size(font_px(10.5))
-                            .text_color(WARN)
+                            .text_color(theme().warn)
                             .child(t!("settings-agent-vault-password-warning")),
                     )
                 })
@@ -169,11 +169,11 @@ fn service_control_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoEl
         .unwrap_or_else(|| "—".into());
 
     let (status_label, status_color) = if agent.service.running {
-        (t!("settings-agent-status-active").to_string(), OK)
+        (t!("settings-agent-status-active").to_string(), theme().ok)
     } else if agent.service.installed {
-        (t!("settings-agent-status-stopped").to_string(), WARN)
+        (t!("settings-agent-status-stopped").to_string(), theme().warn)
     } else {
-        (t!("settings-agent-status-not-installed").to_string(), TEXT_MUTED)
+        (t!("settings-agent-status-not-installed").to_string(), text_muted())
     };
 
     let pid_text = agent
@@ -192,9 +192,9 @@ fn service_control_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoEl
     let (app_install, app_uninstall) = (app.clone(), app.clone());
 
     div()
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .p(px(14.0))
         .flex()
         .flex_col()
@@ -208,14 +208,14 @@ fn service_control_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoEl
                     div()
                         .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(t!("settings-agent-service-card-title")),
                 )
                 .child(badge(status_color).text_size(font_px(9.5)).child(status_label))
                 .child(
                     div()
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_DIM)
+                        .text_color(text_dim())
                         .child(format!("{backend_label} · {pid_text}")),
                 )
                 .child(div().flex_1())
@@ -254,7 +254,7 @@ fn service_control_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoEl
                 .gap(px(18.0))
                 .pt(px(4.0))
                 .border_t_1()
-                .border_color(BORDER_ROW)
+                .border_color(border_row())
                 .child(meta_kv(t!("settings-agent-unit-file").to_string(), unit_path))
                 .child(meta_kv(t!("settings-agent-last-sample").to_string(), last_tick_text))
                 .child(meta_kv(
@@ -270,11 +270,11 @@ fn service_control_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoEl
                 .gap(px(10.0))
                 .pt(px(6.0))
                 .border_t_1()
-                .border_color(BORDER_ROW)
+                .border_color(border_row())
                 .child(
                     div()
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(t!("settings-agent-poll-interval")),
                 )
                 .children(INTERVAL_CHOICES.iter().map(|&(secs, label)| {
@@ -285,13 +285,13 @@ fn service_control_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoEl
                         .px(px(9.0))
                         .py(px(3.0))
                         .border_1()
-                        .border_color(if selected { OK } else { BORDER_DEFAULT })
-                        .bg(if selected { BG_CONTROL_ALT } else { BG_CONTROL })
+                        .border_color(if selected { theme().ok } else { border_default() })
+                        .bg(if selected { bg_control_alt() } else { bg_control() })
                         .text_size(font_px(10.0))
                         .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
-                        .text_color(if selected { TEXT_PRIMARY } else { TEXT_DIM })
+                        .text_color(if selected { text_primary() } else { text_dim() })
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                         .on_click(move |_ev, _window, cx| {
                             app_int.update(cx, |this, cx| this.set_agent_interval_secs(secs, cx))
                         })
@@ -305,8 +305,8 @@ fn meta_kv(label: String, value: String) -> Div {
         .flex()
         .flex_col()
         .gap(px(2.0))
-        .child(div().text_size(font_px(9.0)).text_color(TEXT_FAINT).child(label))
-        .child(div().text_size(font_px(10.5)).text_color(TEXT_SECONDARY).child(value))
+        .child(div().text_size(font_px(9.0)).text_color(text_faint()).child(label))
+        .child(div().text_size(font_px(10.5)).text_color(text_secondary()).child(value))
 }
 
 fn bottleneck_rules_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoElement {
@@ -343,9 +343,9 @@ fn bottleneck_rules_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoE
     ];
 
     div()
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .p(px(14.0))
         .flex()
         .flex_col()
@@ -359,13 +359,13 @@ fn bottleneck_rules_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoE
                     div()
                         .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(t!("settings-agent-bottlenecks-card-title")),
                 )
                 .child(
                     div()
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_DIM)
+                        .text_color(text_dim())
                         .child(t!("settings-agent-bottlenecks-card-subtitle")),
                 ),
         )
@@ -377,7 +377,7 @@ fn bottleneck_rules_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoE
                 .gap(px(12.0))
                 .py(px(6.0))
                 .border_t_1()
-                .border_color(BORDER_ROW)
+                .border_color(border_row())
                 .child(
                     div()
                         .flex_1()
@@ -385,8 +385,8 @@ fn bottleneck_rules_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoE
                         .flex()
                         .flex_col()
                         .gap(px(2.0))
-                        .child(div().text_size(font_px(10.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(title))
-                        .child(div().text_size(font_px(9.5)).text_color(TEXT_MUTED).child(desc)),
+                        .child(div().text_size(font_px(10.5)).font_weight(FontWeight::SEMIBOLD).text_color(text_primary()).child(title))
+                        .child(div().text_size(font_px(9.5)).text_color(text_muted()).child(desc)),
                 )
                 .child(
                     div()
@@ -394,13 +394,13 @@ fn bottleneck_rules_card(app: Entity<CrowApp>, agent: &AgentState) -> impl IntoE
                         .px(px(10.0))
                         .py(px(4.0))
                         .border_1()
-                        .border_color(if enabled { OK } else { BORDER_DEFAULT })
-                        .bg(if enabled { BG_CONTROL_ALT } else { BG_CONTROL })
+                        .border_color(if enabled { theme().ok } else { border_default() })
+                        .bg(if enabled { bg_control_alt() } else { bg_control() })
                         .text_size(font_px(10.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(if enabled { OK } else { TEXT_DIM })
+                        .text_color(if enabled { theme().ok } else { text_dim() })
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| {
                             app_toggle.update(cx, |this, cx| {
                                 this.toggle_agent_bottleneck_rule(flag_key, !enabled, cx)
@@ -423,9 +423,9 @@ fn enrollment_table_card(
     let (app_all_on, app_all_off) = (app.clone(), app.clone());
 
     div()
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .p(px(14.0))
         .flex()
         .flex_col()
@@ -439,13 +439,13 @@ fn enrollment_table_card(
                     div()
                         .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(t!("settings-agent-enrollment-card-title")),
                 )
                 .child(
                     div()
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_DIM)
+                        .text_color(text_dim())
                         .child(t!("settings-agent-enrollment-card-subtitle")),
                 )
                 .child(div().flex_1())
@@ -469,7 +469,7 @@ fn enrollment_table_card(
                 div()
                     .py(px(12.0))
                     .text_size(font_px(10.5))
-                    .text_color(TEXT_FAINT)
+                    .text_color(text_faint())
                     .child(t!("settings-agent-no-servers-in-fleet")),
             )
         })
@@ -491,7 +491,7 @@ fn enrollment_table_card(
                 .gap(px(12.0))
                 .py(px(8.0))
                 .border_t_1()
-                .border_color(BORDER_ROW)
+                .border_color(border_row())
                 .child(
                     div()
                         .flex_1()
@@ -508,21 +508,21 @@ fn enrollment_table_card(
                                     div()
                                         .text_size(font_px(11.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(srv.name.clone()),
                                 )
                                 .when(!srv.env.is_empty(), |d| {
-                                    d.child(badge(TEXT_DIM).text_size(font_px(9.0)).child(srv.env.to_uppercase()))
+                                    d.child(badge(text_dim()).text_size(font_px(9.0)).child(srv.env.to_uppercase()))
                                 })
                                 .child(
                                     div()
                                         .text_size(font_px(10.0))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(format!("{}@{}:{}", srv.login_user, srv.host, srv.port)),
                                 ),
                         )
                         .children(bottlenecks.into_iter().map(|b| {
-                            let c = if b.level == "CRIT" { CRIT } else { WARN };
+                            let c = if b.level == "CRIT" { theme().crit } else { theme().warn };
                             div()
                                 .flex()
                                 .items_center()
@@ -534,7 +534,7 @@ fn enrollment_table_card(
                 .child(
                     div()
                         .text_size(font_px(9.5))
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .child(t!("settings-agent-last-sample-row", when = last_sample)),
                 )
                 .child(
@@ -543,13 +543,13 @@ fn enrollment_table_card(
                         .px(px(10.0))
                         .py(px(4.0))
                         .border_1()
-                        .border_color(if enrolled { OK } else { BORDER_DEFAULT })
-                        .bg(if enrolled { BG_CONTROL_ALT } else { BG_CONTROL })
+                        .border_color(if enrolled { theme().ok } else { border_default() })
+                        .bg(if enrolled { bg_control_alt() } else { bg_control() })
                         .text_size(font_px(10.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(if enrolled { OK } else { TEXT_DIM })
+                        .text_color(if enrolled { theme().ok } else { text_dim() })
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| {
                             let id = srv_id.clone();
                             app_row.update(cx, |this, cx| this.set_server_agent_enrolled(&id, !enrolled, cx))

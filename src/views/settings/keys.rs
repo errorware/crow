@@ -38,7 +38,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
         .min_w(px(0.0))
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         // 1. Keys Subheader & Action Bar: wraps to two lines when narrow.
         .child(
             div()
@@ -49,9 +49,9 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                 .flex_wrap()
                 .items_center()
                 .px(px(14.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .gap(px(8.0))
                 // Group Filter Tabs
                 .child(
@@ -67,10 +67,10 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                 .px(px(8.0))
                                 .py(px(3.5))
                                 .border_1()
-                                .border_color(if selected_group_filter.is_none() { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                .bg(if selected_group_filter.is_none() { BG_OVERLAY_PANEL } else { hex_rgba(0, 0.0) })
+                                .border_color(if selected_group_filter.is_none() { text_primary() } else { border_default() })
+                                .bg(if selected_group_filter.is_none() { bg_overlay_panel() } else { hex_rgba(0, 0.0) })
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_filter_all.update(cx, |this, cx| {
                                         this.set_key_group_filter(None, cx);
@@ -81,7 +81,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.5))
                                         .font_weight(if selected_group_filter.is_none() { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                        .text_color(if selected_group_filter.is_none() { TEXT_MAX } else { TEXT_DIM })
+                                        .text_color(if selected_group_filter.is_none() { text_max() } else { text_dim() })
                                         .child(t!("settings-keys-all", count = enrolled_keys.len())),
                                 ),
                         )
@@ -100,10 +100,10 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                 .px(px(8.0))
                                 .py(px(3.5))
                                 .border_1()
-                                .border_color(if is_active { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                .bg(if is_active { BG_OVERLAY_PANEL } else { hex_rgba(0, 0.0) })
+                                .border_color(if is_active { text_primary() } else { border_default() })
+                                .bg(if is_active { bg_overlay_panel() } else { hex_rgba(0, 0.0) })
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     let gid = grp_id.clone();
                                     app_grp.update(cx, |this, cx| {
@@ -115,11 +115,11 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                         .size(px(6.0))
                                         .rounded_full()
                                         .bg(match grp.id.as_str() {
-                                            "fleet" => OK,
+                                            "fleet" => theme().ok,
                                             "bastions" => hex_rgb(0x60a5fa),
-                                            "production" => WARN,
-                                            "legacy" => CRIT,
-                                            _ => TEXT_FAINT,
+                                            "production" => theme().warn,
+                                            "legacy" => theme().crit,
+                                            _ => text_faint(),
                                         }),
                                 )
                                 .child(
@@ -127,7 +127,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.5))
                                         .font_weight(if is_active { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                        .text_color(if is_active { TEXT_MAX } else { TEXT_DIM })
+                                        .text_color(if is_active { text_max() } else { text_dim() })
                                         .child(format!("{} ({})", grp.name.to_uppercase(), count)),
                                 )
                         }))
@@ -137,10 +137,10 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                 .px(px(6.0))
                                 .py(px(3.5))
                                 .border_1()
-                                .border_color(BORDER_PANEL)
-                                .text_color(TEXT_FAINTER)
+                                .border_color(border_panel())
+                                .text_color(text_fainter())
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_new_grp.update(cx, |this, cx| {
                                         this.open_new_group_modal(cx);
@@ -167,25 +167,25 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                 .id("btn-scan-paths")
                                 .h(px(26.0))
                                 .px(px(8.0))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .flex()
                                 .items_center()
                                 .gap(px(5.0))
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_scan.update(cx, |this, cx| {
                                         this.refresh_keys(cx);
                                     });
                                 })
-                                .child(tabler_icon(TablerIcon::Refresh).size(px(11.0)).text_color(TEXT_TERTIARY))
+                                .child(tabler_icon(TablerIcon::Refresh).size(px(11.0)).text_color(text_tertiary()))
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
-                                        .text_color(TEXT_SECONDARY)
+                                        .text_color(text_secondary())
                                         .child(t!("settings-keys-scan")),
                                 ),
                         )
@@ -195,25 +195,25 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                 .id("btn-add-scan-path")
                                 .h(px(26.0))
                                 .px(px(8.0))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .flex()
                                 .items_center()
                                 .gap(px(5.0))
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_add_path.update(cx, |this, cx| {
                                         this.open_add_scan_path_modal(cx);
                                     });
                                 })
-                                .child(tabler_icon(TablerIcon::Folder).size(px(11.0)).text_color(TEXT_TERTIARY))
+                                .child(tabler_icon(TablerIcon::Folder).size(px(11.0)).text_color(text_tertiary()))
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
-                                        .text_color(TEXT_SECONDARY)
+                                        .text_color(text_secondary())
                                         .child(t!("settings-keys-path")),
                                 ),
                         )
@@ -223,9 +223,9 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                 .id("btn-generate-key")
                                 .h(px(26.0))
                                 .px(px(10.0))
-                                .bg(OK_BG)
+                                .bg(theme().ok_bg)
                                 .border_1()
-                                .border_color(OK)
+                                .border_color(theme().ok)
                                 .flex()
                                 .items_center()
                                 .gap(px(5.0))
@@ -236,13 +236,13 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                         this.open_key_gen_modal(cx);
                                     });
                                 })
-                                .child(tabler_icon(TablerIcon::Key).size(px(11.0)).text_color(OK))
+                                .child(tabler_icon(TablerIcon::Key).size(px(11.0)).text_color(theme().ok))
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.5))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(OK_INK)
+                                        .text_color(theme().ok_ink)
                                         .child(t!("settings-keys-generate-key")),
                                 ),
                         ),
@@ -263,9 +263,9 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                     div()
                         .px(px(12.0))
                         .py(px(7.0))
-                        .bg(BG_PANEL)
+                        .bg(bg_panel())
                         .border_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .flex()
                         .items_center()
                         .justify_between()
@@ -278,13 +278,13 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                     div()
                                         .size(px(6.0))
                                         .rounded_full()
-                                        .bg(OK),
+                                        .bg(theme().ok),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.5))
-                                        .text_color(TEXT_SECONDARY)
+                                        .text_color(text_secondary())
                                         .child(scan_status_message.to_string()),
                                 ),
                         )
@@ -292,7 +292,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(TEXT_FAINTER)
+                                .text_color(text_fainter())
                                 .child(t!("settings-keys-auto-monitored-paths")),
                         ),
                 )
@@ -303,7 +303,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                             .p(px(12.0))
                             .bg(hex_rgb(0x0e0c08))
                             .border_1()
-                            .border_color(WARN)
+                            .border_color(theme().warn)
                             .flex()
                             .flex_col()
                             .gap(px(10.0))
@@ -319,13 +319,13 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                             .flex()
                                             .items_center()
                                             .gap(px(6.0))
-                                            .child(div().font_family(FONT_MONO).text_size(font_px(12.0)).text_color(WARN).child("▲"))
+                                            .child(div().font_family(FONT_MONO).text_size(font_px(12.0)).text_color(theme().warn).child("▲"))
                                             .child(
                                                 div()
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(11.0))
                                                     .font_weight(FontWeight::BOLD)
-                                                    .text_color(WARN)
+                                                    .text_color(theme().warn)
                                                     .child(t!("settings-keys-unenrolled-ssh-discovered-on-disk", count = unenrolled_discovered.len())),
                                             ),
                                     )
@@ -333,7 +333,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                         div()
                                             .font_family(FONT_MONO)
                                             .text_size(font_px(9.5))
-                                            .text_color(WARN_INK)
+                                            .text_color(theme().warn_ink)
                                             .child(t!("settings-keys-found-in-scan-paths-click")),
                                     ),
                             )
@@ -345,9 +345,9 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                 div()
                                     .id(ElementId::NamedInteger("disc-key-row".into(), idx as u64))
                                     .p(px(8.0))
-                                    .bg(BG_APP)
+                                    .bg(bg_app())
                                     .border_1()
-                                    .border_color(BORDER_DEFAULT)
+                                    .border_color(border_default())
                                     .flex()
                                     .items_center()
                                     .justify_between()
@@ -360,7 +360,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                             .items_center()
                                             .gap(px(10.0))
                                             .child(
-                                                crate::components::button::badge(TEXT_SECONDARY)
+                                                crate::components::button::badge(text_secondary())
                                                     .flex_none()
                                                     .text_size(font_px(9.0))
                                                     .font_weight(FontWeight::BOLD)
@@ -379,7 +379,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                             .font_family(FONT_MONO)
                                                             .text_size(font_px(11.5))
                                                             .font_weight(FontWeight::BOLD)
-                                                            .text_color(TEXT_MAX)
+                                                            .text_color(text_max())
                                                             .child(disc.suggested_name.clone()),
                                                     )
                                                     .child(
@@ -393,7 +393,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                                     .flex_none()
                                                                     .font_family(FONT_MONO)
                                                                     .text_size(font_px(10.0))
-                                                                    .text_color(TEXT_DIMMER)
+                                                                    .text_color(text_dimmer())
                                                                     .child(disc.file_path.clone()),
                                                             )
                                                             .child(
@@ -402,7 +402,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                                     .truncate()
                                                                     .font_family(FONT_MONO)
                                                                     .text_size(font_px(9.5))
-                                                                    .text_color(TEXT_FAINT)
+                                                                    .text_color(text_faint())
                                                                     .child(t!("settings-keys-fp", fingerprint = disc.fingerprint)),
                                                             ),
                                                     ),
@@ -415,9 +415,9 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                             .flex_none()
                                             .px(px(10.0))
                                             .py(px(4.0))
-                                            .bg(WARN_BG)
+                                            .bg(theme().warn_bg)
                                             .border_1()
-                                            .border_color(WARN)
+                                            .border_color(theme().warn)
                                             .cursor_pointer()
                                             .hover(|s| s.bg(hex_rgb(0x3e3016)))
                                             .on_click(move |_ev, _window, cx| {
@@ -432,7 +432,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(10.0))
                                                     .font_weight(FontWeight::BOLD)
-                                                    .text_color(WARN_INK)
+                                                    .text_color(theme().warn_ink)
                                                     .child(t!("settings-keys-import-to", target_grp = target_grp.to_uppercase())),
                                             )
                                     })
@@ -457,14 +457,14 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.5))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(t!("settings-keys-enrolled-keys-in-memory", count = filtered_enrolled.len())),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
-                                        .text_color(TEXT_DIMMER)
+                                        .text_color(text_dimmer())
                                         .child(if let Some(g) = selected_group_filter {
                                             t!("settings-keys-filtered-by-group", g = g)
                                         } else {
@@ -476,7 +476,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(TEXT_FAINT)
+                                .text_color(text_faint())
                                 .child(t!("settings-keys-persisted-in-config-crow-crow")),
                         ),
                 )
@@ -485,28 +485,28 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                     Some(
                         div()
                             .p(px(32.0))
-                            .bg(BG_PANEL)
+                            .bg(bg_panel())
                             .border_1()
-                            .border_color(BORDER_PANEL)
+                            .border_color(border_panel())
                             .flex()
                             .flex_col()
                             .items_center()
                             .justify_center()
                             .gap(px(8.0))
-                            .child(tabler_icon(TablerIcon::Key).size(px(24.0)).text_color(TEXT_FAINT))
+                            .child(tabler_icon(TablerIcon::Key).size(px(24.0)).text_color(text_faint()))
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(12.0))
                                     .font_weight(FontWeight::SEMIBOLD)
-                                    .text_color(TEXT_TERTIARY)
+                                    .text_color(text_tertiary())
                                     .child(t!("settings-keys-no-enrolled-keys-matching-this")),
                             )
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(10.5))
-                                    .text_color(TEXT_FAINTER)
+                                    .text_color(text_fainter())
                                     .child(t!("settings-keys-scan-ssh-to-import-existing")),
                             ),
                     )
@@ -530,20 +530,20 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                     let pub_key_str = key.public_key.clone();
 
                     let grp_color = match key.group_id.as_str() {
-                        "fleet" => OK,
+                        "fleet" => theme().ok,
                         "bastions" => hex_rgb(0x60a5fa),
-                        "production" => WARN,
-                        "legacy" => CRIT,
-                        _ => TEXT_FAINT,
+                        "production" => theme().warn,
+                        "legacy" => theme().crit,
+                        _ => text_faint(),
                     };
 
                     div()
                         .id(ElementId::NamedInteger("enrolled-key-card".into(), idx as u64))
                         .relative()
-                        .bg(BG_PANEL)
+                        .bg(bg_panel())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .hover(|s| s.border_color(BORDER_STRONG))
+                        .border_color(border_default())
+                        .hover(|s| s.border_color(border_strong()))
                         .p(px(12.0))
                         .flex()
                         .flex_col()
@@ -563,7 +563,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                         .gap(px(8.0))
                                         // Algo badge
                                         .child(
-                                            crate::components::button::badge(TEXT_SECONDARY)
+                                            crate::components::button::badge(text_secondary())
                                                 .text_size(font_px(9.0))
                                                 .font_weight(FontWeight::BOLD)
                                                 .child(key.algorithm.clone()),
@@ -574,7 +574,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(13.0))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_MAX)
+                                                .text_color(text_max())
                                                 .child(key.name.clone()),
                                         )
                                         // Group pill
@@ -585,15 +585,15 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                 .gap(px(4.0))
                                                 .px(px(6.0))
                                                 .py(px(1.5))
-                                                .bg(BG_OVERLAY_PANEL)
+                                                .bg(bg_overlay_panel())
                                                 .border_1()
-                                                .border_color(BORDER_PANEL)
+                                                .border_color(border_panel())
                                                 .child(div().size(px(5.0)).rounded_full().bg(grp_color))
                                                 .child(
                                                     div()
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(9.5))
-                                                        .text_color(TEXT_SECONDARY)
+                                                        .text_color(text_secondary())
                                                         .child(key.group_id.to_uppercase()),
                                                 ),
                                         )
@@ -603,7 +603,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                 div()
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(9.5))
-                                                    .text_color(OK)
+                                                    .text_color(theme().ok)
                                                     .child(t!("settings-keys-private-key-linked")),
                                             )
                                         } else {
@@ -611,7 +611,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                 div()
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(9.5))
-                                                    .text_color(TEXT_FAINT)
+                                                    .text_color(text_faint())
                                                     .child(t!("settings-keys-public-key-only")),
                                             )
                                         }),
@@ -628,7 +628,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(9.0))
-                                                .text_color(TEXT_FAINTER)
+                                                .text_color(text_fainter())
                                                 .child(t!("settings-keys-reachable-servers")),
                                         )
                                         .children(if key.attached_servers.is_empty() {
@@ -638,12 +638,12 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                     .px(px(6.0))
                                                     .py(px(2.0))
                                                     .border_1()
-                                                    .border_color(BORDER_DEFAULT)
+                                                    .border_color(border_default())
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(9.0))
-                                                    .text_color(TEXT_DIM)
+                                                    .text_color(text_dim())
                                                     .cursor_pointer()
-                                                    .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                                    .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                                                     .on_click(move |_ev, _window, cx| {
                                                         let kid = key_id_for_attach.clone();
                                                         app_attach.update(cx, |this, cx| {
@@ -656,7 +656,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                             None
                                         })
                                         .children(key.attached_servers.iter().map(|srv| {
-                                            crate::components::button::badge(OK_INK)
+                                            crate::components::button::badge(theme().ok_ink)
                                                 .text_size(font_px(9.5))
                                                 .font_weight(FontWeight::MEDIUM)
                                                 .child(format!("🖥 {}", srv))
@@ -671,9 +671,9 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                 .justify_between()
                                 .gap(px(16.0))
                                 .p(px(8.0))
-                                .bg(BG_APP)
+                                .bg(bg_app())
                                 .border_1()
-                                .border_color(BORDER_ROW)
+                                .border_color(border_row())
                                 .child(
                                     div()
                                         .flex_1()
@@ -691,7 +691,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                         .flex_none()
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(9.5))
-                                                        .text_color(TEXT_FAINTER)
+                                                        .text_color(text_fainter())
                                                         .child(t!("settings-keys-sha256-fingerprint")),
                                                 )
                                                 .child(
@@ -700,7 +700,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                         .truncate()
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(10.5))
-                                                        .text_color(TEXT_PRIMARY)
+                                                        .text_color(text_primary())
                                                         .child(key.fingerprint.clone()),
                                                 ),
                                         )
@@ -717,7 +717,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                             .truncate()
                                                             .font_family(FONT_MONO)
                                                             .text_size(font_px(9.5))
-                                                            .text_color(TEXT_DIM)
+                                                            .text_color(text_dim())
                                                             .child(t!("settings-keys-path-2", path = path)),
                                                     )
                                                 } else {
@@ -728,7 +728,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                         div()
                                                             .font_family(FONT_MONO)
                                                             .text_size(font_px(9.5))
-                                                            .text_color(TEXT_FAINT)
+                                                            .text_color(text_faint())
                                                             .child(t!("settings-keys-comment", c = c)),
                                                     )
                                                 } else {
@@ -748,11 +748,11 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                 .id(ElementId::NamedInteger("btn-copy-fp".into(), idx as u64))
                                                 .px(px(8.0))
                                                 .py(px(4.0))
-                                                .bg(BG_CONTROL)
+                                                .bg(bg_control())
                                                 .border_1()
-                                                .border_color(BORDER_DEFAULT)
+                                                .border_color(border_default())
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER).border_color(TEXT_SECONDARY))
+                                                .hover(|s| s.bg(bg_row_hover()).border_color(text_secondary()))
                                                 .on_click(move |_ev, _window, cx| {
                                                     let f = fp.clone();
                                                     app_copy_fp.update(cx, |this, cx| {
@@ -763,7 +763,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                     div()
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(9.5))
-                                                        .text_color(TEXT_SECONDARY)
+                                                        .text_color(text_secondary())
                                                         .child(t!("settings-keys-copy-fingerprint")),
                                                 ),
                                         )
@@ -772,11 +772,11 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                 .id(ElementId::NamedInteger("btn-copy-pub".into(), idx as u64))
                                                 .px(px(8.0))
                                                 .py(px(4.0))
-                                                .bg(BG_CONTROL)
+                                                .bg(bg_control())
                                                 .border_1()
-                                                .border_color(BORDER_DEFAULT)
+                                                .border_color(border_default())
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER).border_color(TEXT_SECONDARY))
+                                                .hover(|s| s.bg(bg_row_hover()).border_color(text_secondary()))
                                                 .on_click(move |_ev, _window, cx| {
                                                     let pk = pub_key_str.clone();
                                                     app_copy_pk.update(cx, |this, cx| {
@@ -787,7 +787,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                     div()
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(9.5))
-                                                        .text_color(TEXT_SECONDARY)
+                                                        .text_color(text_secondary())
                                                         .child(t!("settings-keys-copy-public-key")),
                                                 ),
                                         ),
@@ -806,7 +806,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(9.0))
-                                        .text_color(TEXT_FAINTER)
+                                        .text_color(text_fainter())
                                         .child(t!("settings-keys-enrolled", key = &key.created_at.chars().take(10).collect::<String>())),
                                 )
                                 .child(
@@ -821,9 +821,9 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                 .px(px(8.0))
                                                 .py(px(3.0))
                                                 .border_1()
-                                                .border_color(BORDER_DEFAULT)
+                                                .border_color(border_default())
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER).border_color(TEXT_PRIMARY))
+                                                .hover(|s| s.bg(bg_row_hover()).border_color(text_primary()))
                                                 .on_click(move |_ev, _window, cx| {
                                                     let kid = key_id.clone();
                                                     app_edit.update(cx, |this, cx| {
@@ -834,7 +834,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                     div()
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(9.5))
-                                                        .text_color(TEXT_SECONDARY)
+                                                        .text_color(text_secondary())
                                                         .child(t!("settings-keys-edit-attach-servers")),
                                                 ),
                                         )
@@ -844,14 +844,14 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                 .px(px(8.0))
                                                 .py(px(3.0))
                                                 .border_1()
-                                                .border_color(BORDER_DEFAULT)
+                                                .border_color(border_default())
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER).border_color(TEXT_PRIMARY))
+                                                .hover(|s| s.bg(bg_row_hover()).border_color(text_primary()))
                                                 .on_click(move |_ev, window, cx| {
                                                     let kid = key_id_for_switch.clone();
                                                     app_switch.update(cx, |this, cx| this.plan_key_deploy(&kid, window, cx));
                                                 })
-                                                .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_SECONDARY).child(t!("settings-keys-switch-attached-servers-to-it"))),
+                                                .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(text_secondary()).child(t!("settings-keys-switch-attached-servers-to-it"))),
                                         )
                                         .child(
                                             div()
@@ -859,14 +859,14 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                 .px(px(8.0))
                                                 .py(px(3.0))
                                                 .border_1()
-                                                .border_color(BORDER_DANGER_BTN)
+                                                .border_color(border_danger_btn())
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(CRIT_BG).border_color(CRIT))
+                                                .hover(|s| s.bg(theme().crit_bg).border_color(theme().crit))
                                                 .on_click(move |_ev, window, cx| {
                                                     let kid = key_id_for_rotate.clone();
                                                     app_rotate.update(cx, |this, cx| this.plan_key_rotation(&kid, window, cx));
                                                 })
-                                                .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(CRIT_INK_DIM).child(t!("settings-keys-rotate"))),
+                                                .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(theme().crit_ink_dim).child(t!("settings-keys-rotate"))),
                                         )
                                         // Delete from Crow button
                                         .child(
@@ -875,9 +875,9 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                 .px(px(8.0))
                                                 .py(px(3.0))
                                                 .border_1()
-                                                .border_color(BORDER_DANGER_BTN)
+                                                .border_color(border_danger_btn())
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(CRIT_BG).border_color(CRIT))
+                                                .hover(|s| s.bg(theme().crit_bg).border_color(theme().crit))
                                                 .on_click(move |_ev, _window, cx| {
                                                     let kid = key_id_for_del.clone();
                                                     app_del.update(cx, |this, cx| {
@@ -888,7 +888,7 @@ pub fn render_keys_center_column(app: Entity<CrowApp>, keys: &KeysState) -> impl
                                                     div()
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(9.5))
-                                                        .text_color(CRIT_INK_DIM)
+                                                        .text_color(theme().crit_ink_dim)
                                                         .child(t!("settings-keys-remove-from-memory")),
                                                 ),
                                         ),
@@ -910,7 +910,7 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
         .size_full()
         .flex()
         .flex_col()
-        .bg(BG_RAIL)
+        .bg(bg_rail())
         // 1. Scan Paths Header
         .child(
             div()
@@ -920,15 +920,15 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                 .items_center()
                 .justify_between()
                 .px(px(12.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(t!("settings-keys-scan-paths")),
                 )
                 .child(
@@ -937,9 +937,9 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                         .px(px(6.0))
                         .py(px(2.0))
                         .border_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER).border_color(TEXT_SECONDARY))
+                        .hover(|s| s.bg(bg_row_hover()).border_color(text_secondary()))
                         .on_click(move |_ev, _window, cx| {
                             app_add_path.update(cx, |this, cx| {
                                 this.open_add_scan_path_modal(cx);
@@ -949,7 +949,7 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.0))
-                                .text_color(TEXT_TERTIARY)
+                                .text_color(text_tertiary())
                                 .child(t!("settings-keys-add-path")),
                         ),
                 ),
@@ -962,7 +962,7 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                 .flex_col()
                 .gap(px(6.0))
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .children(scan_paths.iter().map(|p| {
                     let app_del_path = app.clone();
                     let pid = p.id;
@@ -980,10 +980,10 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                                 .flex()
                                 .items_center()
                                 .gap(px(7.0))
-                                .child(tabler_icon(TablerIcon::Folder).size(px(12.0)).text_color(OK))
+                                .child(tabler_icon(TablerIcon::Folder).size(px(12.0)).text_color(theme().ok))
                                 .child(
                                     div()
-                                        .text_color(TEXT_SECONDARY)
+                                        .text_color(text_secondary())
                                         .child(p.path.clone()),
                                 ),
                         )
@@ -1000,7 +1000,7 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                             Some(
                                 div()
                                     .id(ElementId::NamedInteger("def-scan-path".into(), pid as u64))
-                                    .text_color(TEXT_FAINTER)
+                                    .text_color(text_fainter())
                                     .child(t!("settings-keys-default")),
                             )
                         })
@@ -1015,15 +1015,15 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                 .items_center()
                 .justify_between()
                 .px(px(12.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(t!("settings-keys-group-taxonomy")),
                 )
                 .child(
@@ -1032,9 +1032,9 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                         .px(px(6.0))
                         .py(px(2.0))
                         .border_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER).border_color(TEXT_SECONDARY))
+                        .hover(|s| s.bg(bg_row_hover()).border_color(text_secondary()))
                         .on_click(move |_ev, _window, cx| {
                             app_new_grp.update(cx, |this, cx| {
                                 this.open_new_group_modal(cx);
@@ -1044,7 +1044,7 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.0))
-                                .text_color(TEXT_TERTIARY)
+                                .text_color(text_tertiary())
                                 .child(t!("settings-keys-new-group")),
                         ),
                 ),
@@ -1064,11 +1064,11 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                     let is_custom = !matches!(g.id.as_str(), "default" | "fleet" | "bastions" | "production" | "legacy");
 
                     let grp_c = match g.id.as_str() {
-                        "fleet" => OK,
+                        "fleet" => theme().ok,
                         "bastions" => hex_rgb(0x60a5fa),
-                        "production" => WARN,
-                        "legacy" => CRIT,
-                        _ => TEXT_FAINT,
+                        "production" => theme().warn,
+                        "legacy" => theme().crit,
+                        _ => text_faint(),
                     };
 
                     div()
@@ -1079,8 +1079,8 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                         .justify_between()
                         .cursor_pointer()
                         .p(px(4.0))
-                        .bg(if is_active { BG_OVERLAY_PANEL } else { hex_rgba(0, 0.0) })
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .bg(if is_active { bg_overlay_panel() } else { hex_rgba(0, 0.0) })
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| {
                             let gid_c = gid.clone();
                             app_grp_filter.update(cx, |this, cx| {
@@ -1101,7 +1101,7 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
-                                        .text_color(if is_active { TEXT_MAX } else { TEXT_PRIMARY })
+                                        .text_color(if is_active { text_max() } else { text_primary() })
                                         .child(g.name.clone()),
                                 ),
                         )
@@ -1114,7 +1114,7 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
-                                        .text_color(TEXT_DIMMER)
+                                        .text_color(text_dimmer())
                                         .child(t!("settings-keys-text", count = count)),
                                 )
                                 .children(if is_custom {
@@ -1141,9 +1141,9 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
             div()
                 .m(px(12.0))
                 .p(px(10.0))
-                .bg(hex_rgb(0x070709))
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .flex_col()
                 .gap(px(4.0))
@@ -1152,14 +1152,14 @@ pub fn render_keys_right_rail(app: Entity<CrowApp>, keys: &KeysState) -> impl In
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_TERTIARY)
+                        .text_color(text_tertiary())
                         .child(t!("settings-keys-key-rotation-audit")),
                 )
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .line_height(relative(1.45))
                         .child(t!("settings-keys-private-keys-stay-on-this")),
                 ),
@@ -1199,9 +1199,9 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                 .child(
                     div()
                         .w(px(520.0))
-                        .bg(BG_PANEL)
+                        .bg(bg_panel())
                         .border_1()
-                        .border_color(if is_success { OK } else { BORDER_STRONG })
+                        .border_color(if is_success { theme().ok } else { border_strong() })
                         .p(px(20.0))
                         .flex()
                         .flex_col()
@@ -1217,7 +1217,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(13.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(if is_success { OK } else { TEXT_MAX })
+                                        .text_color(if is_success { theme().ok } else { text_max() })
                                         .child(if is_success { t!("settings-keys-keypair-generated-and-enrolled") } else { t!("settings-keys-generate-new-openssh-keypair") }),
                                 )
                                 .child(
@@ -1226,8 +1226,8 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                         .cursor_pointer()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
-                                        .text_color(TEXT_DIM)
-                                        .hover(|s| s.text_color(TEXT_MAX))
+                                        .text_color(text_dim())
+                                        .hover(|s| s.text_color(text_max()))
                                         .on_click(move |_ev, _window, cx| {
                                             app_close.update(cx, |this, cx| {
                                                 this.close_key_gen_modal(cx);
@@ -1247,25 +1247,25 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                         div()
                                             .font_family(FONT_MONO)
                                             .text_size(font_px(10.5))
-                                            .text_color(TEXT_MUTED)
+                                            .text_color(text_muted())
                                             .child(t!("settings-keys-private-key-written-to-disk", priv_path = priv_path)),
                                     )
                                     .child(
                                         div()
                                             .font_family(FONT_MONO)
                                             .text_size(font_px(10.0))
-                                            .text_color(TEXT_FAINT)
+                                            .text_color(text_faint())
                                             .child(t!("settings-keys-fingerprint", fp = fp)),
                                     )
                                     .child(
                                         div()
                                             .p(px(8.0))
-                                            .bg(hex_rgb(0x070709))
+                                            .bg(bg_panel())
                                             .border_1()
-                                            .border_color(BORDER_DEFAULT)
+                                            .border_color(border_default())
                                             .font_family(FONT_MONO)
                                             .text_size(font_px(10.0))
-                                            .text_color(OK_INK)
+                                            .text_color(theme().ok_ink)
                                             .line_height(relative(1.4))
                                             .child(pubkey_to_copy.clone()),
                                     )
@@ -1279,13 +1279,13 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                     .id("btn-copy-generated-pubkey")
                                                     .h(px(30.0))
                                                     .px(px(12.0))
-                                                    .bg(BG_KEY)
+                                                    .bg(bg_key())
                                                     .border_1()
-                                                    .border_color(BORDER_DEFAULT)
+                                                    .border_color(border_default())
                                                     .cursor_pointer()
                                                     .flex()
                                                     .items_center()
-                                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                                    .hover(|s| s.bg(bg_row_hover()))
                                                     .on_click(move |_ev, _window, cx| {
                                                         let pk = pubkey_to_copy.clone();
                                                         app_copy.update(cx, |this, cx| {
@@ -1296,7 +1296,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                         div()
                                                             .font_family(FONT_MONO)
                                                             .text_size(font_px(10.5))
-                                                            .text_color(TEXT_PRIMARY)
+                                                            .text_color(text_primary())
                                                             .child(t!("settings-keys-copy-public-key")),
                                                     ),
                                             ),
@@ -1323,7 +1323,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(10.0))
                                                     .font_weight(FontWeight::BOLD)
-                                                    .text_color(TEXT_DIM)
+                                                    .text_color(text_dim())
                                                     .child(t!("settings-keys-key-name")),
                                             )
                                             .child(
@@ -1333,7 +1333,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                         Input::new(&i.name)
                                                             .font_family(FONT_MONO)
                                                             .text_size(font_px(11.0))
-                                                            .bg(BG_APP)
+                                                            .bg(bg_app())
                                                             .rounded(px(2.0))
                                                     })),
                                             ),
@@ -1349,7 +1349,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(10.0))
                                                     .font_weight(FontWeight::BOLD)
-                                                    .text_color(TEXT_DIM)
+                                                    .text_color(text_dim())
                                                     .child(t!("settings-keys-algorithm")),
                                             )
                                             .child(
@@ -1360,15 +1360,15 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                         div()
                                                             .px(px(10.0))
                                                             .py(px(4.0))
-                                                            .bg(if gen.algo == KeyAlgorithm::Ed25519 { OK_BG } else { BG_CONTROL })
+                                                            .bg(if gen.algo == KeyAlgorithm::Ed25519 { theme().ok_bg } else { bg_control() })
                                                             .border_1()
-                                                            .border_color(if gen.algo == KeyAlgorithm::Ed25519 { OK } else { BORDER_DEFAULT })
+                                                            .border_color(if gen.algo == KeyAlgorithm::Ed25519 { theme().ok } else { border_default() })
                                                             .child(
                                                                 div()
                                                                     .font_family(FONT_MONO)
                                                                     .text_size(font_px(10.5))
                                                                     .font_weight(FontWeight::BOLD)
-                                                                    .text_color(if gen.algo == KeyAlgorithm::Ed25519 { OK_INK } else { TEXT_SECONDARY })
+                                                                    .text_color(if gen.algo == KeyAlgorithm::Ed25519 { theme().ok_ink } else { text_secondary() })
                                                                     .child(t!("settings-keys-ed25519-recommended")),
                                                             ),
                                                     )
@@ -1376,15 +1376,15 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                         div()
                                                             .px(px(10.0))
                                                             .py(px(4.0))
-                                                            .bg(if gen.algo == KeyAlgorithm::Rsa4096 { WARN_BG } else { BG_CONTROL })
+                                                            .bg(if gen.algo == KeyAlgorithm::Rsa4096 { theme().warn_bg } else { bg_control() })
                                                             .border_1()
-                                                            .border_color(if gen.algo == KeyAlgorithm::Rsa4096 { WARN } else { BORDER_DEFAULT })
+                                                            .border_color(if gen.algo == KeyAlgorithm::Rsa4096 { theme().warn } else { border_default() })
                                                             .child(
                                                                 div()
                                                                     .font_family(FONT_MONO)
                                                                     .text_size(font_px(10.5))
                                                                     .font_weight(FontWeight::BOLD)
-                                                                    .text_color(if gen.algo == KeyAlgorithm::Rsa4096 { WARN_INK } else { TEXT_DIM })
+                                                                    .text_color(if gen.algo == KeyAlgorithm::Rsa4096 { theme().warn_ink } else { text_dim() })
                                                                     .child(t!("settings-keys-rsa-4096-bit")),
                                                             ),
                                                     ),
@@ -1401,7 +1401,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(10.0))
                                                     .font_weight(FontWeight::BOLD)
-                                                    .text_color(TEXT_DIM)
+                                                    .text_color(text_dim())
                                                     .child(t!("settings-keys-comment-optional")),
                                             )
                                             .child(
@@ -1411,7 +1411,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                         Input::new(&i.comment)
                                                             .font_family(FONT_MONO)
                                                             .text_size(font_px(11.0))
-                                                            .bg(BG_APP)
+                                                            .bg(bg_app())
                                                             .rounded(px(2.0))
                                                     })),
                                             ),
@@ -1427,7 +1427,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(10.0))
                                                     .font_weight(FontWeight::BOLD)
-                                                    .text_color(TEXT_DIM)
+                                                    .text_color(text_dim())
                                                     .child(t!("settings-keys-save-directory")),
                                             )
                                             .child(
@@ -1437,7 +1437,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                         Input::new(&i.custom_dir)
                                                             .font_family(FONT_MONO)
                                                             .text_size(font_px(11.0))
-                                                            .bg(BG_APP)
+                                                            .bg(bg_app())
                                                             .rounded(px(2.0))
                                                     })),
                                             ),
@@ -1448,7 +1448,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.5))
-                                                .text_color(CRIT)
+                                                .text_color(theme().crit)
                                                 .child(e.clone()),
                                         )
                                     } else {
@@ -1465,7 +1465,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                 div()
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(9.5))
-                                                    .text_color(TEXT_FAINTER)
+                                                    .text_color(text_fainter())
                                                     .child(t!("settings-keys-tab-to-switch-fields-enter")),
                                             )
                                             .child(
@@ -1479,9 +1479,9 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                             .px(px(10.0))
                                                             .py(px(5.0))
                                                             .border_1()
-                                                            .border_color(BORDER_DEFAULT)
+                                                            .border_color(border_default())
                                                             .cursor_pointer()
-                                                            .hover(|s| s.bg(BG_ROW_HOVER))
+                                                            .hover(|s| s.bg(bg_row_hover()))
                                                             .on_click(move |_ev, _window, cx| {
                                                                 app_cancel.update(cx, |this, cx| {
                                                                     this.close_key_gen_modal(cx);
@@ -1491,7 +1491,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                                 div()
                                                                     .font_family(FONT_MONO)
                                                                     .text_size(font_px(10.0))
-                                                                    .text_color(TEXT_TERTIARY)
+                                                                    .text_color(text_tertiary())
                                                                     .child(t!("settings-keys-cancel")),
                                                             ),
                                                     )
@@ -1500,9 +1500,9 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                             .id("btn-modal-submit-gen")
                                                             .px(px(12.0))
                                                             .py(px(5.0))
-                                                            .bg(OK_BG)
+                                                            .bg(theme().ok_bg)
                                                             .border_1()
-                                                            .border_color(OK)
+                                                            .border_color(theme().ok)
                                                             .cursor_pointer()
                                                             .hover(|s| s.bg(rgb(0x225530)))
                                                             .on_click(move |_ev, _window, cx| {
@@ -1515,7 +1515,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                                     .font_family(FONT_MONO)
                                                                     .text_size(font_px(10.5))
                                                                     .font_weight(FontWeight::BOLD)
-                                                                    .text_color(OK_INK)
+                                                                    .text_color(theme().ok_ink)
                                                                     .child(t!("settings-keys-generate-keypair")),
                                                             ),
                                                     ),
@@ -1545,9 +1545,9 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                 .child(
                     div()
                         .w(px(460.0))
-                        .bg(BG_PANEL)
+                        .bg(bg_panel())
                         .border_1()
-                        .border_color(BORDER_STRONG)
+                        .border_color(border_strong())
                         .p(px(20.0))
                         .flex()
                         .flex_col()
@@ -1562,7 +1562,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(12.5))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_MAX)
+                                        .text_color(text_max())
                                         .child(t!("settings-keys-add-ssh-key-scan-directory")),
                                 )
                                 .child(
@@ -1571,7 +1571,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                         .cursor_pointer()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .on_click(move |_ev, _window, cx| {
                                             app_close.update(cx, |this, cx| {
                                                 this.close_add_scan_path_modal(cx);
@@ -1584,7 +1584,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .child(t!("settings-keys-enter-directory-path-e-g")),
                         )
                         .child(
@@ -1599,7 +1599,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                 div()
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(10.0))
-                                    .text_color(CRIT)
+                                    .text_color(theme().crit)
                                     .child(e.clone()),
                             )
                         } else {
@@ -1615,11 +1615,11 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                         .id("btn-submit-add-path")
                                         .px(px(12.0))
                                         .py(px(5.0))
-                                        .bg(BG_KEY)
+                                        .bg(bg_key())
                                         .border_1()
-                                        .border_color(BORDER_DEFAULT)
+                                        .border_color(border_default())
                                         .cursor_pointer()
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .hover(|s| s.bg(bg_row_hover()))
                                         .on_click(move |_ev, _window, cx| {
                                             app_submit.update(cx, |this, cx| {
                                                 this.submit_add_scan_path(cx);
@@ -1630,7 +1630,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.5))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(OK)
+                                                .text_color(theme().ok)
                                                 .child(t!("settings-keys-add-scan")),
                                         ),
                                 ),
@@ -1655,9 +1655,9 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                 .child(
                     div()
                         .w(px(420.0))
-                        .bg(BG_PANEL)
+                        .bg(bg_panel())
                         .border_1()
-                        .border_color(BORDER_STRONG)
+                        .border_color(border_strong())
                         .p(px(20.0))
                         .flex()
                         .flex_col()
@@ -1672,7 +1672,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(12.5))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_MAX)
+                                        .text_color(text_max())
                                         .child(t!("settings-keys-create-new-key-group")),
                                 )
                                 .child(
@@ -1681,7 +1681,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                         .cursor_pointer()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .on_click(move |_ev, _window, cx| {
                                             app_close.update(cx, |this, cx| {
                                                 this.close_new_group_modal(cx);
@@ -1694,7 +1694,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .child(t!("settings-keys-enter-group-name-e-g")),
                         )
                         .child(
@@ -1709,7 +1709,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                 div()
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(10.0))
-                                    .text_color(CRIT)
+                                    .text_color(theme().crit)
                                     .child(e.clone()),
                             )
                         } else {
@@ -1725,11 +1725,11 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                         .id("btn-submit-new-group")
                                         .px(px(12.0))
                                         .py(px(5.0))
-                                        .bg(BG_KEY)
+                                        .bg(bg_key())
                                         .border_1()
-                                        .border_color(BORDER_DEFAULT)
+                                        .border_color(border_default())
                                         .cursor_pointer()
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .hover(|s| s.bg(bg_row_hover()))
                                         .on_click(move |_ev, _window, cx| {
                                             app_submit.update(cx, |this, cx| {
                                                 this.submit_new_group(cx);
@@ -1740,7 +1740,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.5))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(OK)
+                                                .text_color(theme().ok)
                                                 .child(t!("settings-keys-create-group")),
                                         ),
                                 ),
@@ -1768,9 +1768,9 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                 .child(
                     div()
                         .w(px(500.0))
-                        .bg(BG_PANEL)
+                        .bg(bg_panel())
                         .border_1()
-                        .border_color(BORDER_STRONG)
+                        .border_color(border_strong())
                         .p(px(20.0))
                         .flex()
                         .flex_col()
@@ -1785,7 +1785,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(12.5))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_MAX)
+                                        .text_color(text_max())
                                         .child(t!("settings-keys-edit-key-attached-servers")),
                                 )
                                 .child(
@@ -1794,7 +1794,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                         .cursor_pointer()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .on_click(move |_ev, _window, cx| {
                                             app_close.update(cx, |this, cx| {
                                                 this.close_edit_key_modal(cx);
@@ -1814,7 +1814,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(t!("settings-keys-name")),
                                 )
                                 .child(
@@ -1836,7 +1836,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(t!("settings-keys-group-assignment")),
                                 )
                                 .child(
@@ -1852,9 +1852,9 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                 .id(ElementId::Name(format!("grp-chip-{}", gid).into()))
                                                 .px(px(8.0))
                                                 .py(px(3.0))
-                                                .bg(if is_sel { BG_OVERLAY_PANEL } else { BG_CONTROL })
+                                                .bg(if is_sel { bg_overlay_panel() } else { bg_control() })
                                                 .border_1()
-                                                .border_color(if is_sel { TEXT_PRIMARY } else { BORDER_DEFAULT })
+                                                .border_color(if is_sel { text_primary() } else { border_default() })
                                                 .cursor_pointer()
                                                 .on_click(move |_ev, _window, cx| {
                                                     let gid_c = gid.clone();
@@ -1870,7 +1870,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(10.0))
                                                         .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                                        .text_color(if is_sel { TEXT_MAX } else { TEXT_DIM })
+                                                        .text_color(if is_sel { text_max() } else { text_dim() })
                                                         .child(g.name.clone()),
                                                 )
                                         })),
@@ -1887,7 +1887,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(t!("settings-keys-attach-to-fleet-servers")),
                                 )
                                 .child(
@@ -1904,11 +1904,11 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                 .id(ElementId::Name(format!("srv-chip-{}", srv_id).into()))
                                                 .px(px(8.0))
                                                 .py(px(4.0))
-                                                .bg(if is_attached { OK_BG } else { BG_CONTROL })
+                                                .bg(if is_attached { theme().ok_bg } else { bg_control() })
                                                 .border_1()
-                                                .border_color(if is_attached { OK } else { BORDER_DEFAULT })
+                                                .border_color(if is_attached { theme().ok } else { border_default() })
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                                .hover(|s| s.bg(bg_row_hover()))
                                                 .on_click(move |_ev, _window, cx| {
                                                     let sid = srv_id.clone();
                                                     app_tog.update(cx, |this, cx| {
@@ -1920,7 +1920,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(10.0))
                                                         .font_weight(if is_attached { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                                        .text_color(if is_attached { OK_INK } else { TEXT_SECONDARY })
+                                                        .text_color(if is_attached { theme().ok_ink } else { text_secondary() })
                                                         .child(format!("{} {}", if is_attached { "✓" } else { "+" }, t.name)),
                                                 )
                                         })),
@@ -1931,7 +1931,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                 div()
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(10.0))
-                                    .text_color(CRIT)
+                                    .text_color(theme().crit)
                                     .child(e.clone()),
                             )
                         } else {
@@ -1948,11 +1948,11 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                         .id("btn-submit-edit-key")
                                         .px(px(12.0))
                                         .py(px(5.0))
-                                        .bg(BG_KEY)
+                                        .bg(bg_key())
                                         .border_1()
-                                        .border_color(BORDER_DEFAULT)
+                                        .border_color(border_default())
                                         .cursor_pointer()
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .hover(|s| s.bg(bg_row_hover()))
                                         .on_click(move |_ev, _window, cx| {
                                             app_submit.update(cx, |this, cx| {
                                                 this.submit_edit_key(cx);
@@ -1963,7 +1963,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.5))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(OK)
+                                                .text_color(theme().ok)
                                                 .child(t!("settings-keys-save-changes")),
                                         ),
                                 ),
@@ -1985,7 +1985,7 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                         .id("floating-toast")
                         .bg(hex_rgb(0x102618))
                         .border_1()
-                        .border_color(OK)
+                        .border_color(theme().ok)
                         .p(px(10.0))
                         .flex()
                         .items_center()
@@ -1996,13 +1996,13 @@ pub fn render_key_modals(app: Entity<CrowApp>, inputs: Option<&KeyModalInputs>, 
                                 this.clear_key_toast(cx);
                             });
                         })
-                        .child(div().font_family(FONT_MONO).text_size(font_px(12.0)).text_color(OK).child("✓"))
+                        .child(div().font_family(FONT_MONO).text_size(font_px(12.0)).text_color(theme().ok).child("✓"))
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(OK_INK)
+                                .text_color(theme().ok_ink)
                                 .child(toast_msg.clone()),
                         ),
                 ),

@@ -99,13 +99,13 @@ pub fn probe_host(host: &str, port: u16) -> (ProbeResult, Vec<ProbeLog>) {
     };
     if host.is_empty() || host.starts_with('-') {
         result.error = Some(t!("onboard-probe-is-not-a-valid-host", host = format!("{:?}", host)));
-        log(&mut logs, "✕", CRIT, t!("onboard-probe-is-not-a-valid-host", host = format!("{:?}", host)), String::new());
+        log(&mut logs, "✕", theme().crit, t!("onboard-probe-is-not-a-valid-host", host = format!("{:?}", host)), String::new());
         return (result, logs);
     }
 
     if let Err(msg) = crate::wire::check_allowed(crate::wire::WireCategory::Onboard, "TCP", "onboard.probe", host, host, port) {
         result.error = Some(msg.clone());
-        log(&mut logs, "✕", CRIT, msg, "silenced".into());
+        log(&mut logs, "✕", theme().crit, msg, "silenced".into());
         return (result, logs);
     }
 
@@ -128,7 +128,7 @@ pub fn probe_host(host: &str, port: u16) -> (ProbeResult, Vec<ProbeLog>) {
             let err = t!("onboard-probe-could-not-resolve", host = host);
             tcp_span.finish_err(crate::wire::WireStatus::Error, &err, "DNS resolution failed");
             result.error = Some(err.clone());
-            log(&mut logs, "✕", CRIT, err, "dns".into());
+            log(&mut logs, "✕", theme().crit, err, "dns".into());
             return (result, logs);
         }
     };
@@ -138,14 +138,14 @@ pub fn probe_host(host: &str, port: u16) -> (ProbeResult, Vec<ProbeLog>) {
             let err = t!("onboard-probe-tcp", host = host, port = port, e = e);
             tcp_span.finish_err(crate::wire::WireStatus::Error, &err, &e.to_string());
             result.error = Some(err);
-            log(&mut logs, "✕", CRIT, t!("onboard-probe-tcp-connect-failed", host = host, port = port, e = e), format!("{}ms", start.elapsed().as_millis()));
+            log(&mut logs, "✕", theme().crit, t!("onboard-probe-tcp-connect-failed", host = host, port = port, e = e), format!("{}ms", start.elapsed().as_millis()));
             return (result, logs);
         }
     };
     let latency = start.elapsed().as_millis() as u64;
     result.is_reachable = true;
     result.latency_ms = Some(latency);
-    log(&mut logs, "✓", OK, t!("onboard-probe-tcp-connect", host = host, port = port), format!("{latency}ms"));
+    log(&mut logs, "✓", theme().ok, t!("onboard-probe-tcp-connect", host = host, port = port), format!("{latency}ms"));
 
     // 2. SSH banner
     let _ = stream.set_read_timeout(Some(Duration::from_millis(2000)));
@@ -153,11 +153,11 @@ pub fn probe_host(host: &str, port: u16) -> (ProbeResult, Vec<ProbeLog>) {
     match BufReader::new(&stream).read_line(&mut banner) {
         Ok(_) if banner.starts_with("SSH-") => {
             result.ssh_banner = Some(banner.trim().to_string());
-            log(&mut logs, "✓", OK, t!("onboard-probe-ssh-banner", banner = banner.trim()), String::new());
+            log(&mut logs, "✓", theme().ok, t!("onboard-probe-ssh-banner", banner = banner.trim()), String::new());
             tcp_span.finish_ok(0, banner.len() as u64, banner.trim());
         }
         _ => {
-            log(&mut logs, "▲", WARN, t!("onboard-probe-no-ssh-banner-is-this").into(), String::new());
+            log(&mut logs, "▲", theme().warn, t!("onboard-probe-no-ssh-banner-is-this").into(), String::new());
             tcp_span.finish_ok(0, banner.len() as u64, "connected (no SSH banner)");
         }
     }
@@ -188,9 +188,9 @@ pub fn probe_host(host: &str, port: u16) -> (ProbeResult, Vec<ProbeLog>) {
     match fingerprints.iter().find(|(alg, _)| alg == "ssh-ed25519").or(fingerprints.first()) {
         Some((alg, fp)) => {
             result.host_key_fingerprint = format!("{fp} ({})", alg.trim_start_matches("ssh-").to_uppercase());
-            log(&mut logs, "✓", OK, t!("onboard-probe-host-key", host_key_fingerprint = result.host_key_fingerprint), "ssh-keyscan".into());
+            log(&mut logs, "✓", theme().ok, t!("onboard-probe-host-key", host_key_fingerprint = result.host_key_fingerprint), "ssh-keyscan".into());
         }
-        None => log(&mut logs, "✕", CRIT, t!("onboard-probe-could-not-fetch-the-servers").into(), String::new()),
+        None => log(&mut logs, "✕", theme().crit, t!("onboard-probe-could-not-fetch-the-servers").into(), String::new()),
     }
 
     // 4. Compare with known_hosts (ssh-keygen -F handles hashed entries)
@@ -208,7 +208,7 @@ pub fn probe_via_bastion(host: &str, port: u16, user: &str, proxy: &str, via: &s
     let mut result = ProbeResult::empty();
     if host.is_empty() || host.starts_with('-') {
         result.error = Some(t!("onboard-probe-is-not-a-valid-host", host = format!("{:?}", host)));
-        log(&mut logs, "✕", CRIT, t!("onboard-probe-is-not-a-valid-host", host = format!("{:?}", host)), String::new());
+        log(&mut logs, "✕", theme().crit, t!("onboard-probe-is-not-a-valid-host", host = format!("{:?}", host)), String::new());
         return (result, logs);
     }
     let span = match crate::wire::begin_checked(crate::wire::WireStart {
@@ -225,7 +225,7 @@ pub fn probe_via_bastion(host: &str, port: u16, user: &str, proxy: &str, via: &s
         Ok(s) => s,
         Err(msg) => {
             result.error = Some(msg.clone());
-            log(&mut logs, "✕", CRIT, msg, "silenced".into());
+            log(&mut logs, "✕", theme().crit, msg, "silenced".into());
             return (result, logs);
         }
     };
@@ -233,7 +233,7 @@ pub fn probe_via_bastion(host: &str, port: u16, user: &str, proxy: &str, via: &s
     let kh = scratch.join("known_hosts");
     if let Err(e) = std::fs::create_dir_all(&scratch).and_then(|_| std::fs::write(&kh, "")) {
         span.finish_err(crate::wire::WireStatus::Error, &e.to_string(), "");
-        log(&mut logs, "✕", CRIT, t!("onboard-probe-couldnt-make-a-scratch-known", e = e), String::new());
+        log(&mut logs, "✕", theme().crit, t!("onboard-probe-couldnt-make-a-scratch-known", e = e), String::new());
         return (result, logs);
     }
     let port_s = port.to_string();
@@ -276,21 +276,21 @@ pub fn probe_via_bastion(host: &str, port: u16, user: &str, proxy: &str, via: &s
         };
         span.finish_err(crate::wire::WireStatus::Error, &why, &stderr);
         result.error = Some(why.clone());
-        log(&mut logs, "✕", CRIT, t!("onboard-probe-through", via = via, why = why), format!("{elapsed}ms"));
+        log(&mut logs, "✕", theme().crit, t!("onboard-probe-through", via = via, why = why), format!("{elapsed}ms"));
         return (result, logs);
     }
     span.finish_ok(0, stderr.len() as u64, &lines.join("\n"));
     result.is_reachable = true;
     result.latency_ms = Some(elapsed);
-    log(&mut logs, "✓", OK, t!("onboard-probe-reached-through", host = host, port = port, via = via), format!("{elapsed}ms"));
+    log(&mut logs, "✓", theme().ok, t!("onboard-probe-reached-through", host = host, port = port, via = via), format!("{elapsed}ms"));
     if let Some(b) = &result.ssh_banner {
-        log(&mut logs, "✓", OK, t!("onboard-probe-ssh-banner-2", b = b), String::new());
+        log(&mut logs, "✓", theme().ok, t!("onboard-probe-ssh-banner-2", b = b), String::new());
     }
     result.scanned_keys = lines;
     let fingerprints: Vec<(String, String)> = result.scanned_keys.iter().filter_map(|l| key_fingerprint(l)).collect();
     if let Some((alg, fp)) = fingerprints.first() {
         result.host_key_fingerprint = format!("{fp} ({})", alg.trim_start_matches("ssh-").to_uppercase());
-        log(&mut logs, "✓", OK, t!("onboard-probe-host-key", host_key_fingerprint = result.host_key_fingerprint), t!("onboard-probe-through-2", via = via));
+        log(&mut logs, "✓", theme().ok, t!("onboard-probe-host-key", host_key_fingerprint = result.host_key_fingerprint), t!("onboard-probe-through-2", via = via));
     }
     compare_with_known_hosts(&mut result, &mut logs, host, port);
     (result, logs)
@@ -302,11 +302,11 @@ fn compare_with_known_hosts(result: &mut ProbeResult, logs: &mut Vec<ProbeLog>, 
     result.is_known_host = known.iter().any(|k| scanned_blobs.contains(&k.as_str()));
     result.host_key_mismatch = !known.is_empty() && !result.is_known_host && !scanned_blobs.is_empty();
     if result.is_known_host {
-        log(logs, "✓", OK, t!("onboard-probe-host-key-matches-ssh-known").into(), String::new());
+        log(logs, "✓", theme().ok, t!("onboard-probe-host-key-matches-ssh-known").into(), String::new());
     } else if result.host_key_mismatch {
-        log(logs, "✕", CRIT, t!("onboard-probe-host-key-changed-known-hosts").into(), String::new());
+        log(logs, "✕", theme().crit, t!("onboard-probe-host-key-changed-known-hosts").into(), String::new());
     } else {
-        log(logs, "▲", WARN, t!("onboard-probe-host-key-not-in-known").into(), String::new());
+        log(logs, "▲", theme().warn, t!("onboard-probe-host-key-not-in-known").into(), String::new());
     }
 }
 
@@ -361,7 +361,7 @@ true"#;
     let out = match host.exec(&["sh", "-c", &script], DEFAULT_TIMEOUT) {
         Ok(o) => o.stdout,
         Err(e) => {
-            log(&mut logs, "✕", CRIT, t!("onboard-probe-could-not-read-facts-over", e = e), String::new());
+            log(&mut logs, "✕", theme().crit, t!("onboard-probe-could-not-read-facts-over", e = e), String::new());
             return (DetectedFacts::default(), logs);
         }
     };
@@ -385,7 +385,7 @@ true"#;
             "tool" => tools.push(v),
             "sudo" => {
                 let ok = v != "needs password";
-                log(&mut logs, if ok { "✓" } else { "▲" }, if ok { OK } else { WARN }, t!("onboard-probe-privileges", v = v), String::new());
+                log(&mut logs, if ok { "✓" } else { "▲" }, if ok { theme().ok } else { theme().warn }, t!("onboard-probe-privileges", v = v), String::new());
             }
             _ => {}
         }
@@ -397,11 +397,11 @@ true"#;
             (Some(c), true) => c.to_string(),
             (None, _) => t!("onboard-probe-unknown-location").to_string(),
         };
-        log(&mut logs, "✓", OK, t!("onboard-probe-region", place = place, provider = r.provider, code = r.code), t!("onboard-probe-cloud-metadata").into());
+        log(&mut logs, "✓", theme().ok, t!("onboard-probe-region", place = place, provider = r.provider, code = r.code), t!("onboard-probe-cloud-metadata").into());
     }
     facts.firewall = if tools.iter().any(|t| t == "ufw") { t!("onboard-probe-ufw-installed").into() } else { "—".into() };
-    facts.schema_packs = tools.iter().filter(|t| *t != "systemctl").map(|t| (t.clone(), OK, OK_BG)).collect();
-    log(&mut logs, "✓", OK, t!("onboard-probe-read-os-release-uname-meminfo").into(), "read-only".into());
+    facts.schema_packs = tools.iter().filter(|t| *t != "systemctl").map(|t| (t.clone(), theme().ok, theme().ok_bg)).collect();
+    log(&mut logs, "✓", theme().ok, t!("onboard-probe-read-os-release-uname-meminfo").into(), "read-only".into());
     (facts, logs)
 }
 

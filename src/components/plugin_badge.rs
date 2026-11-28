@@ -9,10 +9,10 @@ use crate::theme::*;
 
 pub fn color(state: State) -> Rgba {
     match state {
-        State::Ok => OK,
-        State::Warn => WARN,
-        State::Bad => CRIT,
-        State::Unknown => TEXT_DIM,
+        State::Ok => theme().ok,
+        State::Warn => theme().warn,
+        State::Bad => theme().crit,
+        State::Unknown => text_dim(),
     }
 }
 

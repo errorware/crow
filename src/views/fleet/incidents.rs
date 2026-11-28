@@ -21,13 +21,13 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>) -> Stateful<
         .px(px(8.0))
         .py(px(3.0))
         .border_1()
-        .border_color(BORDER_DEFAULT)
-        .bg(BG_CONTROL)
+        .border_color(border_default())
+        .bg(bg_control())
         .font_family(FONT_MONO)
         .text_size(font_px(10.0))
-        .text_color(TEXT_SECONDARY)
+        .text_color(text_secondary())
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
         .child(text.into())
 }
 
@@ -46,11 +46,11 @@ pub fn incidents_page(fleet: &FleetState, st: &IncidentsState, recent: &[Alert],
         .flex()
         .flex_col()
         .gap(px(8.0))
-        .child(mono(10.0, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("fleet-incidents-from-an-alert-last-7")))
-        .when(recent.is_empty(), |d| d.child(mono(10.0, TEXT_DIM).child(t!("fleet-incidents-no-alerts-in-the-last"))))
+        .child(mono(10.0, text_secondary()).font_weight(FontWeight::BOLD).child(t!("fleet-incidents-from-an-alert-last-7")))
+        .when(recent.is_empty(), |d| d.child(mono(10.0, text_dim()).child(t!("fleet-incidents-no-alerts-in-the-last"))))
         .children(recent.iter().take(40).map(|a| {
             let (app, id) = (app.clone(), a.id.clone());
-            let color = if a.resolved_at.is_some() { TEXT_DIM } else if a.level == "CRIT" { CRIT } else { WARN };
+            let color = if a.resolved_at.is_some() { text_dim() } else if a.level == "CRIT" { theme().crit } else { theme().warn };
             div()
                 .id(ElementId::Name(format!("incident-alert-{}", a.id).into()))
                 .flex()
@@ -59,20 +59,20 @@ pub fn incidents_page(fleet: &FleetState, st: &IncidentsState, recent: &[Alert],
                 .px(px(8.0))
                 .py(px(5.0))
                 .border_1()
-                .border_color(BORDER_PANEL)
-                .bg(BG_PANEL)
+                .border_color(border_panel())
+                .bg(bg_panel())
                 .cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER))
+                .hover(|s| s.bg(bg_row_hover()))
                 .on_click(move |_ev, _w, cx| {
                     let id = id.clone();
                     app.update(cx, |this, cx| this.open_incident_for_alert(&id, cx))
                 })
-                .child(div().flex().gap(px(6.0)).child(mono(9.5, color).font_weight(FontWeight::BOLD).child(a.level.clone())).child(mono(9.5, TEXT_TERTIARY).child(name(&a.server_id))).child(div().flex_1()).child(mono(9.0, TEXT_FAINT).child(format!("{}{}", when(a.opened_at), if a.resolved_at.is_some() { t!("fleet-incidents-resolved") } else { "" }))))
-                .child(mono(10.0, TEXT_SECONDARY).whitespace_nowrap().overflow_hidden().text_ellipsis().child(a.detail.clone()))
+                .child(div().flex().gap(px(6.0)).child(mono(9.5, color).font_weight(FontWeight::BOLD).child(a.level.clone())).child(mono(9.5, text_tertiary()).child(name(&a.server_id))).child(div().flex_1()).child(mono(9.0, text_faint()).child(format!("{}{}", when(a.opened_at), if a.resolved_at.is_some() { t!("fleet-incidents-resolved") } else { "" }))))
+                .child(mono(10.0, text_secondary()).whitespace_nowrap().overflow_hidden().text_ellipsis().child(a.detail.clone()))
         }))
-        .child(mono(10.0, TEXT_SECONDARY).font_weight(FontWeight::BOLD).mt(px(8.0)).child(t!("fleet-incidents-or-a-window-on-a")))
+        .child(mono(10.0, text_secondary()).font_weight(FontWeight::BOLD).mt(px(8.0)).child(t!("fleet-incidents-or-a-window-on-a")))
         .children(fleet.servers.iter().map(|s| {
-            div().flex().items_center().gap(px(4.0)).child(mono(10.0, TEXT_PRIMARY).w(px(140.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(s.name.clone())).children([(3600i64, "1H"), (6 * 3600, "6H"), (86_400, "24H")].into_iter().map(|(secs, t)| {
+            div().flex().items_center().gap(px(4.0)).child(mono(10.0, text_primary()).w(px(140.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(s.name.clone())).children([(3600i64, "1H"), (6 * 3600, "6H"), (86_400, "24H")].into_iter().map(|(secs, t)| {
                 let (app, id) = (app.clone(), s.id.clone());
                 chip(format!("incident-win-{}-{secs}", s.id), t).on_click(move |_ev, _w, cx| {
                     let id = id.clone();
@@ -88,30 +88,30 @@ pub fn incidents_page(fleet: &FleetState, st: &IncidentsState, recent: &[Alert],
         .flex_col()
         .gap(px(8.0))
         .child(match &st.scope {
-            None => mono(10.5, TEXT_DIM).child(t!("fleet-incidents-pick-an-alert-or-a")).into_any_element(),
+            None => mono(10.5, text_dim()).child(t!("fleet-incidents-pick-an-alert-or-a")).into_any_element(),
             Some(s) => div()
                 .flex()
                 .items_center()
                 .gap(px(10.0))
-                .child(div().flex_1().min_w(px(0.0)).flex().flex_col().child(mono(11.5, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(s.title.clone())).child(mono(9.5, TEXT_FAINT).child(t!("fleet-incidents-events", when = when(s.from), when2 = when(s.to), count = st.events.len(), st = if st.loading > 0 { t!("fleet-incidents-reading-logs") } else { "" }))))
+                .child(div().flex_1().min_w(px(0.0)).flex().flex_col().child(mono(11.5, text_primary()).font_weight(FontWeight::BOLD).child(s.title.clone())).child(mono(9.5, text_faint()).child(t!("fleet-incidents-events", when = when(s.from), when2 = when(s.to), count = st.events.len(), st = if st.loading > 0 { t!("fleet-incidents-reading-logs") } else { "" }))))
                 .child(chip("btn-incident-summary", if st.summarizing { t!("fleet-incidents-summarizing") } else { t!("fleet-incidents-summarize-clanker") }).on_click(move |_ev, _w, cx| app_sum.update(cx, |this, cx| this.summarize_incident(cx))))
                 .child(chip("btn-incident-export", t!("fleet-incidents-export-md")).on_click(move |_ev, _w, cx| app_exp.update(cx, |this, cx| this.export_incident(cx))))
                 .into_any_element(),
         })
-        .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { OK } else { WARN }).child(m)))
+        .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { theme().ok } else { theme().warn }).child(m)))
         .children(st.summary.as_ref().map(|s| match s {
-            Ok((text, via)) => div().p(px(10.0)).bg(BG_PANEL).border_1().border_color(BORDER_PANEL).flex().flex_col().gap(px(4.0)).child(mono(10.5, TEXT_PRIMARY).line_height(px(16.0)).child(text.clone())).child(mono(9.0, TEXT_FAINT).child(t!("fleet-incidents-via-a-likely-sequence-an", via = via))),
-            Err(e) => mono(10.5, CRIT).child(e.clone()),
+            Ok((text, via)) => div().p(px(10.0)).bg(bg_panel()).border_1().border_color(border_panel()).flex().flex_col().gap(px(4.0)).child(mono(10.5, text_primary()).line_height(px(16.0)).child(text.clone())).child(mono(9.0, text_faint()).child(t!("fleet-incidents-via-a-likely-sequence-an", via = via))),
+            Err(e) => mono(10.5, theme().crit).child(e.clone()),
         }))
-        .when(st.scope.is_some() && st.events.is_empty() && st.loading == 0, |d| d.child(mono(10.5, TEXT_DIM).child(t!("fleet-incidents-nothing-in-this-window"))))
+        .when(st.scope.is_some() && st.events.is_empty() && st.loading == 0, |d| d.child(mono(10.5, text_dim()).child(t!("fleet-incidents-nothing-in-this-window"))))
         .children(st.events.iter().map(|e| {
             let color = match e.kind {
-                EventKind::AlertOpened if e.level == "CRIT" => CRIT,
-                EventKind::AlertOpened => WARN,
-                EventKind::AlertResolved => OK,
-                EventKind::Change => hex_rgb(0x8ab4ff),
-                EventKind::CheckFailed => CRIT,
-                EventKind::Log => TEXT_DIM,
+                EventKind::AlertOpened if e.level == "CRIT" => theme().crit,
+                EventKind::AlertOpened => theme().warn,
+                EventKind::AlertResolved => theme().ok,
+                EventKind::Change => accent(),
+                EventKind::CheckFailed => theme().crit,
+                EventKind::Log => text_dim(),
             };
             div()
                 .flex()
@@ -120,11 +120,11 @@ pub fn incidents_page(fleet: &FleetState, st: &IncidentsState, recent: &[Alert],
                 .px(px(6.0))
                 .py(px(3.0))
                 .border_b_1()
-                .border_color(BORDER_ROW)
-                .child(mono(9.5, TEXT_FAINT).w(px(100.0)).flex_none().child(when(e.ts)))
+                .border_color(border_row())
+                .child(mono(9.5, text_faint()).w(px(100.0)).flex_none().child(when(e.ts)))
                 .child(mono(9.5, color).font_weight(FontWeight::BOLD).w(px(70.0)).flex_none().child(e.kind.label()))
-                .child(mono(9.5, TEXT_TERTIARY).w(px(110.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(e.server.clone()))
-                .child(mono(10.5, if e.kind == EventKind::Log { TEXT_SECONDARY } else { TEXT_PRIMARY }).flex_1().min_w(px(0.0)).child(e.text.clone()))
+                .child(mono(9.5, text_tertiary()).w(px(110.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(e.server.clone()))
+                .child(mono(10.5, if e.kind == EventKind::Log { text_secondary() } else { text_primary() }).flex_1().min_w(px(0.0)).child(e.text.clone()))
         }));
 
     div().id("incidents-page").flex_1().min_h(px(0.0)).overflow_y_scrollbar().child(div().p(px(18.0)).flex().gap(px(20.0)).child(picker).child(timeline))

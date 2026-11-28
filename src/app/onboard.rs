@@ -4,7 +4,7 @@ use zeroize::{Zeroize, Zeroizing};
 
 use super::{CrowApp, Screen};
 use crate::components::titlebar::ServerTab;
-use crate::theme::{CRIT, OK};
+use crate::theme::*;
 use crate::vault::ServerRecord;
 use crate::host::host_for;
 use crate::host::bootstrap::install_key_with_password;
@@ -384,7 +384,7 @@ impl CrowApp {
                         Some(Ok((proxy, name))) => crate::views::onboard::probe::probe_via_bastion(&candidate.host, candidate.port, &candidate.login_user, &proxy, &name),
                         Some(Err(e)) => {
                             let mut logs = Vec::new();
-                            probe_log(&mut logs, "✕", CRIT, t!("app-onboard-cant-go-through-the-bastion", e = e), String::new());
+                            probe_log(&mut logs, "✕", theme().crit, t!("app-onboard-cant-go-through-the-bastion", e = e), String::new());
                             let mut r = crate::views::onboard::probe::ProbeResult::empty();
                             r.error = Some(e);
                             (r, logs)
@@ -618,18 +618,18 @@ fn connect_and_read(mut candidate: ServerRecord, bootstrap: Result<Option<Bootst
     let mut installed = None;
     match bootstrap {
         Err(why) => {
-            probe_log(logs, "✕", CRIT, t!("app-onboard-password-login", why = why), String::new());
+            probe_log(logs, "✕", theme().crit, t!("app-onboard-password-login", why = why), String::new());
             return (DetectedFacts::default(), None);
         }
         Ok(Some(b)) => match install_key_with_password(&candidate, b.jump.as_deref(), b.password, &b.key.public_key) {
             Ok(()) => {
-                probe_log(logs, "✓", OK, t!("app-onboard-logged-in-with-the-password", fingerprint = b.key.fingerprint), t!("app-onboard-key-only-from-now-on").into());
+                probe_log(logs, "✓", theme().ok, t!("app-onboard-logged-in-with-the-password", fingerprint = b.key.fingerprint), t!("app-onboard-key-only-from-now-on").into());
                 candidate.auth_method = "publickey".into();
                 candidate.key_id = Some(b.key.id.clone());
                 installed = Some(b.key.id);
             }
             Err(e) => {
-                probe_log(logs, "✕", CRIT, t!("app-onboard-password-login-2", e = e), String::new());
+                probe_log(logs, "✕", theme().crit, t!("app-onboard-password-login-2", e = e), String::new());
                 return (DetectedFacts::default(), None);
             }
         },

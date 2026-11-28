@@ -54,22 +54,22 @@ impl JournalPriority {
 
     pub fn color(&self) -> Rgba {
         match self {
-            JournalPriority::Emerg | JournalPriority::Alert | JournalPriority::Crit => CRIT,
-            JournalPriority::Err => CRIT,
-            JournalPriority::Warning => WARN,
-            JournalPriority::Notice => hex_rgb(0x8ab4ff),
-            JournalPriority::Info => TEXT_PRIMARY,
-            JournalPriority::Debug => TEXT_FAINT,
+            JournalPriority::Emerg | JournalPriority::Alert | JournalPriority::Crit => theme().crit,
+            JournalPriority::Err => theme().crit,
+            JournalPriority::Warning => theme().warn,
+            JournalPriority::Notice => accent(),
+            JournalPriority::Info => text_primary(),
+            JournalPriority::Debug => text_faint(),
         }
     }
 
     pub fn badge_fg(&self) -> Rgba {
         match self {
-            JournalPriority::Emerg | JournalPriority::Alert | JournalPriority::Crit | JournalPriority::Err => CRIT,
-            JournalPriority::Warning => WARN,
-            JournalPriority::Notice => hex_rgb(0x8ab4ff),
-            JournalPriority::Info => TEXT_SECONDARY,
-            JournalPriority::Debug => TEXT_DIMMER,
+            JournalPriority::Emerg | JournalPriority::Alert | JournalPriority::Crit | JournalPriority::Err => theme().crit,
+            JournalPriority::Warning => theme().warn,
+            JournalPriority::Notice => accent(),
+            JournalPriority::Info => text_secondary(),
+            JournalPriority::Debug => text_dimmer(),
         }
     }
 

@@ -27,7 +27,7 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
         .min_w(px(0.0))
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         .child(
             div()
                 .h(px(40.0))
@@ -36,12 +36,12 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                 .items_center()
                 .gap(px(10.0))
                 .px(px(14.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
-                .child(div().font_family(FONT_MONO).text_size(font_px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("settings-providers-providers-where-your-servers-live")))
+                .border_color(border_panel())
+                .child(div().font_family(FONT_MONO).text_size(font_px(12.0)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(t!("settings-providers-providers-where-your-servers-live")))
                 .child(
-                    crate::components::button::badge(TEXT_SECONDARY)
+                    crate::components::button::badge(text_secondary())
                         .text_size(font_px(9.5))
                         .child(t!("settings-providers-set-up", configured = configured, count = factories.len())),
                 )
@@ -62,12 +62,12 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                                 .h(px(26.0))
                                 .px(px(10.0))
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
-                                .text_color(TEXT_SECONDARY)
+                                .text_color(text_secondary())
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                                 .on_click(move |_ev, _window, cx| app1.update(cx, |this, cx| this.open_import(cx)))
                                 .child(inherited_icon(TablerIcon::Download, font_px(12.0)))
                                 .child(t!("settings-providers-import-instances")),
@@ -84,9 +84,9 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
                 .flex_col()
                 .gap(px(14.0))
                 .child(intro())
-                .children(secrets_notice.map(|n| notice(n.to_string(), TEXT_SECONDARY, None, Some(app.clone()))))
-                .children(secrets_blocker.map(|why| notice(t!("settings-providers-tokens-cant-be-saved-right", why = why), WARN, Some(app.clone()), None)))
-                .children(none_on.then(|| notice(t!("settings-providers-no-cloud-provider-plugin-is").into(), TEXT_SECONDARY, None, None)))
+                .children(secrets_notice.map(|n| notice(n.to_string(), text_secondary(), None, Some(app.clone()))))
+                .children(secrets_blocker.map(|why| notice(t!("settings-providers-tokens-cant-be-saved-right", why = why), theme().warn, Some(app.clone()), None)))
+                .children(none_on.then(|| notice(t!("settings-providers-no-cloud-provider-plugin-is").into(), text_secondary(), None, None)))
                 .children(factories.into_iter().map(|f| card(f, state, inputs, open_stance, app.clone()))),
         )
 }
@@ -94,12 +94,12 @@ pub fn render_providers_view(app: Entity<CrowApp>, state: &ProvidersState, input
 fn intro() -> impl IntoElement {
     div()
         .p(px(12.0))
-        .bg(BG_OVERLAY_PANEL)
+        .bg(bg_overlay_panel())
         .border_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .flex()
         .gap(px(10.0))
-        .child(div().text_color(TEXT_PRIMARY).child(inherited_icon(TablerIcon::Cloud, font_px(16.0))))
+        .child(div().text_color(text_primary()).child(inherited_icon(TablerIcon::Cloud, font_px(16.0))))
         .child(
             div()
                 .flex_1()
@@ -107,7 +107,7 @@ fn intro() -> impl IntoElement {
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.5))
                 .line_height(px(15.0))
-                .text_color(TEXT_MUTED)
+                .text_color(text_muted())
                 .child(t!("settings-providers-connect-the-cloud-accounts-your")),
         )
 }
@@ -134,7 +134,7 @@ pub(crate) fn notice(text: String, color: Rgba, link: Option<Entity<CrowApp>>, d
             div()
                 .id("secrets-vault-link")
                 .cursor_pointer()
-                .text_color(TEXT_PRIMARY)
+                .text_color(text_primary())
                 .hover(|s| s.underline())
                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_settings_section(SettingsSection::Security, cx)))
                 .child(t!("settings-providers-vault-security"))
@@ -149,12 +149,12 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
     let checking = account.is_some_and(|a| state.checking.contains(&a.id));
 
     let status: (String, Rgba) = match account {
-        None => (t!("settings-providers-not-set-up").into(), TEXT_FAINT),
-        Some(_) if checking => (t!("settings-providers-testing").into(), TEXT_SECONDARY),
+        None => (t!("settings-providers-not-set-up").into(), text_faint()),
+        Some(_) if checking => (t!("settings-providers-testing").into(), text_secondary()),
         Some(a) => match (&a.last_check, a.last_check_ok) {
-            (Some(msg), true) => (t!("settings-providers-connected", msg = msg), OK),
-            (Some(msg), false) => (msg.clone(), CRIT),
-            (None, _) => (t!("settings-providers-saved-not-tested-yet").into(), TEXT_SECONDARY),
+            (Some(msg), true) => (t!("settings-providers-connected", msg = msg), theme().ok),
+            (Some(msg), false) => (msg.clone(), theme().crit),
+            (None, _) => (t!("settings-providers-saved-not-tested-yet").into(), text_secondary()),
         },
     };
 
@@ -162,11 +162,11 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
         .flex()
         .items_center()
         .gap(px(10.0))
-        .child(div().font_family(FONT_MONO).text_size(font_px(12.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(manifest.display_name().to_string()))
-        .child(tag(manifest.plugin.category.clone().unwrap_or_default(), TEXT_DIMMER))
-        .children(manifest.plugin.capabilities.iter().map(|c| tag(c.clone(), TEXT_SECONDARY)))
+        .child(div().font_family(FONT_MONO).text_size(font_px(12.5)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(manifest.display_name().to_string()))
+        .child(tag(manifest.plugin.category.clone().unwrap_or_default(), text_dimmer()))
+        .children(manifest.plugin.capabilities.iter().map(|c| tag(c.clone(), text_secondary())))
         .child(div().flex_1())
-        .children(account.and_then(|a| a.last_check_at.as_deref()).map(|t| div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(TEXT_FAINTER).child(t!("settings-providers-checked", short_time = short_time(t)))));
+        .children(account.and_then(|a| a.last_check_at.as_deref()).map(|t| div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(text_fainter()).child(t!("settings-providers-checked", short_time = short_time(t)))));
 
     let status_line = div().font_family(FONT_MONO).text_size(font_px(10.5)).line_height(px(14.0)).text_color(status.1).child(status.0);
 
@@ -178,17 +178,17 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
         .flex()
         .gap(px(6.0))
         .when(!editing, |d| {
-            d.child(button(format!("provider-edit-{plugin}"), if account.is_some() { t!("settings-providers-edit") } else { t!("settings-providers-set-up-2") }.into(), OK, true, move |cx| {
+            d.child(button(format!("provider-edit-{plugin}"), if account.is_some() { t!("settings-providers-edit") } else { t!("settings-providers-set-up-2") }.into(), theme().ok, true, move |cx| {
                 let p = p_edit.clone();
                 a_edit.update(cx, |this, cx| this.open_provider_form(&p, cx));
             }))
         })
         .when(account.is_some(), |d| {
-            d.child(button(format!("provider-test-{plugin}"), t!("settings-providers-test-connection").into(), TEXT_SECONDARY, !checking, move |cx| {
+            d.child(button(format!("provider-test-{plugin}"), t!("settings-providers-test-connection").into(), text_secondary(), !checking, move |cx| {
                 let p = p_test.clone();
                 a_test.update(cx, |this, cx| this.test_provider(&p, cx));
             }))
-            .child(button(format!("provider-remove-{plugin}"), if confirming { t!("settings-providers-click-again-to-remove").into() } else { t!("settings-providers-remove").into() }, CRIT, true, move |cx| {
+            .child(button(format!("provider-remove-{plugin}"), if confirming { t!("settings-providers-click-again-to-remove").into() } else { t!("settings-providers-remove").into() }, theme().crit, true, move |cx| {
                 let p = p_remove.clone();
                 a_remove.update(cx, |this, cx| this.remove_provider_clicked(&p, cx));
             }))
@@ -196,9 +196,9 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
 
     div()
         .p(px(12.0))
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_1()
-        .border_color(if editing { BORDER_DEFAULT } else { BORDER_PANEL })
+        .border_color(if editing { border_default() } else { border_panel() })
         .flex()
         .flex_col()
         .gap(px(8.0))
@@ -209,10 +209,10 @@ fn card(factory: ProviderFactory, state: &ProvidersState, inputs: Option<&Provid
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.0))
                 .line_height(px(13.5))
-                .text_color(WARN)
+                .text_color(theme().warn)
                 .child(t!("settings-providers-crow-is-open-anyone-at"))
         }))
-        .children(state.errors.get(&plugin).map(|e| div().font_family(FONT_MONO).text_size(font_px(10.5)).line_height(px(14.0)).text_color(CRIT).child(t!("settings-providers-not-saved", e = e))))
+        .children(state.errors.get(&plugin).map(|e| div().font_family(FONT_MONO).text_size(font_px(10.5)).line_height(px(14.0)).text_color(theme().crit).child(t!("settings-providers-not-saved", e = e))))
         .children(editing.then(|| form(&factory, state, inputs, app.clone())))
         .child(actions)
 }
@@ -228,7 +228,7 @@ fn form(factory: &ProviderFactory, state: &ProvidersState, inputs: Option<&Provi
         .mt(px(4.0))
         .pt(px(10.0))
         .border_t_1()
-        .border_color(BORDER_ROW)
+        .border_color(border_row())
         .flex()
         .flex_col()
         .gap(px(10.0))
@@ -254,12 +254,12 @@ fn form(factory: &ProviderFactory, state: &ProvidersState, inputs: Option<&Provi
                                 .flex()
                                 .gap(px(6.0))
                                 .text_size(font_px(11.0))
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(def.label.clone().unwrap_or_else(|| def.name.clone()))
-                                .children((def.required == Some(true)).then(|| div().text_color(WARN).child("*")))
-                                .children(secret.then(|| div().text_size(font_px(9.0)).text_color(TEXT_FAINT).child(t!("settings-providers-secret-vault")))),
+                                .children((def.required == Some(true)).then(|| div().text_color(theme().warn).child("*")))
+                                .children(secret.then(|| div().text_size(font_px(9.0)).text_color(text_faint()).child(t!("settings-providers-secret-vault")))),
                         )
-                        .children(def.help.clone().map(|h| div().text_size(font_px(9.5)).line_height(px(13.0)).text_color(TEXT_FAINT).child(h))),
+                        .children(def.help.clone().map(|h| div().text_size(font_px(9.5)).line_height(px(13.0)).text_color(text_faint()).child(h))),
                 )
                 .child(
                     div()
@@ -267,9 +267,9 @@ fn form(factory: &ProviderFactory, state: &ProvidersState, inputs: Option<&Provi
                         .flex()
                         .items_center()
                         .gap(px(8.0))
-                        .children(input.map(|i| div().flex_1().max_w(px(420.0)).child(Input::new(&i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0)))))
+                        .children(input.map(|i| div().flex_1().max_w(px(420.0)).child(Input::new(&i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(bg_app()).rounded(px(2.0)))))
                         .children(clearable.then(|| {
-                            button(format!("provider-clear-{plugin}-{key}"), t!("settings-providers-clear").into(), TEXT_DIMMER, true, move |cx| {
+                            button(format!("provider-clear-{plugin}-{key}"), t!("settings-providers-clear").into(), text_dimmer(), true, move |cx| {
                                 let (p, k) = (plugin.clone(), key.clone());
                                 app.update(cx, |this, cx| this.clear_provider_secret(&p, &k, cx));
                             })
@@ -280,8 +280,8 @@ fn form(factory: &ProviderFactory, state: &ProvidersState, inputs: Option<&Provi
             div()
                 .flex()
                 .gap(px(6.0))
-                .child(button(format!("provider-save-{plugin}"), t!("settings-providers-save-test").into(), OK, true, move |cx| a_save.update(cx, |this, cx| this.save_provider_form(cx))))
-                .child(button(format!("provider-cancel-{plugin}"), t!("settings-providers-cancel").into(), TEXT_SECONDARY, true, move |cx| a_cancel.update(cx, |this, cx| this.close_provider_form(cx)))),
+                .child(button(format!("provider-save-{plugin}"), t!("settings-providers-save-test").into(), theme().ok, true, move |cx| a_save.update(cx, |this, cx| this.save_provider_form(cx))))
+                .child(button(format!("provider-cancel-{plugin}"), t!("settings-providers-cancel").into(), text_secondary(), true, move |cx| a_cancel.update(cx, |this, cx| this.close_provider_form(cx)))),
         )
 }
 
@@ -301,12 +301,12 @@ fn button(id: String, label: String, color: Rgba, enabled: bool, on_click: impl 
         .px(px(9.0))
         .py(px(4.0))
         .border_1()
-        .border_color(if enabled { color.opacity(0.6) } else { BORDER_DEFAULT })
-        .text_color(if enabled { color } else { TEXT_FAINTER })
+        .border_color(if enabled { color.opacity(0.6) } else { border_default() })
+        .text_color(if enabled { color } else { text_fainter() })
         .font_family(FONT_MONO)
         .text_size(font_px(10.0))
         .font_weight(FontWeight::BOLD)
-        .when(enabled, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _window, cx| on_click(cx)))
+        .when(enabled, |d| d.cursor_pointer().hover(|s| s.bg(bg_row_hover())).on_click(move |_ev, _window, cx| on_click(cx)))
         .child(label)
 }
 

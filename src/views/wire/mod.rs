@@ -19,13 +19,13 @@ use crate::theme::*;
 use crate::wire::proc_net::{AttributedSocket, SocketAttribution};
 use crate::wire::{WireCategory, WireEvent, WireStatus};
 
-const BG_ELEVATED: Rgba = BG_CONTROL;
-const BG_SURFACE: Rgba = BG_SUBHEAD;
-const ACCENT_CYAN: Rgba = hex_rgb(0x38bdf8);
-const ACCENT_BLUE: Rgba = hex_rgb(0x3b82f6);
-const ACCENT_BLUE_BG: Rgba = hex_rgb(0x132038);
-const OK_BORDER: Rgba = OK;
-const CRIT_BORDER: Rgba = BORDER_DANGER_SEL;
+fn bg_elevated() -> Rgba { bg_control() }
+fn bg_surface() -> Rgba { bg_subhead() }
+fn accent_cyan() -> Rgba { accent() }
+fn accent_blue() -> Rgba { accent() }
+fn accent_blue_bg() -> Rgba { accent_bg() }
+fn ok_border() -> Rgba { theme().ok }
+fn crit_border() -> Rgba { border_danger_sel() }
 
 pub fn wire_view(
     state: &WireState,
@@ -79,7 +79,7 @@ pub fn wire_view(
 
     div()
         .size_full()
-        .bg(BG_APP)
+        .bg(bg_app())
         .flex()
         .flex_col()
         .overflow_hidden()
@@ -91,12 +91,12 @@ pub fn wire_view(
                 .w_full()
                 .px(px(16.0))
                 .py(px(6.0))
-                .bg(if *ok { OK_BG } else { CRIT_BG })
+                .bg(if *ok { theme().ok_bg } else { theme().crit_bg })
                 .border_b_1()
-                .border_color(if *ok { OK_BORDER } else { CRIT_BORDER })
+                .border_color(if *ok { ok_border() } else { crit_border() })
                 .font_family(FONT_MONO)
                 .text_size(font_px(11.0))
-                .text_color(if *ok { OK } else { CRIT })
+                .text_color(if *ok { theme().ok } else { theme().crit })
                 .child(msg.clone())
         }))
         // 2. 6-Card Telemetry Strip
@@ -151,9 +151,9 @@ fn render_header(
         .w_full()
         .px(px(16.0))
         .py(px(10.0))
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .flex()
         .items_center()
         .justify_between()
@@ -171,26 +171,26 @@ fn render_header(
                         .child(
                             div()
                                 .size(px(8.0))
-                                .bg(if silenced { CRIT } else { OK }),
+                                .bg(if silenced { theme().crit } else { theme().ok }),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .font_weight(FontWeight::BOLD)
                                 .text_size(font_px(12.5))
-                                .text_color(TEXT_MAX)
+                                .text_color(text_max())
                                 .child(t!("wire-title")),
                         )
                         .child(
                             div()
                                 .px(px(6.0))
                                 .py(px(1.0))
-                                .bg(BG_ELEVATED)
+                                .bg(bg_elevated())
                                 .border_1()
-                                .border_color(BORDER_STRONG)
+                                .border_color(border_strong())
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(ACCENT_CYAN)
+                                .text_color(accent_cyan())
                                 .child(t!("wire-badge-dual-witness")),
                         ),
                 )
@@ -198,7 +198,7 @@ fn render_header(
                     div()
                         .font_family(FONT_SANS)
                         .text_size(font_px(11.0))
-                        .text_color(TEXT_DIM)
+                        .text_color(text_dim())
                         .child(t!("wire-subtitle")),
                 ),
         )
@@ -213,11 +213,11 @@ fn render_header(
                         .id("wire-toggle-silence")
                         .px(px(10.0))
                         .py(px(5.0))
-                        .bg(if silenced { CRIT_BG } else { BG_ELEVATED })
+                        .bg(if silenced { theme().crit_bg } else { bg_elevated() })
                         .border_1()
-                        .border_color(if silenced { CRIT } else { BORDER_STRONG })
-                        .text_color(if silenced { CRIT } else { TEXT_PRIMARY })
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .border_color(if silenced { theme().crit } else { border_strong() })
+                        .text_color(if silenced { theme().crit } else { text_primary() })
+                        .hover(|s| s.bg(bg_row_hover()))
                         .cursor_pointer()
                         .font_family(FONT_MONO)
                         .font_weight(FontWeight::BOLD)
@@ -237,11 +237,11 @@ fn render_header(
                         .id("wire-scan-proc")
                         .px(px(10.0))
                         .py(px(5.0))
-                        .bg(BG_ELEVATED)
+                        .bg(bg_elevated())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .text_color(TEXT_PRIMARY)
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .border_color(border_default())
+                        .text_color(text_primary())
+                        .hover(|s| s.bg(bg_row_hover()))
                         .cursor_pointer()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
@@ -256,11 +256,11 @@ fn render_header(
                         .id("wire-export-jsonl")
                         .px(px(10.0))
                         .py(px(5.0))
-                        .bg(BG_ELEVATED)
+                        .bg(bg_elevated())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .text_color(TEXT_PRIMARY)
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .border_color(border_default())
+                        .text_color(text_primary())
+                        .hover(|s| s.bg(bg_row_hover()))
                         .cursor_pointer()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
@@ -275,11 +275,11 @@ fn render_header(
                         .id("wire-clear-ledger")
                         .px(px(10.0))
                         .py(px(5.0))
-                        .bg(BG_ELEVATED)
+                        .bg(bg_elevated())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .text_color(TEXT_MUTED)
-                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                        .border_color(border_default())
+                        .text_color(text_muted())
+                        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                         .cursor_pointer()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
@@ -302,9 +302,9 @@ fn render_stat_strip(
             .flex_1()
             .px(px(12.0))
             .py(px(8.0))
-            .bg(BG_PANEL)
+            .bg(bg_panel())
             .border_r_1()
-            .border_color(BORDER_PANEL)
+            .border_color(border_panel())
             .flex()
             .flex_col()
             .gap(px(2.0))
@@ -312,7 +312,7 @@ fn render_stat_strip(
                 div()
                     .font_family(FONT_MONO)
                     .text_size(font_px(9.5))
-                    .text_color(TEXT_DIM)
+                    .text_color(text_dim())
                     .child(label),
             )
             .child(
@@ -327,44 +327,44 @@ fn render_stat_strip(
                 div()
                     .font_family(FONT_MONO)
                     .text_size(font_px(9.5))
-                    .text_color(TEXT_FAINT)
+                    .text_color(text_faint())
                     .child(sub),
             )
     };
 
     div()
         .w_full()
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .flex()
         .child(card(
             t!("wire-stat-total-calls").into(),
             counters.total_calls.to_string(),
             t!("wire-stat-in-flight", count = counters.in_flight),
-            TEXT_MAX,
+            text_max(),
         ))
         .child(card(
             t!("wire-stat-bytes").into(),
             format!("↑{} · ↓{}", format_bytes(counters.bytes_tx), format_bytes(counters.bytes_rx)),
             t!("wire-stat-redacted-ledger").into(),
-            ACCENT_CYAN,
+            accent_cyan(),
         ))
         .child(card(
             t!("wire-stat-errors-blocked").into(),
             format!("{} / {}", counters.failed_calls, counters.blocked_calls),
             t!("wire-stat-errors-sub").into(),
             if counters.failed_calls > 0 || counters.blocked_calls > 0 {
-                WARN
+                theme().warn
             } else {
-                OK
+                theme().ok
             },
         ))
         .child(card(
             t!("wire-stat-kernel-sockets").into(),
             live_socket_count.to_string(),
             t!("wire-stat-proc-net").into(),
-            TEXT_PRIMARY,
+            text_primary(),
         ))
         .child(card(
             t!("wire-stat-kernel-witness").into(),
@@ -374,7 +374,7 @@ fn render_stat_strip(
                 t!("wire-witness-unaccounted", count = unaccounted)
             },
             t!("wire-stat-witness-sub").into(),
-            if unaccounted == 0 { OK } else { CRIT },
+            if unaccounted == 0 { theme().ok } else { theme().crit },
         ))
         .child(card(
             t!("wire-stat-posture").into(),
@@ -384,7 +384,7 @@ fn render_stat_strip(
                 t!("wire-posture-tracing").into()
             },
             t!("wire-stat-posture-sub").into(),
-            if silenced { CRIT } else { OK },
+            if silenced { theme().crit } else { theme().ok },
         ))
 }
 
@@ -402,9 +402,9 @@ fn render_filter_bar(
 
     div()
         .w_full()
-        .bg(BG_SURFACE)
+        .bg(bg_surface())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .flex()
         .flex_col()
         // Row 1: View Mode + Category Pills + Search
@@ -429,10 +429,10 @@ fn render_filter_bar(
                                 .id("wire-mode-ledger")
                                 .px(px(8.0))
                                 .py(px(3.0))
-                                .bg(if state.mode == WireViewMode::Ledger { ACCENT_BLUE_BG } else { BG_ELEVATED })
+                                .bg(if state.mode == WireViewMode::Ledger { accent_blue_bg() } else { bg_elevated() })
                                 .border_1()
-                                .border_color(if state.mode == WireViewMode::Ledger { ACCENT_BLUE } else { BORDER_DEFAULT })
-                                .text_color(if state.mode == WireViewMode::Ledger { TEXT_MAX } else { TEXT_DIM })
+                                .border_color(if state.mode == WireViewMode::Ledger { accent_blue() } else { border_default() })
+                                .text_color(if state.mode == WireViewMode::Ledger { text_max() } else { text_dim() })
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .font_weight(FontWeight::BOLD)
@@ -447,10 +447,10 @@ fn render_filter_bar(
                                 .id("wire-mode-proc")
                                 .px(px(8.0))
                                 .py(px(3.0))
-                                .bg(if state.mode == WireViewMode::KernelSockets { ACCENT_BLUE_BG } else { BG_ELEVATED })
+                                .bg(if state.mode == WireViewMode::KernelSockets { accent_blue_bg() } else { bg_elevated() })
                                 .border_1()
-                                .border_color(if state.mode == WireViewMode::KernelSockets { ACCENT_BLUE } else { BORDER_DEFAULT })
-                                .text_color(if state.mode == WireViewMode::KernelSockets { TEXT_MAX } else { TEXT_DIM })
+                                .border_color(if state.mode == WireViewMode::KernelSockets { accent_blue() } else { border_default() })
+                                .text_color(if state.mode == WireViewMode::KernelSockets { text_max() } else { text_dim() })
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .font_weight(FontWeight::BOLD)
@@ -460,17 +460,17 @@ fn render_filter_bar(
                                 })
                                 .child(t!("wire-tab-proc-sockets", count = state.live_sockets.len())),
                         )
-                        .child(div().w(px(1.0)).h(px(16.0)).bg(BORDER_DEFAULT).mx(px(4.0)))
+                        .child(div().w(px(1.0)).h(px(16.0)).bg(border_default()).mx(px(4.0)))
                         // ALL category pill
                         .child(
                             div()
                                 .id("wire-cat-all")
                                 .px(px(7.0))
                                 .py(px(2.0))
-                                .bg(if state.category_filter.is_none() { BG_ROW_SELECTED } else { BG_ELEVATED })
+                                .bg(if state.category_filter.is_none() { bg_row_selected() } else { bg_elevated() })
                                 .border_1()
-                                .border_color(if state.category_filter.is_none() { BORDER_STRONG } else { BORDER_DEFAULT })
-                                .text_color(if state.category_filter.is_none() { TEXT_MAX } else { TEXT_DIM })
+                                .border_color(if state.category_filter.is_none() { border_strong() } else { border_default() })
+                                .text_color(if state.category_filter.is_none() { text_max() } else { text_dim() })
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
@@ -486,10 +486,10 @@ fn render_filter_bar(
                                 .id(SharedString::from(format!("wire-cat-{}", cat.id())))
                                 .px(px(7.0))
                                 .py(px(2.0))
-                                .bg(if active { BG_ROW_SELECTED } else { BG_ELEVATED })
+                                .bg(if active { bg_row_selected() } else { bg_elevated() })
                                 .border_1()
-                                .border_color(if active { BORDER_STRONG } else { BORDER_DEFAULT })
-                                .text_color(if active { TEXT_MAX } else { TEXT_DIM })
+                                .border_color(if active { border_strong() } else { border_default() })
+                                .text_color(if active { text_max() } else { text_dim() })
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
@@ -515,7 +515,7 @@ fn render_filter_bar(
                 .px(px(12.0))
                 .py(px(5.0))
                 .border_t_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .items_center()
                 .gap(px(6.0))
@@ -524,7 +524,7 @@ fn render_filter_bar(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .child(t!("wire-destinations-label")),
                 )
                 .child(
@@ -532,10 +532,10 @@ fn render_filter_bar(
                         .id("wire-dest-all")
                         .px(px(6.0))
                         .py(px(1.5))
-                        .bg(if state.destination_filter.is_none() { BG_ROW_SELECTED } else { BG_ELEVATED })
+                        .bg(if state.destination_filter.is_none() { bg_row_selected() } else { bg_elevated() })
                         .border_1()
-                        .border_color(if state.destination_filter.is_none() { BORDER_STRONG } else { BORDER_DEFAULT })
-                        .text_color(if state.destination_filter.is_none() { TEXT_MAX } else { TEXT_DIM })
+                        .border_color(if state.destination_filter.is_none() { border_strong() } else { border_default() })
+                        .text_color(if state.destination_filter.is_none() { text_max() } else { text_dim() })
                         .cursor_pointer()
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
@@ -552,10 +552,10 @@ fn render_filter_bar(
                         .id(SharedString::from(format!("wire-dest-{idx}")))
                         .px(px(6.0))
                         .py(px(1.5))
-                        .bg(if active { ACCENT_BLUE_BG } else { BG_ELEVATED })
+                        .bg(if active { accent_blue_bg() } else { bg_elevated() })
                         .border_1()
-                        .border_color(if active { ACCENT_BLUE } else { BORDER_DEFAULT })
-                        .text_color(if active { TEXT_MAX } else { TEXT_PRIMARY })
+                        .border_color(if active { accent_blue() } else { border_default() })
+                        .text_color(if active { text_max() } else { text_primary() })
                         .cursor_pointer()
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
@@ -591,15 +591,15 @@ fn render_ledger_table(
                 .w_full()
                 .px(px(12.0))
                 .py(px(6.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .items_center()
                 .gap(px(8.0))
                 .font_family(FONT_MONO)
                 .text_size(font_px(9.5))
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .child(div().w(px(54.0)).child(t!("wire-col-seq")))
                 .child(div().w(px(86.0)).child(t!("wire-col-time")))
                 .child(div().w(px(62.0)).child(t!("wire-col-cat")))
@@ -631,7 +631,7 @@ fn render_ledger_table(
                             .justify_center()
                             .font_family(FONT_MONO)
                             .text_size(font_px(11.0))
-                            .text_color(TEXT_FAINT)
+                            .text_color(text_faint())
                             .child(t!("wire-empty-ledger"))
                             .into_any_element(),
                     ]
@@ -657,10 +657,10 @@ fn render_ledger_row(
         None => ev.target_label.clone(),
     };
     let (status_color, status_bg, status_label) = match ev.status {
-        WireStatus::Ok => (OK, OK_BG, "OK"),
-        WireStatus::Error => (CRIT, CRIT_BG, "ERR"),
-        WireStatus::Timeout => (WARN, WARN_BG, "TIMEOUT"),
-        WireStatus::Blocked => (CRIT, CRIT_BG, "BLOCKED"),
+        WireStatus::Ok => (theme().ok, theme().ok_bg, "OK"),
+        WireStatus::Error => (theme().crit, theme().crit_bg, "ERR"),
+        WireStatus::Timeout => (theme().warn, theme().warn_bg, "TIMEOUT"),
+        WireStatus::Blocked => (theme().crit, theme().crit_bg, "BLOCKED"),
     };
 
     div()
@@ -668,10 +668,10 @@ fn render_ledger_row(
         .w_full()
         .px(px(12.0))
         .py(px(6.0))
-        .bg(if selected { BG_ROW_SELECTED } else { BG_APP })
+        .bg(if selected { bg_row_selected() } else { bg_app() })
         .border_b_1()
-        .border_color(BORDER_PANEL)
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .border_color(border_panel())
+        .hover(|s| s.bg(bg_row_hover()))
         .cursor_pointer()
         .flex()
         .items_center()
@@ -684,8 +684,8 @@ fn render_ledger_row(
                 this.select_wire_event(next, cx);
             });
         })
-        .child(div().w(px(54.0)).text_color(TEXT_FAINT).child(format!("#{seq}")))
-        .child(div().w(px(86.0)).text_color(TEXT_DIM).child(time_str))
+        .child(div().w(px(54.0)).text_color(text_faint()).child(format!("#{seq}")))
+        .child(div().w(px(86.0)).text_color(text_dim()).child(time_str))
         .child(
             div()
                 .w(px(62.0))
@@ -693,21 +693,21 @@ fn render_ledger_row(
                     div()
                         .px(px(4.0))
                         .py(px(1.0))
-                        .bg(BG_ELEVATED)
+                        .bg(bg_elevated())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .text_size(font_px(9.5))
-                        .text_color(ACCENT_CYAN)
+                        .text_color(accent_cyan())
                         .child(ev.category.badge()),
                 ),
         )
-        .child(div().w(px(78.0)).text_color(TEXT_DIM).child(ev.protocol.clone()))
+        .child(div().w(px(78.0)).text_color(text_dim()).child(ev.protocol.clone()))
         .child(
             div()
                 .w(px(130.0))
                 .overflow_hidden()
                 .text_ellipsis()
-                .text_color(TEXT_PRIMARY)
+                .text_color(text_primary())
                 .child(ev.caller.clone()),
         )
         .child(
@@ -715,7 +715,7 @@ fn render_ledger_row(
                 .w(px(210.0))
                 .overflow_hidden()
                 .text_ellipsis()
-                .text_color(TEXT_MAX)
+                .text_color(text_max())
                 .child(dest_str),
         )
         .child(
@@ -723,19 +723,19 @@ fn render_ledger_row(
                 .flex_1()
                 .overflow_hidden()
                 .text_ellipsis()
-                .text_color(TEXT_PRIMARY)
+                .text_color(text_primary())
                 .child(ev.summary.clone()),
         )
         .child(
             div()
                 .w(px(110.0))
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .child(format!("↑{} ↓{}", format_bytes(ev.bytes_tx), format_bytes(ev.bytes_rx))),
         )
         .child(
             div()
                 .w(px(68.0))
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .child(format!("{}ms", ev.duration_ms)),
         )
         .child(
@@ -770,12 +770,12 @@ fn render_kernel_sockets_table(
                 .w_full()
                 .px(px(12.0))
                 .py(px(6.0))
-                .bg(BG_SURFACE)
+                .bg(bg_surface())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.0))
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .child(t!(
                     "wire-proc-explainer",
                     time = format_ts_ms(last_scan_ms),
@@ -787,15 +787,15 @@ fn render_kernel_sockets_table(
                 .w_full()
                 .px(px(12.0))
                 .py(px(6.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .items_center()
                 .gap(px(8.0))
                 .font_family(FONT_MONO)
                 .text_size(font_px(9.5))
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .child(div().w(px(140.0)).child(t!("wire-proc-col-process")))
                 .child(div().w(px(68.0)).child(t!("wire-proc-col-proto")))
                 .child(div().w(px(190.0)).child(t!("wire-proc-col-local")))
@@ -823,7 +823,7 @@ fn render_kernel_sockets_table(
                             .justify_center()
                             .font_family(FONT_MONO)
                             .text_size(font_px(11.0))
-                            .text_color(OK)
+                            .text_color(theme().ok)
                             .child(t!("wire-proc-empty"))
                             .into_any_element(),
                     ]
@@ -835,23 +835,23 @@ fn render_kernel_sockets_table(
                             let s = &item.socket;
                             let (attr_color, attr_bg, attr_text) = match &item.attribution {
                                 SocketAttribution::Accounted(label) => (
-                                    OK,
-                                    OK_BG,
+                                    theme().ok,
+                                    theme().ok_bg,
                                     format!("ACCOUNTED -> {label}"),
                                 ),
                                 SocketAttribution::ControlMaster(label) => (
-                                    ACCENT_CYAN,
-                                    BG_ELEVATED,
+                                    accent_cyan(),
+                                    bg_elevated(),
                                     format!("SSH CONTROLMASTER [mux] -> {label}"),
                                 ),
                                 SocketAttribution::Loopback => (
-                                    TEXT_DIM,
-                                    BG_ELEVATED,
+                                    text_dim(),
+                                    bg_elevated(),
                                     "LOOPBACK / LOCAL".into(),
                                 ),
                                 SocketAttribution::Unaccounted => (
-                                    CRIT,
-                                    CRIT_BG,
+                                    theme().crit,
+                                    theme().crit_bg,
                                     "UNACCOUNTED SOCKET".into(),
                                 ),
                             };
@@ -860,9 +860,9 @@ fn render_kernel_sockets_table(
                                 .w_full()
                                 .px(px(12.0))
                                 .py(px(6.0))
-                                .bg(BG_APP)
+                                .bg(bg_app())
                                 .border_b_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                                 .flex()
                                 .items_center()
                                 .gap(px(8.0))
@@ -871,24 +871,24 @@ fn render_kernel_sockets_table(
                                 .child(
                                     div()
                                         .w(px(140.0))
-                                        .text_color(TEXT_MAX)
+                                        .text_color(text_max())
                                         .child(format!("{}:{}", s.comm, s.pid)),
                                 )
-                                .child(div().w(px(68.0)).text_color(ACCENT_CYAN).child(s.protocol))
+                                .child(div().w(px(68.0)).text_color(accent_cyan()).child(s.protocol))
                                 .child(
                                     div()
                                         .w(px(190.0))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(format!("{}:{}", s.local_ip, s.local_port)),
                                 )
                                 .child(
                                     div()
                                         .w(px(190.0))
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(format!("{}:{}", s.remote_ip, s.remote_port)),
                                 )
-                                .child(div().w(px(110.0)).text_color(TEXT_DIM).child(s.state))
-                                .child(div().w(px(90.0)).text_color(TEXT_FAINT).child(s.inode.to_string()))
+                                .child(div().w(px(110.0)).text_color(text_dim()).child(s.state))
+                                .child(div().w(px(90.0)).text_color(text_faint()).child(s.inode.to_string()))
                                 .child(
                                     div()
                                         .flex_1()
@@ -925,19 +925,19 @@ fn render_inspector_drawer(
             .gap(px(8.0))
             .py(px(3.0))
             .border_b_1()
-            .border_color(BORDER_PANEL)
+            .border_color(border_panel())
             .child(
                 div()
                     .font_family(FONT_MONO)
                     .text_size(font_px(10.0))
-                    .text_color(TEXT_DIM)
+                    .text_color(text_dim())
                     .child(k),
             )
             .child(
                 div()
                     .font_family(FONT_MONO)
                     .text_size(font_px(10.5))
-                    .text_color(TEXT_MAX)
+                    .text_color(text_max())
                     .child(v),
             )
     };
@@ -945,9 +945,9 @@ fn render_inspector_drawer(
     div()
         .w(px(460.0))
         .h_full()
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_l_1()
-        .border_color(BORDER_STRONG)
+        .border_color(border_strong())
         .flex()
         .flex_col()
         .overflow_hidden()
@@ -957,9 +957,9 @@ fn render_inspector_drawer(
                 .w_full()
                 .px(px(14.0))
                 .py(px(10.0))
-                .bg(BG_ELEVATED)
+                .bg(bg_elevated())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .items_center()
                 .justify_between()
@@ -973,19 +973,19 @@ fn render_inspector_drawer(
                                 .font_family(FONT_MONO)
                                 .font_weight(FontWeight::BOLD)
                                 .text_size(font_px(11.5))
-                                .text_color(TEXT_MAX)
+                                .text_color(text_max())
                                 .child(format!("{} #{}", t!("wire-drawer-title"), ev.seq)),
                         )
                         .child(
                             div()
                                 .px(px(5.0))
                                 .py(px(1.0))
-                                .bg(BG_PANEL)
+                                .bg(bg_panel())
                                 .border_1()
-                                .border_color(BORDER_STRONG)
+                                .border_color(border_strong())
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(ACCENT_CYAN)
+                                .text_color(accent_cyan())
                                 .child(ev.category.badge()),
                         ),
                 )
@@ -997,8 +997,8 @@ fn render_inspector_drawer(
                         .cursor_pointer()
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
-                        .text_color(TEXT_DIM)
-                        .hover(|s| s.text_color(TEXT_MAX))
+                        .text_color(text_dim())
+                        .hover(|s| s.text_color(text_max()))
                         .on_click(move |_ev, _window, cx| {
                             app_close.update(cx, |this, cx| this.select_wire_event(None, cx));
                         })
@@ -1043,12 +1043,12 @@ fn render_inspector_drawer(
                     div()
                         .w_full()
                         .p(px(8.0))
-                        .bg(CRIT_BG)
+                        .bg(theme().crit_bg)
                         .border_1()
-                        .border_color(CRIT_BORDER)
+                        .border_color(crit_border())
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
-                        .text_color(CRIT)
+                        .text_color(theme().crit)
                         .child(err.clone())
                 }))
                 // Request Payload
@@ -1062,19 +1062,19 @@ fn render_inspector_drawer(
                                 .font_family(FONT_MONO)
                                 .font_weight(FontWeight::BOLD)
                                 .text_size(font_px(10.0))
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .child(t!("wire-drawer-request")),
                         )
                         .child(
                             div()
                                 .w_full()
                                 .p(px(10.0))
-                                .bg(BG_APP)
+                                .bg(bg_app())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(if ev.request_payload.trim().is_empty() {
                                     t!("wire-drawer-empty").into()
                                 } else {
@@ -1093,19 +1093,19 @@ fn render_inspector_drawer(
                                 .font_family(FONT_MONO)
                                 .font_weight(FontWeight::BOLD)
                                 .text_size(font_px(10.0))
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .child(t!("wire-drawer-response")),
                         )
                         .child(
                             div()
                                 .w_full()
                                 .p(px(10.0))
-                                .bg(BG_APP)
+                                .bg(bg_app())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(if ev.response_payload.trim().is_empty() {
                                     t!("wire-drawer-empty").into()
                                 } else {

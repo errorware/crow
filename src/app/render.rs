@@ -167,7 +167,7 @@ impl Render for CrowApp {
                         let data = crate::views::plugin_page::PageData { plugin, page, server_id: &canary, state: &self.plugins.user, runs, needs_install, fleet: true, server_names: names };
                         crate::views::plugin_page::plugin_fleet_page(data, (&self.plugins.user.fleet, &self.fleet.groups, &servers, &left_out), app_view.clone()).into_any_element()
                     }
-                    None => div().p(px(20.0)).font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_DIM).child(t!("plugin-page-not-accepted")).into_any_element(),
+                    None => div().p(px(20.0)).font_family(FONT_MONO).text_size(font_px(11.0)).text_color(text_dim()).child(t!("plugin-page-not-accepted")).into_any_element(),
                 })
             }
             (Screen::FleetSetup, crate::views::fleet::state::SetupPage::Audit) => Some(crate::views::audit::audit_view(&audit, &self.audit_filter, app_view.clone()).into_any_element()),
@@ -220,15 +220,15 @@ impl Render for CrowApp {
                 this.handle_key_down(ev, window, cx);
             }))
             .size_full()
-            .bg(BG_WINDOW)
-            .text_color(TEXT_PRIMARY)
+            .bg(bg_window())
+            .text_color(text_primary())
             .font_family(FONT_MONO)
             .text_size(font_px(12.0))
             .flex()
             .flex_col()
             .overflow_hidden()
             .border_1()
-            .border_color(BORDER_DEFAULT)
+            .border_color(border_default())
             .relative()
             // If locked, show full lock screen
             .children(if vault_status == VaultStatus::Locked {
@@ -285,7 +285,7 @@ impl Render for CrowApp {
                                             Some(
                                                 div()
                                                     .size_full()
-                                                    .bg(BG_APP)
+                                                    .bg(bg_app())
                                                     .flex()
                                                     .flex_col()
                                                     .items_center()
@@ -296,15 +296,15 @@ impl Render for CrowApp {
                                                         div()
                                                             .size(px(48.0))
                                                             .border_1()
-                                                            .border_color(BORDER_STRONG)
-                                                            .bg(BG_PANEL)
+                                                            .border_color(border_strong())
+                                                            .bg(bg_panel())
                                                             .flex()
                                                             .items_center()
                                                             .justify_center()
                                                             .child(
                                                                 crate::components::icons::tabler_icon(crate::components::icons::TablerIcon::Server)
                                                                     .size(px(24.0))
-                                                                    .text_color(TEXT_MUTED),
+                                                                    .text_color(text_muted()),
                                                             ),
                                                     )
                                                     .child(
@@ -312,14 +312,14 @@ impl Render for CrowApp {
                                                             .font_family(FONT_MONO)
                                                             .font_weight(FontWeight::BOLD)
                                                             .text_size(font_px(13.0))
-                                                            .text_color(TEXT_MAX)
+                                                            .text_color(text_max())
                                                             .child(t!("app-render-no-active-server-selected")),
                                                     )
                                                     .child(
                                                         div()
                                                             .font_family(FONT_MONO)
                                                             .text_size(font_px(11.0))
-                                                            .text_color(TEXT_DIM)
+                                                            .text_color(text_dim())
                                                             .child(t!("app-render-select-a-server-tab-or")),
                                                     )
                                                     .child(
@@ -333,11 +333,11 @@ impl Render for CrowApp {
                                                                     .id("empty-server-goto-fleet")
                                                                     .px(px(14.0))
                                                                     .py(px(7.0))
-                                                                    .bg(BG_PANEL)
+                                                                    .bg(bg_panel())
                                                                     .border_1()
-                                                                    .border_color(BORDER_STRONG)
-                                                                    .text_color(TEXT_PRIMARY)
-                                                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                                                    .border_color(border_strong())
+                                                                    .text_color(text_primary())
+                                                                    .hover(|s| s.bg(bg_row_hover()))
                                                                     .cursor_pointer()
                                                                     .font_family(FONT_MONO)
                                                                     .font_weight(FontWeight::BOLD)
@@ -354,11 +354,11 @@ impl Render for CrowApp {
                                                                     .id("empty-server-enroll-btn")
                                                                     .px(px(14.0))
                                                                     .py(px(7.0))
-                                                                    .bg(OK_BG)
+                                                                    .bg(theme().ok_bg)
                                                                     .border_1()
-                                                                    .border_color(OK)
-                                                                    .text_color(OK)
-                                                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                                                    .border_color(theme().ok)
+                                                                    .text_color(theme().ok)
+                                                                    .hover(|s| s.bg(bg_row_hover()))
                                                                     .cursor_pointer()
                                                                     .font_family(FONT_MONO)
                                                                     .font_weight(FontWeight::BOLD)
@@ -574,7 +574,7 @@ impl Render for CrowApp {
                                                                         let data = crate::views::plugin_page::PageData { plugin, page, server_id: &server_id, state: &self.plugins.user, runs, needs_install, fleet: false, server_names: Default::default() };
                                                                         Some(div().size_full().child(crate::views::plugin_page::plugin_page(data, app_view.clone())))
                                                                     }
-                                                                    _ => Some(div().size_full().p(px(20.0)).font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_DIM).child(t!("plugin-page-not-accepted"))),
+                                                                    _ => Some(div().size_full().p(px(20.0)).font_family(FONT_MONO).text_size(font_px(11.0)).text_color(text_dim()).child(t!("plugin-page-not-accepted"))),
                                                                 }
                                                             } else if self.active_view == "danger" {
                                                                 Some(div().size_full().child(danger_zone(&self.danger, self.active_provider_actions().as_ref(), app_view.clone())))
@@ -602,7 +602,7 @@ impl Render for CrowApp {
                                                                         .size_full()
                                                                         .flex()
                                                                         .flex_col()
-                                                                        .bg(BG_APP)
+                                                                        .bg(bg_app())
                                                                         .child(
                                                                             div()
                                                                                 .h(px(34.0))
@@ -610,15 +610,15 @@ impl Render for CrowApp {
                                                                                 .flex()
                                                                                 .items_center()
                                                                                 .px(px(12.0))
-                                                                                .bg(BG_PANEL)
+                                                                                .bg(bg_panel())
                                                                                 .border_b_1()
-                                                                                .border_color(BORDER_PANEL)
+                                                                                .border_color(border_panel())
                                                                                 .child(
                                                                                     div()
                                                                                         .font_family(FONT_MONO)
                                                                                         .text_size(font_px(11.0))
                                                                                         .font_weight(FontWeight::SEMIBOLD)
-                                                                                        .text_color(TEXT_PRIMARY)
+                                                                                        .text_color(text_primary())
                                                                                         .child(self.active_view.to_uppercase()),
                                                                                 ),
                                                                         )
@@ -631,8 +631,8 @@ impl Render for CrowApp {
                                                                                 .gap(px(8.0))
                                                                                 .font_family(FONT_MONO)
                                                                                 .text_size(font_px(11.5))
-                                                                                .text_color(TEXT_FAINT)
-                                                                                .child(div().size(px(6.0)).rounded_full().bg(OK))
+                                                                                .text_color(text_faint())
+                                                                                .child(div().size(px(6.0)).rounded_full().bg(theme().ok))
                                                                                 .child(t!("app-render-not-built-yet", active_view = self.active_view)),
                                                                         ),
                                                                 )

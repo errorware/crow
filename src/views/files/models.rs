@@ -35,9 +35,9 @@ impl FileEntry {
         if self.is_dir {
             hex_rgb(0x60a5fa)
         } else if self.is_symlink {
-            hex_rgb(0x38bdf8)
+            accent()
         } else {
-            TEXT_SECONDARY
+            text_secondary()
         }
     }
 }

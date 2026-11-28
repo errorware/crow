@@ -63,14 +63,14 @@ fn chip(id: impl Into<SharedString>, label: impl Into<SharedString>, active: boo
         .h(px(24.0))
         .px(px(9.0))
         .border_1()
-        .border_color(if active { TEXT_PRIMARY } else { BORDER_DEFAULT })
-        .bg(if active { BG_CONTROL_ALT } else { BG_CONTROL })
+        .border_color(if active { text_primary() } else { border_default() })
+        .bg(if active { bg_control_alt() } else { bg_control() })
         .font_family(FONT_MONO)
         .text_size(font_px(10.0))
         .font_weight(if active { FontWeight::BOLD } else { FontWeight::NORMAL })
-        .text_color(if active { TEXT_PRIMARY } else { TEXT_SECONDARY })
+        .text_color(if active { text_primary() } else { text_secondary() })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
         .child(label.into())
 }
 
@@ -78,18 +78,18 @@ fn text_input(i: Option<&Entity<InputState>>) -> impl IntoElement {
     div()
         .flex_1()
         .min_w(px(0.0))
-        .children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0))))
+        .children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(bg_app()).rounded(px(2.0))))
 }
 
 fn app_state_color(a: &DokkuApp) -> Rgba {
     if a.degraded() {
-        CRIT
+        theme().crit
     } else if a.maintenance {
-        WARN
+        theme().warn
     } else if a.running {
-        OK
+        theme().ok
     } else {
-        TEXT_DIM
+        text_dim()
     }
 }
 
@@ -130,7 +130,7 @@ pub fn dokku_view(
                 .h_full()
                 .flex()
                 .flex_col()
-                .bg(BG_APP)
+                .bg(bg_app())
                 .child(header(st, server_name, app.clone()))
                 .child(
                     div()
@@ -141,13 +141,13 @@ pub fn dokku_view(
                         .flex()
                         .flex_col()
                         .gap(px(14.0))
-                        .children(st.busy.clone().map(|b| mono(10.5, WARN).child(t!("dokku-running-cmd", b = b))))
+                        .children(st.busy.clone().map(|b| mono(10.5, theme().warn).child(t!("dokku-running-cmd", b = b))))
                         .children(st.result.clone().map(|(ok, m)| {
-                            mono(10.5, if ok { OK } else { CRIT }).line_height(px(15.0)).child(m)
+                            mono(10.5, if ok { theme().ok } else { theme().crit }).line_height(px(15.0)).child(m)
                         }))
                         .child(match &st.scan {
-                            None => mono(11.0, TEXT_DIM).child(t!("dokku-reading-server")).into_any_element(),
-                            Some(Err(e)) => mono(11.0, CRIT)
+                            None => mono(11.0, text_dim()).child(t!("dokku-reading-server")).into_any_element(),
+                            Some(Err(e)) => mono(11.0, theme().crit)
                                 .child(t!("dokku-couldnt-read", e = e))
                                 .into_any_element(),
                             Some(Ok(scan)) if !scan.installed => {
@@ -193,11 +193,11 @@ fn header(st: &DokkuState, server_name: &str, app: Entity<CrowApp>) -> impl Into
         .items_center()
         .gap(px(8.0))
         .px(px(14.0))
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .child(
-            mono(12.0, TEXT_PRIMARY)
+            mono(12.0, text_primary())
                 .font_weight(FontWeight::BOLD)
                 .child(t!("dokku-header-title", server_name = server_name)),
         )
@@ -207,10 +207,10 @@ fn header(st: &DokkuState, server_name: &str, app: Entity<CrowApp>) -> impl Into
                     div()
                         .px(px(6.0))
                         .py(px(2.0))
-                        .bg(BG_CHIP)
+                        .bg(bg_chip())
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
-                        .text_color(TEXT_TERTIARY)
+                        .text_color(text_tertiary())
                         .child(format!("v{}", s.version))
                 }),
         )
@@ -220,19 +220,19 @@ fn header(st: &DokkuState, server_name: &str, app: Entity<CrowApp>) -> impl Into
                     div()
                         .px(px(6.0))
                         .py(px(2.0))
-                        .bg(BG_CHIP)
+                        .bg(bg_chip())
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .child(format!("*.{d}"))
                 }),
         )
         .children(scan.filter(|s| s.installed).map(|s| {
             let running = s.apps.iter().filter(|a| a.running).count();
             crate::components::button::badge(if s.apps.iter().any(|a| a.degraded()) {
-                CRIT
+                theme().crit
             } else {
-                TEXT_SECONDARY
+                text_secondary()
             })
             .text_size(font_px(9.5))
             .child(t!("dokku-apps-running-count", running = running, total = s.apps.len()))
@@ -301,12 +301,12 @@ fn header(st: &DokkuState, server_name: &str, app: Entity<CrowApp>) -> impl Into
                 .h(px(24.0))
                 .px(px(10.0))
                 .border_1()
-                .border_color(BORDER_DEFAULT)
+                .border_color(border_default())
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.0))
-                .text_color(TEXT_SECONDARY)
+                .text_color(text_secondary())
                 .cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                 .on_click(move |_ev, _window, cx| a_ref.update(cx, |this, cx| this.refresh_dokku(cx)))
                 .child(inherited_icon(TablerIcon::Refresh, font_px(12.0)))
                 .child(if st.loading {
@@ -325,23 +325,23 @@ fn bootstrap_panel(st: &DokkuState, app: Entity<CrowApp>) -> impl IntoElement {
         .flex_col()
         .gap(px(10.0))
         .p(px(16.0))
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .child(
             div()
                 .flex()
                 .items_center()
                 .gap(px(8.0))
-                .child(inherited_icon(TablerIcon::Rocket, font_px(15.0)).text_color(WARN))
+                .child(inherited_icon(TablerIcon::Rocket, font_px(15.0)).text_color(theme().warn))
                 .child(
-                    mono(12.0, TEXT_PRIMARY)
+                    mono(12.0, text_primary())
                         .font_weight(FontWeight::BOLD)
                         .child(t!("dokku-not-installed-title")),
                 ),
         )
         .child(
-            mono(10.5, TEXT_SECONDARY)
+            mono(10.5, text_secondary())
                 .line_height(px(16.0))
                 .child(t!("dokku-not-installed-desc")),
         )
@@ -351,7 +351,7 @@ fn bootstrap_panel(st: &DokkuState, app: Entity<CrowApp>) -> impl IntoElement {
                 .items_center()
                 .gap(px(8.0))
                 .child(
-                    button("btn-dokku-bootstrap", t!("dokku-btn-bootstrap"), OK).on_click(
+                    button("btn-dokku-bootstrap", t!("dokku-btn-bootstrap"), theme().ok).on_click(
                         move |_ev, _w, cx| {
                             app_req.update(cx, |this, cx| {
                                 this.request_dokku_action(PendingDokkuAction::BootstrapDokku, cx)
@@ -376,9 +376,9 @@ fn confirm_banner(question: impl Into<SharedString>, command: String, app: Entit
         .items_center()
         .gap(px(8.0))
         .p(px(8.0))
-        .bg(WARN.opacity(0.06))
+        .bg(theme().warn.opacity(0.06))
         .border_1()
-        .border_color(WARN.opacity(0.4))
+        .border_color(theme().warn.opacity(0.4))
         .child(
             div()
                 .flex_1()
@@ -386,15 +386,15 @@ fn confirm_banner(question: impl Into<SharedString>, command: String, app: Entit
                 .flex()
                 .flex_col()
                 .gap(px(2.0))
-                .child(mono(10.5, TEXT_PRIMARY).child(question.into()))
-                .child(mono(9.5, TEXT_DIM).child(command)),
+                .child(mono(10.5, text_primary()).child(question.into()))
+                .child(mono(9.5, text_dim()).child(command)),
         )
         .child(
-            button("btn-dokku-confirm-yes", t!("dokku-confirm"), WARN)
+            button("btn-dokku-confirm-yes", t!("dokku-confirm"), theme().warn)
                 .on_click(move |_ev, _w, cx| app_yes.update(cx, |this, cx| this.confirm_dokku_pending(cx))),
         )
         .child(
-            button("btn-dokku-confirm-no", t!("dokku-cancel"), TEXT_DIM)
+            button("btn-dokku-confirm-no", t!("dokku-cancel"), text_dim())
                 .on_click(move |_ev, _w, cx| app_no.update(cx, |this, cx| this.cancel_dokku_pending(cx))),
         )
 }
@@ -428,26 +428,26 @@ fn body(
                         .gap(px(8.0))
                         .pb(px(6.0))
                         .child(
-                            mono(10.5, TEXT_SECONDARY)
+                            mono(10.5, text_secondary())
                                 .font_weight(FontWeight::BOLD)
                                 .child(t!("dokku-section-apps")),
                         )
-                        .child(mono(9.5, TEXT_FAINT).child(format!("({})", scan.apps.len()))),
+                        .child(mono(9.5, text_faint()).child(format!("({})", scan.apps.len()))),
                 )
                 .when(scan.apps.is_empty(), |d| {
                     let app_new = app.clone();
                     d.child(
                         div()
                             .p(px(14.0))
-                            .bg(BG_PANEL)
+                            .bg(bg_panel())
                             .border_1()
-                            .border_color(BORDER_PANEL)
+                            .border_color(border_panel())
                             .flex()
                             .items_center()
                             .justify_between()
-                            .child(mono(10.5, TEXT_DIM).child(t!("dokku-no-apps-yet")))
+                            .child(mono(10.5, text_dim()).child(t!("dokku-no-apps-yet")))
                             .child(
-                                button("btn-dokku-empty-new-app", t!("dokku-btn-new-app"), OK)
+                                button("btn-dokku-empty-new-app", t!("dokku-btn-new-app"), theme().ok)
                                     .on_click(move |_ev, w, cx| {
                                         app_new.update(cx, |this, cx| {
                                             this.toggle_dokku_top_panel(DokkuTopPanel::NewApp, w, cx)
@@ -476,26 +476,26 @@ fn body(
                         .gap(px(8.0))
                         .pb(px(6.0))
                         .child(
-                            mono(10.5, TEXT_SECONDARY)
+                            mono(10.5, text_secondary())
                                 .font_weight(FontWeight::BOLD)
                                 .child(t!("dokku-section-services")),
                         )
-                        .child(mono(9.5, TEXT_FAINT).child(format!("({})", scan.services.len()))),
+                        .child(mono(9.5, text_faint()).child(format!("({})", scan.services.len()))),
                 )
                 .when(scan.services.is_empty(), |d| {
                     let app_svc = app.clone();
                     d.child(
                         div()
                             .p(px(14.0))
-                            .bg(BG_PANEL)
+                            .bg(bg_panel())
                             .border_1()
-                            .border_color(BORDER_PANEL)
+                            .border_color(border_panel())
                             .flex()
                             .items_center()
                             .justify_between()
-                            .child(mono(10.5, TEXT_DIM).child(t!("dokku-no-services-yet")))
+                            .child(mono(10.5, text_dim()).child(t!("dokku-no-services-yet")))
                             .child(
-                                button("btn-dokku-empty-new-svc", t!("dokku-btn-new-service"), OK)
+                                button("btn-dokku-empty-new-svc", t!("dokku-btn-new-service"), theme().ok)
                                     .on_click(move |_ev, w, cx| {
                                         app_svc.update(cx, |this, cx| {
                                             this.toggle_dokku_top_panel(DokkuTopPanel::NewService, w, cx)
@@ -528,9 +528,9 @@ fn top_panel_view(
             .flex_col()
             .gap(px(10.0))
             .p(px(12.0))
-            .bg(BG_PANEL)
+            .bg(bg_panel())
             .border_1()
-            .border_color(BORDER_PANEL)
+            .border_color(border_panel())
     };
 
     match panel {
@@ -538,7 +538,7 @@ fn top_panel_view(
             let (a_dom, a_le) = (app.clone(), app);
             panel_box()
                 .child(
-                    mono(10.5, TEXT_PRIMARY)
+                    mono(10.5, text_primary())
                         .font_weight(FontWeight::BOLD)
                         .child(t!("dokku-panel-global-title")),
                 )
@@ -547,10 +547,10 @@ fn top_panel_view(
                         .flex()
                         .items_center()
                         .gap(px(8.0))
-                        .child(mono(10.0, TEXT_SECONDARY).w(px(150.0)).child(t!("dokku-global-vhost-domain")))
+                        .child(mono(10.0, text_secondary()).w(px(150.0)).child(t!("dokku-global-vhost-domain")))
                         .child(text_input(inputs.map(|i| &i.global_domain)))
                         .child(
-                            button("btn-dokku-save-global-domain", t!("dokku-btn-set-domain"), OK)
+                            button("btn-dokku-save-global-domain", t!("dokku-btn-set-domain"), theme().ok)
                                 .on_click(move |_ev, _w, cx| {
                                     a_dom.update(cx, |this, cx| this.save_dokku_global_domain(cx))
                                 }),
@@ -561,13 +561,13 @@ fn top_panel_view(
                         .flex()
                         .items_center()
                         .gap(px(8.0))
-                        .child(mono(10.0, TEXT_SECONDARY).w(px(150.0)).child(t!("dokku-le-contact-email")))
+                        .child(mono(10.0, text_secondary()).w(px(150.0)).child(t!("dokku-le-contact-email")))
                         .child(text_input(inputs.map(|i| &i.letsencrypt_email)))
                         .child(
                             button(
                                 "btn-dokku-save-le-email",
                                 t!("dokku-btn-save-le-cron"),
-                                OK,
+                                theme().ok,
                             )
                             .on_click(move |_ev, _w, cx| {
                                 a_le.update(cx, |this, cx| this.save_dokku_letsencrypt_global(cx))
@@ -575,7 +575,7 @@ fn top_panel_view(
                         ),
                 )
                 .child(
-                    mono(9.5, TEXT_FAINT).child(if scan.letsencrypt_cron {
+                    mono(9.5, text_faint()).child(if scan.letsencrypt_cron {
                         t!("dokku-le-cron-active")
                     } else {
                         t!("dokku-le-cron-inactive")
@@ -584,11 +584,11 @@ fn top_panel_view(
         }
         DokkuTopPanel::Plugins => panel_box()
             .child(
-                mono(10.5, TEXT_PRIMARY)
+                mono(10.5, text_primary())
                     .font_weight(FontWeight::BOLD)
                     .child(t!("dokku-panel-plugins-title")),
             )
-            .child(mono(9.5, TEXT_DIM).child(t!("dokku-panel-plugins-desc")))
+            .child(mono(9.5, text_dim()).child(t!("dokku-panel-plugins-desc")))
             .child(
                 div()
                     .flex()
@@ -610,19 +610,19 @@ fn top_panel_view(
                             .gap(px(10.0))
                             .px(px(8.0))
                             .py(px(6.0))
-                            .bg(BG_APP)
+                            .bg(bg_app())
                             .border_1()
-                            .border_color(BORDER_PANEL)
+                            .border_color(border_panel())
                             .child(
-                                mono(10.5, TEXT_PRIMARY)
+                                mono(10.5, text_primary())
                                     .font_weight(FontWeight::BOLD)
                                     .w(px(120.0))
                                     .child(entry.label),
                             )
-                            .child(mono(10.0, TEXT_TERTIARY).flex_1().child(entry.about))
-                            .children((!ver.is_empty()).then(|| mono(9.5, TEXT_FAINT).child(ver)))
+                            .child(mono(10.0, text_tertiary()).flex_1().child(entry.about))
+                            .children((!ver.is_empty()).then(|| mono(9.5, text_faint()).child(ver)))
                             .child(if installed {
-                                crate::components::button::badge(OK)
+                                crate::components::button::badge(theme().ok)
                                     .text_size(font_px(9.0))
                                     .child(t!("dokku-plugin-installed"))
                                     .into_any_element()
@@ -630,7 +630,7 @@ fn top_panel_view(
                                 button(
                                     format!("btn-dokku-install-plugin-{id}"),
                                     t!("dokku-btn-install"),
-                                    OK,
+                                    theme().ok,
                                 )
                                 .on_click(move |_ev, _w, cx| {
                                     app_inst.update(cx, |this, cx| this.install_dokku_plugin(id, url, cx))
@@ -647,11 +647,11 @@ fn top_panel_view(
                 .collect();
             panel_box()
                 .child(
-                    mono(10.5, TEXT_PRIMARY)
+                    mono(10.5, text_primary())
                         .font_weight(FontWeight::BOLD)
                         .child(t!("dokku-panel-keys-title")),
                 )
-                .child(mono(9.5, TEXT_DIM).child(t!("dokku-panel-keys-desc")))
+                .child(mono(9.5, text_dim()).child(t!("dokku-panel-keys-desc")))
                 .child(
                     div()
                         .flex()
@@ -668,25 +668,25 @@ fn top_panel_view(
                                 .gap(px(10.0))
                                 .px(px(8.0))
                                 .py(px(6.0))
-                                .bg(BG_APP)
+                                .bg(bg_app())
                                 .border_1()
-                                .border_color(BORDER_PANEL)
-                                .child(inherited_icon(TablerIcon::Key, font_px(12.0)).text_color(TEXT_DIM))
+                                .border_color(border_panel())
+                                .child(inherited_icon(TablerIcon::Key, font_px(12.0)).text_color(text_dim()))
                                 .child(
-                                    mono(10.5, TEXT_PRIMARY)
+                                    mono(10.5, text_primary())
                                         .font_weight(FontWeight::BOLD)
                                         .w(px(140.0))
                                         .child(k.name.clone()),
                                 )
                                 .child(
-                                    mono(9.5, TEXT_FAINT)
+                                    mono(9.5, text_faint())
                                         .flex_1()
                                         .overflow_hidden()
                                         .text_ellipsis()
                                         .child(k.fingerprint.clone()),
                                 )
                                 .child(if is_auth {
-                                    crate::components::button::badge(OK)
+                                    crate::components::button::badge(theme().ok)
                                         .text_size(font_px(9.0))
                                         .child(t!("dokku-key-authorized"))
                                         .into_any_element()
@@ -694,7 +694,7 @@ fn top_panel_view(
                                     button(
                                         format!("btn-dokku-auth-key-{}", k.id),
                                         t!("dokku-btn-authorize-key"),
-                                        OK,
+                                        theme().ok,
                                     )
                                     .on_click(move |_ev, _w, cx| {
                                         app_auth.update(cx, |this, cx| {
@@ -714,14 +714,14 @@ fn top_panel_view(
                                 .px(px(8.0))
                                 .py(px(5.0))
                                 .border_t_1()
-                                .border_color(BORDER_PANEL)
-                                .child(mono(10.0, TEXT_SECONDARY).w(px(140.0)).child(dk.name.clone()))
-                                .child(mono(9.5, TEXT_FAINT).flex_1().child(dk.fingerprint.clone()))
+                                .border_color(border_panel())
+                                .child(mono(10.0, text_secondary()).w(px(140.0)).child(dk.name.clone()))
+                                .child(mono(9.5, text_faint()).flex_1().child(dk.fingerprint.clone()))
                                 .child(
                                     button(
                                         format!("btn-dokku-rm-key-{}", dk.name),
                                         t!("dokku-btn-revoke"),
-                                        CRIT,
+                                        theme().crit,
                                     )
                                     .on_click(move |_ev, _w, cx| {
                                         app_rm.update(cx, |this, cx| {
@@ -736,7 +736,7 @@ fn top_panel_view(
             let app_create = app;
             panel_box()
                 .child(
-                    mono(10.5, TEXT_PRIMARY)
+                    mono(10.5, text_primary())
                         .font_weight(FontWeight::BOLD)
                         .child(t!("dokku-panel-new-app-title")),
                 )
@@ -747,7 +747,7 @@ fn top_panel_view(
                         .gap(px(8.0))
                         .child(text_input(inputs.map(|i| &i.new_app_name)))
                         .child(
-                            button("btn-dokku-create-app-go", t!("dokku-btn-create-app"), OK)
+                            button("btn-dokku-create-app-go", t!("dokku-btn-create-app"), theme().ok)
                                 .on_click(move |_ev, _w, cx| {
                                     app_create.update(cx, |this, cx| this.create_dokku_app(cx))
                                 }),
@@ -758,7 +758,7 @@ fn top_panel_view(
             let app_create = app.clone();
             panel_box()
                 .child(
-                    mono(10.5, TEXT_PRIMARY)
+                    mono(10.5, text_primary())
                         .font_weight(FontWeight::BOLD)
                         .child(t!("dokku-panel-new-service-title")),
                 )
@@ -789,7 +789,7 @@ fn top_panel_view(
                             button(
                                 "btn-dokku-create-service-go",
                                 t!("dokku-btn-create-service"),
-                                OK,
+                                theme().ok,
                             )
                             .on_click(move |_ev, _w, cx| {
                                 app_create.update(cx, |this, cx| this.create_dokku_service(cx))
@@ -802,7 +802,7 @@ fn top_panel_view(
 
 fn apps_table_head(compact: bool) -> impl IntoElement {
     let cell = |w: Option<f32>, text: &'static str| {
-        let d = mono(9.0, TEXT_FAINT).font_weight(FontWeight::SEMIBOLD).child(text);
+        let d = mono(9.0, text_faint()).font_weight(FontWeight::SEMIBOLD).child(text);
         match w {
             Some(w) => d.w(px(w)).flex_none(),
             None => d.flex_1().min_w(px(W_APP_MIN)),
@@ -814,9 +814,9 @@ fn apps_table_head(compact: bool) -> impl IntoElement {
         .h(px(24.0))
         .px(px(10.0))
         .gap(px(10.0))
-        .bg(BG_SUBHEAD)
+        .bg(bg_subhead())
         .border_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .child(cell(None, t!("dokku-col-app")))
         .child(cell(Some(W_STATE), t!("dokku-col-state")))
         .child(cell(Some(W_SCALE), t!("dokku-col-scale")))
@@ -880,10 +880,10 @@ fn app_row(
         .border_b_1()
         .border_l_1()
         .border_r_1()
-        .border_color(BORDER_PANEL)
-        .bg(if is_selected { BG_ROW_SELECTED } else { BG_PANEL })
+        .border_color(border_panel())
+        .bg(if is_selected { bg_row_selected() } else { bg_panel() })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.select_dokku_app(&name, cx)))
         .child(
             div()
@@ -894,7 +894,7 @@ fn app_row(
                 .gap(px(8.0))
                 .child(div().flex_none().size(px(7.0)).rounded_full().bg(color))
                 .child(
-                    mono(11.0, TEXT_PRIMARY)
+                    mono(11.0, text_primary())
                         .font_weight(FontWeight::BOLD)
                         .whitespace_nowrap()
                         .overflow_hidden()
@@ -903,7 +903,7 @@ fn app_row(
                 )
                 .when(a.ssl_enabled, |d| {
                     d.child(
-                        crate::components::button::badge(OK)
+                        crate::components::button::badge(theme().ok)
                             .text_size(font_px(8.5))
                             .child(t!("dokku-badge-tls")),
                     )
@@ -911,7 +911,7 @@ fn app_row(
         )
         .child(mono(10.5, color).w(px(W_STATE)).flex_none().child(app_state_label(a)))
         .child(
-            mono(10.0, TEXT_SECONDARY)
+            mono(10.0, text_secondary())
                 .w(px(W_SCALE))
                 .flex_none()
                 .whitespace_nowrap()
@@ -920,7 +920,7 @@ fn app_row(
                 .child(scale_summary),
         )
         .child(
-            mono(10.0, TEXT_TERTIARY)
+            mono(10.0, text_tertiary())
                 .w(px(W_USAGE))
                 .flex_none()
                 .whitespace_nowrap()
@@ -928,7 +928,7 @@ fn app_row(
         )
         .when(!compact, |d| {
             d.child(
-                mono(10.0, TEXT_SECONDARY)
+                mono(10.0, text_secondary())
                     .w(px(W_DOMAINS))
                     .flex_none()
                     .whitespace_nowrap()
@@ -937,7 +937,7 @@ fn app_row(
                     .child(domain_summary),
             )
             .child(
-                mono(10.0, TEXT_TERTIARY)
+                mono(10.0, text_tertiary())
                     .w(px(W_SERVICES))
                     .flex_none()
                     .whitespace_nowrap()
@@ -946,7 +946,7 @@ fn app_row(
                     .child(svc_summary),
             )
             .child(
-                mono(10.0, TEXT_DIM)
+                mono(10.0, text_dim())
                     .w(px(W_DEPLOY))
                     .flex_none()
                     .whitespace_nowrap()
@@ -959,7 +959,7 @@ fn app_row(
 
 fn services_table_head(compact: bool) -> impl IntoElement {
     let cell = |w: Option<f32>, text: &'static str| {
-        let d = mono(9.0, TEXT_FAINT).font_weight(FontWeight::SEMIBOLD).child(text);
+        let d = mono(9.0, text_faint()).font_weight(FontWeight::SEMIBOLD).child(text);
         match w {
             Some(w) => d.w(px(w)).flex_none(),
             None => d.flex_1().min_w(px(W_APP_MIN)),
@@ -971,9 +971,9 @@ fn services_table_head(compact: bool) -> impl IntoElement {
         .h(px(24.0))
         .px(px(10.0))
         .gap(px(10.0))
-        .bg(BG_SUBHEAD)
+        .bg(bg_subhead())
         .border_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .child(cell(None, t!("dokku-col-service")))
         .child(cell(Some(W_STATE), t!("dokku-col-state")))
         .child(cell(Some(W_USAGE), t!("dokku-col-cpu-mem")))
@@ -992,7 +992,7 @@ fn service_row(
     let is_selected = st.selected == Some(DokkuSelection::Service(s.kind, s.name.clone()));
     let compact = st.selected.is_some();
     let running = s.status == "running";
-    let color = if running { OK } else { TEXT_DIM };
+    let color = if running { theme().ok } else { text_dim() };
     let usage_text = containers_scan
         .and_then(|cs| cs.dokku_service_usage(s.kind.id(), &s.name))
         .map(|(cpu, mem)| format!("{cpu:.1}% · {}", human_size(mem)))
@@ -1014,10 +1014,10 @@ fn service_row(
         .border_b_1()
         .border_l_1()
         .border_r_1()
-        .border_color(BORDER_PANEL)
-        .bg(if is_selected { BG_ROW_SELECTED } else { BG_PANEL })
+        .border_color(border_panel())
+        .bg(if is_selected { bg_row_selected() } else { bg_panel() })
         .cursor_pointer()
-        .hover(|el| el.bg(BG_ROW_HOVER))
+        .hover(|el| el.bg(bg_row_hover()))
         .on_click(move |_ev, _w, cx| {
             app.update(cx, |this, cx| this.select_dokku_service(kind, &name, cx))
         })
@@ -1030,21 +1030,21 @@ fn service_row(
                 .gap(px(8.0))
                 .child(div().flex_none().size(px(7.0)).rounded_full().bg(color))
                 .child(
-                    crate::components::button::badge(TEXT_SECONDARY)
+                    crate::components::button::badge(text_secondary())
                         .text_size(font_px(8.5))
                         .child(s.kind.label()),
                 )
                 .child(
-                    mono(11.0, TEXT_PRIMARY)
+                    mono(11.0, text_primary())
                         .font_weight(FontWeight::BOLD)
                         .child(s.name.clone()),
                 ),
         )
         .child(mono(10.5, color).w(px(W_STATE)).flex_none().child(s.status.clone()))
-        .child(mono(10.0, TEXT_TERTIARY).w(px(W_USAGE)).flex_none().child(usage_text))
+        .child(mono(10.0, text_tertiary()).w(px(W_USAGE)).flex_none().child(usage_text))
         .when(!compact, |d| {
             d.child(
-                mono(10.0, TEXT_SECONDARY)
+                mono(10.0, text_secondary())
                     .w(px(W_DOMAINS))
                     .flex_none()
                     .whitespace_nowrap()
@@ -1057,7 +1057,7 @@ fn service_row(
                     }),
             )
             .child(
-                mono(10.0, TEXT_TERTIARY)
+                mono(10.0, text_tertiary())
                     .w(px(W_SERVICES))
                     .flex_none()
                     .whitespace_nowrap()
@@ -1143,13 +1143,13 @@ fn app_drawer(
             .px(px(9.0))
             .py(px(6.0))
             .border_b_2()
-            .border_color(if active { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
+            .border_color(if active { text_primary() } else { hex_rgba(0, 0.0) })
             .font_family(FONT_MONO)
             .text_size(font_px(10.0))
             .font_weight(FontWeight::BOLD)
-            .text_color(if active { TEXT_PRIMARY } else { TEXT_DIM })
+            .text_color(if active { text_primary() } else { text_dim() })
             .cursor_pointer()
-            .hover(|s| s.text_color(TEXT_PRIMARY))
+            .hover(|s| s.text_color(text_primary()))
             .on_click(move |_ev, _w, cx| app_t.update(cx, |this, cx| this.set_dokku_tab(tab, cx)))
             .child(label)
     };
@@ -1175,9 +1175,9 @@ fn app_drawer(
         .h_full()
         .flex()
         .flex_col()
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_l_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .child(
             div()
                 .flex_none()
@@ -1186,7 +1186,7 @@ fn app_drawer(
                 .gap(px(8.0))
                 .p(px(14.0))
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .flex()
@@ -1194,7 +1194,7 @@ fn app_drawer(
                         .gap(px(8.0))
                         .child(div().flex_none().size(px(8.0)).rounded_full().bg(color))
                         .child(
-                            mono(13.0, TEXT_PRIMARY)
+                            mono(13.0, text_primary())
                                 .font_weight(FontWeight::BOLD)
                                 .flex_1()
                                 .min_w(px(0.0))
@@ -1203,7 +1203,7 @@ fn app_drawer(
                                 .child(a.name.clone()),
                         )
                         .child(
-                            button("btn-dokku-open-console", t!("dokku-btn-console"), TEXT_SECONDARY)
+                            button("btn-dokku-open-console", t!("dokku-btn-console"), text_secondary())
                                 .on_click(move |_ev, _w, cx| {
                                     app_console.update(cx, |this, cx| {
                                         this.open_dokku_console(&app_name_console, "web", cx)
@@ -1217,7 +1217,7 @@ fn app_drawer(
                                 .flex()
                                 .items_center()
                                 .justify_center()
-                                .text_color(if st.eli5_open { WAND } else { TEXT_DIM })
+                                .text_color(if st.eli5_open { WAND } else { text_dim() })
                                 .bg(if st.eli5_open { WAND.opacity(0.14) } else { hex_rgba(0, 0.0) })
                                 .cursor_pointer()
                                 .hover(|s| s.bg(WAND.opacity(0.14)).text_color(WAND))
@@ -1233,9 +1233,9 @@ fn app_drawer(
                                 .flex()
                                 .items_center()
                                 .justify_center()
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                                 .on_click(move |_ev, _w, cx| {
                                     app_close.update(cx, |this, cx| this.close_dokku_drawer(cx))
                                 })
@@ -1254,20 +1254,20 @@ fn app_drawer(
                         .flex_wrap()
                         .gap(px(6.0))
                         .when(!a.running, |d| {
-                            d.child(lifecycle_btn(AppLifecycleAction::Start, t!("dokku-btn-start"), OK))
+                            d.child(lifecycle_btn(AppLifecycleAction::Start, t!("dokku-btn-start"), theme().ok))
                         })
                         .when(a.running, |d| {
                             d.child(lifecycle_btn(
                                 AppLifecycleAction::Restart,
                                 t!("dokku-btn-restart"),
-                                WARN,
+                                theme().warn,
                             ))
-                            .child(lifecycle_btn(AppLifecycleAction::Stop, t!("dokku-btn-stop"), CRIT))
+                            .child(lifecycle_btn(AppLifecycleAction::Stop, t!("dokku-btn-stop"), theme().crit))
                         })
                         .child(lifecycle_btn(
                             AppLifecycleAction::Rebuild,
                             t!("dokku-btn-rebuild"),
-                            TEXT_SECONDARY,
+                            text_secondary(),
                         ))
                         .child(lifecycle_btn(
                             AppLifecycleAction::MaintenanceToggle(!a.maintenance),
@@ -1276,12 +1276,12 @@ fn app_drawer(
                             } else {
                                 t!("dokku-btn-maint-enable")
                             },
-                            WARN,
+                            theme().warn,
                         ))
                         .child(lifecycle_btn(
                             AppLifecycleAction::Destroy,
                             t!("dokku-btn-destroy"),
-                            CRIT,
+                            theme().crit,
                         )),
                 )
                 .children(pending_banner),
@@ -1293,7 +1293,7 @@ fn app_drawer(
                 .items_center()
                 .px(px(8.0))
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(tab_btn("dokku-tab-overview", t!("dokku-tab-overview"), DokkuDrawerTab::Overview))
                 .child(tab_btn("dokku-tab-env", t!("dokku-tab-env"), DokkuDrawerTab::Env))
                 .child(tab_btn("dokku-tab-domains", t!("dokku-tab-domains"), DokkuDrawerTab::Domains))
@@ -1345,12 +1345,12 @@ fn drawer_overview_tab(
                         .items_center()
                         .justify_between()
                         .p(px(10.0))
-                        .bg(BG_APP)
+                        .bg(bg_app())
                         .border_1()
-                        .border_color(BORDER_PANEL)
-                        .child(mono(10.0, TEXT_SECONDARY).child(t!("dokku-live-container-usage")))
+                        .border_color(border_panel())
+                        .child(mono(10.0, text_secondary()).child(t!("dokku-live-container-usage")))
                         .child(
-                            mono(10.5, OK)
+                            mono(10.5, theme().ok)
                                 .font_weight(FontWeight::BOLD)
                                 .child(t!(
                                     "dokku-usage-cpu-mem",
@@ -1367,7 +1367,7 @@ fn drawer_overview_tab(
                 .flex_col()
                 .gap(px(8.0))
                 .child(
-                    mono(10.5, TEXT_PRIMARY)
+                    mono(10.5, text_primary())
                         .font_weight(FontWeight::BOLD)
                         .child(t!("dokku-procfile-scaling")),
                 )
@@ -1389,17 +1389,17 @@ fn drawer_overview_tab(
                         .gap(px(8.0))
                         .px(px(10.0))
                         .py(px(7.0))
-                        .bg(BG_APP)
+                        .bg(bg_app())
                         .border_1()
-                        .border_color(if modified { WARN.opacity(0.6) } else { BORDER_PANEL })
+                        .border_color(if modified { theme().warn.opacity(0.6) } else { border_panel() })
                         .child(
-                            mono(11.0, TEXT_PRIMARY)
+                            mono(11.0, text_primary())
                                 .font_weight(FontWeight::BOLD)
                                 .w(px(90.0))
                                 .child(proc_type.clone()),
                         )
                         .child(
-                            mono(10.0, if running == desired { TEXT_SECONDARY } else { WARN })
+                            mono(10.0, if running == desired { text_secondary() } else { theme().warn })
                                 .flex_1()
                                 .child(t!(
                                     "dokku-proc-running-desired",
@@ -1408,7 +1408,7 @@ fn drawer_overview_tab(
                                 )),
                         )
                         .child(
-                            button(format!("btn-scale-dec-{proc_type}"), "-", TEXT_SECONDARY).on_click(
+                            button(format!("btn-scale-dec-{proc_type}"), "-", text_secondary()).on_click(
                                 move |_ev, _w, cx| {
                                     a_dec.update(cx, |this, cx| {
                                         this.adjust_dokku_scale(&app1, &pt1, desired, -1, cx)
@@ -1417,13 +1417,13 @@ fn drawer_overview_tab(
                             ),
                         )
                         .child(
-                            mono(11.0, if modified { WARN } else { TEXT_PRIMARY })
+                            mono(11.0, if modified { theme().warn } else { text_primary() })
                                 .font_weight(FontWeight::BOLD)
                                 .w(px(28.0))
                                 .child(format!("{target}")),
                         )
                         .child(
-                            button(format!("btn-scale-inc-{proc_type}"), "+", TEXT_SECONDARY).on_click(
+                            button(format!("btn-scale-inc-{proc_type}"), "+", text_secondary()).on_click(
                                 move |_ev, _w, cx| {
                                     a_inc.update(cx, |this, cx| {
                                         this.adjust_dokku_scale(&app2, &pt2, desired, 1, cx)
@@ -1444,16 +1444,16 @@ fn drawer_overview_tab(
                         .items_center()
                         .gap(px(8.0))
                         .p(px(8.0))
-                        .bg(WARN.opacity(0.08))
+                        .bg(theme().warn.opacity(0.08))
                         .border_1()
-                        .border_color(WARN.opacity(0.4))
+                        .border_color(theme().warn.opacity(0.4))
                         .child(
-                            mono(10.0, TEXT_PRIMARY)
+                            mono(10.0, text_primary())
                                 .flex_1()
                                 .child(scale_cmd),
                         )
                         .child(
-                            button("btn-dokku-apply-scale", t!("dokku-btn-apply-scale"), OK).on_click(
+                            button("btn-dokku-apply-scale", t!("dokku-btn-apply-scale"), theme().ok).on_click(
                                 move |_ev, _w, cx| {
                                     app_apply_scale
                                         .update(cx, |this, cx| this.apply_dokku_scale(&name_apply, cx))
@@ -1461,7 +1461,7 @@ fn drawer_overview_tab(
                             ),
                         )
                         .child(
-                            button("btn-dokku-reset-scale", t!("dokku-cancel"), TEXT_DIM).on_click(
+                            button("btn-dokku-reset-scale", t!("dokku-cancel"), text_dim()).on_click(
                                 move |_ev, _w, cx| {
                                     app_clear_scale.update(cx, |this, cx| {
                                         this.clear_dokku_staged_scale(&name_clear, cx)
@@ -1478,12 +1478,12 @@ fn drawer_overview_tab(
                 .flex_col()
                 .gap(px(8.0))
                 .child(
-                    mono(10.5, TEXT_PRIMARY)
+                    mono(10.5, text_primary())
                         .font_weight(FontWeight::BOLD)
                         .child(t!("dokku-storage-mounts")),
                 )
                 .when(a.mounts.is_empty(), |d| {
-                    d.child(mono(10.0, TEXT_DIM).child(t!("dokku-no-storage-mounts")))
+                    d.child(mono(10.0, text_dim()).child(t!("dokku-no-storage-mounts")))
                 })
                 .children(a.mounts.iter().enumerate().map(|(idx, m)| {
                     let app_rm = app.clone();
@@ -1499,11 +1499,11 @@ fn drawer_overview_tab(
                         .gap(px(8.0))
                         .px(px(8.0))
                         .py(px(6.0))
-                        .bg(BG_APP)
+                        .bg(bg_app())
                         .border_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .child(
-                            mono(10.0, TEXT_SECONDARY)
+                            mono(10.0, text_secondary())
                                 .flex_1()
                                 .min_w(px(0.0))
                                 .overflow_hidden()
@@ -1514,7 +1514,7 @@ fn drawer_overview_tab(
                             button(
                                 format!("btn-dokku-unmount-{idx}"),
                                 t!("dokku-btn-unmount"),
-                                CRIT,
+                                theme().crit,
                             )
                             .on_click(move |_ev, _w, cx| {
                                 app_rm.update(cx, |this, cx| {
@@ -1529,10 +1529,10 @@ fn drawer_overview_tab(
                         .items_center()
                         .gap(px(6.0))
                         .child(text_input(inputs.map(|i| &i.mount_host)))
-                        .child(mono(10.0, TEXT_DIM).child("→"))
+                        .child(mono(10.0, text_dim()).child("→"))
                         .child(text_input(inputs.map(|i| &i.mount_container)))
                         .child(
-                            button("btn-dokku-add-mount", t!("dokku-btn-mount"), OK).on_click(
+                            button("btn-dokku-add-mount", t!("dokku-btn-mount"), theme().ok).on_click(
                                 move |_ev, _w, cx| {
                                     app_mount.update(cx, |this, cx| {
                                         this.add_dokku_storage_mount(&name_mount, cx)
@@ -1617,7 +1617,7 @@ fn drawer_env_tab(
                 )
                 .child(div().flex_1())
                 .child(
-                    button("btn-dokku-env-refresh", t!("dokku-refresh"), TEXT_SECONDARY).on_click(
+                    button("btn-dokku-env-refresh", t!("dokku-refresh"), text_secondary()).on_click(
                         move |_ev, _w, cx| {
                             a_ref.update(cx, |this, cx| this.load_dokku_app_env(&n_ref, true, cx))
                         },
@@ -1634,25 +1634,25 @@ fn drawer_env_tab(
                     .items_center()
                     .gap(px(8.0))
                     .p(px(8.0))
-                    .bg(WARN.opacity(0.08))
+                    .bg(theme().warn.opacity(0.08))
                     .border_1()
-                    .border_color(WARN.opacity(0.4))
+                    .border_color(theme().warn.opacity(0.4))
                     .child(
-                        mono(10.0, TEXT_PRIMARY).flex_1().child(t!(
+                        mono(10.0, text_primary()).flex_1().child(t!(
                             "dokku-env-staged-summary",
                             set = set_count,
                             unset = unset_count
                         )),
                     )
                     .child(
-                        button("btn-dokku-env-apply", t!("dokku-btn-apply-env"), OK).on_click(
+                        button("btn-dokku-env-apply", t!("dokku-btn-apply-env"), theme().ok).on_click(
                             move |_ev, _w, cx| {
                                 a_apply.update(cx, |this, cx| this.apply_dokku_staged_env(&n_apply, cx))
                             },
                         ),
                     )
                     .child(
-                        button("btn-dokku-env-discard", t!("dokku-cancel"), TEXT_DIM).on_click(
+                        button("btn-dokku-env-discard", t!("dokku-cancel"), text_dim()).on_click(
                             move |_ev, _w, cx| {
                                 a_discard
                                     .update(cx, |this, cx| this.clear_dokku_staged_env(&n_discard, cx))
@@ -1670,7 +1670,7 @@ fn drawer_env_tab(
                 .child(div().w(px(150.0)).child(text_input(inputs.map(|i| &i.env_key))))
                 .child(text_input(inputs.map(|i| &i.env_val)))
                 .child(
-                    button("btn-dokku-env-stage", t!("dokku-btn-stage"), OK).on_click(
+                    button("btn-dokku-env-stage", t!("dokku-btn-stage"), theme().ok).on_click(
                         move |_ev, w, cx| {
                             a_add.update(cx, |this, cx| this.stage_dokku_env_pair(&n_add, w, cx))
                         },
@@ -1685,10 +1685,10 @@ fn drawer_env_tab(
                     .items_end()
                     .gap(px(6.0))
                     .child(div().flex_1().min_w(px(0.0)).children(inputs.map(|i| {
-                        Textarea::new(&i.dotenv_blob).h(px(110.0)).w_full().font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP)
+                        Textarea::new(&i.dotenv_blob).h(px(110.0)).w_full().font_family(FONT_MONO).text_size(font_px(11.0)).bg(bg_app())
                     })))
                     .child(
-                        button("btn-dokku-env-stage-blob", t!("dokku-btn-import-dotenv"), OK)
+                        button("btn-dokku-env-stage-blob", t!("dokku-btn-import-dotenv"), theme().ok)
                             .on_click(move |_ev, w, cx| {
                                 a_blob.update(cx, |this, cx| this.stage_dokku_dotenv_blob(&n_blob, w, cx))
                             }),
@@ -1697,13 +1697,13 @@ fn drawer_env_tab(
         })
         // Env list
         .child(if st.env_loading.contains(&a.name) {
-            mono(10.5, TEXT_DIM)
+            mono(10.5, text_dim())
                 .child(t!("dokku-reading-env"))
                 .into_any_element()
         } else if let Some(Err(e)) = st.env_cache.get(&a.name) {
-            mono(10.5, CRIT).child(e.clone()).into_any_element()
+            mono(10.5, theme().crit).child(e.clone()).into_any_element()
         } else if all_keys.is_empty() {
-            mono(10.5, TEXT_DIM)
+            mono(10.5, text_dim())
                 .child(t!("dokku-no-env-vars"))
                 .into_any_element()
         } else {
@@ -1711,7 +1711,7 @@ fn drawer_env_tab(
                 .flex()
                 .flex_col()
                 .border_t_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .children(all_keys.into_iter().map(|(k, v)| {
                     let is_staged_set = staged_set.is_some_and(|m| m.contains_key(&k));
                     let is_staged_unset = staged_unset.is_some_and(|s| s.contains(&k));
@@ -1733,23 +1733,23 @@ fn drawer_env_tab(
                         .border_b_1()
                         .border_l_1()
                         .border_r_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .bg(if is_staged_unset {
-                            CRIT.opacity(0.06)
+                            theme().crit.opacity(0.06)
                         } else if is_staged_set {
-                            OK.opacity(0.06)
+                            theme().ok.opacity(0.06)
                         } else {
-                            BG_APP
+                            bg_app()
                         })
                         .child(
                             mono(
                                 10.0,
                                 if is_staged_unset {
-                                    CRIT
+                                    theme().crit
                                 } else if is_staged_set {
-                                    OK
+                                    theme().ok
                                 } else {
-                                    TEXT_PRIMARY
+                                    text_primary()
                                 },
                             )
                             .font_weight(FontWeight::BOLD)
@@ -1760,13 +1760,13 @@ fn drawer_env_tab(
                         )
                         .when(is_service_var, |d| {
                             d.child(
-                                crate::components::button::badge(WARN)
+                                crate::components::button::badge(theme().warn)
                                     .text_size(font_px(8.0))
                                     .child(t!("dokku-badge-linked")),
                             )
                         })
                         .child(
-                            mono(10.0, TEXT_SECONDARY)
+                            mono(10.0, text_secondary())
                                 .flex_1()
                                 .min_w(px(0.0))
                                 .overflow_hidden()
@@ -1781,7 +1781,7 @@ fn drawer_env_tab(
                                 } else {
                                     t!("dokku-btn-show")
                                 },
-                                TEXT_DIM,
+                                text_dim(),
                             )
                             .on_click(move |_ev, _w, cx| {
                                 a_rev.update(cx, |this, cx| this.toggle_dokku_env_reveal(&an1, &k1, cx))
@@ -1791,7 +1791,7 @@ fn drawer_env_tab(
                             button(
                                 format!("btn-dokku-env-unset-{k}"),
                                 t!("dokku-btn-unset"),
-                                CRIT,
+                                theme().crit,
                             )
                             .on_click(move |_ev, _w, cx| {
                                 a_un.update(cx, |this, cx| this.stage_dokku_env_unset(&an2, &k2, cx))
@@ -1825,16 +1825,16 @@ fn drawer_domains_tab(
                 .items_center()
                 .gap(px(8.0))
                 .p(px(10.0))
-                .bg(BG_APP)
+                .bg(bg_app())
                 .border_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .flex()
                         .flex_col()
                         .gap(px(2.0))
                         .child(
-                            mono(10.5, if a.ssl_enabled { OK } else { WARN })
+                            mono(10.5, if a.ssl_enabled { theme().ok } else { theme().warn })
                                 .font_weight(FontWeight::BOLD)
                                 .child(if a.ssl_enabled {
                                     t!("dokku-tls-enabled")
@@ -1844,9 +1844,9 @@ fn drawer_domains_tab(
                         )
                         .children(
                             a.letsencrypt_expiry_days
-                                .map(|days| mono(9.5, TEXT_DIM).child(format!("{days}d"))),
+                                .map(|days| mono(9.5, text_dim()).child(format!("{days}d"))),
                         )
-                        .when(needs_email, |d| d.child(mono(9.5, TEXT_DIM).child(t!("dokku-le-email-needed")))),
+                        .when(needs_email, |d| d.child(mono(9.5, text_dim()).child(t!("dokku-le-email-needed")))),
                 )
                 .child(div().flex_1())
                 .when(needs_email, |d| d.child(div().w(px(220.0)).child(text_input(inputs.map(|i| &i.letsencrypt_email)))))
@@ -1858,7 +1858,7 @@ fn drawer_domains_tab(
                         } else {
                             t!("dokku-btn-enable-le")
                         },
-                        OK,
+                        theme().ok,
                     )
                     .on_click(move |_ev, _w, cx| {
                         a_le.update(cx, |this, cx| this.enable_dokku_letsencrypt(&n_le, cx))
@@ -1872,12 +1872,12 @@ fn drawer_domains_tab(
                 .flex_col()
                 .gap(px(6.0))
                 .child(
-                    mono(10.5, TEXT_PRIMARY)
+                    mono(10.5, text_primary())
                         .font_weight(FontWeight::BOLD)
                         .child(t!("dokku-domains-heading")),
                 )
                 .when(a.domains.is_empty(), |d| {
-                    d.child(mono(10.0, TEXT_DIM).child(t!("dokku-no-domains")))
+                    d.child(mono(10.0, text_dim()).child(t!("dokku-no-domains")))
                 })
                 .children(a.domains.iter().map(|dom| {
                     let (a_chk, a_rm) = (app.clone(), app.clone());
@@ -1894,15 +1894,15 @@ fn drawer_domains_tab(
                         .gap(px(8.0))
                         .px(px(8.0))
                         .py(px(6.0))
-                        .bg(BG_APP)
+                        .bg(bg_app())
                         .border_1()
-                        .border_color(BORDER_PANEL)
-                        .child(mono(10.5, TEXT_PRIMARY).flex_1().child(dom.clone()))
+                        .border_color(border_panel())
+                        .child(mono(10.5, text_primary()).flex_1().child(dom.clone()))
                         .child(
                             button(
                                 format!("btn-dokku-watch-dom-{dom}"),
                                 t!("dokku-btn-watch-checks"),
-                                TEXT_SECONDARY,
+                                text_secondary(),
                             )
                             .on_click(move |_ev, _w, cx| {
                                 a_chk.update(cx, |this, cx| {
@@ -1914,7 +1914,7 @@ fn drawer_domains_tab(
                             button(
                                 format!("btn-dokku-rm-dom-{dom}"),
                                 t!("dokku-btn-remove"),
-                                CRIT,
+                                theme().crit,
                             )
                             .on_click(move |_ev, _w, cx| {
                                 a_rm.update(cx, |this, cx| this.remove_dokku_domain(&an2, &d2, cx))
@@ -1928,7 +1928,7 @@ fn drawer_domains_tab(
                         .gap(px(6.0))
                         .child(text_input(inputs.map(|i| &i.domain_add)))
                         .child(
-                            button("btn-dokku-add-dom", t!("dokku-btn-add-domain"), OK).on_click(
+                            button("btn-dokku-add-dom", t!("dokku-btn-add-domain"), theme().ok).on_click(
                                 move |_ev, _w, cx| {
                                     a_dom.update(cx, |this, cx| this.add_dokku_domain(&n_dom, cx))
                                 },
@@ -1943,7 +1943,7 @@ fn drawer_domains_tab(
                 .flex_col()
                 .gap(px(6.0))
                 .child(
-                    mono(10.5, TEXT_PRIMARY)
+                    mono(10.5, text_primary())
                         .font_weight(FontWeight::BOLD)
                         .child(t!("dokku-ports-heading")),
                 )
@@ -1957,11 +1957,11 @@ fn drawer_domains_tab(
                         .gap(px(8.0))
                         .px(px(8.0))
                         .py(px(6.0))
-                        .bg(BG_APP)
+                        .bg(bg_app())
                         .border_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .child(
-                            mono(10.0, TEXT_PRIMARY)
+                            mono(10.0, text_primary())
                                 .flex_1()
                                 .child(format!("{} : {} → {}", p.scheme, p.host_port, p.container_port)),
                         )
@@ -1969,7 +1969,7 @@ fn drawer_domains_tab(
                             button(
                                 format!("btn-dokku-rm-port-{spec}"),
                                 t!("dokku-btn-remove"),
-                                CRIT,
+                                theme().crit,
                             )
                             .on_click(move |_ev, _w, cx| {
                                 a_rm.update(cx, |this, cx| this.remove_dokku_port_map(&an, &sp, cx))
@@ -1983,7 +1983,7 @@ fn drawer_domains_tab(
                         .gap(px(6.0))
                         .child(text_input(inputs.map(|i| &i.port_add)))
                         .child(
-                            button("btn-dokku-add-port", t!("dokku-btn-add-port"), OK).on_click(
+                            button("btn-dokku-add-port", t!("dokku-btn-add-port"), theme().ok).on_click(
                                 move |_ev, _w, cx| {
                                     a_port.update(cx, |this, cx| this.add_dokku_port_map(&n_port, cx))
                                 },
@@ -2010,7 +2010,7 @@ fn drawer_services_tab(
                 .items_center()
                 .justify_between()
                 .child(
-                    mono(10.5, TEXT_PRIMARY)
+                    mono(10.5, text_primary())
                         .font_weight(FontWeight::BOLD)
                         .child(t!("dokku-backing-services-for-app")),
                 )
@@ -2030,7 +2030,7 @@ fn drawer_services_tab(
                 ),
         )
         .when(scan.services.is_empty(), |d| {
-            d.child(mono(10.0, TEXT_DIM).child(t!("dokku-no-services-yet")))
+            d.child(mono(10.0, text_dim()).child(t!("dokku-no-services-yet")))
         })
         .children(scan.services.iter().map(|svc| {
             let is_linked = a.linked_services.contains(&(svc.kind, svc.name.clone()));
@@ -2042,11 +2042,11 @@ fn drawer_services_tab(
                 .gap(px(8.0))
                 .px(px(10.0))
                 .py(px(8.0))
-                .bg(BG_APP)
+                .bg(bg_app())
                 .border_1()
-                .border_color(if is_linked { OK.opacity(0.5) } else { BORDER_PANEL })
+                .border_color(if is_linked { theme().ok.opacity(0.5) } else { border_panel() })
                 .child(
-                    crate::components::button::badge(TEXT_SECONDARY)
+                    crate::components::button::badge(text_secondary())
                         .text_size(font_px(8.5))
                         .child(svc.kind.label()),
                 )
@@ -2057,12 +2057,12 @@ fn drawer_services_tab(
                         .flex_col()
                         .gap(px(2.0))
                         .child(
-                            mono(10.5, TEXT_PRIMARY)
+                            mono(10.5, text_primary())
                                 .font_weight(FontWeight::BOLD)
                                 .child(svc.name.clone()),
                         )
                         .child(
-                            mono(9.5, TEXT_FAINT)
+                            mono(9.5, text_faint())
                                 .child(format!("{} · {}", svc.kind.env_var(), svc.status)),
                         ),
                 )
@@ -2074,7 +2074,7 @@ fn drawer_services_tab(
                         } else {
                             t!("dokku-btn-link")
                         },
-                        if is_linked { CRIT } else { OK },
+                        if is_linked { theme().crit } else { theme().ok },
                     )
                     .on_click(move |_ev, _w, cx| {
                         app_act.update(cx, |this, cx| {
@@ -2116,21 +2116,21 @@ fn drawer_deploy_tab(
                 .flex_col()
                 .gap(px(6.0))
                 .p(px(10.0))
-                .bg(BG_APP)
+                .bg(bg_app())
                 .border_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .flex()
                         .items_center()
                         .justify_between()
                         .child(
-                            mono(10.5, TEXT_PRIMARY)
+                            mono(10.5, text_primary())
                                 .font_weight(FontWeight::BOLD)
                                 .child(t!("dokku-deploy-git-push")),
                         )
                         .child(
-                            button("btn-dokku-copy-git", t!("dokku-btn-copy-git"), OK).on_click(
+                            button("btn-dokku-copy-git", t!("dokku-btn-copy-git"), theme().ok).on_click(
                                 move |_ev, _w, cx| {
                                     cx.write_to_clipboard(ClipboardItem::new_string(
                                         git_cmd_copy.clone(),
@@ -2139,9 +2139,9 @@ fn drawer_deploy_tab(
                             ),
                         ),
                 )
-                .child(mono(10.0, TEXT_SECONDARY).child(git_cmd))
+                .child(mono(10.0, text_secondary()).child(git_cmd))
                 .children((!a.git_sha.is_empty()).then(|| {
-                    mono(9.5, TEXT_FAINT).child(format!(
+                    mono(9.5, text_faint()).child(format!(
                         "{} · {}",
                         a.git_sha,
                         a.last_updated
@@ -2152,7 +2152,7 @@ fn drawer_deploy_tab(
                         button(
                             "btn-dokku-deploy-manage-keys",
                             t!("dokku-btn-manage-deploy-keys"),
-                            TEXT_SECONDARY,
+                            text_secondary(),
                         )
                         .on_click(move |_ev, w, cx| {
                             a_keys.update(cx, |this, cx| {
@@ -2169,11 +2169,11 @@ fn drawer_deploy_tab(
                 .flex_col()
                 .gap(px(6.0))
                 .p(px(10.0))
-                .bg(BG_APP)
+                .bg(bg_app())
                 .border_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
-                    mono(10.5, TEXT_PRIMARY)
+                    mono(10.5, text_primary())
                         .font_weight(FontWeight::BOLD)
                         .child(t!("dokku-deploy-from-image")),
                 )
@@ -2184,7 +2184,7 @@ fn drawer_deploy_tab(
                         .gap(px(6.0))
                         .child(text_input(inputs.map(|i| &i.deploy_image)))
                         .child(
-                            button("btn-dokku-deploy-image-go", t!("dokku-btn-deploy-image"), OK)
+                            button("btn-dokku-deploy-image-go", t!("dokku-btn-deploy-image"), theme().ok)
                                 .on_click(move |_ev, _w, cx| {
                                     a_img.update(cx, |this, cx| {
                                         this.deploy_dokku_image(&n_img, cx)
@@ -2246,10 +2246,10 @@ fn drawer_logs_tab(a: &DokkuApp, st: &DokkuState, app: Entity<CrowApp>) -> impl 
                             div()
                                 .size(px(6.0))
                                 .rounded_full()
-                                .bg(if st.follow { OK } else { TEXT_GHOST }),
+                                .bg(if st.follow { theme().ok } else { text_ghost() }),
                         )
                         .child(
-                            mono(9.5, if st.follow { OK } else { TEXT_DIM })
+                            mono(9.5, if st.follow { theme().ok } else { text_dim() })
                                 .font_weight(FontWeight::BOLD)
                                 .child(if st.follow {
                                     t!("containers-following")
@@ -2270,7 +2270,7 @@ fn render_log_lines(
         Some((k, Ok(text))) if k == expected_key => {
             let lines: Vec<&str> = text.lines().collect();
             if lines.is_empty() {
-                mono(10.5, TEXT_DIM)
+                mono(10.5, text_dim())
                     .child(t!("containers-no-output-yet"))
                     .into_any_element()
             } else {
@@ -2278,7 +2278,7 @@ fn render_log_lines(
                     .flex()
                     .flex_col()
                     .children(lines.into_iter().rev().map(|l| {
-                        mono(10.0, TEXT_SECONDARY)
+                        mono(10.0, text_secondary())
                             .py(px(1.0))
                             .child(l.to_string())
                     }))
@@ -2286,9 +2286,9 @@ fn render_log_lines(
             }
         }
         Some((k, Err(e))) if k == expected_key => {
-            mono(10.5, CRIT).child(e.clone()).into_any_element()
+            mono(10.5, theme().crit).child(e.clone()).into_any_element()
         }
-        _ => mono(10.5, TEXT_DIM)
+        _ => mono(10.5, text_dim())
             .child(t!("containers-reading-logs"))
             .into_any_element(),
     }
@@ -2306,7 +2306,7 @@ fn service_drawer(
     app: Entity<CrowApp>,
 ) -> impl IntoElement {
     let running = svc.status == "running";
-    let color = if running { OK } else { TEXT_DIM };
+    let color = if running { theme().ok } else { text_dim() };
     let sel_key = format!("svc:{}:{}", svc.kind.id(), svc.name);
     let (app_close, app_follow) = (app.clone(), app.clone());
 
@@ -2376,9 +2376,9 @@ fn service_drawer(
         .h_full()
         .flex()
         .flex_col()
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_l_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .child(
             div()
                 .flex_none()
@@ -2387,7 +2387,7 @@ fn service_drawer(
                 .gap(px(8.0))
                 .p(px(14.0))
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .flex()
@@ -2395,12 +2395,12 @@ fn service_drawer(
                         .gap(px(8.0))
                         .child(div().flex_none().size(px(8.0)).rounded_full().bg(color))
                         .child(
-                            crate::components::button::badge(TEXT_SECONDARY)
+                            crate::components::button::badge(text_secondary())
                                 .text_size(font_px(9.0))
                                 .child(svc.kind.label()),
                         )
                         .child(
-                            mono(13.0, TEXT_PRIMARY)
+                            mono(13.0, text_primary())
                                 .font_weight(FontWeight::BOLD)
                                 .flex_1()
                                 .child(svc.name.clone()),
@@ -2412,9 +2412,9 @@ fn service_drawer(
                                 .flex()
                                 .items_center()
                                 .justify_center()
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                                 .on_click(move |_ev, _w, cx| {
                                     app_close.update(cx, |this, cx| this.close_dokku_drawer(cx))
                                 })
@@ -2422,7 +2422,7 @@ fn service_drawer(
                         ),
                 )
                 .child(
-                    mono(10.0, TEXT_TERTIARY).child(format!(
+                    mono(10.0, text_tertiary()).child(format!(
                         "{} · {} · {}",
                         svc.kind.env_var(),
                         svc.status,
@@ -2437,7 +2437,7 @@ fn service_drawer(
                     containers_scan
                         .and_then(|cs| cs.dokku_service_usage(svc.kind.id(), &svc.name))
                         .map(|(cpu, mem)| {
-                            mono(10.0, OK).child(t!(
+                            mono(10.0, theme().ok).child(t!(
                                 "dokku-usage-cpu-mem",
                                 cpu = format!("{cpu:.1}"),
                                 mem = human_size(mem)
@@ -2450,25 +2450,25 @@ fn service_drawer(
                         .flex_wrap()
                         .gap(px(6.0))
                         .when(!running, |d| {
-                            d.child(svc_btn(ServiceLifecycleAction::Start, t!("dokku-btn-start"), OK))
+                            d.child(svc_btn(ServiceLifecycleAction::Start, t!("dokku-btn-start"), theme().ok))
                         })
                         .when(running, |d| {
                             d.child(svc_btn(
                                 ServiceLifecycleAction::Restart,
                                 t!("dokku-btn-restart"),
-                                WARN,
+                                theme().warn,
                             ))
-                            .child(svc_btn(ServiceLifecycleAction::Stop, t!("dokku-btn-stop"), CRIT))
+                            .child(svc_btn(ServiceLifecycleAction::Stop, t!("dokku-btn-stop"), theme().crit))
                         })
                         .child(svc_btn(
                             ServiceLifecycleAction::Export,
                             t!("dokku-btn-export-dump"),
-                            TEXT_SECONDARY,
+                            text_secondary(),
                         ))
                         .child(svc_btn(
                             ServiceLifecycleAction::Destroy,
                             t!("dokku-btn-destroy"),
-                            CRIT,
+                            theme().crit,
                         )),
                 )
                 .children(pending_banner),
@@ -2490,7 +2490,7 @@ fn service_drawer(
                         .flex_col()
                         .gap(px(6.0))
                         .child(
-                            mono(10.5, TEXT_PRIMARY)
+                            mono(10.5, text_primary())
                                 .font_weight(FontWeight::BOLD)
                                 .child(t!("dokku-col-linked-apps")),
                         )
@@ -2504,10 +2504,10 @@ fn service_drawer(
                                 .justify_between()
                                 .px(px(8.0))
                                 .py(px(6.0))
-                                .bg(BG_APP)
+                                .bg(bg_app())
                                 .border_1()
-                                .border_color(BORDER_PANEL)
-                                .child(mono(10.5, TEXT_PRIMARY).child(a.name.clone()))
+                                .border_color(border_panel())
+                                .child(mono(10.5, text_primary()).child(a.name.clone()))
                                 .child(
                                     button(
                                         format!("btn-svc-link-app-{}", a.name),
@@ -2516,7 +2516,7 @@ fn service_drawer(
                                         } else {
                                             t!("dokku-btn-link")
                                         },
-                                        if is_linked { CRIT } else { OK },
+                                        if is_linked { theme().crit } else { theme().ok },
                                     )
                                     .on_click(move |_ev, _w, cx| {
                                         app_act.update(cx, |this, cx| {
@@ -2546,7 +2546,7 @@ fn service_drawer(
                                 .items_center()
                                 .justify_between()
                                 .child(
-                                    mono(10.5, TEXT_PRIMARY)
+                                    mono(10.5, text_primary())
                                         .font_weight(FontWeight::BOLD)
                                         .child(t!("dokku-tab-logs")),
                                 )
@@ -2564,10 +2564,10 @@ fn service_drawer(
                                             div()
                                                 .size(px(6.0))
                                                 .rounded_full()
-                                                .bg(if st.follow { OK } else { TEXT_GHOST }),
+                                                .bg(if st.follow { theme().ok } else { text_ghost() }),
                                         )
                                         .child(
-                                            mono(9.5, if st.follow { OK } else { TEXT_DIM })
+                                            mono(9.5, if st.follow { theme().ok } else { text_dim() })
                                                 .font_weight(FontWeight::BOLD)
                                                 .child(if st.follow {
                                                     t!("containers-following")

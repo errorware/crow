@@ -80,19 +80,19 @@ fn segment(id: String, label: &'static str, selected: bool, accent: Rgba) -> Sta
         .items_center()
         .justify_center()
         .border_1()
-        .border_color(if selected { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
-        .bg(if selected { BG_CONTROL_ALT } else { hex_rgba(0, 0.0) })
+        .border_color(if selected { border_control_sel() } else { border_default() })
+        .bg(if selected { bg_control_alt() } else { hex_rgba(0, 0.0) })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .font_family(FONT_MONO)
         .text_size(font_px(10.5))
         .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
-        .text_color(if selected { accent } else { TEXT_DIM })
+        .text_color(if selected { accent } else { text_dim() })
         .child(label)
 }
 
 fn field_label(text: &'static str) -> Div {
-    div().font_family(FONT_MONO).text_size(font_px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(text)
+    div().font_family(FONT_MONO).text_size(font_px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(text_dimmer()).child(text)
 }
 
 /// A preset that fills a field.
@@ -102,12 +102,12 @@ fn preset(id: String, label: &'static str) -> Stateful<Div> {
         .px(px(7.0))
         .py(px(3.0))
         .border_1()
-        .border_color(BORDER_DEFAULT)
+        .border_color(border_default())
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
         .font_family(FONT_MONO)
         .text_size(font_px(10.0))
-        .text_color(TEXT_DIM)
+        .text_color(text_dim())
         .child(label)
 }
 
@@ -124,7 +124,7 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
         (t!("firewall-new-rule-modal-will-run"), vec![state.generate_ufw_command()], true)
     };
 
-    let input = |i: Option<&Entity<InputState>>| div().flex_1().min_w(px(0.0)).children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.5)).bg(BG_APP)));
+    let input = |i: Option<&Entity<InputState>>| div().flex_1().min_w(px(0.0)).children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.5)).bg(bg_app())));
 
     div()
         .id("new-rule-modal-backdrop")
@@ -141,9 +141,9 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
             div()
                 .id("new-rule-modal-panel")
                 .w(px(520.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_DEFAULT)
+                .border_color(border_default())
                 .shadow_lg()
                 .flex()
                 .flex_col()
@@ -160,19 +160,19 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                         .gap(px(10.0))
                         .px(px(14.0))
                         .border_b_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .font_family(FONT_MONO)
-                        .child(div().text_size(font_px(11.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(t!("firewall-new-rule-modal-add-rule")))
-                        .child(div().text_size(font_px(10.5)).text_color(TEXT_DIM).child(backend.short_name().to_lowercase()))
+                        .child(div().text_size(font_px(11.0)).font_weight(FontWeight::SEMIBOLD).text_color(text_primary()).child(t!("firewall-new-rule-modal-add-rule")))
+                        .child(div().text_size(font_px(10.5)).text_color(text_dim()).child(backend.short_name().to_lowercase()))
                         .child(div().flex_1())
                         .child(
                             div()
                                 .id("btn-close-new-rule")
                                 .p(px(3.0))
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| app_close.update(cx, |this, cx| this.close_new_firewall_rule_modal(cx)))
-                                .child(tabler_icon(TablerIcon::X).size(px(13.0)).text_color(TEXT_DIM)),
+                                .child(tabler_icon(TablerIcon::X).size(px(13.0)).text_color(text_dim())),
                         ),
                 )
                 .child(
@@ -183,7 +183,7 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                         .gap(px(12.0))
                         .child(
                             div().flex().flex_col().gap(px(5.0)).child(field_label(t!("firewall-new-rule-modal-action"))).child(div().flex().gap(px(4.0)).children(
-                                [(RuleAction::Allow, t!("firewall-new-rule-modal-allow"), OK), (RuleAction::Deny, t!("firewall-new-rule-modal-deny"), CRIT), (RuleAction::Reject, t!("firewall-new-rule-modal-reject"), CRIT), (RuleAction::Limit, t!("firewall-new-rule-modal-limit"), WARN)].into_iter().map(|(a, label, color)| {
+                                [(RuleAction::Allow, t!("firewall-new-rule-modal-allow"), theme().ok), (RuleAction::Deny, t!("firewall-new-rule-modal-deny"), theme().crit), (RuleAction::Reject, t!("firewall-new-rule-modal-reject"), theme().crit), (RuleAction::Limit, t!("firewall-new-rule-modal-limit"), theme().warn)].into_iter().map(|(a, label, color)| {
                                     let app = app.clone();
                                     segment(format!("sel-action-{label}"), label, state.action == a, color).on_click(move |_ev, _window, cx| {
                                         app.update(cx, |this, cx| {
@@ -198,7 +198,7 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                             div().flex().flex_col().gap(px(5.0)).child(field_label(t!("firewall-new-rule-modal-protocol"))).child(div().flex().gap(px(4.0)).children(
                                 [(RuleProtocol::Tcp, t!("firewall-new-rule-modal-tcp")), (RuleProtocol::Udp, t!("firewall-new-rule-modal-udp")), (RuleProtocol::Both, t!("firewall-new-rule-modal-tcp-udp")), (RuleProtocol::Any, t!("firewall-new-rule-modal-any"))].into_iter().map(|(p, label)| {
                                     let app = app.clone();
-                                    segment(format!("sel-proto-{label}"), label, state.protocol == p, TEXT_MAX).on_click(move |_ev, _window, cx| {
+                                    segment(format!("sel-proto-{label}"), label, state.protocol == p, text_max()).on_click(move |_ev, _window, cx| {
                                         app.update(cx, |this, cx| {
                                             this.firewall.new_rule.protocol = p;
                                             cx.notify();
@@ -227,15 +227,15 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                         .child(
                             div()
                                 .p(px(10.0))
-                                .bg(BG_APP)
+                                .bg(bg_app())
                                 .border_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                                 .flex()
                                 .flex_col()
                                 .gap(px(4.0))
                                 .font_family(FONT_MONO)
-                                .child(div().text_size(font_px(9.0)).font_weight(FontWeight::SEMIBOLD).text_color(if preview_ok { TEXT_DIMMER } else { CRIT }).child(preview_title))
-                                .children(cmd_preview.into_iter().map(|line| div().text_size(font_px(11.0)).text_color(if preview_ok { TEXT_SECONDARY } else { CRIT_INK }).child(line))),
+                                .child(div().text_size(font_px(9.0)).font_weight(FontWeight::SEMIBOLD).text_color(if preview_ok { text_dimmer() } else { theme().crit }).child(preview_title))
+                                .children(cmd_preview.into_iter().map(|line| div().text_size(font_px(11.0)).text_color(if preview_ok { text_secondary() } else { theme().crit_ink }).child(line))),
                         ),
                 )
                 .child(
@@ -247,9 +247,9 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                         .gap(px(8.0))
                         .px(px(14.0))
                         .border_t_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .font_family(FONT_MONO)
-                        .child(div().flex_1().text_size(font_px(9.5)).text_color(TEXT_FAINT).child(t!("firewall-new-rule-modal-enter-adds-it-esc-or")))
+                        .child(div().flex_1().text_size(font_px(9.5)).text_color(text_faint()).child(t!("firewall-new-rule-modal-enter-adds-it-esc-or")))
                         .child(
                             div()
                                 .id("btn-cancel-new-rule")
@@ -257,8 +257,8 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                                 .py(px(4.0))
                                 .cursor_pointer()
                                 .text_size(font_px(10.5))
-                                .text_color(TEXT_DIM)
-                                .hover(|s| s.text_color(TEXT_PRIMARY))
+                                .text_color(text_dim())
+                                .hover(|s| s.text_color(text_primary()))
                                 .on_click(move |_ev, _window, cx| app_cancel.update(cx, |this, cx| this.close_new_firewall_rule_modal(cx)))
                                 .child(t!("firewall-new-rule-modal-cancel")),
                         )
@@ -268,12 +268,12 @@ pub fn new_rule_modal(state: &NewRuleState, backend: FirewallBackend, inputs: Op
                                 .px(px(10.0))
                                 .py(px(4.0))
                                 .border_1()
-                                .border_color(OK)
+                                .border_color(theme().ok)
                                 .cursor_pointer()
-                                .hover(|s| s.bg(OK_BG))
+                                .hover(|s| s.bg(theme().ok_bg))
                                 .text_size(font_px(10.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(OK)
+                                .text_color(theme().ok)
                                 .on_click(move |_ev, _window, cx| app_submit.update(cx, |this, cx| this.submit_new_firewall_rule(cx)))
                                 .child(t!("firewall-new-rule-modal-add-rule")),
                         ),

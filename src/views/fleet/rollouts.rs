@@ -18,7 +18,7 @@ fn mono(size: f32, color: Rgba) -> Div {
 }
 
 fn label(text: &'static str) -> Div {
-    mono(9.5, TEXT_DIMMER).font_weight(FontWeight::SEMIBOLD).child(text)
+    mono(9.5, text_dimmer()).font_weight(FontWeight::SEMIBOLD).child(text)
 }
 
 fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) -> Stateful<Div> {
@@ -27,14 +27,14 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) ->
         .px(px(9.0))
         .py(px(4.0))
         .border_1()
-        .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
-        .bg(if on { BG_CONTROL_ALT } else { BG_CONTROL })
+        .border_color(if on { text_primary() } else { border_default() })
+        .bg(if on { bg_control_alt() } else { bg_control() })
         .font_family(FONT_MONO)
         .text_size(font_px(10.0))
         .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
-        .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+        .text_color(if on { text_primary() } else { text_dim() })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
         .child(text.into())
 }
 
@@ -80,7 +80,7 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                     .flex()
                     .flex_col()
                     .gap(px(6.0))
-                    .child(div().h(px(150.0)).border_1().border_color(BORDER_DEFAULT).bg(BG_APP).child(Editor::new(&inputs.script).h_full().appearance(false).bordered(false).font_family(FONT_MONO).text_size(font_px(11.0))))
+                    .child(div().h(px(150.0)).border_1().border_color(border_default()).bg(bg_app()).child(Editor::new(&inputs.script).h_full().appearance(false).bordered(false).font_family(FONT_MONO).text_size(font_px(11.0))))
                     .child(
                         div()
                             .id("rollout-as-root")
@@ -89,8 +89,8 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                             .gap(px(8.0))
                             .cursor_pointer()
                             .on_click(move |_ev, _w, cx| app_root.update(cx, |this, cx| this.toggle_rollout_root(cx)))
-                            .child(div().size(px(12.0)).border_1().border_color(if st.as_root { WARN } else { BORDER_STRONG }).bg(if st.as_root { WARN } else { BG_CONTROL }))
-                            .child(mono(10.5, TEXT_SECONDARY).child(t!("fleet-rollouts-as-root-sudo"))),
+                            .child(div().size(px(12.0)).border_1().border_color(if st.as_root { theme().warn } else { border_strong() }).bg(if st.as_root { theme().warn } else { bg_control() }))
+                            .child(mono(10.5, text_secondary()).child(t!("fleet-rollouts-as-root-sudo"))),
                     ),
             )
         })
@@ -101,9 +101,9 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                     .flex_col()
                     .gap(px(6.0))
                     .child(label(t!("fleet-rollouts-path-enter-reads-every-servers")))
-                    .child(div().flex().gap(px(6.0)).child(div().flex_1().child(Input::new(&inputs.path).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0)))).child(chip("rollout-read", t!("fleet-rollouts-read"), false).on_click(move |_ev, _w, cx| app_read.update(cx, |this, cx| this.read_rollout_preview(cx)))))
+                    .child(div().flex().gap(px(6.0)).child(div().flex_1().child(Input::new(&inputs.path).font_family(FONT_MONO).text_size(font_px(11.0)).bg(bg_app()).rounded(px(2.0)))).child(chip("rollout-read", t!("fleet-rollouts-read"), false).on_click(move |_ev, _w, cx| app_read.update(cx, |this, cx| this.read_rollout_preview(cx)))))
                     .when(!baselines.is_empty(), |d| {
-                        d.child(div().flex().flex_wrap().gap(px(4.0)).child(mono(9.5, TEXT_FAINT).mr(px(4.0)).child(t!("fleet-rollouts-from-a-baseline"))).children(baselines.iter().enumerate().map(|(i, b)| {
+                        d.child(div().flex().flex_wrap().gap(px(4.0)).child(mono(9.5, text_faint()).mr(px(4.0)).child(t!("fleet-rollouts-from-a-baseline"))).children(baselines.iter().enumerate().map(|(i, b)| {
                             let (app, path, rev) = (app.clone(), b.path.clone(), b.revision_id.clone());
                             chip(format!("rollout-baseline-{i}"), format!("{} ({})", b.path, b.scope), false).on_click(move |_ev, window, cx| {
                                 let (path, rev) = (path.clone(), rev.clone());
@@ -112,8 +112,8 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                         })))
                     })
                     .child(label(t!("fleet-rollouts-new-content")))
-                    .child(div().h(px(260.0)).border_1().border_color(BORDER_DEFAULT).bg(BG_APP).child(Editor::new(&inputs.content).h_full().appearance(false).bordered(false).font_family(FONT_MONO).text_size(font_px(11.0))))
-                    .child(mono(9.5, TEXT_FAINT).line_height(px(13.0)).child(t!("fleet-rollouts-each-server-checks-it-with"))),
+                    .child(div().h(px(260.0)).border_1().border_color(border_default()).bg(bg_app()).child(Editor::new(&inputs.content).h_full().appearance(false).bordered(false).font_family(FONT_MONO).text_size(font_px(11.0))))
+                    .child(mono(9.5, text_faint()).line_height(px(13.0)).child(t!("fleet-rollouts-each-server-checks-it-with"))),
             )
         })
         .child(
@@ -139,7 +139,7 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                             })
                         })),
                 )
-                .child(mono(10.0, TEXT_DIM).child(target_summary.clone())),
+                .child(mono(10.0, text_dim()).child(target_summary.clone())),
         )
         .child(
             div()
@@ -176,7 +176,7 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                     chip(format!("rollout-batch-{n}"), n.to_string(), st.batch == n).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_rollout_batch(n, cx)))
                 }))),
         )
-        .children(st.message.clone().map(|m| mono(10.5, WARN).line_height(px(15.0)).child(m)));
+        .children(st.message.clone().map(|m| mono(10.5, theme().warn).line_height(px(15.0)).child(m)));
 
     // Right-hand diff / preview rail
     let preview_body = div()
@@ -184,9 +184,9 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
         .flex()
         .flex_col()
         .gap(px(10.0))
-        .when(st.kind == Kind::Command, |d| d.child(mono(10.5, TEXT_FAINT).line_height(px(15.0)).child(t!("fleet-rollouts-a-command-has-no-preview"))))
+        .when(st.kind == Kind::Command, |d| d.child(mono(10.5, text_faint()).line_height(px(15.0)).child(t!("fleet-rollouts-a-command-has-no-preview"))))
         .when(st.kind == Kind::Config, |d| {
-            d.when(st.preview_path.is_empty(), |d| d.child(mono(10.5, TEXT_FAINT).line_height(px(15.0)).child(t!("fleet-rollouts-type-the-path-and-press"))))
+            d.when(st.preview_path.is_empty(), |d| d.child(mono(10.5, text_faint()).line_height(px(15.0)).child(t!("fleet-rollouts-type-the-path-and-press"))))
                 .child(div().flex().flex_wrap().gap(px(4.0)).children(servers.iter().map(|s| {
                     let stat = match st.current.get(&s.id) {
                         Some(Current::Read(now)) => {
@@ -213,26 +213,26 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                             .max_h(px(520.0))
                             .overflow_y_scrollbar()
                             .p(px(8.0))
-                            .bg(BG_PANEL)
+                            .bg(bg_panel())
                             .border_1()
-                            .border_color(BORDER_PANEL)
-                            .when(diff_stats(&diff) == (0, 0), |d| d.child(mono(10.5, TEXT_DIM).child(t!("fleet-rollouts-identical-this-server-is-left"))))
+                            .border_color(border_panel())
+                            .when(diff_stats(&diff) == (0, 0), |d| d.child(mono(10.5, text_dim()).child(t!("fleet-rollouts-identical-this-server-is-left"))))
                             .children(shown.into_iter().map(|l| match l {
-                                None => mono(10.0, TEXT_GHOST).child("⋯"),
+                                None => mono(10.0, text_ghost()).child("⋯"),
                                 Some(l) => {
                                     let (sign, color, bg) = match l.kind {
-                                        DiffKind::Added => ("+", OK, OK.opacity(0.08)),
-                                        DiffKind::Removed => ("−", CRIT, CRIT.opacity(0.08)),
-                                        DiffKind::Same => (" ", TEXT_DIM, hex_rgba(0, 0.0)),
+                                        DiffKind::Added => ("+", theme().ok, theme().ok.opacity(0.08)),
+                                        DiffKind::Removed => ("−", theme().crit, theme().crit.opacity(0.08)),
+                                        DiffKind::Same => (" ", text_dim(), hex_rgba(0, 0.0)),
                                     };
                                     mono(10.5, color).bg(bg).whitespace_nowrap().child(format!("{sign} {}", l.text))
                                 }
                             }))
                             .into_any_element()
                     }
-                    Current::Missing => mono(10.5, TEXT_DIM).child(t!("fleet-rollouts-no-such-file-there-yet")).into_any_element(),
-                    Current::Failed(e) => mono(10.5, CRIT).child(t!("fleet-rollouts-couldnt-read-it", e = e)).into_any_element(),
-                    Current::Reading => mono(10.5, TEXT_DIM).child(t!("fleet-rollouts-reading-2")).into_any_element(),
+                    Current::Missing => mono(10.5, text_dim()).child(t!("fleet-rollouts-no-such-file-there-yet")).into_any_element(),
+                    Current::Failed(e) => mono(10.5, theme().crit).child(t!("fleet-rollouts-couldnt-read-it", e = e)).into_any_element(),
+                    Current::Reading => mono(10.5, text_dim()).child(t!("fleet-rollouts-reading-2")).into_any_element(),
                 }))
                 .children(st.selected.as_ref().and_then(|id| match st.current.get(id) {
                     Some(Current::Read(now)) => Some(now.clone()),
@@ -272,13 +272,13 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                         .flex_none()
                         .h(px(46.0))
                         .px(px(16.0))
-                        .bg(BG_PANEL)
+                        .bg(bg_panel())
                         .border_t_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .flex()
                         .items_center()
                         .justify_between()
-                        .child(mono(10.0, TEXT_DIM).child(target_summary))
+                        .child(mono(10.0, text_dim()).child(target_summary))
                         .child(
                             div()
                                 .id("btn-rollout-plan")
@@ -288,14 +288,14 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                                 .h(px(30.0))
                                 .px(px(14.0))
                                 .border_1()
-                                .border_color(WARN)
-                                .bg(WARN.opacity(0.08))
+                                .border_color(theme().warn)
+                                .bg(theme().warn.opacity(0.08))
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(WARN)
+                                .text_color(theme().warn)
                                 .cursor_pointer()
-                                .hover(|s| s.bg(WARN.opacity(0.18)))
+                                .hover(|s| s.bg(theme().warn.opacity(0.18)))
                                 .on_click(move |_ev, window, cx| app_plan.update(cx, |this, cx| this.plan_rollout(window, cx)))
                                 .child(t!("fleet-rollouts-preview-the-run")),
                         ),
@@ -308,9 +308,9 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                 .flex_none()
                 .flex()
                 .flex_col()
-                .bg(BG_RAIL)
+                .bg(bg_rail())
                 .border_l_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .h(px(34.0))
@@ -318,10 +318,10 @@ pub fn rollouts_page(fleet: &FleetState, st: &RolloutState, inputs: Option<&Roll
                         .flex()
                         .items_center()
                         .px(px(14.0))
-                        .bg(BG_PANEL)
+                        .bg(bg_panel())
                         .border_b_1()
-                        .border_color(BORDER_PANEL)
-                        .child(mono(10.5, TEXT_PRIMARY).font_weight(FontWeight::SEMIBOLD).child(t!("fleet-rollouts-what-changes-per-server"))),
+                        .border_color(border_panel())
+                        .child(mono(10.5, text_primary()).font_weight(FontWeight::SEMIBOLD).child(t!("fleet-rollouts-what-changes-per-server"))),
                 )
                 .child(
                     div()

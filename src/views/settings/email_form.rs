@@ -11,11 +11,11 @@ use crate::notify::email::{Delivery, EmailSettings, Security};
 use crate::theme::*;
 
 fn label(text: &'static str) -> Div {
-    div().font_family(FONT_MONO).text_size(font_px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(text)
+    div().font_family(FONT_MONO).text_size(font_px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(text_dimmer()).child(text)
 }
 
 fn field(text: &'static str, input: &Entity<InputState>) -> Div {
-    div().flex_1().min_w(px(0.0)).flex().flex_col().gap(px(4.0)).child(label(text)).child(Input::new(input).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0)))
+    div().flex_1().min_w(px(0.0)).flex().flex_col().gap(px(4.0)).child(label(text)).child(Input::new(input).font_family(FONT_MONO).text_size(font_px(11.0)).bg(bg_app()).rounded(px(2.0)))
 }
 
 fn segment(id: String, text: &'static str, selected: bool) -> Stateful<Div> {
@@ -27,14 +27,14 @@ fn segment(id: String, text: &'static str, selected: bool) -> Stateful<Div> {
         .items_center()
         .justify_center()
         .border_1()
-        .border_color(if selected { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
-        .bg(if selected { BG_CONTROL_ALT } else { hex_rgba(0, 0.0) })
+        .border_color(if selected { border_control_sel() } else { border_default() })
+        .bg(if selected { bg_control_alt() } else { hex_rgba(0, 0.0) })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .font_family(FONT_MONO)
         .text_size(font_px(10.0))
         .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
-        .text_color(if selected { TEXT_PRIMARY } else { TEXT_DIM })
+        .text_color(if selected { text_primary() } else { text_dim() })
         .child(text)
 }
 
@@ -46,19 +46,19 @@ fn button(id: &'static str, text: &'static str, primary: bool) -> Stateful<Div> 
         .h(px(26.0))
         .px(px(12.0))
         .border_1()
-        .border_color(if primary { OK } else { BORDER_DEFAULT })
-        .bg(if primary { OK_BG } else { hex_rgba(0, 0.0) })
+        .border_color(if primary { theme().ok } else { border_default() })
+        .bg(if primary { theme().ok_bg } else { hex_rgba(0, 0.0) })
         .font_family(FONT_MONO)
         .text_size(font_px(10.5))
         .font_weight(FontWeight::BOLD)
-        .text_color(if primary { OK } else { TEXT_SECONDARY })
+        .text_color(if primary { theme().ok } else { text_secondary() })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
         .child(text)
 }
 
 fn note(ok: bool, text: String) -> Div {
-    div().font_family(FONT_MONO).text_size(font_px(10.0)).line_height(px(14.0)).text_color(if ok { OK } else { CRIT }).child(text)
+    div().font_family(FONT_MONO).text_size(font_px(10.0)).line_height(px(14.0)).text_color(if ok { theme().ok } else { theme().crit }).child(text)
 }
 
 fn ago(ts: i64) -> String {
@@ -100,7 +100,7 @@ pub fn email_form(app: Entity<CrowApp>, st: &EmailState, inputs: Option<&EmailIn
         .gap(px(10.0))
         .pt(px(10.0))
         .border_t_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .child(div().flex().gap(px(8.0)).child(div().flex_1().min_w(px(0.0)).flex().flex_col().gap(px(4.0)).child(label(t!("settings-email-form-security"))).child(security_row)).child(div().w(px(260.0)).flex().gap(px(8.0)).child(field(t!("settings-email-form-smtp-server"), &inputs.host)).child(div().w(px(70.0)).child(field(t!("settings-email-form-port"), &inputs.port)))))
         .when(st.security == Security::None, |d| d.child(note(false, t!("settings-email-form-no-encryption-the-password-and").into())))
         .child(div().flex().gap(px(8.0)).child(field(t!("settings-email-form-username"), &inputs.username)).child(field(t!("settings-email-form-password"), &inputs.password)))
@@ -108,7 +108,7 @@ pub fn email_form(app: Entity<CrowApp>, st: &EmailState, inputs: Option<&EmailIn
         .child(div().flex().flex_col().gap(px(4.0)).child(label(t!("settings-email-form-critical-alerts"))).child(delivery_row(true, crit)))
         .child(div().flex().flex_col().gap(px(4.0)).child(label(t!("settings-email-form-warnings"))).child(delivery_row(false, warn)))
         .child(div().flex().gap(px(8.0)).child(field(t!("settings-email-form-digest-every-minutes"), &inputs.digest)).child(field(t!("settings-email-form-quiet-hours-digests-wait"), &inputs.quiet)))
-        .child(div().font_family(FONT_MONO).text_size(font_px(10.0)).line_height(px(14.0)).text_color(TEXT_FAINT).child(
+        .child(div().font_family(FONT_MONO).text_size(font_px(10.0)).line_height(px(14.0)).text_color(text_faint()).child(
             t!("settings-email-form-resolved-alerts-send-nothing-alerts"),
         ))
         .child(

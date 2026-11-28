@@ -58,9 +58,9 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                 .flex()
                 .items_center()
                 .px(px(14.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .gap(px(10.0))
                 .child(
                     div()
@@ -68,7 +68,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(sec_title),
                 )
                 .child(
@@ -77,7 +77,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                         .truncate()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_DIM)
+                        .text_color(text_dim())
                         .child(sec_subtitle),
                 ),
         )
@@ -90,9 +90,9 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                 .flex()
                 .items_center()
                 .px(px(16.0))
-                .bg(hex_rgba(0x000000, 0.2))
+                .bg(bg_subhead())
                 .border_b_1()
-                .border_color(BORDER_ROW)
+                .border_color(border_row())
                 .gap(px(24.0))
                 .font_family(FONT_MONO)
                 .child(
@@ -100,23 +100,23 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(div().text_size(font_px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-enrolled-servers")))
-                        .child(div().text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(total_servers.to_string())),
+                        .child(div().text_size(font_px(10.0)).text_color(text_muted()).child(t!("fleet-setup-enrolled-servers")))
+                        .child(div().text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(total_servers.to_string())),
                 )
                 .child(
                     div()
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(div().text_size(font_px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-fleet-groups")))
-                        .child(div().text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(hex_rgb(0x38bdf8)).child(group_map.len().to_string())),
+                        .child(div().text_size(font_px(10.0)).text_color(text_muted()).child(t!("fleet-setup-fleet-groups")))
+                        .child(div().text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(accent()).child(group_map.len().to_string())),
                 )
                 .child(
                     div()
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(div().text_size(font_px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-unique-tags")))
+                        .child(div().text_size(font_px(10.0)).text_color(text_muted()).child(t!("fleet-setup-unique-tags")))
                         .child(div().text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(hex_rgb(0xa78bfa)).child(tag_counts.len().to_string())),
                 )
                 .child(
@@ -124,12 +124,12 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(div().text_size(font_px(10.0)).text_color(TEXT_MUTED).child(t!("fleet-setup-host-keys-pinned")))
+                        .child(div().text_size(font_px(10.0)).text_color(text_muted()).child(t!("fleet-setup-host-keys-pinned")))
                         .child(
                             div()
                                 .text_size(font_px(11.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(if total_servers == 0 { TEXT_MUTED } else if missing_keys > 0 { WARN } else { OK })
+                                .text_color(if total_servers == 0 { text_muted() } else if missing_keys > 0 { theme().warn } else { theme().ok })
                                 .child(if total_servers == 0 {
                                     t!("fleet-setup-none-enrolled").to_string()
                                 } else {
@@ -164,7 +164,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.5))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(t!("fleet-setup-fleet-topology-group-assignments")),
                                 )
                                 .child({
@@ -174,13 +174,13 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                         .px(px(8.0))
                                         .py(px(2.0))
                                         .border_1()
-                                        .border_color(hex_rgb(0x38bdf8))
-                                        .text_color(hex_rgb(0x38bdf8))
+                                        .border_color(accent())
+                                        .text_color(accent())
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
                                         .cursor_pointer()
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .hover(|s| s.bg(bg_row_hover()))
                                         .on_click(move |_ev, _window, cx| {
                                             app_btn.update(cx, |this, cx| {
                                                 this.fleet.group_bar_open = true;
@@ -195,13 +195,13 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                             vec![
                                 div()
                                     .p(px(24.0))
-                                    .bg(BG_PANEL)
+                                    .bg(bg_panel())
                                     .border_1()
-                                    .border_color(BORDER_ROW)
+                                    .border_color(border_row())
                                     .rounded_sm()
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(11.0))
-                                    .text_color(TEXT_FAINT)
+                                    .text_color(text_faint())
                                     .child(t!("fleet-setup-no-servers-currently-enrolled-in"))
                                     .into_any_element(),
                             ]
@@ -210,9 +210,9 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                 let member_count = members.len();
                                 div()
                                     .id(ElementId::NamedInteger("group-card".into(), g_idx as u64))
-                                    .bg(BG_PANEL)
+                                    .bg(bg_panel())
                                     .border_1()
-                                    .border_color(BORDER_PANEL)
+                                    .border_color(border_panel())
                                     .rounded_md()
                                     .flex()
                                     .flex_col()
@@ -221,9 +221,9 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                         div()
                                             .h(px(34.0))
                                             .px(px(12.0))
-                                            .bg(BG_SUBHEAD)
+                                            .bg(bg_subhead())
                                             .border_b_1()
-                                            .border_color(BORDER_ROW)
+                                            .border_color(border_row())
                                             .flex()
                                             .items_center()
                                             .justify_between()
@@ -233,17 +233,17 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                                     .flex()
                                                     .items_center()
                                                     .gap(px(8.0))
-                                                    .child(tabler_icon(TablerIcon::Folder).size(px(13.0)).text_color(hex_rgb(0x38bdf8)))
+                                                    .child(tabler_icon(TablerIcon::Folder).size(px(13.0)).text_color(accent()))
                                                     .child(
                                                         div()
                                                             .text_size(font_px(11.5))
                                                             .font_weight(FontWeight::BOLD)
-                                                            .text_color(TEXT_MAX)
+                                                            .text_color(text_max())
                                                             .child(group_name),
                                                     ),
                                             )
                                             .child(
-                                                crate::components::button::badge(TEXT_SECONDARY)
+                                                crate::components::button::badge(text_secondary())
                                                     .text_size(font_px(9.5))
                                                     .child(t!("fleet-setup-text", member_count = member_count)),
                                             ),
@@ -264,11 +264,11 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                                     .id(ElementId::NamedInteger(format!("grp-srv-{g_idx}").into(), m_idx as u64))
                                                     .px(px(10.0))
                                                     .py(px(6.0))
-                                                    .bg(BG_APP)
+                                                    .bg(bg_app())
                                                     .border_1()
-                                                    .border_color(BORDER_ROW)
+                                                    .border_color(border_row())
                                                     .cursor_pointer()
-                                                    .hover(|s| s.bg(BG_ROW_HOVER).border_color(TEXT_SECONDARY))
+                                                    .hover(|s| s.bg(bg_row_hover()).border_color(text_secondary()))
                                                     .on_click(move |_ev, _window, cx| {
                                                         let sid = srv_id.clone();
                                                         app_srv.update(cx, |this, cx| {
@@ -289,19 +289,19 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                                                 div()
                                                                     .size(px(6.0))
                                                                     .rounded_full()
-                                                                    .bg(if is_online { OK } else { TEXT_MUTED }),
+                                                                    .bg(if is_online { theme().ok } else { text_muted() }),
                                                             )
                                                             .child(
                                                                 div()
                                                                     .text_size(font_px(11.0))
                                                                     .font_weight(FontWeight::BOLD)
-                                                                    .text_color(TEXT_PRIMARY)
+                                                                    .text_color(text_primary())
                                                                     .child(srv.name.clone()),
                                                             )
                                                             .child(
                                                                 div()
                                                                     .text_size(font_px(10.0))
-                                                                    .text_color(TEXT_MUTED)
+                                                                    .text_color(text_muted())
                                                                     .child(format!("{}:{}", srv.host, srv.port)),
                                                             ),
                                                     )
@@ -322,13 +322,13 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                                                     .id(SharedString::from(format!("btn-change-group-{}", sid)))
                                                                     .px(px(6.0))
                                                                     .py(px(1.5))
-                                                                    .bg(BG_CONTROL)
+                                                                    .bg(bg_control())
                                                                     .border_1()
-                                                                    .border_color(BORDER_DEFAULT)
+                                                                    .border_color(border_default())
                                                                     .text_size(font_px(9.0))
-                                                                    .text_color(TEXT_SECONDARY)
+                                                                    .text_color(text_secondary())
                                                                     .cursor_pointer()
-                                                                    .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_MAX).border_color(BORDER_STRONG))
+                                                                    .hover(|s| s.bg(bg_row_hover()).text_color(text_max()).border_color(border_strong()))
                                                                     .on_click(move |_ev, _window, cx| {
                                                                         cx.stop_propagation();
                                                                         let sid = sid.clone();
@@ -356,9 +356,9 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                         // Card 1: Host Key Rotation Policy
                         .child(
                             div()
-                                .bg(BG_PANEL)
+                                .bg(bg_panel())
                                 .border_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                                 .rounded_md()
                                 .p(px(14.0))
                                 .flex()
@@ -375,14 +375,14 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                             div()
                                                 .text_size(font_px(11.5))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_MAX)
+                                                .text_color(text_max())
                                                 .child(t!("fleet-setup-host-keys")),
                                         ),
                                 )
                                 .child(
                                     div()
                                         .text_size(font_px(10.5))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(t!("fleet-setup-crow-pins-each-servers-host")),
                                 )
                                 // Age breakdown rows
@@ -392,22 +392,22 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                         .flex_col()
                                         .gap(px(4.0))
                                         .border_t_1()
-                                        .border_color(BORDER_ROW)
+                                        .border_color(border_row())
                                         .pt(px(8.0))
-                                        .child(render_policy_row(t!("fleet-setup-fingerprint-pinned"), pinned_keys, OK))
-                                        .child(render_policy_row(t!("fleet-setup-not-pinned"), missing_keys, if missing_keys > 0 { WARN } else { TEXT_MUTED }))
-                                        .child(render_policy_row(t!("fleet-setup-keys-under-a-year-old"), ages.buckets[0], OK))
-                                        .child(render_policy_row(t!("fleet-setup-keys-1-2-years-old"), ages.buckets[1], TEXT_SECONDARY))
-                                        .child(render_policy_row(t!("fleet-setup-keys-over-2-years-old"), ages.buckets[2], WARN))
-                                        .children((ages.unknown > 0).then(|| render_policy_row(t!("fleet-setup-key-age-not-read-yet"), ages.unknown, TEXT_MUTED))),
+                                        .child(render_policy_row(t!("fleet-setup-fingerprint-pinned"), pinned_keys, theme().ok))
+                                        .child(render_policy_row(t!("fleet-setup-not-pinned"), missing_keys, if missing_keys > 0 { theme().warn } else { text_muted() }))
+                                        .child(render_policy_row(t!("fleet-setup-keys-under-a-year-old"), ages.buckets[0], theme().ok))
+                                        .child(render_policy_row(t!("fleet-setup-keys-1-2-years-old"), ages.buckets[1], text_secondary()))
+                                        .child(render_policy_row(t!("fleet-setup-keys-over-2-years-old"), ages.buckets[2], theme().warn))
+                                        .children((ages.unknown > 0).then(|| render_policy_row(t!("fleet-setup-key-age-not-read-yet"), ages.unknown, text_muted()))),
                                 ),
                         )
                         // Card 2: Tag Taxonomy
                         .child(
                             div()
-                                .bg(BG_PANEL)
+                                .bg(bg_panel())
                                 .border_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                                 .rounded_md()
                                 .p(px(14.0))
                                 .flex()
@@ -424,7 +424,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                             div()
                                                 .text_size(font_px(11.5))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_MAX)
+                                                .text_color(text_max())
                                                 .child(t!("fleet-setup-fleet-tag-taxonomy")),
                                         ),
                                 )
@@ -432,7 +432,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                     vec![
                                         div()
                                             .text_size(font_px(10.5))
-                                            .text_color(TEXT_FAINT)
+                                            .text_color(text_faint())
                                             .child(t!("fleet-setup-no-custom-tags-defined-assign"))
                                             .into_any_element(),
                                     ]
@@ -446,15 +446,15 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                                 div()
                                                     .px(px(8.0))
                                                     .py(px(3.0))
-                                                    .bg(BG_CONTROL)
+                                                    .bg(bg_control())
                                                     .border_1()
-                                                    .border_color(BORDER_DEFAULT)
+                                                    .border_color(border_default())
                                                     .rounded_sm()
                                                     .flex()
                                                     .items_center()
                                                     .gap(px(6.0))
-                                                    .child(div().text_size(font_px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(tag))
-                                                    .child(div().text_size(font_px(9.0)).text_color(TEXT_MUTED).child(count.to_string()))
+                                                    .child(div().text_size(font_px(10.0)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(tag))
+                                                    .child(div().text_size(font_px(9.0)).text_color(text_muted()).child(count.to_string()))
                                             }))
                                             .into_any_element(),
                                     ]
@@ -463,9 +463,9 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                         // Card 3: Execution Safety (The Abort Gate)
                         .child(
                             div()
-                                .bg(BG_PANEL)
+                                .bg(bg_panel())
                                 .border_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                                 .rounded_md()
                                 .p(px(14.0))
                                 .flex()
@@ -477,19 +477,19 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
                                         .flex()
                                         .items_center()
                                         .gap(px(8.0))
-                                        .child(tabler_icon(TablerIcon::ShieldCheck).size(px(14.0)).text_color(OK))
+                                        .child(tabler_icon(TablerIcon::ShieldCheck).size(px(14.0)).text_color(theme().ok))
                                         .child(
                                             div()
                                                 .text_size(font_px(11.5))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_MAX)
+                                                .text_color(text_max())
                                                 .child(t!("fleet-setup-agentless-execution-guarantee")),
                                         ),
                                 )
                                 .child(
                                     div()
                                         .text_size(font_px(10.0))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(t!("fleet-setup-crow-talks-plain-ssh-and")),
                                 ),
                         ),
@@ -500,7 +500,7 @@ pub fn fleet_setup_view(fleet: &FleetState, map: Option<AnyElement>, plugin_page
         .size_full()
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         .child(screen_header(t!("fleet-setup-fleet-configuration"), t!("fleet-setup-fleet-configuration-about")))
         .child(div().flex_1().min_h(px(0.0)).flex().child(setup_nav(fleet.setup_page, fleet.plugin_page.as_ref(), plugin_pages, app)).child(content))
 }
@@ -519,12 +519,12 @@ fn render_policy_row(label: &'static str, count: usize, color: Rgba) -> impl Int
                 .items_center()
                 .gap(px(6.0))
                 .child(div().size(px(6.0)).rounded_full().bg(color))
-                .child(div().text_color(TEXT_SECONDARY).child(label)),
+                .child(div().text_color(text_secondary()).child(label)),
         )
         .child(
             div()
                 .font_weight(FontWeight::BOLD)
-                .text_color(if count > 0 { color } else { TEXT_MUTED })
+                .text_color(if count > 0 { color } else { text_muted() })
                 .child(t!("fleet-setup-text-2", count = count)),
         )
 }
@@ -538,9 +538,9 @@ fn screen_header(title: &'static str, about: &'static str) -> impl IntoElement {
         .items_center()
         .gap(px(12.0))
         .px(px(16.0))
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .child(
             div()
                 .flex_1()
@@ -548,8 +548,8 @@ fn screen_header(title: &'static str, about: &'static str) -> impl IntoElement {
                 .flex()
                 .items_baseline()
                 .gap(px(10.0))
-                .child(div().flex_none().font_family(FONT_MONO).text_size(font_px(16.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child(title))
-                .child(div().min_w(px(0.0)).truncate().font_family(FONT_MONO).text_size(font_px(11.5)).text_color(TEXT_DIM).child(about)),
+                .child(div().flex_none().font_family(FONT_MONO).text_size(font_px(16.0)).font_weight(FontWeight::BOLD).text_color(text_max()).child(title))
+                .child(div().min_w(px(0.0)).truncate().font_family(FONT_MONO).text_size(font_px(11.5)).text_color(text_dim()).child(about)),
         )
 
 }
@@ -659,13 +659,13 @@ fn setup_nav(page: crate::views::fleet::state::SetupPage, plugin_page: Option<&(
             .items_center()
             .gap(px(10.0))
             .px(px(12.0))
-            .bg(if on { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
-            .children(on.then(|| left_indicator(TEXT_PRIMARY)))
+            .bg(if on { bg_nav_active() } else { hex_rgba(0, 0.0) })
+            .children(on.then(|| left_indicator(text_primary())))
             .text_size(font_px(11.5))
             .font_weight(if on { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-            .text_color(if on { TEXT_PRIMARY } else { TEXT_MUTED })
+            .text_color(if on { text_primary() } else { text_muted() })
             .cursor_pointer()
-            .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+            .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
             .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_setup_page(to, cx)))
             .child(
                 div()
@@ -674,7 +674,7 @@ fn setup_nav(page: crate::views::fleet::state::SetupPage, plugin_page: Option<&(
                     .flex()
                     .items_center()
                     .justify_center()
-                    .child(tabler_icon(icon).size(px(14.0)).text_color(if on { TEXT_PRIMARY } else { TEXT_DIMMER })),
+                    .child(tabler_icon(icon).size(px(14.0)).text_color(if on { text_primary() } else { text_dimmer() })),
             )
             .child(div().min_w(px(0.0)).truncate().child(label))
     };
@@ -684,9 +684,9 @@ fn setup_nav(page: crate::views::fleet::state::SetupPage, plugin_page: Option<&(
         .flex_none()
         .h_full()
         .overflow_y_scrollbar()
-        .bg(BG_RAIL)
+        .bg(bg_rail())
         .border_r_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .flex()
         .flex_col()
         .py(px(6.0))
@@ -696,12 +696,12 @@ fn setup_nav(page: crate::views::fleet::state::SetupPage, plugin_page: Option<&(
                 .flex()
                 .flex_col()
                 .pb(px(8.0))
-                .child(div().px(px(14.0)).pt(px(8.0)).pb(px(4.0)).truncate().text_size(font_px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(heading))
+                .child(div().px(px(14.0)).pt(px(8.0)).pb(px(4.0)).truncate().text_size(font_px(9.5)).font_weight(FontWeight::BOLD).text_color(text_faint()).child(heading))
                 .children(items.into_iter().map(|(id, icon, label, to)| item(id, icon, label, to)))
         }))
         // User plugins' fleet pages (ERR-181).
         .when(!plugin_pages.is_empty(), |d| {
-            d.child(div().px(px(14.0)).pt(px(8.0)).pb(px(4.0)).truncate().text_size(font_px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(t!("fleet-setup-nav-plugins")))
+            d.child(div().px(px(14.0)).pt(px(8.0)).pb(px(4.0)).truncate().text_size(font_px(9.5)).font_weight(FontWeight::BOLD).text_color(text_faint()).child(t!("fleet-setup-nav-plugins")))
                 .children(plugin_pages.into_iter().enumerate().map(|(i, (plugin, pg, label, icon))| {
                     let on = page == SetupPage::Plugin && plugin_page.is_some_and(|(p, g)| *p == plugin && *g == pg);
                     let app = app.clone();
@@ -713,15 +713,15 @@ fn setup_nav(page: crate::views::fleet::state::SetupPage, plugin_page: Option<&(
                         .gap(px(9.0))
                         .px(px(14.0))
                         .border_l_2()
-                        .border_color(if on { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
-                        .when(on, |d| d.bg(BG_ROW_SELECTED))
+                        .border_color(if on { text_primary() } else { hex_rgba(0, 0.0) })
+                        .when(on, |d| d.bg(bg_row_selected()))
                         .text_size(font_px(11.0))
                         .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
-                        .text_color(if on { TEXT_PRIMARY } else { TEXT_TERTIARY })
+                        .text_color(if on { text_primary() } else { text_tertiary() })
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                         .on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.open_plugin_fleet_page(&plugin, &pg, cx)))
-                        .child(tabler_icon(icon.as_deref().map_or(TablerIcon::Box, TablerIcon::from_name)).size(px(14.0)).flex_none().text_color(if on { TEXT_PRIMARY } else { TEXT_DIMMER }))
+                        .child(tabler_icon(icon.as_deref().map_or(TablerIcon::Box, TablerIcon::from_name)).size(px(14.0)).flex_none().text_color(if on { text_primary() } else { text_dimmer() }))
                         .child(div().min_w(px(0.0)).truncate().child(label))
                 }))
         })
@@ -741,13 +741,13 @@ pub fn topology_view(page: crate::views::fleet::state::TopologyPage, content: Op
             .items_center()
             .px(px(12.0))
             .border_b_2()
-            .border_color(if on { TEXT_PRIMARY } else { hex_rgba(0, 0.0) })
+            .border_color(if on { text_primary() } else { hex_rgba(0, 0.0) })
             .font_family(FONT_MONO)
             .text_size(font_px(10.5))
             .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
-            .text_color(if on { TEXT_PRIMARY } else { TEXT_TERTIARY })
+            .text_color(if on { text_primary() } else { text_tertiary() })
             .cursor_pointer()
-            .hover(|s| s.text_color(TEXT_PRIMARY))
+            .hover(|s| s.text_color(text_primary()))
             .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_topology_page(to, cx)))
             .child(label)
     };
@@ -755,7 +755,7 @@ pub fn topology_view(page: crate::views::fleet::state::TopologyPage, content: Op
         .size_full()
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         .child(screen_header(t!("fleet-setup-topology-dr"), t!("fleet-setup-topology-dr-about")))
         .child(
             div()
@@ -765,9 +765,9 @@ pub fn topology_view(page: crate::views::fleet::state::TopologyPage, content: Op
                 .flex_wrap()
                 .items_end()
                 .px(px(8.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(tab("topology-tab-map", t!("fleet-setup-fleet-map"), TopologyPage::Map))
                 .child(tab("topology-tab-dr", t!("fleet-setup-dr-plans"), TopologyPage::Dr)),
         )

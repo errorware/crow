@@ -18,13 +18,13 @@ use crate::theme::*;
 use crate::topology::layout::{layout, Layout, NODE_H, NODE_W};
 use crate::topology::{EdgeKind, Graph, Health, Level, Node, NodeKind};
 
-const JUMP_BLUE: u32 = 0x8ab4ff;
+fn jump_blue() -> Rgba { accent() }
 const KEY_AMBER: u32 = 0xd6a24a;
 
 fn level_color(level: Option<Level>) -> Rgba {
     match level {
-        Some(Level::Crit) => CRIT,
-        Some(Level::Warn) => WARN,
+        Some(Level::Crit) => theme().crit,
+        Some(Level::Warn) => theme().warn,
         None => hex_rgba(0xffffff, 0.10),
     }
 }
@@ -86,13 +86,13 @@ fn chip(id: impl Into<ElementId>, label: String, on: bool) -> Stateful<Div> {
         .px(px(8.0))
         .py(px(2.0))
         .border_1()
-        .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
-        .bg(if on { BG_NAV_ACTIVE } else { BG_CONTROL })
+        .border_color(if on { text_primary() } else { border_default() })
+        .bg(if on { bg_nav_active() } else { bg_control() })
         .font_family(FONT_MONO)
         .text_size(font_px(9.5))
-        .text_color(if on { TEXT_PRIMARY } else { TEXT_TERTIARY })
+        .text_color(if on { text_primary() } else { text_tertiary() })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .child(label)
 }
 
@@ -122,9 +122,9 @@ fn toolbar(app_state: &CrowApp, graph: &Graph, app: Entity<CrowApp>) -> impl Int
         .items_center()
         .justify_between()
         .px(px(14.0))
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .child(
             div()
                 .flex()
@@ -146,10 +146,10 @@ fn toolbar(app_state: &CrowApp, graph: &Graph, app: Entity<CrowApp>) -> impl Int
                 .flex()
                 .items_center()
                 .gap(px(8.0))
-                .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(if st.scanning { hex_rgb(JUMP_BLUE) } else { TEXT_FAINT }).child(checked))
+                .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(if st.scanning { jump_blue() } else { text_faint() }).child(checked))
                 .child(chip("topo-scan", t!("topology-check-posture").into(), false).on_click(move |_ev, _w, cx| app_scan.update(cx, |t, cx| t.check_posture(cx))))
                 .child(icon_button("topo-zoom-out", TablerIcon::Minus, false).on_click(move |_ev, _w, cx| app_out.update(cx, |t, cx| t.topology_zoom(1.0 / 1.2, (300.0, 200.0), cx))))
-                .child(div().min_w(px(36.0)).flex().justify_center().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_SECONDARY).child(format!("{:.0}%", st.zoom * 100.0)))
+                .child(div().min_w(px(36.0)).flex().justify_center().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(text_secondary()).child(format!("{:.0}%", st.zoom * 100.0)))
                 .child(icon_button("topo-zoom-in", TablerIcon::Plus, false).on_click(move |_ev, _w, cx| app_in.update(cx, |t, cx| t.topology_zoom(1.2, (300.0, 200.0), cx))))
                 .child(chip("topo-fit", t!("topology-reset-view").into(), false).on_click(move |_ev, _w, cx| app_fit.update(cx, |t, cx| t.topology_reset_view(cx)))),
         )
@@ -199,7 +199,7 @@ fn map_area(app_state: &CrowApp, graph: &Graph, placed: &Layout, app: Entity<Cro
                 let alpha = if *dim { 0.10 } else if *hi { 0.95 } else if *kind == EdgeKind::Unlocks { 0.22 } else { 0.45 };
                 let color = match kind {
                     EdgeKind::Ssh => hex_rgba(0x9aa4b2, alpha),
-                    EdgeKind::ViaJump => hex_rgba(JUMP_BLUE, alpha),
+                    EdgeKind::ViaJump => Rgba { r: jump_blue().r, g: jump_blue().g, b: jump_blue().b, a: alpha },
                     EdgeKind::Unlocks => hex_rgba(KEY_AMBER, alpha),
                     EdgeKind::Runs => hex_rgba(0x6c6f78, alpha),
                 };
@@ -220,7 +220,7 @@ fn map_area(app_state: &CrowApp, graph: &Graph, placed: &Layout, app: Entity<Cro
         .flex_1()
         .h_full()
         .overflow_hidden()
-        .bg(BG_APP)
+        .bg(bg_app())
         .when(st.drag.is_some(), |d| d.cursor_grabbing())
         .on_mouse_down(MouseButton::Left, move |ev, _w, cx| {
             let at = (ev.position.x.as_f32(), ev.position.y.as_f32());
@@ -252,7 +252,7 @@ fn map_area(app_state: &CrowApp, graph: &Graph, placed: &Layout, app: Entity<Cro
         .child(edges)
         .children(placed.lanes.iter().map(|(text, x, y)| {
             let (sx, sy) = screen((*x, *y));
-            div().absolute().left(px(sx)).top(px(sy)).font_family(FONT_MONO).text_size(font_px(9.0 * zoom.max(0.8))).font_weight(FontWeight::BOLD).text_color(TEXT_FAINTER).child(text.clone())
+            div().absolute().left(px(sx)).top(px(sy)).font_family(FONT_MONO).text_size(font_px(9.0 * zoom.max(0.8))).font_weight(FontWeight::BOLD).text_color(text_fainter()).child(text.clone())
         }))
         .children(graph.nodes.iter().enumerate().filter_map(|(i, n)| {
             let at = placed.at.get(&n.id)?;
@@ -266,7 +266,7 @@ fn map_area(app_state: &CrowApp, graph: &Graph, placed: &Layout, app: Entity<Cro
                 .top(px(pan.1 + 8.0))
                 .font_family(FONT_MONO)
                 .text_size(font_px(11.0))
-                .text_color(TEXT_FAINT)
+                .text_color(text_faint())
                 .child(t!("topology-no-servers-yet-enroll-one"))
         }))
         .child(legend())
@@ -284,15 +284,15 @@ fn legend() -> impl IntoElement {
         .py(px(5.0))
         .bg(hex_rgba(0x0a0b0e, 0.85))
         .border_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .font_family(FONT_MONO)
         .text_size(font_px(9.0))
-        .text_color(TEXT_TERTIARY)
+        .text_color(text_tertiary())
         .child(item(hex_rgb(0x9aa4b2), t!("topology-ssh")))
-        .child(item(hex_rgb(JUMP_BLUE), t!("topology-via-jump-host")))
+        .child(item(jump_blue(), t!("topology-via-jump-host")))
         .child(item(hex_rgb(KEY_AMBER), t!("topology-key-unlocks")))
-        .child(item(CRIT, t!("topology-critical-risk")))
-        .child(item(WARN, "warning"))
+        .child(item(theme().crit, t!("topology-critical-risk")))
+        .child(item(theme().warn, "warning"))
 }
 
 fn node_card(i: usize, n: &Node, (x, y): (f32, f32), zoom: f32, selected: bool, shown: bool, app: Entity<CrowApp>) -> impl IntoElement {
@@ -300,9 +300,9 @@ fn node_card(i: usize, n: &Node, (x, y): (f32, f32), zoom: f32, selected: bool, 
     let worst = n.worst();
     let id = n.id.clone();
     let health = match n.health {
-        Health::Ok => OK,
-        Health::Down => CRIT,
-        Health::Unknown => TEXT_DIMMER,
+        Health::Ok => theme().ok,
+        Health::Down => theme().crit,
+        Health::Unknown => text_dimmer(),
     };
     div()
         .id(ElementId::NamedInteger("topo-node".into(), i as u64))
@@ -312,12 +312,12 @@ fn node_card(i: usize, n: &Node, (x, y): (f32, f32), zoom: f32, selected: bool, 
         .w(z(NODE_W))
         .h(z(NODE_H))
         .flex()
-        .bg(if selected { BG_NAV_ACTIVE } else { BG_PANEL })
+        .bg(if selected { bg_nav_active() } else { bg_panel() })
         .border_1()
-        .border_color(if selected { TEXT_PRIMARY } else { BORDER_DEFAULT })
+        .border_color(if selected { text_primary() } else { border_default() })
         .when(!shown, |d| d.opacity(0.25))
         .cursor_pointer()
-        .hover(|s| s.border_color(BORDER_STRONG))
+        .hover(|s| s.border_color(border_strong()))
         // A node takes its own clicks; the map behind would start a drag.
         .on_mouse_down(MouseButton::Left, |_ev, _w, cx| cx.stop_propagation())
         .on_click(move |_ev, _w, cx| {
@@ -339,9 +339,9 @@ fn node_card(i: usize, n: &Node, (x, y): (f32, f32), zoom: f32, selected: bool, 
                         .flex()
                         .items_center()
                         .gap(z(6.0))
-                        .text_color(if n.kind == NodeKind::Key { hex_rgb(KEY_AMBER) } else { TEXT_SECONDARY })
+                        .text_color(if n.kind == NodeKind::Key { hex_rgb(KEY_AMBER) } else { text_secondary() })
                         .child(inherited_icon(kind_icon(n.kind), z(13.0)))
-                        .child(div().flex_1().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(z(11.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(n.label.clone()))
+                        .child(div().flex_1().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(z(11.5)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(n.label.clone()))
                         .children((n.kind != NodeKind::Key).then(|| div().size(z(7.0)).flex_none().rounded_full().bg(health))),
                 )
                 .child(
@@ -349,7 +349,7 @@ fn node_card(i: usize, n: &Node, (x, y): (f32, f32), zoom: f32, selected: bool, 
                         .flex()
                         .items_center()
                         .gap(z(6.0))
-                        .child(div().flex_1().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(z(9.5)).text_color(TEXT_DIM).child(n.detail.clone()))
+                        .child(div().flex_1().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(z(9.5)).text_color(text_dim()).child(n.detail.clone()))
                         // User plugins' badges (ERR-182), as dots.
                         .children(n.server_id.as_deref().map(crate::plugin_host::badges::for_server).unwrap_or_default().into_iter().map(|b| div().flex_none().size(z(7.0)).rounded_full().bg(crate::components::plugin_badge::color(b.state))))
                         .children((!n.risks.is_empty()).then(|| {
@@ -360,11 +360,11 @@ fn node_card(i: usize, n: &Node, (x, y): (f32, f32), zoom: f32, selected: bool, 
 }
 
 fn row(label: &'static str, value: String) -> impl IntoElement {
-    div().flex().gap(px(8.0)).font_family(FONT_MONO).text_size(font_px(10.0)).child(div().w(px(96.0)).flex_none().text_color(TEXT_FAINT).child(label)).child(div().flex_1().min_w(px(0.0)).text_color(TEXT_SECONDARY).child(value))
+    div().flex().gap(px(8.0)).font_family(FONT_MONO).text_size(font_px(10.0)).child(div().w(px(96.0)).flex_none().text_color(text_faint()).child(label)).child(div().flex_1().min_w(px(0.0)).text_color(text_secondary()).child(value))
 }
 
 fn heading(text: &'static str) -> impl IntoElement {
-    div().pt(px(8.0)).font_family(FONT_MONO).text_size(font_px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_TERTIARY).child(text)
+    div().pt(px(8.0)).font_family(FONT_MONO).text_size(font_px(9.5)).font_weight(FontWeight::BOLD).text_color(text_tertiary()).child(text)
 }
 
 /// The drawer for the selected node: what it is, its risks and where they
@@ -394,8 +394,8 @@ fn inspector(app_state: &CrowApp, graph: &Graph, n: &Node, app: Entity<CrowApp>)
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.0))
                 .child(div().w(px(36.0)).flex_none().font_weight(FontWeight::BOLD).text_color(level_color(Some(r.level))).child(if r.level == Level::Crit { "CRIT" } else { "WARN" }))
-                .child(div().flex_1().min_w(px(0.0)).text_color(TEXT_SECONDARY).child(r.text.clone()))
-                .child(div().flex_none().text_color(TEXT_FAINTER).child(r.source)),
+                .child(div().flex_1().min_w(px(0.0)).text_color(text_secondary()).child(r.text.clone()))
+                .child(div().flex_none().text_color(text_fainter()).child(r.source)),
         );
     }
     if let Some(s) = server {
@@ -417,7 +417,7 @@ fn inspector(app_state: &CrowApp, graph: &Graph, n: &Node, app: Entity<CrowApp>)
         }
         body = body.child(heading(t!("topology-posture")));
         match posture {
-            None => body = body.child(div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_FAINT).child(t!("topology-not-checked-yet-check-posture"))),
+            None => body = body.child(div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(text_faint()).child(t!("topology-not-checked-yet-check-posture"))),
             Some(p) => {
                 let or_unknown = |v: Option<String>| v.unwrap_or_else(|| t!("topology-couldnt-read-needs-root").into());
                 body = body
@@ -452,13 +452,13 @@ fn inspector(app_state: &CrowApp, graph: &Graph, n: &Node, app: Entity<CrowApp>)
                     .font_family(FONT_MONO)
                     .text_size(font_px(10.0))
                     .cursor_pointer()
-                    .hover(|s| s.bg(BG_ROW_HOVER))
+                    .hover(|s| s.bg(bg_row_hover()))
                     .on_click(move |_ev, _w, cx| {
                         let id = id.clone();
                         app.update(cx, |t, cx| t.topology_select(Some(id), cx))
                     })
-                    .child(div().w(px(60.0)).flex_none().text_color(TEXT_FAINT).child(how))
-                    .child(div().text_color(TEXT_PRIMARY).child(label)),
+                    .child(div().w(px(60.0)).flex_none().text_color(text_faint()).child(how))
+                    .child(div().text_color(text_primary()).child(label)),
             );
         }
     }
@@ -470,7 +470,7 @@ fn inspector(app_state: &CrowApp, graph: &Graph, n: &Node, app: Entity<CrowApp>)
             .gap(px(8.0))
             .p(px(14.0))
             .border_t_1()
-            .border_color(BORDER_PANEL)
+            .border_color(border_panel())
             .child(chip("topo-open-server", t!("topology-open-server").into(), true).on_click(move |_ev, _w, cx| {
                 let id = id_open.clone();
                 app_open.update(cx, |t, cx| t.topology_open_server(&id, "overview", cx))
@@ -487,9 +487,9 @@ fn inspector(app_state: &CrowApp, graph: &Graph, n: &Node, app: Entity<CrowApp>)
         .h_full()
         .flex()
         .flex_col()
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_l_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .child(
             div()
                 .flex()
@@ -498,14 +498,14 @@ fn inspector(app_state: &CrowApp, graph: &Graph, n: &Node, app: Entity<CrowApp>)
                 .px(px(14.0))
                 .py(px(10.0))
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .flex()
                         .flex_col()
                         .gap(px(2.0))
-                        .child(div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(TEXT_FAINT).child(kind_label(n.kind)))
-                        .child(div().font_family(FONT_MONO).text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(n.label.clone())),
+                        .child(div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(text_faint()).child(kind_label(n.kind)))
+                        .child(div().font_family(FONT_MONO).text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(n.label.clone())),
                 )
                 .child(icon_button("topo-inspector-close", TablerIcon::X, false).on_click(move |_ev, _w, cx| app_close.update(cx, |t, cx| t.topology_select(None, cx)))),
         )

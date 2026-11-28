@@ -54,9 +54,9 @@ impl Render for ServerTabDragGhost {
             .gap(px(7.0))
             .px(px(14.0))
             .h(px(28.0))
-            .bg(BG_PANEL)
+            .bg(bg_panel())
             .border_1()
-            .border_color(hex_rgb(0x38bdf8))
+            .border_color(accent())
             .shadow_lg()
             .font_family(FONT_MONO)
             .text_size(font_px(11.0))
@@ -69,7 +69,7 @@ impl Render for ServerTabDragGhost {
             )
             .child(
                 div()
-                    .text_color(TEXT_MAX)
+                    .text_color(text_max())
                     .font_weight(FontWeight::SEMIBOLD)
                     .child(self.name.clone()),
             )
@@ -83,7 +83,7 @@ pub fn active_tab_gradient_bar() -> impl IntoElement {
         .left_0()
         .right_0()
         .h(px(2.0))
-        .bg(OK)
+        .bg(theme().ok)
 }
 
 pub fn titlebar(
@@ -107,9 +107,9 @@ pub fn titlebar(
         .flex_none()
         .flex()
         .items_stretch()
-        .bg(BG_CHROME)
+        .bg(bg_chrome())
         .border_b_1()
-        .border_color(BORDER_PANEL);
+        .border_color(border_panel());
 
     // 1. macOS native traffic lights clearance (only on macOS, and not in
     // native fullscreen, where the traffic lights are hidden).
@@ -126,8 +126,8 @@ pub fn titlebar(
 
     // 2. Interactive Burger Menu + CROW Mark
     let app_burger = app.clone();
-    let menu_ink = if menu_open { TEXT_MAX } else { TEXT_PRIMARY };
-    let menu_bg = if menu_open { BG_OVERLAY_PANEL } else { hex_rgba(0, 0.0) };
+    let menu_ink = if menu_open { text_max() } else { text_primary() };
+    let menu_bg = if menu_open { bg_overlay_panel() } else { hex_rgba(0, 0.0) };
 
     bar = bar.child(
         div()
@@ -137,10 +137,10 @@ pub fn titlebar(
             .gap(px(8.0))
             .px(px(14.0))
             .border_r_1()
-            .border_color(BORDER_PANEL)
+            .border_color(border_panel())
             .bg(menu_bg)
             .cursor_pointer()
-            .hover(|s| s.bg(BG_ROW_HOVER))
+            .hover(|s| s.bg(bg_row_hover()))
             .on_click(move |_ev, _window, cx| {
                 app_burger.update(cx, |this, cx| {
                     this.toggle_menu(cx);
@@ -180,10 +180,10 @@ pub fn titlebar(
                     .gap(px(6.0))
                     .px(px(14.0))
                     .border_r_1()
-                    .border_color(BORDER_PANEL)
-                    .bg(if is_fleet_active { BG_APP } else { hex_rgba(0, 0.0) })
+                    .border_color(border_panel())
+                    .bg(if is_fleet_active { bg_app() } else { hex_rgba(0, 0.0) })
                     .cursor_pointer()
-                    .hover(|s| s.bg(BG_ROW_HOVER))
+                    .hover(|s| s.bg(bg_row_hover()))
                     .on_click(move |_ev, _window, cx| {
                         app_fleet.update(cx, |this, cx| {
                             this.set_screen(Screen::Fleet, cx);
@@ -199,7 +199,7 @@ pub fn titlebar(
                             .font_family(FONT_MONO)
                             .text_size(font_px(11.0))
                             .font_weight(if is_fleet_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                            .text_color(if is_fleet_active { TEXT_PRIMARY } else { TEXT_MUTED })
+                            .text_color(if is_fleet_active { text_primary() } else { text_muted() })
                             .child(t!("titlebar-fleet")),
                     ),
             )
@@ -216,10 +216,10 @@ pub fn titlebar(
                     .gap(px(7.0))
                     .px(px(14.0))
                     .border_r_1()
-                    .border_color(if is_active { BORDER_STRONG } else { BORDER_PANEL })
-                    .bg(if is_active { BG_APP } else { hex_rgba(0, 0.0) })
+                    .border_color(if is_active { border_strong() } else { border_panel() })
+                    .bg(if is_active { bg_app() } else { hex_rgba(0, 0.0) })
                     .cursor_pointer()
-                    .hover(|s| s.bg(if is_active { BG_APP } else { BG_ROW_HOVER }))
+                    .hover(|s| s.bg(if is_active { bg_app() } else { bg_row_hover() }))
                     .on_click(move |_ev, _window, cx| {
                         app_open.update(cx, |this, cx| match page {
                             crate::app::page_tabs::PageTab::Topology => this.open_topology(cx),
@@ -228,13 +228,13 @@ pub fn titlebar(
                             crate::app::page_tabs::PageTab::Wire => this.open_wire(cx),
                         })
                     })
-                    .children(is_active.then(|| div().absolute().top_0().left_0().right_0().h(px(2.0)).bg(TEXT_MAX)))
+                    .children(is_active.then(|| div().absolute().top_0().left_0().right_0().h(px(2.0)).bg(text_max())))
                     .child(
                         div()
                             .font_family(FONT_MONO)
                             .text_size(font_px(11.0))
                             .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                            .text_color(if is_active { TEXT_MAX } else { TEXT_MUTED })
+                            .text_color(if is_active { text_max() } else { text_muted() })
                             .child(page.label()),
                     )
                     .child(
@@ -245,7 +245,7 @@ pub fn titlebar(
                             .justify_center()
                             .size(px(16.0))
                             .cursor_pointer()
-                            .hover(|s| s.bg(hex_rgba(0xffffff, 0.08)).text_color(TEXT_PRIMARY))
+                            .hover(|s| s.bg(hex_rgba(0xffffff, 0.08)).text_color(text_primary()))
                             .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
                             .on_click(move |_ev, _window, cx| {
                                 cx.stop_propagation();
@@ -280,10 +280,10 @@ pub fn titlebar(
                     .gap(px(7.0))
                     .px(px(14.0))
                     .border_r_1()
-                    .border_color(if is_active { BORDER_STRONG } else { BORDER_PANEL })
-                    .bg(if is_active { BG_APP } else { hex_rgba(0, 0.0) })
+                    .border_color(if is_active { border_strong() } else { border_panel() })
+                    .bg(if is_active { bg_app() } else { hex_rgba(0, 0.0) })
                     .cursor_pointer()
-                    .hover(|s| s.bg(if is_active { BG_APP } else { BG_ROW_HOVER }))
+                    .hover(|s| s.bg(if is_active { bg_app() } else { bg_row_hover() }))
                     .on_click(move |_ev, _window, cx| {
                         let tid = tab_id.clone();
                         app_tab.update(cx, |this, cx| {
@@ -300,7 +300,7 @@ pub fn titlebar(
                         let tgt_id = target_tab_id.clone();
                         move |style, dragged, _window, _cx| {
                             if dragged.tab_id != tgt_id {
-                                style.bg(BG_ROW_SELECTED).border_color(hex_rgb(0x38bdf8))
+                                style.bg(bg_row_selected()).border_color(accent())
                             } else {
                                 style
                             }
@@ -333,7 +333,7 @@ pub fn titlebar(
                             .font_family(FONT_MONO)
                             .text_size(font_px(11.0))
                             .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                            .text_color(if is_active { TEXT_MAX } else { TEXT_MUTED })
+                            .text_color(if is_active { text_max() } else { text_muted() })
                             .child(tab.name.clone()),
                     )
                     .child(
@@ -344,7 +344,7 @@ pub fn titlebar(
                             .justify_center()
                             .size(px(16.0))
                             .cursor_pointer()
-                            .hover(|s| s.bg(hex_rgba(0xffffff, 0.08)).text_color(TEXT_PRIMARY))
+                            .hover(|s| s.bg(hex_rgba(0xffffff, 0.08)).text_color(text_primary()))
                             .on_mouse_down(MouseButton::Left, |_ev, _window, cx| {
                                 cx.stop_propagation();
                             })
@@ -409,9 +409,9 @@ pub fn titlebar(
             .px(px(14.0))
             .font_family(FONT_MONO)
             .text_size(font_px(10.5))
-            .text_color(TEXT_FAINT)
+            .text_color(text_faint())
             .border_l_1()
-            .border_color(BORDER_PANEL)
+            .border_color(border_panel())
             .window_control_area(WindowControlArea::Drag)
             .on_mouse_down(MouseButton::Left, |ev, window, _cx| crate::components::window_frame::titlebar_mouse_down(ev, window))
             .child(crate::components::stance::stance_badge(stance, app.clone()))
@@ -426,16 +426,16 @@ pub fn titlebar(
                     .px(px(6.0))
                     .py(px(2.0))
                     .cursor_pointer()
-                    .bg(if clock.menu_open { BG_ROW_HOVER } else { hex_rgba(0, 0.0) })
-                    .hover(|s| s.bg(BG_ROW_HOVER))
+                    .bg(if clock.menu_open { bg_row_hover() } else { hex_rgba(0, 0.0) })
+                    .hover(|s| s.bg(bg_row_hover()))
                     // Not part of the drag area (Windows: no HTCAPTION here).
                     .occlude()
                     .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
                     .on_click(move |_ev, _window, cx| app_clock.update(cx, |this, cx| this.toggle_clock_menu(cx)))
-                    .child(div().text_color(TEXT_DIMMER).child(t!("titlebar-you")))
-                    .child(div().font_weight(FontWeight::SEMIBOLD).text_color(TEXT_SECONDARY).child(clock.local_time))
-                    .child(div().text_color(TEXT_DIMMER).child(clock.zone))
-                    .child(tabler_icon(TablerIcon::ChevronDown).size(px(10.0)).text_color(TEXT_DIMMER)),
+                    .child(div().text_color(text_dimmer()).child(t!("titlebar-you")))
+                    .child(div().font_weight(FontWeight::SEMIBOLD).text_color(text_secondary()).child(clock.local_time))
+                    .child(div().text_color(text_dimmer()).child(clock.zone))
+                    .child(tabler_icon(TablerIcon::ChevronDown).size(px(10.0)).text_color(text_dimmer())),
             )
             // Then the server's, with how far it is from you.
             .children(clock.server.filter(|_| current_screen == Screen::Server).map(|(time, abbr, delta)| {
@@ -443,10 +443,10 @@ pub fn titlebar(
                     .flex()
                     .items_center()
                     .gap(px(5.0))
-                    .child(div().text_color(TEXT_DIMMER).child(t!("titlebar-srv")))
-                    .child(div().font_weight(FontWeight::SEMIBOLD).text_color(TEXT_SECONDARY).child(time))
-                    .child(div().text_color(TEXT_DIMMER).child(abbr))
-                    .children(delta.map(|(d, ahead)| div().font_weight(FontWeight::SEMIBOLD).text_color(if ahead { OK } else { CRIT }).child(d)))
+                    .child(div().text_color(text_dimmer()).child(t!("titlebar-srv")))
+                    .child(div().font_weight(FontWeight::SEMIBOLD).text_color(text_secondary()).child(time))
+                    .child(div().text_color(text_dimmer()).child(abbr))
+                    .children(delta.map(|(d, ahead)| div().font_weight(FontWeight::SEMIBOLD).text_color(if ahead { theme().ok } else { theme().crit }).child(d)))
             })),
     );
 
@@ -458,7 +458,7 @@ pub fn titlebar(
                 .flex()
                 .items_stretch()
                 .border_l_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 // Minimize
                 .child(
                     div()
@@ -468,14 +468,14 @@ pub fn titlebar(
                         .items_center()
                         .justify_center()
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(|_ev, window, _cx| {
                             window.minimize_window();
                         })
                         .child(
                             tabler_icon(TablerIcon::Minus)
                                 .size(px(13.0))
-                                .text_color(TEXT_MUTED),
+                                .text_color(text_muted()),
                         ),
                 )
                 // Maximize / Restore
@@ -487,14 +487,14 @@ pub fn titlebar(
                         .items_center()
                         .justify_center()
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(|_ev, window, _cx| {
                             window.zoom_window();
                         })
                         .child(
                             tabler_icon(TablerIcon::Square)
                                 .size(px(12.0))
-                                .text_color(TEXT_MUTED),
+                                .text_color(text_muted()),
                         ),
                 )
                 // Close
@@ -506,14 +506,14 @@ pub fn titlebar(
                         .items_center()
                         .justify_center()
                         .cursor_pointer()
-                        .hover(|s| s.bg(CRIT_BG).text_color(CRIT_INK))
+                        .hover(|s| s.bg(theme().crit_bg).text_color(theme().crit_ink))
                         .on_click(|_ev, _window, cx| {
                             cx.quit();
                         })
                         .child(
                             tabler_icon(TablerIcon::X)
                                 .size(px(13.0))
-                                .text_color(TEXT_MUTED),
+                                .text_color(text_muted()),
                         ),
                 ),
         );
@@ -758,9 +758,9 @@ pub fn burger_menu_overlay(
                 .occlude()
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // keep clicks inside from reaching the backdrop (which closes)
                 .w(px(340.0))
-                .bg(BG_OVERLAY_PANEL)
+                .bg(bg_overlay_panel())
                 .border_1()
-                .border_color(BORDER_STRONG)
+                .border_color(border_strong())
                 .border_t_0()
                 .shadow_lg()
                 .flex()
@@ -774,13 +774,13 @@ pub fn burger_menu_overlay(
                             .flex()
                             .items_center()
                             .px(px(12.0))
-                            .bg(BG_PANEL)
+                            .bg(bg_panel())
                             .border_t_1()
-                            .border_color(if idx == 0 { hex_rgba(0, 0.0) } else { BORDER_DEFAULT })
+                            .border_color(if idx == 0 { hex_rgba(0, 0.0) } else { border_default() })
                             .font_family(FONT_MONO)
                             .text_size(font_px(9.5))
                             .font_weight(FontWeight::SEMIBOLD)
-                            .text_color(TEXT_DIMMER)
+                            .text_color(text_dimmer())
                             .child(item.label);
                     }
 
@@ -801,14 +801,14 @@ pub fn burger_menu_overlay(
                         .items_center()
                         .gap(px(10.0))
                         .px(px(12.0))
-                        .bg(if is_active { BG_KEY } else { hex_rgba(0, 0.0) })
+                        .bg(if is_active { bg_key() } else { hex_rgba(0, 0.0) })
                         .children(if is_active {
-                            Some(left_indicator(TEXT_PRIMARY))
+                            Some(left_indicator(text_primary()))
                         } else {
                             None
                         })
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_KEY))
+                        .hover(|s| s.bg(bg_key()))
                         .on_click(move |_ev, _window, cx| {
                             match action {
                                 Some(MenuAction::Quit) => {
@@ -867,13 +867,13 @@ pub fn burger_menu_overlay(
                                     tabler_icon(icon)
                                         .size(px(13.5))
                                         .text_color(if item.is_danger {
-                                            CRIT
+                                            theme().crit
                                         } else if item.is_featured {
                                             hex_rgb(0x4ade80)
                                         } else if is_active {
-                                            TEXT_PRIMARY
+                                            text_primary()
                                         } else {
-                                            TEXT_DIMMER
+                                            text_dimmer()
                                         })
                                 })),
                         )
@@ -886,13 +886,13 @@ pub fn burger_menu_overlay(
                                 .text_size(font_px(11.5))
                                 .font_weight(if item.is_featured || is_active { FontWeight::BOLD } else { FontWeight::NORMAL })
                                 .text_color(if item.is_danger {
-                                    CRIT_INK_DIM
+                                    theme().crit_ink_dim
                                 } else if item.is_featured {
                                     hex_rgb(0x86efac)
                                 } else if is_active {
-                                    TEXT_MAX
+                                    text_max()
                                 } else {
-                                    TEXT_PRIMARY
+                                    text_primary()
                                 })
                                 .child(item.label),
                         )
@@ -901,12 +901,12 @@ pub fn burger_menu_overlay(
                                 div()
                                     .px(px(5.0))
                                     .py(px(1.0))
-                                    .bg(if item.is_featured { hex_rgba(0x22c55e, 0.16) } else { BG_KEY })
+                                    .bg(if item.is_featured { hex_rgba(0x22c55e, 0.16) } else { bg_key() })
                                     .border_1()
-                                    .border_color(if item.is_featured { hex_rgba(0x4ade80, 0.45) } else { BORDER_KEY })
+                                    .border_color(if item.is_featured { hex_rgba(0x4ade80, 0.45) } else { border_key() })
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(10.0))
-                                    .text_color(if item.is_featured { hex_rgb(0x4ade80) } else { TEXT_MUTED })
+                                    .text_color(if item.is_featured { hex_rgb(0x4ade80) } else { text_muted() })
                                     .child(item.shortcut),
                             )
                         } else {
@@ -937,16 +937,16 @@ pub fn clock_menu_overlay(app: Entity<CrowApp>, zones: &[chrono_tz::Tz], selecte
             .items_center()
             .gap(px(8.0))
             .px(px(12.0))
-            .bg(if on { BG_KEY } else { hex_rgba(0, 0.0) })
+            .bg(if on { bg_key() } else { hex_rgba(0, 0.0) })
             .cursor_pointer()
-            .hover(|s| s.bg(BG_KEY))
+            .hover(|s| s.bg(bg_key()))
             .on_click(move |_ev, _window, cx| {
                 app_pick.update(cx, |this, cx| this.select_time_zone(match zone { Zone::Named(tz) => Some(tz), Zone::Local => None }, cx));
             })
-            .child(div().w(px(12.0)).flex_none().children(on.then(|| tabler_icon(TablerIcon::Check).size(px(12.0)).text_color(OK))))
-            .child(div().flex_1().min_w(px(0.0)).truncate().text_color(if on { TEXT_MAX } else { TEXT_PRIMARY }).child(label))
-            .child(div().text_color(TEXT_DIMMER).child(name))
-            .child(div().w(px(76.0)).flex_none().text_right().text_color(TEXT_DIM).child(utc_label(zone.offset_at(now))))
+            .child(div().w(px(12.0)).flex_none().children(on.then(|| tabler_icon(TablerIcon::Check).size(px(12.0)).text_color(theme().ok))))
+            .child(div().flex_1().min_w(px(0.0)).truncate().text_color(if on { text_max() } else { text_primary() }).child(label))
+            .child(div().text_color(text_dimmer()).child(name))
+            .child(div().w(px(76.0)).flex_none().text_right().text_color(text_dim()).child(utc_label(zone.offset_at(now))))
     };
     div()
         .id("clock-menu-backdrop")
@@ -970,9 +970,9 @@ pub fn clock_menu_overlay(app: Entity<CrowApp>, zones: &[chrono_tz::Tz], selecte
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
                 .mr(px(120.0))
                 .w(px(380.0))
-                .bg(BG_OVERLAY_PANEL)
+                .bg(bg_overlay_panel())
                 .border_1()
-                .border_color(BORDER_STRONG)
+                .border_color(border_strong())
                 .border_t_0()
                 .shadow_lg()
                 .flex()
@@ -986,10 +986,10 @@ pub fn clock_menu_overlay(app: Entity<CrowApp>, zones: &[chrono_tz::Tz], selecte
                         .flex()
                         .items_center()
                         .px(px(12.0))
-                        .bg(BG_PANEL)
+                        .bg(bg_panel())
                         .text_size(font_px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(t!("titlebar-clock-your-time-in")),
                 )
                 .child(div().flex().flex_col().children(rows.into_iter().enumerate().map(|(i, r)| row(i, r))))
@@ -1003,10 +1003,10 @@ pub fn clock_menu_overlay(app: Entity<CrowApp>, zones: &[chrono_tz::Tz], selecte
                         .gap(px(8.0))
                         .px(px(12.0))
                         .border_t_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .cursor_pointer()
-                        .text_color(TEXT_DIM)
-                        .hover(|s| s.bg(BG_KEY).text_color(TEXT_PRIMARY))
+                        .text_color(text_dim())
+                        .hover(|s| s.bg(bg_key()).text_color(text_primary()))
                         .on_click(move |_ev, _window, cx| app_manage.update(cx, |this, cx| this.open_time_zone_settings(cx)))
                         .child(crate::components::icons::inherited_icon(TablerIcon::Settings, font_px(12.0)).size(px(12.0)))
                         .child(if zones.is_empty() { t!("titlebar-clock-add-zones") } else { t!("titlebar-clock-manage-zones") }),

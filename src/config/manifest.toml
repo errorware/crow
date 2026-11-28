@@ -12,10 +12,11 @@ order_note = "Configuration values are organized by section."
 name = "general.theme"
 type = "enum"
 required = true
-help = "Window appearance and accent palette."
+help = "Window appearance and accent palette. Requires application restart to take effect."
 options = [
-  { value = "obsidian_edge", label = "Obsidian Edge", risk = "recommended" },
-  { value = "slate_dark", label = "Slate Dark", risk = "recommended" }
+  { value = "obsidian_edge", label = "Obsidian Edge (Dark)", risk = "recommended" },
+  { value = "obsidian_light", label = "Obsidian Light", risk = "recommended" },
+  { value = "crow_cde", label = "Crow CDE (DIGITAL UNIX 1996)", risk = "recommended" }
 ]
 
 [[fields]]

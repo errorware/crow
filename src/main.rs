@@ -86,7 +86,9 @@ fn main() {
 
     gpui_kit::application().run(|cx| {
         gpui_kit::init(cx);
-        crate::theme::init_obsidian_theme(cx);
+        let config = crate::config::CrowConfigManager::load();
+        let theme_name = config.saved_str("general.theme").unwrap_or("obsidian_edge");
+        crate::theme::init_theme(theme_name, cx);
 
         // Embed JetBrains Mono so it is always available on all platforms (macOS, Linux, Windows)
         let fonts = vec![

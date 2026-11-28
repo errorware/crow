@@ -92,7 +92,7 @@ pub fn settings_view(
                 1 => t!("settings-1-server").to_string(),
                 n => t!("settings-servers", n = n),
             };
-            (k.name.clone(), format!("{} · {}", k.algorithm, used), if present { OK } else { TEXT_FAINT })
+            (k.name.clone(), format!("{} · {}", k.algorithm, used), if present { theme().ok } else { text_faint() })
         })
         .collect();
 
@@ -131,9 +131,9 @@ pub fn settings_view(
                 .flex_none()
                 .flex()
                 .flex_col()
-                .bg(BG_RAIL)
+                .bg(bg_rail())
                 .border_l_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(keys::render_keys_right_rail(app.clone(), keys))
                 .into_any_element(),
         ),
@@ -147,9 +147,9 @@ pub fn settings_view(
                 .flex_none()
                 .flex()
                 .flex_col()
-                .bg(BG_RAIL)
+                .bg(bg_rail())
                 .border_l_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(diff_rail::render_diff_rail(config, section, &keychain, app.clone()))
                 .into_any_element(),
         ),
@@ -165,7 +165,7 @@ pub fn settings_view(
         .size_full()
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         // 1. Top Header
         .child(
             div()
@@ -174,9 +174,9 @@ pub fn settings_view(
                 .flex()
                 .items_center()
                 .px(px(16.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .flex_1()
@@ -190,7 +190,7 @@ pub fn settings_view(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(16.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MAX)
+                                .text_color(text_max())
                                 .child(t!("settings-settings")),
                         )
                         .child(
@@ -199,7 +199,7 @@ pub fn settings_view(
                                 .truncate()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.5))
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .child(status_subtitle),
                         ),
                 )
@@ -218,9 +218,9 @@ pub fn settings_view(
                         .flex_none()
                         .flex()
                         .flex_col()
-                        .bg(BG_RAIL)
+                        .bg(bg_rail())
                         .border_r_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .pt(px(6.0))
                         // The components lab is a developer sandbox: debug builds only.
                         .children(nav_items.into_iter().filter(|(_, _, sec)| cfg!(debug_assertions) || *sec != SettingsSection::Components).enumerate().map(|(idx, (icon, label, sec))| {
@@ -229,14 +229,14 @@ pub fn settings_view(
                             let changed_in_sec = config.changed_count_for_section(sec.id_prefix());
                             let (badge, badge_c) = if sec == SettingsSection::Security {
                                 if changed_in_sec > 0 {
-                                    (format!("{}", changed_in_sec), Some(WARN))
+                                    (format!("{}", changed_in_sec), Some(theme().warn))
                                 } else if is_auth_enabled {
-                                    ("L".to_string(), Some(OK))
+                                    ("L".to_string(), Some(theme().ok))
                                 } else {
-                                    ("!".to_string(), Some(WARN))
+                                    ("!".to_string(), Some(theme().warn))
                                 }
                             } else if changed_in_sec > 0 {
-                                (format!("{}", changed_in_sec), Some(WARN))
+                                (format!("{}", changed_in_sec), Some(theme().warn))
                             } else {
                                 ("".to_string(), None)
                             };
@@ -250,14 +250,14 @@ pub fn settings_view(
                                 .items_center()
                                 .gap(px(10.0))
                                 .px(px(12.0))
-                                .bg(if is_active { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
+                                .bg(if is_active { bg_nav_active() } else { hex_rgba(0, 0.0) })
                                 .children(if is_active {
-                                    Some(left_indicator(TEXT_PRIMARY))
+                                    Some(left_indicator(text_primary()))
                                 } else {
                                     None
                                 })
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_nav.update(cx, |this, cx| {
                                         this.close_settings_dropdown(cx);
@@ -274,7 +274,7 @@ pub fn settings_view(
                                         .child(
                                             tabler_icon(icon)
                                                 .size(px(14.0))
-                                                .text_color(if is_active { TEXT_PRIMARY } else { TEXT_DIMMER }),
+                                                .text_color(if is_active { text_primary() } else { text_dimmer() }),
                                         ),
                                 )
                                 .child(
@@ -285,14 +285,14 @@ pub fn settings_view(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.5))
                                         .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                                        .text_color(if is_active { TEXT_PRIMARY } else { TEXT_MUTED })
+                                        .text_color(if is_active { text_primary() } else { text_muted() })
                                         .child(label),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
-                                        .text_color(badge_c.unwrap_or(TEXT_FAINT))
+                                        .text_color(badge_c.unwrap_or(text_faint()))
                                         .child(badge),
                                 )
                         })),

@@ -529,7 +529,7 @@ impl CrowApp {
                 .p(px(20.0))
                 .font_family(FONT_MONO)
                 .text_size(font_px(11.0))
-                .text_color(TEXT_FAINT)
+                .text_color(text_faint())
                 .child(t!("app-configs-no-config-file-selected"))
                 .into_any_element(),
         }

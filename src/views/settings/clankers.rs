@@ -28,7 +28,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
         .min_w(px(0.0))
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         // 1. Subheader / Top Bar
         .child(
             div()
@@ -38,9 +38,9 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                 .items_center()
                 .justify_between()
                 .px(px(14.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .flex()
@@ -51,11 +51,11 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(12.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(t!("settings-clankers-clankers-llm-providers-keys")),
                         )
                         .child(
-                            crate::components::button::badge(TEXT_SECONDARY)
+                            crate::components::button::badge(text_secondary())
                                 .text_size(font_px(9.5))
                                 .child(t!("settings-clankers-configured", configured_count = configured_count, count = providers.len())),
                         ),
@@ -74,11 +74,11 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.5))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(t!("settings-clankers-30d-cumulative-calls")),
                                 )
                                 .child(
-                                    crate::components::button::badge(OK)
+                                    crate::components::button::badge(theme().ok)
                                         .text_size(font_px(10.5))
                                         .font_weight(FontWeight::BOLD)
                                         .child(t!("settings-clankers-calls", total_calls_30d = total_calls_30d)),
@@ -93,7 +93,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.5))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(t!("settings-clankers-primary-backup")),
                                 )
                                 .child(
@@ -101,7 +101,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.5))
                                         .font_weight(FontWeight::SEMIBOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(format!(
                                             "{} · {}",
                                             default_provider.map(|p| p.display_name).unwrap_or_else(|| "none".into()),
@@ -125,9 +125,9 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                 .child(
                     div()
                         .p(px(12.0))
-                        .bg(BG_OVERLAY_PANEL)
+                        .bg(bg_overlay_panel())
                         .border_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .flex()
                         .items_start()
                         .gap(px(10.0))
@@ -138,7 +138,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                 .flex()
                                 .items_center()
                                 .justify_center()
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(inherited_icon(TablerIcon::Cpu, font_px(16.0))),
                         )
                         .child(
@@ -153,14 +153,14 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.5))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(t!("settings-clankers-ai-usability-engine-log-clarification")),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.5))
-                                        .text_color(TEXT_MUTED)
+                                        .text_color(text_muted())
                                         .line_height(px(15.0))
                                         .child(
                                             t!("settings-clankers-configure-api-keys-for-llm")
@@ -168,8 +168,8 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                                 ),
                         ),
                 )
-                .children(secrets_notice.map(|n| crate::views::settings::providers::notice(n.to_string(), TEXT_SECONDARY, None, Some(app.clone()))))
-                .children(secrets_blocker.map(|why| crate::views::settings::providers::notice(t!("settings-clankers-keys-cant-be-saved-right", why = why), WARN, Some(app.clone()), None)))
+                .children(secrets_notice.map(|n| crate::views::settings::providers::notice(n.to_string(), text_secondary(), None, Some(app.clone()))))
+                .children(secrets_blocker.map(|why| crate::views::settings::providers::notice(t!("settings-clankers-keys-cant-be-saved-right", why = why), theme().warn, Some(app.clone()), None)))
                 // The sandbox first: its answer grows the box, and at the
                 // bottom of the page that happened out of view.
                 .child(render_eli5_sandbox(app.clone(), demo_log, demo_output, demo_loading))
@@ -179,7 +179,7 @@ pub fn render_clankers_view(app: Entity<CrowApp>, clankers: &ClankersState, secr
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .child(t!("settings-clankers-supported-clanker-providers-30-day")),
                 )
                 .child(
@@ -219,9 +219,9 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
         .w(px(380.0))
         .flex_none()
         .p(px(12.0))
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_1()
-        .border_color(if prov.is_default && is_configured { OK } else if prov.is_backup && is_configured { hex_rgb(0x8ab4ff) } else { BORDER_DEFAULT })
+        .border_color(if prov.is_default && is_configured { theme().ok } else if prov.is_backup && is_configured { accent() } else { border_default() })
         .flex()
         .flex_col()
         .gap(px(10.0))
@@ -241,13 +241,13 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(12.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MAX)
+                                .text_color(text_max())
                                 .child(prov.display_name.clone()),
                         )
                         // A role means something only with a key to answer with.
                         .children(if prov.is_default && is_configured {
                             Some(
-                                crate::components::button::badge(OK)
+                                crate::components::button::badge(theme().ok)
                                     .text_size(font_px(9.0))
                                     .font_weight(FontWeight::BOLD)
                                     .child(t!("settings-clankers-primary")),
@@ -256,14 +256,14 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                             None
                         })
                         .children((prov.is_backup && is_configured).then(|| {
-                            crate::components::button::badge(hex_rgb(0x8ab4ff))
+                            crate::components::button::badge(accent())
                                 .text_size(font_px(9.0))
                                 .font_weight(FontWeight::BOLD)
                                 .child(t!("settings-clankers-backup"))
                         })),
                 )
                 .child(
-                    crate::components::button::badge(if is_configured { OK } else { TEXT_DIM })
+                    crate::components::button::badge(if is_configured { theme().ok } else { text_dim() })
                         .text_size(font_px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
                         .child(if is_configured { t!("settings-clankers-ready") } else { t!("settings-clankers-not-setup") }),
@@ -276,9 +276,9 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                 .flex_col()
                 .gap(px(4.0))
                 .p(px(8.0))
-                .bg(BG_OVERLAY_PANEL)
+                .bg(bg_overlay_panel())
                 .border_1()
-                .border_color(hex_rgb(0x1e1e28))
+                .border_color(border_panel())
                 .child(
                     div()
                         .flex()
@@ -288,7 +288,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .child(t!("settings-clankers-api-key")),
                         )
                         .child(
@@ -296,7 +296,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
                                 .font_weight(FontWeight::MEDIUM)
-                                .text_color(if is_configured { TEXT_PRIMARY } else { TEXT_FAINT })
+                                .text_color(if is_configured { text_primary() } else { text_faint() })
                                 .child(masked_key),
                         ),
                 )
@@ -309,14 +309,14 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .child(t!("settings-clankers-model")),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
-                                .text_color(TEXT_SECONDARY)
+                                .text_color(text_secondary())
                                 .child(prov.model.clone()),
                         ),
                 )
@@ -329,14 +329,14 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .child(t!("settings-clankers-endpoint")),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(TEXT_DIMMER)
+                                .text_color(text_dimmer())
                                 .child(prov.base_url.clone()),
                         ),
                 ),
@@ -348,9 +348,9 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                 .items_center()
                 .justify_between()
                 .p(px(8.0))
-                .bg(BG_APP)
+                .bg(bg_app())
                 .border_1()
-                .border_color(BORDER_DEFAULT)
+                .border_color(border_default())
                 .child(
                     div()
                         .flex()
@@ -360,7 +360,7 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .child(t!("settings-clankers-30-day-activity")),
                         )
                         .child(
@@ -368,14 +368,14 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(14.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(if prov.calls_30d > 0 { OK } else { TEXT_DIM })
+                                .text_color(if prov.calls_30d > 0 { theme().ok } else { text_dim() })
                                 .child(t!("settings-clankers-calls-2", calls_30d = prov.calls_30d)),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.0))
-                                .text_color(TEXT_FAINT)
+                                .text_color(text_faint())
                                 .child(t!("settings-clankers-all-time", count = prov.total_calls)),
                         ),
                 )
@@ -385,12 +385,12 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                         .flex_col()
                         .items_end()
                         .gap(px(4.0))
-                        .child(dynamic_sparkline(&prov.daily_history, Some(0.0), None, if prov.calls_30d > 0 { OK } else { TEXT_FAINT }))
+                        .child(dynamic_sparkline(&prov.daily_history, Some(0.0), None, if prov.calls_30d > 0 { theme().ok } else { text_faint() }))
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.0))
-                                .text_color(TEXT_DIMMER)
+                                .text_color(text_dimmer())
                                 .child(
                                     prov.last_used_at.as_deref()
                                         .map(|ts| {
@@ -423,14 +423,14 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                 .id(ElementId::Name(format!("btn-edit-clanker-{}", prov.id).into()))
                                 .px(px(8.0))
                                 .py(px(4.0))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     let id = p_id_edit.clone();
                                     app_edit.update(cx, |this, cx| {
@@ -445,14 +445,14 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                 .id(ElementId::Name(format!("btn-test-clanker-{}", prov.id).into()))
                                 .px(px(8.0))
                                 .py(px(4.0))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
-                                .text_color(TEXT_SECONDARY)
+                                .text_color(text_secondary())
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     let id = p_id_test.clone();
                                     app_test.update(cx, |this, cx| {
@@ -477,9 +477,9 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                     .py(px(4.0))
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(9.5))
-                                    .text_color(TEXT_FAINT)
+                                    .text_color(text_faint())
                                     .cursor_pointer()
-                                    .hover(|s| s.text_color(WARN))
+                                    .hover(|s| s.text_color(theme().warn))
                                     .on_click(move |_ev, _window, cx| {
                                         let id = p_id_reset.clone();
                                         app_reset.update(cx, |this, cx| {
@@ -498,15 +498,15 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                 .id(ElementId::Name(format!("btn-backup-clanker-{}", prov.id).into()))
                                 .px(px(8.0))
                                 .py(px(4.0))
-                                .bg(BG_KEY)
+                                .bg(bg_key())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
                                 .font_weight(FontWeight::SEMIBOLD)
-                                .text_color(hex_rgb(0x8ab4ff))
+                                .text_color(accent())
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     let id = id.clone();
                                     app_backup.update(cx, |this, cx| this.set_backup_clanker(if on { None } else { Some(&id) }, cx));
@@ -520,15 +520,15 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
                                     .id(ElementId::Name(format!("btn-default-clanker-{}", prov.id).into()))
                                     .px(px(8.0))
                                     .py(px(4.0))
-                                    .bg(BG_KEY)
+                                    .bg(bg_key())
                                     .border_1()
-                                    .border_color(BORDER_DEFAULT)
+                                    .border_color(border_default())
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(10.0))
                                     .font_weight(FontWeight::SEMIBOLD)
-                                    .text_color(OK)
+                                    .text_color(theme().ok)
                                     .cursor_pointer()
-                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                    .hover(|s| s.bg(bg_row_hover()))
                                     .on_click(move |_ev, _window, cx| {
                                         let id = p_id_default.clone();
                                         app_default.update(cx, |this, cx| {
@@ -546,8 +546,8 @@ fn render_provider_card(app: Entity<CrowApp>, prov: &ClankerProviderConfig, chec
         // (it cleared itself after a few seconds).
         .children(check.map(|r| {
             let (text, color) = match r {
-                Ok(t) => (format!("✓ {t}"), OK),
-                Err(e) => (format!("✕ {e}"), CRIT),
+                Ok(t) => (format!("✓ {t}"), theme().ok),
+                Err(e) => (format!("✕ {e}"), theme().crit),
             };
             div().w_full().font_family(FONT_MONO).text_size(font_px(9.5)).line_height(px(14.0)).text_color(color).child(text)
         }))
@@ -567,9 +567,9 @@ fn render_eli5_sandbox(
     div()
         .mt(px(8.0))
         .p(px(14.0))
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .flex()
         .flex_col()
         .gap(px(12.0))
@@ -591,7 +591,7 @@ fn render_eli5_sandbox(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(12.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(t!("settings-clankers-ai-usability-sandbox-wtf-is")),
                         )
                         .child(
@@ -609,7 +609,7 @@ fn render_eli5_sandbox(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .child(t!("settings-clankers-load-presets")),
                         )
                         .child(
@@ -617,14 +617,14 @@ fn render_eli5_sandbox(
                                 .id("btn-preset-oom")
                                 .px(px(6.0))
                                 .py(px(2.0))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(WARN)
+                                .text_color(theme().warn)
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_preset1.update(cx, |this, cx| {
                                         this.clankers.demo_log = "kernel: [  129.412033] Out of memory: Kill process 28419 (mysqld) score 812 or sacrifice child".into();
@@ -639,14 +639,14 @@ fn render_eli5_sandbox(
                                 .id("btn-preset-segfault")
                                 .px(px(6.0))
                                 .py(px(2.0))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(CRIT)
+                                .text_color(theme().crit)
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_preset2.update(cx, |this, cx| {
                                         this.clankers.demo_log = "nginx[1482]: segfault at 0 ip 00007f3b48201a08 sp 00007ffe3410 error 4 in libc.so.6".into();
@@ -661,14 +661,14 @@ fn render_eli5_sandbox(
                                 .id("btn-preset-systemd")
                                 .px(px(6.0))
                                 .py(px(2.0))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(TEXT_SECONDARY)
+                                .text_color(text_secondary())
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_preset3.update(cx, |this, cx| {
                                         this.clankers.demo_log = "systemd[1]: postgresql@16-main.service: Main process exited, code=exited, status=1/FAILURE".into();
@@ -690,18 +690,18 @@ fn render_eli5_sandbox(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_DIM)
+                        .text_color(text_dim())
                         .child(t!("settings-clankers-sample-raw-journal-kernel-panic")),
                 )
                 .child(
                     div()
                         .p(px(10.0))
-                        .bg(hex_rgb(0x0a0a0f))
+                        .bg(bg_panel())
                         .border_1()
-                        .border_color(hex_rgb(0x2d2d3d))
+                        .border_color(border_strong())
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
-                        .text_color(TEXT_MAX)
+                        .text_color(text_max())
                         .child(demo_log.to_string()),
                 )
                 .child(
@@ -713,15 +713,15 @@ fn render_eli5_sandbox(
                                 .id("btn-run-eli5")
                                 .px(px(12.0))
                                 .py(px(6.0))
-                                .bg(hex_rgb(0x183020))
+                                .bg(theme().ok_bg)
                                 .border_1()
-                                .border_color(OK)
+                                .border_color(theme().ok)
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(OK)
+                                .text_color(theme().ok)
                                 .cursor_pointer()
-                                .hover(|s| s.bg(hex_rgb(0x22442c)))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_run.update(cx, |this, cx| {
                                         this.run_clanker_eli5(cx);
@@ -734,13 +734,13 @@ fn render_eli5_sandbox(
         // Output Translation Card
         .children(if let Some(out) = demo_output {
             let (out, color) = match out {
-                Ok(text) => (text, OK),
-                Err(e) => (e, CRIT),
+                Ok(text) => (text, theme().ok),
+                Err(e) => (e, theme().crit),
             };
             Some(
                 div()
                     .p(px(12.0))
-                    .bg(hex_rgb(0x0c0c14))
+                    .bg(bg_subhead())
                     .border_1()
                     .border_color(color)
                     .flex()
@@ -750,7 +750,7 @@ fn render_eli5_sandbox(
                         div()
                             .font_family(FONT_MONO)
                             .text_size(font_px(11.0))
-                            .text_color(TEXT_PRIMARY)
+                            .text_color(text_primary())
                             .line_height(px(17.0))
                             .child(out.to_string()),
                     ),
@@ -765,9 +765,9 @@ fn render_eli5_sandbox(
 fn models_picker(clankers: &ClankersState, app: Entity<CrowApp>) -> impl IntoElement {
     let app_load = app.clone();
     let status = match (&clankers.models, clankers.models_loading) {
-        (_, true) => Some((t!("settings-clankers-asking-the-provider").to_string(), TEXT_DIM)),
-        (Some(Ok(m)), _) => Some((t!("settings-clankers-models-offered-for-this-key", count = m.len()), TEXT_DIM)),
-        (Some(Err(e)), _) => Some((e.clone(), CRIT)),
+        (_, true) => Some((t!("settings-clankers-asking-the-provider").to_string(), text_dim())),
+        (Some(Ok(m)), _) => Some((t!("settings-clankers-models-offered-for-this-key", count = m.len()), text_dim())),
+        (Some(Err(e)), _) => Some((e.clone(), theme().crit)),
         (None, false) => None,
     };
     div()
@@ -784,15 +784,15 @@ fn models_picker(clankers: &ClankersState, app: Entity<CrowApp>) -> impl IntoEle
                         .id("btn-load-clanker-models")
                         .px(px(8.0))
                         .py(px(3.0))
-                        .bg(BG_KEY)
+                        .bg(bg_key())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| app_load.update(cx, |this, cx| this.load_clanker_models(cx)))
                         .child(t!("settings-clankers-load-models")),
                 )
@@ -812,14 +812,14 @@ fn models_picker(clankers: &ClankersState, app: Entity<CrowApp>) -> impl IntoEle
                         .id(ElementId::NamedInteger("clanker-model".into(), i as u64))
                         .px(px(6.0))
                         .py(px(2.0))
-                        .bg(BG_CONTROL)
+                        .bg(bg_control())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                         .on_click(move |_ev, window, cx| {
                             let m = m2.clone();
                             app.update(cx, |this, cx| this.pick_clanker_model(&m, window, cx))
@@ -844,8 +844,8 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, clankers: &ClankersState, inp
             .flex()
             .flex_col()
             .gap(px(4.0))
-            .child(div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_DIM).child(label))
-            .children(input.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0))))
+            .child(div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(text_dim()).child(label))
+            .children(input.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(bg_app()).rounded(px(2.0))))
     };
 
     Some(
@@ -868,9 +868,9 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, clankers: &ClankersState, inp
                     .id("clanker-modal-box")
                     .w(px(520.0))
                     .p(px(20.0))
-                    .bg(BG_PANEL)
+                    .bg(bg_panel())
                     .border_1()
-                    .border_color(BORDER_DEFAULT)
+                    .border_color(border_default())
                     .shadow_lg()
                     .flex()
                     .flex_col()
@@ -891,7 +891,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, clankers: &ClankersState, inp
                                         div()
                                             .w(px(16.0))
                                             .h(px(16.0))
-                                            .text_color(TEXT_PRIMARY)
+                                            .text_color(text_primary())
                                             .child(inherited_icon(TablerIcon::Key, font_px(14.0))),
                                     )
                                     .child(
@@ -899,7 +899,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, clankers: &ClankersState, inp
                                             .font_family(FONT_MONO)
                                             .text_size(font_px(13.0))
                                             .font_weight(FontWeight::BOLD)
-                                            .text_color(TEXT_MAX)
+                                            .text_color(text_max())
                                             .child(t!("settings-clankers-configure-clanker-api-key", p_name = p_name)),
                                     ),
                             )
@@ -907,8 +907,8 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, clankers: &ClankersState, inp
                                 div()
                                     .id("btn-close-clanker-modal")
                                     .cursor_pointer()
-                                    .text_color(TEXT_DIM)
-                                    .hover(|s| s.text_color(TEXT_PRIMARY))
+                                    .text_color(text_dim())
+                                    .hover(|s| s.text_color(text_primary()))
                                     .on_click(move |_ev, _window, cx| {
                                         app_close.update(cx, |this, cx| {
                                             this.close_edit_clanker_modal(cx);
@@ -927,7 +927,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, clankers: &ClankersState, inp
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
-                                .text_color(CRIT)
+                                .text_color(theme().crit)
                                 .child(e.clone()),
                         )
                     } else {
@@ -944,11 +944,11 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, clankers: &ClankersState, inp
                                     .id("btn-submit-clanker")
                                     .px(px(12.0))
                                     .py(px(6.0))
-                                    .bg(BG_KEY)
+                                    .bg(bg_key())
                                     .border_1()
-                                    .border_color(BORDER_DEFAULT)
+                                    .border_color(border_default())
                                     .cursor_pointer()
-                                    .hover(|s| s.bg(BG_ROW_HOVER))
+                                    .hover(|s| s.bg(bg_row_hover()))
                                     .on_click(move |_ev, _window, cx| {
                                         app_submit.update(cx, |this, cx| {
                                             this.submit_edit_clanker(cx);
@@ -959,7 +959,7 @@ pub fn render_clanker_modals(app: Entity<CrowApp>, clankers: &ClankersState, inp
                                             .font_family(FONT_MONO)
                                             .text_size(font_px(11.0))
                                             .font_weight(FontWeight::BOLD)
-                                            .text_color(OK)
+                                            .text_color(theme().ok)
                                             .child(t!("settings-clankers-save-config")),
                                     ),
                             ),

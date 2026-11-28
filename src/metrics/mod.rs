@@ -28,10 +28,10 @@ pub struct LiveServiceStatus {
 impl LiveServiceStatus {
     pub fn color(&self) -> Rgba {
         match self.status.to_uppercase().as_str() {
-            "ACTIVE" | "RUNNING" => OK,
-            "DEGRADED" | "PENDING" => WARN,
-            "FAILED" | "INACTIVE" | "DEAD" => CRIT,
-            _ => TEXT_MUTED,
+            "ACTIVE" | "RUNNING" => theme().ok,
+            "DEGRADED" | "PENDING" => theme().warn,
+            "FAILED" | "INACTIVE" | "DEAD" => theme().crit,
+            _ => text_muted(),
         }
     }
 }

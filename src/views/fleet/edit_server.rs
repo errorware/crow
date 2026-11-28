@@ -19,13 +19,13 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, selected: bo
         .px(px(9.0))
         .py(px(4.0))
         .border_1()
-        .border_color(if selected { OK } else { BORDER_DEFAULT })
-        .bg(if selected { BG_CONTROL_ALT } else { BG_CONTROL })
+        .border_color(if selected { theme().ok } else { border_default() })
+        .bg(if selected { bg_control_alt() } else { bg_control() })
         .text_size(font_px(10.5))
         .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
-        .text_color(if selected { TEXT_PRIMARY } else { TEXT_DIM })
+        .text_color(if selected { text_primary() } else { text_dim() })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
         .child(text.into())
 }
 
@@ -34,7 +34,7 @@ fn row(label: impl Into<SharedString>, body: impl IntoElement) -> Div {
         .flex()
         .items_start()
         .gap(px(12.0))
-        .child(div().w(px(96.0)).flex_none().pt(px(5.0)).text_size(font_px(10.0)).text_color(TEXT_DIMMER).child(label.into()))
+        .child(div().w(px(96.0)).flex_none().pt(px(5.0)).text_size(font_px(10.0)).text_color(text_dimmer()).child(label.into()))
         .child(div().flex_1().min_w(px(0.0)).child(body))
 }
 
@@ -77,9 +77,9 @@ pub fn edit_server_modal(e: &EditServer, servers: &[ServerRecord], groups: &[Str
                 .occlude()
                 .on_click(|_ev, _window, cx| cx.stop_propagation())
                 .w(px(560.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_DEFAULT)
+                .border_color(border_default())
                 .shadow_lg()
                 .flex()
                 .flex_col()
@@ -89,12 +89,12 @@ pub fn edit_server_modal(e: &EditServer, servers: &[ServerRecord], groups: &[Str
                         .px(px(16.0))
                         .py(px(12.0))
                         .border_b_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .flex()
                         .flex_col()
                         .gap(px(3.0))
-                        .child(div().text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child(t!("fleet-edit-server-title", name = title)))
-                        .when(ssh, |d| d.child(div().text_size(font_px(10.0)).text_color(TEXT_DIM).child(t!("fleet-edit-server-address-stays", address = address)))),
+                        .child(div().text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(text_max()).child(t!("fleet-edit-server-title", name = title)))
+                        .when(ssh, |d| d.child(div().text_size(font_px(10.0)).text_color(text_dim()).child(t!("fleet-edit-server-address-stays", address = address)))),
                 )
                 .child(
                     div()
@@ -102,7 +102,7 @@ pub fn edit_server_modal(e: &EditServer, servers: &[ServerRecord], groups: &[Str
                         .flex()
                         .flex_col()
                         .gap(px(12.0))
-                        .child(row(t!("fleet-edit-server-name"), Input::new(&e.name).font_family(FONT_MONO).bg(BG_APP)))
+                        .child(row(t!("fleet-edit-server-name"), Input::new(&e.name).font_family(FONT_MONO).bg(bg_app())))
                         .child(row(
                             t!("fleet-edit-server-environment"),
                             div()
@@ -124,8 +124,8 @@ pub fn edit_server_modal(e: &EditServer, servers: &[ServerRecord], groups: &[Str
                                     pick(format!("es-group-{g}"), g.clone(), &e.group == g, std::rc::Rc::new(move |e| e.group = name.clone()))
                                 })),
                         ))
-                        .child(row(t!("fleet-edit-server-role"), Input::new(&e.role).font_family(FONT_MONO).bg(BG_APP)))
-                        .child(row(t!("fleet-edit-server-tags"), Input::new(&e.tags).font_family(FONT_MONO).bg(BG_APP)))
+                        .child(row(t!("fleet-edit-server-role"), Input::new(&e.role).font_family(FONT_MONO).bg(bg_app())))
+                        .child(row(t!("fleet-edit-server-tags"), Input::new(&e.tags).font_family(FONT_MONO).bg(bg_app())))
                         .child(row(
                             t!("fleet-edit-server-agent"),
                             div()
@@ -137,9 +137,9 @@ pub fn edit_server_modal(e: &EditServer, servers: &[ServerRecord], groups: &[Str
                         ))
                         // How Crow reaches it: SSH servers only.
                         .when(ssh, |d| {
-                            d.child(div().h(px(1.0)).bg(BORDER_PANEL))
-                                .child(div().text_size(font_px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(t!("fleet-edit-server-how-crow-reaches-it")))
-                                .child(row(t!("fleet-edit-server-login-user"), Input::new(&e.login).font_family(FONT_MONO).bg(BG_APP)))
+                            d.child(div().h(px(1.0)).bg(border_panel()))
+                                .child(div().text_size(font_px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(text_dimmer()).child(t!("fleet-edit-server-how-crow-reaches-it")))
+                                .child(row(t!("fleet-edit-server-login-user"), Input::new(&e.login).font_family(FONT_MONO).bg(bg_app())))
                                 .child(row(
                                     t!("fleet-edit-server-key"),
                                     div()
@@ -167,17 +167,17 @@ pub fn edit_server_modal(e: &EditServer, servers: &[ServerRecord], groups: &[Str
                                 ))
                         }),
                 )
-                .children(e.error.clone().map(|err| div().mx(px(16.0)).mb(px(10.0)).p(px(8.0)).bg(CRIT_ROW_BG).text_size(font_px(10.5)).text_color(CRIT).child(err)))
+                .children(e.error.clone().map(|err| div().mx(px(16.0)).mb(px(10.0)).p(px(8.0)).bg(theme().crit_row_bg).text_size(font_px(10.5)).text_color(theme().crit).child(err)))
                 .child(
                     div()
                         .px(px(16.0))
                         .py(px(10.0))
                         .border_t_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .flex()
                         .items_center()
                         .gap(px(8.0))
-                        .child(div().flex_1().text_size(font_px(10.0)).text_color(TEXT_DIM).child(if e.testing { t!("fleet-edit-server-trying").to_string() } else if reach_changes { t!("fleet-edit-server-tried-first").to_string() } else { String::new() }))
+                        .child(div().flex_1().text_size(font_px(10.0)).text_color(text_dim()).child(if e.testing { t!("fleet-edit-server-trying").to_string() } else if reach_changes { t!("fleet-edit-server-tried-first").to_string() } else { String::new() }))
                         .child(
                             button("btn-edit-server-cancel", Tone::Neutral)
                                 .on_click(move |_ev, _window, cx| app_cancel.update(cx, |this, cx| this.close_edit_server(cx)))

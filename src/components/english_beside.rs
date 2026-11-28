@@ -8,5 +8,5 @@ use crate::theme::*;
 
 /// `EN · …` in small dim text, or nothing when Crow is in English.
 pub fn english_beside(english: Option<String>) -> Option<Div> {
-    english.map(|en| div().text_size(font_px(10.0)).text_color(TEXT_FAINT).child(format!("EN · {en}")))
+    english.map(|en| div().text_size(font_px(10.0)).text_color(text_faint()).child(format!("EN · {en}")))
 }

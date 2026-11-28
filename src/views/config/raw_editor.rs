@@ -30,7 +30,7 @@ pub fn raw_config_editor(
         .h_full()
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         // 1. Editor Header Toolbar
         .child(
             div()
@@ -40,21 +40,21 @@ pub fn raw_config_editor(
                 .items_center()
                 .gap(px(10.0))
                 .px(px(14.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(12.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(state.filename.clone()),
                 )
                 .child(
                     div()
-                        .bg(hex_rgba(0xffffff, 0.06))
-                        .text_color(TEXT_MUTED)
+                        .bg(bg_chip())
+                        .text_color(text_muted())
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.0))
                         .font_weight(FontWeight::BOLD)
@@ -65,8 +65,8 @@ pub fn raw_config_editor(
                 )
                 .child(
                     div()
-                        .bg(if is_modified { WARN_BG } else { OK_BG })
-                        .text_color(if is_modified { WARN } else { OK })
+                        .bg(if is_modified { theme().warn_bg } else { theme().ok_bg })
+                        .text_color(if is_modified { theme().warn } else { theme().ok })
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.0))
                         .font_weight(FontWeight::BOLD)
@@ -86,11 +86,11 @@ pub fn raw_config_editor(
                         .gap(px(4.0))
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_MUTED)
+                        .text_color(text_muted())
                         .child(t!("config-raw-editor-author"))
                         .child(
                             div()
-                                .text_color(TEXT_SECONDARY)
+                                .text_color(text_secondary())
                                 .font_weight(FontWeight::MEDIUM)
                                 .child(state.last_author().to_string())
                         )
@@ -101,13 +101,13 @@ pub fn raw_config_editor(
                         .id("btn-raw-history")
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_TERTIARY)
+                        .text_color(text_tertiary())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .px(px(8.0))
                         .py(px(3.0))
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| {
                             app_hist.update(cx, |this, cx| {
                                 this.toggle_config_history(cx);
@@ -122,13 +122,13 @@ pub fn raw_config_editor(
                         .id("btn-raw-structured")
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(hex_rgb(0x8ab4ff))
+                        .text_color(accent())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .px(px(8.0))
                         .py(px(3.0))
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| {
                             let f = f.clone();
                             app_structured.update(cx, |this, cx| {
@@ -162,15 +162,15 @@ pub fn raw_config_editor(
                             .id("btn-raw-stage")
                             .px(px(8.0))
                             .py(px(3.0))
-                            .bg(hex_rgba(0x10b981, 0.18))
+                            .bg(theme().ok_bg)
                             .border_1()
-                            .border_color(hex_rgba(0x10b981, 0.4))
+                            .border_color(theme().ok)
                             .cursor_pointer()
-                            .hover(|s| s.bg(hex_rgba(0x10b981, 0.3)))
+                            .hover(|s| s.bg(bg_row_hover()))
                             .font_family(FONT_MONO)
                             .text_size(font_px(10.0))
                             .font_weight(FontWeight::BOLD)
-                            .text_color(OK)
+                            .text_color(theme().ok)
                             .on_click(move |_ev, _window, cx| {
                                 let f = fn_clone.clone();
                                 app_stage.update(cx, |this, cx| {
@@ -188,7 +188,7 @@ pub fn raw_config_editor(
             div()
                 .flex_1()
                 .min_h(px(0.0))
-                .bg(BG_APP)
+                .bg(bg_app())
                 .child(
                     Editor::new(editor)
                         .h_full()
@@ -208,12 +208,12 @@ pub fn raw_config_editor(
                 .items_center()
                 .justify_between()
                 .px(px(12.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_t_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.0))
-                .text_color(TEXT_FAINT)
+                .text_color(text_faint())
                 .child(
                     div()
                         .flex()
@@ -230,11 +230,11 @@ pub fn raw_config_editor(
                         .items_center()
                         .gap(px(10.0))
                         .child(t!("config-raw-editor-revisions", count = state.revisions.len()))
-                        .children(read_only.then(|| div().text_color(WARN).child(t!("config-raw-editor-read-only"))))
+                        .children(read_only.then(|| div().text_color(theme().warn).child(t!("config-raw-editor-read-only"))))
                         .child(if is_modified {
-                            div().text_color(WARN).child(t!("config-raw-editor-unsaved-staged-changes"))
+                            div().text_color(theme().warn).child(t!("config-raw-editor-unsaved-staged-changes"))
                         } else {
-                            div().text_color(OK).child(t!("config-raw-editor-clean-baseline"))
+                            div().text_color(theme().ok).child(t!("config-raw-editor-clean-baseline"))
                         }),
                 ),
         )

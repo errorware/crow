@@ -72,9 +72,9 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // keep clicks inside from reaching the backdrop (which closes)
                 .w(px(780.0))
                 .h(px(ABOUT_HEIGHT))
-                .bg(BG_OVERLAY_PANEL)
+                .bg(bg_overlay_panel())
                 .border_1()
-                .border_color(BORDER_STRONG)
+                .border_color(border_strong())
                 .shadow_lg()
                 .flex()
                 .flex_col()
@@ -89,10 +89,10 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                         .justify_between()
                         .pl(px(14.0))
                         .pr(px(6.0))
-                        .bg(BG_PANEL)
+                        .bg(bg_panel())
                         .border_b_1()
-                        .border_color(BORDER_PANEL)
-                        .child(div().text_size(font_px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child(t!("about-about-crow")))
+                        .border_color(border_panel())
+                        .child(div().text_size(font_px(10.5)).font_weight(FontWeight::BOLD).text_color(text_secondary()).child(t!("about-about-crow")))
                         .child(crate::components::icon_button::icon_button("about-close-btn", TablerIcon::X, false).on_click(move |_ev, _window, cx| app_x.update(cx, |this, cx| this.close_about_modal(cx)))),
                 )
                 .child(
@@ -110,7 +110,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                 .flex_none()
                                 .overflow_hidden()
                                 .border_r_1()
-                                .border_color(BORDER_STRONG)
+                                .border_color(border_strong())
                                 .bg(hex_rgb(0x000000))
                                 .child(img(side_picture()).size_full().object_fit(ObjectFit::Cover))
                                 // Darkened to sit with the rest of the box.
@@ -146,11 +146,11 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                                         .flex()
                                                         .items_baseline()
                                                         .gap(px(10.0))
-                                                        .child(div().text_size(font_px(22.0)).font_weight(FontWeight::EXTRA_BOLD).text_color(TEXT_MAX).child(t!("about-crow")))
-                                                        .child(div().text_size(font_px(12.0)).font_weight(FontWeight::BOLD).text_color(OK).child(format!("v{version}"))),
+                                                        .child(div().text_size(font_px(22.0)).font_weight(FontWeight::EXTRA_BOLD).text_color(text_max()).child(t!("about-crow")))
+                                                        .child(div().text_size(font_px(12.0)).font_weight(FontWeight::BOLD).text_color(theme().ok).child(format!("v{version}"))),
                                                 )
-                                                .child(div().text_size(font_px(11.0)).text_color(TEXT_SECONDARY).child(t!("about-native-linux-server-manager-over")))
-                                                .child(div().text_size(font_px(10.0)).text_color(TEXT_FAINT).child(format!("{} · {} · {profile}", std::env::consts::OS, std::env::consts::ARCH))),
+                                                .child(div().text_size(font_px(11.0)).text_color(text_secondary()).child(t!("about-native-linux-server-manager-over")))
+                                                .child(div().text_size(font_px(10.0)).text_color(text_faint()).child(format!("{} · {} · {profile}", std::env::consts::OS, std::env::consts::ARCH))),
                                         ),
                                 )
                                 // Where to find the project
@@ -174,7 +174,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                         .mx(px(20.0))
                                         .bg(hex_rgb(0x08080a))
                                         .border_1()
-                                        .border_color(BORDER_PANEL)
+                                        .border_color(border_panel())
                                         .child(
                                             div()
                                                 .id("about-details-scroll")
@@ -199,7 +199,7 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                                 .child(info_row(t!("about-geoip-data"), crate::geoip::ATTRIBUTION))
                                                 .child(info_row(t!("about-font"), t!("about-jetbrains-mono-ofl-1-1")))
                                                 .child(heading(t!("about-license")))
-                                                .child(div().text_size(font_px(10.0)).line_height(px(15.0)).text_color(TEXT_DIM).child(t!("about-license-summary"))),
+                                                .child(div().text_size(font_px(10.0)).line_height(px(15.0)).text_color(text_dim()).child(t!("about-license-summary"))),
                                         ),
                                 )
                                 // Footer
@@ -219,11 +219,11 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                                 .gap(px(6.0))
                                                 .px(px(10.0))
                                                 .py(px(5.0))
-                                                .bg(BG_CONTROL)
+                                                .bg(bg_control())
                                                 .border_1()
-                                                .border_color(if copied_toast { OK } else { BORDER_DEFAULT })
+                                                .border_color(if copied_toast { theme().ok } else { border_default() })
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(BG_CONTROL_ALT))
+                                                .hover(|s| s.bg(bg_control_alt()))
                                                 .on_click(move |_ev, _window, cx| {
                                                     cx.write_to_clipboard(ClipboardItem::new_string(system_report()));
                                                     app_copy.update(cx, |this, cx| {
@@ -231,22 +231,22 @@ pub fn about_modal(app: Entity<CrowApp>, copied_toast: bool, update: &UpdateStat
                                                         cx.notify();
                                                     });
                                                 })
-                                                .child(tabler_icon(TablerIcon::Copy).size(px(12.0)).text_color(if copied_toast { OK } else { TEXT_SECONDARY }))
-                                                .child(div().font_weight(FontWeight::BOLD).text_size(font_px(10.5)).text_color(if copied_toast { OK } else { TEXT_PRIMARY }).child(if copied_toast { t!("about-copied-system-info") } else { t!("about-copy-system-info") })),
+                                                .child(tabler_icon(TablerIcon::Copy).size(px(12.0)).text_color(if copied_toast { theme().ok } else { text_secondary() }))
+                                                .child(div().font_weight(FontWeight::BOLD).text_size(font_px(10.5)).text_color(if copied_toast { theme().ok } else { text_primary() }).child(if copied_toast { t!("about-copied-system-info") } else { t!("about-copy-system-info") })),
                                         )
                                         .child(
                                             div()
                                                 .id("about-dismiss-btn")
                                                 .px(px(20.0))
                                                 .py(px(5.0))
-                                                .bg(BG_CONTROL)
+                                                .bg(bg_control())
                                                 .border_1()
-                                                .border_color(BORDER_STRONG)
+                                                .border_color(border_strong())
                                                 .font_weight(FontWeight::BOLD)
                                                 .text_size(font_px(11.0))
-                                                .text_color(TEXT_MAX)
+                                                .text_color(text_max())
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                                .hover(|s| s.bg(bg_row_hover()))
                                                 .on_click(move |_ev, _window, cx| app_close.update(cx, |this, cx| this.close_about_modal(cx)))
                                                 .child(t!("about-ok")),
                                         ),
@@ -263,20 +263,20 @@ fn link_row(id: &'static str, label: &'static str, url: &'static str) -> impl In
         .items_center()
         .gap(px(10.0))
         .text_size(font_px(11.0))
-        .child(div().w(px(80.0)).flex_none().text_color(TEXT_MUTED).child(label))
+        .child(div().w(px(80.0)).flex_none().text_color(text_muted()).child(label))
         .child(
             div()
                 .id(id)
-                .text_color(hex_rgb(0x8ab4ff))
+                .text_color(accent())
                 .cursor_pointer()
-                .hover(|s| s.underline().text_color(hex_rgb(0xb4ceff)))
+                .hover(|s| s.underline().text_color(accent()))
                 .on_click(move |_ev, _window, cx| cx.open_url(url))
                 .child(url.trim_start_matches("https://")),
         )
 }
 
 fn heading(title: &'static str) -> impl IntoElement {
-    div().pt(px(4.0)).text_size(font_px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(title)
+    div().pt(px(4.0)).text_size(font_px(9.0)).font_weight(FontWeight::BOLD).text_color(text_faint()).child(title)
 }
 
 /// The offered release: notes, skip, and install (when installing is on)
@@ -297,15 +297,15 @@ fn update_panel(update: &UpdateState, auto_install: bool, app: Entity<CrowApp>) 
             .text_size(font_px(10.0))
             .font_weight(FontWeight::BOLD)
             .text_color(color)
-            .hover(|s| s.bg(BG_ROW_HOVER))
+            .hover(|s| s.bg(bg_row_hover()))
             .child(label)
     };
     let (a_notes, a_skip, a_install, a_restart) = (app.clone(), app.clone(), app.clone(), app);
     Some(
         div()
-            .bg(OK_BG)
+            .bg(theme().ok_bg)
             .border_1()
-            .border_color(OK)
+            .border_color(theme().ok)
             .p(px(12.0))
             .flex()
             .flex_col()
@@ -315,29 +315,29 @@ fn update_panel(update: &UpdateState, auto_install: bool, app: Entity<CrowApp>) 
                     .font_family(FONT_MONO)
                     .text_size(font_px(11.0))
                     .font_weight(FontWeight::BOLD)
-                    .text_color(OK)
+                    .text_color(theme().ok)
                     .child(t!("about-crow-is-available", version = r.version, r = if r.prerelease { t!("about-pre-release") } else { "" }))
             }))
-            .children(update.note.clone().map(|n| div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_PRIMARY).child(n)))
+            .children(update.note.clone().map(|n| div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(text_primary()).child(n)))
             .child(
                 div()
                     .flex()
                     .gap(px(8.0))
                     .when(update.available.is_some(), |d| {
-                        d.child(button("btn-update-notes", t!("about-release-notes"), TEXT_SECONDARY).on_click(move |_e, _w, cx| a_notes.update(cx, |this, cx| this.open_release_notes(cx))))
+                        d.child(button("btn-update-notes", t!("about-release-notes"), text_secondary()).on_click(move |_e, _w, cx| a_notes.update(cx, |this, cx| this.open_release_notes(cx))))
                     })
                     .when(update.available.is_some() && !update.installed, |d| {
-                        d.child(button("btn-update-skip", t!("about-skip-this-version"), TEXT_SECONDARY).on_click(move |_e, _w, cx| a_skip.update(cx, |this, cx| this.skip_update(cx))))
+                        d.child(button("btn-update-skip", t!("about-skip-this-version"), text_secondary()).on_click(move |_e, _w, cx| a_skip.update(cx, |this, cx| this.skip_update(cx))))
                     })
                     .when(auto_install && update.available.is_some() && !update.installed && !update.installing, |d| {
-                        d.child(button("btn-update-install", t!("about-verify-install"), OK).on_click(move |_e, _w, cx| a_install.update(cx, |this, cx| this.install_update(cx))))
+                        d.child(button("btn-update-install", t!("about-verify-install"), theme().ok).on_click(move |_e, _w, cx| a_install.update(cx, |this, cx| this.install_update(cx))))
                     })
                     .when(update.installed, |d| {
-                        d.child(button("btn-update-restart", t!("about-restart-now"), OK).on_click(move |_e, _w, cx| a_restart.update(cx, |this, cx| this.restart_after_update(cx))))
+                        d.child(button("btn-update-restart", t!("about-restart-now"), theme().ok).on_click(move |_e, _w, cx| a_restart.update(cx, |this, cx| this.restart_after_update(cx))))
                     }),
             )
             .when(!auto_install && update.available.is_some(), |d| {
-                d.child(div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_MUTED).child(t!("about-crow-doesnt-download-anything-unless")))
+                d.child(div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(text_muted()).child(t!("about-crow-doesnt-download-anything-unless")))
             }),
     )
 }
@@ -347,6 +347,6 @@ fn info_row(label: &'static str, value: &str) -> impl IntoElement {
         .flex()
         .gap(px(12.0))
         .text_size(font_px(10.5))
-        .child(div().w(px(110.0)).flex_none().text_color(TEXT_MUTED).child(label))
-        .child(div().flex_1().min_w(px(0.0)).text_color(TEXT_PRIMARY).child(value.to_string()))
+        .child(div().w(px(110.0)).flex_none().text_color(text_muted()).child(label))
+        .child(div().flex_1().min_w(px(0.0)).text_color(text_primary()).child(value.to_string()))
 }

@@ -129,7 +129,7 @@ pub fn cron_editor(
         .h_full()
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         // 1. Header Bar
         .child(
             div()
@@ -139,21 +139,21 @@ pub fn cron_editor(
                 .items_center()
                 .gap(px(10.0))
                 .px(px(16.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(12.5))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_MAX)
+                        .text_color(text_max())
                         .child("crontab"),
                 )
                 .child(
                     div()
-                        .bg(OK_BG)
-                        .text_color(OK)
+                        .bg(theme().ok_bg)
+                        .text_color(theme().ok)
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.0))
                         .font_weight(FontWeight::BOLD)
@@ -164,8 +164,8 @@ pub fn cron_editor(
                 )
                 .child(if is_modified {
                     div()
-                        .bg(WARN_BG)
-                        .text_color(WARN)
+                        .bg(theme().warn_bg)
+                        .text_color(theme().warn)
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.0))
                         .font_weight(FontWeight::BOLD)
@@ -175,8 +175,8 @@ pub fn cron_editor(
                         .child(t!("config-cron-editor-unsaved-edits"))
                 } else {
                     div()
-                        .bg(OK_BG)
-                        .text_color(OK)
+                        .bg(theme().ok_bg)
+                        .text_color(theme().ok)
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.0))
                         .font_weight(FontWeight::BOLD)
@@ -189,7 +189,7 @@ pub fn cron_editor(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_TERTIARY)
+                        .text_color(text_tertiary())
                         .child("/etc/crontab"),
                 )
                 .child(div().flex_1())
@@ -199,15 +199,15 @@ pub fn cron_editor(
                         .id("btn-add-cron-job")
                         .px(px(10.0))
                         .py(px(4.0))
-                        .bg(BG_CONTROL)
+                        .bg(bg_control())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .on_click(move |_ev, _window, cx| {
                             app_add.update(cx, |this, cx| {
                                 this.configs.add_cron_job(); cx.notify();
@@ -236,13 +236,13 @@ pub fn cron_editor(
                             .id("btn-cron-apply")
                             .px(px(10.0))
                             .py(px(4.0))
-                            .bg(OK)
+                            .bg(theme().ok)
                             .cursor_pointer()
-                            .hover(|s| s.bg(hex_rgb(0x34d399)))
+                            .hover(|s| s.bg(if theme().is_dark { hex_rgb(0x34d399) } else { hex_rgb(0x15803d) }))
                             .font_family(FONT_MONO)
                             .text_size(font_px(10.0))
                             .font_weight(FontWeight::BOLD)
-                            .text_color(rgb(0x0a0a0c))
+                            .text_color(if theme().is_dark { hex_rgb(0x0a0a0c) } else { hex_rgb(0xffffff) })
                             .on_click(move |_ev, _window, cx| {
                                 app_apply.update(cx, |this, cx| {
                                     this.stage_config_version("crontab", "Updated cron scheduled jobs", cx);
@@ -259,14 +259,14 @@ pub fn cron_editor(
                         .id("btn-cron-history")
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(if configs.show_history { OK } else { TEXT_TERTIARY })
+                        .text_color(if configs.show_history { theme().ok } else { text_tertiary() })
                         .border_1()
-                        .border_color(if configs.show_history { OK } else { BORDER_DEFAULT })
-                        .bg(if configs.show_history { OK_BG } else { hex_rgba(0, 0.0) })
+                        .border_color(if configs.show_history { theme().ok } else { border_default() })
+                        .bg(if configs.show_history { theme().ok_bg } else { hex_rgba(0, 0.0) })
                         .px(px(8.0))
                         .py(px(4.0))
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| {
                             app_history.update(cx, |this, cx| {
                                 this.toggle_config_history(cx);
@@ -284,9 +284,9 @@ pub fn cron_editor(
                 .items_center()
                 .justify_between()
                 .px(px(16.0))
-                .bg(BG_SUBHEAD)
+                .bg(bg_subhead())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .flex()
@@ -295,13 +295,13 @@ pub fn cron_editor(
                         .child(
                             tabler_icon(TablerIcon::Clock)
                                 .size(px(12.0))
-                                .text_color(hex_rgb(0x38bdf8)),
+                                .text_color(accent()),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
-                                .text_color(TEXT_TERTIARY)
+                                .text_color(text_tertiary())
                                 .child(t!("config-cron-editor-each-job-runs-as-its")),
                         ),
                 )
@@ -316,8 +316,9 @@ pub fn cron_editor(
                 .overflow_y_scrollbar()
                 .flex()
                 .flex_col()
+                .bg(bg_panel())
                 .children(jobs.is_empty().then(|| {
-                    div().p(px(16.0)).font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_FAINT).child(t!("config-cron-editor-no-jobs-in-etc-crontab"))
+                    div().p(px(16.0)).font_family(FONT_MONO).text_size(font_px(11.0)).text_color(text_faint()).child(t!("config-cron-editor-no-jobs-in-etc-crontab"))
                 }))
                 .children(jobs.iter().enumerate().map(|(idx, job)| {
                     render_cron_job_card(job, idx, app.clone())
@@ -339,13 +340,13 @@ fn render_cron_header() -> impl IntoElement {
         .items_center()
         .px(px(16.0))
         .gap(px(12.0))
-        .bg(BG_SUBHEAD)
+        .bg(bg_subhead())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .font_family(FONT_MONO)
         .text_size(font_px(9.0))
         .font_weight(FontWeight::BOLD)
-        .text_color(TEXT_FAINT)
+        .text_color(text_faint())
         .child(div().w(px(COL_ON)).flex_none().child(t!("config-cron-editor-on")))
         .child(div().w(px(COL_SCHEDULE)).flex_none().child(t!("config-cron-editor-schedule-2")))
         .child(div().w(px(COL_USER)).flex_none().child(t!("config-cron-editor-user")))
@@ -386,9 +387,15 @@ fn render_cron_job_card(
         .px(px(16.0))
         .py(px(6.0))
         .border_b_1()
-        .border_color(BORDER_ROW)
-        .bg(if open { BG_ROW_SELECTED } else if idx % 2 == 1 { hex_rgba(0xffffff, 0.018) } else { hex_rgba(0, 0.0) })
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .border_color(border_row())
+        .bg(if open {
+            bg_row_selected()
+        } else if idx % 2 == 1 {
+            bg_row_alt()
+        } else {
+            bg_panel()
+        })
+        .hover(|s| s.bg(bg_row_hover()))
         .child(
             div()
                 .id(ElementId::NamedInteger("cron-switch".into(), idx as u64))
@@ -410,10 +417,10 @@ fn render_cron_job_card(
                         .p(px(2.0))
                         .flex()
                         .when(on, |d| d.justify_end())
-                        .bg(if on { OK_BG } else { BG_CONTROL })
+                        .bg(if on { theme().ok_bg } else { bg_control() })
                         .border_1()
-                        .border_color(if on { OK } else { BORDER_STRONG })
-                        .child(div().size(px(10.0)).rounded_full().bg(if on { OK } else { TEXT_DIM })),
+                        .border_color(if on { theme().ok } else { border_strong() })
+                        .child(div().size(px(10.0)).rounded_full().bg(if on { theme().ok } else { text_dim() })),
                 ),
         )
         .child(
@@ -423,10 +430,10 @@ fn render_cron_job_card(
                 .flex()
                 .flex_col()
                 .gap(px(2.0))
-                .child(div().font_family(FONT_MONO).text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(if on { TEXT_PRIMARY } else { TEXT_DIM }).child(job.human_schedule()))
-                .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_FAINT).child(expr)),
+                .child(div().font_family(FONT_MONO).text_size(font_px(11.5)).font_weight(FontWeight::BOLD).text_color(if on { text_primary() } else { text_dim() }).child(job.human_schedule()))
+                .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(text_faint()).child(expr)),
         )
-        .child(div().w(px(COL_USER)).flex_none().overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(if on { TEXT_SECONDARY } else { TEXT_DIM }).child(job.user.clone()))
+        .child(div().w(px(COL_USER)).flex_none().overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(if on { text_secondary() } else { text_dim() }).child(job.user.clone()))
         .child(
             div()
                 .flex_1()
@@ -434,8 +441,8 @@ fn render_cron_job_card(
                 .flex()
                 .flex_col()
                 .gap(px(2.0))
-                .child(div().overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(if on { hex_rgb(0x86efac) } else { TEXT_DIMMER }).child(job.command.clone()))
-                .children(job.comment.clone().filter(|c| !c.trim().is_empty()).map(|c| div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_FAINT).child(format!("# {c}")))),
+                .child(div().overflow_hidden().whitespace_nowrap().text_ellipsis().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(if on { syntax_string() } else { text_dimmer() }).child(job.command.clone()))
+                .children(job.comment.clone().filter(|c| !c.trim().is_empty()).map(|c| div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(text_faint()).child(format!("# {c}")))),
         )
         .child(
             div()
@@ -478,9 +485,9 @@ fn render_cron_builder(
 
     div()
         .p(px(14.0))
-        .bg(hex_rgb(0x0a0b10))
+        .bg(bg_panel())
         .border_t_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .flex()
         .flex_col()
         .gap(px(12.0))
@@ -495,7 +502,7 @@ fn render_cron_builder(
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(t!("config-cron-editor-quick-schedule-presets")),
                 )
                 .child(
@@ -516,14 +523,14 @@ fn render_cron_builder(
                                 .id(ElementId::NamedInteger("btn-preset".into(), (idx * 100 + p_idx) as u64))
                                 .px(px(8.0))
                                 .py(px(3.0))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .cursor_pointer()
-                                .hover(|s| s.bg(hex_rgba(0x38bdf8, 0.2)).border_color(hex_rgb(0x38bdf8)))
+                                .hover(|s| s.bg(accent_bg()).border_color(accent()))
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(TEXT_SECONDARY)
+                                .text_color(text_secondary())
                                 .on_click(move |_ev, _window, cx| {
                                     let id = j_id.clone();
                                     let (m, h, dom, mon, dow) = (m_str.clone(), h_str.clone(), dom_str.clone(), mon_str.clone(), dow_str.clone());
@@ -546,7 +553,7 @@ fn render_cron_builder(
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(t!("config-cron-editor-5-field-schedule-expression")),
                 )
                 .child(
@@ -577,20 +584,20 @@ fn render_cron_builder(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_DIMMER)
+                                .text_color(text_dimmer())
                                 .child(t!("config-cron-editor-execution-user")),
                         )
                         .child(
                             div()
                                 .px(px(8.0))
                                 .py(px(4.0))
-                                .bg(BG_APP)
+                                .bg(bg_app())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .rounded_sm()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
-                                .text_color(OK)
+                                .text_color(theme().ok)
                                 .child(job.user.clone()),
                         ),
                 )
@@ -606,20 +613,20 @@ fn render_cron_builder(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_DIMMER)
+                                .text_color(text_dimmer())
                                 .child(t!("config-cron-editor-shell-command")),
                         )
                         .child(
                             div()
                                 .px(px(10.0))
                                 .py(px(4.0))
-                                .bg(BG_APP)
+                                .bg(bg_app())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .rounded_sm()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(job.command.clone()),
                         ),
                 ),
@@ -642,9 +649,9 @@ fn render_field_stepper(
 
     div()
         .flex_1()
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_1()
-        .border_color(BORDER_DEFAULT)
+        .border_color(border_default())
         .rounded_sm()
         .p(px(8.0))
         .flex()
@@ -654,7 +661,7 @@ fn render_field_stepper(
             div()
                 .font_family(FONT_MONO)
                 .text_size(font_px(9.0))
-                .text_color(TEXT_MUTED)
+                .text_color(text_muted())
                 .child(title.to_string()),
         )
         .child(
@@ -662,7 +669,7 @@ fn render_field_stepper(
                 .font_family(FONT_MONO)
                 .text_size(font_px(14.0))
                 .font_weight(FontWeight::BOLD)
-                .text_color(TEXT_MAX)
+                .text_color(text_max())
                 .child(current_val.to_string()),
         )
         .child(
@@ -674,14 +681,14 @@ fn render_field_stepper(
                         .id(ElementId::NamedInteger(format!("cron-btn-star-{}-{}", job_id, field_key).into(), 0))
                         .px(px(5.0))
                         .py(px(2.0))
-                        .bg(BG_CONTROL)
+                        .bg(bg_control())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.0))
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .on_click(move |_ev, _window, cx| {
                             let id = jid_star.clone();
                             let f = fk_star.clone();
@@ -696,14 +703,14 @@ fn render_field_stepper(
                         .id(ElementId::NamedInteger(format!("cron-btn-zero-{}-{}", job_id, field_key).into(), 0))
                         .px(px(5.0))
                         .py(px(2.0))
-                        .bg(BG_CONTROL)
+                        .bg(bg_control())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.0))
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .on_click(move |_ev, _window, cx| {
                             let id = jid_zero.clone();
                             let f = fk_zero.clone();

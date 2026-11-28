@@ -35,9 +35,9 @@ pub fn fleet_view_tabs(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEle
         .items_center()
         .px(px(14.0))
         .gap(px(6.0))
-        .bg(BG_RAIL)
+        .bg(bg_rail())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .font_family(FONT_MONO)
         .child(tab_chip("fleet-tab-active", &t!("fleet-archived-active-fleet", active_n = active_n), page == FleetPage::Active, set(FleetPage::Active)))
         .child(tab_chip("fleet-tab-archived", &t!("fleet-archived-archived", archived_n = archived_n), page == FleetPage::Archived, set(FleetPage::Archived)))
@@ -46,7 +46,7 @@ pub fn fleet_view_tabs(fleet: &FleetState, app: Entity<CrowApp>) -> impl IntoEle
         .children(fleet.notice.as_ref().map(|notice| {
             div()
                 .text_size(font_px(10.0))
-                .text_color(TEXT_DIMMER)
+                .text_color(text_dimmer())
                 .child(notice.clone())
         }))
 }
@@ -57,13 +57,13 @@ fn tab_chip(id: &'static str, label: &str, is_on: bool, on_click: impl Fn(&mut A
         .px(px(10.0))
         .py(px(3.0))
         .border_1()
-        .border_color(if is_on { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
-        .bg(if is_on { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
-        .text_color(if is_on { TEXT_MAX } else { TEXT_DIMMER })
+        .border_color(if is_on { border_control_sel() } else { border_default() })
+        .bg(if is_on { bg_row_selected() } else { hex_rgba(0, 0.0) })
+        .text_color(if is_on { text_max() } else { text_dimmer() })
         .font_weight(if is_on { FontWeight::BOLD } else { FontWeight::NORMAL })
         .text_size(font_px(10.0))
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .on_click(move |_ev, _window, cx| on_click(cx))
         .child(label.to_string())
 }
@@ -78,15 +78,15 @@ fn danger_chip(is_on: bool, on_click: impl Fn(&mut App) + 'static) -> impl IntoE
         .px(px(10.0))
         .py(px(3.0))
         .border_1()
-        .border_color(if is_on { CRIT } else { BORDER_DANGER_BTN })
-        .bg(if is_on { CRIT_BG } else { hex_rgba(0, 0.0) })
-        .text_color(if is_on { CRIT } else { CRIT_INK_DIM })
+        .border_color(if is_on { theme().crit } else { border_danger_btn() })
+        .bg(if is_on { theme().crit_bg } else { hex_rgba(0, 0.0) })
+        .text_color(if is_on { theme().crit } else { theme().crit_ink_dim })
         .font_weight(if is_on { FontWeight::BOLD } else { FontWeight::NORMAL })
         .text_size(font_px(10.0))
         .cursor_pointer()
-        .hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT))
+        .hover(|s| s.bg(theme().crit_row_bg).text_color(theme().crit))
         .on_click(move |_ev, _window, cx| on_click(cx))
-        .child(tabler_icon(TablerIcon::AlertTriangle).size(px(11.0)).text_color(if is_on { CRIT } else { CRIT_INK_DIM }))
+        .child(tabler_icon(TablerIcon::AlertTriangle).size(px(11.0)).text_color(if is_on { theme().crit } else { theme().crit_ink_dim }))
         .child(t!("fleet-archived-danger-zone"))
 }
 
@@ -125,13 +125,13 @@ fn archived_header() -> impl IntoElement {
         .flex()
         .items_center()
         .px(px(12.0))
-        .bg(BG_SUBHEAD)
+        .bg(bg_subhead())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .font_family(FONT_MONO)
         .text_size(font_px(9.5))
         .font_weight(FontWeight::SEMIBOLD)
-        .text_color(TEXT_DIMMER)
+        .text_color(text_dimmer())
         .child(div().w(px(3.0)).flex_none().child(""))
         .child(div().flex_grow(3.0).flex_basis(px(0.0)).min_w(px(140.0)).child(t!("fleet-archived-host")))
         .child(div().flex_grow(2.0).flex_basis(px(0.0)).min_w(px(110.0)).child(t!("fleet-archived-address")))
@@ -148,10 +148,10 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
     let app_restore = app.clone();
     let purged = srv.purged_at.is_some();
     let env_fg = match srv.env.as_str() {
-        "PROD" => CRIT,
-        "STAGE" => WARN,
-        "DEV" => OK,
-        _ => TEXT_DIM,
+        "PROD" => theme().crit,
+        "STAGE" => theme().warn,
+        "DEV" => theme().ok,
+        _ => text_dim(),
     };
 
     div()
@@ -162,13 +162,13 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
         .flex()
         .items_center()
         .px(px(12.0))
-        .bg(if is_even { BG_APP } else { BG_ROW_ALT })
+        .bg(if is_even { bg_panel() } else { bg_row_alt() })
         .border_b_1()
-        .border_color(BORDER_ROW)
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .border_color(border_row())
+        .hover(|s| s.bg(bg_row_hover()))
         .font_family(FONT_MONO)
         .text_size(font_px(11.5))
-        .child(left_indicator(if purged { TEXT_FAINTER } else { WARN }))
+        .child(left_indicator(if purged { text_fainter() } else { theme().warn }))
         .child(
             div()
                 .flex_grow(3.0)
@@ -177,14 +177,14 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
                 .flex()
                 .items_center()
                 .gap(px(6.0))
-                .child(div().font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(srv.name.clone()))
+                .child(div().font_weight(FontWeight::BOLD).text_color(text_primary()).child(srv.name.clone()))
                 .child(
                     div()
                         .px(px(4.0))
                         .py(px(1.5))
                         .rounded_sm()
-                        .bg(BG_CHIP)
-                        .text_color(TEXT_DIM)
+                        .bg(bg_chip())
+                        .text_color(text_dim())
                         .text_size(font_px(8.5))
                         .font_weight(FontWeight::BOLD)
                         .child(t!("fleet-archived-archived-2")),
@@ -196,7 +196,7 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
                 .flex_basis(px(0.0))
                 .min_w(px(110.0))
                 .overflow_hidden()
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .child(format!("{}:{}", srv.host, srv.port)),
         )
         .child(
@@ -216,10 +216,10 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
                 .min_w(px(90.0))
                 .overflow_hidden()
                 .text_size(font_px(11.0))
-                .text_color(TEXT_TERTIARY)
+                .text_color(text_tertiary())
                 .child(srv.role.clone()),
         )
-        .child(div().w(px(96.0)).flex_none().text_color(TEXT_DIM).text_size(font_px(10.5)).child(archived_on_text(srv)))
+        .child(div().w(px(96.0)).flex_none().text_color(text_dim()).text_size(font_px(10.5)).child(archived_on_text(srv)))
         .child(
             div()
                 .flex_grow(2.0)
@@ -227,7 +227,7 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
                 .min_w(px(150.0))
                 .overflow_hidden()
                 .text_size(font_px(10.5))
-                .text_color(if purged { TEXT_FAINTER } else { WARN })
+                .text_color(if purged { text_fainter() } else { theme().warn })
                 .child(purge_status_text(srv, purge_days)),
         )
         .child(
@@ -245,20 +245,20 @@ fn archived_row(srv: &ServerRecord, idx: usize, purge_days: Option<i64>, app: En
                         .px(px(8.0))
                         .py(px(2.0))
                         .border_1()
-                        .border_color(OK)
-                        .bg(OK_BG)
-                        .text_color(OK)
+                        .border_color(theme().ok)
+                        .bg(theme().ok_bg)
+                        .text_color(theme().ok)
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.0))
                         .font_weight(FontWeight::BOLD)
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| {
                             let id = id.clone();
                             cx.stop_propagation();
                             app_restore.update(cx, |this, cx| this.restore_archived_server(&id, cx));
                         })
-                        .child(tabler_icon(TablerIcon::Refresh).size(px(10.0)).text_color(OK))
+                        .child(tabler_icon(TablerIcon::Refresh).size(px(10.0)).text_color(theme().ok))
                         .child(t!("fleet-archived-restore")),
                 ),
         )
@@ -278,26 +278,26 @@ fn empty_archived_state() -> AnyElement {
             div()
                 .size(px(44.0))
                 .border_1()
-                .border_color(BORDER_STRONG)
-                .bg(BG_PANEL)
+                .border_color(border_strong())
+                .bg(bg_panel())
                 .flex()
                 .items_center()
                 .justify_center()
-                .child(tabler_icon(TablerIcon::Server).size(px(22.0)).text_color(TEXT_MUTED)),
+                .child(tabler_icon(TablerIcon::Server).size(px(22.0)).text_color(text_muted())),
         )
         .child(
             div()
                 .font_family(FONT_MONO)
                 .font_weight(FontWeight::BOLD)
                 .text_size(font_px(13.0))
-                .text_color(TEXT_MAX)
+                .text_color(text_max())
                 .child(t!("fleet-archived-no-archived-servers")),
         )
         .child(
             div()
                 .font_family(FONT_MONO)
                 .text_size(font_px(11.0))
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .child(t!("fleet-archived-archiving-takes-a-server-out")),
         )
         .into_any_element()
@@ -310,9 +310,9 @@ fn purge_log(audit: &[ChangeRecord]) -> impl IntoElement {
         .flex_none()
         .flex()
         .flex_col()
-        .bg(BG_RAIL)
+        .bg(bg_rail())
         .border_t_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .child(
             div()
                 .h(px(28.0))
@@ -321,13 +321,13 @@ fn purge_log(audit: &[ChangeRecord]) -> impl IntoElement {
                 .items_center()
                 .gap(px(8.0))
                 .px(px(12.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.0))
-                .child(div().font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("fleet-archived-purge-log")))
-                .child(div().text_color(TEXT_DIMMER).child(t!("fleet-archived-record-s-crows-own-audit", count = audit.len()))),
+                .child(div().font_weight(FontWeight::BOLD).text_color(text_primary()).child(t!("fleet-archived-purge-log")))
+                .child(div().text_color(text_dimmer()).child(t!("fleet-archived-record-s-crows-own-audit", count = audit.len()))),
         )
         .child(
             div()
@@ -342,7 +342,7 @@ fn purge_log(audit: &[ChangeRecord]) -> impl IntoElement {
                         .py(px(8.0))
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(t!("fleet-archived-nothing-has-been-purged-yet"))
                         .into_any_element()]
                 } else {
@@ -357,9 +357,9 @@ fn purge_log(audit: &[ChangeRecord]) -> impl IntoElement {
                                 .py(px(2.0))
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
-                                .child(div().w(px(150.0)).flex_none().text_color(TEXT_FAINTER).child(when))
-                                .child(div().w(px(120.0)).flex_none().text_color(TEXT_SECONDARY).child(rec.target.clone()))
-                                .child(div().flex_1().text_color(TEXT_DIMMER).child(rec.before_state.clone()))
+                                .child(div().w(px(150.0)).flex_none().text_color(text_fainter()).child(when))
+                                .child(div().w(px(120.0)).flex_none().text_color(text_secondary()).child(rec.target.clone()))
+                                .child(div().flex_1().text_color(text_dimmer()).child(rec.before_state.clone()))
                                 .into_any_element()
                         })
                         .collect()
@@ -387,9 +387,9 @@ pub fn archive_confirm_overlay(srv: &ServerRecord, purge_due: &str, app: Entity<
         .child(
             div()
                 .w(px(600.0))
-                .bg(BG_OVERLAY_PANEL)
+                .bg(bg_overlay_panel())
                 .border_1()
-                .border_color(BORDER_STRONG)
+                .border_color(border_strong())
                 .rounded_sm()
                 .flex()
                 .flex_col()
@@ -401,14 +401,14 @@ pub fn archive_confirm_overlay(srv: &ServerRecord, purge_due: &str, app: Entity<
                         .items_center()
                         .gap(px(8.0))
                         .px(px(14.0))
-                        .bg(BG_PANEL)
+                        .bg(bg_panel())
                         .border_b_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_MAX)
-                        .child(tabler_icon(TablerIcon::AlertTriangle).size(px(13.0)).text_color(WARN))
+                        .text_color(text_max())
+                        .child(tabler_icon(TablerIcon::AlertTriangle).size(px(13.0)).text_color(theme().warn))
                         .child(t!("fleet-archived-archive", name = srv.name.to_uppercase())),
                 )
                 .child(
@@ -419,16 +419,16 @@ pub fn archive_confirm_overlay(srv: &ServerRecord, purge_due: &str, app: Entity<
                         .p(px(14.0))
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .child(t!("fleet-archived-leaves-the-active-fleet-crow", name = srv.name))
                         .child(
                             div()
-                                .text_color(WARN)
+                                .text_color(theme().warn)
                                 .child(t!("fleet-archived-its-stored-data-change-history", purge_due = purge_due)),
                         )
                         .child(
                             div()
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .child(t!("fleet-archived-the-server-record-itself-is")),
                         ),
                 )
@@ -448,10 +448,10 @@ pub fn archive_confirm_overlay(srv: &ServerRecord, purge_due: &str, app: Entity<
                                 .px(px(12.0))
                                 .py(px(6.0))
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
-                                .text_color(TEXT_SECONDARY)
+                                .border_color(border_default())
+                                .text_color(text_secondary())
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     cx.stop_propagation();
                                     app_cancel.update(cx, |this, cx| {
@@ -467,12 +467,12 @@ pub fn archive_confirm_overlay(srv: &ServerRecord, purge_due: &str, app: Entity<
                                 .px(px(12.0))
                                 .py(px(6.0))
                                 .border_1()
-                                .border_color(WARN)
-                                .bg(WARN_BG)
-                                .text_color(WARN)
+                                .border_color(theme().warn)
+                                .bg(theme().warn_bg)
+                                .text_color(theme().warn)
                                 .font_weight(FontWeight::BOLD)
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     let id = id.clone();
                                     cx.stop_propagation();

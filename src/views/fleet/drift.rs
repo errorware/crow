@@ -21,7 +21,7 @@ fn mono(size: f32, color: Rgba) -> Div {
 }
 
 fn section(title: &'static str, note: impl Into<SharedString>) -> Div {
-    div().flex().items_baseline().gap(px(10.0)).child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(title)).child(mono(9.5, TEXT_FAINT).child(note.into()))
+    div().flex().items_baseline().gap(px(10.0)).child(mono(10.5, text_secondary()).font_weight(FontWeight::BOLD).child(title)).child(mono(9.5, text_faint()).child(note.into()))
 }
 
 fn action(id: impl Into<SharedString>, text: impl Into<SharedString>, color: Rgba) -> Stateful<Div> {
@@ -69,9 +69,9 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
         .flex_col()
         .gap(px(8.0))
         .child(section(t!("fleet-drift-search-every-servers-configs"), t!("fleet-drift-from-what-crow-has-read")))
-        .children(st.search.as_ref().map(|i| div().max_w(px(640.0)).child(Input::new(i).font_family(FONT_MONO).text_size(font_px(11.5)).bg(BG_APP).rounded(px(2.0)))))
+        .children(st.search.as_ref().map(|i| div().max_w(px(640.0)).child(Input::new(i).font_family(FONT_MONO).text_size(font_px(11.5)).bg(bg_app()).rounded(px(2.0)))))
         .when(st.searched.len() >= 2, |d| {
-            d.child(mono(9.5, TEXT_FAINT).child(match st.hits.len() {
+            d.child(mono(9.5, text_faint()).child(match st.hits.len() {
                 0 => t!("fleet-drift-nothing-found-crow-searches-the").to_string(),
                 n if n >= crate::app::drift::MAX_HITS => t!("fleet-drift-first-matches", n = n),
                 n => t!("fleet-drift-text", n = n),
@@ -86,16 +86,16 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
                     .px(px(8.0))
                     .py(px(3.0))
                     .cursor_pointer()
-                    .hover(|s| s.bg(BG_ROW_HOVER))
+                    .hover(|s| s.bg(bg_row_hover()))
                     .on_click(move |_ev, _w, cx| {
                         let hit = hit.clone();
                         app.update(cx, |this, cx| this.open_search_hit(&hit, cx))
                     })
-                    .child(mono(10.5, TEXT_PRIMARY).w(px(140.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(h.server.clone()))
-                    .child(mono(10.5, TEXT_TERTIARY).w(px(260.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(h.path.clone()))
+                    .child(mono(10.5, text_primary()).w(px(140.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(h.server.clone()))
+                    .child(mono(10.5, text_tertiary()).w(px(260.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(h.path.clone()))
                     .child(match &h.line {
-                        Some((n, l)) => mono(10.5, TEXT_SECONDARY).flex_1().min_w(px(0.0)).whitespace_nowrap().overflow_hidden().text_ellipsis().child(format!("{n}: {l}")),
-                        None => mono(10.0, TEXT_FAINT).flex_1().child(t!("fleet-drift-the-file")),
+                        Some((n, l)) => mono(10.5, text_secondary()).flex_1().min_w(px(0.0)).whitespace_nowrap().overflow_hidden().text_ellipsis().child(format!("{n}: {l}")),
+                        None => mono(10.0, text_faint()).flex_1().child(t!("fleet-drift-the-file")),
                     })
             })))
         });
@@ -119,19 +119,19 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
                         .h(px(24.0))
                         .px(px(10.0))
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                         .on_click(move |_ev, _w, cx| app_check.update(cx, |this, cx| this.check_drift(true, cx)))
                         .child(inherited_icon(TablerIcon::Refresh, font_px(12.0)))
                         .child(if st.checking.is_empty() { t!("fleet-drift-check-now").to_string() } else { t!("fleet-drift-reading", count = st.checking.len()) }),
                 ),
         )
-        .children(st.message.clone().map(|m| mono(10.5, WARN).line_height(px(15.0)).child(m)))
-        .when(paths.is_empty(), |d| d.child(mono(10.5, TEXT_DIM).line_height(px(15.0)).child(t!("fleet-drift-no-baselines-pinned-yet-pin"))))
+        .children(st.message.clone().map(|m| mono(10.5, theme().warn).line_height(px(15.0)).child(m)))
+        .when(paths.is_empty(), |d| d.child(mono(10.5, text_dim()).line_height(px(15.0)).child(t!("fleet-drift-no-baselines-pinned-yet-pin"))))
         .children(paths.into_iter().map(|path| {
             let rows: Vec<&&DriftEntry> = entries.iter().filter(|e| e.path == path).collect();
             let n_drift = rows.iter().filter(|e| e.drift.is_drift()).count();
@@ -141,7 +141,7 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
                 .flex()
                 .flex_col()
                 .border_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .flex()
@@ -149,12 +149,12 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
                         .gap(px(10.0))
                         .px(px(10.0))
                         .h(px(30.0))
-                        .bg(BG_SUBHEAD)
-                        .child(mono(11.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(path.to_string()))
-                        .child(mono(9.5, if n_drift > 0 { WARN } else { OK }).child(if n_drift > 0 { t!("fleet-drift-drifted", n_drift = n_drift) } else { t!("fleet-drift-all-match").to_string() }))
+                        .bg(bg_subhead())
+                        .child(mono(11.0, text_primary()).font_weight(FontWeight::BOLD).child(path.to_string()))
+                        .child(mono(9.5, if n_drift > 0 { theme().warn } else { theme().ok }).child(if n_drift > 0 { t!("fleet-drift-drifted", n_drift = n_drift) } else { t!("fleet-drift-all-match").to_string() }))
                         .child(div().flex_1())
                         .when(n_drift > 1, |d| {
-                            d.child(action(format!("drift-all-{path}"), t!("fleet-drift-bring-all-back", n_drift = n_drift), WARN).on_click(move |_ev, window, cx| {
+                            d.child(action(format!("drift-all-{path}"), t!("fleet-drift-bring-all-back", n_drift = n_drift), theme().warn).on_click(move |_ev, window, cx| {
                                 let p = p.clone();
                                 app_all.update(cx, |this, cx| this.plan_bring_back(&p, None, window, cx))
                             }))
@@ -163,9 +163,9 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
                 .children(rows.into_iter().map(|e| {
                     let selected = st.selected.as_ref().is_some_and(|(s, p)| *s == e.server_id && *p == e.path);
                     let (text, color) = match &e.drift {
-                        Drift::Identical => ("matches".to_string(), OK),
-                        Drift::Cosmetic => (t!("fleet-drift-matches-comments-spacing-differ").to_string(), OK),
-                        Drift::Differs(d) => (t!("fleet-drift-text-2", count = d.len(), cloned = d.first().cloned().unwrap_or_default()), WARN),
+                        Drift::Identical => ("matches".to_string(), theme().ok),
+                        Drift::Cosmetic => (t!("fleet-drift-matches-comments-spacing-differ").to_string(), theme().ok),
+                        Drift::Differs(d) => (t!("fleet-drift-text-2", count = d.len(), cloned = d.first().cloned().unwrap_or_default()), theme().warn),
                     };
                     let scope = if e.scope == BASELINE_FLEET { "fleet".to_string() } else { e.scope.clone() };
                     let (app, sid, p) = (app.clone(), e.server_id.clone(), e.path.clone());
@@ -177,18 +177,18 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
                         .px(px(10.0))
                         .min_h(px(28.0))
                         .border_t_1()
-                        .border_color(BORDER_PANEL)
-                        .bg(if selected { BG_ROW_SELECTED } else { BG_PANEL })
+                        .border_color(border_panel())
+                        .bg(if selected { bg_row_selected() } else { bg_panel() })
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _w, cx| {
                             let (sid, p) = (sid.clone(), p.clone());
                             app.update(cx, |this, cx| this.select_drift(&sid, &p, cx))
                         })
                         .child(div().size(px(7.0)).rounded_full().bg(color))
-                        .child(mono(11.0, TEXT_PRIMARY).w(px(160.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(name(&e.server_id)))
+                        .child(mono(11.0, text_primary()).w(px(160.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(name(&e.server_id)))
                         .child(mono(10.5, color).flex_1().min_w(px(0.0)).whitespace_nowrap().overflow_hidden().text_ellipsis().child(text))
-                        .child(mono(9.5, TEXT_FAINT).w(px(110.0)).flex_none().child(t!("fleet-drift-vs-baseline", scope = scope)))
+                        .child(mono(9.5, text_faint()).w(px(110.0)).flex_none().child(t!("fleet-drift-vs-baseline", scope = scope)))
                 }))
         }));
 
@@ -209,39 +209,39 @@ pub fn drift_page(fleet: &FleetState, st: &DriftPageState, selected_texts: Optio
                         .max_h(px(380.0))
                         .overflow_y_scrollbar()
                         .p(px(8.0))
-                        .bg(BG_PANEL)
+                        .bg(bg_panel())
                         .border_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .children(hunks(&diff, 2).into_iter().map(|l| match l {
-                            None => mono(10.0, TEXT_GHOST).child("⋯"),
+                            None => mono(10.0, text_ghost()).child("⋯"),
                             Some(l) => {
                                 let (sign, color, bg) = match l.kind {
-                                    DiffKind::Added => ("+", WARN, WARN.opacity(0.08)),
-                                    DiffKind::Removed => ("−", OK, OK.opacity(0.06)),
-                                    DiffKind::Same => (" ", TEXT_DIM, hex_rgba(0, 0.0)),
+                                    DiffKind::Added => ("+", theme().warn, theme().warn.opacity(0.08)),
+                                    DiffKind::Removed => ("−", theme().ok, theme().ok.opacity(0.06)),
+                                    DiffKind::Same => (" ", text_dim(), hex_rgba(0, 0.0)),
                                 };
                                 mono(10.5, color).bg(bg).whitespace_nowrap().child(format!("{sign} {}", l.text))
                             }
                         }))
                         .into_any_element()
                 }
-                None => mono(10.5, TEXT_DIM).line_height(px(15.0)).child(t!("fleet-drift-crow-kept-only-hashes-of")).into_any_element(),
+                None => mono(10.5, text_dim()).line_height(px(15.0)).child(t!("fleet-drift-crow-kept-only-hashes-of")).into_any_element(),
             })
             .when(e.drift.is_drift() && selected_texts.is_some(), |d| {
                 d.child(
                     div()
                         .flex()
                         .gap(px(8.0))
-                        .child(action("drift-bring-back", "BRING BACK TO BASELINE", OK).on_click(move |_ev, window, cx| {
+                        .child(action("drift-bring-back", "BRING BACK TO BASELINE", theme().ok).on_click(move |_ev, window, cx| {
                             let (sid, path) = (sid.clone(), path.clone());
                             app_back.update(cx, |this, cx| this.plan_bring_back(&path, Some(&sid), window, cx))
                         }))
-                        .child(action("drift-accept", "ACCEPT THIS VERSION AS THE BASELINE", WARN).on_click(move |_ev, _w, cx| {
+                        .child(action("drift-accept", "ACCEPT THIS VERSION AS THE BASELINE", theme().warn).on_click(move |_ev, _w, cx| {
                             let (sid, path) = (sid2.clone(), path2.clone());
                             app_accept.update(cx, |this, cx| this.accept_drift(&sid, &path, cx))
                         })),
                 )
-                .child(mono(9.5, TEXT_FAINT).line_height(px(13.0)).child(t!("fleet-drift-bring-back-writes-the-baseline")))
+                .child(mono(9.5, text_faint()).line_height(px(13.0)).child(t!("fleet-drift-bring-back-writes-the-baseline")))
             })
     });
 

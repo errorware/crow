@@ -19,7 +19,7 @@ pub fn passwd_inspector(
         .size_full()
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         // 1. Top Control Bar
         .child(
             div()
@@ -29,9 +29,9 @@ pub fn passwd_inspector(
                 .items_center()
                 .justify_between()
                 .px(px(16.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .flex()
@@ -45,15 +45,15 @@ pub fn passwd_inspector(
                                 .gap(px(6.0))
                                 .px(px(10.0))
                                 .py(px(4.0))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_SECONDARY)
+                                .text_color(text_secondary())
                                 .on_click(move |_ev, _window, cx| {
                                     app_back.update(cx, |this, cx| {
                                         this.users.selected_for_passwd = None; cx.notify();
@@ -66,11 +66,11 @@ pub fn passwd_inspector(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(13.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MAX)
+                                .text_color(text_max())
                                 .child("/etc/passwd"),
                         )
                         .child(
-                            crate::components::button::badge(hex_rgb(0x8ab4ff))
+                            crate::components::button::badge(accent())
                                 .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .child(t!("users-passwd-inspector-account", uname = uname)),
@@ -89,7 +89,7 @@ pub fn passwd_inspector(
                                 .gap(px(6.0))
                                 .px(px(10.0))
                                 .py(px(4.0))
-                                .bg(OK_BG)
+                                .bg(theme().ok_bg)
                                 .border_1()
                                 .border_color(hex_rgba(0x10b981, 0.4))
                                 .cursor_pointer()
@@ -97,7 +97,7 @@ pub fn passwd_inspector(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(OK)
+                                .text_color(theme().ok)
                                 .on_click(move |_ev, _window, cx| {
                                     app_edit_cfg.update(cx, |this, cx| {
                                         this.select_managed_file("passwd", cx);
@@ -123,9 +123,9 @@ pub fn passwd_inspector(
                 .child(
                     div()
                         .p(px(16.0))
-                        .bg(BG_PANEL)
+                        .bg(bg_panel())
                         .border_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .rounded_md()
                         .flex()
                         .flex_col()
@@ -140,14 +140,14 @@ pub fn passwd_inspector(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.5))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_MUTED)
+                                        .text_color(text_muted())
                                         .child(t!("users-passwd-inspector-raw-7-field-posix-passwd")),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(9.0))
-                                        .text_color(TEXT_FAINT)
+                                        .text_color(text_faint())
                                         .child(t!("users-passwd-inspector-delimiter-colon")),
                                 ),
                         )
@@ -156,7 +156,7 @@ pub fn passwd_inspector(
                                 .p(px(12.0))
                                 .bg(hex_rgba(0x000000, 0.5))
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .rounded_sm()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(14.0))
@@ -174,7 +174,7 @@ pub fn passwd_inspector(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(t!("users-passwd-inspector-exploded-field-anatomy-system-semantics")),
                         )
                         .child(render_exploded_fields(user)),
@@ -191,7 +191,7 @@ pub fn passwd_inspector(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MUTED)
+                                .text_color(text_muted())
                                 .child(t!("users-passwd-inspector-switch-passwd-record-to-inspect")),
                         )
                         .child(
@@ -208,14 +208,14 @@ pub fn passwd_inspector(
                                         .px(px(8.0))
                                         .py(px(4.0))
                                         .border_1()
-                                        .border_color(if is_curr { hex_rgba(0x8ab4ff, 0.5) } else { BORDER_DEFAULT })
-                                        .bg(if is_curr { BG_NAV_ACTIVE } else { BG_CONTROL })
+                                        .border_color(if is_curr { accent_border() } else { border_default() })
+                                        .bg(if is_curr { bg_nav_active() } else { bg_control() })
                                         .cursor_pointer()
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .hover(|s| s.bg(bg_row_hover()))
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
                                         .font_weight(if is_curr { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                        .text_color(if is_curr { hex_rgb(0x8ab4ff) } else { TEXT_SECONDARY })
+                                        .text_color(if is_curr { accent() } else { text_secondary() })
                                         .on_click(move |_ev, _window, cx| {
                                             let target = un.clone();
                                             app_sw.update(cx, |this, cx| {
@@ -236,7 +236,7 @@ fn render_raw_passwd_line(user: &SystemUserRecord) -> impl IntoElement {
         .flex()
         .flex_wrap()
         .items_center()
-        .child(span_token(&user.username, hex_rgb(0x38bdf8))) // username (cyan)
+        .child(span_token(&user.username, accent())) // username
         .child(span_delim())
         .child(span_token(pwd_flag, hex_rgb(0xf43f5e))) // password (rose)
         .child(span_delim())
@@ -274,7 +274,7 @@ fn render_exploded_fields(user: &SystemUserRecord) -> impl IntoElement {
             1,
             t!("users-passwd-inspector-login-username"),
             user.username.clone(),
-            hex_rgb(0x38bdf8),
+            accent(),
             "Identifier used to authenticate during SSH, login, PAM, or sudo sessions. Restricted to alphanumeric characters.",
         ),
         (
@@ -342,9 +342,9 @@ fn render_exploded_fields(user: &SystemUserRecord) -> impl IntoElement {
         .children(fields.iter().map(|(num, label, val, color, desc)| {
             div()
                 .p(px(12.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_DEFAULT)
+                .border_color(border_default())
                 .rounded_sm()
                 .flex()
                 .flex_col()
@@ -370,7 +370,7 @@ fn render_exploded_fields(user: &SystemUserRecord) -> impl IntoElement {
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(*label),
                                 ),
                         )
@@ -380,7 +380,7 @@ fn render_exploded_fields(user: &SystemUserRecord) -> impl IntoElement {
                                 .py(px(2.0))
                                 .bg(hex_rgba(0x000000, 0.4))
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .rounded_sm()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(12.0))
@@ -393,7 +393,7 @@ fn render_exploded_fields(user: &SystemUserRecord) -> impl IntoElement {
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_MUTED)
+                        .text_color(text_muted())
                         .child(*desc),
                 )
         }))

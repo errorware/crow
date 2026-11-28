@@ -18,7 +18,7 @@ fn mono(size: f32, color: Rgba) -> Div {
 }
 
 fn section(title: &'static str, note: impl Into<SharedString>) -> Div {
-    div().flex().items_baseline().gap(px(10.0)).child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(title)).child(mono(9.5, TEXT_FAINT).child(note.into()))
+    div().flex().items_baseline().gap(px(10.0)).child(mono(10.5, text_secondary()).font_weight(FontWeight::BOLD).child(title)).child(mono(9.5, text_faint()).child(note.into()))
 }
 
 fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) -> Stateful<Div> {
@@ -27,14 +27,14 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) ->
         .px(px(9.0))
         .py(px(4.0))
         .border_1()
-        .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
-        .bg(if on { BG_CONTROL_ALT } else { BG_CONTROL })
+        .border_color(if on { text_primary() } else { border_default() })
+        .bg(if on { bg_control_alt() } else { bg_control() })
         .font_family(FONT_MONO)
         .text_size(font_px(10.0))
         .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
-        .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+        .text_color(if on { text_primary() } else { text_dim() })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
         .child(text.into())
 }
 
@@ -107,9 +107,9 @@ pub fn patching_page(fleet: &FleetState, st: &PatchingState, app: Entity<CrowApp
                         .flex_col()
                         .gap(px(10.0))
                         .p(px(14.0))
-                        .bg(BG_PANEL)
+                        .bg(bg_panel())
                         .border_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .child(section("APPLY", t!("fleet-patching-of-behind-on-security-updates", behind = behind, count = in_target.len(), reboots = reboots)))
                         .child(
                             div()
@@ -136,18 +136,18 @@ pub fn patching_page(fleet: &FleetState, st: &PatchingState, app: Entity<CrowApp
                                 .gap(px(8.0))
                                 .cursor_pointer()
                                 .on_click(move |_ev, _w, cx| app_toggle.update(cx, |this, cx| this.toggle_reboot_after(cx)))
-                                .child(div().size(px(12.0)).border_1().border_color(if st.reboot_after { OK } else { BORDER_STRONG }).bg(if st.reboot_after { OK } else { BG_CONTROL }))
-                                .child(mono(10.5, TEXT_SECONDARY).child(t!("fleet-patching-then-reboot-servers-that-need"))),
+                                .child(div().size(px(12.0)).border_1().border_color(if st.reboot_after { theme().ok } else { border_strong() }).bg(if st.reboot_after { theme().ok } else { bg_control() }))
+                                .child(mono(10.5, text_secondary()).child(t!("fleet-patching-then-reboot-servers-that-need"))),
                         )
                         .child(
                             div()
                                 .flex()
                                 .gap(px(8.0))
-                                .child(action("btn-patch-security", "APPLY SECURITY UPDATES", OK).on_click(move |_ev, window, cx| app_sec.update(cx, |this, cx| this.plan_patch(Scope::Security, window, cx))))
-                                .child(action("btn-patch-all", "APPLY ALL UPDATES", WARN).on_click(move |_ev, window, cx| app_all.update(cx, |this, cx| this.plan_patch(Scope::All, window, cx))))
-                                .child(action("btn-patch-reboot", "REBOOT WHERE NEEDED", CRIT).on_click(move |_ev, window, cx| app_reboot.update(cx, |this, cx| this.plan_reboot_needed(window, cx)))),
+                                .child(action("btn-patch-security", "APPLY SECURITY UPDATES", theme().ok).on_click(move |_ev, window, cx| app_sec.update(cx, |this, cx| this.plan_patch(Scope::Security, window, cx))))
+                                .child(action("btn-patch-all", "APPLY ALL UPDATES", theme().warn).on_click(move |_ev, window, cx| app_all.update(cx, |this, cx| this.plan_patch(Scope::All, window, cx))))
+                                .child(action("btn-patch-reboot", "REBOOT WHERE NEEDED", theme().crit).on_click(move |_ev, window, cx| app_reboot.update(cx, |this, cx| this.plan_reboot_needed(window, cx)))),
                         )
-                        .child(mono(9.5, TEXT_FAINT).line_height(px(14.0)).child(
+                        .child(mono(9.5, text_faint()).line_height(px(14.0)).child(
                             t!("fleet-patching-each-run-lists-the-exact"),
                         )),
                 )
@@ -172,12 +172,12 @@ pub fn patching_page(fleet: &FleetState, st: &PatchingState, app: Entity<CrowApp
                                         .h(px(24.0))
                                         .px(px(10.0))
                                         .border_1()
-                                        .border_color(BORDER_DEFAULT)
+                                        .border_color(border_default())
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
-                                        .text_color(TEXT_SECONDARY)
+                                        .text_color(text_secondary())
                                         .cursor_pointer()
-                                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                                         .on_click(move |_ev, _w, cx| app_refresh.update(cx, |this, cx| this.scan_fleet_updates(true, cx)))
                                         .child(inherited_icon(TablerIcon::Refresh, font_px(12.0)))
                                         .child(if scanning { t!("fleet-patching-reading", count = st.scanning.len()) } else { t!("fleet-patching-refresh").to_string() }),
@@ -185,7 +185,7 @@ pub fn patching_page(fleet: &FleetState, st: &PatchingState, app: Entity<CrowApp
                         )
                         .child({
                             let head = |w: Option<f32>, t: &'static str| {
-                                let d = mono(9.0, TEXT_FAINT).font_weight(FontWeight::SEMIBOLD).child(t);
+                                let d = mono(9.0, text_faint()).font_weight(FontWeight::SEMIBOLD).child(t);
                                 match w {
                                     Some(w) => d.w(px(w)).flex_none(),
                                     None => d.flex_1().min_w(px(0.0)),
@@ -197,9 +197,9 @@ pub fn patching_page(fleet: &FleetState, st: &PatchingState, app: Entity<CrowApp
                                 .gap(px(10.0))
                                 .h(px(24.0))
                                 .px(px(10.0))
-                                .bg(BG_SUBHEAD)
+                                .bg(bg_subhead())
                                 .border_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                                 .child(head(None, t!("fleet-patching-server")))
                                 .child(head(Some(W_GROUP), t!("fleet-patching-group-2")))
                                 .child(head(Some(W_MGR), t!("fleet-patching-via")))
@@ -212,37 +212,37 @@ pub fn patching_page(fleet: &FleetState, st: &PatchingState, app: Entity<CrowApp
                         .children(rows.into_iter().map(|s| {
                             let x = st.summaries.get(&s.id);
                             let reading = st.scanning.contains(&s.id);
-                            let dash = || mono(10.5, TEXT_GHOST).child("—");
+                            let dash = || mono(10.5, text_ghost()).child("—");
                             div()
                                 .flex()
                                 .items_center()
                                 .gap(px(10.0))
                                 .min_h(px(28.0))
                                 .px(px(10.0))
-                                .bg(BG_PANEL)
+                                .bg(bg_panel())
                                 .border_b_1()
                                 .border_l_1()
                                 .border_r_1()
-                                .border_color(BORDER_PANEL)
-                                .child(mono(11.0, TEXT_PRIMARY).flex_1().min_w(px(0.0)).whitespace_nowrap().overflow_hidden().text_ellipsis().child(s.name.clone()))
-                                .child(mono(10.0, TEXT_DIM).w(px(W_GROUP)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(if s.group_name.trim().is_empty() { "—".to_string() } else { s.group_name.trim().to_string() }))
+                                .border_color(border_panel())
+                                .child(mono(11.0, text_primary()).flex_1().min_w(px(0.0)).whitespace_nowrap().overflow_hidden().text_ellipsis().child(s.name.clone()))
+                                .child(mono(10.0, text_dim()).w(px(W_GROUP)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(if s.group_name.trim().is_empty() { "—".to_string() } else { s.group_name.trim().to_string() }))
                                 .child(match x {
-                                    _ if reading => mono(10.0, TEXT_DIM).flex_1().child(t!("fleet-patching-reading-2")).into_any_element(),
-                                    None => mono(10.0, TEXT_FAINT).flex_1().child(t!("fleet-patching-not-read-yet")).into_any_element(),
-                                    Some(x) if x.error.is_some() => mono(10.0, CRIT).flex_1().min_w(px(0.0)).whitespace_nowrap().overflow_hidden().text_ellipsis().child(t!("fleet-patching-couldnt-read", error = x.error.clone().unwrap_or_default())).into_any_element(),
+                                    _ if reading => mono(10.0, text_dim()).flex_1().child(t!("fleet-patching-reading-2")).into_any_element(),
+                                    None => mono(10.0, text_faint()).flex_1().child(t!("fleet-patching-not-read-yet")).into_any_element(),
+                                    Some(x) if x.error.is_some() => mono(10.0, theme().crit).flex_1().min_w(px(0.0)).whitespace_nowrap().overflow_hidden().text_ellipsis().child(t!("fleet-patching-couldnt-read", error = x.error.clone().unwrap_or_default())).into_any_element(),
                                     Some(x) => div()
                                         .flex()
                                         .items_center()
                                         .gap(px(10.0))
-                                        .child(mono(10.0, TEXT_DIM).w(px(W_MGR)).flex_none().child(if x.manager.is_empty() { "—".to_string() } else { x.manager.clone() }))
-                                        .child(mono(11.0, if x.security.is_empty() { TEXT_DIM } else { CRIT }).font_weight(if x.security.is_empty() { FontWeight::NORMAL } else { FontWeight::BOLD }).w(px(W_NUM)).flex_none().child(x.security.len().to_string()))
-                                        .child(mono(11.0, if x.total() == 0 { TEXT_DIM } else { WARN }).w(px(W_NUM)).flex_none().child(x.total().to_string()))
+                                        .child(mono(10.0, text_dim()).w(px(W_MGR)).flex_none().child(if x.manager.is_empty() { "—".to_string() } else { x.manager.clone() }))
+                                        .child(mono(11.0, if x.security.is_empty() { text_dim() } else { theme().crit }).font_weight(if x.security.is_empty() { FontWeight::NORMAL } else { FontWeight::BOLD }).w(px(W_NUM)).flex_none().child(x.security.len().to_string()))
+                                        .child(mono(11.0, if x.total() == 0 { text_dim() } else { theme().warn }).w(px(W_NUM)).flex_none().child(x.total().to_string()))
                                         .child(match &x.kernel {
-                                            Some(k) => mono(10.0, TEXT_SECONDARY).w(px(W_KERNEL)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(k.clone()).into_any_element(),
+                                            Some(k) => mono(10.0, text_secondary()).w(px(W_KERNEL)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(k.clone()).into_any_element(),
                                             None => dash().w(px(W_KERNEL)).flex_none().into_any_element(),
                                         })
-                                        .child(if x.reboot_required { mono(10.0, WARN).font_weight(FontWeight::BOLD).w(px(W_REBOOT)).flex_none().child(t!("fleet-patching-needed")).into_any_element() } else { dash().w(px(W_REBOOT)).flex_none().into_any_element() })
-                                        .child(mono(9.5, TEXT_FAINT).w(px(W_WHEN)).flex_none().child(ago(x.checked_at)))
+                                        .child(if x.reboot_required { mono(10.0, theme().warn).font_weight(FontWeight::BOLD).w(px(W_REBOOT)).flex_none().child(t!("fleet-patching-needed")).into_any_element() } else { dash().w(px(W_REBOOT)).flex_none().into_any_element() })
+                                        .child(mono(9.5, text_faint()).w(px(W_WHEN)).flex_none().child(ago(x.checked_at)))
                                         .into_any_element(),
                                 })
                         })),
@@ -254,7 +254,7 @@ pub fn patching_page(fleet: &FleetState, st: &PatchingState, app: Entity<CrowApp
                         .flex_col()
                         .gap(px(8.0))
                         .child(section(t!("fleet-patching-maintenance-windows"), t!("fleet-patching-per-group-local-time-a")))
-                        .when(fleet.groups.is_empty(), |d| d.child(mono(10.5, TEXT_DIM).child(t!("fleet-patching-no-groups-yet-windows-are"))))
+                        .when(fleet.groups.is_empty(), |d| d.child(mono(10.5, text_dim()).child(t!("fleet-patching-no-groups-yet-windows-are"))))
                         .children(fleet.groups.iter().map(|g| {
                             let window = st.windows.get(g);
                             let open_now = window.map(|w| w.contains_now());
@@ -263,16 +263,16 @@ pub fn patching_page(fleet: &FleetState, st: &PatchingState, app: Entity<CrowApp
                                 .flex()
                                 .items_center()
                                 .gap(px(12.0))
-                                .child(mono(11.0, TEXT_PRIMARY).w(px(160.0)).flex_none().child(format!("{g} ({members})")))
-                                .child(div().w(px(240.0)).flex_none().children(st.window_inputs.get(g).map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0)))))
+                                .child(mono(11.0, text_primary()).w(px(160.0)).flex_none().child(format!("{g} ({members})")))
+                                .child(div().w(px(240.0)).flex_none().children(st.window_inputs.get(g).map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(bg_app()).rounded(px(2.0)))))
                                 .child(match (st.window_errors.get(g), open_now) {
-                                    (Some(e), _) => mono(10.0, CRIT).child(e.clone()),
-                                    (None, Some(true)) => mono(10.0, OK).child(t!("fleet-patching-open-now")),
-                                    (None, Some(false)) => mono(10.0, TEXT_DIM).child(t!("fleet-patching-closed-now")),
-                                    (None, None) => mono(10.0, TEXT_FAINT).child(t!("fleet-patching-any-time")),
+                                    (Some(e), _) => mono(10.0, theme().crit).child(e.clone()),
+                                    (None, Some(true)) => mono(10.0, theme().ok).child(t!("fleet-patching-open-now")),
+                                    (None, Some(false)) => mono(10.0, text_dim()).child(t!("fleet-patching-closed-now")),
+                                    (None, None) => mono(10.0, text_faint()).child(t!("fleet-patching-any-time")),
                                 })
                         }))
-                        .child(mono(9.5, TEXT_FAINT).child(t!("fleet-patching-examples-sun-02-05-mon"))),
+                        .child(mono(9.5, text_faint()).child(t!("fleet-patching-examples-sun-02-05-mon"))),
                 ),
         )
 }

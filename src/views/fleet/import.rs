@@ -15,10 +15,10 @@ use crate::theme::*;
 
 fn status_label(s: &InstanceStatus) -> (String, Rgba) {
     match s {
-        InstanceStatus::Running => ("running".into(), OK),
-        InstanceStatus::Stopped => ("stopped".into(), TEXT_DIMMER),
-        InstanceStatus::Other(o) => (o.clone(), WARN),
-        other => (format!("{other:?}").to_lowercase(), WARN),
+        InstanceStatus::Running => ("running".into(), theme().ok),
+        InstanceStatus::Stopped => ("stopped".into(), text_dimmer()),
+        InstanceStatus::Other(o) => (o.clone(), theme().warn),
+        other => (format!("{other:?}").to_lowercase(), theme().warn),
     }
 }
 
@@ -43,9 +43,9 @@ pub fn import_panel(state: &ImportState, app: Entity<CrowApp>) -> impl IntoEleme
                 .h(px(620.0))
                 .flex()
                 .flex_col()
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_DEFAULT)
+                .border_color(border_default())
                 .shadow_lg()
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
                 .child(
@@ -65,8 +65,8 @@ pub fn import_panel(state: &ImportState, app: Entity<CrowApp>) -> impl IntoEleme
                         .flex()
                         .items_center()
                         .gap(px(10.0))
-                        .child(div().text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("fleet-import-import-from-providers")))
-                        .child(div().text_color(TEXT_DIMMER).child(if state.loading > 0 {
+                        .child(div().text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(t!("fleet-import-import-from-providers")))
+                        .child(div().text_color(text_dimmer()).child(if state.loading > 0 {
                             t!("fleet-import-asking-account-s", loading = state.loading)
                         } else {
                             t!("fleet-import-instance-s-not-in-the", count = state.rows.len(), importable = importable)
@@ -77,10 +77,10 @@ pub fn import_panel(state: &ImportState, app: Entity<CrowApp>) -> impl IntoEleme
                                 .on_click(move |_ev, _window, cx| a_close.update(cx, |this, cx| this.close_import(cx))),
                         ),
                 )
-                .child(div().text_color(TEXT_MUTED).line_height(px(15.0)).child(t!("fleet-import-instances-already-in-the-fleet")))
-                .children((state.linked > 0).then(|| div().text_color(OK).child(t!("fleet-import-linked-enrolled-server-s-to", linked = state.linked))))
-                .children(state.errors.iter().map(|e| div().text_color(CRIT).child(e.clone())))
-                .children(state.missing.iter().map(|m| div().text_color(WARN).child(format!("⚠ {m}"))))
+                .child(div().text_color(text_muted()).line_height(px(15.0)).child(t!("fleet-import-instances-already-in-the-fleet")))
+                .children((state.linked > 0).then(|| div().text_color(theme().ok).child(t!("fleet-import-linked-enrolled-server-s-to", linked = state.linked))))
+                .children(state.errors.iter().map(|e| div().text_color(theme().crit).child(e.clone())))
+                .children(state.missing.iter().map(|m| div().text_color(theme().warn).child(format!("⚠ {m}"))))
                 .children(state.rows.iter().map(|row| {
                     let inst = &row.instance;
                     let country = inst.region.as_deref().and_then(|c| crate::region::locate(&row.provider_name, c)).map(|(cc, _)| cc);
@@ -94,26 +94,26 @@ pub fn import_panel(state: &ImportState, app: Entity<CrowApp>) -> impl IntoEleme
                         .px(px(8.0))
                         .py(px(6.0))
                         .border_b_1()
-                        .border_color(BORDER_ROW)
+                        .border_color(border_row())
                         .child(div().w(px(18.0)).flex_none().children(country.map(|cc| crate::components::flag::flag(cc, 11.0))))
-                        .child(div().w(px(200.0)).flex_none().font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(inst.label.clone()))
-                        .child(div().w(px(80.0)).flex_none().text_color(TEXT_DIMMER).child(row.provider_name.clone()))
-                        .child(div().w(px(130.0)).flex_none().text_color(TEXT_SECONDARY).child(ip))
-                        .child(div().w(px(90.0)).flex_none().text_color(TEXT_DIMMER).child(inst.region.clone().unwrap_or_default()))
+                        .child(div().w(px(200.0)).flex_none().font_weight(FontWeight::BOLD).text_color(text_primary()).child(inst.label.clone()))
+                        .child(div().w(px(80.0)).flex_none().text_color(text_dimmer()).child(row.provider_name.clone()))
+                        .child(div().w(px(130.0)).flex_none().text_color(text_secondary()).child(ip))
+                        .child(div().w(px(90.0)).flex_none().text_color(text_dimmer()).child(inst.region.clone().unwrap_or_default()))
                         .child(div().w(px(70.0)).flex_none().text_color(status_color).child(status))
                         .child(div().flex_1())
                         .child(match &row.enrolled_as {
-                            Some(server) => div().text_color(TEXT_DIMMER).child(t!("fleet-import-in-fleet-as", server = server)).into_any_element(),
+                            Some(server) => div().text_color(text_dimmer()).child(t!("fleet-import-in-fleet-as", server = server)).into_any_element(),
                             None => div()
                                 .id(SharedString::from(format!("import-{account}-{id}")))
                                 .px(px(9.0))
                                 .py(px(3.0))
                                 .border_1()
-                                .border_color(OK.opacity(0.6))
-                                .text_color(OK)
+                                .border_color(theme().ok.opacity(0.6))
+                                .text_color(theme().ok)
                                 .font_weight(FontWeight::BOLD)
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     let (account, id) = (account.clone(), id.clone());
                                     app.update(cx, |this, cx| this.import_instance(&account, &id, cx));

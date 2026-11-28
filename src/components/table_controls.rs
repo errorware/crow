@@ -26,15 +26,15 @@ pub fn render_table_controls(search: Option<&Entity<InputState>>, chips: Vec<Chi
         .gap(px(6.0))
         .px(px(10.0))
         .border_r_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .children(search.map(|input| {
             div().w(px(240.0)).child(
                 Input::new(input)
                     .font_family(FONT_MONO)
                     .text_size(font_px(11.0))
-                    .bg(BG_APP)
+                    .bg(bg_app())
                     .rounded(px(2.0))
-                    .prefix(tabler_icon(TablerIcon::Search).size(px(11.0)).text_color(TEXT_DIMMER)),
+                    .prefix(tabler_icon(TablerIcon::Search).size(px(11.0)).text_color(text_dimmer())),
             )
         }))
         .children(chips.into_iter().map(|chip| {
@@ -47,17 +47,17 @@ pub fn render_table_controls(search: Option<&Entity<InputState>>, chips: Vec<Chi
                 .px(px(8.0))
                 .py(px(3.0))
                 .border_1()
-                .border_color(if chip.is_on { TEXT_SECONDARY } else { BORDER_DEFAULT })
-                .bg(if chip.is_on { BG_CHIP } else { hex_rgba(0, 0.0) })
+                .border_color(if chip.is_on { text_secondary() } else { border_default() })
+                .bg(if chip.is_on { bg_chip() } else { hex_rgba(0, 0.0) })
                 .cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER))
+                .hover(|s| s.bg(bg_row_hover()))
                 .font_family(FONT_MONO)
                 .text_size(font_px(9.5))
                 .font_weight(FontWeight::BOLD)
-                .text_color(if chip.is_on { TEXT_PRIMARY } else { TEXT_DIMMER })
+                .text_color(if chip.is_on { text_primary() } else { text_dimmer() })
                 .on_click(move |_ev, _window, cx| on_click(cx))
                 .child(chip.label)
-                .child(div().font_weight(FontWeight::NORMAL).text_color(if chip.alarming { CRIT } else { TEXT_FAINT }).child(chip.count.to_string()))
+                .child(div().font_weight(FontWeight::NORMAL).text_color(if chip.alarming { theme().crit } else { text_faint() }).child(chip.count.to_string()))
         }))
 }
 

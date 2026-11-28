@@ -13,7 +13,7 @@ use crate::metrics::chart::{GapKind, Range, Series};
 use crate::theme::*;
 
 /// The one series hue: not a status color, so alerts stay distinct.
-const SERIES: u32 = 0x38bdf8;
+fn series_color() -> Rgba { accent() }
 
 pub fn history_view(cache: &HistoryCache, hover: Option<f32>, app: Entity<CrowApp>) -> impl IntoElement {
     let at = |frac: f32| cache.from + ((cache.to - cache.from) as f32 * frac) as i64;
@@ -41,9 +41,9 @@ pub fn history_view(cache: &HistoryCache, hover: Option<f32>, app: Entity<CrowAp
             .px(px(8.0))
             .py(px(2.0))
             .border_1()
-            .border_color(if selected { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
-            .bg(if selected { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
-            .text_color(if selected { TEXT_MAX } else { TEXT_MUTED })
+            .border_color(if selected { border_control_sel() } else { border_default() })
+            .bg(if selected { bg_row_selected() } else { hex_rgba(0, 0.0) })
+            .text_color(if selected { text_max() } else { text_muted() })
             .cursor_pointer()
             .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.set_history_range(r, cx)))
             .child(r.label())
@@ -54,7 +54,7 @@ pub fn history_view(cache: &HistoryCache, hover: Option<f32>, app: Entity<CrowAp
         .size_full()
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         .font_family(FONT_MONO)
         .child(
             div()
@@ -64,11 +64,11 @@ pub fn history_view(cache: &HistoryCache, hover: Option<f32>, app: Entity<CrowAp
                 .items_center()
                 .gap(px(10.0))
                 .px(px(16.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
-                .child(div().text_size(font_px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("history-history")))
-                .child(div().text_size(font_px(10.5)).text_color(TEXT_DIM).child(t!("history-one-sample-a-minute-while", readout = readout)))
+                .border_color(border_panel())
+                .child(div().text_size(font_px(12.0)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(t!("history-history")))
+                .child(div().text_size(font_px(10.5)).text_color(text_dim()).child(t!("history-one-sample-a-minute-while", readout = readout)))
                 .child(div().flex_1())
                 .child(range_button(Range::Day))
                 .child(range_button(Range::Week)),
@@ -111,9 +111,9 @@ fn chart(i: usize, title: &str, series: Series, max: f32, value: String, cache: 
                 .flex()
                 .items_baseline()
                 .gap(px(8.0))
-                .child(div().text_size(font_px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_DIMMER).child(title.to_string()))
+                .child(div().text_size(font_px(10.0)).font_weight(FontWeight::BOLD).text_color(text_dimmer()).child(title.to_string()))
                 .child(div().flex_1())
-                .child(div().text_size(font_px(11.0)).text_color(TEXT_PRIMARY).child(value)),
+                .child(div().text_size(font_px(11.0)).text_color(text_primary()).child(value)),
         )
         .child(
             div()
@@ -121,7 +121,7 @@ fn chart(i: usize, title: &str, series: Series, max: f32, value: String, cache: 
                 .flex_1()
                 .relative()
                 .border_1()
-                .border_color(BORDER_ROW)
+                .border_color(border_row())
                 .on_mouse_move(move |ev: &MouseMoveEvent, _window, cx| {
                     // Handled here: the view's own handler clears the crosshair.
                     cx.stop_propagation();
@@ -151,12 +151,12 @@ fn chart(i: usize, title: &str, series: Series, max: f32, value: String, cache: 
                                 window.paint_quad(fill(Bounds::new(point(b.origin.x, y(max * f)), size(b.size.width, px(1.0))), hex_rgba(0xffffff, 0.06)));
                             }
                             for (from, to, level, _) in &alerts {
-                                rect(*from, *to, b.origin.y, px(3.0), if level == "CRIT" { CRIT } else { WARN }, window);
+                                rect(*from, *to, b.origin.y, px(3.0), if level == "CRIT" { theme().crit } else { theme().warn }, window);
                             }
                             for seg in &series.segments {
                                 if seg.len() == 1 {
                                     let (f, v) = seg[0];
-                                    window.paint_quad(fill(Bounds::new(point(x(f) - px(1.5), y(v) - px(1.5)), size(px(3.0), px(3.0))), rgb(SERIES)));
+                                    window.paint_quad(fill(Bounds::new(point(x(f) - px(1.5), y(v) - px(1.5)), size(px(3.0), px(3.0))), series_color()));
                                     continue;
                                 }
                                 let mut path = PathBuilder::stroke(px(2.0));
@@ -165,7 +165,7 @@ fn chart(i: usize, title: &str, series: Series, max: f32, value: String, cache: 
                                     path.line_to(point(x(f), y(v)));
                                 }
                                 if let Ok(p) = path.build() {
-                                    window.paint_path(p, rgb(SERIES));
+                                    window.paint_path(p, series_color());
                                 }
                             }
                             if let Some(h) = hover {
@@ -175,14 +175,14 @@ fn chart(i: usize, title: &str, series: Series, max: f32, value: String, cache: 
                     )
                     .size_full(),
                 )
-                .child(div().absolute().top(px(2.0)).left(px(4.0)).text_size(font_px(9.0)).text_color(TEXT_FAINT).child(format!("{max:.0}")))
-                .child(div().absolute().bottom(px(2.0)).left(px(4.0)).text_size(font_px(9.0)).text_color(TEXT_FAINT).child("0")),
+                .child(div().absolute().top(px(2.0)).left(px(4.0)).text_size(font_px(9.0)).text_color(text_faint()).child(format!("{max:.0}")))
+                .child(div().absolute().bottom(px(2.0)).left(px(4.0)).text_size(font_px(9.0)).text_color(text_faint()).child("0")),
         )
 }
 
 /// What the shading and the top band mean, and the alerts in range.
 fn legend(cache: &HistoryCache) -> impl IntoElement {
-    let key = |color: Rgba, label: String| div().flex().items_center().gap(px(5.0)).child(div().size(px(9.0)).bg(color)).child(div().text_color(TEXT_DIM).child(label));
+    let key = |color: Rgba, label: String| div().flex().items_center().gap(px(5.0)).child(div().size(px(9.0)).bg(color)).child(div().text_color(text_dim()).child(label));
     div()
         .flex_none()
         .flex()
@@ -194,13 +194,13 @@ fn legend(cache: &HistoryCache) -> impl IntoElement {
                 .flex()
                 .flex_wrap()
                 .gap(px(14.0))
-                .child(div().text_color(TEXT_DIM).child(t!("history-now", chrono = chrono::DateTime::from_timestamp(cache.from, 0).map(|d| d.with_timezone(&chrono::Local).format("%b %d %H:%M").to_string()).unwrap_or_default())))
+                .child(div().text_color(text_dim()).child(t!("history-now", chrono = chrono::DateTime::from_timestamp(cache.from, 0).map(|d| d.with_timezone(&chrono::Local).format("%b %d %H:%M").to_string()).unwrap_or_default())))
                 .child(key(hex_rgba(0xffffff, 0.12), t!("history-crow-wasnt-running-nothing-watched").into()))
                 .child(key(hex_rgba(0xf87171, 0.3), t!("history-server-unreachable").into()))
-                .child(key(WARN, t!("history-alert-open-warn").into()))
-                .child(key(CRIT, t!("history-alert-open-crit").into())),
+                .child(key(theme().warn, t!("history-alert-open-warn").into()))
+                .child(key(theme().crit, t!("history-alert-open-crit").into())),
         )
         .children(cache.alert_labels.iter().map(|(level, text)| {
-            div().flex().gap(px(6.0)).child(div().text_color(if level == "CRIT" { CRIT } else { WARN }).font_weight(FontWeight::BOLD).child(level.clone())).child(div().text_color(TEXT_SECONDARY).child(text.clone()))
+            div().flex().gap(px(6.0)).child(div().text_color(if level == "CRIT" { theme().crit } else { theme().warn }).font_weight(FontWeight::BOLD).child(level.clone())).child(div().text_color(text_secondary()).child(text.clone()))
         }))
 }

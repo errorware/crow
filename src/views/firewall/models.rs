@@ -254,10 +254,10 @@ impl PortFirewallMatch {
 
     pub fn color(&self) -> gpui_kit::Rgba {
         match self {
-            Self::Allowed { .. } | Self::AllowedDefault => crate::theme::OK,
-            Self::Denied { .. } => crate::theme::CRIT,
-            Self::NoRule => crate::theme::WARN,
-            Self::Inactive | Self::Unknown => crate::theme::TEXT_MUTED,
+            Self::Allowed { .. } | Self::AllowedDefault => crate::theme::theme().ok,
+            Self::Denied { .. } => crate::theme::theme().crit,
+            Self::NoRule => crate::theme::theme().warn,
+            Self::Inactive | Self::Unknown => crate::theme::text_muted(),
         }
     }
 }

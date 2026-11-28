@@ -23,7 +23,7 @@ pub fn log_tail(
         .size_full()
         .flex()
         .flex_col()
-        .bg(BG_RAIL)
+        .bg(bg_rail())
         // Header
         .child(
             div()
@@ -33,22 +33,22 @@ pub fn log_tail(
                 .items_center()
                 .gap(px(10.0))
                 .px(px(12.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(t!("overview-log-tail-log-tail")),
                 )
                 .child(
                     div()
                         .font_family("JetBrains Mono")
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child("journalctl -f"),
                 )
                 .child(div().flex_1())
@@ -58,11 +58,11 @@ pub fn log_tail(
                         .id("log-tail-expand-btn")
                         .px(px(6.0))
                         .py(px(2.0))
-                        .bg(BG_CONTROL)
+                        .bg(bg_control())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .text_color(TEXT_MUTED)
-                        .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
+                        .border_color(border_default())
+                        .text_color(text_muted())
+                        .hover(|s| s.text_color(text_primary()).bg(bg_row_hover()))
                         .cursor_pointer()
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
@@ -78,7 +78,7 @@ pub fn log_tail(
                     div()
                         .size(px(6.0))
                         .rounded_full()
-                        .bg(OK)
+                        .bg(theme().ok)
                         .flex_none(),
                 ),
         )
@@ -92,13 +92,13 @@ pub fn log_tail(
                 .gap(px(6.0))
                 .px(px(12.0))
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .font_family("JetBrains Mono")
                 .text_size(font_px(10.0))
                 .child(
                     div()
-                        .bg(if err_count > 0 { CRIT } else { BG_CONTROL })
-                        .text_color(if err_count > 0 { rgb(0x0a0a0c) } else { TEXT_DIMMER })
+                        .bg(if err_count > 0 { theme().crit } else { bg_control() })
+                        .text_color(if err_count > 0 { rgb(0x0a0a0c) } else { text_dimmer() })
                         .font_weight(FontWeight::BOLD)
                         .px(px(5.0))
                         .py(px(2.0))
@@ -106,8 +106,8 @@ pub fn log_tail(
                 )
                 .child(
                     div()
-                        .bg(if warn_count > 0 { WARN } else { BG_CONTROL })
-                        .text_color(if warn_count > 0 { rgb(0x0a0a0c) } else { TEXT_DIMMER })
+                        .bg(if warn_count > 0 { theme().warn } else { bg_control() })
+                        .text_color(if warn_count > 0 { rgb(0x0a0a0c) } else { text_dimmer() })
                         .font_weight(FontWeight::BOLD)
                         .px(px(5.0))
                         .py(px(2.0))
@@ -115,8 +115,8 @@ pub fn log_tail(
                 )
                 .child(
                     div()
-                        .bg(BG_CHIP)
-                        .text_color(TEXT_TERTIARY)
+                        .bg(bg_chip())
+                        .text_color(text_tertiary())
                         .font_weight(FontWeight::BOLD)
                         .px(px(5.0))
                         .py(px(2.0))
@@ -125,7 +125,7 @@ pub fn log_tail(
                 .child(div().flex_1())
                 .child(
                     div()
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .child(t!("overview-log-tail-stream-active")),
                 ),
         )
@@ -144,11 +144,11 @@ pub fn log_tail(
                     let is_warn = entry.priority.is_warn();
 
                     let (lvl_color, msg_color, row_bg) = if is_err {
-                        (CRIT, CRIT_INK, CRIT_LOG_BG)
+                        (theme().crit, theme().crit_ink, theme().crit_log_bg)
                     } else if is_warn {
-                        (WARN, WARN_INK, rgb(0x00000000))
+                        (theme().warn, theme().warn_ink, hex_rgba(0, 0.0))
                     } else {
-                        (TEXT_FAINT, TEXT_TERTIARY, rgb(0x00000000))
+                        (text_faint(), text_tertiary(), hex_rgba(0, 0.0))
                     };
 
                     div()
@@ -157,12 +157,12 @@ pub fn log_tail(
                         .px(px(12.0))
                         .py(px(2.0))
                         .bg(row_bg)
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .font_family("JetBrains Mono")
                         .text_size(font_px(10.5))
                         .child(
                             div()
-                                .text_color(TEXT_FAINTER)
+                                .text_color(text_fainter())
                                 .flex_none()
                                 .child(entry.timestamp_formatted.clone()),
                         )
@@ -192,26 +192,26 @@ pub fn log_tail(
                 .items_center()
                 .gap(px(8.0))
                 .px(px(12.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_t_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .font_family("JetBrains Mono")
                 .text_size(font_px(11.0))
                 .child(
                     div()
-                        .text_color(OK)
+                        .text_color(theme().ok)
                         .child("▸"),
                 )
                 .child(
                     div()
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .child("journalctl -f"),
                 )
                 .child(
                     div()
                         .w(px(7.0))
                         .h(px(14.0))
-                        .bg(TEXT_PRIMARY),
+                        .bg(text_primary()),
                 ),
         )
 }
@@ -277,9 +277,9 @@ pub fn socket_log_drawer(
         .size_full()
         .flex()
         .flex_col()
-        .bg(BG_RAIL)
+        .bg(bg_rail())
         .border_t_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         // 1. Drawer Header Bar
         .child(
             div()
@@ -289,9 +289,9 @@ pub fn socket_log_drawer(
                 .items_center()
                 .px(px(12.0))
                 .gap(px(10.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .flex()
@@ -300,14 +300,14 @@ pub fn socket_log_drawer(
                         .child(
                             tabler_icon(TablerIcon::Terminal2)
                                 .size(px(13.0))
-                                .text_color(hex_rgb(0x8ab4ff)),
+                                .text_color(accent()),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(t!("overview-log-tail-socket-log-tail")),
                         ),
                 )
@@ -322,7 +322,7 @@ pub fn socket_log_drawer(
                     let pid_str = sock.pid.map(|p| t!("overview-log-tail-pid", p = p)).unwrap_or_default();
 
                     Some(
-                        crate::components::button::badge(hex_rgb(0x8ab4ff))
+                        crate::components::button::badge(accent())
                             .gap(px(6.0))
                             .px(px(7.0))
                             .font_weight(FontWeight::NORMAL)
@@ -336,16 +336,16 @@ pub fn socket_log_drawer(
                             .child(
                                 div()
                                     .font_weight(FontWeight::BOLD)
-                                    .text_color(hex_rgb(0x38bdf8))
+                                    .text_color(accent())
                                     .child(format!(":{}", port)),
                             )
                             .child(
                                 div()
-                                    .text_color(TEXT_PRIMARY)
+                                    .text_color(text_primary())
                                     .child(process),
                             )
                             .children(if !pid_str.is_empty() {
-                                Some(div().text_color(TEXT_DIMMER).child(pid_str))
+                                Some(div().text_color(text_dimmer()).child(pid_str))
                             } else {
                                 None
                             })
@@ -362,7 +362,7 @@ pub fn socket_log_drawer(
                         div()
                             .font_family(FONT_MONO)
                             .text_size(font_px(10.0))
-                            .text_color(TEXT_FAINT)
+                            .text_color(text_faint())
                             .child(t!("overview-log-tail-all-host-network-sockets-click")),
                     )
                 })
@@ -375,12 +375,12 @@ pub fn socket_log_drawer(
                             .id("btn-drawer-filter-socket")
                             .px(px(7.0))
                             .py(px(2.0))
-                            .bg(if is_filtered { hex_rgba(0x8ab4ff, 0.2) } else { BG_CONTROL })
+                            .bg(if is_filtered { accent_bg() } else { bg_control() })
                             .border_1()
-                            .border_color(if is_filtered { hex_rgb(0x8ab4ff) } else { BORDER_DEFAULT })
-                            .text_color(if is_filtered { hex_rgb(0x8ab4ff) } else { TEXT_DIMMER })
+                            .border_color(if is_filtered { accent() } else { border_default() })
+                            .text_color(if is_filtered { accent() } else { text_dimmer() })
                             .cursor_pointer()
-                            .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                            .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                             .font_family(FONT_MONO)
                             .text_size(font_px(9.5))
                             .font_weight(FontWeight::BOLD)
@@ -397,8 +397,8 @@ pub fn socket_log_drawer(
                 // Error count chip
                 .child(
                     div()
-                        .bg(if err_count > 0 { CRIT } else { BG_CONTROL })
-                        .text_color(if err_count > 0 { rgb(0x0a0a0c) } else { TEXT_DIMMER })
+                        .bg(if err_count > 0 { theme().crit } else { bg_control() })
+                        .text_color(if err_count > 0 { rgb(0x0a0a0c) } else { text_dimmer() })
                         .font_weight(FontWeight::BOLD)
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
@@ -410,8 +410,8 @@ pub fn socket_log_drawer(
                 // Warn count chip
                 .child(
                     div()
-                        .bg(if warn_count > 0 { WARN } else { BG_CONTROL })
-                        .text_color(if warn_count > 0 { rgb(0x0a0a0c) } else { TEXT_DIMMER })
+                        .bg(if warn_count > 0 { theme().warn } else { bg_control() })
+                        .text_color(if warn_count > 0 { rgb(0x0a0a0c) } else { text_dimmer() })
                         .font_weight(FontWeight::BOLD)
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
@@ -426,11 +426,11 @@ pub fn socket_log_drawer(
                         .id("socket-drawer-expand-btn")
                         .px(px(6.0))
                         .py(px(2.0))
-                        .bg(BG_CONTROL)
+                        .bg(bg_control())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .text_color(TEXT_MUTED)
-                        .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
+                        .border_color(border_default())
+                        .text_color(text_muted())
+                        .hover(|s| s.text_color(text_primary()).bg(bg_row_hover()))
                         .cursor_pointer()
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
@@ -455,7 +455,7 @@ pub fn socket_log_drawer(
                         .justify_center()
                         .size(px(18.0))
                         .cursor_pointer()
-                        .hover(|s| s.bg(hex_rgba(0xffffff, 0.1)).text_color(TEXT_PRIMARY))
+                        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                         .on_click(move |_ev, _window, cx| {
                             app_close.update(cx, |this, cx| {
                                 this.close_socket_drawer(cx);
@@ -464,7 +464,7 @@ pub fn socket_log_drawer(
                         .child(
                             tabler_icon(TablerIcon::X)
                                 .size(px(12.0))
-                                .text_color(TEXT_DIMMER),
+                                .text_color(text_dimmer()),
                         ),
                 ),
         )
@@ -477,13 +477,13 @@ pub fn socket_log_drawer(
                 .items_center()
                 .gap(px(10.0))
                 .px(px(12.0))
-                .bg(BG_SUBHEAD)
+                .bg(bg_subhead())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .font_family(FONT_MONO)
                 .text_size(font_px(9.0))
                 .font_weight(FontWeight::BOLD)
-                .text_color(TEXT_FAINT)
+                .text_color(text_faint())
                 .child(div().w(px(COL_TIME)).flex_none().child(t!("overview-log-tail-time")))
                 .child(div().w(px(COL_LEVEL)).flex_none().child(t!("overview-log-tail-level")))
                 .child(div().w(px(COL_UNIT)).flex_none().child(t!("overview-log-tail-unit")))
@@ -505,11 +505,11 @@ pub fn socket_log_drawer(
                     let is_warn = entry.priority.is_warn();
 
                     let (lvl_color, msg_color, row_bg) = if is_err {
-                        (CRIT, CRIT_INK, CRIT_LOG_BG)
+                        (theme().crit, theme().crit_ink, theme().crit_log_bg)
                     } else if is_warn {
-                        (WARN, WARN_INK, rgb(0x00000000))
+                        (theme().warn, theme().warn_ink, hex_rgba(0, 0.0))
                     } else {
-                        (TEXT_FAINT, TEXT_TERTIARY, rgb(0x00000000))
+                        (text_faint(), text_tertiary(), hex_rgba(0, 0.0))
                     };
 
                     let unit_label = if !entry.unit.is_empty() {
@@ -527,7 +527,7 @@ pub fn socket_log_drawer(
                         .px(px(12.0))
                         .py(px(2.0))
                         .bg(row_bg)
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
                         // Timestamp
@@ -536,7 +536,7 @@ pub fn socket_log_drawer(
                                 .w(px(COL_TIME))
                                 .flex_none()
                                 .whitespace_nowrap()
-                                .text_color(TEXT_FAINTER)
+                                .text_color(text_fainter())
                                 .child(entry.timestamp_formatted.clone()),
                         )
                         // Priority Badge
@@ -557,7 +557,7 @@ pub fn socket_log_drawer(
                                 .overflow_hidden()
                                 .whitespace_nowrap()
                                 .text_ellipsis()
-                                .text_color(TEXT_SECONDARY)
+                                .text_color(text_secondary())
                                 .child(unit_label),
                         )
                         // PID (if any)
@@ -567,7 +567,7 @@ pub fn socket_log_drawer(
                                 .w(px(COL_PID))
                                 .flex_none()
                                 .whitespace_nowrap()
-                                .text_color(TEXT_DIMMER)
+                                .text_color(text_dimmer())
                                 .child(entry.pid.map(|p| p.to_string()).unwrap_or_default()),
                         )
                         // Log Message (Full remaining width!)
@@ -589,24 +589,24 @@ pub fn socket_log_drawer(
                 .items_center()
                 .gap(px(8.0))
                 .px(px(12.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_t_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.5))
                 .child(
                     div()
-                        .text_color(OK)
+                        .text_color(theme().ok)
                         .child(format!("root@{}", hostname)),
                 )
                 .child(
                     div()
-                        .text_color(TEXT_FAINTER)
+                        .text_color(text_fainter())
                         .child(":~#"),
                 )
                 .child(
                     div()
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .child(if let (true, Some(sock)) = (filter_active, &focused_socket) {
                             format!("journalctl -f -u {}.service", sock.process)
                         } else {
@@ -617,12 +617,12 @@ pub fn socket_log_drawer(
                     div()
                         .w(px(6.0))
                         .h(px(13.0))
-                        .bg(TEXT_PRIMARY),
+                        .bg(text_primary()),
                 )
                 .child(div().flex_1())
                 .child(
                     div()
-                        .text_color(TEXT_FAINTER)
+                        .text_color(text_fainter())
                         .text_size(font_px(9.5))
                         .child(t!("overview-log-tail-lines-live-stream", count = filtered_entries.len())),
                 ),

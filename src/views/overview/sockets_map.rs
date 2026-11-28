@@ -144,7 +144,7 @@ pub fn render_sockets_map(
         .size_full()
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         // 1. Connection Map Sub-toolbar & Filter Strip
         .child(render_map_filter_toolbar(overview, all_items.len(), filtered_items.len(), app.clone()))
         // 2. Main 3-Column Diagram Canvas
@@ -153,7 +153,7 @@ pub fn render_sockets_map(
                 .flex_1()
                 .min_h(px(0.0))
                 .flex()
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 // Left Column: Remote Peers (Incoming)
                 .child(render_peers_column(
                     t!("overview-sockets-map-incoming-peers"),
@@ -201,9 +201,9 @@ fn render_map_filter_toolbar(
         .flex()
         .items_center()
         .px(px(14.0))
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .gap(px(12.0))
         .font_family(FONT_MONO)
         .text_size(font_px(10.5))
@@ -213,7 +213,7 @@ fn render_map_filter_toolbar(
                 .flex()
                 .items_center()
                 .border_1()
-                .border_color(BORDER_DEFAULT)
+                .border_color(border_default())
                 .children(MapFilter::ALL.into_iter().enumerate().map(|(idx, f)| {
                     let is_active = overview.map_filter == f;
                     let a = app_filter.clone();
@@ -221,11 +221,11 @@ fn render_map_filter_toolbar(
                         .id(ElementId::NamedInteger("btn-map-filter".into(), idx as u64))
                         .px(px(9.0))
                         .py(px(3.5))
-                        .bg(if is_active { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
-                        .text_color(if is_active { OK } else { TEXT_FAINT })
+                        .bg(if is_active { bg_row_selected() } else { hex_rgba(0, 0.0) })
+                        .text_color(if is_active { theme().ok } else { text_faint() })
                         .font_weight(if is_active { FontWeight::BOLD } else { FontWeight::NORMAL })
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| {
                             a.update(cx, |this, cx| this.set_map_filter(f, cx));
                         })
@@ -242,11 +242,11 @@ fn render_map_filter_toolbar(
                 .px(px(9.0))
                 .py(px(3.5))
                 .border_1()
-                .border_color(if overview.map_hide_loopback { OK } else { BORDER_DEFAULT })
+                .border_color(if overview.map_hide_loopback { theme().ok } else { border_default() })
                 .bg(if overview.map_hide_loopback { hex_rgba(0x4ade80, 0.12) } else { hex_rgba(0, 0.0) })
-                .text_color(if overview.map_hide_loopback { OK } else { TEXT_DIMMER })
+                .text_color(if overview.map_hide_loopback { theme().ok } else { text_dimmer() })
                 .cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER))
+                .hover(|s| s.bg(bg_row_hover()))
                 .on_click(move |_ev, _window, cx| {
                     app_loopback.update(cx, |this, cx| this.toggle_map_hide_loopback(cx));
                 })
@@ -261,10 +261,10 @@ fn render_map_filter_toolbar(
                 .gap(px(6.0))
                 .px(px(8.0))
                 .py(px(3.0))
-                .bg(hex_rgba(0x38bdf8, 0.15))
+                .bg(accent_bg())
                 .border_1()
-                .border_color(hex_rgb(0x38bdf8))
-                .text_color(hex_rgb(0x38bdf8))
+                .border_color(accent())
+                .text_color(accent())
                 .child(t!("overview-sockets-map-focus", p_name = p_name))
                 .child(
                     icon_button("btn-clear-proc-focus", TablerIcon::X, false)
@@ -277,7 +277,7 @@ fn render_map_filter_toolbar(
         // Telemetry count badge
         .child(
             div()
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .child(t!("overview-sockets-map-showing-of-established-connections", shown_conns = shown_conns, total_conns = total_conns)),
         )
 }
@@ -294,7 +294,7 @@ fn render_peers_column(
         .flex_1()
         .min_w(px(0.0))
         .border_r_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .flex()
         .flex_col()
         // Column Header
@@ -304,9 +304,9 @@ fn render_peers_column(
                 .flex_none()
                 .p(px(8.0))
                 .px(px(14.0))
-                .bg(BG_APP)
+                .bg(bg_app())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .flex_col()
                 .justify_center()
@@ -315,14 +315,14 @@ fn render_peers_column(
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(header_title),
                 )
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.0))
-                        .text_color(TEXT_FAINTER)
+                        .text_color(text_fainter())
                         .child(header_subtitle),
                 ),
         )
@@ -342,7 +342,7 @@ fn render_peers_column(
                         .p(px(16.0))
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .child(t!("overview-sockets-map-no-connections-in-this-category"))
                         .into_any_element()]
                 } else {
@@ -383,11 +383,11 @@ fn render_peer_card(
     div()
         .id(ElementId::Name(card_id.into()))
         .p(px(10.0))
-        .bg(if is_focused { BG_ROW_SELECTED } else { BG_APP })
+        .bg(if is_focused { bg_row_selected() } else { bg_app() })
         .border_1()
-        .border_color(if is_focused { OK } else { BORDER_DEFAULT })
+        .border_color(if is_focused { theme().ok } else { border_default() })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER).border_color(TEXT_SECONDARY))
+        .hover(|s| s.bg(bg_row_hover()).border_color(text_secondary()))
         .on_click(move |_ev, _window, cx| {
             let id = first_id.clone();
             app_card.update(cx, |this, cx| {
@@ -412,10 +412,10 @@ fn render_peer_card(
                         .min_w(px(0.0))
                         .flex()
                         .flex_col()
-                        .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(addr.to_string()))
+                        .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(addr.to_string()))
                         // Its reverse DNS name, when it has one (ERR-100).
                         .children(overview.peer_names.get(crate::views::overview::collector::bare_peer_addr(addr)).cloned().flatten().map(|name| {
-                            div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_DIM).overflow_hidden().whitespace_nowrap().text_ellipsis().child(name)
+                            div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(text_dim()).overflow_hidden().whitespace_nowrap().text_ellipsis().child(name)
                         })),
                 )
                 .child(
@@ -434,7 +434,7 @@ fn render_peer_card(
         )
         // Middle line: Ports and connection count
         .child(
-            crate::components::button::badge(TEXT_DIM)
+            crate::components::button::badge(text_dim())
                 .text_size(font_px(9.5))
                 .child(t!("overview-sockets-map-ports", count = items.len(), ports_summary = ports_summary)),
         )
@@ -446,7 +446,7 @@ fn render_peer_card(
                 .gap(px(8.0))
                 .font_family(FONT_MONO)
                 .text_size(font_px(9.0))
-                .text_color(TEXT_FAINTER)
+                .text_color(text_fainter())
                 .child(format!("↑ {}", format_bytes(total_sent)))
                 .child(format!("↓ {}", format_bytes(total_recv)))
         }))
@@ -463,7 +463,7 @@ fn render_local_column(
         .flex_1()
         .min_w(px(0.0))
         .border_r_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .flex()
         .flex_col()
         // Column Header
@@ -473,9 +473,9 @@ fn render_local_column(
                 .flex_none()
                 .p(px(8.0))
                 .px(px(14.0))
-                .bg(BG_APP)
+                .bg(bg_app())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .flex_col()
                 .justify_center()
@@ -484,14 +484,14 @@ fn render_local_column(
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(header_title),
                 )
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.0))
-                        .text_color(TEXT_FAINTER)
+                        .text_color(text_fainter())
                         .child(header_subtitle),
                 ),
         )
@@ -511,7 +511,7 @@ fn render_local_column(
                         .p(px(16.0))
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .child(t!("overview-sockets-map-no-active-process-connections"))
                         .into_any_element()]
                 } else {
@@ -546,11 +546,11 @@ fn render_process_card(
     div()
         .id(ElementId::Name(card_id.into()))
         .p(px(10.0))
-        .bg(if is_focused { hex_rgba(0x38bdf8, 0.12) } else { BG_APP })
+        .bg(if is_focused { accent_bg() } else { bg_app() })
         .border_1()
-        .border_color(if is_focused { hex_rgb(0x38bdf8) } else { BORDER_DEFAULT })
+        .border_color(if is_focused { accent() } else { border_default() })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER).border_color(TEXT_SECONDARY))
+        .hover(|s| s.bg(bg_row_hover()).border_color(text_secondary()))
         .on_click(move |_ev, _window, cx| {
             let target = p_name.clone();
             app_focus.update(cx, |this, cx| {
@@ -575,14 +575,14 @@ fn render_process_card(
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.5))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_MAX)
+                        .text_color(text_max())
                         .child(proc_name.to_string()),
                 )
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.0))
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .child(pid_str),
                 ),
         )
@@ -596,12 +596,12 @@ fn render_process_card(
                 .text_size(font_px(9.5))
                 .child(
                     div()
-                        .text_color(if in_count > 0 { OK } else { TEXT_FAINTER })
+                        .text_color(if in_count > 0 { theme().ok } else { text_fainter() })
                         .child(t!("overview-sockets-map-in", in_count = in_count)),
                 )
                 .child(
                     div()
-                        .text_color(if out_count > 0 { hex_rgb(0x60a5fa) } else { TEXT_FAINTER })
+                        .text_color(if out_count > 0 { hex_rgb(0x60a5fa) } else { text_fainter() })
                         .child(t!("overview-sockets-map-out", out_count = out_count)),
                 ),
         )
@@ -621,9 +621,9 @@ fn render_connection_inspector(
     div()
         .h(px(64.0))
         .flex_none()
-        .bg(BG_APP)
+        .bg(bg_app())
         .border_t_1()
-        .border_color(OK)
+        .border_color(theme().ok)
         .p(px(10.0))
         .px(px(16.0))
         .flex()
@@ -645,7 +645,7 @@ fn render_connection_inspector(
                             div()
                                 .font_weight(FontWeight::BOLD)
                                 .text_size(font_px(11.5))
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(format!("{}:{} ↔ {}:{}", sock.local_addr, sock.local_port, sock.peer_addr, sock.peer_port)),
                         )
                         .child(
@@ -662,7 +662,7 @@ fn render_connection_inspector(
                         ),
                 )
                 .child(
-                    crate::components::button::badge(TEXT_DIM)
+                    crate::components::button::badge(text_dim())
                         .text_size(font_px(9.5))
                         .child(t!("overview-sockets-map-protocol-state-direction", protocol = sock.protocol, state = sock.state, direction = format!("{:?}", item.direction))),
                 ),
@@ -676,7 +676,7 @@ fn render_connection_inspector(
                 .child(
                     div()
                         .text_size(font_px(10.5))
-                        .text_color(TEXT_DIM)
+                        .text_color(text_dim())
                         .child(t!("overview-sockets-map-process-pid", process = sock.process, pid = format!("{:?}", sock.pid))),
                 )
                 .child(
@@ -684,13 +684,13 @@ fn render_connection_inspector(
                         .id("btn-inspector-jump-proc")
                         .px(px(8.0))
                         .py(px(4.0))
-                        .bg(BG_CONTROL)
+                        .bg(bg_control())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .text_size(font_px(9.5))
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| {
                             let p = proc_target.clone();
                             app_proc.update(cx, |this, cx| {
@@ -724,11 +724,11 @@ fn render_connection_inspector(
                         let app_fw = app.clone();
                         let target_port = sock.local_port.clone();
                         Some(
-                            crate::components::button::badge(TEXT_PRIMARY)
+                            crate::components::button::badge(text_primary())
                                 .id("btn-inspector-jump-fw")
                                 .text_size(font_px(9.5))
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     let p = target_port.clone();
                                     app_fw.update(cx, |this, cx| {
@@ -748,12 +748,12 @@ fn render_connection_inspector(
                 .id("btn-inspector-close")
                 .cursor_pointer()
                 .p(px(4.0))
-                .text_color(TEXT_DIM)
-                .hover(|s| s.text_color(TEXT_PRIMARY))
+                .text_color(text_dim())
+                .hover(|s| s.text_color(text_primary()))
                 .on_click(move |_ev, _window, cx| {
                     app_close.update(cx, |this, cx| this.select_connection_item(None, cx));
                 })
-                .child(tabler_icon(TablerIcon::X).size(px(14.0)).text_color(TEXT_SECONDARY)),
+                .child(tabler_icon(TablerIcon::X).size(px(14.0)).text_color(text_secondary())),
         )
 }
 

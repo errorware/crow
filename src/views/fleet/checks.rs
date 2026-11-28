@@ -20,19 +20,19 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) ->
         .px(px(8.0))
         .py(px(3.0))
         .border_1()
-        .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
-        .bg(if on { BG_CONTROL_ALT } else { BG_CONTROL })
+        .border_color(if on { text_primary() } else { border_default() })
+        .bg(if on { bg_control_alt() } else { bg_control() })
         .font_family(FONT_MONO)
         .text_size(font_px(10.0))
         .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
-        .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+        .text_color(if on { text_primary() } else { text_dim() })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .child(text.into())
 }
 
 fn input(i: Option<&Entity<gpui_kit::component::input::InputState>>) -> impl IntoElement {
-    div().flex_1().min_w(px(0.0)).children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0))))
+    div().flex_1().min_w(px(0.0)).children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(bg_app()).rounded(px(2.0))))
 }
 
 fn uptime(h: &[(i64, bool, Option<i64>)], secs: i64, now: i64) -> String {
@@ -59,7 +59,7 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                 .flex()
                 .flex_col()
                 .gap(px(14.0))
-                .child(div().flex().items_center().gap(px(12.0)).child(mono(10.5, if failing > 0 { CRIT } else { OK }).child(t!("fleet-checks-checks-failing", count = st.defs.len(), failing = failing))).child(mono(9.5, TEXT_FAINT).child(t!("fleet-checks-run-from-this-machine-only"))))
+                .child(div().flex().items_center().gap(px(12.0)).child(mono(10.5, if failing > 0 { theme().crit } else { theme().ok }).child(t!("fleet-checks-checks-failing", count = st.defs.len(), failing = failing))).child(mono(9.5, text_faint()).child(t!("fleet-checks-run-from-this-machine-only"))))
                 // Add one.
                 .child(
                     div()
@@ -68,12 +68,12 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                         .gap(px(8.0))
                         .p(px(12.0))
                         .border_1()
-                        .border_color(BORDER_PANEL)
-                        .bg(BG_PANEL)
+                        .border_color(border_panel())
+                        .bg(bg_panel())
                         .child(div().flex().items_center().gap(px(6.0)).children([(FormKind::Http, t!("fleet-checks-http-s")), (FormKind::Tcp, t!("fleet-checks-tcp-port")), (FormKind::Dns, t!("fleet-checks-dns-name"))].into_iter().map(|(k, t)| {
                             let app = app.clone();
                             chip(format!("check-kind-{t}"), t, st.form == k).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_check_form(k, cx)))
-                        })).child(div().w(px(12.0))).child(mono(9.5, TEXT_DIMMER).child(t!("fleet-checks-every"))).children([(30i64, "30 s"), (60, t!("fleet-checks-1-min")), (300, t!("fleet-checks-5-min"))].into_iter().map(|(s, t)| {
+                        })).child(div().w(px(12.0))).child(mono(9.5, text_dimmer()).child(t!("fleet-checks-every"))).children([(30i64, "30 s"), (60, t!("fleet-checks-1-min")), (300, t!("fleet-checks-5-min"))].into_iter().map(|(s, t)| {
                             let app = app.clone();
                             chip(format!("check-every-{s}"), t, st.every == s).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_check_every(s, cx)))
                         })))
@@ -84,7 +84,7 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                                 .flex_wrap()
                                 .items_center()
                                 .gap(px(6.0))
-                                .child(mono(9.5, TEXT_DIMMER).child(t!("fleet-checks-attach-to")))
+                                .child(mono(9.5, text_dimmer()).child(t!("fleet-checks-attach-to")))
                                 .child({
                                     let app = app.clone();
                                     chip("check-attach-none", t!("fleet-checks-no-server"), st.attach.is_none()).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_check_attach(None, cx)))
@@ -99,18 +99,18 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                                 .child(div().flex_1())
                                 .child(chip("btn-check-add", t!("fleet-checks-add-check"), false).on_click(move |_ev, _w, cx| app_add.update(cx, |this, cx| this.add_check(cx)))),
                         )
-                        .child(mono(9.5, TEXT_FAINT).child(t!("fleet-checks-an-attached-checks-alerts-land"))),
+                        .child(mono(9.5, text_faint()).child(t!("fleet-checks-an-attached-checks-alerts-land"))),
                 )
-                .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { OK } else { WARN }).child(m)))
+                .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { theme().ok } else { theme().warn }).child(m)))
                 // The checks.
                 .children(st.defs.iter().map(|c| {
                     let last = st.last.get(&c.id);
                     let h = st.history.get(&c.id).cloned().unwrap_or_default();
                     let color = match last {
-                        _ if st.running.contains(&c.id) && last.is_none() => TEXT_DIM,
-                        Some(o) if o.ok => OK,
-                        Some(_) => CRIT,
-                        None => TEXT_FAINT,
+                        _ if st.running.contains(&c.id) && last.is_none() => text_dim(),
+                        Some(o) if o.ok => theme().ok,
+                        Some(_) => theme().crit,
+                        None => text_faint(),
                     };
                     let server = c.server_id.as_ref().and_then(|id| fleet.servers.iter().find(|s| &s.id == id)).map(|s| s.name.clone());
                     let (a_run, a_alert, a_del, id1, id2, id3) = (app.clone(), app.clone(), app.clone(), c.id.clone(), c.id.clone(), c.id.clone());
@@ -123,8 +123,8 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                         .px(px(10.0))
                         .py(px(8.0))
                         .border_1()
-                        .border_color(BORDER_PANEL)
-                        .bg(BG_PANEL)
+                        .border_color(border_panel())
+                        .bg(bg_panel())
                         .child(div().flex_none().size(px(8.0)).rounded_full().bg(color))
                         .child(
                             div()
@@ -133,8 +133,8 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                                 .flex()
                                 .flex_col()
                                 .gap(px(2.0))
-                                .child(mono(11.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).whitespace_nowrap().overflow_hidden().text_ellipsis().child(c.name.clone()))
-                                .child(mono(9.5, TEXT_FAINT).whitespace_nowrap().overflow_hidden().text_ellipsis().child(t!("fleet-checks-every-s", target = c.target(), every_secs = c.every_secs, server = server.map(|s| t!("fleet-checks-on", s = s)).unwrap_or_default())))
+                                .child(mono(11.0, text_primary()).font_weight(FontWeight::BOLD).whitespace_nowrap().overflow_hidden().text_ellipsis().child(c.name.clone()))
+                                .child(mono(9.5, text_faint()).whitespace_nowrap().overflow_hidden().text_ellipsis().child(t!("fleet-checks-every-s", target = c.target(), every_secs = c.every_secs, server = server.map(|s| t!("fleet-checks-on", s = s)).unwrap_or_default())))
                                 .child(mono(9.5, color).whitespace_nowrap().overflow_hidden().text_ellipsis().child(match last {
                                     Some(o) => format!("{}{}", o.detail, o.cert_days.map(|d| t!("fleet-checks-cert-days", d = d)).unwrap_or_default()),
                                     None if st.running.contains(&c.id) => t!("fleet-checks-checking").into(),
@@ -144,9 +144,9 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                         // The last results: a bar each, height = latency, red = failed.
                         .child(div().flex_1().min_w(px(0.0)).h(px(28.0)).flex().items_end().gap(px(1.0)).children(recent.iter().map(|(_, ok, lat)| {
                             let hgt = if *ok { 4.0 + 24.0 * lat.unwrap_or(0) as f32 / max_lat as f32 } else { 28.0 };
-                            div().w(px(4.0)).h(px(hgt)).bg(if *ok { OK.opacity(0.7) } else { CRIT })
+                            div().w(px(4.0)).h(px(hgt)).bg(if *ok { theme().ok.opacity(0.7) } else { theme().crit })
                         })))
-                        .child(div().w(px(150.0)).flex_none().flex().flex_col().child(mono(9.5, TEXT_SECONDARY).child(format!("24 h {}", uptime(&h, 86_400, now)))).child(mono(9.5, TEXT_DIM).child(format!("7 d {}", uptime(&h, 7 * 86_400, now)))))
+                        .child(div().w(px(150.0)).flex_none().flex().flex_col().child(mono(9.5, text_secondary()).child(format!("24 h {}", uptime(&h, 86_400, now)))).child(mono(9.5, text_dim()).child(format!("7 d {}", uptime(&h, 7 * 86_400, now)))))
                         .child(chip(format!("check-run-{}", c.id), if st.running.contains(&c.id) { "…" } else { "RUN" }, false).on_click(move |_ev, _w, cx| {
                             let id = id1.clone();
                             a_run.update(cx, |this, cx| this.run_check(&id, cx))
@@ -160,6 +160,6 @@ pub fn checks_page(fleet: &FleetState, st: &ChecksState, app: Entity<CrowApp>) -
                             a_del.update(cx, |this, cx| this.delete_check(&id, cx))
                         }))
                 }))
-                .when(st.defs.is_empty(), |d| d.child(mono(10.5, TEXT_DIM).child(t!("fleet-checks-no-checks-yet-add-a")))),
+                .when(st.defs.is_empty(), |d| d.child(mono(10.5, text_dim()).child(t!("fleet-checks-no-checks-yet-add-a")))),
         )
 }

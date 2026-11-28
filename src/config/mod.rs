@@ -27,6 +27,7 @@ use std::path::PathBuf;
 /// Settings; a test checks each one is read outside the config and
 /// settings views, so nothing is shown that does nothing.
 pub const WIRED_SETTINGS: &[&str] = &[
+    "general.theme",
     "general.refresh_interval",
     "connection.connect_timeout",
     "connection.keepalive_interval",
@@ -194,6 +195,11 @@ impl CrowConfigManager {
             "false" | "no" | "off" => Some(false),
             _ => None,
         })
+    }
+
+    /// A saved setting as a string.
+    pub fn saved_str(&self, row_id: &str) -> Option<&str> {
+        self.baseline_ir.rows.iter().find(|r| r.row_id == row_id)?.get_field(row_id)?.value.as_str()
     }
 
     pub fn get_field(&self, row_id: &str) -> Option<&FieldIr> {

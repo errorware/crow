@@ -40,9 +40,9 @@ pub fn ssh_attach_modal(
                 .id("ssh-attach-modal-panel")
                 .w(px(640.0))
                 .max_h(px(580.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .flex_col()
                 .on_click(|_ev, _window, _cx| {
@@ -58,25 +58,25 @@ pub fn ssh_attach_modal(
                         .justify_between()
                         .px(px(16.0))
                         .border_b_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .child(
                             div()
                                 .flex()
                                 .items_center()
                                 .gap(px(8.0))
-                                .child(tabler_icon(TablerIcon::Key).size(px(16.0)).text_color(hex_rgb(0x8ab4ff)))
+                                .child(tabler_icon(TablerIcon::Key).size(px(16.0)).text_color(accent()))
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(12.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_MAX)
+                                        .text_color(text_max())
                                         .child(t!("users-ssh-attach-modal-ssh-keychain-attachment", uname = uname)),
                                 )
                                 .child(
                                     div()
-                                        .bg(hex_rgba(0x8ab4ff, 0.12))
-                                        .text_color(hex_rgb(0x8ab4ff))
+                                        .bg(accent_bg())
+                                        .text_color(accent())
                                         .px(px(6.0))
                                         .py(px(1.5))
                                         .rounded_sm()
@@ -91,13 +91,13 @@ pub fn ssh_attach_modal(
                                 .id("btn-close-ssh-modal")
                                 .p(px(4.0))
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_close.update(cx, |this, cx| {
                                         this.users.selected_for_ssh = None; cx.notify();
                                     });
                                 })
-                                .child(tabler_icon(TablerIcon::X).size(px(14.0)).text_color(TEXT_MUTED)),
+                                .child(tabler_icon(TablerIcon::X).size(px(14.0)).text_color(text_muted())),
                         ),
                 )
                 // Target File Banner
@@ -107,7 +107,7 @@ pub fn ssh_attach_modal(
                         .py(px(8.0))
                         .bg(hex_rgba(0x000000, 0.35))
                         .border_b_1()
-                        .border_color(BORDER_ROW)
+                        .border_color(border_row())
                         .flex()
                         .items_center()
                         .justify_between()
@@ -115,14 +115,14 @@ pub fn ssh_attach_modal(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
-                                .text_color(TEXT_TERTIARY)
+                                .text_color(text_tertiary())
                                 .child(t!("users-ssh-attach-modal-target-file", target_auth_path = target_auth_path)),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.0))
-                                .text_color(OK)
+                                .text_color(theme().ok)
                                 .child(t!("users-ssh-attach-modal-permissions-0600-secure")),
                         ),
                 )
@@ -147,7 +147,7 @@ pub fn ssh_attach_modal(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.5))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(t!("users-ssh-attach-modal-currently-authorized-keys-for-user")),
                                 )
                                 .child(if user.authorized_keys.is_empty() {
@@ -155,11 +155,11 @@ pub fn ssh_attach_modal(
                                         .p(px(12.0))
                                         .bg(hex_rgba(0xffffff, 0.02))
                                         .border_1()
-                                        .border_color(BORDER_ROW)
+                                        .border_color(border_row())
                                         .rounded_sm()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
-                                        .text_color(TEXT_MUTED)
+                                        .text_color(text_muted())
                                         .child(t!("users-ssh-attach-modal-no-ssh-keys-currently-installed"))
                                         .into_any_element()
                                 } else {
@@ -175,7 +175,7 @@ pub fn ssh_attach_modal(
                                                 .p(px(8.0))
                                                 .bg(hex_rgba(0xffffff, 0.03))
                                                 .border_1()
-                                                .border_color(BORDER_DEFAULT)
+                                                .border_color(border_default())
                                                 .rounded_sm()
                                                 .flex()
                                                 .items_center()
@@ -194,12 +194,12 @@ pub fn ssh_attach_modal(
                                                                     div()
                                                                         .px(px(4.0))
                                                                         .py(px(1.0))
-                                                                        .bg(hex_rgba(0x38bdf8, 0.15))
+                                                                        .bg(accent_bg())
                                                                         .rounded_sm()
                                                                         .font_family(FONT_MONO)
                                                                         .text_size(font_px(8.5))
                                                                         .font_weight(FontWeight::BOLD)
-                                                                        .text_color(hex_rgb(0x38bdf8))
+                                                                        .text_color(accent())
                                                                         .child(k.algorithm.clone()),
                                                                 )
                                                                 .child(
@@ -207,7 +207,7 @@ pub fn ssh_attach_modal(
                                                                         .font_family(FONT_MONO)
                                                                         .text_size(font_px(11.0))
                                                                         .font_weight(FontWeight::BOLD)
-                                                                        .text_color(TEXT_MAX)
+                                                                        .text_color(text_max())
                                                                         .child(k.name.clone()),
                                                                 ),
                                                         )
@@ -215,7 +215,7 @@ pub fn ssh_attach_modal(
                                                             div()
                                                                 .font_family(FONT_MONO)
                                                                 .text_size(font_px(9.0))
-                                                                .text_color(TEXT_FAINT)
+                                                                .text_color(text_faint())
                                                                 .child(k.fingerprint.clone()),
                                                         ),
                                                 )
@@ -232,7 +232,7 @@ pub fn ssh_attach_modal(
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(9.0))
                                                         .font_weight(FontWeight::BOLD)
-                                                        .text_color(CRIT)
+                                                        .text_color(theme().crit)
                                                         .on_click(move |_ev, _window, cx| {
                                                             let u = u_target.clone();
                                                             let k = kid.clone();
@@ -262,14 +262,14 @@ pub fn ssh_attach_modal(
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.5))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_PRIMARY)
+                                                .text_color(text_primary())
                                                 .child(t!("users-ssh-attach-modal-select-from-crow-ssh-keychain")),
                                         )
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(9.0))
-                                                .text_color(TEXT_FAINT)
+                                                .text_color(text_faint())
                                                 .child(t!("users-ssh-attach-modal-enrolled-vault-keys", count = enrolled_keys.len())),
                                         ),
                                 )
@@ -278,11 +278,11 @@ pub fn ssh_attach_modal(
                                         .p(px(12.0))
                                         .bg(hex_rgba(0xffffff, 0.02))
                                         .border_1()
-                                        .border_color(BORDER_ROW)
+                                        .border_color(border_row())
                                         .rounded_sm()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
-                                        .text_color(TEXT_MUTED)
+                                        .text_color(text_muted())
                                         .child(t!("users-ssh-attach-modal-no-enrolled-keys-found-in"))
                                 } else {
                                     div()
@@ -302,9 +302,9 @@ pub fn ssh_attach_modal(
 
                                             div()
                                                 .p(px(10.0))
-                                                .bg(BG_APP)
+                                                .bg(bg_app())
                                                 .border_1()
-                                                .border_color(if is_attached { hex_rgba(0x10b981, 0.3) } else { BORDER_DEFAULT })
+                                                .border_color(if is_attached { hex_rgba(0x10b981, 0.3) } else { border_default() })
                                                 .rounded_sm()
                                                 .flex()
                                                 .items_center()
@@ -324,18 +324,18 @@ pub fn ssh_attach_modal(
                                                                         .px(px(5.0))
                                                                         .py(px(1.5))
                                                                         .bg(if k.algorithm.to_lowercase().contains("ed25519") {
-                                                                            hex_rgba(0x38bdf8, 0.15)
+                                                                            accent_bg()
                                                                         } else {
-                                                                            hex_rgba(0xfbbf24, 0.15)
+                                                                            theme().warn_bg
                                                                         })
                                                                         .rounded_sm()
                                                                         .font_family(FONT_MONO)
                                                                         .text_size(font_px(8.5))
                                                                         .font_weight(FontWeight::BOLD)
                                                                         .text_color(if k.algorithm.to_lowercase().contains("ed25519") {
-                                                                            hex_rgb(0x38bdf8)
+                                                                            accent()
                                                                         } else {
-                                                                            hex_rgb(0xfbbf24)
+                                                                            theme().warn
                                                                         })
                                                                         .child(k.algorithm.clone()),
                                                                 )
@@ -344,7 +344,7 @@ pub fn ssh_attach_modal(
                                                                         .font_family(FONT_MONO)
                                                                         .text_size(font_px(11.0))
                                                                         .font_weight(FontWeight::BOLD)
-                                                                        .text_color(TEXT_MAX)
+                                                                        .text_color(text_max())
                                                                         .child(k.name.clone()),
                                                                 )
                                                                 .children(if let Some(comm) = &k.comment {
@@ -352,7 +352,7 @@ pub fn ssh_attach_modal(
                                                                         div()
                                                                             .font_family(FONT_MONO)
                                                                             .text_size(font_px(9.5))
-                                                                            .text_color(TEXT_MUTED)
+                                                                            .text_color(text_muted())
                                                                             .child(format!("({})", comm)),
                                                                     )
                                                                 } else {
@@ -363,7 +363,7 @@ pub fn ssh_attach_modal(
                                                             div()
                                                                 .font_family(FONT_MONO)
                                                                 .text_size(font_px(9.0))
-                                                                .text_color(TEXT_FAINT)
+                                                                .text_color(text_faint())
                                                                 .child(k.fingerprint.clone()),
                                                         ),
                                                 )
@@ -371,12 +371,12 @@ pub fn ssh_attach_modal(
                                                     div()
                                                         .px(px(8.0))
                                                         .py(px(4.0))
-                                                        .bg(OK_BG)
+                                                        .bg(theme().ok_bg)
                                                         .rounded_sm()
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(9.0))
                                                         .font_weight(FontWeight::BOLD)
-                                                        .text_color(OK)
+                                                        .text_color(theme().ok)
                                                         .child(t!("users-ssh-attach-modal-attached-2"))
                                                         .into_any_element()
                                                 } else {
@@ -384,15 +384,15 @@ pub fn ssh_attach_modal(
                                                         .id(ElementId::NamedInteger(format!("btn-attach-{}", kid).into(), 0))
                                                         .px(px(10.0))
                                                         .py(px(4.0))
-                                                        .bg(hex_rgba(0x8ab4ff, 0.15))
+                                                        .bg(accent_bg())
                                                         .border_1()
-                                                        .border_color(hex_rgba(0x8ab4ff, 0.4))
+                                                        .border_color(accent_border())
                                                         .cursor_pointer()
-                                                        .hover(|s| s.bg(hex_rgba(0x8ab4ff, 0.3)))
+                                                        .hover(|s| s.bg(accent_bg()))
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(9.5))
                                                         .font_weight(FontWeight::BOLD)
-                                                        .text_color(hex_rgb(0x8ab4ff))
+                                                        .text_color(accent())
                                                         .on_click(move |_ev, _window, cx| {
                                                             let u = u_target.clone();
                                                             let key_summary = super::models::UserSshKeySummary {

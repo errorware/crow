@@ -14,10 +14,10 @@ fn button(id: &'static str, label: String, color: Rgba, enabled: bool, on_click:
         .px(px(10.0))
         .py(px(5.0))
         .border_1()
-        .border_color(if enabled { color.opacity(0.6) } else { BORDER_DEFAULT })
-        .text_color(if enabled { color } else { TEXT_FAINTER })
+        .border_color(if enabled { color.opacity(0.6) } else { border_default() })
+        .text_color(if enabled { color } else { text_fainter() })
         .font_weight(FontWeight::BOLD)
-        .when(enabled, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _window, cx| on_click(cx)))
+        .when(enabled, |d| d.cursor_pointer().hover(|s| s.bg(bg_row_hover())).on_click(move |_ev, _window, cx| on_click(cx)))
         .child(label)
 }
 
@@ -38,9 +38,9 @@ pub fn snapshot_offer(offer: &SnapshotOffer, app: Entity<CrowApp>) -> impl IntoE
                 .id("snapshot-offer")
                 .w(px(560.0))
                 .p(px(16.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(WARN.opacity(0.6))
+                .border_color(theme().warn.opacity(0.6))
                 .shadow_lg()
                 .flex()
                 .flex_col()
@@ -48,9 +48,9 @@ pub fn snapshot_offer(offer: &SnapshotOffer, app: Entity<CrowApp>) -> impl IntoE
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.5))
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
-                .child(div().text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("snapshot-offer-snapshot-the-whole-server-at", provider = offer.provider)))
-                .child(div().line_height(px(15.0)).text_color(TEXT_MUTED).child(t!("snapshot-offer-youre-about-to-apply-a", file = offer.file, description = offer.description, provider = offer.provider)))
-                .children(offer.error.clone().map(|e| div().text_color(CRIT).child(e)))
+                .child(div().text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(t!("snapshot-offer-snapshot-the-whole-server-at", provider = offer.provider)))
+                .child(div().line_height(px(15.0)).text_color(text_muted()).child(t!("snapshot-offer-youre-about-to-apply-a", file = offer.file, description = offer.description, provider = offer.provider)))
+                .children(offer.error.clone().map(|e| div().text_color(theme().crit).child(e)))
                 .child(
                     div()
                         .id("snapshot-offer-remember")
@@ -58,16 +58,16 @@ pub fn snapshot_offer(offer: &SnapshotOffer, app: Entity<CrowApp>) -> impl IntoE
                         .gap(px(8.0))
                         .cursor_pointer()
                         .on_click(move |_ev, _window, cx| a_remember.update(cx, |this, cx| this.toggle_snapshot_offer_remember(cx)))
-                        .child(div().text_color(if offer.remember { TEXT_PRIMARY } else { TEXT_DIMMER }).child(if offer.remember { "[x]" } else { "[ ]" }))
-                        .child(div().text_color(TEXT_SECONDARY).child(t!("snapshot-offer-remember-my-choice-for-these"))),
+                        .child(div().text_color(if offer.remember { text_primary() } else { text_dimmer() }).child(if offer.remember { "[x]" } else { "[ ]" }))
+                        .child(div().text_color(text_secondary()).child(t!("snapshot-offer-remember-my-choice-for-these"))),
                 )
                 .child(
                     div()
                         .flex()
                         .gap(px(6.0))
-                        .child(button("snapshot-offer-yes", if busy { t!("snapshot-offer-taking-snapshot").into() } else { t!("snapshot-offer-snapshot-first-then-apply").into() }, OK, !busy, move |cx| a_snap.update(cx, |this, cx| this.answer_snapshot_offer(true, cx))))
-                        .child(button("snapshot-offer-no", t!("snapshot-offer-apply-without").into(), WARN, !busy, move |cx| a_skip.update(cx, |this, cx| this.answer_snapshot_offer(false, cx))))
-                        .child(button("snapshot-offer-cancel", t!("snapshot-offer-cancel").into(), TEXT_SECONDARY, !busy, move |cx| a_cancel.update(cx, |this, cx| this.cancel_snapshot_offer(cx)))),
+                        .child(button("snapshot-offer-yes", if busy { t!("snapshot-offer-taking-snapshot").into() } else { t!("snapshot-offer-snapshot-first-then-apply").into() }, theme().ok, !busy, move |cx| a_snap.update(cx, |this, cx| this.answer_snapshot_offer(true, cx))))
+                        .child(button("snapshot-offer-no", t!("snapshot-offer-apply-without").into(), theme().warn, !busy, move |cx| a_skip.update(cx, |this, cx| this.answer_snapshot_offer(false, cx))))
+                        .child(button("snapshot-offer-cancel", t!("snapshot-offer-cancel").into(), text_secondary(), !busy, move |cx| a_cancel.update(cx, |this, cx| this.cancel_snapshot_offer(cx)))),
                 ),
         )
 }

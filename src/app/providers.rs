@@ -879,13 +879,13 @@ impl CrowApp {
                                     bw.logs.push(crate::views::onboard::BootWaitLog {
                                         timestamp: now.clone(),
                                         glyph: "✓".to_string(),
-                                        color: crate::theme::OK,
+                                        color: crate::theme::theme().ok,
                                         message: format!("SSH port 22 is open!{banner_desc}"),
                                     });
                                     bw.logs.push(crate::views::onboard::BootWaitLog {
                                         timestamp: now,
                                         glyph: "🔑".to_string(),
-                                        color: crate::theme::OK,
+                                        color: crate::theme::theme().ok,
                                         message: "Probing host keys and authenticating with Vault key...".to_string(),
                                     });
                                     cx.notify();
@@ -924,7 +924,7 @@ impl CrowApp {
                                     bw.logs.push(crate::views::onboard::BootWaitLog {
                                         timestamp: now,
                                         glyph: "⟳".to_string(),
-                                        color: crate::theme::TEXT_FAINT,
+                                        color: crate::theme::text_faint(),
                                         message: format!("Poll #{attempt}: {short_reason}, retrying in 4s..."),
                                     });
                                     cx.notify();
@@ -979,19 +979,19 @@ impl CrowApp {
             crate::views::onboard::BootWaitLog {
                 timestamp: now.clone(),
                 glyph: "🚀".to_string(),
-                color: crate::theme::OK,
+                color: crate::theme::theme().ok,
                 message: format!("Instance '{label}' launched on {provider_name} (ID: {instance_id})"),
             },
             crate::views::onboard::BootWaitLog {
                 timestamp: now.clone(),
                 glyph: "🌐".to_string(),
-                color: crate::theme::TEXT_PRIMARY,
+                color: crate::theme::text_primary(),
                 message: format!("Assigned IP: {host} (region: {region_code})"),
             },
             crate::views::onboard::BootWaitLog {
                 timestamp: now,
                 glyph: "⏳".to_string(),
-                color: crate::theme::TEXT_SECONDARY,
+                color: crate::theme::text_secondary(),
                 message: "Waiting for cloud kernel boot & SSH daemon startup...".to_string(),
             },
         ];

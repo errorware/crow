@@ -25,16 +25,16 @@ fn button(id: impl Into<ElementId>, label: &'static str, color: Rgba) -> Statefu
         .text_size(font_px(10.5))
         .font_weight(FontWeight::BOLD)
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .child(label)
 }
 
 fn trust_color(t: Trust) -> Rgba {
     match t {
-        Trust::Accepted => OK,
-        Trust::New | Trust::Changed => WARN,
-        Trust::Refused => TEXT_DIM,
-        Trust::Invalid => CRIT,
+        Trust::Accepted => theme().ok,
+        Trust::New | Trust::Changed => theme().warn,
+        Trust::Refused => text_dim(),
+        Trust::Invalid => theme().crit,
     }
 }
 
@@ -51,16 +51,16 @@ pub fn user_plugins_section(state: &UserPluginsState, app: Entity<CrowApp>) -> i
                 .flex_wrap()
                 .items_center()
                 .gap(px(8.0))
-                .child(div().text_size(font_px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_SECONDARY).child(t!("settings-user-plugins-installed")))
-                .child(div().text_size(font_px(9.5)).text_color(TEXT_FAINT).child(crate::plugin_host::folder::plugins_dir().display().to_string()))
+                .child(div().text_size(font_px(10.5)).font_weight(FontWeight::BOLD).text_color(text_secondary()).child(t!("settings-user-plugins-installed")))
+                .child(div().text_size(font_px(9.5)).text_color(text_faint()).child(crate::plugin_host::folder::plugins_dir().display().to_string()))
                 .child(div().flex_1())
-                .child(button("btn-open-plugins-folder", t!("settings-user-plugins-open-folder"), TEXT_SECONDARY).on_click(move |_ev, _w, cx| app_open.update(cx, |this, cx| this.open_plugins_folder(cx))))
-                .child(button("btn-reload-plugins", if state.scanning { t!("settings-user-plugins-reading") } else { t!("settings-user-plugins-reload") }, TEXT_SECONDARY).on_click(move |_ev, _w, cx| app_reload.update(cx, |this, cx| this.scan_user_plugins(cx)))),
+                .child(button("btn-open-plugins-folder", t!("settings-user-plugins-open-folder"), text_secondary()).on_click(move |_ev, _w, cx| app_open.update(cx, |this, cx| this.open_plugins_folder(cx))))
+                .child(button("btn-reload-plugins", if state.scanning { t!("settings-user-plugins-reading") } else { t!("settings-user-plugins-reload") }, text_secondary()).on_click(move |_ev, _w, cx| app_reload.update(cx, |this, cx| this.scan_user_plugins(cx)))),
         )
-        .child(div().text_size(font_px(10.0)).line_height(px(15.0)).text_color(TEXT_DIM).child(t!("settings-user-plugins-about")))
-        .children(state.message.clone().map(|(ok, m)| div().text_size(font_px(10.0)).text_color(if ok { OK } else { CRIT }).child(m)))
+        .child(div().text_size(font_px(10.0)).line_height(px(15.0)).text_color(text_dim()).child(t!("settings-user-plugins-about")))
+        .children(state.message.clone().map(|(ok, m)| div().text_size(font_px(10.0)).text_color(if ok { theme().ok } else { theme().crit }).child(m)))
         .when(state.installed.is_empty(), |d| {
-            d.child(div().p(px(12.0)).bg(BG_PANEL).border_1().border_color(BORDER_PANEL).text_size(font_px(10.5)).text_color(TEXT_DIM).child(if state.scanning { t!("settings-user-plugins-reading-folder") } else { t!("settings-user-plugins-none") }))
+            d.child(div().p(px(12.0)).bg(bg_panel()).border_1().border_color(border_panel()).text_size(font_px(10.5)).text_color(text_dim()).child(if state.scanning { t!("settings-user-plugins-reading-folder") } else { t!("settings-user-plugins-none") }))
         })
         .children(state.installed.iter().enumerate().map(|(i, p)| {
             let open = state.reviewing.as_deref() == Some(p.id.as_str());
@@ -68,9 +68,9 @@ pub fn user_plugins_section(state: &UserPluginsState, app: Entity<CrowApp>) -> i
             div()
                 .flex()
                 .flex_col()
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(if open { BORDER_STRONG } else { BORDER_PANEL })
+                .border_color(if open { border_strong() } else { border_panel() })
                 .child(row(i, p, open, app.clone()))
                 .when(open, |d| {
                     let setup = (state.slot(&p.id, crate::app::user_plugins::SETUP, crate::app::user_plugins::HERE), state.setup_hashes.get(&p.id) == Some(&p.hash));
@@ -92,24 +92,24 @@ fn row(i: usize, p: &Installed, open: bool, app: Entity<CrowApp>) -> impl IntoEl
         .px(px(12.0))
         .py(px(9.0))
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.toggle_user_plugin_review(&id, cx)))
         .child(div().flex_none().size(px(7.0)).rounded_full().bg(color))
-        .child(div().flex_none().text_size(font_px(12.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(p.name().to_string()))
-        .children(m.map(|m| div().flex_none().text_size(font_px(10.0)).text_color(TEXT_DIM).child(m.plugin.version.clone())))
-        .child(div().flex_none().px(px(5.0)).py(px(1.0)).bg(BG_CHIP).text_size(font_px(9.0)).text_color(TEXT_TERTIARY).child(p.id.clone()))
-        .children(m.map(|m| div().min_w(px(0.0)).truncate().text_size(font_px(10.0)).text_color(TEXT_FAINT).child(t!("settings-user-plugins-by", author = m.plugin.author))))
+        .child(div().flex_none().text_size(font_px(12.0)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(p.name().to_string()))
+        .children(m.map(|m| div().flex_none().text_size(font_px(10.0)).text_color(text_dim()).child(m.plugin.version.clone())))
+        .child(div().flex_none().px(px(5.0)).py(px(1.0)).bg(bg_chip()).text_size(font_px(9.0)).text_color(text_tertiary()).child(p.id.clone()))
+        .children(m.map(|m| div().min_w(px(0.0)).truncate().text_size(font_px(10.0)).text_color(text_faint()).child(t!("settings-user-plugins-by", author = m.plugin.author))))
         .child(div().flex_1())
         .child(div().flex_none().text_size(font_px(10.0)).font_weight(FontWeight::BOLD).text_color(color).child(trust_label(p.trust)))
-        .child(div().flex_none().text_size(font_px(10.0)).text_color(TEXT_SECONDARY).child(if open { t!("settings-user-plugins-close") } else if p.trust == Trust::Invalid { t!("settings-user-plugins-why") } else { t!("settings-user-plugins-review") }))
+        .child(div().flex_none().text_size(font_px(10.0)).text_color(text_secondary()).child(if open { t!("settings-user-plugins-close") } else if p.trust == Trust::Invalid { t!("settings-user-plugins-why") } else { t!("settings-user-plugins-review") }))
 }
 
 fn heading(text: &'static str) -> Div {
-    div().pt(px(6.0)).text_size(font_px(9.5)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINT).child(text)
+    div().pt(px(6.0)).text_size(font_px(9.5)).font_weight(FontWeight::BOLD).text_color(text_faint()).child(text)
 }
 
 fn code(text: String) -> Div {
-    div().px(px(8.0)).py(px(5.0)).bg(BG_WINDOW).border_1().border_color(BORDER_ROW).text_size(font_px(10.5)).text_color(TEXT_PRIMARY).child(text)
+    div().px(px(8.0)).py(px(5.0)).bg(bg_window()).border_1().border_color(border_row()).text_size(font_px(10.5)).text_color(text_primary()).child(text)
 }
 
 fn env_rows(env: &std::collections::BTreeMap<String, Template>) -> Vec<Div> {
@@ -120,17 +120,17 @@ fn env_rows(env: &std::collections::BTreeMap<String, Template>) -> Vec<Div> {
                 .flex()
                 .gap(px(8.0))
                 .text_size(font_px(10.0))
-                .child(div().text_color(TEXT_DIM).child(format!("{k}={v}")))
-                .when(secret, |d| d.child(div().text_color(TEXT_FAINT).child(t!("settings-user-plugins-secret-from-vault"))))
+                .child(div().text_color(text_dim()).child(format!("{k}={v}")))
+                .when(secret, |d| d.child(div().text_color(text_faint()).child(t!("settings-user-plugins-secret-from-vault"))))
         })
         .collect()
 }
 
 fn effect_chip(e: Effect) -> impl IntoElement {
     let (label, color) = match e {
-        Effect::Read => (t!("settings-user-plugins-effect-read"), TEXT_TERTIARY),
-        Effect::Change => (t!("settings-user-plugins-effect-change"), WARN),
-        Effect::Danger => (t!("settings-user-plugins-effect-danger"), CRIT),
+        Effect::Read => (t!("settings-user-plugins-effect-read"), text_tertiary()),
+        Effect::Change => (t!("settings-user-plugins-effect-change"), theme().warn),
+        Effect::Danger => (t!("settings-user-plugins-effect-danger"), theme().crit),
     };
     crate::components::button::badge(color).flex_none().w(px(64.0)).text_size(font_px(9.0)).font_weight(FontWeight::BOLD).flex().justify_center().child(label)
 }
@@ -174,21 +174,21 @@ fn action_block(a: &Action) -> impl IntoElement {
         .gap(px(4.0))
         .py(px(6.0))
         .border_t_1()
-        .border_color(BORDER_ROW)
+        .border_color(border_row())
         .child(
             div()
                 .flex()
                 .items_center()
                 .gap(px(8.0))
                 .child(effect_chip(a.effect))
-                .child(div().flex_none().text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(a.label.clone()))
-                .child(div().flex_none().text_size(font_px(9.5)).text_color(TEXT_FAINT).child(a.id.clone()))
+                .child(div().flex_none().text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(a.label.clone()))
+                .child(div().flex_none().text_size(font_px(9.5)).text_color(text_faint()).child(a.id.clone()))
                 .child(div().flex_1())
-                .child(div().flex_none().text_size(font_px(10.0)).text_color(if a.root { WARN } else { TEXT_DIM }).child(where_text(a))),
+                .child(div().flex_none().text_size(font_px(10.0)).text_color(if a.root { theme().warn } else { text_dim() }).child(where_text(a))),
         )
         .child(code(runs_line(a.command.as_deref(), a.script.as_deref(), a.interpreter, &a.args)))
         .children(env_rows(&a.env))
-        .when(!extras.is_empty(), |d| d.child(div().text_size(font_px(10.0)).text_color(TEXT_DIM).child(extras.join(" · "))))
+        .when(!extras.is_empty(), |d| d.child(div().text_size(font_px(10.0)).text_color(text_dim()).child(extras.join(" · "))))
 }
 
 fn manifest_parts(m: &Manifest) -> Vec<AnyElement> {
@@ -199,7 +199,7 @@ fn manifest_parts(m: &Manifest) -> Vec<AnyElement> {
         .map(|(k, v)| format!("{k}: {}", v.join(", ")))
         .collect();
     if !needs.is_empty() {
-        out.push(div().text_size(font_px(10.0)).text_color(TEXT_DIM).child(needs.join(" · ")).into_any_element());
+        out.push(div().text_size(font_px(10.0)).text_color(text_dim()).child(needs.join(" · ")).into_any_element());
     }
     if let Some(s) = &m.setup {
         out.push(heading(t!("settings-user-plugins-setup")).into_any_element());
@@ -213,7 +213,7 @@ fn manifest_parts(m: &Manifest) -> Vec<AnyElement> {
         out.push(
             div()
                 .text_size(font_px(10.0))
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .child(m.settings.iter().map(|s| if s.kind == FieldKind::Secret { t!("settings-user-plugins-setting-secret", label = s.label) } else { s.label.clone() }).collect::<Vec<_>>().join(" · "))
                 .into_any_element(),
         );
@@ -226,7 +226,7 @@ fn manifest_parts(m: &Manifest) -> Vec<AnyElement> {
         .collect();
     if !shows.is_empty() {
         out.push(heading(t!("settings-user-plugins-shows")).into_any_element());
-        out.push(div().text_size(font_px(10.0)).text_color(TEXT_DIM).child(shows.join(" · ")).into_any_element());
+        out.push(div().text_size(font_px(10.0)).text_color(text_dim()).child(shows.join(" · ")).into_any_element());
     }
     out
 }
@@ -248,10 +248,10 @@ fn install_row(p: &Installed, setup: (Option<&crate::app::user_plugins::RunSlot>
                 .flex()
                 .items_center()
                 .gap(px(10.0))
-                .child(div().text_size(font_px(10.5)).text_color(if installed { OK } else { WARN }).child(if installed { t!("settings-user-plugins-installed-for-these") } else { t!("settings-user-plugins-not-installed") }))
+                .child(div().text_size(font_px(10.5)).text_color(if installed { theme().ok } else { theme().warn }).child(if installed { t!("settings-user-plugins-installed-for-these") } else { t!("settings-user-plugins-not-installed") }))
                 .child(div().flex_1())
                 .child(
-                    button("btn-install-plugin", if running { t!("settings-user-plugins-installing") } else if installed { t!("settings-user-plugins-reinstall") } else { t!("settings-user-plugins-install") }, if installed { TEXT_SECONDARY } else { WARN })
+                    button("btn-install-plugin", if running { t!("settings-user-plugins-installing") } else if installed { t!("settings-user-plugins-reinstall") } else { t!("settings-user-plugins-install") }, if installed { text_secondary() } else { theme().warn })
                         .when(!running, |d| d.on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.run_plugin_setup(&id, cx)))),
                 ),
         )
@@ -272,28 +272,28 @@ fn review(p: &Installed, confirming: bool, state_setup: (Option<&crate::app::use
         .px(px(12.0))
         .pb(px(12.0))
         .border_t_1()
-        .border_color(BORDER_ROW)
+        .border_color(border_row())
         .children(r.manifest.as_ref().map(|m| {
             div()
                 .pt(px(8.0))
                 .flex()
                 .flex_col()
                 .gap(px(4.0))
-                .child(div().text_size(font_px(10.5)).line_height(px(15.0)).text_color(TEXT_SECONDARY).child(m.plugin.about.clone()))
-                .child(div().text_size(font_px(10.0)).text_color(TEXT_FAINT).child(t!("settings-user-plugins-meta", crow = m.plugin.crow, files = r.files.len(), license = m.plugin.license.clone().unwrap_or_else(|| "—".into()))))
+                .child(div().text_size(font_px(10.5)).line_height(px(15.0)).text_color(text_secondary()).child(m.plugin.about.clone()))
+                .child(div().text_size(font_px(10.0)).text_color(text_faint()).child(t!("settings-user-plugins-meta", crow = m.plugin.crow, files = r.files.len(), license = m.plugin.license.clone().unwrap_or_else(|| "—".into()))))
         }))
-        .when(p.trust == Trust::Changed, |d| d.child(div().p(px(8.0)).bg(WARN_BG).text_size(font_px(10.0)).text_color(WARN_INK).child(t!("settings-user-plugins-changed-since"))))
+        .when(p.trust == Trust::Changed, |d| d.child(div().p(px(8.0)).bg(theme().warn_bg).text_size(font_px(10.0)).text_color(theme().warn_ink).child(t!("settings-user-plugins-changed-since"))))
         .children(r.manifest.as_ref().map(|m| div().flex().flex_col().gap(px(4.0)).children(manifest_parts(m))))
         .when(!r.warnings.is_empty(), |d| {
-            d.child(heading(t!("settings-user-plugins-warnings"))).children(r.warnings.iter().map(|w| div().text_size(font_px(10.0)).text_color(WARN).child(w.clone())))
+            d.child(heading(t!("settings-user-plugins-warnings"))).children(r.warnings.iter().map(|w| div().text_size(font_px(10.0)).text_color(theme().warn).child(w.clone())))
         })
         .when(!r.refusals.is_empty(), |d| {
-            d.child(heading(t!("settings-user-plugins-refused-heading"))).children(r.refusals.iter().map(|w| div().text_size(font_px(10.0)).text_color(CRIT).child(w.clone())))
+            d.child(heading(t!("settings-user-plugins-refused-heading"))).children(r.refusals.iter().map(|w| div().text_size(font_px(10.0)).text_color(theme().crit).child(w.clone())))
         })
         .when(p.trust == Trust::Accepted && r.manifest.as_ref().is_some_and(|m| m.setup.is_some()), |d| d.child(install_row(p, state_setup, app_install)))
         .child(heading(t!("settings-user-plugins-files")))
-        .child(div().text_size(font_px(10.0)).text_color(TEXT_DIM).child(files))
-        .child(div().text_size(font_px(9.5)).text_color(TEXT_FAINT).child(p.hash.clone()))
+        .child(div().text_size(font_px(10.0)).text_color(text_dim()).child(files))
+        .child(div().text_size(font_px(9.5)).text_color(text_faint()).child(p.hash.clone()))
         .child(
             div()
                 .pt(px(6.0))
@@ -303,20 +303,20 @@ fn review(p: &Installed, confirming: bool, state_setup: (Option<&crate::app::use
                 .gap(px(8.0))
                 .when(can_accept, |d| {
                     d.child(
-                        button("btn-accept-plugin", if confirming { t!("settings-user-plugins-confirm-accept") } else { t!("settings-user-plugins-accept") }, if confirming { CRIT } else { OK })
+                        button("btn-accept-plugin", if confirming { t!("settings-user-plugins-confirm-accept") } else { t!("settings-user-plugins-accept") }, if confirming { theme().crit } else { theme().ok })
                             .on_click(move |_ev, _w, cx| app_accept.update(cx, |this, cx| this.accept_user_plugin(&id_accept, cx))),
                     )
                 })
                 .when(matches!(p.trust, Trust::New | Trust::Changed), |d| {
-                    d.child(button("btn-refuse-plugin", t!("settings-user-plugins-refuse"), TEXT_SECONDARY).on_click(move |_ev, _w, cx| app_refuse.update(cx, |this, cx| this.refuse_user_plugin(&id_refuse, cx))))
+                    d.child(button("btn-refuse-plugin", t!("settings-user-plugins-refuse"), text_secondary()).on_click(move |_ev, _w, cx| app_refuse.update(cx, |this, cx| this.refuse_user_plugin(&id_refuse, cx))))
                 })
                 .when(p.trust == Trust::Accepted, |d| {
-                    d.child(button("btn-revoke-plugin", t!("settings-user-plugins-revoke"), TEXT_SECONDARY).on_click(move |_ev, _w, cx| app_revoke.update(cx, |this, cx| this.revoke_user_plugin(&id_revoke, cx))))
+                    d.child(button("btn-revoke-plugin", t!("settings-user-plugins-revoke"), text_secondary()).on_click(move |_ev, _w, cx| app_revoke.update(cx, |this, cx| this.revoke_user_plugin(&id_revoke, cx))))
                 })
-                .child(button("btn-plugin-folder", t!("settings-user-plugins-open-folder"), TEXT_DIM).on_click(move |_ev, _w, cx| app_open.update(cx, |this, cx| this.open_plugins_folder(cx)))),
+                .child(button("btn-plugin-folder", t!("settings-user-plugins-open-folder"), text_dim()).on_click(move |_ev, _w, cx| app_open.update(cx, |this, cx| this.open_plugins_folder(cx)))),
         )
         .when(confirming, |d| {
-            d.child(div().text_size(font_px(10.0)).text_color(CRIT).child(t!("settings-user-plugins-confirm-explain")))
+            d.child(div().text_size(font_px(10.0)).text_color(theme().crit).child(t!("settings-user-plugins-confirm-explain")))
                 .children(crate::components::english_beside::english_beside(t_beside!("settings-user-plugins-confirm-explain")))
         })
 }
@@ -332,13 +332,13 @@ fn settings_form(p: &Installed, form: &crate::app::user_plugin_settings::Setting
         .px(px(12.0))
         .pb(px(12.0))
         .border_t_1()
-        .border_color(BORDER_ROW)
+        .border_color(border_row())
         .child(div().pt(px(8.0)).child(heading(t!("settings-user-plugins-settings-form"))))
         .children(fields.iter().map(|f| {
             let k = (p.id.clone(), f.key.clone());
             let field: AnyElement = match f.kind {
                 FieldKind::Text | FieldKind::Number | FieldKind::Secret => match form.inputs.get(&k) {
-                    Some(input) => div().w(px(360.0)).child(gpui_kit::component::input::Input::new(input).font_family(FONT_MONO).bg(BG_APP)).into_any_element(),
+                    Some(input) => div().w(px(360.0)).child(gpui_kit::component::input::Input::new(input).font_family(FONT_MONO).bg(bg_app())).into_any_element(),
                     None => div().into_any_element(),
                 },
                 FieldKind::Bool | FieldKind::Choice | FieldKind::Choices => {
@@ -365,9 +365,9 @@ fn settings_form(p: &Installed, form: &crate::app::user_plugin_settings::Setting
                                 .px(px(8.0))
                                 .py(px(3.0))
                                 .border_1()
-                                .border_color(if on { TEXT_PRIMARY } else { BORDER_ROW })
+                                .border_color(if on { text_primary() } else { border_row() })
                                 .text_size(font_px(10.5))
-                                .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+                                .text_color(if on { text_primary() } else { text_dim() })
                                 .cursor_pointer()
                                 .on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.pick_plugin_setting(&id, &key, next.clone(), cx)))
                                 .child(o)
@@ -379,9 +379,9 @@ fn settings_form(p: &Installed, form: &crate::app::user_plugin_settings::Setting
                 .flex()
                 .flex_col()
                 .gap(px(3.0))
-                .child(div().flex().items_center().gap(px(10.0)).child(div().w(px(220.0)).flex_none().text_size(font_px(10.5)).text_color(TEXT_SECONDARY).child(if f.kind == FieldKind::Secret { t!("settings-user-plugins-setting-secret", label = f.label) } else { f.label.clone() })).child(field))
-                .children(f.help.clone().map(|h| div().pl(px(230.0)).text_size(font_px(9.5)).text_color(TEXT_FAINT).child(h)))
+                .child(div().flex().items_center().gap(px(10.0)).child(div().w(px(220.0)).flex_none().text_size(font_px(10.5)).text_color(text_secondary()).child(if f.kind == FieldKind::Secret { t!("settings-user-plugins-setting-secret", label = f.label) } else { f.label.clone() })).child(field))
+                .children(f.help.clone().map(|h| div().pl(px(230.0)).text_size(font_px(9.5)).text_color(text_faint()).child(h)))
         }))
-        .children(form.message.clone().map(|(ok, m)| div().text_size(font_px(10.0)).text_color(if ok { OK } else { CRIT }).child(m)))
-        .child(div().flex().child(button("btn-save-plugin-settings", t!("settings-user-plugins-save"), OK).on_click(move |_ev, _w, cx| app_save.update(cx, |this, cx| this.save_plugin_settings(&id_save, cx)))))
+        .children(form.message.clone().map(|(ok, m)| div().text_size(font_px(10.0)).text_color(if ok { theme().ok } else { theme().crit }).child(m)))
+        .child(div().flex().child(button("btn-save-plugin-settings", t!("settings-user-plugins-save"), theme().ok).on_click(move |_ev, _w, cx| app_save.update(cx, |this, cx| this.save_plugin_settings(&id_save, cx)))))
 }

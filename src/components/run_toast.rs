@@ -11,7 +11,7 @@ use crate::theme::*;
 
 pub fn run_toast(toast: &RunToast, app: Entity<CrowApp>) -> impl IntoElement {
     let (app_view, app_close) = (app.clone(), app);
-    let (ink, icon) = if toast.ok { (OK, TablerIcon::Check) } else { (CRIT, TablerIcon::X) };
+    let (ink, icon) = if toast.ok { (theme().ok, TablerIcon::Check) } else { (theme().crit, TablerIcon::X) };
     div()
         .absolute()
         .right(px(16.0))
@@ -25,7 +25,7 @@ pub fn run_toast(toast: &RunToast, app: Entity<CrowApp>) -> impl IntoElement {
                 .items_start()
                 .gap(px(10.0))
                 .p(px(12.0))
-                .bg(BG_OVERLAY_PANEL)
+                .bg(bg_overlay_panel())
                 .border_1()
                 .border_color(ink)
                 .shadow_lg()
@@ -39,17 +39,17 @@ pub fn run_toast(toast: &RunToast, app: Entity<CrowApp>) -> impl IntoElement {
                         .flex()
                         .flex_col()
                         .gap(px(4.0))
-                        .child(div().font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child(toast.title.clone()))
-                        .child(div().text_color(if toast.ok { TEXT_DIM } else { CRIT }).child(toast.summary.clone()))
+                        .child(div().font_weight(FontWeight::BOLD).text_color(text_max()).child(toast.title.clone()))
+                        .child(div().text_color(if toast.ok { text_dim() } else { theme().crit }).child(toast.summary.clone()))
                         .child(
                             div()
                                 .id("run-toast-view")
                                 .pt(px(2.0))
                                 .text_size(font_px(10.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_SECONDARY)
+                                .text_color(text_secondary())
                                 .cursor_pointer()
-                                .hover(|s| s.text_color(TEXT_MAX))
+                                .hover(|s| s.text_color(text_max()))
                                 .on_click(move |_ev, _window, cx| app_view.update(cx, |this, cx| this.show_fleet_run(cx)))
                                 .child(t!("run-toast-view-details")),
                         ),

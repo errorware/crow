@@ -27,7 +27,7 @@ pub fn overview_dashboard(
         .flex_1()
         .min_w(px(0.0))
         .h_full()
-        .bg(BG_APP)
+        .bg(bg_app())
         .overflow_y_scrollbar()
         .child(
             div()
@@ -53,8 +53,8 @@ pub fn overview_dashboard(
 
 fn bottlenecks_banner(bottlenecks: &[crate::metrics::alerts::Alert], app: Entity<CrowApp>) -> impl IntoElement {
     let has_crit = bottlenecks.iter().any(|b| b.level == "CRIT");
-    let border_c = if has_crit { CRIT } else { WARN };
-    let bg_c = if has_crit { CRIT_ROW_BG } else { WARN_BG };
+    let border_c = if has_crit { theme().crit } else { theme().warn };
+    let bg_c = if has_crit { theme().crit_row_bg } else { theme().warn_bg };
 
     div()
         .w_full()
@@ -83,9 +83,9 @@ fn bottlenecks_banner(bottlenecks: &[crate::metrics::alerts::Alert], app: Entity
                     div()
                         .id("btn-overview-bottleneck-history")
                         .text_size(font_px(10.0))
-                        .text_color(hex_rgb(0x8ab4ff))
+                        .text_color(accent())
                         .cursor_pointer()
-                        .hover(|s| s.text_color(TEXT_PRIMARY))
+                        .hover(|s| s.text_color(text_primary()))
                         .on_click(move |_ev, _window, cx| {
                             app.update(cx, |this, cx| this.set_view("history", cx))
                         })
@@ -93,13 +93,13 @@ fn bottlenecks_banner(bottlenecks: &[crate::metrics::alerts::Alert], app: Entity
                 ),
         )
         .children(bottlenecks.iter().map(|b| {
-            let c = if b.level == "CRIT" { CRIT } else { WARN };
+            let c = if b.level == "CRIT" { theme().crit } else { theme().warn };
             div()
                 .flex()
                 .items_center()
                 .gap(px(8.0))
                 .child(crate::components::button::badge(c).text_size(font_px(9.0)).child(b.level.clone()))
-                .child(div().text_size(font_px(10.5)).text_color(TEXT_PRIMARY).child(b.detail.clone()))
+                .child(div().text_size(font_px(10.5)).text_color(text_primary()).child(b.detail.clone()))
         }))
 }
 
@@ -109,9 +109,9 @@ fn card(title: &'static str, view: &'static str, app: Entity<CrowApp>) -> Div {
         .min_w(px(0.0))
         .flex()
         .flex_col()
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .rounded_md()
         .child(
             div()
@@ -120,17 +120,17 @@ fn card(title: &'static str, view: &'static str, app: Entity<CrowApp>) -> Div {
                 .items_center()
                 .px(px(12.0))
                 .border_b_1()
-                .border_color(BORDER_PANEL)
-                .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(title))
+                .border_color(border_panel())
+                .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(title))
                 .child(div().flex_1())
                 .child(
                     div()
                         .id(SharedString::from(format!("open-{view}")))
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(hex_rgb(0x8ab4ff))
+                        .text_color(accent())
                         .cursor_pointer()
-                        .hover(|s| s.text_color(TEXT_PRIMARY))
+                        .hover(|s| s.text_color(text_primary()))
                         .on_click(move |_ev, _window, cx| {
                             app.update(cx, |this, cx| this.set_view(view, cx));
                         })
@@ -141,21 +141,21 @@ fn card(title: &'static str, view: &'static str, app: Entity<CrowApp>) -> Div {
 
 /// A row of big numbers under a card header.
 fn stats(items: Vec<(String, &'static str, Rgba)>) -> Div {
-    div().flex().gap(px(18.0)).px(px(12.0)).py(px(12.0)).border_b_1().border_color(BORDER_ROW).children(items.into_iter().map(|(value, label, color)| {
+    div().flex().gap(px(18.0)).px(px(12.0)).py(px(12.0)).border_b_1().border_color(border_row()).children(items.into_iter().map(|(value, label, color)| {
         div()
             .flex()
             .flex_col()
             .child(div().font_family(FONT_MONO).text_size(font_px(22.0)).font_weight(FontWeight::BOLD).text_color(color).child(value))
-            .child(div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(TEXT_FAINT).child(label))
+            .child(div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(text_faint()).child(label))
     }))
 }
 
 fn section_label(text: &'static str) -> Div {
-    div().px(px(12.0)).pt(px(10.0)).pb(px(4.0)).font_family(FONT_MONO).text_size(font_px(9.0)).font_weight(FontWeight::BOLD).text_color(TEXT_FAINTER).child(text)
+    div().px(px(12.0)).pt(px(10.0)).pb(px(4.0)).font_family(FONT_MONO).text_size(font_px(9.0)).font_weight(FontWeight::BOLD).text_color(text_fainter()).child(text)
 }
 
 fn empty_line(text: &'static str) -> Div {
-    div().px(px(12.0)).py(px(6.0)).font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_FAINT).child(text)
+    div().px(px(12.0)).py(px(6.0)).font_family(FONT_MONO).text_size(font_px(10.5)).text_color(text_faint()).child(text)
 }
 
 /// A clickable list line: left text, right text.
@@ -168,16 +168,16 @@ fn link_row(id: SharedString, left: String, right: String, right_color: Rgba, on
         .px(px(12.0))
         .py(px(4.0))
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .on_click(move |_ev, window, cx| on_click(window, cx))
-        .child(div().flex_1().min_w(px(0.0)).overflow_hidden().font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_SECONDARY).child(left))
+        .child(div().flex_1().min_w(px(0.0)).overflow_hidden().font_family(FONT_MONO).text_size(font_px(11.0)).text_color(text_secondary()).child(left))
         .child(div().flex_none().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(right_color).child(right))
 }
 
 fn services_card(s: &ServiceSummary, app: Entity<CrowApp>) -> impl IntoElement {
     let attention = s.attention.iter().enumerate().map(|(i, (name, status))| {
         let (app, unit) = (app.clone(), name.clone());
-        let color = if status == "FAILED" { CRIT } else { WARN };
+        let color = if status == "FAILED" { theme().crit } else { theme().warn };
         link_row(SharedString::from(format!("dash-svc-{i}")), name.clone(), status.clone(), color, move |_w, cx| {
             let unit = unit.clone();
             app.update(cx, |this, cx| this.open_service_from_dashboard(&unit, cx));
@@ -185,10 +185,10 @@ fn services_card(s: &ServiceSummary, app: Entity<CrowApp>) -> impl IntoElement {
     });
     card(t!("overview-dashboard-services"), "services", app.clone())
         .child(stats(vec![
-            (s.active.to_string(), t!("overview-dashboard-active"), OK),
-            (s.failed.to_string(), t!("overview-dashboard-failed"), if s.failed > 0 { CRIT } else { TEXT_MUTED }),
-            (s.degraded.to_string(), t!("overview-dashboard-degraded"), if s.degraded > 0 { WARN } else { TEXT_MUTED }),
-            (s.inactive.to_string(), t!("overview-dashboard-inactive"), TEXT_MUTED),
+            (s.active.to_string(), t!("overview-dashboard-active"), theme().ok),
+            (s.failed.to_string(), t!("overview-dashboard-failed"), if s.failed > 0 { theme().crit } else { text_muted() }),
+            (s.degraded.to_string(), t!("overview-dashboard-degraded"), if s.degraded > 0 { theme().warn } else { text_muted() }),
+            (s.inactive.to_string(), t!("overview-dashboard-inactive"), text_muted()),
         ]))
         .child(section_label(t!("overview-dashboard-needs-attention")))
         .children((s.attention.is_empty()).then(|| empty_line(t!("overview-dashboard-no-failed-or-degraded-units"))))
@@ -199,21 +199,21 @@ fn services_card(s: &ServiceSummary, app: Entity<CrowApp>) -> impl IntoElement {
 fn processes_card(p: &ProcessSummary, app: Entity<CrowApp>) -> impl IntoElement {
     let top_cpu = p.top_cpu.iter().enumerate().map(|(i, (pid, cmd, cpu))| {
         let (app, pid) = (app.clone(), *pid);
-        link_row(SharedString::from(format!("dash-cpu-{i}")), format!("{pid:>7}  {cmd}"), t!("overview-dashboard-cpu", cpu = format!("{:.1}", cpu)), if *cpu >= 80.0 { CRIT } else if *cpu >= 40.0 { WARN } else { TEXT_SECONDARY }, move |_w, cx| {
+        link_row(SharedString::from(format!("dash-cpu-{i}")), format!("{pid:>7}  {cmd}"), t!("overview-dashboard-cpu", cpu = format!("{:.1}", cpu)), if *cpu >= 80.0 { theme().crit } else if *cpu >= 40.0 { theme().warn } else { text_secondary() }, move |_w, cx| {
             app.update(cx, |this, cx| this.open_process_from_dashboard(pid, cx));
         })
     });
     let top_mem = p.top_mem.iter().enumerate().map(|(i, (pid, cmd, mem, rss))| {
         let (app, pid) = (app.clone(), *pid);
-        link_row(SharedString::from(format!("dash-mem-{i}")), format!("{pid:>7}  {cmd}"), format!("{mem:.1}% · {rss}"), if *mem >= 50.0 { WARN } else { TEXT_SECONDARY }, move |_w, cx| {
+        link_row(SharedString::from(format!("dash-mem-{i}")), format!("{pid:>7}  {cmd}"), format!("{mem:.1}% · {rss}"), if *mem >= 50.0 { theme().warn } else { text_secondary() }, move |_w, cx| {
             app.update(cx, |this, cx| this.open_process_from_dashboard(pid, cx));
         })
     });
     card(t!("overview-dashboard-processes"), "processes", app.clone())
         .child(stats(vec![
-            (p.total.to_string(), t!("overview-dashboard-total"), TEXT_PRIMARY),
-            (p.zombies.to_string(), t!("overview-dashboard-zombie"), if p.zombies > 0 { WARN } else { TEXT_MUTED }),
-            (p.blocked.to_string(), t!("overview-dashboard-blocked-d"), if p.blocked > 0 { WARN } else { TEXT_MUTED }),
+            (p.total.to_string(), t!("overview-dashboard-total"), text_primary()),
+            (p.zombies.to_string(), t!("overview-dashboard-zombie"), if p.zombies > 0 { theme().warn } else { text_muted() }),
+            (p.blocked.to_string(), t!("overview-dashboard-blocked-d"), if p.blocked > 0 { theme().warn } else { text_muted() }),
         ]))
         .child(section_label(t!("overview-dashboard-top-cpu")))
         .children(p.top_cpu.is_empty().then(|| empty_line(t!("overview-dashboard-no-processes-sampled-yet"))))
@@ -227,9 +227,9 @@ fn sockets_card(s: &SocketSummary, app: Entity<CrowApp>) -> impl IntoElement {
     let ports = s.ports.iter().enumerate().map(|(i, port)| {
         let (app, id) = (app.clone(), port.socket_id.clone());
         let color = match port.exposure {
-            Exposure::AllInterfaces => WARN,
-            Exposure::Interface => TEXT_SECONDARY,
-            Exposure::Local => TEXT_MUTED,
+            Exposure::AllInterfaces => theme().warn,
+            Exposure::Interface => text_secondary(),
+            Exposure::Local => text_muted(),
         };
         link_row(
             SharedString::from(format!("dash-port-{i}")),
@@ -244,10 +244,10 @@ fn sockets_card(s: &SocketSummary, app: Entity<CrowApp>) -> impl IntoElement {
     });
     card(t!("overview-dashboard-sockets"), "sockets", app.clone())
         .child(stats(vec![
-            (s.listening.to_string(), t!("overview-dashboard-listening"), TEXT_PRIMARY),
-            (s.all_interfaces.to_string(), t!("overview-dashboard-all-interfaces"), if s.all_interfaces > 0 { WARN } else { TEXT_MUTED }),
-            (s.interface.to_string(), t!("overview-dashboard-interface"), TEXT_SECONDARY),
-            (s.local_only.to_string(), t!("overview-dashboard-local-only"), OK),
+            (s.listening.to_string(), t!("overview-dashboard-listening"), text_primary()),
+            (s.all_interfaces.to_string(), t!("overview-dashboard-all-interfaces"), if s.all_interfaces > 0 { theme().warn } else { text_muted() }),
+            (s.interface.to_string(), t!("overview-dashboard-interface"), text_secondary()),
+            (s.local_only.to_string(), t!("overview-dashboard-local-only"), theme().ok),
         ]))
         .child(section_label(t!("overview-dashboard-listening-ports-widest-exposure-first")))
         .children(s.ports.is_empty().then(|| empty_line(t!("overview-dashboard-no-listening-sockets-sampled-yet"))))
@@ -265,31 +265,31 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
         .items_center()
         .px(px(12.0))
         .border_b_1()
-        .border_color(BORDER_PANEL)
-        .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(t!("overview-dashboard-updates-security")))
+        .border_color(border_panel())
+        .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(t!("overview-dashboard-updates-security")))
         .child(div().flex_1())
-        .children((!sec.checked_label.is_empty()).then(|| div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_FAINT).mr(px(10.0)).child(t!("overview-dashboard-checked", checked_label = sec.checked_label))))
+        .children((!sec.checked_label.is_empty()).then(|| div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(text_faint()).mr(px(10.0)).child(t!("overview-dashboard-checked", checked_label = sec.checked_label))))
         .child(
             div()
                 .id("security-refresh")
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.0))
-                .text_color(if sec.loading { TEXT_FAINT } else { hex_rgb(0x8ab4ff) })
-                .when(!sec.loading, |d| d.cursor_pointer().hover(|s| s.text_color(TEXT_PRIMARY)).on_click(move |_ev, _window, cx| app_refresh.update(cx, |this, cx| this.refresh_security(true, cx))))
+                .text_color(if sec.loading { text_faint() } else { accent() })
+                .when(!sec.loading, |d| d.cursor_pointer().hover(|s| s.text_color(text_primary())).on_click(move |_ev, _window, cx| app_refresh.update(cx, |this, cx| this.refresh_security(true, cx))))
                 .child(if sec.loading { t!("overview-dashboard-checking") } else { t!("overview-dashboard-refresh") }),
         );
     let body = div().flex().flex_col();
     let body = match &sec.updates {
         None if sec.loading => body.child(empty_line(t!("overview-dashboard-reading-the-package-manager-and"))),
         None => body.child(empty_line(t!("overview-dashboard-not-checked-yet"))),
-        Some(Err(e)) => body.child(div().px(px(12.0)).py(px(8.0)).font_family(FONT_MONO).text_size(font_px(10.5)).text_color(CRIT).child(e.clone())),
+        Some(Err(e)) => body.child(div().px(px(12.0)).py(px(8.0)).font_family(FONT_MONO).text_size(font_px(10.5)).text_color(theme().crit).child(e.clone())),
         Some(Ok(u)) => {
             let security = u.security_count();
             let fixable = sec.cves.as_ref().and_then(|c| c.as_ref().ok()).map(|c| c.fixable_count());
             let mut b = body.child(stats(vec![
-                (u.updates.len().to_string(), t!("overview-dashboard-pending"), if u.updates.is_empty() { OK } else { TEXT_PRIMARY }),
-                (security.to_string(), t!("overview-dashboard-security"), if security > 0 { CRIT } else { TEXT_MUTED }),
-                (fixable.map(|n| n.to_string()).unwrap_or_else(|| "—".into()), t!("overview-dashboard-cves-fixed-by-updating"), if fixable.unwrap_or(0) > 0 { WARN } else { TEXT_MUTED }),
+                (u.updates.len().to_string(), t!("overview-dashboard-pending"), if u.updates.is_empty() { theme().ok } else { text_primary() }),
+                (security.to_string(), t!("overview-dashboard-security"), if security > 0 { theme().crit } else { text_muted() }),
+                (fixable.map(|n| n.to_string()).unwrap_or_else(|| "—".into()), t!("overview-dashboard-cves-fixed-by-updating"), if fixable.unwrap_or(0) > 0 { theme().warn } else { text_muted() }),
             ]));
 
             // Apply them (ERR-141): planned on the fleet runner, which lists
@@ -321,25 +321,25 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
                         .gap(px(6.0))
                         .px(px(12.0))
                         .pb(px(6.0))
-                        .children((security > 0).then(|| apply("btn-server-patch-security", t!("overview-dashboard-apply-security", security = security), crate::patching::Scope::Security, OK)))
-                        .child(apply("btn-server-patch-all", t!("overview-dashboard-apply-all", count = u.updates.len()), crate::patching::Scope::All, WARN)),
+                        .children((security > 0).then(|| apply("btn-server-patch-security", t!("overview-dashboard-apply-security", security = security), crate::patching::Scope::Security, theme().ok)))
+                        .child(apply("btn-server-patch-all", t!("overview-dashboard-apply-all", count = u.updates.len()), crate::patching::Scope::All, theme().warn)),
                 );
             }
 
             // Kernel and reboot state.
             b = b.child(section_label(t!("overview-dashboard-kernel")));
-            b = b.child(info_line(t!("overview-dashboard-running", u = if u.kernel.is_empty() { "—" } else { &u.kernel }), TEXT_SECONDARY));
+            b = b.child(info_line(t!("overview-dashboard-running", u = if u.kernel.is_empty() { "—" } else { &u.kernel }), text_secondary()));
             if let Some((change, is_security)) = u.kernel_update() {
-                b = b.child(info_line(t!("overview-dashboard-update-pending", kind = if is_security { "security" } else { "kernel" }, change = change), if is_security { CRIT } else { WARN }));
+                b = b.child(info_line(t!("overview-dashboard-update-pending", kind = if is_security { "security" } else { "kernel" }, change = change), if is_security { theme().crit } else { theme().warn }));
             }
             if u.reboot_required {
-                b = b.child(info_line(t!("overview-dashboard-reboot-required-to-finish-installed").into(), WARN));
+                b = b.child(info_line(t!("overview-dashboard-reboot-required-to-finish-installed").into(), theme().warn));
             }
             if let Some(t) = u.cache_time {
                 let age_h = (chrono::Utc::now().timestamp() - t).max(0) / 3600;
                 let (text, color) = match age_h {
-                    0..=23 => (t!("overview-dashboard-package-lists-refreshed-h-ago", age_h = age_h), TEXT_FAINT),
-                    h => (t!("overview-dashboard-package-lists-are-days-old", h = h / 24), WARN),
+                    0..=23 => (t!("overview-dashboard-package-lists-refreshed-h-ago", age_h = age_h), text_faint()),
+                    h => (t!("overview-dashboard-package-lists-are-days-old", h = h / 24), theme().warn),
                 };
                 b = b.child(info_line(text, color));
             }
@@ -359,21 +359,21 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
                     }
                     for (i, (pkg, v)) in fixed.iter().take(10).enumerate() {
                         let url = format!("https://osv.dev/vulnerability/{}", v.id);
-                        let color = match v.rank() { 0 | 1 => CRIT, 2 => WARN, _ => TEXT_SECONDARY };
+                        let color = match v.rank() { 0 | 1 => theme().crit, 2 => theme().warn, _ => text_secondary() };
                         b = b
                             .child(link_row(SharedString::from(format!("dash-cve-{i}")), format!("{}  {}", v.label(), pkg), v.severity.clone().unwrap_or_else(|| "unrated".into()), color, move |_w, cx| cx.open_url(&url)))
                             .children((!v.summary.is_empty()).then(|| {
-                                div().px(px(12.0)).pl(px(24.0)).pb(px(4.0)).overflow_hidden().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_FAINT).child(v.summary.clone())
+                                div().px(px(12.0)).pl(px(24.0)).pb(px(4.0)).overflow_hidden().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(text_faint()).child(v.summary.clone())
                             }));
                     }
                     if fixed.len() > 10 {
                         b = b.child(empty_line_owned(t!("overview-dashboard-more", fixed = fixed.len() - 10)));
                     }
                     if c.no_fix_yet > 0 {
-                        b = b.child(info_line(t!("overview-dashboard-known-cves-in-running-software", no_fix_yet = c.no_fix_yet), TEXT_FAINT));
+                        b = b.child(info_line(t!("overview-dashboard-known-cves-in-running-software", no_fix_yet = c.no_fix_yet), text_faint()));
                     }
                 }
-                Some(Err(e)) => b = b.child(section_label(t!("overview-dashboard-cves"))).child(info_line(e.clone(), TEXT_FAINT)),
+                Some(Err(e)) => b = b.child(section_label(t!("overview-dashboard-cves"))).child(info_line(e.clone(), text_faint())),
                 None => {}
             }
 
@@ -395,15 +395,15 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
                         .py(px(3.0))
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
-                        .child(div().flex_1().min_w(px(0.0)).overflow_hidden().text_color(if p.security { TEXT_PRIMARY } else { TEXT_SECONDARY }).child(p.name.clone()))
-                        .children(p.security.then(|| div().flex_none().text_size(font_px(8.5)).font_weight(FontWeight::BOLD).text_color(CRIT).child(t!("overview-dashboard-security"))))
-                        .child(div().flex_none().max_w(px(220.0)).overflow_hidden().text_color(TEXT_FAINT).child(versions)),
+                        .child(div().flex_1().min_w(px(0.0)).overflow_hidden().text_color(if p.security { text_primary() } else { text_secondary() }).child(p.name.clone()))
+                        .children(p.security.then(|| div().flex_none().text_size(font_px(8.5)).font_weight(FontWeight::BOLD).text_color(theme().crit).child(t!("overview-dashboard-security"))))
+                        .child(div().flex_none().max_w(px(220.0)).overflow_hidden().text_color(text_faint()).child(versions)),
                 );
             }
             if pending.len() > 12 {
                 b = b.child(empty_line_owned(t!("overview-dashboard-more-2", pending = pending.len() - 12)));
             }
-            b.child(div().px(px(12.0)).pt(px(8.0)).font_family(FONT_MONO).text_size(font_px(9.0)).text_color(TEXT_FAINTER).child(t!("overview-dashboard-cve-data-osv-dev-crow")))
+            b.child(div().px(px(12.0)).pt(px(8.0)).font_family(FONT_MONO).text_size(font_px(9.0)).text_color(text_fainter()).child(t!("overview-dashboard-cve-data-osv-dev-crow")))
         }
     };
     div()
@@ -411,9 +411,9 @@ fn security_card(sec: &SecurityState, app: Entity<CrowApp>) -> impl IntoElement 
         .min_w(px(0.0))
         .flex()
         .flex_col()
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .rounded_md()
         .child(header)
         .child(body)
@@ -425,5 +425,5 @@ fn info_line(text: String, color: Rgba) -> Div {
 }
 
 fn empty_line_owned(text: String) -> Div {
-    div().px(px(12.0)).py(px(4.0)).font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_FAINT).child(text)
+    div().px(px(12.0)).py(px(4.0)).font_family(FONT_MONO).text_size(font_px(10.0)).text_color(text_faint()).child(text)
 }

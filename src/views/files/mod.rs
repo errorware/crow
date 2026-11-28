@@ -30,7 +30,7 @@ pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState, editor: Optio
         .size_full()
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         // 1. Header: title + simulated badge + toolbar
         .child(
             div()
@@ -40,9 +40,9 @@ pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState, editor: Optio
                 .items_center()
                 .gap(px(10.0))
                 .px(px(12.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     tabler_icon(TablerIcon::Folder)
                         .size(px(13.0))
@@ -53,7 +53,7 @@ pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState, editor: Optio
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(t!("files-files")),
                 )
                 .child(div().flex_1())
@@ -67,18 +67,18 @@ pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState, editor: Optio
                         .gap(px(4.0))
                         .px(px(8.0))
                         .py(px(3.5))
-                        .bg(BG_CONTROL)
+                        .bg(bg_control())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .text_color(if can_go_up { TEXT_SECONDARY } else { TEXT_FAINTER })
+                        .border_color(border_default())
+                        .text_color(if can_go_up { text_secondary() } else { text_fainter() })
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| {
                             app_up.update(cx, |this, cx| {
                                 this.files_go_up(cx);
                             });
                         })
-                        .child(tabler_icon(TablerIcon::ChevronRight).size(px(10.0)).text_color(TEXT_FAINT))
+                        .child(tabler_icon(TablerIcon::ChevronRight).size(px(10.0)).text_color(text_faint()))
                         .child(
                             div()
                                 .font_family(FONT_MONO)
@@ -93,12 +93,12 @@ pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState, editor: Optio
                         .id("btn-files-new-folder")
                         .px(px(8.0))
                         .py(px(3.5))
-                        .bg(BG_CONTROL)
+                        .bg(bg_control())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
-                        .text_color(TEXT_SECONDARY)
+                        .border_color(border_default())
+                        .text_color(text_secondary())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
                         .font_weight(FontWeight::BOLD)
@@ -117,17 +117,17 @@ pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState, editor: Optio
                         .items_center()
                         .justify_center()
                         .size(px(26.0))
-                        .bg(BG_CONTROL)
+                        .bg(bg_control())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| {
                             app_refresh.update(cx, |this, cx| {
                                 this.load_file_listing(cx);
                             });
                         })
-                        .child(tabler_icon(TablerIcon::Refresh).size(px(11.0)).text_color(TEXT_SECONDARY))
+                        .child(tabler_icon(TablerIcon::Refresh).size(px(11.0)).text_color(text_secondary()))
                 }),
         )
         // 2. Breadcrumb path bar
@@ -142,12 +142,12 @@ pub fn file_browser_view(app: Entity<CrowApp>, files: &FilesState, editor: Optio
                 .gap(px(8.0))
                 .px(px(12.0))
                 .py(px(6.0))
-                .bg(CRIT_ROW_BG)
+                .bg(theme().crit_row_bg)
                 .border_b_1()
-                .border_color(CRIT)
+                .border_color(theme().crit)
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.5))
-                .text_color(CRIT_INK)
+                .text_color(theme().crit_ink)
                 .child(msg.clone())
                 .child(
                     icon_button("btn-files-error-dismiss", TablerIcon::X, false)
@@ -192,13 +192,13 @@ fn render_listing(files: &FilesState, app: Entity<CrowApp>) -> impl IntoElement 
                 .flex()
                 .items_center()
                 .px(px(12.0))
-                .bg(BG_SUBHEAD)
+                .bg(bg_subhead())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .font_family(FONT_MONO)
                 .text_size(font_px(9.5))
                 .font_weight(FontWeight::SEMIBOLD)
-                .text_color(TEXT_DIMMER)
+                .text_color(text_dimmer())
                 .child(div().flex_1().min_w(px(0.0)).child(t!("files-name")))
                 .child(div().w(px(70.0)).flex_none().text_align(TextAlign::Right).child(t!("files-size")))
                 .child(div().w(px(100.0)).flex_none().pl(px(12.0)).child(t!("files-perms")))
@@ -222,7 +222,7 @@ fn render_listing(files: &FilesState, app: Entity<CrowApp>) -> impl IntoElement 
                             .justify_center()
                             .font_family(FONT_MONO)
                             .text_size(font_px(11.0))
-                            .text_color(TEXT_DIMMER)
+                            .text_color(text_dimmer())
                             .child(t!("files-empty-directory"))
                             .into_any_element(),
                     ]
@@ -248,9 +248,9 @@ fn render_breadcrumb(path: &str, app: Entity<CrowApp>) -> impl IntoElement {
         .items_center()
         .gap(px(3.0))
         .px(px(12.0))
-        .bg(BG_APP)
+        .bg(bg_app())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .font_family(FONT_MONO)
         .text_size(font_px(10.5))
         .children(segments.into_iter().enumerate().map(|(idx, (label, full_path))| {
@@ -264,9 +264,9 @@ fn render_breadcrumb(path: &str, app: Entity<CrowApp>) -> impl IntoElement {
                     div()
                         .id(ElementId::NamedInteger("files-breadcrumb".into(), idx as u64))
                         .cursor_pointer()
-                        .text_color(if is_last { TEXT_PRIMARY } else { TEXT_DIM })
+                        .text_color(if is_last { text_primary() } else { text_dim() })
                         .font_weight(if is_last { FontWeight::BOLD } else { FontWeight::NORMAL })
-                        .hover(|s| s.text_color(TEXT_PRIMARY))
+                        .hover(|s| s.text_color(text_primary()))
                         .on_click(move |_ev, _window, cx| {
                             let target = full_path.clone();
                             app_click.update(cx, |this, cx| {
@@ -277,7 +277,7 @@ fn render_breadcrumb(path: &str, app: Entity<CrowApp>) -> impl IntoElement {
                 )
                 // The root segment is already a slash: no separator after it.
                 .children(if !is_last && idx > 0 {
-                    Some(div().text_color(TEXT_FAINTER).child("/"))
+                    Some(div().text_color(text_fainter()).child("/"))
                 } else {
                     None
                 })
@@ -294,9 +294,9 @@ fn render_new_folder_prompt(files: &FilesState, app: Entity<CrowApp>) -> impl In
         .gap(px(8.0))
         .px(px(12.0))
         .py(px(6.0))
-        .bg(BG_OVERLAY_PANEL)
+        .bg(bg_overlay_panel())
         .border_b_1()
-        .border_color(BORDER_STRONG)
+        .border_color(border_strong())
         .child(
             tabler_icon(TablerIcon::Folder)
                 .size(px(12.0))
@@ -309,8 +309,8 @@ fn render_new_folder_prompt(files: &FilesState, app: Entity<CrowApp>) -> impl In
                     Input::new(state)
                         .id("input-new-folder-name")
                         .font_family(FONT_MONO)
-                        .bg(BG_APP)
-                        .border_color(BORDER_DEFAULT)
+                        .bg(bg_app())
+                        .border_color(border_default())
                         .rounded(px(2.0)),
                 )
         }))
@@ -319,12 +319,12 @@ fn render_new_folder_prompt(files: &FilesState, app: Entity<CrowApp>) -> impl In
                 .id("btn-new-folder-confirm")
                 .px(px(8.0))
                 .py(px(3.0))
-                .bg(OK_BG)
+                .bg(theme().ok_bg)
                 .border_1()
-                .border_color(OK)
-                .text_color(OK)
+                .border_color(theme().ok)
+                .text_color(theme().ok)
                 .cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER))
+                .hover(|s| s.bg(bg_row_hover()))
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.0))
                 .font_weight(FontWeight::BOLD)
@@ -340,9 +340,9 @@ fn render_new_folder_prompt(files: &FilesState, app: Entity<CrowApp>) -> impl In
                 .id("btn-new-folder-cancel")
                 .px(px(8.0))
                 .py(px(3.0))
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .cursor_pointer()
-                .hover(|s| s.text_color(TEXT_PRIMARY))
+                .hover(|s| s.text_color(text_primary()))
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.0))
                 .on_click(move |_ev, window, cx| {
@@ -379,7 +379,7 @@ fn render_file_row(entry: &FileEntry, idx: usize, files: &FilesState, compact: b
         .flex()
         .flex_col()
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .child(
             div()
                 .id(ElementId::NamedInteger("files-row".into(), idx as u64))
@@ -391,8 +391,8 @@ fn render_file_row(entry: &FileEntry, idx: usize, files: &FilesState, compact: b
                 .px(px(12.0))
                 .font_family(FONT_MONO)
                 .text_size(font_px(11.0))
-                .when(is_previewed, |d| d.bg(BG_ROW_SELECTED))
-                .hover(|s| s.bg(BG_ROW_HOVER))
+                .when(is_previewed, |d| d.bg(bg_row_selected()))
+                .hover(|s| s.bg(bg_row_hover()))
                 .cursor_pointer()
                 // Folders open; files open in the viewer.
                 .on_click(move |_ev, _window, cx| {
@@ -404,7 +404,7 @@ fn render_file_row(entry: &FileEntry, idx: usize, files: &FilesState, compact: b
                         }
                     });
                 })
-                .children(is_previewed.then(|| left_indicator(TEXT_PRIMARY)))
+                .children(is_previewed.then(|| left_indicator(text_primary())))
                 .child(
                     div()
                         .flex_1()
@@ -417,11 +417,11 @@ fn render_file_row(entry: &FileEntry, idx: usize, files: &FilesState, compact: b
                             div()
                                 .min_w(px(0.0))
                                 .truncate()
-                                .text_color(if entry.is_dir { TEXT_PRIMARY } else { TEXT_SECONDARY })
+                                .text_color(if entry.is_dir { text_primary() } else { text_secondary() })
                                 .child(entry.name.clone()),
                         ),
                 )
-                .child(div().w(px(70.0)).flex_none().text_align(TextAlign::Right).text_color(TEXT_DIM).child(entry.display_size()))
+                .child(div().w(px(70.0)).flex_none().text_align(TextAlign::Right).text_color(text_dim()).child(entry.display_size()))
                 // The permissions, coloured; click to change them.
                 .child(
                     div()
@@ -434,8 +434,8 @@ fn render_file_row(entry: &FileEntry, idx: usize, files: &FilesState, compact: b
                                 .px(px(3.0))
                                 .mx(px(-3.0))
                                 .border_1()
-                                .border_color(if perms_open.is_some() { BORDER_STRONG } else { hex_rgba(0, 0.0) })
-                                .hover(|s| s.bg(BG_CONTROL).border_color(BORDER_DEFAULT))
+                                .border_color(if perms_open.is_some() { border_strong() } else { hex_rgba(0, 0.0) })
+                                .hover(|s| s.bg(bg_control()).border_color(border_default()))
                                 .on_click(move |_ev, _window, cx| {
                                     cx.stop_propagation();
                                     app_perms.update(cx, |this, cx| this.files_toggle_perms(&name_for_perms, cx));
@@ -443,10 +443,10 @@ fn render_file_row(entry: &FileEntry, idx: usize, files: &FilesState, compact: b
                                 .child(perms_text(&entry.mode_str)),
                         ),
                 )
-                .child(div().w(px(90.0)).flex_none().min_w(px(0.0)).truncate().text_color(TEXT_DIM).child(entry.owner.clone()))
+                .child(div().w(px(90.0)).flex_none().min_w(px(0.0)).truncate().text_color(text_dim()).child(entry.owner.clone()))
                 .when(!compact, |d| {
-                    d.child(div().w(px(90.0)).flex_none().truncate().text_color(TEXT_DIM).child(entry.group.clone()))
-                        .child(div().w(px(120.0)).flex_none().text_color(TEXT_FAINT).child(entry.modified.clone()))
+                    d.child(div().w(px(90.0)).flex_none().truncate().text_color(text_dim()).child(entry.group.clone()))
+                        .child(div().w(px(120.0)).flex_none().text_color(text_faint()).child(entry.modified.clone()))
                 })
                 // Row actions, shown on hover.
                 .child(
@@ -492,14 +492,14 @@ fn render_file_row(entry: &FileEntry, idx: usize, files: &FilesState, compact: b
                     .h(px(32.0))
                     .pl(px(28.0))
                     .pr(px(12.0))
-                    .bg(CRIT_ROW_BG)
-                    .child(left_indicator(CRIT))
+                    .bg(theme().crit_row_bg)
+                    .child(left_indicator(theme().crit))
                     .child(
                         div()
                             .flex_1()
                             .font_family(FONT_MONO)
                             .text_size(font_px(11.0))
-                            .text_color(CRIT_INK)
+                            .text_color(theme().crit_ink)
                             .child(if is_dir {
                                 t!("files-delete-empty-directory-this-cannot", del_name = del_name)
                             } else {
@@ -511,13 +511,13 @@ fn render_file_row(entry: &FileEntry, idx: usize, files: &FilesState, compact: b
                             .id(ElementId::NamedInteger("files-cancel-delete".into(), idx as u64))
                             .font_family(FONT_MONO)
                             .text_size(font_px(10.5))
-                            .text_color(TEXT_TERTIARY)
+                            .text_color(text_tertiary())
                             .border_1()
-                            .border_color(BORDER_KEY)
+                            .border_color(border_key())
                             .px(px(8.0))
                             .py(px(3.0))
                             .cursor_pointer()
-                            .hover(|s| s.bg(BG_ROW_HOVER))
+                            .hover(|s| s.bg(bg_row_hover()))
                             .on_click(move |_ev, _window, cx| {
                                 app_cancel.update(cx, |this, cx| {
                                     this.files.pending_delete = None;
@@ -533,7 +533,7 @@ fn render_file_row(entry: &FileEntry, idx: usize, files: &FilesState, compact: b
                             .text_size(font_px(10.5))
                             .font_weight(FontWeight::BOLD)
                             .text_color(hex_rgb(0x0a0a0c))
-                            .bg(CRIT)
+                            .bg(theme().crit)
                             .px(px(9.0))
                             .py(px(4.0))
                             .cursor_pointer()
@@ -559,12 +559,12 @@ fn perms_text(mode: &str) -> StyledText {
     for (i, c) in mode.char_indices() {
         let color = match c {
             'd' => hex_rgb(0x60a5fa),
-            'l' => hex_rgb(0x38bdf8),
+            'l' => accent(),
             'r' => hex_rgb(0xfacc15),
             'w' => hex_rgb(0xf87171),
             'x' => hex_rgb(0x4ade80),
             's' | 'S' | 't' | 'T' => hex_rgb(0xe879f9),
-            _ => TEXT_FAINTER,
+            _ => text_fainter(),
         };
         runs.push((i..i + c.len_utf8(), HighlightStyle { color: Some(color.into()), ..Default::default() }));
     }
@@ -589,14 +589,14 @@ fn render_perms_editor(edit: &PermsEdit, entry: &FileEntry, app: Entity<CrowApp>
             .items_center()
             .justify_center()
             .border_1()
-            .border_color(if on { color } else { BORDER_DEFAULT })
-            .bg(if on { BG_CONTROL } else { hex_rgba(0, 0.0) })
+            .border_color(if on { color } else { border_default() })
+            .bg(if on { bg_control() } else { hex_rgba(0, 0.0) })
             .font_family(FONT_MONO)
             .text_size(font_px(10.5))
             .font_weight(FontWeight::BOLD)
-            .text_color(if on { color } else { TEXT_FAINTER })
+            .text_color(if on { color } else { text_fainter() })
             .cursor_pointer()
-            .hover(|s| s.border_color(TEXT_SECONDARY))
+            .hover(|s| s.border_color(text_secondary()))
             .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.files_flip_perm_bit(flip, cx)))
             .child(if on { label } else { "-" })
     };
@@ -612,11 +612,11 @@ fn render_perms_editor(edit: &PermsEdit, entry: &FileEntry, app: Entity<CrowApp>
         .pl(px(28.0))
         .pr(px(12.0))
         .py(px(10.0))
-        .bg(BG_OVERLAY_PANEL)
+        .bg(bg_overlay_panel())
         .border_t_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .font_family(FONT_MONO)
-        .child(left_indicator(TEXT_SECONDARY))
+        .child(left_indicator(text_secondary()))
         // rwx grid
         .child(
             div()
@@ -629,11 +629,11 @@ fn render_perms_editor(edit: &PermsEdit, entry: &FileEntry, app: Entity<CrowApp>
                         .flex()
                         .items_center()
                         .gap(px(4.0))
-                        .child(div().w(px(56.0)).text_size(font_px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(label))
+                        .child(div().w(px(56.0)).text_size(font_px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(text_dimmer()).child(label))
                         .child(bit(format!("perm-{label}-r"), "r", m & 4 != 0, hex_rgb(0xfacc15), 4 << shift))
                         .child(bit(format!("perm-{label}-w"), "w", m & 2 != 0, hex_rgb(0xf87171), 2 << shift))
                         .child(bit(format!("perm-{label}-x"), "x", m & 1 != 0, hex_rgb(0x4ade80), 1 << shift))
-                        .child(div().pl(px(6.0)).text_size(font_px(10.0)).text_color(TEXT_DIM).child(name.to_string()))
+                        .child(div().pl(px(6.0)).text_size(font_px(10.0)).text_color(text_dim()).child(name.to_string()))
                 })),
         )
         // special bits
@@ -648,8 +648,8 @@ fn render_perms_editor(edit: &PermsEdit, entry: &FileEntry, app: Entity<CrowApp>
                         .items_center()
                         .gap(px(6.0))
                         .child(bit(format!("perm-{label}"), "on", mode & b != 0, hex_rgb(0xe879f9), b))
-                        .child(div().text_size(font_px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_DIMMER).child(label))
-                        .child(div().text_size(font_px(9.5)).text_color(TEXT_FAINT).child(what))
+                        .child(div().text_size(font_px(9.5)).font_weight(FontWeight::SEMIBOLD).text_color(text_dimmer()).child(label))
+                        .child(div().text_size(font_px(9.5)).text_color(text_faint()).child(what))
                 })),
         )
         .child(div().flex_1())
@@ -665,10 +665,10 @@ fn render_perms_editor(edit: &PermsEdit, entry: &FileEntry, app: Entity<CrowApp>
                         .flex()
                         .items_baseline()
                         .gap(px(10.0))
-                        .child(div().text_size(font_px(18.0)).font_weight(FontWeight::BOLD).text_color(if changed { WARN } else { TEXT_PRIMARY }).child(format!("{mode:04o}")))
+                        .child(div().text_size(font_px(18.0)).font_weight(FontWeight::BOLD).text_color(if changed { theme().warn } else { text_primary() }).child(format!("{mode:04o}")))
                         .child(div().text_size(font_px(12.0)).child(perms_text(&symbolic))),
                 )
-                .children((changed && mode & 0o002 != 0 && !entry.is_dir).then(|| div().text_size(font_px(9.5)).text_color(WARN).child(t!("files-anyone-on-the-server-can"))))
+                .children((changed && mode & 0o002 != 0 && !entry.is_dir).then(|| div().text_size(font_px(9.5)).text_color(theme().warn).child(t!("files-anyone-on-the-server-can"))))
                 .child(
                     div()
                         .flex()
@@ -679,11 +679,11 @@ fn render_perms_editor(edit: &PermsEdit, entry: &FileEntry, app: Entity<CrowApp>
                                 .px(px(8.0))
                                 .py(px(3.0))
                                 .border_1()
-                                .border_color(BORDER_KEY)
+                                .border_color(border_key())
                                 .text_size(font_px(10.5))
-                                .text_color(TEXT_TERTIARY)
+                                .text_color(text_tertiary())
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_cancel.update(cx, |this, cx| {
                                         this.files.perms = None;
@@ -698,14 +698,14 @@ fn render_perms_editor(edit: &PermsEdit, entry: &FileEntry, app: Entity<CrowApp>
                                 .px(px(9.0))
                                 .py(px(3.0))
                                 .border_1()
-                                .border_color(if changed { OK } else { BORDER_DEFAULT })
-                                .bg(if changed { OK_BG } else { hex_rgba(0, 0.0) })
+                                .border_color(if changed { theme().ok } else { border_default() })
+                                .bg(if changed { theme().ok_bg } else { hex_rgba(0, 0.0) })
                                 .text_size(font_px(10.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(if changed { OK } else { TEXT_FAINTER })
+                                .text_color(if changed { theme().ok } else { text_fainter() })
                                 .when(changed && !edit.saving, |d| {
                                     d.cursor_pointer()
-                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                        .hover(|s| s.bg(bg_row_hover()))
                                         .on_click(move |_ev, _window, cx| app_apply.update(cx, |this, cx| this.files_apply_perms(cx)))
                                 })
                                 .child(if edit.saving { t!("files-applying").to_string() } else { t!("files-chmod", mode = format!("{:04o}", mode)) }),
@@ -732,8 +732,8 @@ fn render_preview(pv: &FilePreview, editor: Option<(&FilesEditor, EditorView)>, 
         .flex()
         .flex_col()
         .border_l_1()
-        .border_color(BORDER_PANEL)
-        .bg(BG_RAIL)
+        .border_color(border_panel())
+        .bg(bg_rail())
         .font_family(FONT_MONO)
         .child(
             div()
@@ -743,12 +743,12 @@ fn render_preview(pv: &FilePreview, editor: Option<(&FilesEditor, EditorView)>, 
                 .items_center()
                 .gap(px(8.0))
                 .px(px(10.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
-                .child(tabler_icon(TablerIcon::FileText).size(px(12.0)).text_color(TEXT_SECONDARY))
-                .child(div().flex_1().min_w(px(0.0)).truncate().text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(path.clone()))
-                .child(div().flex_none().text_size(font_px(10.0)).text_color(TEXT_FAINT).child(note))
+                .border_color(border_panel())
+                .child(tabler_icon(TablerIcon::FileText).size(px(12.0)).text_color(text_secondary()))
+                .child(div().flex_1().min_w(px(0.0)).truncate().text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(path.clone()))
+                .child(div().flex_none().text_size(font_px(10.0)).text_color(text_faint()).child(note))
                 .child(
                     div()
                         .id("files-preview-edit")
@@ -758,24 +758,24 @@ fn render_preview(pv: &FilePreview, editor: Option<(&FilesEditor, EditorView)>, 
                         .gap(px(5.0))
                         .px(px(8.0))
                         .py(px(3.0))
-                        .bg(BG_CONTROL)
+                        .bg(bg_control())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .text_size(font_px(10.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                         .on_click(move |_ev, _window, cx| app_edit.update(cx, |this, cx| this.files_edit_in_terminal(&path, cx)))
-                        .child(tabler_icon(TablerIcon::Terminal2).size(px(11.0)).text_color(TEXT_TERTIARY))
+                        .child(tabler_icon(TablerIcon::Terminal2).size(px(11.0)).text_color(text_tertiary()))
                         .child(t!("files-edit-in-terminal")),
                 )
                 .child(icon_button("files-preview-close", TablerIcon::X, false).on_click(move |_ev, _window, cx| app_close.update(cx, |this, cx| this.files_close_preview(cx)))),
         )
         .child({
             let content = match &pv.result {
-            None => div().flex_1().p(px(14.0)).text_size(font_px(11.0)).text_color(TEXT_DIMMER).child(t!("files-reading-the-file")).into_any_element(),
-            Some(Err(e)) => div().flex_1().p(px(14.0)).text_size(font_px(11.0)).text_color(CRIT_INK).child(e.clone()).into_any_element(),
+            None => div().flex_1().p(px(14.0)).text_size(font_px(11.0)).text_color(text_dimmer()).child(t!("files-reading-the-file")).into_any_element(),
+            Some(Err(e)) => div().flex_1().p(px(14.0)).text_size(font_px(11.0)).text_color(theme().crit_ink).child(e.clone()).into_any_element(),
             Some(Ok(t)) => div()
                 .id("files-preview-scroll")
                 .flex_1()
@@ -788,8 +788,8 @@ fn render_preview(pv: &FilePreview, editor: Option<(&FilesEditor, EditorView)>, 
                         .text_size(font_px(11.0))
                         .line_height(px(16.0))
                         .whitespace_nowrap()
-                        .child(div().flex_none().pl(px(10.0)).pr(px(10.0)).text_align(TextAlign::Right).text_color(TEXT_FAINTER).child(t.gutter.clone()))
-                        .child(div().flex_none().pr(px(16.0)).text_color(TEXT_SECONDARY).child(StyledText::new(t.text.clone()).with_highlights(t.runs.clone()))),
+                        .child(div().flex_none().pl(px(10.0)).pr(px(10.0)).text_align(TextAlign::Right).text_color(text_fainter()).child(t.gutter.clone()))
+                        .child(div().flex_none().pr(px(16.0)).text_color(text_secondary()).child(StyledText::new(t.text.clone()).with_highlights(t.runs.clone()))),
                 )
                 .into_any_element(),
         };
@@ -825,17 +825,17 @@ fn editor_split(content: AnyElement, ed: &FilesEditor, view: EditorView, app: En
                 .flex()
                 .items_center()
                 .justify_center()
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_t_1()
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .cursor_row_resize()
-                .hover(|s| s.bg(BG_ROW_HOVER))
+                .hover(|s| s.bg(bg_row_hover()))
                 .on_mouse_down(MouseButton::Left, move |_ev, _window, cx| {
                     cx.stop_propagation();
                     app_down.update(cx, |this, cx| this.files_editor_set_dragging(true, cx));
                 })
-                .child(div().w(px(28.0)).h(px(2.0)).rounded_full().bg(if ed.dragging { TEXT_SECONDARY } else { BORDER_STRONG })),
+                .child(div().w(px(28.0)).h(px(2.0)).rounded_full().bg(if ed.dragging { text_secondary() } else { border_strong() })),
         )
         .child(
             div()
@@ -845,11 +845,11 @@ fn editor_split(content: AnyElement, ed: &FilesEditor, view: EditorView, app: En
                 .items_center()
                 .gap(px(8.0))
                 .px(px(10.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
-                .child(tabler_icon(TablerIcon::Terminal2).size(px(11.0)).text_color(TEXT_TERTIARY))
-                .child(div().flex_1().min_w(px(0.0)).truncate().text_size(font_px(10.0)).text_color(TEXT_DIM).child(t!("files-editing-closes-when-the-editor-does", path = ed.path.clone())))
+                .border_color(border_panel())
+                .child(tabler_icon(TablerIcon::Terminal2).size(px(11.0)).text_color(text_tertiary()))
+                .child(div().flex_1().min_w(px(0.0)).truncate().text_size(font_px(10.0)).text_color(text_dim()).child(t!("files-editing-closes-when-the-editor-does", path = ed.path.clone())))
                 .child(icon_button("files-editor-close", TablerIcon::X, false).on_click(move |_ev, _window, cx| app_close.update(cx, |this, cx| this.files_close_editor(cx)))),
         )
         .child(div().flex_1().min_h(px(0.0)).flex().child(crate::views::terminal::terminal_view(view.pane, view.frame, view.focused, view.look, app)))

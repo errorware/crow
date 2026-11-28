@@ -18,21 +18,22 @@ impl SyntaxToken {
     }
 }
 
-pub const SYNTAX_KEY: Rgba = hex_rgb(0x67e8f9);       // Bright Cyan
-pub const SYNTAX_HEADER: Rgba = hex_rgb(0xc084fc);    // Light Purple
-pub const SYNTAX_STRING: Rgba = hex_rgb(0x86efac);    // Mint Green
-pub const SYNTAX_NUMBER: Rgba = hex_rgb(0xfba060);    // Warm Amber / Orange
-pub const SYNTAX_BOOLEAN: Rgba = hex_rgb(0xf472b6);   // Pink
-pub const SYNTAX_KEYWORD: Rgba = hex_rgb(0x38bdf8);   // Sky Blue
-pub const SYNTAX_COMMENT: Rgba = hex_rgb(0x71717a);   // Dim Slate Gray
-pub const SYNTAX_OPERATOR: Rgba = hex_rgb(0xa1a1aa);  // Muted Operator
-pub const SYNTAX_IP: Rgba = hex_rgb(0x2dd4bf);        // Teal
-pub const SYNTAX_SPECIAL: Rgba = hex_rgb(0xfacc15);   // Gold / Yellow
+// Theme-driven syntax tokens
+#[inline(always)] pub fn syntax_key() -> Rgba { crate::theme::syntax_key() }
+#[inline(always)] pub fn syntax_header() -> Rgba { crate::theme::syntax_header() }
+#[inline(always)] pub fn syntax_string() -> Rgba { crate::theme::syntax_string() }
+#[inline(always)] pub fn syntax_number() -> Rgba { crate::theme::syntax_number() }
+#[inline(always)] pub fn syntax_boolean() -> Rgba { crate::theme::syntax_boolean() }
+#[inline(always)] pub fn syntax_keyword() -> Rgba { crate::theme::syntax_keyword() }
+#[inline(always)] pub fn syntax_comment() -> Rgba { crate::theme::syntax_comment() }
+#[inline(always)] pub fn syntax_operator() -> Rgba { crate::theme::syntax_operator() }
+#[inline(always)] pub fn syntax_ip() -> Rgba { crate::theme::syntax_ip() }
+#[inline(always)] pub fn syntax_special() -> Rgba { crate::theme::syntax_special() }
 
 /// Tokenize a single configuration line into colored syntax segments.
 pub fn highlight_config_line(line: &str, filename: &str) -> Vec<SyntaxToken> {
     if line.is_empty() {
-        return vec![SyntaxToken::new(" ", TEXT_PRIMARY, false)];
+        return vec![SyntaxToken::new(" ", text_primary(), false)];
     }
 
     let trimmed = line.trim_start();
@@ -40,21 +41,21 @@ pub fn highlight_config_line(line: &str, filename: &str) -> Vec<SyntaxToken> {
     let mut tokens = Vec::new();
 
     if !leading_spaces.is_empty() {
-        tokens.push(SyntaxToken::new(leading_spaces, TEXT_PRIMARY, false));
+        tokens.push(SyntaxToken::new(leading_spaces, text_primary(), false));
     }
 
     // 1. Comments: lines starting with #, ;, or //
     if trimmed.starts_with('#') || trimmed.starts_with(';') || trimmed.starts_with("//") {
-        tokens.push(SyntaxToken::new(trimmed, SYNTAX_COMMENT, false));
+        tokens.push(SyntaxToken::new(trimmed, syntax_comment(), false));
         return tokens;
     }
 
     // 2. Section Headers: [section] or [[table]]
     if trimmed.starts_with('[') && trimmed.ends_with(']') {
         let inner = &trimmed[1..trimmed.len() - 1];
-        tokens.push(SyntaxToken::new("[", SYNTAX_OPERATOR, false));
-        tokens.push(SyntaxToken::new(inner, SYNTAX_HEADER, true));
-        tokens.push(SyntaxToken::new("]", SYNTAX_OPERATOR, false));
+        tokens.push(SyntaxToken::new("[", syntax_operator(), false));
+        tokens.push(SyntaxToken::new(inner, syntax_header(), true));
+        tokens.push(SyntaxToken::new("]", syntax_operator(), false));
         return tokens;
     }
 
@@ -90,11 +91,11 @@ pub fn highlight_config_line(line: &str, filename: &str) -> Vec<SyntaxToken> {
     }
 
     if let Some(comm) = comment_part {
-        tokens.push(SyntaxToken::new(comm, SYNTAX_COMMENT, false));
+        tokens.push(SyntaxToken::new(comm, syntax_comment(), false));
     }
 
     if tokens.is_empty() {
-        tokens.push(SyntaxToken::new(line, TEXT_PRIMARY, false));
+        tokens.push(SyntaxToken::new(line, text_primary(), false));
     }
 
     tokens
@@ -133,9 +134,9 @@ fn tokenize_key_value_line(content: &str, sep_idx: usize, sep_char: char, tokens
     let val_part = &content[sep_idx + 1..];
 
     // Key
-    tokens.push(SyntaxToken::new(key_part, SYNTAX_KEY, false));
+    tokens.push(SyntaxToken::new(key_part, syntax_key(), false));
     // Separator
-    tokens.push(SyntaxToken::new(sep_char.to_string(), SYNTAX_OPERATOR, false));
+    tokens.push(SyntaxToken::new(sep_char.to_string(), syntax_operator(), false));
 
     // Value
     tokenize_value_tokens(val_part, tokens);
@@ -147,7 +148,7 @@ fn tokenize_value_tokens(val: &str, tokens: &mut Vec<SyntaxToken>) {
         let trimmed = rest.trim_start();
         let leading = &rest[..rest.len() - trimmed.len()];
         if !leading.is_empty() {
-            tokens.push(SyntaxToken::new(leading, TEXT_PRIMARY, false));
+            tokens.push(SyntaxToken::new(leading, text_primary(), false));
         }
         if trimmed.is_empty() {
             break;
@@ -158,11 +159,11 @@ fn tokenize_value_tokens(val: &str, tokens: &mut Vec<SyntaxToken>) {
             let quote = trimmed.chars().next().unwrap();
             if let Some(end_idx) = trimmed[1..].find(quote) {
                 let s = &trimmed[..end_idx + 2];
-                tokens.push(SyntaxToken::new(s, SYNTAX_STRING, false));
+                tokens.push(SyntaxToken::new(s, syntax_string(), false));
                 rest = &trimmed[end_idx + 2..];
                 continue;
             } else {
-                tokens.push(SyntaxToken::new(trimmed, SYNTAX_STRING, false));
+                tokens.push(SyntaxToken::new(trimmed, syntax_string(), false));
                 break;
             }
         }
@@ -184,13 +185,13 @@ fn tokenize_directive_line(content: &str, tokens: &mut Vec<SyntaxToken>) {
 
         if i == 0 && !trimmed.is_empty() {
             // Directive keyword
-            tokens.push(SyntaxToken::new(trimmed, SYNTAX_KEYWORD, true));
+            tokens.push(SyntaxToken::new(trimmed, syntax_keyword(), true));
         } else if !trimmed.is_empty() {
             tokens.push(classify_word(trimmed));
         }
 
         if !whitespace.is_empty() {
-            tokens.push(SyntaxToken::new(whitespace, TEXT_PRIMARY, false));
+            tokens.push(SyntaxToken::new(whitespace, text_primary(), false));
         }
     }
 }
@@ -206,23 +207,23 @@ fn tokenize_pg_hba_line(content: &str, tokens: &mut Vec<SyntaxToken>) {
 
         if !trimmed.is_empty() {
             let color = match col {
-                0 => SYNTAX_KEYWORD, // TYPE (local, host, hostssl)
-                1 => SYNTAX_HEADER,  // DATABASE (all, postgres, acme_prod)
-                2 => SYNTAX_KEY,     // USER (all, postgres, acme_app)
+                0 => syntax_keyword(), // TYPE (local, host, hostssl)
+                1 => syntax_header(),  // DATABASE (all, postgres, acme_prod)
+                2 => syntax_key(),     // USER (all, postgres, acme_app)
                 3 if non_empty_count >= 5 => {
                     if is_ip_or_cidr(trimmed) {
-                        SYNTAX_IP
+                        syntax_ip()
                     } else {
-                        SYNTAX_NUMBER
+                        syntax_number()
                     }
                 }
                 _ => {
                     // Auth method (scram-sha-256, md5, trust, reject)
                     match trimmed {
-                        "scram-sha-256" | "cert" => OK,
-                        "trust" | "reject" => CRIT,
-                        "md5" | "ldap" => WARN,
-                        _ => SYNTAX_SPECIAL,
+                        "scram-sha-256" | "cert" => theme().ok,
+                        "trust" | "reject" => theme().crit,
+                        "md5" | "ldap" => theme().warn,
+                        _ => syntax_special(),
                     }
                 }
             };
@@ -231,7 +232,7 @@ fn tokenize_pg_hba_line(content: &str, tokens: &mut Vec<SyntaxToken>) {
         }
 
         if !whitespace.is_empty() {
-            tokens.push(SyntaxToken::new(whitespace, TEXT_PRIMARY, false));
+            tokens.push(SyntaxToken::new(whitespace, text_primary(), false));
         }
     }
 }
@@ -244,14 +245,14 @@ fn tokenize_hosts_line(content: &str, tokens: &mut Vec<SyntaxToken>) {
 
         if !trimmed.is_empty() {
             if i == 0 || is_ip_or_cidr(trimmed) {
-                tokens.push(SyntaxToken::new(trimmed, SYNTAX_IP, true));
+                tokens.push(SyntaxToken::new(trimmed, syntax_ip(), true));
             } else {
-                tokens.push(SyntaxToken::new(trimmed, SYNTAX_KEY, false));
+                tokens.push(SyntaxToken::new(trimmed, syntax_key(), false));
             }
         }
 
         if !whitespace.is_empty() {
-            tokens.push(SyntaxToken::new(whitespace, TEXT_PRIMARY, false));
+            tokens.push(SyntaxToken::new(whitespace, text_primary(), false));
         }
     }
 }
@@ -260,23 +261,23 @@ fn tokenize_passwd_line(content: &str, tokens: &mut Vec<SyntaxToken>) {
     let parts: Vec<&str> = content.split(':').collect();
     for (i, p) in parts.iter().enumerate() {
         if i > 0 {
-            tokens.push(SyntaxToken::new(":", SYNTAX_OPERATOR, true));
+            tokens.push(SyntaxToken::new(":", syntax_operator(), true));
         }
         let color = match i {
-            0 => SYNTAX_KEY,       // Username (cyan)
+            0 => syntax_key(),       // Username (cyan)
             1 => {
                 if *p == "!" || *p == "*" {
-                    CRIT
+                    theme().crit
                 } else {
-                    WARN
+                    theme().warn
                 }
             }                      // Password placeholder (amber/red)
-            2 => SYNTAX_NUMBER,    // UID
-            3 => SYNTAX_NUMBER,    // GID
-            4 => SYNTAX_STRING,    // GECOS
-            5 => SYNTAX_IP,        // Home directory
-            6 => OK,               // Shell
-            _ => TEXT_PRIMARY,
+            2 => syntax_number(),    // UID
+            3 => syntax_number(),    // GID
+            4 => syntax_string(),    // GECOS
+            5 => syntax_ip(),        // Home directory
+            6 => theme().ok,               // Shell
+            _ => text_primary(),
         };
         tokens.push(SyntaxToken::new(*p, color, i == 0 || i == 2));
     }
@@ -288,46 +289,46 @@ fn classify_word(w: &str) -> SyntaxToken {
     // Booleans
     match clean.to_lowercase().as_str() {
         "true" | "false" | "yes" | "no" | "on" | "off" => {
-            return SyntaxToken::new(w, SYNTAX_BOOLEAN, true);
+            return SyntaxToken::new(w, syntax_boolean(), true);
         }
         "null" | "none" | "nil" => {
-            return SyntaxToken::new(w, SYNTAX_OPERATOR, false);
+            return SyntaxToken::new(w, syntax_operator(), false);
         }
         _ => {}
     }
 
     // IP or CIDR
     if is_ip_or_cidr(clean) {
-        return SyntaxToken::new(w, SYNTAX_IP, false);
+        return SyntaxToken::new(w, syntax_ip(), false);
     }
 
     // Numbers & unit sizes (e.g. 1024, 4096M, 30day, 65s, 0.0.0.0)
     if is_number_or_unit(clean) {
-        return SyntaxToken::new(w, SYNTAX_NUMBER, false);
+        return SyntaxToken::new(w, syntax_number(), false);
     }
 
     // Quoted strings
     if (w.starts_with('"') && w.ends_with('"')) || (w.starts_with('\'') && w.ends_with('\'')) {
-        return SyntaxToken::new(w, SYNTAX_STRING, false);
+        return SyntaxToken::new(w, syntax_string(), false);
     }
 
     // Path like /var/log/nginx
     if w.starts_with('/') {
-        return SyntaxToken::new(w, SYNTAX_STRING, false);
+        return SyntaxToken::new(w, syntax_string(), false);
     }
 
     // Variables: $uri, $host
     if w.starts_with('$') {
-        return SyntaxToken::new(w, SYNTAX_SPECIAL, false);
+        return SyntaxToken::new(w, syntax_special(), false);
     }
 
     // Operators / symbols
     if w == "{" || w == "}" || w == ";" || w == "=" {
-        return SyntaxToken::new(w, SYNTAX_OPERATOR, false);
+        return SyntaxToken::new(w, syntax_operator(), false);
     }
 
     // Default text
-    SyntaxToken::new(w, TEXT_PRIMARY, false)
+    SyntaxToken::new(w, text_primary(), false)
 }
 
 fn is_ip_or_cidr(s: &str) -> bool {
@@ -364,7 +365,7 @@ mod tests {
     fn test_highlight_comment() {
         let tokens = highlight_config_line("# This is a comment", "nginx.conf");
         assert_eq!(tokens.len(), 1);
-        assert_eq!(tokens[0].color, SYNTAX_COMMENT);
+        assert_eq!(tokens[0].color, syntax_comment());
     }
 
     #[test]
@@ -372,43 +373,43 @@ mod tests {
         let tokens = highlight_config_line("[systemd]", "journald.conf");
         assert_eq!(tokens.len(), 3);
         assert_eq!(tokens[1].text, "systemd");
-        assert_eq!(tokens[1].color, SYNTAX_HEADER);
+        assert_eq!(tokens[1].color, syntax_header());
         assert!(tokens[1].is_bold);
     }
 
     #[test]
     fn test_highlight_key_value() {
         let tokens = highlight_config_line("SystemMaxUse=4096M", "journald.conf");
-        assert!(tokens.iter().any(|t| t.text == "SystemMaxUse" && t.color == SYNTAX_KEY));
-        assert!(tokens.iter().any(|t| t.text == "=" && t.color == SYNTAX_OPERATOR));
-        assert!(tokens.iter().any(|t| t.text == "4096M" && t.color == SYNTAX_NUMBER));
+        assert!(tokens.iter().any(|t| t.text == "SystemMaxUse" && t.color == syntax_key()));
+        assert!(tokens.iter().any(|t| t.text == "=" && t.color == syntax_operator()));
+        assert!(tokens.iter().any(|t| t.text == "4096M" && t.color == syntax_number()));
     }
 
     #[test]
     fn test_highlight_booleans() {
         let tokens = highlight_config_line("enabled = true", "config.toml");
-        assert!(tokens.iter().any(|t| t.text == "true" && t.color == SYNTAX_BOOLEAN));
+        assert!(tokens.iter().any(|t| t.text == "true" && t.color == syntax_boolean()));
     }
 
     #[test]
     fn test_highlight_pg_hba() {
         let tokens = highlight_config_line("host  all  all  10.0.4.0/24  scram-sha-256", "pg_hba.conf");
-        assert!(tokens.iter().any(|t| t.text == "host" && t.color == SYNTAX_KEYWORD));
-        assert!(tokens.iter().any(|t| t.text == "10.0.4.0/24" && t.color == SYNTAX_IP));
-        assert!(tokens.iter().any(|t| t.text == "scram-sha-256" && t.color == OK));
+        assert!(tokens.iter().any(|t| t.text == "host" && t.color == syntax_keyword()));
+        assert!(tokens.iter().any(|t| t.text == "10.0.4.0/24" && t.color == syntax_ip()));
+        assert!(tokens.iter().any(|t| t.text == "scram-sha-256" && t.color == theme().ok));
     }
 
     #[test]
     fn test_highlight_hosts() {
         let tokens = highlight_config_line("127.0.0.1  localhost  web-01", "hosts");
-        assert!(tokens.iter().any(|t| t.text == "127.0.0.1" && t.color == SYNTAX_IP));
+        assert!(tokens.iter().any(|t| t.text == "127.0.0.1" && t.color == syntax_ip()));
     }
 
     #[test]
     fn test_highlight_passwd() {
         let tokens = highlight_config_line("nelson:x:1000:1000:Nelson,,,:/home/nelson:/bin/bash", "passwd");
         assert_eq!(tokens[0].text, "nelson");
-        assert_eq!(tokens[0].color, SYNTAX_KEY);
+        assert_eq!(tokens[0].color, syntax_key());
         assert_eq!(tokens[1].text, ":");
         assert_eq!(tokens[4].text, "1000");
     }

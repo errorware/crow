@@ -20,7 +20,7 @@ pub fn icon_button(id: impl Into<ElementId>, icon: TablerIcon, destructive: bool
         .items_center()
         .justify_center()
         .cursor_pointer()
-        .text_color(TEXT_DIM)
-        .map(|d| if destructive { d.hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT)) } else { d.hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY)) })
+        .text_color(text_dim())
+        .map(|d| if destructive { d.hover(|s| s.bg(theme().crit_row_bg).text_color(theme().crit)) } else { d.hover(|s| s.bg(bg_row_hover()).text_color(text_primary())) })
         .child(inherited_icon(icon, font_px(12.0)).size(px(12.0)).justify_center())
 }

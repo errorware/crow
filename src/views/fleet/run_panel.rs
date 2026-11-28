@@ -22,7 +22,7 @@ pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::
             .text_color(color)
             .font_weight(FontWeight::BOLD)
             .cursor_pointer()
-            .hover(|s| s.bg(BG_ROW_HOVER))
+            .hover(|s| s.bg(bg_row_hover()))
             .child(label)
     };
     let status_line = match run.phase {
@@ -53,9 +53,9 @@ pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::
                 .w(px(720.0))
                 .flex()
                 .flex_col()
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_DANGER)
+                .border_color(border_danger())
                 .font_family(FONT_MONO)
                 .text_size(font_px(11.0))
                 .child(
@@ -63,13 +63,13 @@ pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::
                         .px(px(16.0))
                         .py(px(12.0))
                         .border_b_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .flex()
                         .flex_col()
                         .gap(px(4.0))
-                        .child(div().text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MAX).child(run.title.clone()))
+                        .child(div().text_size(font_px(13.0)).font_weight(FontWeight::BOLD).text_color(text_max()).child(run.title.clone()))
                         .children(crate::components::english_beside::english_beside(run.title_en.clone()))
-                        .child(div().text_color(if run.phase == RunPhase::Finished && run.steps.iter().any(|s| matches!(s.status, StepStatus::Failed(_))) { CRIT } else { TEXT_DIM }).child(status_line)),
+                        .child(div().text_color(if run.phase == RunPhase::Finished && run.steps.iter().any(|s| matches!(s.status, StepStatus::Failed(_))) { theme().crit } else { text_dim() }).child(status_line)),
                 )
                 .child(
                     div()
@@ -80,12 +80,12 @@ pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::
                         .flex_col()
                         .children(run.steps.iter().map(|s| {
                             let (mark, color, detail) = match &s.status {
-                                StepStatus::Waiting => ("·", TEXT_FAINT, String::new()),
-                                StepStatus::Running => ("▶", WARN, "running".to_string()),
-                                StepStatus::Done(m) => ("✓", OK, m.clone()),
-                                StepStatus::Skipped(m) => ("=", TEXT_DIM, m.clone()),
-                                StepStatus::Failed(e) => ("✗", CRIT, e.clone()),
-                                StepStatus::NotRun => ("–", TEXT_FAINTER, t!("fleet-run-panel-not-run").to_string()),
+                                StepStatus::Waiting => ("·", text_faint(), String::new()),
+                                StepStatus::Running => ("▶", theme().warn, "running".to_string()),
+                                StepStatus::Done(m) => ("✓", theme().ok, m.clone()),
+                                StepStatus::Skipped(m) => ("=", text_dim(), m.clone()),
+                                StepStatus::Failed(e) => ("✗", theme().crit, e.clone()),
+                                StepStatus::NotRun => ("–", text_fainter(), t!("fleet-run-panel-not-run").to_string()),
                             };
                             div()
                                 .flex()
@@ -93,16 +93,16 @@ pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::
                                 .px(px(16.0))
                                 .py(px(5.0))
                                 .border_b_1()
-                                .border_color(BORDER_ROW)
+                                .border_color(border_row())
                                 .child(div().w(px(14.0)).flex_none().text_color(color).child(mark))
-                                .child(div().w(px(140.0)).flex_none().font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(s.server.clone()))
+                                .child(div().w(px(140.0)).flex_none().font_weight(FontWeight::BOLD).text_color(text_primary()).child(s.server.clone()))
                                 .child(
                                     div()
                                         .flex_1()
                                         .min_w(px(0.0))
                                         .flex()
                                         .flex_col()
-                                        .child(div().text_color(TEXT_SECONDARY).child(s.what.clone()))
+                                        .child(div().text_color(text_secondary()).child(s.what.clone()))
                                         .children((!detail.is_empty()).then(|| div().text_size(font_px(10.0)).text_color(color).child(detail))),
                                 )
                         }))
@@ -113,19 +113,19 @@ pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::
                                 .px(px(16.0))
                                 .py(px(5.0))
                                 .border_b_1()
-                                .border_color(BORDER_ROW)
-                                .child(div().w(px(14.0)).flex_none().text_color(WARN).child("!"))
-                                .child(div().w(px(140.0)).flex_none().text_color(TEXT_DIM).child(server.clone()))
-                                .child(div().flex_1().min_w(px(0.0)).text_color(TEXT_DIM).child(t!("fleet-run-panel-left-out", why = why)))
+                                .border_color(border_row())
+                                .child(div().w(px(14.0)).flex_none().text_color(theme().warn).child("!"))
+                                .child(div().w(px(140.0)).flex_none().text_color(text_dim()).child(server.clone()))
+                                .child(div().flex_1().min_w(px(0.0)).text_color(text_dim()).child(t!("fleet-run-panel-left-out", why = why)))
                         })),
                 )
-                .children(run.error.clone().map(|e| div().px(px(16.0)).py(px(6.0)).text_color(CRIT).child(e)))
+                .children(run.error.clone().map(|e| div().px(px(16.0)).py(px(6.0)).text_color(theme().crit).child(e)))
                 .child(
                     div()
                         .px(px(16.0))
                         .py(px(10.0))
                         .border_t_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .flex()
                         .items_center()
                         .gap(px(10.0))
@@ -138,36 +138,36 @@ pub fn fleet_run_panel(runner: &FleetRunner, approval: Option<&Entity<gpui_kit::
                         .children(approval.filter(|_| run.phase == RunPhase::Confirming && !run.steps.is_empty()).map(|a| div().w(px(220.0)).child(Input::new(a))))
                         .children((run.phase == RunPhase::Confirming && !run.steps.is_empty()).then(|| {
                             let app = app.clone();
-                            button("btn-fleet-run-start", t!("fleet-run-panel-type-to-start", keyword = run.keyword), CRIT)
+                            button("btn-fleet-run-start", t!("fleet-run-panel-type-to-start", keyword = run.keyword), theme().crit)
                                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.confirm_fleet_run(cx)))
                         }))
                         .children((run.phase == RunPhase::Paused).then(|| {
                             let app = app.clone();
-                            button("btn-fleet-run-continue", t!("fleet-run-panel-continue-with-the-rest").into(), OK).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.continue_fleet_run(cx)))
+                            button("btn-fleet-run-continue", t!("fleet-run-panel-continue-with-the-rest").into(), theme().ok).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.continue_fleet_run(cx)))
                         }))
                         .children((run.phase == RunPhase::Paused).then(|| {
                             let app = app.clone();
-                            button("btn-fleet-run-stop-here", t!("fleet-run-panel-stop-here").into(), WARN).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.stop_fleet_run(cx)))
+                            button("btn-fleet-run-stop-here", t!("fleet-run-panel-stop-here").into(), theme().warn).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.stop_fleet_run(cx)))
                         }))
                         .children(runner.after.as_ref().filter(|_| run.phase == RunPhase::Finished).map(|(label, _)| {
                             let app = app.clone();
-                            button("btn-fleet-run-after", label.clone(), WARN).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.run_fleet_after(window, cx)))
+                            button("btn-fleet-run-after", label.clone(), theme().warn).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.run_fleet_after(window, cx)))
                         }))
                         .children((run.phase == RunPhase::Running && !run.stop_requested()).then(|| {
                             let app = app.clone();
-                            button("btn-fleet-run-stop", t!("fleet-run-panel-stop-after-this-host").into(), WARN)
+                            button("btn-fleet-run-stop", t!("fleet-run-panel-stop-after-this-host").into(), theme().warn)
                                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.stop_fleet_run(cx)))
                         }))
                         .child(div().flex_1())
                         // Keep working: the run goes on, a chip in the status bar.
                         .children((run.phase == RunPhase::Running).then(|| {
                             let app = app.clone();
-                            button("btn-fleet-run-hide", t!("fleet-run-panel-run-in-background").into(), TEXT_SECONDARY)
+                            button("btn-fleet-run-hide", t!("fleet-run-panel-run-in-background").into(), text_secondary())
                                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.hide_fleet_run(cx)))
                         }))
                         .children((!matches!(run.phase, RunPhase::Running | RunPhase::Paused)).then(|| {
                             let app = app.clone();
-                            button("btn-fleet-run-close", if run.phase == RunPhase::Finished { t!("fleet-run-panel-close").into() } else { t!("fleet-run-panel-cancel").into() }, TEXT_SECONDARY)
+                            button("btn-fleet-run-close", if run.phase == RunPhase::Finished { t!("fleet-run-panel-close").into() } else { t!("fleet-run-panel-cancel").into() }, text_secondary())
                                 .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.close_fleet_run(cx)))
                         })),
                 ),

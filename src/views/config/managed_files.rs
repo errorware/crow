@@ -35,9 +35,9 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
         .h_full()
         .flex()
         .flex_col()
-        .bg(BG_RAIL)
+        .bg(bg_rail())
         .border_r_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         // 1. Header Toolbar
         .child(
             div()
@@ -47,9 +47,9 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                 .items_center()
                 .justify_between()
                 .px(px(12.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .flex()
@@ -58,14 +58,14 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                         .child(
                             tabler_icon(TablerIcon::Settings)
                                 .size(px(13.0))
-                                .text_color(hex_rgb(0x8ab4ff)),
+                                .text_color(accent()),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(t!("config-managed-files-config-files")),
                         ),
                 )
@@ -78,7 +78,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
-                                .text_color(TEXT_FAINT)
+                                .text_color(text_faint())
                                 .child(format!("{}/{}", filtered_files.len(), files.len())),
                         )
                         .child(
@@ -88,11 +88,11 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                 .items_center()
                                 .justify_center()
                                 .size(px(18.0))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+                                .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_scan.update(cx, |this, cx| {
                                         this.crawl_system_configs(cx);
@@ -101,7 +101,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                 .child(
                                     tabler_icon(TablerIcon::Refresh)
                                         .size(px(10.5))
-                                        .text_color(TEXT_SECONDARY),
+                                        .text_color(text_secondary()),
                                 ),
                         ),
                 ),
@@ -113,12 +113,12 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                 div()
                     .px(px(10.0))
                     .py(px(6.0))
-                    .bg(hex_rgba(0xfbbf24, 0.08))
+                    .bg(theme().warn_bg)
                     .border_b_1()
-                    .border_color(WARN)
+                    .border_color(theme().warn)
                     .font_family(FONT_MONO)
                     .text_size(font_px(9.5))
-                    .text_color(WARN)
+                    .text_color(theme().warn_ink)
                     .child(t!("config-managed-files-unverified-distro-generic-scan-only")),
             )
         } else {
@@ -133,13 +133,13 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                 .items_center()
                 .px(px(10.0))
                 .gap(px(6.0))
-                .bg(BG_APP)
+                .bg(bg_app())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     tabler_icon(TablerIcon::Search)
                         .size(px(11.0))
-                        .text_color(TEXT_FAINT),
+                        .text_color(text_faint()),
                 )
                 .child(
                     div()
@@ -157,7 +157,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                             .id("btn-clear-config-search")
                             .cursor_pointer()
                             .p(px(2.0))
-                            .hover(|s| s.bg(BG_ROW_HOVER))
+                            .hover(|s| s.bg(bg_row_hover()))
                             .on_mouse_down(MouseButton::Left, move |_ev, _win, cx| {
                                 app_clear.update(cx, |this, cx| {
                                     this.configs.search_query.clear();
@@ -168,7 +168,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                             .child(
                                 tabler_icon(TablerIcon::X)
                                     .size(px(10.0))
-                                    .text_color(TEXT_MUTED)
+                                    .text_color(text_muted())
                             )
                             .into_any_element()
                     )
@@ -193,22 +193,22 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                         .justify_between()
                         .px(px(12.0))
                         .py(px(4.0))
-                        .bg(hex_rgba(0x000000, 0.2))
+                        .bg(bg_subhead())
                         .border_b_1()
-                        .border_color(BORDER_ROW)
+                        .border_color(border_row())
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(hex_rgb(0x8ab4ff))
+                                .text_color(accent())
                                 .child(t!("config-managed-files-crow-ui-mapped")),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.0))
-                                .text_color(TEXT_FAINT)
+                                .text_color(text_faint())
                                 .child(mapped_files.len().to_string()),
                         ),
                 )
@@ -219,14 +219,14 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                     let f_name = f.name.clone();
 
                     let pill_bg = if is_edited {
-                        WARN_BG
+                        theme().warn_bg
                     } else {
-                        hex_rgba(0x8ab4ff, 0.15)
+                        accent_bg()
                     };
                     let pill_fg = if is_edited {
-                        WARN
+                        theme().warn
                     } else {
-                        hex_rgb(0x8ab4ff)
+                        accent()
                     };
                     let pill_text = if is_edited {
                         t!("config-managed-files-edited")
@@ -243,15 +243,15 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                         .px(px(12.0))
                         .py(px(6.0))
                         .border_b_1()
-                        .border_color(BORDER_ROW)
-                        .bg(if is_sel { BG_NAV_ACTIVE } else { rgb(0x00000000) })
+                        .border_color(border_row())
+                        .bg(if is_sel { bg_nav_active() } else { hex_rgba(0, 0.0) })
                         .children(if is_sel {
-                            Some(left_indicator(hex_rgb(0x8ab4ff)))
+                            Some(left_indicator(accent()))
                         } else {
                             None
                         })
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| {
                             let fn_str = f_name.clone();
                             app_click.update(cx, |this, cx| {
@@ -270,7 +270,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
                                         .font_weight(if is_sel { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                                        .text_color(if is_sel { TEXT_MAX } else { TEXT_PRIMARY })
+                                        .text_color(if is_sel { text_max() } else { text_primary() })
                                         .child(f.name.clone()),
                                 )
                                 .child(
@@ -294,10 +294,10 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                 .justify_between()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(TEXT_FAINTER)
+                                .text_color(text_fainter())
                                 .child(f.path_dir.clone())
                                 .children(if let Some(pack) = f.schema_pack {
-                                    Some(div().text_color(TEXT_FAINT).child(pack))
+                                    Some(div().text_color(text_faint()).child(pack))
                                 } else {
                                     None
                                 }),
@@ -312,22 +312,22 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                         .px(px(12.0))
                         .py(px(4.0))
                         .mt(px(4.0))
-                        .bg(hex_rgba(0x000000, 0.2))
+                        .bg(bg_subhead())
                         .border_b_1()
-                        .border_color(BORDER_ROW)
+                        .border_color(border_row())
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MUTED)
+                                .text_color(text_muted())
                                 .child(t!("config-managed-files-system-configs-raw")),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.0))
-                                .text_color(TEXT_FAINT)
+                                .text_color(text_faint())
                                 .child(raw_files.len().to_string()),
                         ),
                 )
@@ -338,18 +338,18 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                     let f_name = f.name.clone();
 
                     let pill_bg = if is_edited {
-                        WARN_BG
+                        theme().warn_bg
                     } else if f.is_readonly {
-                        BG_CHIP
+                        bg_chip()
                     } else {
-                        hex_rgba(0xffffff, 0.05)
+                        bg_chip()
                     };
                     let pill_fg = if is_edited {
-                        WARN
+                        theme().warn
                     } else if f.is_readonly {
-                        TEXT_DIMMER
+                        text_dimmer()
                     } else {
-                        TEXT_MUTED
+                        text_muted()
                     };
                     let pill_text = if is_edited {
                         t!("config-managed-files-edited")
@@ -368,15 +368,15 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                         .px(px(12.0))
                         .py(px(5.0))
                         .border_b_1()
-                        .border_color(BORDER_ROW)
-                        .bg(if is_sel { BG_NAV_ACTIVE } else { rgb(0x00000000) })
+                        .border_color(border_row())
+                        .bg(if is_sel { bg_nav_active() } else { hex_rgba(0, 0.0) })
                         .children(if is_sel {
-                            Some(left_indicator(TEXT_PRIMARY))
+                            Some(left_indicator(text_primary()))
                         } else {
                             None
                         })
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .on_click(move |_ev, _window, cx| {
                             let fn_str = f_name.clone();
                             app_click.update(cx, |this, cx| {
@@ -395,7 +395,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
                                         .font_weight(if is_sel { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                                        .text_color(if is_sel { TEXT_MAX } else { TEXT_SECONDARY })
+                                        .text_color(if is_sel { text_max() } else { text_secondary() })
                                         .child(f.name.clone()),
                                 )
                                 .child(
@@ -419,7 +419,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                                 .justify_between()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(TEXT_FAINTER)
+                                .text_color(text_fainter())
                                 .child(f.path_dir.clone())
                                 .child(f.display_size()),
                         )
@@ -429,7 +429,7 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
         .child(
             div()
                 .border_t_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .p(px(8.0))
                 .px(px(12.0))
                 .flex()
@@ -440,14 +440,14 @@ pub fn managed_files_rail(selected_file: &str, search_input: Option<&Entity<Inpu
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(t!("config-managed-files-schema-packs-active")),
                 )
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
-                        .text_color(TEXT_DIM)
+                        .text_color(text_dim())
                         .child(t!("config-managed-files-systemd-postgres-openssh-ufw")),
                 ),
         )

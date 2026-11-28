@@ -53,9 +53,9 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
         .w(sidebar_w)
         .flex_none()
         .h_full()
-        .bg(BG_RAIL)
+        .bg(bg_rail())
         .border_r_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .flex()
         .flex_col()
         // Nav items
@@ -65,7 +65,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                 .iter()
                 .find(|(view, _, _)| Some(*view) == item.view_id)
                 .map(|(_, text, color)| (text.clone(), *color))
-                .unwrap_or_else(|| (item.hint.to_string(), TEXT_FAINT));
+                .unwrap_or_else(|| (item.hint.to_string(), text_faint()));
             let view_id_opt = item.view_id;
             let app_clone = app.clone();
 
@@ -77,9 +77,9 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                 .gap(px(10.0))
                 .h(px(30.0))
                 .px(if collapsed { px(14.0) } else { px(12.0) })
-                .bg(if is_active { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
+                .bg(if is_active { bg_nav_active() } else { hex_rgba(0, 0.0) })
                 .children(if is_active {
-                    Some(left_indicator(TEXT_PRIMARY))
+                    Some(left_indicator(text_primary()))
                 } else {
                     None
                 })
@@ -95,7 +95,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                         .child(
                             tabler_icon(item.icon)
                                 .size(px(14.0))
-                                .text_color(if is_active { TEXT_PRIMARY } else { TEXT_DIMMER }),
+                                .text_color(if is_active { text_primary() } else { text_dimmer() }),
                         ),
                 );
 
@@ -107,7 +107,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                             .font_family(FONT_MONO)
                             .text_size(font_px(11.5))
                             .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                            .text_color(if is_active { TEXT_PRIMARY } else { TEXT_TERTIARY })
+                            .text_color(if is_active { text_primary() } else { text_tertiary() })
                             .child(item.label),
                     )
                     .child(
@@ -138,11 +138,11 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                     .pb(px(2.0))
                     .px(px(12.0))
                     .border_t_1()
-                    .border_color(BORDER_PANEL)
+                    .border_color(border_panel())
                     .font_family(FONT_MONO)
                     .text_size(font_px(9.0))
                     .font_weight(FontWeight::BOLD)
-                    .text_color(TEXT_FAINT)
+                    .text_color(text_faint())
                     .when(!collapsed, |d| d.child(t!("sidebar-plugins"))),
             )
             .children(plugin_pages.iter().enumerate().map(|(i, (view, label, icon))| {
@@ -156,15 +156,15 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                     .gap(px(10.0))
                     .h(px(30.0))
                     .px(if collapsed { px(14.0) } else { px(12.0) })
-                    .bg(if is_active { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
-                    .children(is_active.then(|| left_indicator(TEXT_PRIMARY)))
+                    .bg(if is_active { bg_nav_active() } else { hex_rgba(0, 0.0) })
+                    .children(is_active.then(|| left_indicator(text_primary())))
                     .cursor_pointer()
                     .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.open_plugin_page(&view, cx)))
                     .child(
                         tabler_icon(icon.as_deref().map_or(TablerIcon::Box, TablerIcon::from_name))
                             .size(px(14.0))
                             .flex_none()
-                            .text_color(if is_active { TEXT_PRIMARY } else { TEXT_DIMMER }),
+                            .text_color(if is_active { text_primary() } else { text_dimmer() }),
                     )
                     .when(!collapsed, |d| {
                         d.child(
@@ -175,7 +175,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.5))
                                 .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                                .text_color(if is_active { TEXT_PRIMARY } else { TEXT_TERTIARY })
+                                .text_color(if is_active { text_primary() } else { text_tertiary() })
                                 .child(label.clone()),
                         )
                     })
@@ -189,7 +189,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
         .child(
             div()
                 .border_t_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .p(px(9.0))
                 .px(if collapsed { px(10.0) } else { px(12.0) })
                 .flex()
@@ -204,7 +204,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                         .items_center()
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .cursor_pointer()
                         .on_click(move |_ev, _window, cx| {
                             app_collapse.update(cx, |this, cx| {
@@ -227,7 +227,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                                             .child(
                                                 tabler_icon(TablerIcon::LayoutSidebarLeftCollapse)
                                                     .size(px(13.0))
-                                                    .text_color(TEXT_FAINT),
+                                                    .text_color(text_faint()),
                                             )
                                             .child(t!("sidebar-collapse")),
                                     )
@@ -247,7 +247,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
                                     .child(
                                         tabler_icon(TablerIcon::LayoutSidebarLeftExpand)
                                             .size(px(14.0))
-                                            .text_color(TEXT_FAINT),
+                                            .text_color(text_faint()),
                                     ),
                             )
                         })
@@ -256,7 +256,7 @@ pub fn sidebar(active_view: &str, collapsed: bool, badges: &NavBadges, plugins: 
 }
 
 fn danger_nav(is_active: bool, collapsed: bool, app: Entity<CrowApp>) -> impl IntoElement {
-    let ink = if is_active { CRIT } else { CRIT_INK_DIM };
+    let ink = if is_active { theme().crit } else { theme().crit_ink_dim };
     div()
         .id("nav-item-danger")
         .relative()
@@ -265,10 +265,10 @@ fn danger_nav(is_active: bool, collapsed: bool, app: Entity<CrowApp>) -> impl In
         .gap(px(10.0))
         .h(px(30.0))
         .px(if collapsed { px(14.0) } else { px(12.0) })
-        .bg(if is_active { CRIT_ROW_BG } else { hex_rgba(0, 0.0) })
-        .hover(|s| s.bg(CRIT_ROW_BG))
+        .bg(if is_active { theme().crit_row_bg } else { hex_rgba(0, 0.0) })
+        .hover(|s| s.bg(theme().crit_row_bg))
         .cursor_pointer()
-        .children(is_active.then(|| left_indicator(CRIT)))
+        .children(is_active.then(|| left_indicator(theme().crit)))
         .child(div().w(px(14.0)).h(px(14.0)).flex().items_center().justify_center().flex_none().child(tabler_icon(TablerIcon::AlertTriangle).size(px(14.0)).text_color(ink)))
         .children((!collapsed).then(|| {
             div()

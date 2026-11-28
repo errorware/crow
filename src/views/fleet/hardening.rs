@@ -43,12 +43,12 @@ fn header_button(id: &'static str, icon: Option<TablerIcon>, text: String) -> St
         .h(px(26.0))
         .px(px(10.0))
         .border_1()
-        .border_color(BORDER_DEFAULT)
+        .border_color(border_default())
         .font_family(FONT_MONO)
         .text_size(font_px(10.0))
-        .text_color(TEXT_SECONDARY)
+        .text_color(text_secondary())
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
         .children(icon.map(|i| inherited_icon(i, font_px(12.0))))
         .child(text)
 }
@@ -88,28 +88,28 @@ pub fn hardening_page(rows: &[ServerFindings], reason: Option<&Entity<InputState
                         .flex()
                         .items_center()
                         .gap(px(12.0))
-                        .child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("fleet-hardening-posture")))
-                        .child(mono(10.5, if crit > 0 { CRIT } else if open > 0 { WARN } else { OK }).child(t!("fleet-hardening-open-critical-accepted", open = open, crit = crit, accepted = accepted)))
-                        .child(mono(9.5, TEXT_FAINT).child(t!("fleet-hardening-read-as-root-where-crow", checked = checked)))
+                        .child(mono(10.5, text_secondary()).font_weight(FontWeight::BOLD).child(t!("fleet-hardening-posture")))
+                        .child(mono(10.5, if crit > 0 { theme().crit } else if open > 0 { theme().warn } else { theme().ok }).child(t!("fleet-hardening-open-critical-accepted", open = open, crit = crit, accepted = accepted)))
+                        .child(mono(9.5, text_faint()).child(t!("fleet-hardening-read-as-root-where-crow", checked = checked)))
                         .child(div().flex_1())
                         .child(header_button("btn-hardening-check", Some(TablerIcon::Refresh), if scanning { t!("fleet-hardening-reading").into() } else { t!("fleet-hardening-check-now").into() }).on_click(move |_ev, _w, cx| app_check.update(cx, |this, cx| this.check_posture(cx))))
                         .child(header_button("btn-hardening-report", None, t!("fleet-hardening-export-report-md").into()).on_click(move |_ev, _w, cx| app_report.update(cx, |this, cx| this.export_posture_report(cx)))),
                 )
-                .children(message.map(|(ok, m)| mono(10.5, if ok { OK } else { WARN }).line_height(px(15.0)).child(m)))
-                .child(div().flex().items_center().gap(px(10.0)).child(mono(9.5, TEXT_DIMMER).font_weight(FontWeight::SEMIBOLD).child(t!("fleet-hardening-reason-to-accept"))).child(div().flex_1().max_w(px(560.0)).children(reason.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0))))))
+                .children(message.map(|(ok, m)| mono(10.5, if ok { theme().ok } else { theme().warn }).line_height(px(15.0)).child(m)))
+                .child(div().flex().items_center().gap(px(10.0)).child(mono(9.5, text_dimmer()).font_weight(FontWeight::SEMIBOLD).child(t!("fleet-hardening-reason-to-accept"))).child(div().flex_1().max_w(px(560.0)).children(reason.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(bg_app()).rounded(px(2.0))))))
                 .when(codes.iter().any(|(_, n)| *n > 1), |d| {
-                    d.child(div().flex().flex_wrap().gap(px(6.0)).child(mono(9.5, TEXT_FAINT).mr(px(4.0)).child(t!("fleet-hardening-fix-everywhere"))).children(codes.into_iter().filter(|(_, n)| *n > 1).map(|(code, n)| {
+                    d.child(div().flex().flex_wrap().gap(px(6.0)).child(mono(9.5, text_faint()).mr(px(4.0)).child(t!("fleet-hardening-fix-everywhere"))).children(codes.into_iter().filter(|(_, n)| *n > 1).map(|(code, n)| {
                         let app = app.clone();
-                        action(format!("fix-all-{code}"), format!("{code} ({n})"), OK).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_hardening_fix(code, None, window, cx)))
+                        action(format!("fix-all-{code}"), format!("{code} ({n})"), theme().ok).on_click(move |_ev, window, cx| app.update(cx, |this, cx| this.plan_hardening_fix(code, None, window, cx)))
                     })))
                 })
-                .child(mono(9.5, TEXT_FAINT).line_height(px(13.0)).child(t!("fleet-hardening-every-fix-first-proves-a")))
+                .child(mono(9.5, text_faint()).line_height(px(13.0)).child(t!("fleet-hardening-every-fix-first-proves-a")))
                 .children(rows.iter().map(|(id, name, user, findings)| {
                     div()
                         .flex()
                         .flex_col()
                         .border_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .child(
                             div()
                                 .flex()
@@ -117,22 +117,22 @@ pub fn hardening_page(rows: &[ServerFindings], reason: Option<&Entity<InputState
                                 .gap(px(10.0))
                                 .px(px(10.0))
                                 .h(px(28.0))
-                                .bg(BG_SUBHEAD)
-                                .child(mono(11.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(name.clone()))
-                                .child(mono(9.5, TEXT_FAINT).child(t!("fleet-hardening-crow-logs-in-as", user = user)))
+                                .bg(bg_subhead())
+                                .child(mono(11.0, text_primary()).font_weight(FontWeight::BOLD).child(name.clone()))
+                                .child(mono(9.5, text_faint()).child(t!("fleet-hardening-crow-logs-in-as", user = user)))
                                 .child(div().flex_1())
                                 .child(match findings {
-                                    None => mono(9.5, TEXT_DIM).child(t!("fleet-hardening-not-read-unreachable-or-not")),
-                                    Some(f) if f.is_empty() => mono(9.5, OK).child(t!("fleet-hardening-nothing-found")),
-                                    Some(f) => mono(9.5, TEXT_DIM).child(t!("fleet-hardening-text", count = f.len())),
+                                    None => mono(9.5, text_dim()).child(t!("fleet-hardening-not-read-unreachable-or-not")),
+                                    Some(f) if f.is_empty() => mono(9.5, theme().ok).child(t!("fleet-hardening-nothing-found")),
+                                    Some(f) => mono(9.5, text_dim()).child(t!("fleet-hardening-text", count = f.len())),
                                 }),
                         )
                         .children(findings.iter().flatten().map(|(f, accepted)| {
                             let code = f.code();
                             let color = match (accepted, f.critical()) {
-                                (Some(_), _) => TEXT_DIM,
-                                (None, true) => CRIT,
-                                (None, false) => WARN,
+                                (Some(_), _) => text_dim(),
+                                (None, true) => theme().crit,
+                                (None, false) => theme().warn,
                             };
                             let (app_fix, app_acc, app_un, sid, sid2, sid3) = (app.clone(), app.clone(), app.clone(), id.clone(), id.clone(), id.clone());
                             div()
@@ -142,8 +142,8 @@ pub fn hardening_page(rows: &[ServerFindings], reason: Option<&Entity<InputState
                                 .px(px(10.0))
                                 .min_h(px(32.0))
                                 .border_t_1()
-                                .border_color(BORDER_PANEL)
-                                .bg(BG_PANEL)
+                                .border_color(border_panel())
+                                .bg(bg_panel())
                                 .child(div().flex_none().size(px(7.0)).rounded_full().bg(color))
                                 .child(
                                     div()
@@ -151,26 +151,26 @@ pub fn hardening_page(rows: &[ServerFindings], reason: Option<&Entity<InputState
                                         .min_w(px(0.0))
                                         .flex()
                                         .flex_col()
-                                        .child(mono(10.5, if accepted.is_some() { TEXT_DIM } else { TEXT_PRIMARY }).child(f.describe()))
+                                        .child(mono(10.5, if accepted.is_some() { text_dim() } else { text_primary() }).child(f.describe()))
                                         .child(match accepted {
-                                            Some(a) => mono(9.5, TEXT_FAINT).child(t!("fleet-hardening-accepted-by", by = a.by, reason = a.reason)),
-                                            None => mono(9.5, TEXT_FAINT).child(t!("fleet-hardening-fix", f = f.fix(user))),
+                                            Some(a) => mono(9.5, text_faint()).child(t!("fleet-hardening-accepted-by", by = a.by, reason = a.reason)),
+                                            None => mono(9.5, text_faint()).child(t!("fleet-hardening-fix", f = f.fix(user))),
                                         }),
                                 )
                                 .when(accepted.is_none() && f.fixable(user), |d| {
-                                    d.child(action(format!("fix-{id}-{code}"), "FIX", OK).on_click(move |_ev, window, cx| {
+                                    d.child(action(format!("fix-{id}-{code}"), "FIX", theme().ok).on_click(move |_ev, window, cx| {
                                         let sid = sid.clone();
                                         app_fix.update(cx, |this, cx| this.plan_hardening_fix(code, Some(&sid), window, cx))
                                     }))
                                 })
                                 .when(accepted.is_none(), |d| {
-                                    d.child(action(format!("accept-{id}-{code}"), "ACCEPT", WARN).on_click(move |_ev, _w, cx| {
+                                    d.child(action(format!("accept-{id}-{code}"), "ACCEPT", theme().warn).on_click(move |_ev, _w, cx| {
                                         let sid = sid2.clone();
                                         app_acc.update(cx, |this, cx| this.accept_risk(&sid, code, cx))
                                     }))
                                 })
                                 .when(accepted.is_some(), |d| {
-                                    d.child(action(format!("unaccept-{id}-{code}"), "FLAG AGAIN", TEXT_DIM).on_click(move |_ev, _w, cx| {
+                                    d.child(action(format!("unaccept-{id}-{code}"), "FLAG AGAIN", text_dim()).on_click(move |_ev, _w, cx| {
                                         let sid = sid3.clone();
                                         app_un.update(cx, |this, cx| this.unaccept_risk(&sid, code, cx))
                                     }))

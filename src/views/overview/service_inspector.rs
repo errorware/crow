@@ -43,9 +43,9 @@ pub fn service_inspector_rail(vault: &Vault, fleet: &FleetState, overview: &Over
         .h_full()
         .flex()
         .flex_col()
-        .bg(BG_RAIL)
+        .bg(bg_rail())
         .border_l_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         // Header
         .child(
             div()
@@ -55,15 +55,15 @@ pub fn service_inspector_rail(vault: &Vault, fleet: &FleetState, overview: &Over
                 .items_center()
                 .gap(px(10.0))
                 .px(px(12.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(t!("overview-service-inspector-service-manager")),
                 )
                 .child(div().flex_1())
@@ -71,7 +71,7 @@ pub fn service_inspector_rail(vault: &Vault, fleet: &FleetState, overview: &Over
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child("systemctl"),
                 ),
         )
@@ -88,13 +88,13 @@ pub fn service_inspector_rail(vault: &Vault, fleet: &FleetState, overview: &Over
                     .child(
                         tabler_icon(TablerIcon::Server)
                             .size(px(22.0))
-                            .text_color(TEXT_FAINTER),
+                            .text_color(text_fainter()),
                     )
                     .child(
                         div()
                             .font_family(FONT_MONO)
                             .text_size(font_px(11.0))
-                            .text_color(TEXT_DIMMER)
+                            .text_color(text_dimmer())
                             .text_align(TextAlign::Center)
                             .child(t!("overview-service-inspector-select-a-service-on-the")),
                     )
@@ -117,7 +117,7 @@ fn info_cell(label: &str, value: String, value_color: Rgba) -> impl IntoElement 
                 .font_family(FONT_MONO)
                 .text_size(font_px(9.0))
                 .font_weight(FontWeight::SEMIBOLD)
-                .text_color(TEXT_DIMMER)
+                .text_color(text_dimmer())
                 .child(label.to_string()),
         )
         .child(
@@ -133,9 +133,9 @@ fn info_cell(label: &str, value: String, value_color: Rgba) -> impl IntoElement 
 fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, overview: &OverviewState, app: Entity<CrowApp>) -> impl IntoElement {
     let is_active = svc.status == "ACTIVE";
     let pill_bg = match svc.status.as_str() {
-        "ACTIVE" => OK_BG,
-        "DEGRADED" | "PENDING" => WARN_BG,
-        _ => CRIT_BG,
+        "ACTIVE" => theme().ok_bg,
+        "DEGRADED" | "PENDING" => theme().warn_bg,
+        _ => theme().crit_bg,
     };
     let config_file = config_file_for_service(&svc.name);
     let pending_action = overview.service_panel_pending_action.clone();
@@ -171,7 +171,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(14.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(svc.name.clone()),
                         )
                         // The wand: what is this, and how risky is touching it?
@@ -183,7 +183,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                                 .flex()
                                 .items_center()
                                 .justify_center()
-                                .text_color(if eli5_open { WAND } else { TEXT_DIM })
+                                .text_color(if eli5_open { WAND } else { text_dim() })
                                 .bg(if eli5_open { WAND.opacity(0.14) } else { hex_rgba(0, 0.0) })
                                 .cursor_pointer()
                                 .hover(|s| s.bg(WAND.opacity(0.14)).text_color(WAND))
@@ -213,7 +213,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .child(svc.description.clone()),
                         ),
                 ),
@@ -226,11 +226,11 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                 .flex_wrap()
                 .gap(px(16.0))
                 .px(px(2.0))
-                .child(info_cell(t!("overview-service-inspector-pid"), svc.pid.clone(), TEXT_SECONDARY))
-                .child(info_cell(t!("overview-service-inspector-cpu"), svc.cpu.clone(), TEXT_SECONDARY))
-                .child(info_cell(t!("overview-service-inspector-mem"), svc.mem.clone(), TEXT_SECONDARY))
-                .child(info_cell(t!("overview-service-inspector-rss"), svc.rss.clone(), TEXT_SECONDARY))
-                .child(info_cell(t!("overview-service-inspector-uptime"), svc.uptime.clone(), TEXT_SECONDARY)),
+                .child(info_cell(t!("overview-service-inspector-pid"), svc.pid.clone(), text_secondary()))
+                .child(info_cell(t!("overview-service-inspector-cpu"), svc.cpu.clone(), text_secondary()))
+                .child(info_cell(t!("overview-service-inspector-mem"), svc.mem.clone(), text_secondary()))
+                .child(info_cell(t!("overview-service-inspector-rss"), svc.rss.clone(), text_secondary()))
+                .child(info_cell(t!("overview-service-inspector-uptime"), svc.uptime.clone(), text_secondary())),
         )
         // Failed-outcome banner — the "tell the truth if it didn't work" step
         .children(failed_banner.map(|(unit, _)| {
@@ -241,14 +241,14 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                 .justify_between()
                 .gap(px(8.0))
                 .p(px(10.0))
-                .bg(CRIT_ROW_BG)
+                .bg(theme().crit_row_bg)
                 .border_1()
-                .border_color(CRIT)
+                .border_color(theme().crit)
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
-                        .text_color(CRIT_INK)
+                        .text_color(theme().crit_ink)
                         .child(t!("overview-service-inspector-did-not-reach-the-expected", unit = unit)),
                 )
                 .child(
@@ -256,7 +256,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                         .id("btn-svc-retry")
                         .px(px(8.0))
                         .py(px(3.0))
-                        .bg(CRIT)
+                        .bg(theme().crit)
                         .cursor_pointer()
                         .hover(|s| s.bg(hex_rgb(0xef4444)))
                         .font_family(FONT_MONO)
@@ -287,11 +287,11 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                 .items_center()
                 .justify_between()
                 .p(px(10.0))
-                .bg(hex_rgba(0x38bdf8, 0.08))
+                .bg(accent_bg())
                 .border_1()
-                .border_color(hex_rgb(0x38bdf8))
+                .border_color(accent())
                 .cursor_pointer()
-                .hover(|s| s.bg(hex_rgba(0x38bdf8, 0.16)))
+                .hover(|s| s.bg(accent_bg()))
                 .on_click(move |_ev, _window, cx| {
                     let u = unit_name.clone();
                     app_unit.update(cx, |this, cx| {
@@ -303,7 +303,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                         .flex()
                         .items_center()
                         .gap(px(8.0))
-                        .child(tabler_icon(TablerIcon::FileText).size(px(15.0)).text_color(hex_rgb(0x38bdf8)))
+                        .child(tabler_icon(TablerIcon::FileText).size(px(15.0)).text_color(accent()))
                         .child(
                             div()
                                 .flex()
@@ -314,14 +314,14 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(hex_rgb(0x38bdf8))
+                                        .text_color(accent())
                                         .child(t!("overview-service-inspector-view-edit-unit")),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(9.5))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(t!("overview-service-inspector-inspect-unit-file-dropins")),
                                 ),
                         ),
@@ -329,7 +329,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                 .child(
                     tabler_icon(TablerIcon::ChevronRight)
                         .size(px(14.0))
-                        .text_color(hex_rgb(0x38bdf8)),
+                        .text_color(accent()),
                 )
         })
         // Recent Apply Pipeline history for this unit
@@ -348,11 +348,11 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                 .items_center()
                 .justify_between()
                 .p(px(10.0))
-                .bg(BG_CONTROL)
+                .bg(bg_control())
                 .border_1()
-                .border_color(BORDER_DEFAULT)
+                .border_color(border_default())
                 .cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER))
+                .hover(|s| s.bg(bg_row_hover()))
                 .on_click(move |_ev, _window, cx| {
                     app_logs.update(cx, |this, cx| {
                         this.jump_to_service_logs(&unit_name, cx);
@@ -363,13 +363,13 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(t!("overview-service-inspector-view-logs-for-this-unit")),
                 )
                 .child(
                     tabler_icon(TablerIcon::ChevronRight)
                         .size(px(14.0))
-                        .text_color(TEXT_DIM),
+                        .text_color(text_dim()),
                 )
         })
         // Config handoff
@@ -390,7 +390,7 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                         .p(px(10.0))
                         .bg(hex_rgba(0x4ade80, 0.08))
                         .border_1()
-                        .border_color(OK)
+                        .border_color(theme().ok)
                         .cursor_pointer()
                         .hover(|s| s.bg(hex_rgba(0x4ade80, 0.16)))
                         .on_click(move |_ev, _window, cx| {
@@ -408,21 +408,21 @@ fn render_focused_panel(svc: &ServiceUnit, vault: &Vault, fleet: &FleetState, ov
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(OK)
+                                        .text_color(theme().ok)
                                         .child(t!("overview-service-inspector-edit", file = file)),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(9.5))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(t!("overview-service-inspector-open-in-crow-config-structured")),
                                 ),
                         )
                         .child(
                             tabler_icon(TablerIcon::ChevronRight)
                                 .size(px(14.0))
-                                .text_color(OK),
+                                .text_color(theme().ok),
                         ),
                 )
         }))
@@ -441,12 +441,12 @@ fn render_recent_actions(records: &[ChangeRecord], app: Entity<CrowApp>) -> impl
                 .flex()
                 .flex_col()
                 .border_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .children(records.iter().enumerate().map(|(idx, rec)| {
                     let (dot_color, outcome_label) = match rec.outcome.as_str() {
-                        "success" => (OK, t!("overview-service-inspector-ok")),
-                        "failed" => (CRIT, t!("overview-service-inspector-failed")),
-                        _ => (WARN, t!("overview-service-inspector-pending")),
+                        "success" => (theme().ok, t!("overview-service-inspector-ok")),
+                        "failed" => (theme().crit, t!("overview-service-inspector-failed")),
+                        _ => (theme().warn, t!("overview-service-inspector-pending")),
                     };
                     let when = rec.started_at.split('T').nth(1).and_then(|t| t.get(0..8)).unwrap_or(&rec.started_at).to_string();
                     let is_unit_edit = rec.action_kind == "service_unit_edit";
@@ -461,7 +461,7 @@ fn render_recent_actions(records: &[ChangeRecord], app: Entity<CrowApp>) -> impl
                         .px(px(9.0))
                         .py(px(6.0))
                         .border_b_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
                         .child(div().size(px(6.0)).rounded_full().bg(dot_color).flex_none())
@@ -469,18 +469,18 @@ fn render_recent_actions(records: &[ChangeRecord], app: Entity<CrowApp>) -> impl
                             div()
                                 .w(px(52.0))
                                 .flex_none()
-                                .text_color(TEXT_FAINT)
+                                .text_color(text_faint())
                                 .child(when),
                         )
                         .child(
                             div()
                                 .flex_1()
-                                .text_color(TEXT_SECONDARY)
+                                .text_color(text_secondary())
                                 .child(rec.action_kind.replace("service_", "").to_uppercase()),
                         )
                         .children(rec.blast_radius.clone().map(|b| {
                             div()
-                                .text_color(TEXT_DIMMER)
+                                .text_color(text_dimmer())
                                 .text_size(font_px(9.0))
                                 .child(b)
                         }))
@@ -499,15 +499,15 @@ fn render_recent_actions(records: &[ChangeRecord], app: Entity<CrowApp>) -> impl
                                     .id(ElementId::NamedInteger("btn-rail-rollback".into(), idx as u64))
                                     .px(px(5.0))
                                     .py(px(1.5))
-                                    .bg(BG_CONTROL)
+                                    .bg(bg_control())
                                     .border_1()
-                                    .border_color(WARN)
+                                    .border_color(theme().warn)
                                     .cursor_pointer()
-                                    .hover(|s| s.bg(WARN.opacity(0.15)))
+                                    .hover(|s| s.bg(theme().warn.opacity(0.15)))
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(8.5))
                                     .font_weight(FontWeight::BOLD)
-                                    .text_color(WARN)
+                                    .text_color(theme().warn)
                                     .on_click(move |_ev, _window, cx| {
                                         let r = rec_owned.clone();
                                         app_rb.update(cx, |this, cx| {
@@ -533,10 +533,10 @@ fn section_divider(label: &str) -> impl IntoElement {
                 .font_family(FONT_MONO)
                 .text_size(font_px(9.5))
                 .font_weight(FontWeight::SEMIBOLD)
-                .text_color(TEXT_DIMMER)
+                .text_color(text_dimmer())
                 .child(label.to_string()),
         )
-        .child(div().flex_1().h(px(1.0)).bg(BORDER_PANEL))
+        .child(div().flex_1().h(px(1.0)).bg(border_panel()))
 }
 
 fn action_button(
@@ -558,7 +558,7 @@ fn action_button(
         .border_1()
         .border_color(border)
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .font_family(FONT_MONO)
         .text_size(font_px(10.5))
         .font_weight(FontWeight::BOLD)
@@ -580,9 +580,9 @@ fn render_actions_row(is_active: bool, app: Entity<CrowApp>) -> impl IntoElement
             Some(action_button(
                 "btn-svc-start",
                 t!("overview-service-inspector-start"),
-                OK,
-                OK_BG,
-                OK,
+                theme().ok,
+                theme().ok_bg,
+                theme().ok,
                 move |_ev, _window, cx| {
                     app_start.update(cx, |this, cx| {
                         this.run_service_panel_action_now("start", cx);
@@ -596,9 +596,9 @@ fn render_actions_row(is_active: bool, app: Entity<CrowApp>) -> impl IntoElement
             Some(action_button(
                 "btn-svc-reload",
                 t!("overview-service-inspector-reload"),
-                TEXT_SECONDARY,
-                BG_CONTROL,
-                BORDER_DEFAULT,
+                text_secondary(),
+                bg_control(),
+                border_default(),
                 move |_ev, _window, cx| {
                     app_reload.update(cx, |this, cx| {
                         this.run_service_panel_action_now("reload", cx);
@@ -611,9 +611,9 @@ fn render_actions_row(is_active: bool, app: Entity<CrowApp>) -> impl IntoElement
         .child(action_button(
             "btn-svc-restart",
             t!("overview-service-inspector-restart"),
-            WARN,
-            WARN_BG,
-            WARN,
+            theme().warn,
+            theme().warn_bg,
+            theme().warn,
             move |_ev, _window, cx| {
                 app_restart.update(cx, |this, cx| {
                     this.arm_service_panel_action("restart", cx);
@@ -624,9 +624,9 @@ fn render_actions_row(is_active: bool, app: Entity<CrowApp>) -> impl IntoElement
             Some(action_button(
                 "btn-svc-stop",
                 t!("overview-service-inspector-stop"),
-                CRIT,
-                CRIT_BG,
-                CRIT,
+                theme().crit,
+                theme().crit_bg,
+                theme().crit,
                 move |_ev, _window, cx| {
                     app_stop.update(cx, |this, cx| {
                         this.arm_service_panel_action("stop", cx);
@@ -658,14 +658,14 @@ fn render_pending_confirm(unit_name: &str, action: &str, overview: &OverviewStat
         .flex_col()
         .gap(px(8.0))
         .p(px(10.0))
-        .bg(CRIT_ROW_BG)
+        .bg(theme().crit_row_bg)
         .border_1()
-        .border_color(CRIT)
+        .border_color(theme().crit)
         .child(
             div()
                 .font_family(FONT_MONO)
                 .text_size(font_px(11.0))
-                .text_color(CRIT_INK)
+                .text_color(theme().crit_ink)
                 .child(format!(
                     "{} {}? {}",
                     verb, unit_name, blast_radius_text(overview, unit_name)
@@ -684,12 +684,12 @@ fn render_pending_confirm(unit_name: &str, action: &str, overview: &OverviewStat
                         .justify_center()
                         .py(px(5.0))
                         .border_1()
-                        .border_color(BORDER_KEY)
+                        .border_color(border_key())
                         .cursor_pointer()
-                        .hover(|s| s.bg(BG_ROW_HOVER))
+                        .hover(|s| s.bg(bg_row_hover()))
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))
-                        .text_color(TEXT_TERTIARY)
+                        .text_color(text_tertiary())
                         .on_click(move |_ev, _window, cx| {
                             app_cancel.update(cx, |this, cx| {
                                 this.cancel_service_panel_action(cx);
@@ -705,7 +705,7 @@ fn render_pending_confirm(unit_name: &str, action: &str, overview: &OverviewStat
                         .items_center()
                         .justify_center()
                         .py(px(5.0))
-                        .bg(CRIT)
+                        .bg(theme().crit)
                         .cursor_pointer()
                         .hover(|s| s.bg(hex_rgb(0xef4444)))
                         .font_family(FONT_MONO)
@@ -732,21 +732,21 @@ pub(crate) fn render_eli5(loading: bool, result: Option<&Result<crate::views::ov
     let body = div().flex().flex_col().gap(px(8.0)).p(px(12.0)).bg(WAND.opacity(0.05)).border_1().border_color(WAND.opacity(0.35));
     match (loading, result) {
         (true, _) | (false, None) => body.child(div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(WAND).child(t!("overview-service-inspector-asking-the-clanker-what-this"))),
-        (false, Some(Err(e))) => body.child(div().font_family(FONT_MONO).text_size(font_px(10.5)).line_height(px(15.0)).text_color(CRIT).child(e.clone())),
+        (false, Some(Err(e))) => body.child(div().font_family(FONT_MONO).text_size(font_px(10.5)).line_height(px(15.0)).text_color(theme().crit).child(e.clone())),
         (false, Some(Ok(e))) => body
             .children(e.severity.as_ref().map(|(level, reason)| {
                 let (label, color) = match level {
-                    Severity::Low => (t!("overview-service-inspector-low-risk"), OK),
-                    Severity::Medium => (t!("overview-service-inspector-medium-risk"), WARN),
+                    Severity::Low => (t!("overview-service-inspector-low-risk"), theme().ok),
+                    Severity::Medium => (t!("overview-service-inspector-medium-risk"), theme().warn),
                     Severity::High => (t!("overview-service-inspector-high-risk"), hex_rgb(0xf97316)),
-                    Severity::Critical => (t!("overview-service-inspector-critical"), CRIT),
+                    Severity::Critical => (t!("overview-service-inspector-critical"), theme().crit),
                 };
                 div()
                     .flex()
                     .items_start()
                     .gap(px(8.0))
                     .child(crate::components::button::badge(color).flex_none().text_size(font_px(9.0)).font_weight(FontWeight::BOLD).child(label))
-                    .child(div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(font_px(10.5)).line_height(px(15.0)).text_color(TEXT_SECONDARY).child(t!("overview-service-inspector-to-stop-or-restart", reason = reason)))
+                    .child(div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(font_px(10.5)).line_height(px(15.0)).text_color(text_secondary()).child(t!("overview-service-inspector-to-stop-or-restart", reason = reason)))
             }))
             // One line per point, its label ("If you stop it:") bold.
             .children(e.body.lines().map(str::trim).filter(|l| !l.is_empty()).map(|line| {
@@ -759,11 +759,11 @@ pub(crate) fn render_eli5(loading: bool, result: Option<&Result<crate::views::ov
                     .font_family(FONT_MONO)
                     .text_size(font_px(11.0))
                     .line_height(px(16.0))
-                    .text_color(TEXT_PRIMARY)
+                    .text_color(text_primary())
                     .children(label.map(|l| div().font_weight(FontWeight::BOLD).text_color(WAND).child(l)))
                     .child(rest)
             }))
-            .child(div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(TEXT_FAINT).child(match &e.primary_failed {
+            .child(div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(text_faint()).child(match &e.primary_failed {
                 Some(why) => t!("overview-service-inspector-via-the-backup-the-primary", via = e.via, why = why),
                 None => t!("overview-service-inspector-via-an-ais-reading-check", via = e.via),
             })),

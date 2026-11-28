@@ -48,9 +48,9 @@ pub fn retention_boundaries_modal(
                 .id("journal-retention-modal-card")
                 .w(px(640.0))
                 .max_h(px(720.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .flex_col()
                 .on_click(|_ev, _window, _cx| {
@@ -62,9 +62,9 @@ pub fn retention_boundaries_modal(
                         .h(px(46.0))
                         .flex_none()
                         .px(px(20.0))
-                        .bg(BG_SUBHEAD)
+                        .bg(bg_subhead())
                         .border_b_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .flex()
                         .items_center()
                         .justify_between()
@@ -78,14 +78,14 @@ pub fn retention_boundaries_modal(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(12.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(t!("logs-retention-modal-systemd-journal-retention-boundaries")),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(9.5))
-                                        .text_color(TEXT_TERTIARY)
+                                        .text_color(text_tertiary())
                                         .child(t!("logs-retention-modal-eliminate-30-minute-silent-log")),
                                 ),
                         )
@@ -114,9 +114,9 @@ pub fn retention_boundaries_modal(
                             if is_warning {
                                 div()
                                     .p(px(12.0))
-                                    .bg(CRIT_BG)
+                                    .bg(theme().crit_bg)
                                     .border_1()
-                                    .border_color(CRIT)
+                                    .border_color(theme().crit)
                                     .flex()
                                     .items_center()
                                     .justify_between()
@@ -130,14 +130,14 @@ pub fn retention_boundaries_modal(
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(11.0))
                                                     .font_weight(FontWeight::BOLD)
-                                                    .text_color(CRIT)
+                                                    .text_color(theme().crit)
                                                     .child(t!("logs-retention-modal-critical-storage-is-volatile-auto")),
                                             )
                                             .child(
                                                 div()
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(10.0))
-                                                    .text_color(TEXT_PRIMARY)
+                                                    .text_color(text_primary())
                                                     .child(t!("logs-retention-modal-if-this-host-crashes-or")),
                                             ),
                                     )
@@ -146,7 +146,7 @@ pub fn retention_boundaries_modal(
                                             .id("btn-fix-persist-journal")
                                             .px(px(10.0))
                                             .py(px(5.0))
-                                            .bg(CRIT)
+                                            .bg(theme().crit)
                                             .text_color(rgb(0x0a0a0c))
                                             .font_weight(FontWeight::BOLD)
                                             .font_family(FONT_MONO)
@@ -163,9 +163,9 @@ pub fn retention_boundaries_modal(
                             } else {
                                 div()
                                     .p(px(12.0))
-                                    .bg(OK_BG)
+                                    .bg(theme().ok_bg)
                                     .border_1()
-                                    .border_color(OK)
+                                    .border_color(theme().ok)
                                     .flex()
                                     .items_center()
                                     .gap(px(10.0))
@@ -173,7 +173,7 @@ pub fn retention_boundaries_modal(
                                         div()
                                             .font_family(FONT_MONO)
                                             .text_size(font_px(14.0))
-                                            .text_color(OK)
+                                            .text_color(theme().ok)
                                             .child("✓"),
                                     )
                                     .child(
@@ -186,14 +186,14 @@ pub fn retention_boundaries_modal(
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(10.5))
                                                     .font_weight(FontWeight::BOLD)
-                                                    .text_color(OK)
+                                                    .text_color(theme().ok)
                                                     .child(t!("logs-retention-modal-crash-safe-persistent-storage-active")),
                                             )
                                             .child(
                                                 div()
                                                     .font_family(FONT_MONO)
                                                     .text_size(font_px(9.5))
-                                                    .text_color(TEXT_SECONDARY)
+                                                    .text_color(text_secondary())
                                                     .child(t!("logs-retention-modal-active-journals-persist-in-var")),
                                             ),
                                     )
@@ -225,14 +225,14 @@ pub fn retention_boundaries_modal(
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_SECONDARY)
+                                                .text_color(text_secondary())
                                                 .child(t!("logs-retention-modal-allocation", disk_usage_display = telemetry.disk_usage_display(), max_use_display = config.max_use_display(), usage_pct = format!("{:.1}", usage_pct))),
                                         )
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(9.5))
-                                                .text_color(TEXT_TERTIARY)
+                                                .text_color(text_tertiary())
                                                 .child(t!("logs-retention-modal-systemmaxuse-boundary")),
                                         ),
                                 )
@@ -240,14 +240,14 @@ pub fn retention_boundaries_modal(
                                     div()
                                         .h(px(10.0))
                                         .w_full()
-                                        .bg(hex_rgb(0x13141a))
+                                        .bg(bg_control_alt())
                                         .border_1()
-                                        .border_color(BORDER_DEFAULT)
+                                        .border_color(border_default())
                                         .child(
                                             div()
                                                 .h_full()
                                                 .w(px((6.0 * usage_pct).max(2.0)))
-                                                .bg(if usage_pct > 85.0 { CRIT } else if usage_pct > 60.0 { WARN } else { OK })
+                                                .bg(if usage_pct > 85.0 { theme().crit } else if usage_pct > 60.0 { theme().warn } else { theme().ok })
                                         ),
                                 ),
                         )
@@ -267,14 +267,14 @@ pub fn retention_boundaries_modal(
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.5))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_PRIMARY)
+                                                .text_color(text_primary())
                                                 .child(t!("logs-retention-modal-storage-persistence-storage")),
                                         )
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(9.5))
-                                                .text_color(TEXT_MUTED)
+                                                .text_color(text_muted())
                                                 .child(t!("logs-retention-modal-controls-whether-logs-survive-host")),
                                         ),
                                 )
@@ -283,9 +283,9 @@ pub fn retention_boundaries_modal(
                                         .flex()
                                         .gap(px(8.0))
                                         .children([
-                                            (JournalStorageMode::Persistent, t!("logs-retention-modal-persistent-rec"), OK),
-                                            (JournalStorageMode::Volatile, t!("logs-retention-modal-volatile-ram-only"), CRIT),
-                                            (JournalStorageMode::Auto, t!("logs-retention-modal-auto-fragile"), WARN),
+                                            (JournalStorageMode::Persistent, t!("logs-retention-modal-persistent-rec"), theme().ok),
+                                            (JournalStorageMode::Volatile, t!("logs-retention-modal-volatile-ram-only"), theme().crit),
+                                            (JournalStorageMode::Auto, t!("logs-retention-modal-auto-fragile"), theme().warn),
                                         ].into_iter().enumerate().map(|(idx, (mode, label, accent))| {
                                             let is_sel = config.storage == mode;
                                             let app_m = app_mode.clone();
@@ -299,12 +299,12 @@ pub fn retention_boundaries_modal(
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
                                                 .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                                .bg(if is_sel { BG_NAV_ACTIVE } else { BG_CONTROL })
+                                                .bg(if is_sel { bg_nav_active() } else { bg_control() })
                                                 .border_1()
-                                                .border_color(if is_sel { accent } else { BORDER_DEFAULT })
-                                                .text_color(if is_sel { accent } else { TEXT_SECONDARY })
+                                                .border_color(if is_sel { accent } else { border_default() })
+                                                .text_color(if is_sel { accent } else { text_secondary() })
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                                .hover(|s| s.bg(bg_row_hover()))
                                                 .on_click(move |_ev, _window, cx| {
                                                     app_m.update(cx, |this, cx| {
                                                         this.set_journal_storage_mode(mode, cx);
@@ -330,14 +330,14 @@ pub fn retention_boundaries_modal(
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.5))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_PRIMARY)
+                                                .text_color(text_primary())
                                                 .child(t!("logs-retention-modal-max-disk-quota-systemmaxuse")),
                                         )
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(9.5))
-                                                .text_color(TEXT_MUTED)
+                                                .text_color(text_muted())
                                                 .child(t!("logs-retention-modal-hard-ceiling-before-older-journals")),
                                         ),
                                 )
@@ -366,12 +366,12 @@ pub fn retention_boundaries_modal(
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
                                                 .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                                .bg(if is_sel { BG_NAV_ACTIVE } else { BG_CONTROL })
+                                                .bg(if is_sel { bg_nav_active() } else { bg_control() })
                                                 .border_1()
-                                                .border_color(if is_sel { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                                .text_color(if is_sel { TEXT_PRIMARY } else { TEXT_SECONDARY })
+                                                .border_color(if is_sel { text_primary() } else { border_default() })
+                                                .text_color(if is_sel { text_primary() } else { text_secondary() })
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                                .hover(|s| s.bg(bg_row_hover()))
                                                 .on_click(move |_ev, _window, cx| {
                                                     app_q.update(cx, |this, cx| {
                                                         this.set_journal_quota(mb, cx);
@@ -397,14 +397,14 @@ pub fn retention_boundaries_modal(
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.5))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_PRIMARY)
+                                                .text_color(text_primary())
                                                 .child(t!("logs-retention-modal-time-horizon-maxretentionsec")),
                                         )
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(9.5))
-                                                .text_color(TEXT_MUTED)
+                                                .text_color(text_muted())
                                                 .child(t!("logs-retention-modal-maximum-age-before-logs-are")),
                                         ),
                                 )
@@ -434,12 +434,12 @@ pub fn retention_boundaries_modal(
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
                                                 .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                                .bg(if is_sel { BG_NAV_ACTIVE } else { BG_CONTROL })
+                                                .bg(if is_sel { bg_nav_active() } else { bg_control() })
                                                 .border_1()
-                                                .border_color(if is_sel { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                                .text_color(if is_sel { TEXT_PRIMARY } else { TEXT_SECONDARY })
+                                                .border_color(if is_sel { text_primary() } else { border_default() })
+                                                .text_color(if is_sel { text_primary() } else { text_secondary() })
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                                .hover(|s| s.bg(bg_row_hover()))
                                                 .on_click(move |_ev, _window, cx| {
                                                     app_t.update(cx, |this, cx| {
                                                         this.set_journal_retention_days(days, cx);
@@ -465,14 +465,14 @@ pub fn retention_boundaries_modal(
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.5))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_PRIMARY)
+                                                .text_color(text_primary())
                                                 .child(t!("logs-retention-modal-safety-disk-reserve-systemkeepfree")),
                                         )
                                         .child(
                                             div()
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(9.5))
-                                                .text_color(TEXT_MUTED)
+                                                .text_color(text_muted())
                                                 .child(t!("logs-retention-modal-guarantees-disk-space-stays-free")),
                                         ),
                                 )
@@ -499,12 +499,12 @@ pub fn retention_boundaries_modal(
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
                                                 .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                                .bg(if is_sel { BG_NAV_ACTIVE } else { BG_CONTROL })
+                                                .bg(if is_sel { bg_nav_active() } else { bg_control() })
                                                 .border_1()
-                                                .border_color(if is_sel { TEXT_PRIMARY } else { BORDER_DEFAULT })
-                                                .text_color(if is_sel { TEXT_PRIMARY } else { TEXT_SECONDARY })
+                                                .border_color(if is_sel { text_primary() } else { border_default() })
+                                                .text_color(if is_sel { text_primary() } else { text_secondary() })
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                                .hover(|s| s.bg(bg_row_hover()))
                                                 .on_click(move |_ev, _window, cx| {
                                                     app_k.update(cx, |this, cx| {
                                                         this.set_journal_keep_free(mb, cx);
@@ -521,9 +521,9 @@ pub fn retention_boundaries_modal(
                         .h(px(52.0))
                         .flex_none()
                         .px(px(20.0))
-                        .bg(BG_SUBHEAD)
+                        .bg(bg_subhead())
                         .border_t_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .flex()
                         .items_center()
                         .justify_between()
@@ -533,11 +533,11 @@ pub fn retention_boundaries_modal(
                                 .id("btn-jump-to-crow-config")
                                 .px(px(12.0))
                                 .py(px(6.0))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
-                                .text_color(TEXT_SECONDARY)
-                                .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
+                                .border_color(border_default())
+                                .text_color(text_secondary())
+                                .hover(|s| s.text_color(text_primary()).bg(bg_row_hover()))
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
@@ -561,7 +561,7 @@ pub fn retention_boundaries_modal(
                                         .id("btn-apply-journal-boundaries")
                                         .px(px(14.0))
                                         .py(px(6.0))
-                                        .bg(TEXT_PRIMARY)
+                                        .bg(text_primary())
                                         .text_color(rgb(0x0a0a0c))
                                         .font_weight(FontWeight::BOLD)
                                         .font_family(FONT_MONO)
@@ -583,9 +583,9 @@ pub fn retention_boundaries_modal(
 fn render_stat_card(label: &str, value: &str, sub: &str) -> impl IntoElement {
     div()
         .p(px(10.0))
-        .bg(BG_CONTROL)
+        .bg(bg_control())
         .border_1()
-        .border_color(BORDER_DEFAULT)
+        .border_color(border_default())
         .flex()
         .flex_col()
         .gap(px(2.0))
@@ -594,7 +594,7 @@ fn render_stat_card(label: &str, value: &str, sub: &str) -> impl IntoElement {
                 .font_family(FONT_MONO)
                 .text_size(font_px(9.0))
                 .font_weight(FontWeight::BOLD)
-                .text_color(TEXT_TERTIARY)
+                .text_color(text_tertiary())
                 .child(label.to_string()),
         )
         .child(
@@ -602,14 +602,14 @@ fn render_stat_card(label: &str, value: &str, sub: &str) -> impl IntoElement {
                 .font_family(FONT_MONO)
                 .text_size(font_px(14.0))
                 .font_weight(FontWeight::BOLD)
-                .text_color(TEXT_PRIMARY)
+                .text_color(text_primary())
                 .child(value.to_string()),
         )
         .child(
             div()
                 .font_family(FONT_MONO)
                 .text_size(font_px(9.0))
-                .text_color(TEXT_MUTED)
+                .text_color(text_muted())
                 .child(sub.to_string()),
         )
 }

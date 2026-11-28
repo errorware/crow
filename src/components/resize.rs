@@ -26,9 +26,9 @@ pub fn resize_handle(id: &'static str) -> Stateful<Div> {
         .id(id)
         .h(px(5.0))
         .flex_none()
-        .bg(BORDER_PANEL)
+        .bg(border_panel())
         .cursor(CursorStyle::ResizeUpDown)
-        .hover(|s| s.bg(BORDER_STRONG))
+        .hover(|s| s.bg(border_strong()))
         .on_drag(BottomPanelResize, |_, _, _, cx| cx.new(|_| ResizeGhost))
 }
 

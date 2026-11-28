@@ -197,17 +197,17 @@ fn mono(size: f32, color: Rgba) -> Div {
 }
 
 fn label(text: &'static str) -> Div {
-    mono(10.0, TEXT_DIM).font_weight(FontWeight::BOLD).child(text)
+    mono(10.0, text_dim()).font_weight(FontWeight::BOLD).child(text)
 }
 
 fn hint(text: impl Into<SharedString>) -> Div {
-    mono(10.0, TEXT_FAINT).line_height(px(14.0)).child(text.into())
+    mono(10.0, text_faint()).line_height(px(14.0)).child(text.into())
 }
 
 /// A wizard text field: gpui-component's input, styled like the app's other
 /// inputs (sharp corners, mono font).
 fn field(inputs: Option<&OnboardInputs>, which: OnboardFieldFocus) -> Div {
-    div().w_full().children(inputs.and_then(|i| i.get(which)).map(|state| Input::new(state).font_family(FONT_MONO).text_size(font_px(12.0)).bg(BG_APP).rounded(px(2.0))))
+    div().w_full().children(inputs.and_then(|i| i.get(which)).map(|state| Input::new(state).font_family(FONT_MONO).text_size(font_px(12.0)).bg(bg_app()).rounded(px(2.0))))
 }
 
 fn labeled(text: &'static str, body: impl IntoElement) -> Div {
@@ -216,8 +216,8 @@ fn labeled(text: &'static str, body: impl IntoElement) -> Div {
 
 /// One choice in a row of them: outlined with Obsidian Edge control selection tokens when picked.
 fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, selected: bool, accent: Rgba) -> Stateful<Div> {
-    let sel_border = if accent == OK || accent == TEXT_DIM { BORDER_CONTROL_SEL } else { accent };
-    let dot_color = if accent == OK || accent == TEXT_DIM { TEXT_PRIMARY } else { accent };
+    let sel_border = if accent == theme().ok || accent == text_dim() { border_control_sel() } else { accent };
+    let dot_color = if accent == theme().ok || accent == text_dim() { text_primary() } else { accent };
     div()
         .id(ElementId::Name(id.into()))
         .flex()
@@ -226,14 +226,14 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, selected: bo
         .px(px(10.0))
         .py(px(5.0))
         .border_1()
-        .border_color(if selected { sel_border } else { BORDER_DEFAULT })
-        .bg(if selected { BG_ROW_SELECTED } else { BG_CONTROL })
+        .border_color(if selected { sel_border } else { border_default() })
+        .bg(if selected { bg_row_selected() } else { bg_control() })
         .font_family(FONT_MONO)
         .text_size(font_px(10.5))
         .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
-        .text_color(if selected { TEXT_MAX } else { TEXT_SECONDARY })
+        .text_color(if selected { text_max() } else { text_secondary() })
         .cursor_pointer()
-        .hover(|s| s.border_color(BORDER_STRONG).bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .hover(|s| s.border_color(border_strong()).bg(bg_row_hover()).text_color(text_primary()))
         .when(selected, |d| d.child(div().size(px(5.0)).rounded_full().bg(dot_color)))
         .child(text.into())
 }
@@ -249,10 +249,10 @@ fn method_card(id: &'static str, title: &'static str, about: &'static str, selec
         .gap(px(4.0))
         .p(px(10.0))
         .border_1()
-        .border_color(if selected { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
-        .bg(if selected { BG_ROW_SELECTED } else { BG_CONTROL })
+        .border_color(if selected { border_control_sel() } else { border_default() })
+        .bg(if selected { bg_row_selected() } else { bg_control() })
         .cursor_pointer()
-        .hover(|s| s.border_color(BORDER_STRONG).bg(BG_ROW_HOVER))
+        .hover(|s| s.border_color(border_strong()).bg(bg_row_hover()))
         .child(
             div()
                 .flex()
@@ -263,16 +263,16 @@ fn method_card(id: &'static str, title: &'static str, about: &'static str, selec
                         .size(px(8.0))
                         .rounded_full()
                         .border_1()
-                        .border_color(if selected { TEXT_MAX } else { TEXT_FAINT })
-                        .when(selected, |d| d.bg(TEXT_MAX)),
+                        .border_color(if selected { text_max() } else { text_faint() })
+                        .when(selected, |d| d.bg(text_max())),
                 )
-                .child(mono(11.0, if selected { TEXT_MAX } else { TEXT_SECONDARY }).font_weight(FontWeight::BOLD).child(title)),
+                .child(mono(11.0, if selected { text_max() } else { text_secondary() }).font_weight(FontWeight::BOLD).child(title)),
         )
-        .child(mono(9.5, TEXT_DIM).line_height(px(13.0)).child(about))
+        .child(mono(9.5, text_dim()).line_height(px(13.0)).child(about))
 }
 
 fn button(id: &'static str, text: impl Into<SharedString>, primary: bool, enabled: bool) -> Stateful<Div> {
-    let color = if !enabled { TEXT_GHOST } else if primary { BG_WINDOW } else { TEXT_SECONDARY };
+    let color = if !enabled { text_ghost() } else if primary { bg_window() } else { text_secondary() };
     div()
         .id(id)
         .flex()
@@ -280,13 +280,13 @@ fn button(id: &'static str, text: impl Into<SharedString>, primary: bool, enable
         .h(px(30.0))
         .px(px(14.0))
         .border_1()
-        .border_color(if primary && enabled { OK } else { BORDER_DEFAULT })
-        .bg(if primary && enabled { OK } else { BG_CONTROL })
+        .border_color(if primary && enabled { theme().ok } else { border_default() })
+        .bg(if primary && enabled { theme().ok } else { bg_control() })
         .font_family(FONT_MONO)
         .text_size(font_px(11.0))
         .font_weight(FontWeight::BOLD)
         .text_color(color)
-        .when(enabled, |d| d.cursor_pointer().hover(move |s| if primary { s.bg(hex_rgb(0x32b55e)) } else { s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY) }))
+        .when(enabled, |d| d.cursor_pointer().hover(move |s| if primary { s.bg(hex_rgb(0x32b55e)) } else { s.bg(bg_row_hover()).text_color(text_primary()) }))
         .child(text.into())
 }
 
@@ -350,7 +350,7 @@ pub fn onboard_view(
         .size_full()
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         // 1. Top Screen Header (matches Settings → Personalisation)
         .child(
             div()
@@ -359,9 +359,9 @@ pub fn onboard_view(
                 .flex()
                 .items_center()
                 .px(px(16.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .flex_1()
@@ -375,7 +375,7 @@ pub fn onboard_view(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(16.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MAX)
+                                .text_color(text_max())
                                 .child(t!("onboard-add-server-2")),
                         )
                         .child(
@@ -384,7 +384,7 @@ pub fn onboard_view(
                                 .truncate()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.5))
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .child(t!("onboard-header-subtitle")),
                         ),
                 )
@@ -406,9 +406,9 @@ pub fn onboard_view(
                         .flex_none()
                         .flex()
                         .flex_col()
-                        .bg(BG_RAIL)
+                        .bg(bg_rail())
                         .border_r_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .pt(px(8.0))
                         // Group 1: Existing Server (SSH)
                         .child(
@@ -418,7 +418,7 @@ pub fn onboard_view(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_FAINT)
+                                .text_color(text_faint())
                                 .child(t!("onboard-nav-existing-ssh")),
                         )
                         .children(OnboardStep::ALL.iter().map(|step| {
@@ -437,10 +437,10 @@ pub fn onboard_view(
                                 .items_center()
                                 .gap(px(10.0))
                                 .px(px(12.0))
-                                .bg(if active { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
-                                .children(active.then(|| left_indicator(TEXT_PRIMARY)))
+                                .bg(if active { bg_nav_active() } else { hex_rgba(0, 0.0) })
+                                .children(active.then(|| left_indicator(text_primary())))
                                 .when(reachable || is_cloud, |d| {
-                                    d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER))
+                                    d.cursor_pointer().hover(|s| s.bg(bg_row_hover()))
                                 })
                                 .on_click(move |_ev, _window, cx| {
                                     if reachable {
@@ -460,11 +460,11 @@ pub fn onboard_view(
                                             tabler_icon(step.icon())
                                                 .size(px(14.0))
                                                 .text_color(if active {
-                                                    TEXT_PRIMARY
+                                                    text_primary()
                                                 } else if done {
-                                                    OK
+                                                    theme().ok
                                                 } else {
-                                                    TEXT_DIMMER
+                                                    text_dimmer()
                                                 }),
                                         ),
                                 )
@@ -477,16 +477,16 @@ pub fn onboard_view(
                                         .text_size(font_px(11.5))
                                         .font_weight(if active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
                                         .text_color(if active {
-                                            TEXT_PRIMARY
+                                            text_primary()
                                         } else if reachable {
-                                            TEXT_MUTED
+                                            text_muted()
                                         } else {
-                                            TEXT_FAINT
+                                            text_faint()
                                         })
                                         .child(format!("{}. {}", step.num(), step.label())),
                                 )
                                 .child(
-                                    mono(10.0, if done { OK } else { TEXT_FAINT })
+                                    mono(10.0, if done { theme().ok } else { text_faint() })
                                         .child(if done { "✓".to_string() } else { String::new() }),
                                 )
                         }))
@@ -497,11 +497,11 @@ pub fn onboard_view(
                                 .px(px(12.0))
                                 .py(px(6.0))
                                 .border_t_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_FAINT)
+                                .text_color(text_faint())
                                 .child(t!("onboard-nav-cloud-provision")),
                         )
                         .child(
@@ -514,10 +514,10 @@ pub fn onboard_view(
                                 .items_center()
                                 .gap(px(10.0))
                                 .px(px(12.0))
-                                .bg(if is_cloud { BG_NAV_ACTIVE } else { hex_rgba(0, 0.0) })
-                                .children(is_cloud.then(|| left_indicator(TEXT_PRIMARY)))
+                                .bg(if is_cloud { bg_nav_active() } else { hex_rgba(0, 0.0) })
+                                .children(is_cloud.then(|| left_indicator(text_primary())))
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_cloud.update(cx, |this, cx| this.onboard_set_mode(OnboardMode::CloudProvision, cx));
                                 })
@@ -531,7 +531,7 @@ pub fn onboard_view(
                                         .child(
                                             tabler_icon(TablerIcon::Cloud)
                                                 .size(px(14.0))
-                                                .text_color(if is_cloud { TEXT_PRIMARY } else { TEXT_DIMMER }),
+                                                .text_color(if is_cloud { text_primary() } else { text_dimmer() }),
                                         ),
                                 )
                                 .child(
@@ -542,11 +542,11 @@ pub fn onboard_view(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.5))
                                         .font_weight(if is_cloud { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                                        .text_color(if is_cloud { TEXT_PRIMARY } else { TEXT_MUTED })
+                                        .text_color(if is_cloud { text_primary() } else { text_muted() })
                                         .child(t!("onboard-nav-deploy-vm")),
                                 )
                                 .child(
-                                    mono(10.0, if prov_capable_count > 0 { OK } else { TEXT_FAINT })
+                                    mono(10.0, if prov_capable_count > 0 { theme().ok } else { text_faint() })
                                         .child(if prov_capable_count > 0 { format!("{prov_capable_count}") } else { String::new() }),
                                 ),
                         ),
@@ -558,7 +558,7 @@ pub fn onboard_view(
                         .min_w(px(0.0))
                         .flex()
                         .flex_col()
-                        .bg(BG_APP)
+                        .bg(bg_app())
                         // Section Subheader Bar (h=34, BG_PANEL)
                         .child(
                             div()
@@ -567,9 +567,9 @@ pub fn onboard_view(
                                 .flex()
                                 .items_center()
                                 .px(px(14.0))
-                                .bg(BG_PANEL)
+                                .bg(bg_panel())
                                 .border_b_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                                 .gap(px(10.0))
                                 .child(
                                     div()
@@ -577,11 +577,11 @@ pub fn onboard_view(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
                                         .font_weight(FontWeight::SEMIBOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(sec_title),
                                 )
                                 .children(is_cloud.then(|| {
-                                    crate::components::button::badge(OK)
+                                    crate::components::button::badge(theme().ok)
                                         .text_size(font_px(9.0))
                                         .child(t!("fleet-provision-ssh-vault-seeded"))
                                 }))
@@ -591,7 +591,7 @@ pub fn onboard_view(
                                         .truncate()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(sec_subtitle),
                                 ),
                         )
@@ -631,10 +631,10 @@ pub fn onboard_view(
                                         .children((!is_cloud && !is_boot_waiting).then(|| state.error_message.clone()).flatten().map(|e| {
                                             div()
                                                 .p(px(10.0))
-                                                .bg(CRIT.opacity(0.08))
+                                                .bg(theme().crit.opacity(0.08))
                                                 .border_1()
-                                                .border_color(CRIT.opacity(0.5))
-                                                .child(mono(11.0, CRIT).line_height(px(16.0)).child(e))
+                                                .border_color(theme().crit.opacity(0.5))
+                                                .child(mono(11.0, theme().crit).line_height(px(16.0)).child(e))
                                         })),
                                 ),
                         )
@@ -647,9 +647,9 @@ pub fn onboard_view(
                                 .gap(px(10.0))
                                 .h(px(48.0))
                                 .px(px(16.0))
-                                .bg(BG_PANEL)
+                                .bg(bg_panel())
                                 .border_t_1()
-                                .border_color(BORDER_PANEL)
+                                .border_color(border_panel())
                                 .when(!is_cloud && !is_boot_waiting && state.step != OnboardStep::Connect, |d| {
                                     d.child(
                                         button("btn-onboard-back", t!("onboard-back"), false, true)
@@ -664,8 +664,8 @@ pub fn onboard_view(
                                             .flex()
                                             .items_center()
                                             .gap(px(8.0))
-                                            .child(mono(10.5, OK).child("●"))
-                                            .child(mono(10.0, TEXT_SECONDARY).child(t!("onboard-boot-polling-live")))
+                                            .child(mono(10.5, theme().ok).child("●"))
+                                            .child(mono(10.0, text_secondary()).child(t!("onboard-boot-polling-live")))
                                             .into_any_element(),
                                         button("btn-onboard-boot-skip", t!("onboard-boot-skip-manual"), false, true)
                                             .on_click(move |_ev, _window, cx| app_skip.update(cx, |this, cx| this.skip_provision_boot_wait(cx)))
@@ -689,7 +689,7 @@ pub fn onboard_view(
                                     ]
                                 } else {
                                     vec![
-                                        mono(10.0, TEXT_FAINT)
+                                        mono(10.0, text_faint())
                                             .child(state.endpoint())
                                             .when(state.host.trim().is_empty(), |d| d.invisible())
                                             .into_any_element(),
@@ -711,9 +711,9 @@ pub fn onboard_view(
                         .flex_none()
                         .flex()
                         .flex_col()
-                        .bg(BG_RAIL)
+                        .bg(bg_rail())
                         .border_l_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .child(render_onboard_right_rail(
                             state,
                             fleet,
@@ -738,19 +738,19 @@ fn render_cloud_provision_center(
         let (app_prov, app_plug) = (app.clone(), app);
         return div()
             .p(px(16.0))
-            .bg(BG_PANEL)
+            .bg(bg_panel())
             .border_1()
-            .border_color(BORDER_PANEL)
+            .border_color(border_panel())
             .flex()
             .flex_col()
             .gap(px(12.0))
             .child(
-                mono(12.0, TEXT_PRIMARY)
+                mono(12.0, text_primary())
                     .font_weight(FontWeight::BOLD)
                     .child(t!("fleet-provision-no-providers-configured")),
             )
             .child(
-                mono(10.5, TEXT_DIM)
+                mono(10.5, text_dim())
                     .line_height(px(15.0))
                     .child(t!("onboard-cloud-empty-desc")),
             )
@@ -784,9 +784,9 @@ fn render_cloud_provision_center(
 
     div()
         .p(px(16.0))
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .child(crate::views::fleet::provision::render_provision_form_body(
             provision,
             provision_inputs,
@@ -803,9 +803,9 @@ fn render_boot_wait_center(_app: Entity<CrowApp>, bw: &BootWaitState) -> impl In
 
     div()
         .p(px(16.0))
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .flex()
         .flex_col()
         .gap(px(16.0))
@@ -824,13 +824,13 @@ fn render_boot_wait_center(_app: Entity<CrowApp>, bw: &BootWaitState) -> impl In
                             div()
                                 .size(px(32.0))
                                 .flex_none()
-                                .bg(BG_APP)
+                                .bg(bg_app())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .flex()
                                 .items_center()
                                 .justify_center()
-                                .child(tabler_icon(TablerIcon::Cloud).size(px(18.0)).text_color(OK)),
+                                .child(tabler_icon(TablerIcon::Cloud).size(px(18.0)).text_color(theme().ok)),
                         )
                         .child(
                             div()
@@ -843,21 +843,21 @@ fn render_boot_wait_center(_app: Entity<CrowApp>, bw: &BootWaitState) -> impl In
                                         .items_center()
                                         .gap(px(8.0))
                                         .child(
-                                            mono(13.0, TEXT_PRIMARY)
+                                            mono(13.0, text_primary())
                                                 .font_weight(FontWeight::BOLD)
                                                 .child(format!("{} · {}", bw.label, bw.provider_name)),
                                         )
                                         .child(
-                                            crate::components::button::badge(OK)
+                                            crate::components::button::badge(theme().ok)
                                                 .text_size(font_px(9.0))
                                                 .child(bw.region_code.clone()),
                                         ),
                                 )
-                                .child(mono(10.5, TEXT_DIM).child(t!("onboard-boot-waiting-desc"))),
+                                .child(mono(10.5, text_dim()).child(t!("onboard-boot-waiting-desc"))),
                         ),
                 )
                 .child(
-                    mono(11.0, TEXT_SECONDARY)
+                    mono(11.0, text_secondary())
                         .font_weight(FontWeight::SEMIBOLD)
                         .child(format!("{}:22", bw.host)),
                 ),
@@ -874,12 +874,12 @@ fn render_boot_wait_center(_app: Entity<CrowApp>, bw: &BootWaitState) -> impl In
                         .items_center()
                         .justify_between()
                         .child(
-                            mono(10.0, TEXT_DIM)
+                            mono(10.0, text_dim())
                                 .font_weight(FontWeight::BOLD)
                                 .child(t!("onboard-boot-polling-title", interval = 4)),
                         )
                         .child(
-                            mono(9.5, if bw.done { OK } else { TEXT_FAINT })
+                            mono(9.5, if bw.done { theme().ok } else { text_faint() })
                                 .child(if bw.done {
                                     "SSH Ready".to_string()
                                 } else {
@@ -891,9 +891,9 @@ fn render_boot_wait_center(_app: Entity<CrowApp>, bw: &BootWaitState) -> impl In
                     div()
                         .w_full()
                         .h(px(8.0))
-                        .bg(BG_APP)
+                        .bg(bg_app())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .p(px(1.0))
                         .flex()
                         .gap(px(2.0))
@@ -909,7 +909,7 @@ fn render_boot_wait_center(_app: Entity<CrowApp>, bw: &BootWaitState) -> impl In
                             div()
                                 .flex_1()
                                 .h_full()
-                                .bg(if bw.done { OK } else { OK.opacity(op) })
+                                .bg(if bw.done { theme().ok } else { theme().ok.opacity(op) })
                         })),
                 ),
         )
@@ -920,7 +920,7 @@ fn render_boot_wait_center(_app: Entity<CrowApp>, bw: &BootWaitState) -> impl In
                 .flex_col()
                 .gap(px(6.0))
                 .child(
-                    mono(10.0, TEXT_DIM)
+                    mono(10.0, text_dim())
                         .font_weight(FontWeight::BOLD)
                         .child(t!("onboard-boot-terminal-log")),
                 )
@@ -930,9 +930,9 @@ fn render_boot_wait_center(_app: Entity<CrowApp>, bw: &BootWaitState) -> impl In
                         .w_full()
                         .h(px(240.0))
                         .overflow_y_scrollbar()
-                        .bg(BG_APP)
+                        .bg(bg_app())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .p(px(10.0))
                         .flex()
                         .flex_col()
@@ -943,7 +943,7 @@ fn render_boot_wait_center(_app: Entity<CrowApp>, bw: &BootWaitState) -> impl In
                                 .items_start()
                                 .gap(px(8.0))
                                 .child(
-                                    mono(9.5, TEXT_FAINT)
+                                    mono(9.5, text_faint())
                                         .flex_none()
                                         .child(format!("[{}]", log.timestamp)),
                                 )
@@ -973,8 +973,8 @@ fn summary_row(k: impl Into<SharedString>, v: impl Into<SharedString>, v_color: 
         .gap(px(10.0))
         .py(px(6.0))
         .border_b_1()
-        .border_color(BORDER_ROW)
-        .child(mono(9.5, TEXT_FAINT).font_weight(FontWeight::BOLD).child(k.into()))
+        .border_color(border_row())
+        .child(mono(9.5, text_faint()).font_weight(FontWeight::BOLD).child(k.into()))
         .child(mono(10.5, v_color).truncate().child(v.into()))
 }
 
@@ -1009,30 +1009,30 @@ fn render_onboard_right_rail(
             .child(
                 div()
                     .p(px(12.0))
-                    .bg(BG_PANEL)
+                    .bg(bg_panel())
                     .border_1()
-                    .border_color(BORDER_PANEL)
+                    .border_color(border_panel())
                     .flex()
                     .flex_col()
-                    .child(summary_row(t!("onboard-summary-endpoint"), format!("{}:22", bw.host), TEXT_PRIMARY))
-                    .child(summary_row(t!("fleet-provision-provider-account"), bw.provider_name.clone(), TEXT_PRIMARY))
-                    .child(summary_row(t!("fleet-provision-instance-label"), bw.label.clone(), TEXT_PRIMARY))
-                    .child(summary_row(t!("fleet-provision-region"), bw.region_code.clone(), TEXT_SECONDARY))
-                    .child(summary_row(t!("fleet-provision-vault-ssh-key"), key_name, OK))
+                    .child(summary_row(t!("onboard-summary-endpoint"), format!("{}:22", bw.host), text_primary()))
+                    .child(summary_row(t!("fleet-provision-provider-account"), bw.provider_name.clone(), text_primary()))
+                    .child(summary_row(t!("fleet-provision-instance-label"), bw.label.clone(), text_primary()))
+                    .child(summary_row(t!("fleet-provision-region"), bw.region_code.clone(), text_secondary()))
+                    .child(summary_row(t!("fleet-provision-vault-ssh-key"), key_name, theme().ok))
                     .child(summary_row(
                         "STATUS",
                         if bw.done { "SSH Ready".to_string() } else { format!("Polling #{}", bw.attempt) },
-                        if bw.done { OK } else { WARN },
+                        if bw.done { theme().ok } else { theme().warn },
                     )),
             )
             .child(
                 div()
                     .p(px(12.0))
-                    .bg(BG_PANEL)
+                    .bg(bg_panel())
                     .border_1()
-                    .border_color(BORDER_PANEL)
+                    .border_color(border_panel())
                     .child(
-                        mono(10.0, TEXT_DIM)
+                        mono(10.0, text_dim())
                             .line_height(px(15.0))
                             .child(t!("onboard-summary-auto-enroll-note")),
                     ),
@@ -1066,47 +1066,47 @@ fn render_onboard_right_rail(
             .child(
                 div()
                     .p(px(12.0))
-                    .bg(BG_PANEL)
+                    .bg(bg_panel())
                     .border_1()
-                    .border_color(BORDER_PANEL)
+                    .border_color(border_panel())
                     .flex()
                     .flex_col()
-                    .child(summary_row(t!("fleet-provision-provider-account"), acct_name, TEXT_PRIMARY))
+                    .child(summary_row(t!("fleet-provision-provider-account"), acct_name, text_primary()))
                     .child(summary_row(
                         t!("fleet-provision-instance-label"),
                         if provision.label.trim().is_empty() { "—".to_string() } else { provision.label.clone() },
-                        TEXT_PRIMARY,
+                        text_primary(),
                     ))
                     .child(summary_row(
                         t!("fleet-provision-region"),
                         if provision.region.is_empty() { "—".to_string() } else { provision.region.clone() },
-                        TEXT_SECONDARY,
+                        text_secondary(),
                     ))
                     .child(summary_row(
                         t!("fleet-provision-plan"),
                         if provision.plan.is_empty() { "—".to_string() } else { provision.plan.clone() },
-                        TEXT_SECONDARY,
+                        text_secondary(),
                     ))
                     .child(summary_row(
                         t!("fleet-provision-image"),
                         if provision.image.is_empty() { "—".to_string() } else { provision.image.clone() },
-                        TEXT_SECONDARY,
+                        text_secondary(),
                     ))
-                    .child(summary_row(t!("fleet-provision-vault-ssh-key"), key_name, OK))
+                    .child(summary_row(t!("fleet-provision-vault-ssh-key"), key_name, theme().ok))
                     .child(summary_row(
                         t!("onboard-tags"),
                         if provision.tags.trim().is_empty() { "—".to_string() } else { provision.tags.clone() },
-                        TEXT_DIM,
+                        text_dim(),
                     )),
             )
             .child(
                 div()
                     .p(px(12.0))
-                    .bg(BG_PANEL)
+                    .bg(bg_panel())
                     .border_1()
-                    .border_color(BORDER_PANEL)
+                    .border_color(border_panel())
                     .child(
-                        mono(10.0, TEXT_DIM)
+                        mono(10.0, text_dim())
                             .line_height(px(15.0))
                             .child(t!("onboard-summary-auto-enroll-note")),
                     ),
@@ -1137,13 +1137,13 @@ fn render_onboard_right_rail(
             _ => t!("onboard-a-password-once").to_string(),
         };
         let (hk_text, hk_color) = if state.host_key_accepted {
-            (t!("onboard-host-key-trusted").to_string(), OK)
+            (t!("onboard-host-key-trusted").to_string(), theme().ok)
         } else if state.probe_result.as_ref().is_some_and(|r| r.host_key_mismatch) {
-            (t!("onboard-host-key-changed-not-trusted").to_string(), CRIT)
+            (t!("onboard-host-key-changed-not-trusted").to_string(), theme().crit)
         } else if state.probe_result.is_some() {
-            (t!("onboard-host-key-new-to-this").to_string(), WARN)
+            (t!("onboard-host-key-new-to-this").to_string(), theme().warn)
         } else {
-            (t!("onboard-not-checked-yet").to_string(), TEXT_DIM)
+            (t!("onboard-not-checked-yet").to_string(), text_dim())
         };
 
         div()
@@ -1154,18 +1154,18 @@ fn render_onboard_right_rail(
             .child(
                 div()
                     .p(px(12.0))
-                    .bg(BG_PANEL)
+                    .bg(bg_panel())
                     .border_1()
-                    .border_color(BORDER_PANEL)
+                    .border_color(border_panel())
                     .flex()
                     .flex_col()
-                    .child(summary_row(t!("onboard-summary-endpoint"), ep, TEXT_PRIMARY))
+                    .child(summary_row(t!("onboard-summary-endpoint"), ep, text_primary()))
                     .child(summary_row(
                         t!("onboard-summary-route"),
                         route,
-                        if state.jump_host_id.is_some() { BASTION_BLUE } else { TEXT_SECONDARY },
+                        if state.jump_host_id.is_some() { BASTION_BLUE } else { text_secondary() },
                     ))
-                    .child(summary_row(t!("onboard-summary-auth"), auth, TEXT_SECONDARY))
+                    .child(summary_row(t!("onboard-summary-auth"), auth, text_secondary()))
                     .child(summary_row(t!("onboard-summary-host-key"), hk_text, hk_color))
                     .child(summary_row(
                         t!("onboard-name-2"),
@@ -1174,17 +1174,17 @@ fn render_onboard_right_rail(
                         } else {
                             state.label.trim().to_string()
                         },
-                        TEXT_PRIMARY,
+                        text_primary(),
                     ))
                     .child(summary_row(
                         t!("onboard-environment"),
                         if state.env.is_empty() { "—".to_string() } else { state.env.clone() },
-                        TEXT_SECONDARY,
+                        text_secondary(),
                     ))
                     .child(summary_row(
                         t!("onboard-group"),
                         if state.group.is_empty() { "—".to_string() } else { state.group.clone() },
-                        TEXT_SECONDARY,
+                        text_secondary(),
                     )),
             )
             .when(!state.probe_logs.is_empty(), |d| {
@@ -1196,15 +1196,15 @@ fn render_onboard_right_rail(
                             .flex_col()
                             .gap(px(4.0))
                             .p(px(10.0))
-                            .bg(BG_PANEL)
+                            .bg(bg_panel())
                             .border_1()
-                            .border_color(BORDER_PANEL)
+                            .border_color(border_panel())
                             .children(state.probe_logs.iter().map(|l| {
                                 div()
                                     .flex()
                                     .gap(px(6.0))
                                     .child(mono(9.5, l.color).flex_none().w(px(10.0)).child(l.glyph.clone()))
-                                    .child(mono(10.0, TEXT_SECONDARY).flex_1().min_w(px(0.0)).line_height(px(14.0)).child(l.message.clone()))
+                                    .child(mono(10.0, text_secondary()).flex_1().min_w(px(0.0)).line_height(px(14.0)).child(l.message.clone()))
                             })),
                     ),
                 )
@@ -1223,11 +1223,11 @@ fn render_onboard_right_rail(
                 .flex()
                 .items_center()
                 .px(px(14.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
-                    mono(10.5, TEXT_PRIMARY)
+                    mono(10.5, text_primary())
                         .font_weight(FontWeight::SEMIBOLD)
                         .child(header_title),
                 ),
@@ -1254,14 +1254,14 @@ fn step_connect(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fl
         .flex()
         .flex_col()
         .gap(px(18.0))
-        .child(div().flex().flex_col().gap(px(4.0)).child(mono(14.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(t!("onboard-where-is-it-and-how"))).child(hint(t!("onboard-crow-connects-over-ssh-and"))))
+        .child(div().flex().flex_col().gap(px(4.0)).child(mono(14.0, text_primary()).font_weight(FontWeight::BOLD).child(t!("onboard-where-is-it-and-how"))).child(hint(t!("onboard-crow-connects-over-ssh-and"))))
         // Lab containers on this machine, one click away.
         .when(!local_lab.nodes.is_empty(), |d| {
             d.child(labeled(
                 t!("onboard-or-a-lab-container-on"),
                 div().flex().flex_wrap().gap(px(6.0)).children(local_lab.nodes.iter().enumerate().map(|(i, node)| {
                     let (app, name, port, distro) = (app.clone(), node.name.clone(), node.ssh_port.unwrap_or(2222).to_string(), node.distro_display());
-                    chip(format!("onboard-lab-{i}"), format!("{} · {}", node.name, distro), false, OK).on_click(move |_ev, _window, cx| {
+                    chip(format!("onboard-lab-{i}"), format!("{} · {}", node.name, distro), false, theme().ok).on_click(move |_ev, _window, cx| {
                         let (name, port, distro) = (name.clone(), port.clone(), distro.clone());
                         app.update(cx, |this, cx| this.onboard_select_local_lab_node(&name, &port, &distro, cx))
                     })
@@ -1288,7 +1288,7 @@ fn step_connect(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fl
                         .flex()
                         .flex_wrap()
                         .gap(px(6.0))
-                        .child(chip("onboard-route-direct", t!("onboard-directly"), state.jump_host_id.is_none(), OK).on_click(move |_ev, _window, cx| {
+                        .child(chip("onboard-route-direct", t!("onboard-directly"), state.jump_host_id.is_none(), theme().ok).on_click(move |_ev, _window, cx| {
                             app_direct.update(cx, |this, cx| {
                                 this.onboard_state.jump_host_id = None;
                                 cx.notify();
@@ -1340,7 +1340,7 @@ fn step_connect(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fl
                             .gap(px(6.0))
                             .children(keys.enrolled.iter().map(|k| {
                                 let (app, id) = (app.clone(), k.id.clone());
-                                chip(format!("onboard-key-{}", k.id), format!("{} · {}", k.name, k.algorithm), state.selected_key_id.as_deref() == Some(k.id.as_str()), OK).on_click(move |_ev, _window, cx| {
+                                chip(format!("onboard-key-{}", k.id), format!("{} · {}", k.name, k.algorithm), state.selected_key_id.as_deref() == Some(k.id.as_str()), theme().ok).on_click(move |_ev, _window, cx| {
                                     let id = id.clone();
                                     app.update(cx, |this, cx| {
                                         this.onboard_state.selected_key_id = Some(id);
@@ -1365,14 +1365,14 @@ fn step_verify(app: Entity<CrowApp>, state: &OnboardState, fleet: &FleetState) -
     let result = state.probe_result.as_ref();
     let (app_recheck, app_accept) = (app.clone(), app.clone());
     let headline: (Rgba, String) = match result {
-        _ if state.is_probing && result.is_none() => (TEXT_DIM, t!("onboard-checking").into()),
-        None => (TEXT_DIM, t!("onboard-not-checked-yet").into()),
-        Some(r) if !r.is_reachable => (CRIT, t!("onboard-couldnt-reach-it", r = r.error.clone().unwrap_or_else(|| t!("onboard-no-answer").into()))),
-        Some(_) if state.is_probing => (TEXT_DIM, t!("onboard-logging-in-and-reading-the").into()),
-        Some(_) if state.logged_in() => (OK, t!("onboard-reached-host-key-trusted-logged").into()),
-        Some(_) if state.host_key_accepted => (WARN, t!("onboard-the-host-key-is-trusted").into()),
-        Some(r) if r.host_key_mismatch => (CRIT, t!("onboard-the-host-key-changed-since").into()),
-        Some(_) => (WARN, t!("onboard-reached-check-the-host-key").into()),
+        _ if state.is_probing && result.is_none() => (text_dim(), t!("onboard-checking").into()),
+        None => (text_dim(), t!("onboard-not-checked-yet").into()),
+        Some(r) if !r.is_reachable => (theme().crit, t!("onboard-couldnt-reach-it", r = r.error.clone().unwrap_or_else(|| t!("onboard-no-answer").into()))),
+        Some(_) if state.is_probing => (text_dim(), t!("onboard-logging-in-and-reading-the").into()),
+        Some(_) if state.logged_in() => (theme().ok, t!("onboard-reached-host-key-trusted-logged").into()),
+        Some(_) if state.host_key_accepted => (theme().warn, t!("onboard-the-host-key-is-trusted").into()),
+        Some(r) if r.host_key_mismatch => (theme().crit, t!("onboard-the-host-key-changed-since").into()),
+        Some(_) => (theme().warn, t!("onboard-reached-check-the-host-key").into()),
     };
     div()
         .flex()
@@ -1390,7 +1390,7 @@ fn step_verify(app: Entity<CrowApp>, state: &OnboardState, fleet: &FleetState) -
                         .flex()
                         .flex_col()
                         .gap(px(4.0))
-                        .child(mono(14.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(state.endpoint()))
+                        .child(mono(14.0, text_primary()).font_weight(FontWeight::BOLD).child(state.endpoint()))
                         .children(via.map(|v| mono(10.5, BASTION_BLUE).child(t!("onboard-through", v = v))))
                         .child(mono(11.5, headline.0).line_height(px(16.0)).child(headline.1)),
                 )
@@ -1399,11 +1399,11 @@ fn step_verify(app: Entity<CrowApp>, state: &OnboardState, fleet: &FleetState) -
         // The host key: what the server presented, and whether it's trusted.
         .children(result.filter(|r| !r.scanned_keys.is_empty()).map(|r| {
             let (border, title) = if state.host_key_accepted {
-                (OK, t!("onboard-host-key-trusted"))
+                (theme().ok, t!("onboard-host-key-trusted"))
             } else if r.host_key_mismatch {
-                (CRIT, t!("onboard-host-key-changed-not-trusted"))
+                (theme().crit, t!("onboard-host-key-changed-not-trusted"))
             } else {
-                (WARN, t!("onboard-host-key-new-to-this"))
+                (theme().warn, t!("onboard-host-key-new-to-this"))
             };
             let (hash, kind) = match r.host_key_fingerprint.rsplit_once(" (") {
                 Some((h, k)) => (h.to_string(), k.trim_end_matches(')').to_string()),
@@ -1418,8 +1418,8 @@ fn step_verify(app: Entity<CrowApp>, state: &OnboardState, fleet: &FleetState) -
                 .border_color(border.opacity(0.6))
                 .bg(border.opacity(0.05))
                 .child(mono(10.0, border).font_weight(FontWeight::BOLD).child(title))
-                .child(mono(12.5, TEXT_PRIMARY).child(hash))
-                .child(mono(9.5, TEXT_FAINT).child(kind))
+                .child(mono(12.5, text_primary()).child(hash))
+                .child(mono(9.5, text_faint()).child(kind))
                 .when(!state.host_key_accepted && !r.host_key_mismatch, |d| {
                     d.child(hint(t!("onboard-compare-it-with-the-servers")))
                         .child(div().flex().child(button("btn-accept-host-key", t!("onboard-it-matches-trust-it"), true, !state.is_probing).on_click(move |_ev, _window, cx| app_accept.update(cx, |this, cx| this.onboard_accept_host_key(cx)))))
@@ -1432,14 +1432,14 @@ fn step_verify(app: Entity<CrowApp>, state: &OnboardState, fleet: &FleetState) -
         .when(!state.probe_logs.is_empty(), |d| {
             d.child(labeled(
                 t!("onboard-log"),
-                div().flex().flex_col().gap(px(3.0)).p(px(10.0)).bg(BG_PANEL).border_1().border_color(BORDER_PANEL).children(state.probe_logs.iter().map(|l| {
+                div().flex().flex_col().gap(px(3.0)).p(px(10.0)).bg(bg_panel()).border_1().border_color(border_panel()).children(state.probe_logs.iter().map(|l| {
                     div()
                         .flex()
                         .gap(px(8.0))
-                        .child(mono(10.0, TEXT_FAINT).flex_none().child(l.timestamp.clone()))
+                        .child(mono(10.0, text_faint()).flex_none().child(l.timestamp.clone()))
                         .child(mono(10.0, l.color).flex_none().w(px(12.0)).child(l.glyph.clone()))
-                        .child(mono(10.5, TEXT_SECONDARY).flex_1().min_w(px(0.0)).line_height(px(15.0)).child(l.message.clone()))
-                        .when(!l.note.is_empty(), |d| d.child(mono(9.5, TEXT_FAINT).flex_none().child(l.note.clone())))
+                        .child(mono(10.5, text_secondary()).flex_1().min_w(px(0.0)).line_height(px(15.0)).child(l.message.clone()))
+                        .when(!l.note.is_empty(), |d| d.child(mono(9.5, text_faint()).flex_none().child(l.note.clone())))
                 })),
             ))
         })
@@ -1465,16 +1465,16 @@ fn facts_grid(f: &DetectedFacts) -> impl IntoElement {
             .flex_col()
             .gap(px(8.0))
             .p(px(12.0))
-            .bg(BG_PANEL)
+            .bg(bg_panel())
             .border_1()
-            .border_color(BORDER_PANEL)
+            .border_color(border_panel())
             .child(div().flex().flex_wrap().gap_y(px(8.0)).children(rows.into_iter().map(|(k, v)| {
-                div().w(px(250.0)).flex().gap(px(8.0)).child(mono(9.5, TEXT_FAINT).w(px(78.0)).flex_none().child(k)).child(mono(10.5, TEXT_SECONDARY).flex_1().min_w(px(0.0)).overflow_hidden().text_ellipsis().whitespace_nowrap().child(v))
+                div().w(px(250.0)).flex().gap(px(8.0)).child(mono(9.5, text_faint()).w(px(78.0)).flex_none().child(k)).child(mono(10.5, text_secondary()).flex_1().min_w(px(0.0)).overflow_hidden().text_ellipsis().whitespace_nowrap().child(v))
             })))
             .when(!f.schema_packs.is_empty(), |d| {
-                d.child(div().flex().flex_wrap().gap(px(4.0)).child(mono(9.5, TEXT_FAINT).mr(px(4.0)).child(t!("onboard-config-tools"))).children(f.schema_packs.iter().map(|(name, fg, bg)| div().px(px(5.0)).py(px(1.0)).bg(*bg).font_family(FONT_MONO).text_size(font_px(9.5)).text_color(*fg).child(name.clone()))))
+                d.child(div().flex().flex_wrap().gap(px(4.0)).child(mono(9.5, text_faint()).mr(px(4.0)).child(t!("onboard-config-tools"))).children(f.schema_packs.iter().map(|(name, fg, bg)| div().px(px(5.0)).py(px(1.0)).bg(*bg).font_family(FONT_MONO).text_size(font_px(9.5)).text_color(*fg).child(name.clone()))))
             })
-            .when(!family.is_supported(), |d| d.child(mono(10.0, WARN).line_height(px(14.0)).child(t!("onboard-crow-knows-debian-and-red")))),
+            .when(!family.is_supported(), |d| d.child(mono(10.0, theme().warn).line_height(px(14.0)).child(t!("onboard-crow-knows-debian-and-red")))),
     )
 }
 
@@ -1486,9 +1486,9 @@ fn step_name(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fleet
     let app_bastion = app.clone();
     let envs = ["PROD", "STAGE", "DEV", "LAB"];
     let env_color = |e: &str| match e {
-        "PROD" => CRIT,
-        "STAGE" => WARN,
-        _ => OK,
+        "PROD" => theme().crit,
+        "STAGE" => theme().warn,
+        _ => theme().ok,
     };
     let via = state.jump_host_id.as_deref().map(|b| crate::app::bastions::route(b, &fleet.servers));
     let login = match state.auth_method.as_str() {
@@ -1500,13 +1500,13 @@ fn step_name(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fleet
         .flex()
         .flex_col()
         .gap(px(18.0))
-        .child(div().flex().flex_col().gap(px(4.0)).child(mono(14.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(t!("onboard-how-should-it-show-in"))).child(hint(t!("onboard-all-of-this-can-be"))))
+        .child(div().flex().flex_col().gap(px(4.0)).child(mono(14.0, text_primary()).font_weight(FontWeight::BOLD).child(t!("onboard-how-should-it-show-in"))).child(hint(t!("onboard-all-of-this-can-be"))))
         .child(div().max_w(px(420.0)).child(labeled(t!("onboard-name-2"), field(inputs, OnboardFieldFocus::Label))))
         .child(labeled(
             t!("onboard-environment"),
             div().flex().gap(px(6.0)).child({
                 let app = app.clone();
-                chip("onboard-env-none", "none", state.env.is_empty(), TEXT_DIM).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.onboard_set_env("", cx)))
+                chip("onboard-env-none", "none", state.env.is_empty(), text_dim()).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.onboard_set_env("", cx)))
             })
             .children(envs.iter().map(|e| {
                 let app = app.clone();
@@ -1518,11 +1518,11 @@ fn step_name(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fleet
             t!("onboard-group"),
             div().flex().flex_wrap().gap(px(6.0)).child({
                 let app = app.clone();
-                chip("onboard-group-none", "none", state.group.is_empty(), TEXT_DIM).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.onboard_set_group("", cx)))
+                chip("onboard-group-none", "none", state.group.is_empty(), text_dim()).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.onboard_set_group("", cx)))
             })
             .children(fleet.groups.iter().map(|g| {
                 let (app, name) = (app.clone(), g.clone());
-                chip(format!("onboard-group-{g}"), g.clone(), state.group == *g, OK).on_click(move |_ev, _window, cx| {
+                chip(format!("onboard-group-{g}"), g.clone(), state.group == *g, theme().ok).on_click(move |_ev, _window, cx| {
                     let name = name.clone();
                     app.update(cx, |this, cx| this.onboard_set_group(&name, cx))
                 })
@@ -1551,12 +1551,12 @@ fn step_name(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fleet
                         .p(px(2.0))
                         .flex()
                         .when(state.make_bastion, |d| d.justify_end())
-                        .bg(if state.make_bastion { BASTION_BLUE.opacity(0.25) } else { BG_CONTROL })
+                        .bg(if state.make_bastion { BASTION_BLUE.opacity(0.25) } else { bg_control() })
                         .border_1()
-                        .border_color(if state.make_bastion { BASTION_BLUE } else { BORDER_STRONG })
-                        .child(div().size(px(10.0)).rounded_full().bg(if state.make_bastion { BASTION_BLUE } else { TEXT_DIM })),
+                        .border_color(if state.make_bastion { BASTION_BLUE } else { border_strong() })
+                        .child(div().size(px(10.0)).rounded_full().bg(if state.make_bastion { BASTION_BLUE } else { text_dim() })),
                 )
-                .child(div().flex().flex_col().gap(px(2.0)).child(mono(11.0, if state.make_bastion { TEXT_PRIMARY } else { TEXT_SECONDARY }).font_weight(FontWeight::BOLD).child(t!("onboard-bastion"))).child(hint(t!("onboard-other-servers-can-be-added")))),
+                .child(div().flex().flex_col().gap(px(2.0)).child(mono(11.0, if state.make_bastion { text_primary() } else { text_secondary() }).font_weight(FontWeight::BOLD).child(t!("onboard-bastion"))).child(hint(t!("onboard-other-servers-can-be-added")))),
         )
         // What's about to be added.
         .child(
@@ -1565,11 +1565,11 @@ fn step_name(app: Entity<CrowApp>, inputs: Option<&OnboardInputs>, fleet: &Fleet
                 .flex_col()
                 .gap(px(4.0))
                 .p(px(12.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_PANEL)
-                .child(mono(11.0, TEXT_PRIMARY).child(format!("{} · {}", if state.label.trim().is_empty() { state.host.trim() } else { state.label.trim() }, state.endpoint())))
-                .child(mono(10.0, TEXT_DIM).child(t!("onboard-logs-in-with", via = via.map(|v| t!("onboard-through-2", v = v)).unwrap_or_default(), login = login, state = if state.env.is_empty() { String::new() } else { format!(" · {}", state.env) }, state2 = if state.group.is_empty() { String::new() } else { t!("onboard-group-2", group = state.group) })))
-                .when(!state.logged_in(), |d| d.child(mono(10.0, WARN).child(t!("onboard-crow-couldnt-log-in-yet")))),
+                .border_color(border_panel())
+                .child(mono(11.0, text_primary()).child(format!("{} · {}", if state.label.trim().is_empty() { state.host.trim() } else { state.label.trim() }, state.endpoint())))
+                .child(mono(10.0, text_dim()).child(t!("onboard-logs-in-with", via = via.map(|v| t!("onboard-through-2", v = v)).unwrap_or_default(), login = login, state = if state.env.is_empty() { String::new() } else { format!(" · {}", state.env) }, state2 = if state.group.is_empty() { String::new() } else { t!("onboard-group-2", group = state.group) })))
+                .when(!state.logged_in(), |d| d.child(mono(10.0, theme().warn).child(t!("onboard-crow-couldnt-log-in-yet")))),
         )
 }

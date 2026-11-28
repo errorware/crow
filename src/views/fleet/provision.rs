@@ -40,9 +40,9 @@ pub fn provision_panel(
                 .max_h(px(680.0))
                 .flex()
                 .flex_col()
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_DEFAULT)
+                .border_color(border_default())
                 .shadow_lg()
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
                 .child(
@@ -55,7 +55,7 @@ pub fn provision_panel(
                         .justify_between()
                         .px(px(16.0))
                         .border_b_1()
-                        .border_color(BORDER_ROW)
+                        .border_color(border_row())
                         .child(
                             div()
                                 .flex()
@@ -67,11 +67,11 @@ pub fn provision_panel(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(12.5))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(t!("fleet-provision-modal-title")),
                                 )
                                 .child(
-                                    crate::components::button::badge(OK)
+                                    crate::components::button::badge(theme().ok)
                                         .text_size(font_px(9.0))
                                         .child(t!("fleet-provision-ssh-vault-seeded")),
                                 ),
@@ -101,9 +101,9 @@ pub fn provision_panel(
                         .gap(px(10.0))
                         .px(px(16.0))
                         .border_t_1()
-                        .border_color(BORDER_ROW)
+                        .border_color(border_row())
                         .child(
-                            action_btn("btn-provision-cancel", t!("common-cancel").into(), TEXT_SECONDARY, true, move |cx| {
+                            action_btn("btn-provision-cancel", t!("common-cancel").into(), text_secondary(), true, move |cx| {
                                 a_cancel.update(cx, |this, cx| this.close_provision(cx));
                             }),
                         )
@@ -115,7 +115,7 @@ pub fn provision_panel(
                                 } else {
                                     t!("fleet-provision-launch-instance").into()
                                 },
-                                OK,
+                                theme().ok,
                                 !state.provisioning && !state.loading_catalog,
                                 move |cx| {
                                     a_submit.update(cx, |this, cx| this.submit_provision(cx));
@@ -143,10 +143,10 @@ pub fn render_provision_form_body(
         .children(state.error.as_ref().map(|err| {
             div()
                 .p(px(10.0))
-                .bg(CRIT.opacity(0.1))
+                .bg(theme().crit.opacity(0.1))
                 .border_1()
-                .border_color(CRIT.opacity(0.4))
-                .text_color(CRIT)
+                .border_color(theme().crit.opacity(0.4))
+                .text_color(theme().crit)
                 .text_size(font_px(10.5))
                 .child(format!("⚠ {err}"))
         }))
@@ -163,7 +163,7 @@ pub fn render_provision_form_body(
                     .items_center()
                     .justify_center()
                     .gap(px(8.0))
-                    .text_color(TEXT_DIMMER)
+                    .text_color(text_dimmer())
                     .child(inherited_icon(TablerIcon::Refresh, font_px(14.0)))
                     .child(t!("fleet-provision-loading-catalog")),
             )
@@ -255,7 +255,7 @@ fn render_account_section(state: &ProvisionState, accounts: &[ProviderAccount], 
         .gap(px(6.0))
         .child(
             div()
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .font_weight(FontWeight::BOLD)
                 .text_size(font_px(10.0))
                 .child(t!("fleet-provision-provider-account")),
@@ -291,7 +291,7 @@ fn render_label_section(inputs: Option<&ProvisionInputs>) -> impl IntoElement {
         .max_w(px(420.0))
         .child(
             div()
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .font_weight(FontWeight::BOLD)
                 .text_size(font_px(10.0))
                 .child(t!("fleet-provision-instance-label")),
@@ -299,7 +299,7 @@ fn render_label_section(inputs: Option<&ProvisionInputs>) -> impl IntoElement {
         .children(inputs.map(|i| {
             div()
                 .w_full()
-                .child(Input::new(&i.label).font_family(FONT_MONO).text_size(font_px(12.0)).bg(BG_APP).rounded(px(2.0)))
+                .child(Input::new(&i.label).font_family(FONT_MONO).text_size(font_px(12.0)).bg(bg_app()).rounded(px(2.0)))
         }))
 }
 
@@ -311,7 +311,7 @@ fn render_tags_section(inputs: Option<&ProvisionInputs>) -> impl IntoElement {
         .max_w(px(420.0))
         .child(
             div()
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .font_weight(FontWeight::BOLD)
                 .text_size(font_px(10.0))
                 .child(t!("fleet-provision-tags")),
@@ -319,7 +319,7 @@ fn render_tags_section(inputs: Option<&ProvisionInputs>) -> impl IntoElement {
         .children(inputs.map(|i| {
             div()
                 .w_full()
-                .child(Input::new(&i.tags).font_family(FONT_MONO).text_size(font_px(12.0)).bg(BG_APP).rounded(px(2.0)))
+                .child(Input::new(&i.tags).font_family(FONT_MONO).text_size(font_px(12.0)).bg(bg_app()).rounded(px(2.0)))
         }))
 }
 
@@ -382,14 +382,14 @@ fn render_options_section(
                 .justify_between()
                 .child(
                     div()
-                        .text_color(TEXT_DIM)
+                        .text_color(text_dim())
                         .font_weight(FontWeight::BOLD)
                         .text_size(font_px(10.0))
                         .child(title.to_string()),
                 )
                 .child(
                     div()
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .text_size(font_px(9.5))
                         .child(if filtered_count == total_count {
                             format!("{total_count}")
@@ -415,13 +415,13 @@ fn render_options_section(
                             .px(px(8.0))
                             .py(px(3.0))
                             .border_1()
-                            .border_color(if is_cat_sel { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
-                            .bg(if is_cat_sel { BG_CONTROL_ALT } else { BG_APP })
+                            .border_color(if is_cat_sel { border_control_sel() } else { border_default() })
+                            .bg(if is_cat_sel { bg_control_alt() } else { bg_app() })
                             .flex()
                             .items_center()
                             .gap(px(5.0))
                             .cursor_pointer()
-                            .hover(|s| s.border_color(BORDER_STRONG).bg(BG_ROW_HOVER))
+                            .hover(|s| s.border_color(border_strong()).bg(bg_row_hover()))
                             .on_click(move |_ev, _window, cx| {
                                 on_cat(app_cat.clone(), cat_key.to_string(), cx);
                             })
@@ -430,14 +430,14 @@ fn render_options_section(
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(10.0))
                                     .font_weight(if is_cat_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                    .text_color(if is_cat_sel { TEXT_MAX } else { TEXT_SECONDARY })
+                                    .text_color(if is_cat_sel { text_max() } else { text_secondary() })
                                     .child(cat_label),
                             )
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(9.0))
-                                    .text_color(if is_cat_sel { TEXT_PRIMARY } else { TEXT_FAINT })
+                                    .text_color(if is_cat_sel { text_primary() } else { text_faint() })
                                     .child(format!("{count}")),
                             )
                     })),
@@ -450,15 +450,15 @@ fn render_options_section(
                 .w_full()
                 .h(px(32.0))
                 .px(px(10.0))
-                .bg(BG_APP)
+                .bg(bg_app())
                 .border_1()
-                .border_color(if is_open { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
+                .border_color(if is_open { border_control_sel() } else { border_default() })
                 .flex()
                 .items_center()
                 .justify_between()
                 .gap(px(8.0))
                 .cursor_pointer()
-                .hover(|s| s.border_color(BORDER_STRONG).bg(BG_ROW_HOVER))
+                .hover(|s| s.border_color(border_strong()).bg(bg_row_hover()))
                 .on_click(move |_ev, _window, cx| {
                     app_toggle.update(cx, |this, cx| this.toggle_provision_dropdown(id_prefix, cx));
                 })
@@ -469,14 +469,14 @@ fn render_options_section(
                         .truncate()
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.5))
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(selected_label),
                 )
                 .child(
                     inherited_icon(
                         if is_open { TablerIcon::ChevronUp } else { TablerIcon::ChevronDown }, font_px(14.0),
                     )
-                    .text_color(TEXT_DIM),
+                    .text_color(text_dim()),
                 ),
         )
         // Expandable Dropdown List (uses .h(list_h) so gpui-component's Scrollable::render
@@ -486,9 +486,9 @@ fn render_options_section(
             div()
                 .id(SharedString::from(format!("{id_prefix}-dropdown-wrap")))
                 .w_full()
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_CONTROL_SEL)
+                .border_color(border_control_sel())
                 .occlude()
                 .on_scroll_wheel(|_ev, _window, cx| cx.stop_propagation())
                 .child(
@@ -511,13 +511,13 @@ fn render_options_section(
                                 .px(px(10.0))
                                 .py(px(6.0))
                                 .border_b_1()
-                                .border_color(BORDER_ROW)
-                                .bg(if is_sel { BG_ROW_SELECTED } else { BG_PANEL })
+                                .border_color(border_row())
+                                .bg(if is_sel { bg_row_selected() } else { bg_panel() })
                                 .flex()
                                 .items_center()
                                 .gap(px(8.0))
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_MAX))
+                                .hover(|s| s.bg(bg_row_hover()).text_color(text_max()))
                                 .on_click(move |_ev, _window, cx| {
                                     on_sel(app.clone(), opt_id.clone(), cx);
                                 })
@@ -525,9 +525,9 @@ fn render_options_section(
                                     div()
                                         .size(px(6.0))
                                         .rounded_full()
-                                        .bg(if is_sel { TEXT_MAX } else { hex_rgba(0, 0.0) })
+                                        .bg(if is_sel { text_max() } else { hex_rgba(0, 0.0) })
                                         .border_1()
-                                        .border_color(if is_sel { TEXT_MAX } else { BORDER_STRONG }),
+                                        .border_color(if is_sel { text_max() } else { border_strong() }),
                                 )
                                 .child(
                                     div()
@@ -537,7 +537,7 @@ fn render_options_section(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
                                         .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                        .text_color(if is_sel { TEXT_MAX } else { TEXT_SECONDARY })
+                                        .text_color(if is_sel { text_max() } else { text_secondary() })
                                         .child(opt_label),
                                 )
                         })),
@@ -556,7 +556,7 @@ fn render_ssh_keys_section(
         .gap(px(6.0))
         .child(
             div()
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .font_weight(FontWeight::BOLD)
                 .text_size(font_px(10.0))
                 .child(t!("fleet-provision-vault-ssh-key")),
@@ -579,7 +579,7 @@ fn render_ssh_keys_section(
         )
         .child(
             div()
-                .text_color(TEXT_FAINT)
+                .text_color(text_faint())
                 .text_size(font_px(9.5))
                 .child(t!("fleet-provision-vault-ssh-key-help")),
         )
@@ -594,17 +594,17 @@ fn chip(id: String, label: String, selected: bool, on_click: impl Fn(&mut App) +
         .px(px(10.0))
         .py(px(5.0))
         .border_1()
-        .border_color(if selected { BORDER_CONTROL_SEL } else { BORDER_DEFAULT })
-        .bg(if selected { BG_ROW_SELECTED } else { BG_CONTROL })
-        .text_color(if selected { TEXT_MAX } else { TEXT_SECONDARY })
+        .border_color(if selected { border_control_sel() } else { border_default() })
+        .bg(if selected { bg_row_selected() } else { bg_control() })
+        .text_color(if selected { text_max() } else { text_secondary() })
         .font_family(FONT_MONO)
         .text_size(font_px(10.5))
         .font_weight(if selected { FontWeight::BOLD } else { FontWeight::NORMAL })
         .cursor_pointer()
-        .hover(|s| s.border_color(BORDER_STRONG).bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+        .hover(|s| s.border_color(border_strong()).bg(bg_row_hover()).text_color(text_primary()))
         .on_click(move |_ev, _window, cx| on_click(cx))
         .when(selected, |d| {
-            d.child(div().size(px(5.0)).rounded_full().bg(TEXT_PRIMARY))
+            d.child(div().size(px(5.0)).rounded_full().bg(text_primary()))
         })
         .child(label)
 }
@@ -621,15 +621,15 @@ fn action_btn(
         .px(px(12.0))
         .py(px(5.0))
         .border_1()
-        .border_color(if enabled { color.opacity(0.6) } else { BORDER_DEFAULT })
-        .bg(if enabled { BG_PANEL } else { BG_APP })
-        .text_color(if enabled { color } else { TEXT_FAINTER })
+        .border_color(if enabled { color.opacity(0.6) } else { border_default() })
+        .bg(if enabled { bg_panel() } else { bg_app() })
+        .text_color(if enabled { color } else { text_fainter() })
         .font_family(FONT_MONO)
         .text_size(font_px(10.5))
         .font_weight(FontWeight::BOLD)
         .when(enabled, |d| {
             d.cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER))
+                .hover(|s| s.bg(bg_row_hover()))
                 .on_click(move |_ev, _window, cx| on_click(cx))
         })
         .child(label)

@@ -83,7 +83,7 @@ pub fn logs_explorer_view(
         .size_full()
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         // 1. Top Title & Global Controls Header
         .child(
             div()
@@ -93,9 +93,9 @@ pub fn logs_explorer_view(
                 .items_center()
                 .justify_between()
                 .px(px(16.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 // Left Title cluster
                 .child(
                     div()
@@ -107,22 +107,22 @@ pub fn logs_explorer_view(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(12.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(t!("logs-systemd-journal-logs")),
                         )
                         .child(
                             div()
                                 .font_family("JetBrains Mono")
                                 .text_size(font_px(10.5))
-                                .text_color(TEXT_DIMMER)
+                                .text_color(text_dimmer())
                                 .child("journalctl -o json --output-fields=*"),
                         )
                         .child(
                             div()
                                 .px(px(6.0))
                                 .py(px(1.5))
-                                .bg(BG_CHIP)
-                                .text_color(TEXT_SECONDARY)
+                                .bg(bg_chip())
+                                .text_color(text_secondary())
                                 .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
                                 .child(t!("logs-entries", filtered_count = filtered_count, total_count = total_count)),
@@ -150,9 +150,9 @@ pub fn logs_explorer_view(
                         t!("logs-persistent", days = days, size = size)
                     };
                     let (bound_color, bound_bg) = if is_warn {
-                        (CRIT, CRIT_BG)
+                        (theme().crit, theme().crit_bg)
                     } else {
-                        (OK, OK_BG)
+                        (theme().ok, theme().ok_bg)
                     };
 
                     div()
@@ -172,7 +172,7 @@ pub fn logs_explorer_view(
                                 .border_1()
                                 .border_color(bound_color)
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_bound.update(cx, |this, cx| {
                                         this.toggle_journal_retention_modal(cx);
@@ -198,7 +198,7 @@ pub fn logs_explorer_view(
                                 .py(px(3.5))
                                 .bg(if is_tail { hex_rgba(0x4ade80, 0.12) } else { hex_rgba(0xfbbf24, 0.12) })
                                 .border_1()
-                                .border_color(if is_tail { OK } else { WARN })
+                                .border_color(if is_tail { theme().ok } else { theme().warn })
                                 .cursor_pointer()
                                 .on_click(move |_ev, _window, cx| {
                                     app_tail.update(cx, |this, cx| {
@@ -209,14 +209,14 @@ pub fn logs_explorer_view(
                                     div()
                                         .size(px(6.0))
                                         .rounded_full()
-                                        .bg(if is_tail { OK } else { WARN }),
+                                        .bg(if is_tail { theme().ok } else { theme().warn }),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(if is_tail { OK } else { WARN })
+                                        .text_color(if is_tail { theme().ok } else { theme().warn })
                                         .child(if is_tail { t!("logs-live-tail-on") } else { t!("logs-paused") }),
                                 ),
                         )
@@ -226,11 +226,11 @@ pub fn logs_explorer_view(
                                 .id("journal-export-btn")
                                 .px(px(8.0))
                                 .py(px(3.5))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
-                                .text_color(TEXT_MUTED)
-                                .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
+                                .border_color(border_default())
+                                .text_color(text_muted())
+                                .hover(|s| s.text_color(text_primary()).bg(bg_row_hover()))
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
@@ -240,18 +240,18 @@ pub fn logs_explorer_view(
                                 })
                                 .child(t!("logs-export")),
                         )
-                        .children(export_note.map(|n| div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_DIMMER).child(n)))
+                        .children(export_note.map(|n| div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(text_dimmer()).child(n)))
                         // Clear button
                         .child(
                             div()
                                 .id("journal-clear-btn")
                                 .px(px(8.0))
                                 .py(px(3.5))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
-                                .text_color(TEXT_MUTED)
-                                .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
+                                .border_color(border_default())
+                                .text_color(text_muted())
+                                .hover(|s| s.text_color(text_primary()).bg(bg_row_hover()))
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
@@ -273,12 +273,12 @@ pub fn logs_explorer_view(
                 .items_center()
                 .gap(px(6.0))
                 .px(px(16.0))
-                .bg(BG_APP)
+                .bg(bg_app())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .font_family(FONT_MONO)
                 .text_size(font_px(9.5))
-                .child(div().text_color(TEXT_DIMMER).child(t!("logs-range")))
+                .child(div().text_color(text_dimmer()).child(t!("logs-range")))
                 .children({
                     let ranges = [
                         JournalTimeRange::Live,
@@ -296,10 +296,10 @@ pub fn logs_explorer_view(
                             .id(ElementId::NamedInteger("journal-range-chip".into(), idx as u64))
                             .px(px(7.0))
                             .py(px(2.0))
-                            .bg(if is_sel { BG_CHIP } else { hex_rgba(0, 0.0) })
-                            .text_color(if is_sel { TEXT_PRIMARY } else { TEXT_DIMMER })
+                            .bg(if is_sel { bg_chip() } else { hex_rgba(0, 0.0) })
+                            .text_color(if is_sel { text_primary() } else { text_dimmer() })
                             .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
-                            .hover(|s| s.text_color(TEXT_SECONDARY))
+                            .hover(|s| s.text_color(text_secondary()))
                             .cursor_pointer()
                             .on_click(move |_ev, _window, cx| {
                                 app_r.update(cx, |this, cx| {
@@ -309,8 +309,8 @@ pub fn logs_explorer_view(
                             .child(r.label())
                     })
                 })
-                .child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_PANEL).mx(px(6.0)))
-                .child(div().text_color(TEXT_DIMMER).child(t!("logs-boot")))
+                .child(div().w(px(1.0)).h(px(14.0)).bg(border_panel()).mx(px(6.0)))
+                .child(div().text_color(text_dimmer()).child(t!("logs-boot")))
                 .children({
                     let boots = [JournalBootScope::Current, JournalBootScope::Previous];
                     boots.into_iter().enumerate().map(|(idx, b)| {
@@ -320,10 +320,10 @@ pub fn logs_explorer_view(
                             .id(ElementId::NamedInteger("journal-boot-chip".into(), idx as u64))
                             .px(px(7.0))
                             .py(px(2.0))
-                            .bg(if is_sel { BG_CHIP } else { hex_rgba(0, 0.0) })
-                            .text_color(if is_sel { TEXT_PRIMARY } else { TEXT_DIMMER })
+                            .bg(if is_sel { bg_chip() } else { hex_rgba(0, 0.0) })
+                            .text_color(if is_sel { text_primary() } else { text_dimmer() })
                             .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
-                            .hover(|s| s.text_color(TEXT_SECONDARY))
+                            .hover(|s| s.text_color(text_secondary()))
                             .cursor_pointer()
                             .on_click(move |_ev, _window, cx| {
                                 app_b.update(cx, |this, cx| {
@@ -333,7 +333,7 @@ pub fn logs_explorer_view(
                             .child(b.label())
                     })
                 })
-                .child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_PANEL).mx(px(6.0)))
+                .child(div().w(px(1.0)).h(px(14.0)).bg(border_panel()).mx(px(6.0)))
                 .child({
                     let app_dedupe = app_clone.clone();
                     let is_on = journal.dedupe;
@@ -341,10 +341,10 @@ pub fn logs_explorer_view(
                         .id("journal-dedupe-toggle")
                         .px(px(7.0))
                         .py(px(2.0))
-                        .bg(if is_on { BG_CHIP } else { hex_rgba(0, 0.0) })
-                        .text_color(if is_on { TEXT_PRIMARY } else { TEXT_DIMMER })
+                        .bg(if is_on { bg_chip() } else { hex_rgba(0, 0.0) })
+                        .text_color(if is_on { text_primary() } else { text_dimmer() })
                         .font_weight(if is_on { FontWeight::BOLD } else { FontWeight::NORMAL })
-                        .hover(|s| s.text_color(TEXT_SECONDARY))
+                        .hover(|s| s.text_color(text_secondary()))
                         .cursor_pointer()
                         .on_click(move |_ev, _window, cx| {
                             app_dedupe.update(cx, |this, cx| {
@@ -354,8 +354,8 @@ pub fn logs_explorer_view(
                         .child(t!("logs-dedupe-repeats"))
                 })
                 // Quick searches for what people most often look for.
-                .child(div().w(px(1.0)).h(px(12.0)).bg(BORDER_PANEL).mx(px(6.0)))
-                .child(div().text_color(TEXT_DIMMER).child(t!("logs-quick")))
+                .child(div().w(px(1.0)).h(px(12.0)).bg(border_panel()).mx(px(6.0)))
+                .child(div().text_color(text_dimmer()).child(t!("logs-quick")))
                 .children(JOURNAL_PRESETS.iter().enumerate().map(|(i, (label, unit, grep))| {
                     let app_p = app_clone.clone();
                     let on = journal.search == *grep && journal.unit_filter.as_deref() == *unit;
@@ -363,11 +363,11 @@ pub fn logs_explorer_view(
                         .id(ElementId::NamedInteger("journal-preset".into(), i as u64))
                         .px(px(7.0))
                         .py(px(2.0))
-                        .bg(if on { BG_CHIP } else { hex_rgba(0, 0.0) })
+                        .bg(if on { bg_chip() } else { hex_rgba(0, 0.0) })
                         .border_1()
-                        .border_color(if on { TEXT_SECONDARY } else { BORDER_DEFAULT })
-                        .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
-                        .hover(|s| s.text_color(TEXT_PRIMARY))
+                        .border_color(if on { text_secondary() } else { border_default() })
+                        .text_color(if on { text_primary() } else { text_dim() })
+                        .hover(|s| s.text_color(text_primary()))
                         .cursor_pointer()
                         .on_click(move |_ev, _window, cx| app_p.update(cx, |this, cx| this.apply_journal_preset(i, cx)))
                         .child(crate::i18n::tx(label))
@@ -379,8 +379,8 @@ pub fn logs_explorer_view(
                         .id("journal-load-more-btn")
                         .px(px(7.0))
                         .py(px(2.0))
-                        .text_color(TEXT_DIM)
-                        .hover(|s| s.text_color(TEXT_PRIMARY))
+                        .text_color(text_dim())
+                        .hover(|s| s.text_color(text_primary()))
                         .cursor_pointer()
                         .on_click(move |_ev, _window, cx| {
                             app_more.update(cx, |this, cx| {
@@ -399,9 +399,9 @@ pub fn logs_explorer_view(
                 .items_center()
                 .justify_between()
                 .px(px(16.0))
-                .bg(BG_APP)
+                .bg(bg_app())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 // Severity pills
                 .child(
                     div()
@@ -412,12 +412,17 @@ pub fn logs_explorer_view(
                         .child({
                             let app_filter = app_clone.clone();
                             let is_sel = journal.severity_filter.is_none();
+                            let (bg_col, text_col) = if is_sel {
+                                (accent(), hex_rgb(0xffffff))
+                            } else {
+                                (bg_control(), text_muted())
+                            };
                             div()
                                 .id("journal-severity-all")
                                 .px(px(8.0))
                                 .py(px(2.5))
-                                .bg(if is_sel { TEXT_PRIMARY } else { BG_CONTROL })
-                                .text_color(if is_sel { hex_rgb(0x0a0a0c) } else { TEXT_MUTED })
+                                .bg(bg_col)
+                                .text_color(text_col)
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
                                 .font_weight(FontWeight::BOLD)
@@ -433,6 +438,11 @@ pub fn logs_explorer_view(
                         .child({
                             let app_filter = app_clone.clone();
                             let is_sel = journal.severity_filter == Some(JournalPriority::Err);
+                            let (bg_col, text_col) = if is_sel {
+                                (theme().crit, hex_rgb(0xffffff))
+                            } else {
+                                (theme().crit_bg, theme().crit)
+                            };
                             div()
                                 .id("journal-severity-err")
                                 .flex()
@@ -440,8 +450,8 @@ pub fn logs_explorer_view(
                                 .gap(px(4.0))
                                 .px(px(8.0))
                                 .py(px(2.5))
-                                .bg(if is_sel { CRIT } else { CRIT_BG })
-                                .text_color(if is_sel { hex_rgb(0x0a0a0c) } else { CRIT })
+                                .bg(bg_col)
+                                .text_color(text_col)
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
                                 .font_weight(FontWeight::BOLD)
@@ -457,7 +467,7 @@ pub fn logs_explorer_view(
                                         div()
                                             .px(px(4.0))
                                             .py(px(0.5))
-                                            .bg(hex_rgba(0, 0.2))
+                                            .bg(if is_sel { hex_rgba(0, 0.25) } else { hex_rgba(0, 0.08) })
                                             .text_size(font_px(9.0))
                                             .child(err_count.to_string()),
                                     )
@@ -469,6 +479,11 @@ pub fn logs_explorer_view(
                         .child({
                             let app_filter = app_clone.clone();
                             let is_sel = journal.severity_filter == Some(JournalPriority::Warning);
+                            let (bg_col, text_col) = if is_sel {
+                                (theme().warn, hex_rgb(0xffffff))
+                            } else {
+                                (theme().warn_bg, theme().warn)
+                            };
                             div()
                                 .id("journal-severity-warn")
                                 .flex()
@@ -476,8 +491,8 @@ pub fn logs_explorer_view(
                                 .gap(px(4.0))
                                 .px(px(8.0))
                                 .py(px(2.5))
-                                .bg(if is_sel { WARN } else { WARN_BG })
-                                .text_color(if is_sel { hex_rgb(0x0a0a0c) } else { WARN })
+                                .bg(bg_col)
+                                .text_color(text_col)
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
                                 .font_weight(FontWeight::BOLD)
@@ -493,7 +508,7 @@ pub fn logs_explorer_view(
                                         div()
                                             .px(px(4.0))
                                             .py(px(0.5))
-                                            .bg(hex_rgba(0, 0.2))
+                                            .bg(if is_sel { hex_rgba(0, 0.25) } else { hex_rgba(0, 0.08) })
                                             .text_size(font_px(9.0))
                                             .child(warn_count.to_string()),
                                     )
@@ -505,12 +520,17 @@ pub fn logs_explorer_view(
                         .child({
                             let app_filter = app_clone.clone();
                             let is_sel = journal.severity_filter == Some(JournalPriority::Info);
+                            let (bg_col, text_col) = if is_sel {
+                                (accent(), hex_rgb(0xffffff))
+                            } else {
+                                (bg_control(), text_muted())
+                            };
                             div()
                                 .id("journal-severity-info")
                                 .px(px(8.0))
                                 .py(px(2.5))
-                                .bg(if is_sel { TEXT_SECONDARY } else { BG_CONTROL })
-                                .text_color(if is_sel { hex_rgb(0x0a0a0c) } else { TEXT_MUTED })
+                                .bg(bg_col)
+                                .text_color(text_col)
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
                                 .font_weight(FontWeight::BOLD)
@@ -523,7 +543,7 @@ pub fn logs_explorer_view(
                                 .child(t!("logs-info"))
                         })
                         // Divider
-                        .child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_PANEL).mx(px(4.0)))
+                        .child(div().w(px(1.0)).h(px(14.0)).bg(border_panel()).mx(px(4.0)))
                         // Unit chips: ALL, KERNEL, then the units logging most on this
                         // server (learned from the last unfiltered read), plus the
                         // selected unit if it isn't among them.
@@ -545,9 +565,9 @@ pub fn logs_explorer_view(
                                         .id(ElementId::NamedInteger("journal-unit-pill".into(), idx as u64))
                                         .px(px(6.0))
                                         .py(px(2.0))
-                                        .bg(if is_active { BG_CHIP } else { hex_rgba(0, 0.0) })
-                                        .text_color(if is_active { TEXT_PRIMARY } else { TEXT_DIMMER })
-                                        .hover(|s| s.text_color(TEXT_SECONDARY))
+                                        .bg(if is_active { bg_chip() } else { hex_rgba(0, 0.0) })
+                                        .text_color(if is_active { text_primary() } else { text_dimmer() })
+                                        .hover(|s| s.text_color(text_secondary()))
                                         .cursor_pointer()
                                         .font_family("JetBrains Mono")
                                         .text_size(font_px(9.5))
@@ -568,12 +588,12 @@ pub fn logs_explorer_view(
                                 .px(px(6.0))
                                 .py(px(2.0))
                                 .border_1()
-                                .border_color(if on { hex_rgb(0x8ab4ff) } else { BORDER_DEFAULT })
-                                .text_color(if on { hex_rgb(0x8ab4ff) } else { TEXT_DIMMER })
+                                .border_color(if on { accent() } else { border_default() })
+                                .text_color(if on { accent() } else { text_dimmer() })
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| app_act.update(cx, |this, cx| this.toggle_journal_actions(cx)))
                                 .child(if on { t!("logs-crow-actions") } else { t!("logs-crow-actions-2") })
                         })
@@ -590,7 +610,7 @@ pub fn logs_explorer_view(
                                     .flex()
                                     .items_center()
                                     .gap(px(6.0))
-                                    .child(div().w(px(1.0)).h(px(14.0)).bg(BORDER_PANEL).mx(px(4.0)))
+                                    .child(div().w(px(1.0)).h(px(14.0)).bg(border_panel()).mx(px(4.0)))
                                     .child(
                                         div()
                                             .flex()
@@ -598,13 +618,13 @@ pub fn logs_explorer_view(
                                             .gap(px(5.0))
                                             .px(px(7.0))
                                             .py(px(2.5))
-                                            .bg(hex_rgba(0x8ab4ff, 0.14))
+                                            .bg(accent_bg())
                                             .border_1()
-                                            .border_color(hex_rgb(0x8ab4ff))
+                                            .border_color(accent())
                                             .font_family(FONT_MONO)
                                             .text_size(font_px(9.5))
                                             .font_weight(FontWeight::BOLD)
-                                            .text_color(hex_rgb(0x8ab4ff))
+                                            .text_color(accent())
                                             .child(t!("logs-pid", fpid = fpid))
                                             .child(
                                                 icon_button("journal-pid-filter-clear", TablerIcon::X, false)
@@ -625,7 +645,7 @@ pub fn logs_explorer_view(
                                                     div()
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(9.5))
-                                                        .text_color(CRIT_INK_DIM)
+                                                        .text_color(theme().crit_ink_dim)
                                                         .child(t!("logs-terminate-pid", fpid = fpid)),
                                                 )
                                                 .child(
@@ -633,15 +653,15 @@ pub fn logs_explorer_view(
                                                         .id("journal-pid-kill-confirm")
                                                         .px(px(7.0))
                                                         .py(px(2.5))
-                                                        .bg(CRIT_BG)
+                                                        .bg(theme().crit_bg)
                                                         .border_1()
-                                                        .border_color(CRIT)
+                                                        .border_color(theme().crit)
                                                         .cursor_pointer()
-                                                        .hover(|s| s.bg(BG_ROW_HOVER))
+                                                        .hover(|s| s.bg(bg_row_hover()))
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(9.5))
                                                         .font_weight(FontWeight::BOLD)
-                                                        .text_color(CRIT)
+                                                        .text_color(theme().crit)
                                                         .on_click(move |_ev, _window, cx| {
                                                             app_kill_confirm.update(cx, |this, cx| {
                                                                 this.execute_journal_pid_kill(cx);
@@ -655,8 +675,8 @@ pub fn logs_explorer_view(
                                                         .cursor_pointer()
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(9.5))
-                                                        .text_color(TEXT_DIM)
-                                                        .hover(|s| s.text_color(TEXT_PRIMARY))
+                                                        .text_color(text_dim())
+                                                        .hover(|s| s.text_color(text_primary()))
                                                         .on_click(move |_ev, _window, cx| {
                                                             app_kill_cancel.update(cx, |this, cx| {
                                                                 this.toggle_journal_pid_kill_confirm(cx);
@@ -672,15 +692,15 @@ pub fn logs_explorer_view(
                                                 .id("journal-pid-kill-btn")
                                                 .px(px(7.0))
                                                 .py(px(2.5))
-                                                .bg(CRIT_BG)
+                                                .bg(theme().crit_bg)
                                                 .border_1()
-                                                .border_color(BORDER_DANGER_BTN)
+                                                .border_color(border_danger_btn())
                                                 .cursor_pointer()
-                                                .hover(|s| s.border_color(CRIT))
+                                                .hover(|s| s.border_color(theme().crit))
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(9.5))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(CRIT_INK_DIM)
+                                                .text_color(theme().crit_ink_dim)
                                                 .on_click(move |_ev, _window, cx| {
                                                     app_kill_toggle.update(cx, |this, cx| {
                                                         this.toggle_journal_pid_kill_confirm(cx);
@@ -709,9 +729,8 @@ pub fn logs_explorer_view(
                                     Input::new(input)
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.5))
-                                        .bg(BG_APP)
-                                        .rounded(px(2.0))
-                                        .prefix(tabler_icon(TablerIcon::Search).size(px(11.0)).text_color(TEXT_DIMMER))
+                                        .bg(bg_app())
+                                        .prefix(tabler_icon(TablerIcon::Search).size(px(11.0)).text_color(text_dimmer()))
                                 })),
                         )
                         .children(if !journal.search.is_empty() {
@@ -739,13 +758,13 @@ pub fn logs_explorer_view(
                 .flex()
                 .items_center()
                 .px(px(16.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .font_family(FONT_MONO)
                 .text_size(font_px(9.5))
                 .font_weight(FontWeight::BOLD)
-                .text_color(TEXT_DIMMER)
+                .text_color(text_dimmer())
                 .child(div().w(px(105.0)).child(t!("logs-timestamp")))
                 .child(div().w(px(70.0)).child(t!("logs-level")))
                 .child(div().w(px(170.0)).child(t!("logs-unit-identifier")))
@@ -765,6 +784,7 @@ pub fn logs_explorer_view(
                 .min_w(px(0.0))
                 .h_full()
                 .overflow_y_scrollbar()
+                .bg(bg_panel())
                 .children(if filtered_entries.is_empty() {
                     vec![
                         div()
@@ -778,14 +798,14 @@ pub fn logs_explorer_view(
                                 div()
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(12.0))
-                                    .text_color(TEXT_MUTED)
+                                    .text_color(text_muted())
                                     .child(t!("logs-no-journal-log-entries-matched")),
                             )
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(10.5))
-                                    .text_color(TEXT_FAINT)
+                                    .text_color(text_faint())
                                     .child(t!("logs-try-clearing-the-search-query")),
                             )
                             .into_any_element()
@@ -865,9 +885,9 @@ fn render_journal_rows_deduped(
                 .py(px(3.0))
                 .bg(hex_rgba(0xfacc15, 0.06))
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .cursor_pointer()
-                .hover(|s| s.bg(BG_ROW_HOVER))
+                .hover(|s| s.bg(bg_row_hover()))
                 .on_click(move |_ev, _window, cx| {
                     app_toggle.update(cx, |this, cx| {
                         this.toggle_journal_dupe_group_collapsed(&toggle_key, cx);
@@ -879,7 +899,7 @@ fn render_journal_rows_deduped(
                     div()
                         .w(px(14.0))
                         .text_size(font_px(9.0))
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(if is_collapsed { "▶" } else { "▼" }),
                 )
                 .child(
@@ -902,12 +922,12 @@ fn render_journal_rows_deduped(
                 .child(
                     div()
                         .flex_1()
-                        .text_color(TEXT_SECONDARY)
+                        .text_color(text_secondary())
                         .child(first.message.clone()),
                 )
                 .child(
                     div()
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .text_size(font_px(9.5))
                         .child(format!("{} → {}", first.timestamp_formatted, last.timestamp_formatted)),
                 )
@@ -935,19 +955,19 @@ fn render_action_marker_row(entry: &JournalEntry, idx: usize) -> impl IntoElemen
         .gap(px(10.0))
         .px(px(16.0))
         .py(px(4.0))
-        .bg(hex_rgba(0x8ab4ff, 0.05))
+        .bg(accent_bg())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .font_family(FONT_MONO)
         .text_size(font_px(10.0))
-        .child(div().flex_1().h(px(1.0)).bg(hex_rgba(0x8ab4ff, 0.25)))
+        .child(div().flex_1().h(px(1.0)).bg(accent_border()))
         .child(
             div()
-                .text_color(hex_rgb(0x8ab4ff))
+                .text_color(accent())
                 .font_weight(FontWeight::BOLD)
                 .child(format!("● {} · {}", entry.timestamp_formatted, entry.message)),
         )
-        .child(div().flex_1().h(px(1.0)).bg(hex_rgba(0x8ab4ff, 0.25)))
+        .child(div().flex_1().h(px(1.0)).bg(accent_border()))
 }
 
 fn render_journal_row(
@@ -964,11 +984,11 @@ fn render_journal_row(
     let entry_msg = entry.message.clone();
     let is_expanded = entry.is_expanded;
     let bg_color = if is_expanded {
-        hex_rgb(0x13141a)
+        bg_panel()
     } else if idx % 2 == 1 {
-        hex_rgba(0x14161c, 0.4)
+        bg_row_alt()
     } else {
-        hex_rgba(0, 0.0)
+        bg_panel()
     };
 
     let app_click = app.clone();
@@ -978,7 +998,7 @@ fn render_journal_row(
         .flex()
         .flex_col()
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         // Primary Row Line
         .child(
             div()
@@ -991,7 +1011,7 @@ fn render_journal_row(
                 .px(px(16.0))
                 .py(px(4.0))
                 .bg(bg_color)
-                .hover(|s| s.bg(BG_ROW_HOVER))
+                .hover(|s| s.bg(bg_row_hover()))
                 .cursor_pointer()
                 .on_click(move |_ev, _window, cx| {
                     let id_val = eid.clone();
@@ -1000,9 +1020,9 @@ fn render_journal_row(
                     });
                 })
                 .children(if entry.priority.is_error() {
-                    Some(left_indicator(CRIT))
+                    Some(left_indicator(theme().crit))
                 } else if entry.priority.is_warn() {
-                    Some(left_indicator(WARN))
+                    Some(left_indicator(theme().warn))
                 } else {
                     None
                 })
@@ -1013,7 +1033,7 @@ fn render_journal_row(
                     div()
                         .w(px(105.0))
                         .flex_none()
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .child(entry.timestamp_formatted.clone()),
                 )
                 // 2. Priority Level Pill
@@ -1040,7 +1060,7 @@ fn render_journal_row(
                         .child(
                             div()
                                 .text_color(if entry.priority.is_error() {
-                                    CRIT
+                                    theme().crit
                                 } else {
                                     hex_rgb(0xa1a1aa)
                                 })
@@ -1063,10 +1083,10 @@ fn render_journal_row(
                                 .id(ElementId::NamedInteger("journal-pid".into(), idx as u64))
                                 .px(px(4.0))
                                 .py(px(1.0))
-                                .bg(if is_filtered { hex_rgba(0x8ab4ff, 0.18) } else { hex_rgba(0, 0.0) })
-                                .text_color(if is_filtered { hex_rgb(0x8ab4ff) } else { TEXT_FAINT })
+                                .when(is_filtered, |s| s.bg(accent_bg()))
+                                .text_color(if is_filtered { accent() } else { text_faint() })
                                 .font_weight(if is_filtered { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                .hover(|s| s.text_color(hex_rgb(0x8ab4ff)).bg(hex_rgba(0x8ab4ff, 0.12)))
+                                .hover(|s| s.text_color(accent()).bg(accent_bg()))
                                 .cursor_pointer()
                                 .on_click(move |_ev, _window, cx| {
                                     cx.stop_propagation();
@@ -1078,7 +1098,7 @@ fn render_journal_row(
                                 .child(pid.to_string())
                                 .into_any_element()
                         } else {
-                            div().text_color(TEXT_FAINT).child("—").into_any_element()
+                            div().text_color(text_faint()).child("—").into_any_element()
                         }),
                 )
                 // 5. Message body: wraps, so the wand and the glyph stay on the row.
@@ -1087,11 +1107,11 @@ fn render_journal_row(
                         .flex_1()
                         .min_w(px(0.0))
                         .text_color(if entry.priority.is_error() {
-                            TEXT_PRIMARY
+                            text_primary()
                         } else if entry.priority.is_warn() {
-                            TEXT_PRIMARY
+                            text_primary()
                         } else {
-                            TEXT_SECONDARY
+                            text_secondary()
                         })
                         .child(render_highlighted_message(&entry.message, &crate::journal::search_terms(&journal.search))),
                 )
@@ -1115,7 +1135,7 @@ fn render_journal_row(
                         .w(px(20.0))
                         .flex_none()
                         .text_align(TextAlign::Right)
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(if is_expanded { "▲" } else { "▼" }),
                 ),
         )
@@ -1141,9 +1161,9 @@ fn render_inspector_drawer(
     div()
         .px(px(24.0))
         .py(px(10.0))
-        .bg(hex_rgb(0x0c0d11))
+        .bg(bg_subhead())
         .border_b_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .flex()
         .flex_col()
         .gap(px(8.0))
@@ -1158,7 +1178,7 @@ fn render_inspector_drawer(
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_TERTIARY)
+                        .text_color(text_tertiary())
                         .child(t!("logs-structured-systemd-journal-fields")),
                 )
                 .child(
@@ -1171,11 +1191,11 @@ fn render_inspector_drawer(
                                 .id(ElementId::NamedInteger("journal-copy-msg".into(), idx as u64))
                                 .px(px(6.0))
                                 .py(px(2.0))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
-                                .text_color(TEXT_MUTED)
-                                .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
+                                .border_color(border_default())
+                                .text_color(text_muted())
+                                .hover(|s| s.text_color(text_primary()).bg(bg_row_hover()))
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.0))
@@ -1189,11 +1209,11 @@ fn render_inspector_drawer(
                                 .id(ElementId::NamedInteger("journal-copy-json".into(), idx as u64))
                                 .px(px(6.0))
                                 .py(px(2.0))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
-                                .text_color(TEXT_MUTED)
-                                .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
+                                .border_color(border_default())
+                                .text_color(text_muted())
+                                .hover(|s| s.text_color(text_primary()).bg(bg_row_hover()))
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.0))
@@ -1217,20 +1237,20 @@ fn render_inspector_drawer(
                         .gap(px(6.0))
                         .px(px(8.0))
                         .py(px(3.0))
-                        .bg(hex_rgb(0x13141a))
+                        .bg(bg_panel())
                         .border_1()
-                        .border_color(hex_rgb(0x1e2029))
+                        .border_color(border_default())
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
                         .child(
                             div()
-                                .text_color(TEXT_DIMMER)
+                                .text_color(text_dimmer())
                                 .font_weight(FontWeight::BOLD)
                                 .child(k.clone()),
                         )
                         .child(
                             div()
-                                .text_color(TEXT_SECONDARY)
+                                .text_color(text_secondary())
                                 .child(v.clone()),
                         )
                 })),
@@ -1247,7 +1267,7 @@ fn clean_unit_display(unit: &str) -> String {
 /// The message with the search's literal terms highlighted in place.
 fn render_highlighted_message(msg: &str, terms: &[String]) -> impl IntoElement {
     let ranges = crate::journal::match_ranges(msg, terms);
-    let style = HighlightStyle { background_color: Some(hex_rgba(0xfacc15, 0.28).into()), color: Some(TEXT_MAX.into()), ..Default::default() };
+    let style = HighlightStyle { background_color: Some(hex_rgba(0xfacc15, 0.28).into()), color: Some(text_max().into()), ..Default::default() };
     div()
         .font_family(FONT_MONO)
         .text_size(font_px(10.5))
@@ -1260,8 +1280,8 @@ fn render_highlighted_message(msg: &str, terms: &[String]) -> impl IntoElement {
 fn ai_panel(ai: &AiPanelState, provider: Option<String>, app: Entity<CrowApp>) -> impl IntoElement {
     let accent = hex_rgb(0xa78bfa);
     let body: AnyElement = match (&ai.answer, ai.loading) {
-        (_, true) if ai.lines_sent == 0 => div().text_color(TEXT_DIM).child(t!("logs-wand-reading", scope = ai.scope.clone())).into_any_element(),
-        (_, true) => div().text_color(TEXT_DIM).child(t!("logs-asking-about-lines", provider = ai.provider, lines_sent = ai.lines_sent)).into_any_element(),
+        (_, true) if ai.lines_sent == 0 => div().text_color(text_dim()).child(t!("logs-wand-reading", scope = ai.scope.clone())).into_any_element(),
+        (_, true) => div().text_color(text_dim()).child(t!("logs-asking-about-lines", provider = ai.provider, lines_sent = ai.lines_sent)).into_any_element(),
         (Some(Ok(text)), _) => div()
             .flex()
             .flex_col()
@@ -1270,25 +1290,25 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, app: Entity<CrowApp>) -
                 // The verdict, coloured by how bad it is.
                 if let Some(rest) = l.trim().strip_prefix("VERDICT:") {
                     let rest = rest.trim();
-                    let color = if rest.starts_with("PROBLEM") { CRIT } else if rest.starts_with("WORTH") { WARN } else { OK };
+                    let color = if rest.starts_with("PROBLEM") { theme().crit } else if rest.starts_with("WORTH") { theme().warn } else { theme().ok };
                     return div().child(crate::components::button::badge(color).text_size(font_px(10.0)).py(px(2.0)).child(rest.to_string())).into_any_element();
                 }
                 let heading = l.starts_with('#') || (l.len() > 2 && l.as_bytes()[0].is_ascii_digit() && l.as_bytes()[1] == b'.');
-                div().text_color(if heading { TEXT_MAX } else { TEXT_SECONDARY }).font_weight(if heading { FontWeight::BOLD } else { FontWeight::NORMAL }).child(l.trim_start_matches('#').trim_start().to_string()).into_any_element()
+                div().text_color(if heading { text_max() } else { text_secondary() }).font_weight(if heading { FontWeight::BOLD } else { FontWeight::NORMAL }).child(l.trim_start_matches('#').trim_start().to_string()).into_any_element()
             }))
-            .child(div().pt(px(6.0)).text_size(font_px(9.0)).text_color(TEXT_FAINTER).child(t!("logs-lines-sent", provider = ai.provider, lines_sent = ai.lines_sent)))
+            .child(div().pt(px(6.0)).text_size(font_px(9.0)).text_color(text_fainter()).child(t!("logs-lines-sent", provider = ai.provider, lines_sent = ai.lines_sent)))
             .into_any_element(),
-        (Some(Err(e)), _) => div().text_color(CRIT).child(e.clone()).into_any_element(),
-        (None, false) => div().text_color(TEXT_FAINT).child(t!("logs-wand-hint")).into_any_element(),
+        (Some(Err(e)), _) => div().text_color(theme().crit).child(e.clone()).into_any_element(),
+        (None, false) => div().text_color(text_faint()).child(t!("logs-wand-hint")).into_any_element(),
     };
     div()
         .id("journal-ai-panel")
         .w(px(400.0))
         .flex_none()
         .h_full()
-        .bg(BG_RAIL)
+        .bg(bg_rail())
         .border_l_1()
-        .border_color(BORDER_PANEL)
+        .border_color(border_panel())
         .flex()
         .flex_col()
         .font_family(FONT_MONO)
@@ -1302,7 +1322,7 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, app: Entity<CrowApp>) -
                 .gap(px(8.0))
                 .px(px(12.0))
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(tabler_icon(TablerIcon::Wand).size(px(12.0)).text_color(accent))
                 .child(div().text_color(accent).font_weight(FontWeight::BOLD).child(t!("logs-wand-title")))
                 .child(div().flex_1())
@@ -1327,8 +1347,8 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, app: Entity<CrowApp>) -
                                     .flex()
                                     .flex_col()
                                     .gap(px(5.0))
-                                    .child(div().p(px(8.0)).bg(BG_WINDOW).border_l_2().border_color(accent).text_color(TEXT_PRIMARY).child(ai.picked.clone()))
-                                    .child(div().text_size(font_px(9.5)).text_color(TEXT_DIMMER).child(ai.scope.clone())),
+                                    .child(div().p(px(8.0)).bg(bg_window()).border_l_2().border_color(accent).text_color(text_primary()).child(ai.picked.clone()))
+                                    .child(div().text_size(font_px(9.5)).text_color(text_dimmer()).child(ai.scope.clone())),
                             )
                         })
                         .child(body),
@@ -1340,9 +1360,9 @@ fn ai_panel(ai: &AiPanelState, provider: Option<String>, app: Entity<CrowApp>) -
                 .px(px(12.0))
                 .py(px(8.0))
                 .border_t_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .text_size(font_px(9.0))
-                .text_color(TEXT_FAINTER)
+                .text_color(text_fainter())
                 .child(match provider {
                     Some(p) => t!("logs-wand-sends", p = p),
                     None => t!("logs-add-an-api-key-for").to_string(),

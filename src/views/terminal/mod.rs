@@ -47,9 +47,9 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames
             .gap(px(5.0))
             .px(px(8.0))
             .h_full()
-            .text_color(TEXT_DIM)
+            .text_color(text_dim())
             .cursor_pointer()
-            .hover(|s| s.bg(BG_ROW_HOVER).text_color(TEXT_PRIMARY))
+            .hover(|s| s.bg(bg_row_hover()).text_color(text_primary()))
             .child(inherited_icon(icon, font_px(12.0)))
             .child(div().text_size(font_px(9.5)).child(keys))
     };
@@ -68,9 +68,9 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames
                 .flex_none()
                 .flex()
                 .items_stretch()
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .font_family(FONT_MONO)
                 .children(ws.tabs.iter().enumerate().map(|(i, _)| {
                     let active = i == ws.active;
@@ -87,13 +87,13 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames
                         .pr(px(6.0))
                         .max_w(px(240.0))
                         .border_r_1()
-                        .border_color(if active { BORDER_STRONG } else { BORDER_PANEL })
-                        .bg(if active { BG_APP } else { hex_rgba(0, 0.0) })
+                        .border_color(if active { border_strong() } else { border_panel() })
+                        .bg(if active { bg_app() } else { hex_rgba(0, 0.0) })
                         .cursor_pointer()
-                        .hover(move |s| s.bg(if active { BG_APP } else { BG_ROW_HOVER }))
+                        .hover(move |s| s.bg(if active { bg_app() } else { bg_row_hover() }))
                         .on_click(move |_ev, _w, cx| app_sel.update(cx, |this, cx| this.terminal_select_tab(i, cx)))
                         .children(active.then(crate::components::titlebar::active_tab_gradient_bar))
-                        .children(rang.then(|| div().size(px(6.0)).rounded_full().bg(WARN).flex_none()))
+                        .children(rang.then(|| div().size(px(6.0)).rounded_full().bg(theme().warn).flex_none()))
                         .child(
                             div()
                                 .overflow_hidden()
@@ -101,7 +101,7 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames
                                 .text_ellipsis()
                                 .text_size(font_px(11.0))
                                 .font_weight(if active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                                .text_color(if active { TEXT_MAX } else { TEXT_MUTED })
+                                .text_color(if active { text_max() } else { text_muted() })
                                 .child(ws.tab_title(i)),
                         )
                         .child(
@@ -112,8 +112,8 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames
                                 .justify_center()
                                 .flex_none()
                                 .size(px(16.0))
-                                .text_color(TEXT_FAINT)
-                                .hover(|s| s.bg(hex_rgba(0xffffff, 0.08)).text_color(TEXT_PRIMARY))
+                                .text_color(text_faint())
+                                .hover(|s| s.bg(hex_rgba(0xffffff, 0.08)).text_color(text_primary()))
                                 .on_mouse_down(MouseButton::Left, |_ev, _w, cx| cx.stop_propagation())
                                 .on_click(move |_ev, _w, cx| {
                                     cx.stop_propagation();
@@ -160,7 +160,7 @@ pub fn workspace_view(ws: &TerminalWorkspace, rename: Option<&TabRename>, frames
                         .p(px(16.0))
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
-                        .text_color(TEXT_DIM)
+                        .text_color(text_dim())
                         .child(t!("terminal-no-terminals-open-opens-one", shortcut = shortcut("⌘T", t!("terminal-ctrl-shift-t"))))
                 })),
         )
@@ -182,9 +182,9 @@ fn rename_panel(r: &TabRename, app: Entity<CrowApp>) -> impl IntoElement {
         .flex()
         .flex_col()
         .gap(px(6.0))
-        .bg(BG_PANEL)
+        .bg(bg_panel())
         .border_1()
-        .border_color(BORDER_DEFAULT)
+        .border_color(border_default())
         .shadow_lg()
         .font_family(FONT_MONO)
         .on_mouse_down(MouseButton::Left, |_ev, _w, cx| cx.stop_propagation())
@@ -196,7 +196,7 @@ fn rename_panel(r: &TabRename, app: Entity<CrowApp>) -> impl IntoElement {
             }
         })
         .child(gpui_kit::component::input::Input::new(&r.input))
-        .child(div().text_size(font_px(9.5)).text_color(TEXT_FAINT).child(t!("terminal-enter-renames-esc-cancels-empty")))
+        .child(div().text_size(font_px(9.5)).text_color(text_faint()).child(t!("terminal-enter-renames-esc-cancels-empty")))
 }
 
 fn node_view(node: &Node, ws: &TerminalWorkspace, frames: &mut HashMap<PaneId, Frame>, focused: Option<PaneId>, multi: bool, look: Look, app: Entity<CrowApp>) -> AnyElement {
@@ -207,15 +207,15 @@ fn node_view(node: &Node, ws: &TerminalWorkspace, frames: &mut HashMap<PaneId, F
                 .min_w(px(0.0))
                 .min_h(px(0.0))
                 .border_1()
-                .border_color(if multi && focused == Some(*id) { BORDER_CONTROL_SEL } else { hex_rgba(0, 0.0) })
+                .border_color(if multi && focused == Some(*id) { border_control_sel() } else { hex_rgba(0, 0.0) })
                 .child(terminal_view(pane, frames.remove(id), focused == Some(*id), look, app))
                 .into_any_element(),
             None => div().flex_1().into_any_element(),
         },
         Node::Split { axis, first, second } => {
             let divider = match axis {
-                Axis::Row => div().w(px(1.0)).h_full().flex_none().bg(BORDER_PANEL),
-                Axis::Column => div().h(px(1.0)).w_full().flex_none().bg(BORDER_PANEL),
+                Axis::Row => div().w(px(1.0)).h_full().flex_none().bg(border_panel()),
+                Axis::Column => div().h(px(1.0)).w_full().flex_none().bg(border_panel()),
             };
             let base = div().flex_1().min_w(px(0.0)).min_h(px(0.0)).flex();
             let base = if *axis == Axis::Column { base.flex_col() } else { base };
@@ -230,9 +230,9 @@ fn node_view(node: &Node, ws: &TerminalWorkspace, frames: &mut HashMap<PaneId, F
 pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, look: Look, app: Entity<CrowApp>) -> impl IntoElement {
     let target = pane.target.clone();
     let status = match (&pane.error, pane.session.as_ref().and_then(|s| s.exited.clone())) {
-        (Some(e), _) => Some((format!("{e}"), CRIT)),
-        (None, Some(why)) => Some((t!("terminal-press-enter-to-start-a", why = why), TEXT_DIM)),
-        (None, None) if pane.session.is_none() => Some((t!("terminal-starting").to_string(), TEXT_DIM)),
+        (Some(e), _) => Some((format!("{e}"), theme().crit)),
+        (None, Some(why)) => Some((t!("terminal-press-enter-to-start-a", why = why), text_dim())),
+        (None, None) if pane.session.is_none() => Some((t!("terminal-starting").to_string(), text_dim())),
         _ => None,
     };
     let scrolled = frame.as_ref().map(|f| f.scrolled).unwrap_or(0);
@@ -296,12 +296,12 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, l
                 .right(px(14.0))
                 .px(px(6.0))
                 .py(px(1.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_DEFAULT)
+                .border_color(border_default())
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.0))
-                .text_color(TEXT_DIM)
+                .text_color(text_dim())
                 .child(t!("terminal-lines-back-type-to-return", scrolled = scrolled))
         }))
         .children(status.map(|(text, c)| {
@@ -312,9 +312,9 @@ pub fn terminal_view(pane: &TerminalPane, frame: Option<Frame>, focused: bool, l
                 .right(px(0.0))
                 .px(px(PAD))
                 .py(px(6.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_t_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .font_family(FONT_MONO)
                 .text_size(font_px(11.0))
                 .text_color(c)

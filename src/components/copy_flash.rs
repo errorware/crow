@@ -46,8 +46,8 @@ pub fn copyable(key: String, label: impl Into<SharedString>, text: String, ink: 
         .overflow_hidden()
         .whitespace_nowrap()
         .text_ellipsis()
-        .text_color(if shown { OK } else { ink })
-        .hover(|s| s.text_color(TEXT_PRIMARY))
+        .text_color(if shown { theme().ok } else { ink })
+        .hover(|s| s.text_color(text_primary()))
         .tooltip(|window, cx| gpui_kit::component::tooltip::Tooltip::new(t!("copy-flash-click-to-copy")).build(window, cx))
         .on_click(move |_ev, _window, cx| {
             cx.stop_propagation();

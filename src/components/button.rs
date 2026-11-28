@@ -19,25 +19,25 @@ pub enum Tone {
 impl Tone {
     fn ink(self) -> Rgba {
         match self {
-            Tone::Neutral => TEXT_SECONDARY,
-            Tone::Primary => OK,
-            Tone::Danger => CRIT,
+            Tone::Neutral => text_secondary(),
+            Tone::Primary => theme().ok,
+            Tone::Danger => theme().crit,
         }
     }
 
     fn edge(self) -> Rgba {
         match self {
-            Tone::Neutral => BORDER_STRONG,
-            Tone::Primary => OK.opacity(0.6),
-            Tone::Danger => CRIT.opacity(0.5),
+            Tone::Neutral => border_strong(),
+            Tone::Primary => theme().ok.opacity(0.6),
+            Tone::Danger => theme().crit.opacity(0.5),
         }
     }
 
     fn hover(self) -> Rgba {
         match self {
-            Tone::Neutral => BG_ROW_HOVER,
-            Tone::Primary => OK_BG,
-            Tone::Danger => CRIT_ROW_BG,
+            Tone::Neutral => bg_row_hover(),
+            Tone::Primary => theme().ok_bg,
+            Tone::Danger => theme().crit_row_bg,
         }
     }
 }
@@ -61,7 +61,7 @@ pub fn button(id: impl Into<ElementId>, tone: Tone) -> Stateful<Div> {
         .font_weight(FontWeight::BOLD)
         .text_color(tone.ink())
         .cursor_pointer()
-        .hover(move |s| s.bg(tone.hover()).text_color(if tone == Tone::Neutral { TEXT_PRIMARY } else { tone.ink() }))
+        .hover(move |s| s.bg(tone.hover()).text_color(if tone == Tone::Neutral { text_primary() } else { tone.ink() }))
 }
 
 /// Something to read, not press: a rounded pill tinted in `color`, no

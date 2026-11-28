@@ -4,7 +4,7 @@ use gpui_kit::component::input::{EditorState, InputEvent, InputState};
 use super::CrowApp;
 use crate::views::overview::state::{ProcessFilter, ServiceFilter};
 use crate::components::sidebar::NavBadges;
-use crate::theme::{CRIT, OK, TEXT_FAINT, WARN};
+use crate::theme::*;
 use crate::views::firewall::FirewallOperationalState;
 use crate::views::overview::summary::{summarize_services, summarize_sockets};
 use crate::vault::{ChangeRecord, ServerRecord, Vault};
@@ -256,39 +256,39 @@ impl CrowApp {
         let mut badges = NavBadges::new();
         let services = summarize_services(&self.overview.services);
         if services.failed > 0 {
-            badges.push(("services", t!("app-overview-failed", failed = services.failed), CRIT));
+            badges.push(("services", t!("app-overview-failed", failed = services.failed), theme().crit));
         } else if services.total > 0 {
-            badges.push(("services", services.total.to_string(), TEXT_FAINT));
+            badges.push(("services", services.total.to_string(), text_faint()));
         }
         if !self.overview.processes.is_empty() {
-            badges.push(("processes", self.overview.processes.len().to_string(), TEXT_FAINT));
+            badges.push(("processes", self.overview.processes.len().to_string(), text_faint()));
         }
         let sockets = summarize_sockets(&self.overview.sockets);
         if sockets.listening > 0 {
-            badges.push(("sockets", sockets.listening.to_string(), if sockets.all_interfaces > 0 { WARN } else { TEXT_FAINT }));
+            badges.push(("sockets", sockets.listening.to_string(), if sockets.all_interfaces > 0 { theme().warn } else { text_faint() }));
         }
         let unsaved = self.configs.states.values().filter(|st| st.is_modified()).count();
         if unsaved > 0 {
-            badges.push(("config", unsaved.to_string(), WARN));
+            badges.push(("config", unsaved.to_string(), theme().warn));
         }
         let errors = self.journal.entries.iter().filter(|e| e.priority.is_error()).count();
         if errors > 0 {
-            badges.push(("logs", errors.to_string(), CRIT));
+            badges.push(("logs", errors.to_string(), theme().crit));
         }
         match &self.firewall.status {
-            FirewallOperationalState::Active(summary) if summary.is_active => badges.push(("firewall", t!("app-overview-on").into(), OK)),
-            FirewallOperationalState::Active(_) | FirewallOperationalState::Inactive { .. } => badges.push(("firewall", t!("app-overview-off").into(), WARN)),
+            FirewallOperationalState::Active(summary) if summary.is_active => badges.push(("firewall", t!("app-overview-on").into(), theme().ok)),
+            FirewallOperationalState::Active(_) | FirewallOperationalState::Inactive { .. } => badges.push(("firewall", t!("app-overview-off").into(), theme().warn)),
             FirewallOperationalState::Unmanaged { .. } => {}
         }
         if let Some(scan) = self.dokku.current() {
             if scan.installed && !scan.apps.is_empty() {
                 let running = scan.apps.iter().filter(|a| a.running && !a.degraded()).count();
                 let color = if scan.apps.iter().any(|a| a.degraded()) {
-                    CRIT
+                    theme().crit
                 } else if scan.apps.iter().any(|a| a.maintenance || !a.running) {
-                    WARN
+                    theme().warn
                 } else {
-                    OK
+                    theme().ok
                 };
                 badges.push(("dokku", format!("{running}/{}", scan.apps.len()), color));
             }

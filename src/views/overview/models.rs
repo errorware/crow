@@ -29,10 +29,10 @@ pub struct ServiceUnit {
 impl ServiceUnit {
     pub fn status_color(&self) -> Rgba {
         match self.status.as_str() {
-            "ACTIVE" => OK,
-            "DEGRADED" | "PENDING" => WARN,
-            "FAILED" => CRIT,
-            _ => TEXT_MUTED,
+            "ACTIVE" => theme().ok,
+            "DEGRADED" | "PENDING" => theme().warn,
+            "FAILED" => theme().crit,
+            _ => text_muted(),
         }
     }
 }
@@ -57,13 +57,13 @@ pub struct ProcessUnit {
 impl ProcessUnit {
     pub fn stat_color(&self) -> Rgba {
         if self.stat.starts_with('R') {
-            OK
+            theme().ok
         } else if self.stat.starts_with('D') {
-            WARN
+            theme().warn
         } else if self.stat.starts_with('Z') {
-            CRIT
+            theme().crit
         } else {
-            TEXT_MUTED
+            text_muted()
         }
     }
 
@@ -123,9 +123,9 @@ impl PeerCategory {
 
     pub fn color(&self) -> Rgba {
         match self {
-            PeerCategory::Loopback => TEXT_FAINT,
+            PeerCategory::Loopback => text_faint(),
             PeerCategory::Private => hex_rgb(0xa78bfa), // Light purple
-            PeerCategory::Public => hex_rgb(0x38bdf8),  // Cyan
+            PeerCategory::Public => accent(),
         }
     }
 }
@@ -150,10 +150,10 @@ impl SocketUnit {
 
     pub fn state_color(&self) -> Rgba {
         match self.state.to_uppercase().as_str() {
-            "LISTEN" => OK,
-            "ESTAB" | "ESTABLISHED" => hex_rgb(0x38bdf8), // Cyan
-            "TIME-WAIT" | "CLOSE-WAIT" => WARN,
-            _ => TEXT_MUTED,
+            "LISTEN" => theme().ok,
+            "ESTAB" | "ESTABLISHED" => accent(),
+            "TIME-WAIT" | "CLOSE-WAIT" => theme().warn,
+            _ => text_muted(),
         }
     }
 }

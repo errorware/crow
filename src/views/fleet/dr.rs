@@ -15,7 +15,7 @@ fn mono(size: f32, color: Rgba) -> Div {
 }
 
 fn label(t: &'static str) -> Div {
-    mono(9.5, TEXT_DIMMER).font_weight(FontWeight::SEMIBOLD).child(t)
+    mono(9.5, text_dimmer()).font_weight(FontWeight::SEMIBOLD).child(t)
 }
 
 fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) -> Stateful<Div> {
@@ -24,23 +24,23 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) ->
         .px(px(8.0))
         .py(px(3.0))
         .border_1()
-        .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
-        .bg(if on { BG_CONTROL_ALT } else { BG_CONTROL })
+        .border_color(if on { text_primary() } else { border_default() })
+        .bg(if on { bg_control_alt() } else { bg_control() })
         .font_family(FONT_MONO)
         .text_size(font_px(10.0))
         .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
-        .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+        .text_color(if on { text_primary() } else { text_dim() })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .child(text.into())
 }
 
 fn editor(e: &Entity<gpui_kit::component::input::EditorState>, h: f32) -> impl IntoElement {
-    div().h(px(h)).border_1().border_color(BORDER_DEFAULT).bg(BG_APP).child(Editor::new(e).h_full().appearance(false).bordered(false).font_family(FONT_MONO).text_size(font_px(11.0)))
+    div().h(px(h)).border_1().border_color(border_default()).bg(bg_app()).child(Editor::new(e).h_full().appearance(false).bordered(false).font_family(FONT_MONO).text_size(font_px(11.0)))
 }
 
 fn input(i: &Entity<gpui_kit::component::input::InputState>) -> impl IntoElement {
-    Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0))
+    Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(bg_app()).rounded(px(2.0))
 }
 
 pub fn dr_page(fleet: &FleetState, st: &DrState, inputs: Option<&DrInputs>, app: Entity<CrowApp>) -> impl IntoElement {
@@ -53,8 +53,8 @@ pub fn dr_page(fleet: &FleetState, st: &DrState, inputs: Option<&DrInputs>, app:
         .flex()
         .flex_col()
         .gap(px(6.0))
-        .child(div().flex().items_center().child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("fleet-dr-plans"))).child(div().flex_1()).child(chip("dr-new", t!("fleet-dr-new"), false).on_click(move |_ev, window, cx| a_new.update(cx, |this, cx| this.new_dr_plan(window, cx)))))
-        .when(st.plans.is_empty(), |d| d.child(mono(10.0, TEXT_DIM).line_height(px(14.0)).child(t!("fleet-dr-no-plans-yet-a-plan"))))
+        .child(div().flex().items_center().child(mono(10.5, text_secondary()).font_weight(FontWeight::BOLD).child(t!("fleet-dr-plans"))).child(div().flex_1()).child(chip("dr-new", t!("fleet-dr-new"), false).on_click(move |_ev, window, cx| a_new.update(cx, |this, cx| this.new_dr_plan(window, cx)))))
+        .when(st.plans.is_empty(), |d| d.child(mono(10.0, text_dim()).line_height(px(14.0)).child(t!("fleet-dr-no-plans-yet-a-plan"))))
         .children(st.plans.iter().map(|p| {
             let (app, id) = (app.clone(), p.id.clone());
             let last = p.drills.last();
@@ -106,7 +106,7 @@ pub fn dr_page(fleet: &FleetState, st: &DrState, inputs: Option<&DrInputs>, app:
                 .child(div().flex_1())
                 .when(plan.is_some(), |d| d.child(chip("dr-delete", t!("fleet-dr-delete-plan"), false).on_click(move |_ev, _w, cx| a_del.update(cx, |this, cx| this.delete_dr_plan(cx))))),
         )
-        .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { OK } else { WARN }).line_height(px(15.0)).child(m)))
+        .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { theme().ok } else { theme().warn }).line_height(px(15.0)).child(m)))
         .children(st.findings.iter().map(|(server, f)| {
             div()
                 .flex()
@@ -114,10 +114,10 @@ pub fn dr_page(fleet: &FleetState, st: &DrState, inputs: Option<&DrInputs>, app:
                 .gap(px(2.0))
                 .p(px(8.0))
                 .border_1()
-                .border_color(BORDER_PANEL)
-                .bg(BG_PANEL)
-                .child(mono(10.5, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(server.clone()))
-                .children(f.iter().map(|x| mono(10.5, if x.ok { OK } else { CRIT }).child(format!("{} {}", if x.ok { "✓" } else { "✗" }, x.what))))
+                .border_color(border_panel())
+                .bg(bg_panel())
+                .child(mono(10.5, text_primary()).font_weight(FontWeight::BOLD).child(server.clone()))
+                .children(f.iter().map(|x| mono(10.5, if x.ok { theme().ok } else { theme().crit }).child(format!("{} {}", if x.ok { "✓" } else { "✗" }, x.what))))
         }))
         // Drills.
         .when(plan.is_some(), |d| {
@@ -129,17 +129,17 @@ pub fn dr_page(fleet: &FleetState, st: &DrState, inputs: Option<&DrInputs>, app:
                     .gap(px(6.0))
                     .p(px(10.0))
                     .border_1()
-                    .border_color(BORDER_PANEL)
-                    .child(mono(10.5, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("fleet-dr-drills")))
-                    .child(mono(9.5, TEXT_FAINT).line_height(px(13.0)).child(t!("fleet-dr-rebuild-it-for-real-somewhere")))
+                    .border_color(border_panel())
+                    .child(mono(10.5, text_secondary()).font_weight(FontWeight::BOLD).child(t!("fleet-dr-drills")))
+                    .child(mono(9.5, text_faint()).line_height(px(13.0)).child(t!("fleet-dr-rebuild-it-for-real-somewhere")))
                     .child(match p.drill_started {
-                        Some(start) => div().flex().items_center().gap(px(8.0)).child(mono(10.5, WARN).child(t!("fleet-dr-running-for-min", chrono = (chrono::Utc::now().timestamp() - start) / 60))).child(div().flex_1().child(input(&i.notes))).child(chip("dr-finish", t!("fleet-dr-finish-drill"), false).on_click(move |_ev, _w, cx| a_finish.update(cx, |this, cx| this.finish_drill(cx)))).into_any_element(),
+                        Some(start) => div().flex().items_center().gap(px(8.0)).child(mono(10.5, theme().warn).child(t!("fleet-dr-running-for-min", chrono = (chrono::Utc::now().timestamp() - start) / 60))).child(div().flex_1().child(input(&i.notes))).child(chip("dr-finish", t!("fleet-dr-finish-drill"), false).on_click(move |_ev, _w, cx| a_finish.update(cx, |this, cx| this.finish_drill(cx)))).into_any_element(),
                         None => chip("dr-start", t!("fleet-dr-start-a-drill"), false).on_click(move |_ev, _w, cx| a_drill.update(cx, |this, cx| this.start_drill(cx))).into_any_element(),
                     })
                     .children(p.drills.iter().rev().map(|d| {
                         use chrono::TimeZone;
                         let when = chrono::Local.timestamp_opt(d.started_at, 0).single().map(|t| t.format("%Y-%m-%d %H:%M").to_string()).unwrap_or_default();
-                        mono(10.5, if d.met_rto { OK } else { CRIT }).child(t!("fleet-dr-min", when = when, minutes = d.minutes, d = if d.met_rto { t!("fleet-dr-met-the-rto") } else { t!("fleet-dr-missed-the-rto") }, d2 = if d.notes.is_empty() { String::new() } else { format!(" · {}", d.notes) }))
+                        mono(10.5, if d.met_rto { theme().ok } else { theme().crit }).child(t!("fleet-dr-min", when = when, minutes = d.minutes, d = if d.met_rto { t!("fleet-dr-met-the-rto") } else { t!("fleet-dr-missed-the-rto") }, d2 = if d.notes.is_empty() { String::new() } else { format!(" · {}", d.notes) }))
                     })),
             )
         });

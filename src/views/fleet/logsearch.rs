@@ -22,23 +22,23 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) ->
         .px(px(8.0))
         .py(px(3.0))
         .border_1()
-        .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
-        .bg(if on { BG_CONTROL_ALT } else { BG_CONTROL })
+        .border_color(if on { text_primary() } else { border_default() })
+        .bg(if on { bg_control_alt() } else { bg_control() })
         .font_family(FONT_MONO)
         .text_size(font_px(10.0))
         .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
-        .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+        .text_color(if on { text_primary() } else { text_dim() })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .child(text.into())
 }
 
 fn label(t: &'static str) -> Div {
-    mono(9.5, TEXT_DIMMER).font_weight(FontWeight::SEMIBOLD).w(px(70.0)).flex_none().child(t)
+    mono(9.5, text_dimmer()).font_weight(FontWeight::SEMIBOLD).w(px(70.0)).flex_none().child(t)
 }
 
 fn input(i: Option<&Entity<gpui_kit::component::input::InputState>>) -> impl IntoElement {
-    div().flex_1().children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0))))
+    div().flex_1().children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(bg_app()).rounded(px(2.0))))
 }
 
 pub fn log_search_page(fleet: &FleetState, st: &LogSearchState, app: Entity<CrowApp>) -> impl IntoElement {
@@ -67,7 +67,7 @@ pub fn log_search_page(fleet: &FleetState, st: &LogSearchState, app: Entity<Crow
                 .child(div().flex().items_center().gap(px(6.0)).child(label(t!("fleet-logsearch-when"))).children(ranges.iter().map(|r| {
                     let (app, r) = (app.clone(), *r);
                     chip(format!("ls-range-{}", r.label()), r.label(), st.range == r).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_log_range(r, cx)))
-                })).child(div().w(px(16.0))).child(mono(9.5, TEXT_DIMMER).child(t!("fleet-logsearch-at-most"))).children([50usize, 200, 1000].into_iter().map(|n| {
+                })).child(div().w(px(16.0))).child(mono(9.5, text_dimmer()).child(t!("fleet-logsearch-at-most"))).children([50usize, 200, 1000].into_iter().map(|n| {
                     let app = app.clone();
                     chip(format!("ls-limit-{n}"), format!("{n}/server"), st.limit == n).on_click(move |_ev, _w, cx| app.update(cx, |this, cx| this.set_log_limit(n, cx)))
                 })))
@@ -96,20 +96,20 @@ pub fn log_search_page(fleet: &FleetState, st: &LogSearchState, app: Entity<Crow
                                 .px(px(14.0))
                                 .py(px(5.0))
                                 .border_1()
-                                .border_color(OK)
-                                .bg(OK.opacity(0.1))
+                                .border_color(theme().ok)
+                                .bg(theme().ok.opacity(0.1))
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(OK)
+                                .text_color(theme().ok)
                                 .cursor_pointer()
-                                .hover(|s| s.bg(OK.opacity(0.2)))
+                                .hover(|s| s.bg(theme().ok.opacity(0.2)))
                                 .on_click(move |_ev, _w, cx| app_run.update(cx, |this, cx| this.run_log_search(cx)))
                                 .child(if st.running.is_empty() { t!("fleet-logsearch-search-2").to_string() } else { t!("fleet-logsearch-searching", count = st.running.len()) }),
                         ),
                 )
                 .child(div().flex().items_center().gap(px(8.0)).child(label(t!("fleet-logsearch-save-as"))).child(div().w(px(300.0)).child(input(st.name.as_ref()))).child(chip("btn-ls-save", t!("fleet-logsearch-save"), false).on_click(move |_ev, _w, cx| app_save.update(cx, |this, cx| this.save_log_search(cx)))))
-                .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { OK } else { WARN }).child(m)))
+                .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { theme().ok } else { theme().warn }).child(m)))
                 // Saved searches.
                 .when(!st.saved.is_empty(), |d| {
                     d.child(
@@ -117,7 +117,7 @@ pub fn log_search_page(fleet: &FleetState, st: &LogSearchState, app: Entity<Crow
                             .flex()
                             .flex_col()
                             .gap(px(4.0))
-                            .child(mono(10.0, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("fleet-logsearch-saved")))
+                            .child(mono(10.0, text_secondary()).font_weight(FontWeight::BOLD).child(t!("fleet-logsearch-saved")))
                             .children(st.saved.iter().map(|s| {
                                 let (a_run, a_alert, a_del, id1, id2, id3) = (app.clone(), app.clone(), app.clone(), s.id.clone(), s.id.clone(), s.id.clone());
                                 let alert = if s.alert { t!("fleet-logsearch-alert", level = s.level) } else { t!("fleet-logsearch-alert-off").into() };
@@ -128,10 +128,10 @@ pub fn log_search_page(fleet: &FleetState, st: &LogSearchState, app: Entity<Crow
                                     .px(px(8.0))
                                     .py(px(4.0))
                                     .border_1()
-                                    .border_color(BORDER_PANEL)
-                                    .bg(BG_PANEL)
-                                    .child(mono(10.5, TEXT_PRIMARY).w(px(200.0)).flex_none().child(s.name.clone()))
-                                    .child(mono(10.0, TEXT_DIM).flex_1().min_w(px(0.0)).whitespace_nowrap().overflow_hidden().text_ellipsis().child(format!("\"{}\"{}{} · {}", s.text, if s.unit.is_empty() { String::new() } else { t!("fleet-logsearch-in", unit = s.unit) }, s.priority.map(|p| t!("fleet-logsearch-prio", p = p)).unwrap_or_default(), if s.group.is_empty() { t!("fleet-logsearch-every-server").to_string() } else { t!("fleet-logsearch-group-2", group = s.group) })))
+                                    .border_color(border_panel())
+                                    .bg(bg_panel())
+                                    .child(mono(10.5, text_primary()).w(px(200.0)).flex_none().child(s.name.clone()))
+                                    .child(mono(10.0, text_dim()).flex_1().min_w(px(0.0)).whitespace_nowrap().overflow_hidden().text_ellipsis().child(format!("\"{}\"{}{} · {}", s.text, if s.unit.is_empty() { String::new() } else { t!("fleet-logsearch-in", unit = s.unit) }, s.priority.map(|p| t!("fleet-logsearch-prio", p = p)).unwrap_or_default(), if s.group.is_empty() { t!("fleet-logsearch-every-server").to_string() } else { t!("fleet-logsearch-group-2", group = s.group) })))
                                     .child(chip(format!("ls-saved-run-{}", s.id), "RUN", false).on_click(move |_ev, window, cx| {
                                         let id = id1.clone();
                                         a_run.update(cx, |this, cx| this.run_saved_search(&id, window, cx))
@@ -145,7 +145,7 @@ pub fn log_search_page(fleet: &FleetState, st: &LogSearchState, app: Entity<Crow
                                         a_del.update(cx, |this, cx| this.delete_saved_search(&id, cx))
                                     }))
                             }))
-                            .child(mono(9.5, TEXT_FAINT).child(t!("fleet-logsearch-an-alerting-search-runs-every"))),
+                            .child(mono(9.5, text_faint()).child(t!("fleet-logsearch-an-alerting-search-runs-every"))),
                     )
                 })
                 // Results.
@@ -156,24 +156,24 @@ pub fn log_search_page(fleet: &FleetState, st: &LogSearchState, app: Entity<Crow
                             .flex_wrap()
                             .items_center()
                             .gap(px(6.0))
-                            .child(mono(10.0, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(t!("fleet-logsearch-lines", count = st.hits.len())))
+                            .child(mono(10.0, text_secondary()).font_weight(FontWeight::BOLD).child(t!("fleet-logsearch-lines", count = st.hits.len())))
                             .children(per_server.iter().map(|(name, r)| match r {
-                                Ok(n) => mono(9.5, if *n >= st.limit { WARN } else { TEXT_DIM }).px(px(5.0)).bg(BG_CHIP).child(format!("{name}: {n}{}", if *n >= st.limit { t!("fleet-logsearch-limit") } else { "" })),
-                                Err(e) => mono(9.5, CRIT).px(px(5.0)).bg(BG_CHIP).child(format!("{name}: {e}")),
+                                Ok(n) => mono(9.5, if *n >= st.limit { theme().warn } else { text_dim() }).px(px(5.0)).bg(bg_chip()).child(format!("{name}: {n}{}", if *n >= st.limit { t!("fleet-logsearch-limit") } else { "" })),
+                                Err(e) => mono(9.5, theme().crit).px(px(5.0)).bg(bg_chip()).child(format!("{name}: {e}")),
                             }))
                             .child(div().flex_1())
                             .when(!st.hits.is_empty(), |d| d.child(chip("btn-ls-summarize", if st.summarizing { t!("fleet-logsearch-summarizing") } else { t!("fleet-logsearch-summarize-clanker") }, false).on_click(move |_ev, _w, cx| app_sum.update(cx, |this, cx| this.summarize_log_search(cx))))),
                     )
                 })
                 .children(st.summary.as_ref().map(|s| match s {
-                    Ok((text, via)) => div().p(px(10.0)).bg(BG_PANEL).border_1().border_color(BORDER_PANEL).flex().flex_col().gap(px(4.0)).child(mono(10.5, TEXT_PRIMARY).line_height(px(16.0)).child(text.clone())).child(mono(9.0, TEXT_FAINT).child(t!("fleet-logsearch-via-only-the-matching-lines", via = via))),
-                    Err(e) => mono(10.5, CRIT).child(e.clone()),
+                    Ok((text, via)) => div().p(px(10.0)).bg(bg_panel()).border_1().border_color(border_panel()).flex().flex_col().gap(px(4.0)).child(mono(10.5, text_primary()).line_height(px(16.0)).child(text.clone())).child(mono(9.0, text_faint()).child(t!("fleet-logsearch-via-only-the-matching-lines", via = via))),
+                    Err(e) => mono(10.5, theme().crit).child(e.clone()),
                 }))
                 .children(st.hits.iter().take(500).map(|h| {
                     let e = &h.entry;
                     let msg = e.message.clone();
                     let ranges = crate::journal::match_ranges(&msg, &terms);
-                    let highlights: Vec<(std::ops::Range<usize>, HighlightStyle)> = ranges.into_iter().map(|r| (r, HighlightStyle { background_color: Some(WARN.opacity(0.3).into()), ..Default::default() })).collect();
+                    let highlights: Vec<(std::ops::Range<usize>, HighlightStyle)> = ranges.into_iter().map(|r| (r, HighlightStyle { background_color: Some(theme().warn.opacity(0.3).into()), ..Default::default() })).collect();
                     div()
                         .flex()
                         .items_start()
@@ -181,12 +181,12 @@ pub fn log_search_page(fleet: &FleetState, st: &LogSearchState, app: Entity<Crow
                         .px(px(6.0))
                         .py(px(2.0))
                         .border_b_1()
-                        .border_color(BORDER_ROW)
-                        .child(mono(9.5, TEXT_FAINT).w(px(150.0)).flex_none().child(e.timestamp_formatted.clone()))
-                        .child(mono(10.0, TEXT_TERTIARY).w(px(120.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(h.server.clone()))
+                        .border_color(border_row())
+                        .child(mono(9.5, text_faint()).w(px(150.0)).flex_none().child(e.timestamp_formatted.clone()))
+                        .child(mono(10.0, text_tertiary()).w(px(120.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(h.server.clone()))
                         .child(mono(9.5, e.priority.color()).w(px(56.0)).flex_none().child(e.priority.label()))
-                        .child(mono(9.5, TEXT_DIM).w(px(150.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(if e.unit.is_empty() { e.syslog_identifier.clone() } else { e.unit.clone() }))
-                        .child(div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_SECONDARY).child(StyledText::new(msg).with_highlights(highlights)))
+                        .child(mono(9.5, text_dim()).w(px(150.0)).flex_none().whitespace_nowrap().overflow_hidden().text_ellipsis().child(if e.unit.is_empty() { e.syslog_identifier.clone() } else { e.unit.clone() }))
+                        .child(div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(font_px(10.5)).text_color(text_secondary()).child(StyledText::new(msg).with_highlights(highlights)))
                 })),
         )
 }

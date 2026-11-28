@@ -43,7 +43,7 @@ pub struct NewUserInputs {
 }
 
 fn field(input: Option<&Entity<InputState>>) -> Div {
-    div().w_full().children(input.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.5)).bg(BG_APP).rounded(px(2.0))))
+    div().w_full().children(input.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.5)).bg(bg_app()).rounded(px(2.0))))
 }
 
 /// `shells`: offered login shells; `groups`: supplementary groups that
@@ -83,9 +83,9 @@ pub fn new_user_modal(
             div()
                 .id("new-user-modal-panel")
                 .w(px(520.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .rounded_md()
                 .flex()
                 .flex_col()
@@ -100,19 +100,19 @@ pub fn new_user_modal(
                         .justify_between()
                         .px(px(16.0))
                         .border_b_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .child(
                             div()
                                 .flex()
                                 .items_center()
                                 .gap(px(8.0))
-                                .child(tabler_icon(TablerIcon::Users).size(px(16.0)).text_color(OK))
+                                .child(tabler_icon(TablerIcon::Users).size(px(16.0)).text_color(theme().ok))
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(12.5))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_MAX)
+                                        .text_color(text_max())
                                         .child(t!("users-new-user-modal-provision-new-system-user")),
                                 ),
                         )
@@ -121,13 +121,13 @@ pub fn new_user_modal(
                                 .id("btn-close-new-user")
                                 .p(px(4.0))
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_close.update(cx, |this, cx| {
                                         this.users.show_new_user_modal = false; cx.notify();
                                     });
                                 })
-                                .child(tabler_icon(TablerIcon::X).size(px(14.0)).text_color(TEXT_MUTED)),
+                                .child(tabler_icon(TablerIcon::X).size(px(14.0)).text_color(text_muted())),
                         ),
                 )
                 // Form Body
@@ -148,7 +148,7 @@ pub fn new_user_modal(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_MUTED)
+                                        .text_color(text_muted())
                                         .child(t!("users-new-user-modal-login-username-posix")),
                                 )
                                 .child(field(inputs.map(|i| &i.username))),
@@ -164,7 +164,7 @@ pub fn new_user_modal(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_MUTED)
+                                        .text_color(text_muted())
                                         .child(t!("users-new-user-modal-full-name-gecos-metadata")),
                                 )
                                 .child(field(inputs.map(|i| &i.gecos))),
@@ -176,9 +176,9 @@ pub fn new_user_modal(
                                 .flex()
                                 .flex_col()
                                 .gap(px(4.0))
-                                .child(div().font_family(FONT_MONO).text_size(font_px(10.0)).font_weight(FontWeight::BOLD).text_color(TEXT_MUTED).child(t!("users-new-user-modal-password-optional")))
+                                .child(div().font_family(FONT_MONO).text_size(font_px(10.0)).font_weight(FontWeight::BOLD).text_color(text_muted()).child(t!("users-new-user-modal-password-optional")))
                                 .child(div().flex().gap(px(8.0)).child(div().flex_1().child(field(inputs.map(|i| &i.password)))).child(div().flex_1().child(field(inputs.map(|i| &i.password_confirm)))))
-                                .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(if mismatch { CRIT } else { TEXT_FAINT }).child(if mismatch {
+                                .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(if mismatch { theme().crit } else { text_faint() }).child(if mismatch {
                                     t!("users-new-user-modal-the-passwords-dont-match")
                                 } else if state.password.is_empty() {
                                     t!("users-new-user-modal-leave-empty-for-key-only")
@@ -204,7 +204,7 @@ pub fn new_user_modal(
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_MUTED)
+                                                .text_color(text_muted())
                                                 .child(t!("users-new-user-modal-login-shell")),
                                         )
                                         .child(div().flex().flex_wrap().gap(px(4.0)).children(shells.into_iter().enumerate().map(|(i, shell)| {
@@ -215,12 +215,12 @@ pub fn new_user_modal(
                                                 .px(px(7.0))
                                                 .py(px(3.0))
                                                 .border_1()
-                                                .border_color(if current { OK } else { BORDER_DEFAULT })
-                                                .bg(if current { OK_BG } else { BG_APP })
-                                                .text_color(if current { OK } else { TEXT_DIMMER })
+                                                .border_color(if current { theme().ok } else { border_default() })
+                                                .bg(if current { theme().ok_bg } else { bg_app() })
+                                                .text_color(if current { theme().ok } else { text_dimmer() })
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
-                                                .when(!current, |d| d.cursor_pointer().hover(|s| s.bg(BG_ROW_HOVER)).on_click(move |_ev, _window, cx| {
+                                                .when(!current, |d| d.cursor_pointer().hover(|s| s.bg(bg_row_hover())).on_click(move |_ev, _window, cx| {
                                                     let sh = sh.clone();
                                                     app.update(cx, |this, cx| {
                                                         this.users.new_user.shell = sh;
@@ -241,7 +241,7 @@ pub fn new_user_modal(
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_MUTED)
+                                                .text_color(text_muted())
                                                 .child(t!("users-new-user-modal-initial-privileges")),
                                         )
                                         .child(
@@ -249,11 +249,11 @@ pub fn new_user_modal(
                                                 .id("btn-toggle-new-sudo")
                                                 .px(px(10.0))
                                                 .py(px(6.0))
-                                                .bg(if current_sudo { hex_rgba(0x10b981, 0.15) } else { BG_APP })
+                                                .bg(if current_sudo { hex_rgba(0x10b981, 0.15) } else { bg_app() })
                                                 .border_1()
-                                                .border_color(if current_sudo { hex_rgba(0x10b981, 0.4) } else { BORDER_DEFAULT })
+                                                .border_color(if current_sudo { hex_rgba(0x10b981, 0.4) } else { border_default() })
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                                .hover(|s| s.bg(bg_row_hover()))
                                                 .when(sudo_group.is_some(), |d| d.on_click(move |_ev, _window, cx| {
                                                     app_sudo.update(cx, |this, cx| {
                                                         this.users.new_user.grant_sudo = !current_sudo;
@@ -268,7 +268,7 @@ pub fn new_user_modal(
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(11.0))
                                                         .font_weight(FontWeight::BOLD)
-                                                        .text_color(if current_sudo { OK } else { TEXT_MUTED })
+                                                        .text_color(if current_sudo { theme().ok } else { text_muted() })
                                                         .child(match (current_sudo, sudo_group) {
                                                             (true, Some(g)) => t!("users-new-user-modal-admin-group", g = g),
                                                             (false, Some(g)) => t!("users-new-user-modal-standard-user-click-to-add", g = g),
@@ -289,7 +289,7 @@ pub fn new_user_modal(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_MUTED)
+                                        .text_color(text_muted())
                                         .child(t!("users-new-user-modal-supplementary-groups-usermod-ag")),
                                 )
                                 .child(
@@ -305,15 +305,15 @@ pub fn new_user_modal(
                                                 .id(ElementId::NamedInteger(format!("new-user-grp-{}", grp).into(), 0))
                                                 .px(px(8.0))
                                                 .py(px(3.0))
-                                                .bg(if is_sel { hex_rgba(0x8ab4ff, 0.15) } else { BG_CONTROL })
+                                                .bg(if is_sel { accent_bg() } else { bg_control() })
                                                 .border_1()
-                                                .border_color(if is_sel { hex_rgba(0x8ab4ff, 0.4) } else { BORDER_DEFAULT })
+                                                .border_color(if is_sel { accent_border() } else { border_default() })
                                                 .cursor_pointer()
-                                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                                .hover(|s| s.bg(bg_row_hover()))
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(9.5))
                                                 .font_weight(if is_sel { FontWeight::BOLD } else { FontWeight::NORMAL })
-                                                .text_color(if is_sel { hex_rgb(0x8ab4ff) } else { TEXT_TERTIARY })
+                                                .text_color(if is_sel { accent() } else { text_tertiary() })
                                                 .on_click(move |_ev, _window, cx| {
                                                     let g = g_name.clone();
                                                     app_grp.update(cx, |this, cx| {
@@ -334,11 +334,11 @@ pub fn new_user_modal(
                             div()
                                 .id("btn-toggle-new-home")
                                 .p(px(8.0))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .cursor_pointer()
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_home.update(cx, |this, cx| {
                                         this.users.new_user.create_home = !current_home;
@@ -352,7 +352,7 @@ pub fn new_user_modal(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
-                                        .text_color(TEXT_SECONDARY)
+                                        .text_color(text_secondary())
                                         .child(t!("users-new-user-modal-create-user-home-directory-home")),
                                 )
                                 .child(
@@ -360,7 +360,7 @@ pub fn new_user_modal(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(if current_home { OK } else { TEXT_MUTED })
+                                        .text_color(if current_home { theme().ok } else { text_muted() })
                                         .child(if current_home { t!("users-new-user-modal-enabled") } else { t!("users-new-user-modal-disabled") }),
                                 ),
                         ),
@@ -374,14 +374,14 @@ pub fn new_user_modal(
                         .items_center()
                         .justify_between()
                         .px(px(16.0))
-                        .bg(BG_APP)
+                        .bg(bg_app())
                         .border_t_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(TEXT_FAINT)
+                                .text_color(text_faint())
                                 .child(t!("users-new-user-modal-executes-under-sudo")),
                         )
                         .child(
@@ -394,7 +394,7 @@ pub fn new_user_modal(
                                         .id("btn-create-user-confirm")
                                         .px(px(12.0))
                                         .py(px(5.0))
-                                        .bg(OK)
+                                        .bg(theme().ok)
                                         .cursor_pointer()
                                         .hover(|s| s.bg(hex_rgb(0x34d399)))
                                         .font_family(FONT_MONO)

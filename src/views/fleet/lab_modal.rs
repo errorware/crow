@@ -55,9 +55,9 @@ pub fn local_lab_modal(
                 // (flex_1) had nothing to grow into and showed empty.
                 .h(px(720.0))
                 .max_h(relative(0.9))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .flex_col()
                 .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // keep clicks inside from reaching the backdrop (which closes)
@@ -67,9 +67,9 @@ pub fn local_lab_modal(
                         .h(px(48.0))
                         .flex_none()
                         .px(px(20.0))
-                        .bg(BG_SUBHEAD)
+                        .bg(bg_subhead())
                         .border_b_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .flex()
                         .items_center()
                         .justify_between()
@@ -83,14 +83,14 @@ pub fn local_lab_modal(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(12.5))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(title),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(9.5))
-                                        .text_color(TEXT_TERTIARY)
+                                        .text_color(text_tertiary())
                                         .child(subtitle),
                                 ),
                         )
@@ -122,11 +122,11 @@ pub fn local_lab_modal(
                                 .gap(px(8.0))
                                 .children(containers.iter().map(|p| {
                                     let (text, color) = match plugins.status.get(p.id) {
-                                        _ if plugins.checking.contains(p.id) => (t!("fleet-lab-modal-checking").to_string(), TEXT_DIMMER),
-                                        Some(crate::plugins::PluginStatus::Ready(v)) => (v.clone(), OK),
-                                        Some(crate::plugins::PluginStatus::Problem { summary, .. }) => (summary.clone(), WARN),
-                                        Some(crate::plugins::PluginStatus::Missing { .. }) => (t!("fleet-lab-modal-not-installed").to_string(), TEXT_DIMMER),
-                                        _ => ("—".to_string(), TEXT_DIMMER),
+                                        _ if plugins.checking.contains(p.id) => (t!("fleet-lab-modal-checking").to_string(), text_dimmer()),
+                                        Some(crate::plugins::PluginStatus::Ready(v)) => (v.clone(), theme().ok),
+                                        Some(crate::plugins::PluginStatus::Problem { summary, .. }) => (summary.clone(), theme().warn),
+                                        Some(crate::plugins::PluginStatus::Missing { .. }) => (t!("fleet-lab-modal-not-installed").to_string(), text_dimmer()),
+                                        _ => ("—".to_string(), text_dimmer()),
                                     };
                                     div()
                                         .flex()
@@ -134,13 +134,13 @@ pub fn local_lab_modal(
                                         .gap(px(6.0))
                                         .px(px(8.0))
                                         .py(px(4.0))
-                                        .bg(BG_CONTROL)
+                                        .bg(bg_control())
                                         .border_1()
-                                        .border_color(BORDER_PANEL)
+                                        .border_color(border_panel())
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
                                         .child(div().size(px(6.0)).rounded_full().bg(color))
-                                        .child(div().font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(p.name))
+                                        .child(div().font_weight(FontWeight::BOLD).text_color(text_primary()).child(p.name))
                                         .child(div().text_color(color).child(text))
                                 }))
                         }))
@@ -167,18 +167,18 @@ pub fn local_lab_modal(
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(10.5))
                                                         .font_weight(FontWeight::BOLD)
-                                                        .text_color(TEXT_PRIMARY)
+                                                        .text_color(text_primary())
                                                         .child(t!("fleet-lab-modal-discovered-local-test-nodes")),
                                                 )
                                                 .child(
                                                     div()
                                                         .px(px(6.0))
                                                         .py(px(1.5))
-                                                        .bg(BG_CHIP)
+                                                        .bg(bg_chip())
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(9.0))
                                                         .font_weight(FontWeight::BOLD)
-                                                        .text_color(TEXT_SECONDARY)
+                                                        .text_color(text_secondary())
                                                         .child(t!("fleet-lab-modal-detected", count = nodes.len())),
                                                 ),
                                         )
@@ -187,11 +187,11 @@ pub fn local_lab_modal(
                                                 .id("btn-refresh-lab-nodes")
                                                 .px(px(8.0))
                                                 .py(px(3.0))
-                                                .bg(BG_CONTROL)
+                                                .bg(bg_control())
                                                 .border_1()
-                                                .border_color(BORDER_DEFAULT)
-                                                .text_color(TEXT_MUTED)
-                                                .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
+                                                .border_color(border_default())
+                                                .text_color(text_muted())
+                                                .hover(|s| s.text_color(text_primary()).bg(bg_row_hover()))
                                                 .cursor_pointer()
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(9.5))
@@ -205,9 +205,9 @@ pub fn local_lab_modal(
                                 )
                                 .child(
                                     div()
-                                        .bg(BG_APP)
+                                        .bg(bg_app())
                                         .border_1()
-                                        .border_color(BORDER_PANEL)
+                                        .border_color(border_panel())
                                         .flex()
                                         .flex_col()
                                         .children(if nodes.is_empty() {
@@ -223,14 +223,14 @@ pub fn local_lab_modal(
                                                         div()
                                                             .font_family(FONT_MONO)
                                                             .text_size(font_px(11.0))
-                                                            .text_color(TEXT_MUTED)
+                                                            .text_color(text_muted())
                                                             .child(t!("fleet-lab-modal-no-local-test-nodes-found")),
                                                     )
                                                     .child(
                                                         div()
                                                             .font_family(FONT_MONO)
                                                             .text_size(font_px(9.5))
-                                                            .text_color(TEXT_FAINT)
+                                                            .text_color(text_faint())
                                                             .child(t!("fleet-lab-modal-use-the-form-below-to")),
                                                     )
                                                     .into_any_element()
@@ -249,9 +249,9 @@ pub fn local_lab_modal(
                         .h(px(46.0))
                         .flex_none()
                         .px(px(20.0))
-                        .bg(BG_SUBHEAD)
+                        .bg(bg_subhead())
                         .border_t_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .flex()
                         .items_center()
                         .justify_end()
@@ -260,11 +260,11 @@ pub fn local_lab_modal(
                                 .id("btn-close-lab-footer")
                                 .px(px(14.0))
                                 .py(px(5.0))
-                                .bg(BG_CONTROL)
+                                .bg(bg_control())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
-                                .text_color(TEXT_MUTED)
-                                .hover(|s| s.text_color(TEXT_PRIMARY).bg(BG_ROW_HOVER))
+                                .border_color(border_default())
+                                .text_color(text_muted())
+                                .hover(|s| s.text_color(text_primary()).bg(bg_row_hover()))
                                 .cursor_pointer()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
@@ -291,11 +291,11 @@ fn render_node_row(node: &LocalTestNode, idx: usize, app: Entity<CrowApp>) -> im
     div()
         .p(px(10.0))
         .border_b_1()
-        .border_color(BORDER_ROW)
+        .border_color(border_row())
         .flex()
         .items_center()
         .justify_between()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         // Left info
         .child(
             div()
@@ -306,7 +306,7 @@ fn render_node_row(node: &LocalTestNode, idx: usize, app: Entity<CrowApp>) -> im
                     div()
                         .size(px(8.0))
                         .rounded_full()
-                        .bg(if is_running { OK } else { TEXT_DIMMER }),
+                        .bg(if is_running { theme().ok } else { text_dimmer() }),
                 )
                 .child(
                     div()
@@ -323,17 +323,17 @@ fn render_node_row(node: &LocalTestNode, idx: usize, app: Entity<CrowApp>) -> im
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(node.name.clone()),
                                 )
                                 .child(
                                     div()
                                         .px(px(4.5))
                                         .py(px(1.0))
-                                        .bg(BG_CHIP)
+                                        .bg(bg_chip())
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(8.5))
-                                        .text_color(TEXT_TERTIARY)
+                                        .text_color(text_tertiary())
                                         .child(node.engine.label()),
                                 ),
                         )
@@ -341,7 +341,7 @@ fn render_node_row(node: &LocalTestNode, idx: usize, app: Entity<CrowApp>) -> im
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.0))
-                                .text_color(TEXT_MUTED)
+                                .text_color(text_muted())
                                 .child(t!("fleet-lab-modal-endpoint", distro_display = node.distro_display(), endpoint_display = node.endpoint_display())),
                         ),
                 ),
@@ -360,11 +360,11 @@ fn render_node_row(node: &LocalTestNode, idx: usize, app: Entity<CrowApp>) -> im
                             .id(ElementId::NamedInteger("node-stop-btn".into(), idx as u64))
                             .px(px(8.0))
                             .py(px(3.0))
-                            .bg(BG_CONTROL)
+                            .bg(bg_control())
                             .border_1()
-                            .border_color(BORDER_DEFAULT)
-                            .text_color(TEXT_MUTED)
-                            .hover(|s| s.text_color(CRIT).bg(BG_ROW_HOVER))
+                            .border_color(border_default())
+                            .text_color(text_muted())
+                            .hover(|s| s.text_color(theme().crit).bg(bg_row_hover()))
                             .cursor_pointer()
                             .font_family(FONT_MONO)
                             .text_size(font_px(9.5))
@@ -381,11 +381,11 @@ fn render_node_row(node: &LocalTestNode, idx: usize, app: Entity<CrowApp>) -> im
                             .id(ElementId::NamedInteger("node-start-btn".into(), idx as u64))
                             .px(px(8.0))
                             .py(px(3.0))
-                            .bg(BG_CONTROL)
+                            .bg(bg_control())
                             .border_1()
-                            .border_color(BORDER_DEFAULT)
-                            .text_color(OK)
-                            .hover(|s| s.bg(BG_ROW_HOVER))
+                            .border_color(border_default())
+                            .text_color(theme().ok)
+                            .hover(|s| s.bg(bg_row_hover()))
                             .cursor_pointer()
                             .font_family(FONT_MONO)
                             .text_size(font_px(9.5))
@@ -401,7 +401,7 @@ fn render_node_row(node: &LocalTestNode, idx: usize, app: Entity<CrowApp>) -> im
                 // Enroll button
                 .child(
                     if is_enrolled {
-                        crate::components::button::badge(OK)
+                        crate::components::button::badge(theme().ok)
                             .id(ElementId::NamedInteger("node-enrolled-pill".into(), idx as u64))
                             .text_size(font_px(9.5))
                             .font_weight(FontWeight::BOLD)
@@ -412,7 +412,7 @@ fn render_node_row(node: &LocalTestNode, idx: usize, app: Entity<CrowApp>) -> im
                             .id(ElementId::NamedInteger("node-enroll-btn".into(), idx as u64))
                             .px(px(8.0))
                             .py(px(3.0))
-                            .bg(TEXT_PRIMARY)
+                            .bg(text_primary())
                             .text_color(rgb(0x0a0a0c))
                             .font_family(FONT_MONO)
                             .font_weight(FontWeight::BOLD)
@@ -436,7 +436,7 @@ fn render_node_row(node: &LocalTestNode, idx: usize, app: Entity<CrowApp>) -> im
 // ==========================================
 
 fn section_title(text: &'static str) -> Div {
-    div().font_family(FONT_MONO).text_size(font_px(10.5)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(text)
+    div().font_family(FONT_MONO).text_size(font_px(10.5)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(text)
 }
 
 fn pill(text: String, fg: Rgba) -> Div {
@@ -450,13 +450,13 @@ fn text_button(id: impl Into<ElementId>, label: String, color: Rgba) -> Stateful
         .px(px(7.0))
         .py(px(2.0))
         .border_1()
-        .border_color(BORDER_DEFAULT)
-        .bg(BG_CONTROL)
+        .border_color(border_default())
+        .bg(bg_control())
         .font_family(FONT_MONO)
         .text_size(font_px(9.5))
         .text_color(color)
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .child(label)
 }
 
@@ -464,11 +464,11 @@ fn text_button(id: impl Into<ElementId>, label: String, color: Rgba) -> Stateful
 /// actions) and the launch form.
 pub fn multipass_section(lab: &LocalLabState, servers: &[ServerRecord], app: Entity<CrowApp>) -> impl IntoElement {
     let (status_text, status_fg, _, steps): (String, Rgba, Rgba, &[InstallStep]) = match &lab.multipass {
-        None => (t!("fleet-lab-modal-checking-2").into(), TEXT_DIMMER, BG_CHIP, &[]),
-        Some(MultipassStatus::Missing { steps }) => (t!("fleet-lab-modal-not-installed-2").into(), TEXT_DIMMER, BG_CHIP, steps),
-        Some(MultipassStatus::DaemonDown { steps, .. }) => (t!("fleet-lab-modal-daemon-not-running").into(), WARN, hex_rgba(0xf59e0b, 0.12), steps),
-        Some(MultipassStatus::Ready { daemon, fixes, .. }) if !fixes.is_empty() => (t!("fleet-lab-modal-needs-a-fix", daemon = daemon), WARN, hex_rgba(0xf59e0b, 0.12), fixes),
-        Some(MultipassStatus::Ready { daemon, .. }) => (t!("fleet-lab-modal-ready", daemon = daemon), OK, OK_BG, &[]),
+        None => (t!("fleet-lab-modal-checking-2").into(), text_dimmer(), bg_chip(), &[]),
+        Some(MultipassStatus::Missing { steps }) => (t!("fleet-lab-modal-not-installed-2").into(), text_dimmer(), bg_chip(), steps),
+        Some(MultipassStatus::DaemonDown { steps, .. }) => (t!("fleet-lab-modal-daemon-not-running").into(), theme().warn, hex_rgba(0xf59e0b, 0.12), steps),
+        Some(MultipassStatus::Ready { daemon, fixes, .. }) if !fixes.is_empty() => (t!("fleet-lab-modal-needs-a-fix", daemon = daemon), theme().warn, hex_rgba(0xf59e0b, 0.12), fixes),
+        Some(MultipassStatus::Ready { daemon, .. }) => (t!("fleet-lab-modal-ready", daemon = daemon), theme().ok, theme().ok_bg, &[]),
     };
     let ready = lab.multipass.as_ref().is_some_and(|s| s.is_ready());
     let detail = match &lab.multipass {
@@ -491,21 +491,21 @@ pub fn multipass_section(lab: &LocalLabState, servers: &[ServerRecord], app: Ent
                     app_refresh.update(cx, |this, cx| this.refresh_multipass(cx));
                 })),
         )
-        .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_TERTIARY).child(
+        .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(text_tertiary()).child(
             t!("fleet-lab-modal-ubuntu-vms-on-this-machine-2"),
         ))
-        .children(detail.map(|d| div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(WARN).child(d)))
+        .children(detail.map(|d| div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(theme().warn).child(d)))
         .children(steps.iter().enumerate().map(|(i, s)| setup_step(i, s, app.clone())))
-        .children(lab.busy.clone().map(|b| div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(hex_rgb(0x8ab4ff)).child(format!("● {b}"))))
-        .children(lab.vm_error.clone().map(|e| div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(CRIT).child(e)))
+        .children(lab.busy.clone().map(|b| div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(accent()).child(format!("● {b}"))))
+        .children(lab.vm_error.clone().map(|e| div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(theme().crit).child(e)))
         .children(ready.then(|| {
             div()
-                .bg(BG_APP)
+                .bg(bg_app())
                 .border_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .flex_col()
-                .children(lab.vms.is_empty().then(|| div().p(px(14.0)).font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_FAINT).child(t!("fleet-lab-modal-no-vms-yet-launch-one"))))
+                .children(lab.vms.is_empty().then(|| div().p(px(14.0)).font_family(FONT_MONO).text_size(font_px(10.0)).text_color(text_faint()).child(t!("fleet-lab-modal-no-vms-yet-launch-one"))))
                 .children(lab.vms.iter().enumerate().map(|(i, vm)| vm_row(i, vm, servers, lab, app.clone())))
         }))
         .children(ready.then(|| launch_form(lab, app.clone())))
@@ -518,17 +518,17 @@ pub(crate) fn setup_step(i: usize, s: &InstallStep, app: Entity<CrowApp>) -> imp
         .flex_col()
         .gap(px(3.0))
         .p(px(8.0))
-        .bg(BG_CONTROL)
+        .bg(bg_control())
         .border_1()
-        .border_color(BORDER_PANEL)
-        .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(TEXT_SECONDARY).child(format!("{}. {}", i + 1, s.why)))
+        .border_color(border_panel())
+        .child(div().font_family(FONT_MONO).text_size(font_px(9.5)).text_color(text_secondary()).child(format!("{}. {}", i + 1, s.why)))
         .child(
             div()
                 .flex()
                 .items_center()
                 .gap(px(8.0))
-                .child(div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(font_px(10.0)).text_color(TEXT_PRIMARY).child(s.command.clone()))
-                .child(text_button(ElementId::NamedInteger("mp-copy-step".into(), i as u64), t!("fleet-lab-modal-copy").into(), TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
+                .child(div().flex_1().min_w(px(0.0)).font_family(FONT_MONO).text_size(font_px(10.0)).text_color(text_primary()).child(s.command.clone()))
+                .child(text_button(ElementId::NamedInteger("mp-copy-step".into(), i as u64), t!("fleet-lab-modal-copy").into(), text_secondary()).on_click(move |_ev, _window, cx| {
                     let c = command.clone();
                     app.update(cx, |this, cx| this.copy_text_with_toast(&c, t!("fleet-lab-modal-command-copied"), cx));
                 })),
@@ -550,18 +550,18 @@ fn vm_row(i: usize, vm: &Instance, servers: &[ServerRecord], lab: &LocalLabState
     let mut actions = div().flex().items_center().gap(px(6.0));
     if idle {
         if in_fleet {
-            actions = actions.child(pill(t!("fleet-lab-modal-in-fleet").into(), OK));
+            actions = actions.child(pill(t!("fleet-lab-modal-in-fleet").into(), theme().ok));
         } else if running {
             let (app_i, name) = (app.clone(), vm.name.clone());
-            actions = actions.child(text_button(ElementId::NamedInteger("mp-import".into(), i as u64), t!("fleet-lab-modal-import-to-crow").into(), TEXT_PRIMARY).on_click(move |_ev, _window, cx| {
+            actions = actions.child(text_button(ElementId::NamedInteger("mp-import".into(), i as u64), t!("fleet-lab-modal-import-to-crow").into(), text_primary()).on_click(move |_ev, _window, cx| {
                 let name = name.clone();
                 app_i.update(cx, |this, cx| this.import_multipass_vm(&name, cx));
             }));
         }
         actions = if running {
-            actions.child(action(1, "STOP", TEXT_SECONDARY, Lifecycle::Stop)).child(action(2, "SUSPEND", TEXT_SECONDARY, Lifecycle::Suspend)).child(action(3, "RESTART", TEXT_SECONDARY, Lifecycle::Restart))
+            actions.child(action(1, "STOP", text_secondary(), Lifecycle::Stop)).child(action(2, "SUSPEND", text_secondary(), Lifecycle::Suspend)).child(action(3, "RESTART", text_secondary(), Lifecycle::Restart))
         } else {
-            actions.child(action(4, "START", OK, Lifecycle::Start))
+            actions.child(action(4, "START", theme().ok, Lifecycle::Start))
         };
         let (app_p, name) = (app.clone(), vm.name.clone());
         actions = actions.child(icon_button(ElementId::NamedInteger("mp-purge".into(), i as u64), TablerIcon::Trash, true).on_click(move |_ev, _window, cx| {
@@ -574,7 +574,7 @@ fn vm_row(i: usize, vm: &Instance, servers: &[ServerRecord], lab: &LocalLabState
         .flex()
         .flex_col()
         .border_b_1()
-        .border_color(BORDER_ROW)
+        .border_color(border_row())
         .child(
             div()
                 .p(px(10.0))
@@ -586,14 +586,14 @@ fn vm_row(i: usize, vm: &Instance, servers: &[ServerRecord], lab: &LocalLabState
                         .flex()
                         .items_center()
                         .gap(px(10.0))
-                        .child(div().size(px(8.0)).rounded_full().bg(if running { OK } else { TEXT_DIMMER }))
+                        .child(div().size(px(8.0)).rounded_full().bg(if running { theme().ok } else { text_dimmer() }))
                         .child(
                             div()
                                 .flex()
                                 .flex_col()
                                 .gap(px(2.0))
-                                .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(TEXT_PRIMARY).child(vm.name.clone()))
-                                .child(div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(TEXT_MUTED).child(format!(
+                                .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(text_primary()).child(vm.name.clone()))
+                                .child(div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(text_muted()).child(format!(
                                     "{} · {} · {}",
                                     vm.state,
                                     vm.address().unwrap_or(t!("fleet-lab-modal-no-address")),
@@ -610,12 +610,12 @@ fn vm_row(i: usize, vm: &Instance, servers: &[ServerRecord], lab: &LocalLabState
                 .flex()
                 .items_center()
                 .gap(px(8.0))
-                .child(div().flex_1().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(CRIT).child(t!("fleet-lab-modal-delete-and-its-disk-for", name = vm.name, in_fleet = if in_fleet { t!("fleet-lab-modal-its-fleet-entry-goes-to") } else { "" })))
-                .child(text_button(ElementId::NamedInteger("mp-purge-yes".into(), i as u64), t!("fleet-lab-modal-delete-for-good").into(), CRIT).on_click(move |_ev, _window, cx| {
+                .child(div().flex_1().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(theme().crit).child(t!("fleet-lab-modal-delete-and-its-disk-for", name = vm.name, in_fleet = if in_fleet { t!("fleet-lab-modal-its-fleet-entry-goes-to") } else { "" })))
+                .child(text_button(ElementId::NamedInteger("mp-purge-yes".into(), i as u64), t!("fleet-lab-modal-delete-for-good").into(), theme().crit).on_click(move |_ev, _window, cx| {
                     let name = name_yes.clone();
                     app_yes.update(cx, |this, cx| this.run_vm_lifecycle(Lifecycle::Purge, &name, cx));
                 }))
-                .child(text_button(ElementId::NamedInteger("mp-purge-no".into(), i as u64), t!("fleet-lab-modal-cancel").into(), TEXT_SECONDARY).on_click(move |_ev, _window, cx| {
+                .child(text_button(ElementId::NamedInteger("mp-purge-no".into(), i as u64), t!("fleet-lab-modal-cancel").into(), text_secondary()).on_click(move |_ev, _window, cx| {
                     app_no.update(cx, |this, cx| this.cancel_vm_purge(cx));
                 }))
         }))
@@ -628,9 +628,9 @@ fn stepper(id: &'static str, label: &'static str, value: String, down: impl Fn(&
         .flex()
         .items_center()
         .gap(px(4.0))
-        .child(div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(TEXT_TERTIARY).child(label))
+        .child(div().font_family(FONT_MONO).text_size(font_px(9.0)).text_color(text_tertiary()).child(label))
         .child(icon_button(ElementId::Name(format!("{id}-down").into()), TablerIcon::Minus, false).on_click(move |_ev, _window, cx| app.update(cx, |this, cx| down(this, cx))))
-        .child(div().min_w(px(34.0)).flex().justify_center().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_PRIMARY).child(value))
+        .child(div().min_w(px(34.0)).flex().justify_center().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(text_primary()).child(value))
         .child(icon_button(ElementId::Name(format!("{id}-up").into()), TablerIcon::Plus, false).on_click(move |_ev, _window, cx| app_up.update(cx, |this, cx| up(this, cx))))
 }
 
@@ -641,9 +641,9 @@ fn launch_form(lab: &LocalLabState, app: Entity<CrowApp>) -> impl IntoElement {
     let (c, m, d) = (l.cpus, l.memory_gb, l.disk_gb);
     div()
         .p(px(12.0))
-        .bg(BG_CONTROL)
+        .bg(bg_control())
         .border_1()
-        .border_color(BORDER_DEFAULT)
+        .border_color(border_default())
         .flex()
         .flex_col()
         .gap(px(10.0))
@@ -658,7 +658,7 @@ fn launch_form(lab: &LocalLabState, app: Entity<CrowApp>) -> impl IntoElement {
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).text_color(TEXT_PRIMARY).child(l.name.clone()))
+                        .child(div().font_family(FONT_MONO).text_size(font_px(11.0)).text_color(text_primary()).child(l.name.clone()))
                         .child(icon_button("btn-reroll-vm-name", TablerIcon::Refresh, false).on_click(move |_ev, _window, cx| app_name.update(cx, |this, cx| this.reroll_vm_name(cx)))),
                 ),
         )
@@ -679,8 +679,8 @@ fn launch_form(lab: &LocalLabState, app: Entity<CrowApp>) -> impl IntoElement {
                 .child(div().flex().items_center().gap(px(6.0)).children([("lts", t!("fleet-lab-modal-newest-lts")), ("24.04", "24.04"), ("22.04", "22.04")].into_iter().enumerate().map(|(i, (image, label))| {
                     let selected = l.image == image;
                     let app_img = app.clone();
-                    text_button(ElementId::NamedInteger("vm-image".into(), i as u64), label.to_string(), if selected { TEXT_PRIMARY } else { TEXT_TERTIARY })
-                        .when(selected, |b| b.border_color(TEXT_PRIMARY).bg(BG_NAV_ACTIVE))
+                    text_button(ElementId::NamedInteger("vm-image".into(), i as u64), label.to_string(), if selected { text_primary() } else { text_tertiary() })
+                        .when(selected, |b| b.border_color(text_primary()).bg(bg_nav_active()))
                         .on_click(move |_ev, _window, cx| app_img.update(cx, |this, cx| this.set_vm_image(image, cx)))
                 })))
                 .child(
@@ -688,8 +688,8 @@ fn launch_form(lab: &LocalLabState, app: Entity<CrowApp>) -> impl IntoElement {
                         .id("btn-launch-vm")
                         .px(px(14.0))
                         .py(px(6.0))
-                        .bg(if idle { TEXT_PRIMARY } else { BG_CHIP })
-                        .text_color(if idle { rgb(0x0a0a0c) } else { TEXT_DIMMER })
+                        .bg(if idle { text_primary() } else { bg_chip() })
+                        .text_color(if idle { rgb(0x0a0a0c) } else { text_dimmer() })
                         .font_weight(FontWeight::BOLD)
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.5))

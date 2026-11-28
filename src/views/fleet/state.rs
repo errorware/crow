@@ -155,7 +155,7 @@ impl FleetState {
     /// Open tabs with their server's live health color.
     pub fn tabs_with_health(&self) -> Vec<(ServerTab, gpui_kit::Rgba)> {
         self.tabs.iter().map(|t| {
-            let color = self.servers.iter().find(|s| s.id == t.id || s.name == t.id).map(|s| self.health(s).color()).unwrap_or(crate::theme::TEXT_FAINTER);
+            let color = self.servers.iter().find(|s| s.id == t.id || s.name == t.id).map(|s| self.health(s).color()).unwrap_or(crate::theme::text_fainter());
             (t.clone(), color)
         }).collect()
     }
@@ -206,9 +206,9 @@ impl FleetHealth {
     /// Dot / badge color.
     pub fn color(&self) -> gpui_kit::Rgba {
         match self {
-            FleetHealth::Ok => crate::theme::OK,
-            FleetHealth::Checking => crate::theme::TEXT_FAINTER,
-            FleetHealth::Down { .. } => crate::theme::CRIT,
+            FleetHealth::Ok => crate::theme::theme().ok,
+            FleetHealth::Checking => crate::theme::text_fainter(),
+            FleetHealth::Down { .. } => crate::theme::theme().crit,
         }
     }
 }

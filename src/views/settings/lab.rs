@@ -68,7 +68,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
         .min_w(px(0.0))
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         // Top Header
         .child(
             div()
@@ -78,33 +78,33 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                 .items_center()
                 .justify_between()
                 .px(px(16.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .child(
                     div()
                         .flex()
                         .items_center()
                         .gap(px(8.0))
-                        .child(tabler_icon(TablerIcon::Box).size(px(14.0)).text_color(OK_INK))
+                        .child(tabler_icon(TablerIcon::Box).size(px(14.0)).text_color(theme().ok_ink))
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(12.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MAX)
+                                .text_color(text_max())
                                 .child(t!("settings-lab-ui-components-lab")),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.5))
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .child(t!("settings-lab-gpui-component-transition-testbed")),
                         ),
                 )
                 .child(
-                    crate::components::button::badge(OK_INK)
+                    crate::components::button::badge(theme().ok_ink)
                         .text_size(font_px(9.5))
                         .font_weight(FontWeight::BOLD)
                         .child(t!("settings-lab-isolated-sandbox")),
@@ -124,9 +124,9 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                 .child(
                     div()
                         .p(px(14.0))
-                        .bg(hex_rgb(0x0c0c10))
+                        .bg(bg_panel())
                         .border_1()
-                        .border_color(BORDER_DEFAULT)
+                        .border_color(border_default())
                         .rounded(px(4.0))
                         .flex()
                         .flex_col()
@@ -136,13 +136,13 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .flex()
                                 .items_center()
                                 .gap(px(6.0))
-                                .child(tabler_icon(TablerIcon::InfoCircle).size(px(13.0)).text_color(OK_INK))
+                                .child(tabler_icon(TablerIcon::InfoCircle).size(px(13.0)).text_color(theme().ok_ink))
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(11.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(t!("settings-lab-evaluation-transition-sandbox")),
                                 ),
                         )
@@ -150,7 +150,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
-                                .text_color(TEXT_DIM)
+                                .text_color(text_dim())
                                 .line_height(relative(1.4))
                                 .child(
                                     t!("settings-lab-this-page-runs-gpui-component"),
@@ -168,15 +168,15 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MAX)
+                                .text_color(text_max())
                                 .child(t!("settings-lab-1-primary-native-gpui-input")),
                         )
                         .child(
                             div()
                                 .p(px(14.0))
-                                .bg(BG_PANEL)
+                                .bg(bg_panel())
                                 .border_1()
-                                .border_color(OK)
+                                .border_color(theme().ok)
                                 .rounded(px(4.0))
                                 .flex()
                                 .flex_col()
@@ -191,17 +191,17 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.5))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(OK_INK)
+                                                .text_color(theme().ok_ink)
                                                 .child(t!("settings-lab-native-gpui-component-input")),
                                         )
                                         .child(
                                             div()
                                                 .px(px(6.0))
                                                 .py(px(1.0))
-                                                .bg(OK_BG)
+                                                .bg(theme().ok_bg)
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(9.0))
-                                                .text_color(OK_INK)
+                                                .text_color(theme().ok_ink)
                                                 .child(t!("settings-lab-rope-buffer-shaping")),
                                         ),
                                 )
@@ -211,15 +211,15 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                         .cleanable(true)
                                         .w_full()
                                         .font_family(FONT_MONO)
-                                        .bg(BG_APP)
-                                        .border_color(BORDER_DEFAULT)
+                                        .bg(bg_app())
+                                        .border_color(border_default())
                                         .rounded(px(2.0)),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(9.5))
-                                        .text_color(TEXT_DIMMER)
+                                        .text_color(text_dimmer())
                                         .line_height(relative(1.4))
                                         .child(t!("settings-lab-native-mouse-drag-selection-cmd")),
                                 ),
@@ -236,7 +236,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MAX)
+                                .text_color(text_max())
                                 .child(t!("settings-lab-2-input-variants-capabilities")),
                         )
                         .child(
@@ -248,9 +248,9 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .child(
                                     div()
                                         .p(px(12.0))
-                                        .bg(BG_PANEL)
+                                        .bg(bg_panel())
                                         .border_1()
-                                        .border_color(BORDER_DEFAULT)
+                                        .border_color(border_default())
                                         .rounded(px(4.0))
                                         .flex()
                                         .flex_col()
@@ -260,7 +260,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_DIM)
+                                                .text_color(text_dim())
                                                 .child(t!("settings-lab-password-input-with-native-mask")),
                                         )
                                         .child(
@@ -270,8 +270,8 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                                 .cleanable(true)
                                                 .w_full()
                                                 .font_family(FONT_MONO)
-                                                .bg(BG_APP)
-                                                .border_color(BORDER_DEFAULT)
+                                                .bg(bg_app())
+                                                .border_color(border_default())
                                                 .rounded(px(2.0)),
                                         ),
                                 )
@@ -279,9 +279,9 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .child(
                                     div()
                                         .p(px(12.0))
-                                        .bg(BG_PANEL)
+                                        .bg(bg_panel())
                                         .border_1()
-                                        .border_color(BORDER_DEFAULT)
+                                        .border_color(border_default())
                                         .rounded(px(4.0))
                                         .flex()
                                         .flex_col()
@@ -291,18 +291,18 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_DIM)
+                                                .text_color(text_dim())
                                                 .child(t!("settings-lab-search-filter-input-cleanable")),
                                         )
                                         .child(
                                             Input::new(&lab.cleanable_input)
                                                 .id("lab-input-cleanable")
                                                 .cleanable(true)
-                                                .prefix(tabler_icon(TablerIcon::Search).size(px(12.0)).text_color(TEXT_FAINT))
+                                                .prefix(tabler_icon(TablerIcon::Search).size(px(12.0)).text_color(text_faint()))
                                                 .w_full()
                                                 .font_family(FONT_MONO)
-                                                .bg(BG_APP)
-                                                .border_color(BORDER_DEFAULT)
+                                                .bg(bg_app())
+                                                .border_color(border_default())
                                                 .rounded(px(2.0)),
                                         ),
                                 )
@@ -310,9 +310,9 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .child(
                                     div()
                                         .p(px(12.0))
-                                        .bg(BG_PANEL)
+                                        .bg(bg_panel())
                                         .border_1()
-                                        .border_color(BORDER_DEFAULT)
+                                        .border_color(border_default())
                                         .rounded(px(4.0))
                                         .flex()
                                         .flex_col()
@@ -322,29 +322,29 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                                 .font_family(FONT_MONO)
                                                 .text_size(font_px(10.0))
                                                 .font_weight(FontWeight::BOLD)
-                                                .text_color(TEXT_DIM)
+                                                .text_color(text_dim())
                                                 .child(t!("settings-lab-prefix-suffix-adornments")),
                                         )
                                         .child(
                                             Input::new(&lab.prefix_input)
                                                 .id("lab-input-prefix")
-                                                .prefix(tabler_icon(TablerIcon::Network).size(px(12.0)).text_color(OK_INK))
+                                                .prefix(tabler_icon(TablerIcon::Network).size(px(12.0)).text_color(theme().ok_ink))
                                                 .suffix(
                                                     div()
                                                         .px(px(6.0))
                                                         .py(px(1.0))
-                                                        .bg(BG_KEY)
+                                                        .bg(bg_key())
                                                         .border_1()
-                                                        .border_color(BORDER_DEFAULT)
+                                                        .border_color(border_default())
                                                         .font_family(FONT_MONO)
                                                         .text_size(font_px(9.0))
-                                                        .text_color(TEXT_MUTED)
+                                                        .text_color(text_muted())
                                                         .child(t!("settings-lab-port-22")),
                                                 )
                                                 .w_full()
                                                 .font_family(FONT_MONO)
-                                                .bg(BG_APP)
-                                                .border_color(BORDER_DEFAULT)
+                                                .bg(bg_app())
+                                                .border_color(border_default())
                                                 .rounded(px(2.0)),
                                         ),
                                 ),
@@ -361,15 +361,15 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MAX)
+                                .text_color(text_max())
                                 .child(t!("settings-lab-3-6-digit-otp-authenticator")),
                         )
                         .child(
                             div()
                                 .p(px(14.0))
-                                .bg(BG_PANEL)
+                                .bg(bg_panel())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .rounded(px(4.0))
                                 .flex()
                                 .flex_col()
@@ -379,7 +379,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(t!("settings-lab-grouped-otp-cells-split-3")),
                                 )
                                 .child(
@@ -392,7 +392,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(9.5))
-                                        .text_color(TEXT_DIMMER)
+                                        .text_color(text_dimmer())
                                         .child(t!("settings-lab-direct-replacement-candidate-for-vault")),
                                 ),
                         ),
@@ -408,15 +408,15 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MAX)
+                                .text_color(text_max())
                                 .child(t!("settings-lab-4-multi-line-textarea")),
                         )
                         .child(
                             div()
                                 .p(px(14.0))
-                                .bg(BG_PANEL)
+                                .bg(bg_panel())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .rounded(px(4.0))
                                 .flex()
                                 .flex_col()
@@ -426,7 +426,7 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(10.0))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(t!("settings-lab-multi-line-editor-with-word")),
                                 )
                                 .child(
@@ -434,8 +434,8 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                         .h(px(90.0))
                                         .w_full()
                                         .font_family(FONT_MONO)
-                                        .bg(BG_APP)
-                                        .border_color(BORDER_DEFAULT)
+                                        .bg(bg_app())
+                                        .border_color(border_default())
                                         .rounded(px(2.0)),
                                 ),
                         ),
@@ -451,15 +451,15 @@ pub fn render_components_lab(_app: Entity<CrowApp>, lab_state: &LabState) -> Div
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(11.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(TEXT_MAX)
+                                .text_color(text_max())
                                 .child(t!("settings-lab-5-gpui-component-button-matrix")),
                         )
                         .child(
                             div()
                                 .p(px(14.0))
-                                .bg(BG_PANEL)
+                                .bg(bg_panel())
                                 .border_1()
-                                .border_color(BORDER_DEFAULT)
+                                .border_color(border_default())
                                 .rounded(px(4.0))
                                 .flex()
                                 .items_center()

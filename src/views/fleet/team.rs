@@ -22,19 +22,19 @@ fn chip(id: impl Into<SharedString>, text: impl Into<SharedString>, on: bool) ->
         .px(px(8.0))
         .py(px(3.0))
         .border_1()
-        .border_color(if on { TEXT_PRIMARY } else { BORDER_DEFAULT })
-        .bg(if on { BG_CONTROL_ALT } else { BG_CONTROL })
+        .border_color(if on { text_primary() } else { border_default() })
+        .bg(if on { bg_control_alt() } else { bg_control() })
         .font_family(FONT_MONO)
         .text_size(font_px(10.0))
         .font_weight(if on { FontWeight::BOLD } else { FontWeight::NORMAL })
-        .text_color(if on { TEXT_PRIMARY } else { TEXT_DIM })
+        .text_color(if on { text_primary() } else { text_dim() })
         .cursor_pointer()
-        .hover(|s| s.bg(BG_ROW_HOVER))
+        .hover(|s| s.bg(bg_row_hover()))
         .child(text.into())
 }
 
 fn input(i: Option<&Entity<gpui_kit::component::input::InputState>>) -> impl IntoElement {
-    div().flex_1().min_w(px(0.0)).children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(BG_APP).rounded(px(2.0))))
+    div().flex_1().min_w(px(0.0)).children(i.map(|i| Input::new(i).font_family(FONT_MONO).text_size(font_px(11.0)).bg(bg_app()).rounded(px(2.0))))
 }
 
 pub fn team_page(fleet: &FleetState, st: &TeamState, app: Entity<CrowApp>) -> impl IntoElement {
@@ -59,9 +59,9 @@ pub fn team_page(fleet: &FleetState, st: &TeamState, app: Entity<CrowApp>) -> im
                 .flex()
                 .flex_col()
                 .gap(px(14.0))
-                .child(div().flex().items_center().gap(px(12.0)).child(mono(10.5, if enabled { OK } else { TEXT_DIM }).child(if enabled { t!("fleet-team-team-mode-on", count = st.config.members.len()) } else { t!("fleet-team-off-crow-is-single-user").to_string() })).child(div().flex_1()).when(st.active.is_some(), |d| d.child(chip("team-signout", t!("fleet-team-sign-out-switch"), false).on_click(move |_ev, _w, cx| app_out.update(cx, |this, cx| this.sign_out(cx))))))
-                .child(mono(9.5, TEXT_FAINT).line_height(px(14.0)).child(t!("fleet-team-who-uses-this-crow-with")))
-                .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { OK } else { WARN }).line_height(px(15.0)).child(m)))
+                .child(div().flex().items_center().gap(px(12.0)).child(mono(10.5, if enabled { theme().ok } else { text_dim() }).child(if enabled { t!("fleet-team-team-mode-on", count = st.config.members.len()) } else { t!("fleet-team-off-crow-is-single-user").to_string() })).child(div().flex_1()).when(st.active.is_some(), |d| d.child(chip("team-signout", t!("fleet-team-sign-out-switch"), false).on_click(move |_ev, _w, cx| app_out.update(cx, |this, cx| this.sign_out(cx))))))
+                .child(mono(9.5, text_faint()).line_height(px(14.0)).child(t!("fleet-team-who-uses-this-crow-with")))
+                .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { theme().ok } else { theme().warn }).line_height(px(15.0)).child(m)))
                 // Members.
                 .children(st.config.members.iter().map(|m| {
                     let (app, id) = (app.clone(), m.id.clone());
@@ -75,12 +75,12 @@ pub fn team_page(fleet: &FleetState, st: &TeamState, app: Entity<CrowApp>) -> im
                         .px(px(10.0))
                         .py(px(8.0))
                         .border_1()
-                        .border_color(if me { OK.opacity(0.5) } else { BORDER_PANEL })
-                        .bg(BG_PANEL)
-                        .child(mono(11.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).w(px(140.0)).flex_none().child(format!("{}{}", m.name, if me { t!("fleet-team-you") } else { "" })))
-                        .child(mono(10.5, if m.role == Role::Admin { WARN } else { TEXT_SECONDARY }).w(px(90.0)).flex_none().child(m.role.name()))
-                        .child(mono(10.0, TEXT_DIM).w(px(160.0)).flex_none().child(m.scope.describe()))
-                        .child(mono(9.5, TEXT_FAINT).flex_1().min_w(px(0.0)).child(perms.join(", ")))
+                        .border_color(if me { theme().ok.opacity(0.5) } else { border_panel() })
+                        .bg(bg_panel())
+                        .child(mono(11.0, text_primary()).font_weight(FontWeight::BOLD).w(px(140.0)).flex_none().child(format!("{}{}", m.name, if me { t!("fleet-team-you") } else { "" })))
+                        .child(mono(10.5, if m.role == Role::Admin { theme().warn } else { text_secondary() }).w(px(90.0)).flex_none().child(m.role.name()))
+                        .child(mono(10.0, text_dim()).w(px(160.0)).flex_none().child(m.scope.describe()))
+                        .child(mono(9.5, text_faint()).flex_1().min_w(px(0.0)).child(perms.join(", ")))
                         .child(div().w(px(24.0)).flex_none().child(
                             crate::components::icon_button::icon_button(ElementId::Name(format!("team-remove-{}", m.id).into()), TablerIcon::Trash, true)
                                 .invisible()
@@ -100,8 +100,8 @@ pub fn team_page(fleet: &FleetState, st: &TeamState, app: Entity<CrowApp>) -> im
                             .gap(px(8.0))
                             .cursor_pointer()
                             .on_click(move |_ev, _w, cx| app_appr.update(cx, |this, cx| this.toggle_approval(cx)))
-                            .child(div().size(px(12.0)).border_1().border_color(if st.config.require_approval { WARN } else { BORDER_STRONG }).bg(if st.config.require_approval { WARN } else { BG_CONTROL }))
-                            .child(mono(10.5, TEXT_SECONDARY).child(t!("fleet-team-fleet-runs-need-a-second"))),
+                            .child(div().size(px(12.0)).border_1().border_color(if st.config.require_approval { theme().warn } else { border_strong() }).bg(if st.config.require_approval { theme().warn } else { bg_control() }))
+                            .child(mono(10.5, text_secondary()).child(t!("fleet-team-fleet-runs-need-a-second"))),
                     )
                 })
                 // Add.
@@ -112,11 +112,11 @@ pub fn team_page(fleet: &FleetState, st: &TeamState, app: Entity<CrowApp>) -> im
                         .gap(px(8.0))
                         .p(px(12.0))
                         .border_1()
-                        .border_color(BORDER_PANEL)
-                        .child(mono(10.0, TEXT_SECONDARY).font_weight(FontWeight::BOLD).child(if enabled { t!("fleet-team-add-a-member") } else { t!("fleet-team-start-a-team-the-first") }))
+                        .border_color(border_panel())
+                        .child(mono(10.0, text_secondary()).font_weight(FontWeight::BOLD).child(if enabled { t!("fleet-team-add-a-member") } else { t!("fleet-team-start-a-team-the-first") }))
                         .child(div().flex().gap(px(8.0)).child(div().w(px(200.0)).child(input(st.new_name.as_ref()))).child(input(st.new_pass.as_ref())))
                         .when(enabled, |d| {
-                            d.child(div().flex().flex_wrap().items_center().gap(px(6.0)).child(mono(9.5, TEXT_DIMMER).child(t!("fleet-team-role"))).children([Role::Viewer, Role::Operator, Role::Admin].into_iter().map(|r| {
+                            d.child(div().flex().flex_wrap().items_center().gap(px(6.0)).child(mono(9.5, text_dimmer()).child(t!("fleet-team-role"))).children([Role::Viewer, Role::Operator, Role::Admin].into_iter().map(|r| {
                                 let (app, on) = (app.clone(), role == r);
                                 chip(format!("team-role-{}", r.name()), r.name(), on).on_click(move |_ev, _w, cx| {
                                     let r = r.clone();
@@ -132,7 +132,7 @@ pub fn team_page(fleet: &FleetState, st: &TeamState, app: Entity<CrowApp>) -> im
                                     Role::Custom { perms, .. } => perms.clone(),
                                     _ => vec![],
                                 };
-                                d.child(div().flex().flex_wrap().gap(px(6.0)).child(mono(9.5, TEXT_DIMMER).child(t!("fleet-team-can"))).children(Permission::ALL.into_iter().filter(|p| *p != Permission::View).map(|p| {
+                                d.child(div().flex().flex_wrap().gap(px(6.0)).child(mono(9.5, text_dimmer()).child(t!("fleet-team-can"))).children(Permission::ALL.into_iter().filter(|p| *p != Permission::View).map(|p| {
                                     let (app, on, perms) = (app.clone(), perms.contains(&p), perms.clone());
                                     chip(format!("team-perm-{p:?}"), p.label(), on).on_click(move |_ev, _w, cx| {
                                         let mut next = perms.clone();
@@ -141,7 +141,7 @@ pub fn team_page(fleet: &FleetState, st: &TeamState, app: Entity<CrowApp>) -> im
                                     })
                                 })))
                             })
-                            .child(div().flex().flex_wrap().items_center().gap(px(6.0)).child(mono(9.5, TEXT_DIMMER).child(t!("fleet-team-on"))).children(fleet.groups.iter().map(|g| {
+                            .child(div().flex().flex_wrap().items_center().gap(px(6.0)).child(mono(9.5, text_dimmer()).child(t!("fleet-team-on"))).children(fleet.groups.iter().map(|g| {
                                 let (app, name, on) = (app.clone(), g.clone(), st.new_scope_groups.contains(g));
                                 chip(format!("team-scope-g-{g}"), t!("fleet-team-group", g = g), on).on_click(move |_ev, _w, cx| {
                                     let n = name.clone();
@@ -153,7 +153,7 @@ pub fn team_page(fleet: &FleetState, st: &TeamState, app: Entity<CrowApp>) -> im
                                     let n = name.clone();
                                     app.update(cx, |this, cx| this.toggle_new_scope(None, Some(n), cx))
                                 })
-                            })).child(mono(9.5, TEXT_FAINT).child(t!("fleet-team-none-picked-the-whole-fleet"))))
+                            })).child(mono(9.5, text_faint()).child(t!("fleet-team-none-picked-the-whole-fleet"))))
                         })
                         .child(div().flex().child(chip("team-add", if enabled { t!("fleet-team-add-member") } else { t!("fleet-team-start-the-team") }, false).on_click(move |_ev, window, cx| app_add.update(cx, |this, cx| this.add_member(window, cx))))),
                 ),
@@ -171,7 +171,7 @@ pub fn sign_in_overlay(st: &TeamState, app: Entity<CrowApp>) -> impl IntoElement
         .left_0()
         .right_0()
         .bottom_0()
-        .bg(BG_WINDOW)
+        .bg(bg_window())
         .flex()
         .items_center()
         .justify_center()
@@ -183,10 +183,10 @@ pub fn sign_in_overlay(st: &TeamState, app: Entity<CrowApp>) -> impl IntoElement
                 .gap(px(12.0))
                 .p(px(20.0))
                 .border_1()
-                .border_color(BORDER_PANEL)
-                .bg(BG_PANEL)
-                .child(mono(13.0, TEXT_PRIMARY).font_weight(FontWeight::BOLD).child(t!("fleet-team-whos-at-the-keyboard")))
-                .child(mono(10.0, TEXT_DIM).line_height(px(14.0)).child(t!("fleet-team-this-crow-has-a-team")))
+                .border_color(border_panel())
+                .bg(bg_panel())
+                .child(mono(13.0, text_primary()).font_weight(FontWeight::BOLD).child(t!("fleet-team-whos-at-the-keyboard")))
+                .child(mono(10.0, text_dim()).line_height(px(14.0)).child(t!("fleet-team-this-crow-has-a-team")))
                 .child(div().flex().flex_wrap().gap(px(6.0)).children(st.config.members.iter().map(|m| {
                     let (app, id) = (app.clone(), m.id.clone());
                     chip(format!("signin-{}", m.id), format!("{} · {}", m.name, m.role.name()), st.signing_in.as_deref() == Some(m.id.as_str())).on_click(move |_ev, _w, cx| {
@@ -195,13 +195,13 @@ pub fn sign_in_overlay(st: &TeamState, app: Entity<CrowApp>) -> impl IntoElement
                     })
                 })))
                 .when(st.signing_in.is_some(), |d| d.child(input(st.passphrase.as_ref())).child(div().flex().child(chip("signin-go", t!("fleet-team-sign-in"), false).on_click(move |_ev, window, cx| app_go.update(cx, |this, cx| this.sign_in(window, cx))))))
-                .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { OK } else { CRIT }).child(m))),
+                .children(st.message.clone().map(|(ok, m)| mono(10.5, if ok { theme().ok } else { theme().crit }).child(m))),
         )
 }
 
 /// A refusal or sign-in note, bottom right on every screen.
 pub fn team_notice(notice: &(bool, String)) -> impl IntoElement {
     let (ok, text) = notice;
-    let color = if *ok { OK } else { CRIT };
-    div().absolute().bottom(px(16.0)).right(px(16.0)).max_w(px(520.0)).child(div().p(px(10.0)).border_1().border_color(color).bg(BG_PANEL).child(mono(10.5, color).font_weight(FontWeight::BOLD).line_height(px(15.0)).child(text.clone())))
+    let color = if *ok { theme().ok } else { theme().crit };
+    div().absolute().bottom(px(16.0)).right(px(16.0)).max_w(px(520.0)).child(div().p(px(10.0)).border_1().border_color(color).bg(bg_panel()).child(mono(10.5, color).font_weight(FontWeight::BOLD).line_height(px(15.0)).child(text.clone())))
 }

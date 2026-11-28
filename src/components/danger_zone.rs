@@ -77,7 +77,7 @@ pub fn danger_triangle() -> impl IntoElement {
             path.line_to(point(bounds.origin.x, bounds.origin.y + bounds.size.height));
             path.close();
             if let Ok(built) = path.build() {
-                window.paint_path(built, CRIT);
+                window.paint_path(built, theme().crit);
             }
         },
     )
@@ -99,13 +99,13 @@ fn action_btn(id: &'static str, label: impl Into<SharedString>, app: Entity<Crow
         .id(id)
         .font_family("JetBrains Mono")
         .text_size(font_px(11.0))
-        .text_color(CRIT_INK_DIM)
+        .text_color(theme().crit_ink_dim)
         .border_1()
-        .border_color(BORDER_DANGER_BTN)
+        .border_color(border_danger_btn())
         .px(px(10.0))
         .py(px(4.0))
         .cursor_pointer()
-        .hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT))
+        .hover(|s| s.bg(theme().crit_row_bg).text_color(theme().crit))
         .on_click(move |_ev, window, cx| {
             app.update(cx, move |this, cx| {
                 this.arm_danger_zone_action(action, window, cx);
@@ -123,7 +123,7 @@ pub fn action_row(title: &'static str, detail: impl Into<SharedString>, buttons:
         .px(px(16.0))
         .py(px(12.0))
         .border_b_1()
-        .border_color(BORDER_DANGER)
+        .border_color(border_danger())
         .child(
             div()
                 .flex_1()
@@ -131,9 +131,9 @@ pub fn action_row(title: &'static str, detail: impl Into<SharedString>, buttons:
                 .flex()
                 .flex_col()
                 .gap(px(3.0))
-                .child(div().text_size(font_px(12.0)).font_weight(FontWeight::SEMIBOLD).text_color(TEXT_PRIMARY).child(title))
+                .child(div().text_size(font_px(12.0)).font_weight(FontWeight::SEMIBOLD).text_color(text_primary()).child(title))
                 .children(crate::components::english_beside::english_beside(crate::i18n::english_of(title, "danger-zone-")))
-                .child(div().text_size(font_px(11.0)).text_color(TEXT_DIM).child(detail.into())),
+                .child(div().text_size(font_px(11.0)).text_color(text_dim()).child(detail.into())),
         )
         .child(div().flex().flex_none().gap(px(8.0)).children(buttons))
 }
@@ -164,13 +164,13 @@ pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>,
         let list = div()
             .id("btn-danger-snapshots")
             .text_size(font_px(11.0))
-            .text_color(TEXT_SECONDARY)
+            .text_color(text_secondary())
             .border_1()
-            .border_color(BORDER_DEFAULT)
+            .border_color(border_default())
             .px(px(10.0))
             .py(px(4.0))
             .cursor_pointer()
-            .hover(|s| s.bg(BG_ROW_HOVER))
+            .hover(|s| s.bg(bg_row_hover()))
             .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.open_snapshots_panel(cx)))
             .child(t!("danger-zone-snapshots"))
             .into_any_element();
@@ -181,7 +181,7 @@ pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>,
         action_row(
             t!("danger-zone-rotate-host-keys"),
             t!("danger-zone-not-built-yet"),
-            vec![div().id("btn-danger-rotate-keys").text_size(font_px(11.0)).text_color(TEXT_FAINTER).border_1().border_color(BORDER_DEFAULT).px(px(10.0)).py(px(4.0)).child(t!("danger-zone-not-yet-built")).into_any_element()],
+            vec![div().id("btn-danger-rotate-keys").text_size(font_px(11.0)).text_color(text_fainter()).border_1().border_color(border_default()).px(px(10.0)).py(px(4.0)).child(t!("danger-zone-not-yet-built")).into_any_element()],
         )
         .into_any_element(),
     );
@@ -197,14 +197,14 @@ pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>,
                 .id("btn-danger-archive")
                 .text_size(font_px(11.0))
                 .font_weight(FontWeight::BOLD)
-                .text_color(CRIT_INK)
+                .text_color(theme().crit_ink)
                 .border_1()
-                .border_color(BORDER_DANGER_BTN)
-                .bg(CRIT_BG)
+                .border_color(border_danger_btn())
+                .bg(theme().crit_bg)
                 .px(px(10.0))
                 .py(px(4.0))
                 .cursor_pointer()
-                .hover(|s| s.bg(CRIT_ROW_BG).text_color(CRIT))
+                .hover(|s| s.bg(theme().crit_row_bg).text_color(theme().crit))
                 .on_click(move |_ev, _window, cx| app_archive.update(cx, |this, cx| this.request_archive_active_server(cx)))
                 .child(t!("danger-zone-archive-server-2"))
                 .into_any_element()],
@@ -217,7 +217,7 @@ pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>,
         .size_full()
         .flex()
         .flex_col()
-        .bg(BG_APP)
+        .bg(bg_app())
         .font_family(FONT_MONO)
         .overflow_y_scrollbar()
         .child(
@@ -228,18 +228,18 @@ pub fn danger_zone(danger: &DangerZoneState, provider: Option<&ProviderActions>,
                 .items_center()
                 .gap(px(9.0))
                 .px(px(16.0))
-                .bg(CRIT_STRIP_BG)
+                .bg(theme().crit_strip_bg)
                 .border_b_1()
-                .border_color(BORDER_DANGER)
+                .border_color(border_danger())
                 .child(danger_triangle())
-                .child(div().text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(CRIT).child(t!("danger-zone-danger-zone")))
+                .child(div().text_size(font_px(11.0)).font_weight(FontWeight::BOLD).text_color(theme().crit).child(t!("danger-zone-danger-zone")))
                 .child(div().flex_1())
-                .child(div().text_size(font_px(10.0)).text_color(TEXT_DIMMER).child(t!("danger-zone-type-the-actions-keyword-to"))),
+                .child(div().text_size(font_px(10.0)).text_color(text_dimmer()).child(t!("danger-zone-type-the-actions-keyword-to"))),
         )
         .children(danger.pending_action.clone().map(|action| {
-            div().flex().items_center().min_h(px(46.0)).bg(CRIT_STRIP_BG).border_b_1().border_color(BORDER_DANGER).child(render_confirm_prompt(&action, danger, app.clone()))
+            div().flex().items_center().min_h(px(46.0)).bg(theme().crit_strip_bg).border_b_1().border_color(border_danger()).child(render_confirm_prompt(&action, danger, app.clone()))
         }))
-        .children(danger.last_result.as_ref().map(|msg| div().px(px(16.0)).py(px(8.0)).border_b_1().border_color(BORDER_DANGER).text_size(font_px(10.5)).text_color(TEXT_SECONDARY).child(msg.clone())))
+        .children(danger.last_result.as_ref().map(|msg| div().px(px(16.0)).py(px(8.0)).border_b_1().border_color(border_danger()).text_size(font_px(10.5)).text_color(text_secondary()).child(msg.clone())))
         .child(div().flex().flex_col().max_w(px(920.0)).children(rows))
 }
 
@@ -259,14 +259,14 @@ fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<Cro
                 .flex()
                 .flex_col()
                 .gap(px(2.0))
-                .child(div().font_family(FONT_MONO).text_size(font_px(10.5)).font_weight(FontWeight::BOLD).text_color(CRIT_INK).child(danger_action_title(action)))
+                .child(div().font_family(FONT_MONO).text_size(font_px(10.5)).font_weight(FontWeight::BOLD).text_color(theme().crit_ink).child(danger_action_title(action)))
                 .children(crate::components::english_beside::english_beside(crate::i18n::english_of(danger_action_title(action), "danger-zone-what-"))),
         )
         .child(
             div()
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.5))
-                .text_color(CRIT_INK)
+                .text_color(theme().crit_ink)
                 .child(t!("danger-zone-type-to-confirm", keyword = keyword)),
         )
         .children(danger.confirm_input.as_ref().map(|state| {
@@ -276,8 +276,8 @@ fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<Cro
                     Input::new(state)
                         .id("input-danger-confirm")
                         .font_family(FONT_MONO)
-                        .bg(BG_APP)
-                        .border_color(BORDER_DANGER_BTN)
+                        .bg(bg_app())
+                        .border_color(border_danger_btn())
                         .rounded(px(2.0)),
                 )
         }))
@@ -288,7 +288,7 @@ fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<Cro
                 .text_size(font_px(10.5))
                 .font_weight(FontWeight::BOLD)
                 .text_color(hex_rgb(0x0a0a0c))
-                .bg(CRIT)
+                .bg(theme().crit)
                 .px(px(9.0))
                 .py(px(4.0))
                 .cursor_pointer()
@@ -305,9 +305,9 @@ fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<Cro
                 .id("btn-danger-confirm-cancel")
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.5))
-                .text_color(TEXT_TERTIARY)
+                .text_color(text_tertiary())
                 .cursor_pointer()
-                .hover(|s| s.text_color(TEXT_PRIMARY))
+                .hover(|s| s.text_color(text_primary()))
                 .on_click(move |_ev, _window, cx| {
                     app_cancel.update(cx, |this, cx| {
                         this.cancel_danger_zone_action(cx);
@@ -319,7 +319,7 @@ fn render_confirm_prompt(action: &str, danger: &DangerZoneState, app: Entity<Cro
             div()
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.0))
-                .text_color(CRIT)
+                .text_color(theme().crit)
                 .child(err.clone())
         }))
 }

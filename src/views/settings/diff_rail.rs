@@ -38,23 +38,23 @@ pub fn render_diff_rail(
                 .flex()
                 .items_center()
                 .px(px(12.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .gap(px(8.0))
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(11.0))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_PRIMARY)
+                        .text_color(text_primary())
                         .child(t!("settings-diff-rail-pending-diff")),
                 )
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(if total_changed > 0 { WARN } else { TEXT_DIMMER })
+                        .text_color(if total_changed > 0 { theme().warn } else { text_dimmer() })
                         .child(diff_badge),
                 ),
         )
@@ -65,7 +65,7 @@ pub fn render_diff_rail(
                 .flex_none()
                 .p(px(14.0))
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.5))
                 .line_height(relative(1.5))
@@ -74,14 +74,14 @@ pub fn render_diff_rail(
                         .flex()
                         .items_center()
                         .gap(px(6.0))
-                        .text_color(OK)
+                        .text_color(theme().ok)
                         .child(inherited_icon(TablerIcon::Check, font_px(12.0)))
                         .child(t!("settings-diff-rail-configuration-in-sync")),
                 )
                 .child(
                     div()
                         .mt(px(4.0))
-                        .text_color(TEXT_FAINTER)
+                        .text_color(text_fainter())
                         .child(t!("settings-diff-rail-working-copy-matches-config-crow")),
                 )
                 .into_any_element()
@@ -93,16 +93,16 @@ pub fn render_diff_rail(
                 .overflow_y_scrollbar()
                 .py(px(6.0))
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .font_family(FONT_MONO)
                 .text_size(font_px(10.5))
                 .line_height(relative(1.55))
                 .children(diff_lines.into_iter().map(|line| {
                     let (bg_c, text_c) = match line.kind {
-                        DiffKind::Hunk => (DIFF_HUNK_BG, TEXT_DIMMER),
-                        DiffKind::Addition => (DIFF_ADD_BG, OK_INK),
-                        DiffKind::Deletion => (DIFF_DEL_BG, CRIT_INK),
-                        DiffKind::Context => (hex_rgba(0, 0.0), TEXT_MUTED),
+                        DiffKind::Hunk => (theme().diff_hunk_bg, text_dimmer()),
+                        DiffKind::Addition => (theme().diff_add_bg, theme().ok_ink),
+                        DiffKind::Deletion => (theme().diff_del_bg, theme().crit_ink),
+                        DiffKind::Context => (hex_rgba(0, 0.0), text_muted()),
                     };
                     div()
                         .px(px(12.0))
@@ -120,8 +120,8 @@ pub fn render_diff_rail(
                     .flex_none()
                     .p(px(12.0))
                     .border_b_1()
-                    .border_color(BORDER_PANEL)
-                    .bg(hex_rgb(0x0c0a0a))
+                    .border_color(border_panel())
+                    .bg(bg_subhead())
                     .flex()
                     .flex_col()
                     .gap(px(6.0))
@@ -130,13 +130,13 @@ pub fn render_diff_rail(
                             .flex()
                             .items_center()
                             .gap(px(7.0))
-                            .child(div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(WARN).child("▲"))
+                            .child(div().font_family(FONT_MONO).text_size(font_px(10.0)).text_color(theme().warn).child("▲"))
                             .child(
                                 div()
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(10.0))
                                     .font_weight(FontWeight::BOLD)
-                                    .text_color(WARN)
+                                    .text_color(theme().warn)
                                     .child(t!("settings-diff-rail-affects-live-sessions")),
                             ),
                     )
@@ -145,7 +145,7 @@ pub fn render_diff_rail(
                             .font_family(FONT_MONO)
                             .text_size(font_px(10.5))
                             .line_height(relative(1.5))
-                            .text_color(TEXT_TERTIARY)
+                            .text_color(text_tertiary())
                             .child(t!("settings-diff-rail-pending-ssh-connection-changes-take")),
                     ),
             )
@@ -165,10 +165,10 @@ pub fn render_diff_rail(
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
                         .font_weight(FontWeight::BOLD)
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(t!("settings-diff-rail-keychain")),
                 )
-                .children(keychain.is_empty().then(|| div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(TEXT_FAINT).child(t!("settings-diff-rail-no-keys-enrolled-yet"))))
+                .children(keychain.is_empty().then(|| div().font_family(FONT_MONO).text_size(font_px(10.5)).text_color(text_faint()).child(t!("settings-diff-rail-no-keys-enrolled-yet"))))
                 .children(keychain.iter().map(|(name, note, dot)| {
                     div()
                         .flex()
@@ -186,12 +186,12 @@ pub fn render_diff_rail(
                         .child(
                             div()
                                 .flex_1()
-                                .text_color(TEXT_SECONDARY)
+                                .text_color(text_secondary())
                                 .child(name.clone()),
                         )
                         .child(
                             div()
-                                .text_color(TEXT_DIMMER)
+                                .text_color(text_dimmer())
                                 .child(note.clone()),
                         )
                 })),

@@ -18,22 +18,22 @@ pub fn stat_strip(
     // CPU formatting
     let cpu_str = format!("{:.1}", m.cpu_pct);
     let cpu_color = if m.cpu_pct > 80.0 {
-        CRIT
+        theme().crit
     } else if m.cpu_pct > 60.0 {
-        WARN
+        theme().warn
     } else {
-        OK
+        theme().ok
     };
     let cpu_sub = t!("stat-strip-vcpu-peak", vcpu_count = m.vcpu_count, m = format!("{:.1}", m.cpu_peak.max(m.cpu_pct)));
 
     // Memory formatting
     let (mem_used_str, mem_total_str) = m.mem_formatted();
     let mem_color = if m.mem_pct > 85.0 {
-        CRIT
+        theme().crit
     } else if m.mem_pct > 65.0 {
-        WARN
+        theme().warn
     } else {
-        OK
+        theme().ok
     };
     let mem_ratio = (m.mem_pct / 100.0).clamp(0.01, 1.0);
 
@@ -79,12 +79,12 @@ pub fn stat_strip(
                 .items_center()
                 .justify_between()
                 .px(px(14.0))
-                .bg(if surge_alert.is_some() { CRIT_STRIP_BG } else { hex_rgb(0x0e1014) })
+                .bg(if surge_alert.is_some() { theme().crit_strip_bg } else { bg_subhead() })
                 // A warning, not an alarm: the Danger Zone bar's palette (its
                 // background and hairline border) with its buttons' muted red text.
                 .when(surge_alert.is_some(), |d| d.border_t_1())
                 .border_b_1()
-                .border_color(if surge_alert.is_some() { BORDER_DANGER } else { BORDER_PANEL })
+                .border_color(if surge_alert.is_some() { border_danger() } else { border_panel() })
                 // Left: Buffer info
                 .child(
                     div()
@@ -95,21 +95,21 @@ pub fn stat_strip(
                             div()
                                 .size(px(6.0))
                                 .rounded_full()
-                                .bg(if surge_alert.is_some() { CRIT_INK_DIM } else { OK }),
+                                .bg(if surge_alert.is_some() { theme().crit_ink_dim } else { theme().ok }),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(10.0))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(if surge_alert.is_some() { CRIT_INK_DIM } else { OK })
+                                .text_color(if surge_alert.is_some() { theme().crit_ink_dim } else { theme().ok })
                                 .child(t!("stat-strip-turbo-buffer")),
                         )
                         .child(
                             div()
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
-                                .text_color(TEXT_MUTED)
+                                .text_color(text_muted())
                                 .child(t!("stat-strip-s-lag-local-memory-cache", lag_secs = lag_secs)),
                         ),
                 )
@@ -124,7 +124,7 @@ pub fn stat_strip(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(9.5))
                                 .font_weight(FontWeight::BOLD)
-                                .text_color(CRIT_INK_DIM)
+                                .text_color(theme().crit_ink_dim)
                                 .child(t!("stat-strip-ahead-in-s", description = surge.description, lead_seconds = surge.lead_seconds)),
                         )
                         .into_any_element()
@@ -135,8 +135,8 @@ pub fn stat_strip(
                         .gap(px(6.0))
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
-                        .text_color(TEXT_FAINT)
-                        .child(div().text_color(OK).child("✓"))
+                        .text_color(text_faint())
+                        .child(div().text_color(theme().ok).child("✓"))
                         .child(t!("stat-strip-next-s-nothing-unusual", lag_secs = lag_secs))
                         .into_any_element()
                 }),
@@ -148,9 +148,9 @@ pub fn stat_strip(
                 .flex()
                 .items_stretch()
                 .w_full()
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_b_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
         // 1. CPU LOAD
         .child(
             div()
@@ -159,7 +159,7 @@ pub fn stat_strip(
                 .pb(px(11.0))
                 .px(px(14.0))
                 .border_r_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .flex_col()
                 .justify_between()
@@ -168,7 +168,7 @@ pub fn stat_strip(
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(t!("stat-strip-cpu-load")),
                 )
                 .child(
@@ -188,14 +188,14 @@ pub fn stat_strip(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(26.0))
                                         .font_weight(FontWeight::MEDIUM)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(cpu_str),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(13.0))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child("%"),
                                 ),
                         )
@@ -205,7 +205,7 @@ pub fn stat_strip(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .mt(px(6.0))
                         .child(cpu_sub),
                 ),
@@ -218,7 +218,7 @@ pub fn stat_strip(
                 .pb(px(11.0))
                 .px(px(14.0))
                 .border_r_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .flex_col()
                 .justify_between()
@@ -227,7 +227,7 @@ pub fn stat_strip(
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(t!("stat-strip-memory")),
                 )
                 .child(
@@ -247,14 +247,14 @@ pub fn stat_strip(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(26.0))
                                         .font_weight(FontWeight::MEDIUM)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(mem_used_str),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(13.0))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(mem_total_str),
                                 ),
                         )
@@ -289,7 +289,7 @@ pub fn stat_strip(
                 .pb(px(11.0))
                 .px(px(14.0))
                 .border_r_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .flex_col()
                 .justify_between()
@@ -298,7 +298,7 @@ pub fn stat_strip(
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(t!("stat-strip-disk-nvme", disk_mount = m.disk_mount)),
                 )
                 .child(
@@ -318,14 +318,14 @@ pub fn stat_strip(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(26.0))
                                         .font_weight(FontWeight::MEDIUM)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(disk_used_str),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(13.0))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(disk_total_str),
                                 ),
                         )
@@ -341,14 +341,14 @@ pub fn stat_strip(
                                 .child(div().w(px(5.0)).h(px(14.0)).bg(rgb(0x2e3038)))
                                 .child(div().w(px(5.0)).h(px(13.0)).bg(rgb(0x2e3038)))
                                 .child(div().w(px(5.0)).h(px(16.0)).bg(rgb(0x2e3038)))
-                                .child(div().w(px(5.0)).h(px(15.0)).bg(TEXT_SECONDARY)),
+                                .child(div().w(px(5.0)).h(px(15.0)).bg(text_secondary())),
                         ),
                 )
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .mt(px(6.0))
                         .child(disk_sub),
                 ),
@@ -361,7 +361,7 @@ pub fn stat_strip(
                 .pb(px(11.0))
                 .px(px(14.0))
                 .border_r_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .flex_col()
                 .justify_between()
@@ -370,7 +370,7 @@ pub fn stat_strip(
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(t!("stat-strip-load-avg")),
                 )
                 .child(
@@ -385,16 +385,16 @@ pub fn stat_strip(
                                 .font_family(FONT_MONO)
                                 .text_size(font_px(26.0))
                                 .font_weight(FontWeight::MEDIUM)
-                                .text_color(TEXT_PRIMARY)
+                                .text_color(text_primary())
                                 .child(load_str),
                         )
-                        .child(dynamic_sparkline(&m.load_history, Some(0.0), None, TEXT_DIMMER)),
+                        .child(dynamic_sparkline(&m.load_history, Some(0.0), None, text_dimmer())),
                 )
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .mt(px(6.0))
                         .child(load_sub),
                 ),
@@ -407,7 +407,7 @@ pub fn stat_strip(
                 .pb(px(11.0))
                 .px(px(14.0))
                 .border_r_1()
-                .border_color(BORDER_PANEL)
+                .border_color(border_panel())
                 .flex()
                 .flex_col()
                 .justify_between()
@@ -416,7 +416,7 @@ pub fn stat_strip(
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(t!("stat-strip-uptime")),
                 )
                 .child(
@@ -435,14 +435,14 @@ pub fn stat_strip(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(26.0))
                                         .font_weight(FontWeight::MEDIUM)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(uptime_top_val),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(13.0))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(uptime_top_unit),
                                 )
                                 .child(
@@ -450,7 +450,7 @@ pub fn stat_strip(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(26.0))
                                         .font_weight(FontWeight::MEDIUM)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .ml(px(6.0))
                                         .child(uptime_sub_val),
                                 )
@@ -458,7 +458,7 @@ pub fn stat_strip(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(13.0))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(uptime_sub_unit),
                                 ),
                         )
@@ -468,7 +468,7 @@ pub fn stat_strip(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .mt(px(6.0))
                         .child(t!("stat-strip-sampled", last_sample_ts = m.last_sample_ts)),
                 ),
@@ -488,7 +488,7 @@ pub fn stat_strip(
                         .font_family(FONT_MONO)
                         .text_size(font_px(9.5))
                         .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(TEXT_DIMMER)
+                        .text_color(text_dimmer())
                         .child(t!("stat-strip-network")),
                 )
                 .child(
@@ -508,24 +508,24 @@ pub fn stat_strip(
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(26.0))
                                         .font_weight(FontWeight::MEDIUM)
-                                        .text_color(TEXT_PRIMARY)
+                                        .text_color(text_primary())
                                         .child(net_str),
                                 )
                                 .child(
                                     div()
                                         .font_family(FONT_MONO)
                                         .text_size(font_px(13.0))
-                                        .text_color(TEXT_DIM)
+                                        .text_color(text_dim())
                                         .child(t!("stat-strip-mb-s-2")),
                                 ),
                         )
-                        .child(dynamic_sparkline(&m.net_history, Some(0.0), None, TEXT_SECONDARY)),
+                        .child(dynamic_sparkline(&m.net_history, Some(0.0), None, text_secondary())),
                 )
                 .child(
                     div()
                         .font_family(FONT_MONO)
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_FAINT)
+                        .text_color(text_faint())
                         .mt(px(6.0))
                         .child(net_sub),
                 ),

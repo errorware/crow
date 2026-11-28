@@ -52,9 +52,9 @@ pub fn group_assign_modal(
             div()
                 .id("group-assign-modal-card")
                 .w(px(380.0))
-                .bg(BG_PANEL)
+                .bg(bg_panel())
                 .border_1()
-                .border_color(BORDER_DEFAULT)
+                .border_color(border_default())
                 .shadow_lg()
                 .flex()
                 .flex_col()
@@ -67,9 +67,9 @@ pub fn group_assign_modal(
                     div()
                         .h(px(40.0))
                         .px(px(14.0))
-                        .bg(BG_SUBHEAD)
+                        .bg(bg_subhead())
                         .border_b_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .flex()
                         .items_center()
                         .justify_between()
@@ -78,12 +78,12 @@ pub fn group_assign_modal(
                                 .flex()
                                 .items_center()
                                 .gap(px(8.0))
-                                .child(tabler_icon(TablerIcon::Folder).size(px(14.0)).text_color(hex_rgb(0x38bdf8)))
+                                .child(tabler_icon(TablerIcon::Folder).size(px(14.0)).text_color(accent()))
                                 .child(
                                     div()
                                         .text_size(font_px(11.5))
                                         .font_weight(FontWeight::BOLD)
-                                        .text_color(TEXT_MAX)
+                                        .text_color(text_max())
                                         .child(t!("fleet-group-modal-group", server_name = server_name)),
                                 ),
                         )
@@ -92,14 +92,14 @@ pub fn group_assign_modal(
                                 .id("btn-group-assign-close")
                                 .cursor_pointer()
                                 .p(px(4.0))
-                                .text_color(TEXT_DIM)
-                                .hover(|s| s.text_color(TEXT_MAX))
+                                .text_color(text_dim())
+                                .hover(|s| s.text_color(text_max()))
                                 .on_click(move |_ev, _window, cx| {
                                     app_close.update(cx, |this, cx| {
                                         this.set_group_assign_target(None, cx);
                                     });
                                 })
-                                .child(tabler_icon(TablerIcon::X).size(px(14.0)).text_color(TEXT_DIM)),
+                                .child(tabler_icon(TablerIcon::X).size(px(14.0)).text_color(text_dim())),
                         ),
                 )
                 // Subhead
@@ -108,9 +108,9 @@ pub fn group_assign_modal(
                         .px(px(14.0))
                         .py(px(8.0))
                         .text_size(font_px(10.0))
-                        .text_color(TEXT_DIM)
+                        .text_color(text_dim())
                         .border_b_1()
-                        .border_color(BORDER_PANEL)
+                        .border_color(border_panel())
                         .child(t!("fleet-group-modal-move-this-server-to-a")),
                 )
                 // Group List
@@ -139,8 +139,8 @@ pub fn group_assign_modal(
                                 .px(px(14.0))
                                 .py(px(6.0))
                                 .cursor_pointer()
-                                .bg(if is_assigned { BG_ROW_SELECTED } else { hex_rgba(0, 0.0) })
-                                .hover(|s| s.bg(BG_ROW_HOVER))
+                                .bg(if is_assigned { bg_row_selected() } else { hex_rgba(0, 0.0) })
+                                .hover(|s| s.bg(bg_row_hover()))
                                 .on_click(move |_ev, _window, cx| {
                                     let sid = s_id.clone();
                                     let g = g_val.clone();
@@ -153,11 +153,11 @@ pub fn group_assign_modal(
                                         .flex()
                                         .items_center()
                                         .gap(px(8.0))
-                                        .child(tabler_icon(TablerIcon::Folder).size(px(12.0)).text_color(if is_assigned { hex_rgb(0x38bdf8) } else { TEXT_DIM }))
+                                        .child(tabler_icon(TablerIcon::Folder).size(px(12.0)).text_color(if is_assigned { accent() } else { text_dim() }))
                                         .child(
                                             div()
                                                 .text_size(font_px(11.0))
-                                                .text_color(if is_assigned { TEXT_MAX } else { TEXT_PRIMARY })
+                                                .text_color(if is_assigned { text_max() } else { text_primary() })
                                                 .font_weight(if is_assigned { FontWeight::BOLD } else { FontWeight::NORMAL })
                                                 .child(display_label),
                                         ),
@@ -165,7 +165,7 @@ pub fn group_assign_modal(
                                 .children(is_assigned.then(|| {
                                     div()
                                         .text_size(font_px(10.5))
-                                        .text_color(OK)
+                                        .text_color(theme().ok)
                                         .font_weight(FontWeight::BOLD)
                                         .child("✓")
                                 }))
