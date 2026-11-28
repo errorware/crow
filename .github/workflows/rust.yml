@@ -8,7 +8,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  RUST_MIN_STACK: 33554432
+  RUST_MIN_STACK: 104857600
 
 # Least privilege: read the code. Jobs that need more ask for it.
 permissions:
@@ -54,4 +54,6 @@ jobs:
 
       - name: Run tests
         working-directory: crow
+        env:
+          RUST_MIN_STACK: 104857600
         run: cargo test --workspace --locked --verbose
