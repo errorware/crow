@@ -1,5 +1,5 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
-#![recursion_limit = "8192"]
+#![recursion_limit = "2048"]
 use gpui_kit::*;
 
 #[macro_use]

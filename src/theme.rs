@@ -749,7 +749,8 @@ mod shape_guard {
 
 #[cfg(test)]
 mod palette_tests {
-    use super::*;
+    use core::prelude::v1::test;
+    use super::{crow_cde_palette, hex_rgb, obsidian_edge_palette, obsidian_light_palette};
 
     #[test]
     fn test_theme_palettes_integrity() {

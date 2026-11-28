@@ -3667,6 +3667,11 @@ danger-zone-what-kill = Crow が作成したラボコンテナーをすべて停
 danger-zone-what-other = この操作を実行する
 
 ## Settings rows
+setting-general-theme-label = テーマ
+setting-general-theme-help = ウィンドウの外観とアクセントカラー。適用するにはアプリケーションの再起動が必要です。
+setting-general-theme-option-obsidian-edge = Obsidian Edge（ダーク）
+setting-general-theme-option-obsidian-light = Obsidian Light
+setting-general-theme-option-crow-cde = Crow CDE（DIGITAL UNIX 1996）
 setting-general-refresh-interval-label = 更新間隔
 setting-general-refresh-interval-help = サービスとテレメトリーをバックグラウンドで取得する間隔（秒）。
 setting-connection-control-master-label = 接続の共有

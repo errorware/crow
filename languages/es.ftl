@@ -3731,6 +3731,11 @@ danger-zone-what-kill = Detener todos los contenedores de laboratorio que creó 
 danger-zone-what-other = Ejecutar esta acción
 
 ## Settings rows
+setting-general-theme-label = Tema
+setting-general-theme-help = Apariencia de la ventana y paleta de colores. Requiere reiniciar la aplicación para aplicarse.
+setting-general-theme-option-obsidian-edge = Obsidian Edge (Oscuro)
+setting-general-theme-option-obsidian-light = Obsidian Light
+setting-general-theme-option-crow-cde = Crow CDE (DIGITAL UNIX 1996)
 setting-general-refresh-interval-label = Intervalo de actualización
 setting-general-refresh-interval-help = Cada cuántos segundos se consultan en segundo plano los servicios y la telemetría.
 setting-connection-control-master-label = Conexión maestra

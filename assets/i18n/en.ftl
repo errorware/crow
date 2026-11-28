@@ -3755,6 +3755,11 @@ audit-kind-enroll = enroll
 audit-kind-crow = crow
 
 ## Settings rows (from src/config/manifest.toml; Crow looks them up by their English text)
+setting-general-theme-label = Theme
+setting-general-theme-help = Window appearance and accent palette. Requires application restart to take effect.
+setting-general-theme-option-obsidian-edge = Obsidian Edge (Dark)
+setting-general-theme-option-obsidian-light = Obsidian Light
+setting-general-theme-option-crow-cde = Crow CDE (DIGITAL UNIX 1996)
 setting-general-refresh-interval-label = Refresh Interval
 setting-general-refresh-interval-help = Frequency of background polling in seconds for services and telemetry.
 setting-connection-control-master-label = Control Master
