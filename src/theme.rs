@@ -363,151 +363,83 @@ pub fn active_palette() -> &'static ThemePalette {
     ACTIVE_PALETTE.get_or_init(obsidian_edge_palette)
 }
 
-#[inline(always)]
 pub fn theme() -> &'static ThemePalette {
     active_palette()
 }
 
-#[inline(always)]
 pub fn bg_window() -> Rgba { theme().bg_window }
-#[inline(always)]
 pub fn bg_app() -> Rgba { theme().bg_app }
-#[inline(always)]
 pub fn bg_chrome() -> Rgba { theme().bg_chrome }
-#[inline(always)]
 pub fn bg_panel() -> Rgba { theme().bg_panel }
-#[inline(always)]
 pub fn bg_rail() -> Rgba { theme().bg_rail }
-#[inline(always)]
 pub fn bg_subhead() -> Rgba { theme().bg_subhead }
-#[inline(always)]
 pub fn bg_row_alt() -> Rgba { theme().bg_row_alt }
-#[inline(always)]
 pub fn bg_row_hover() -> Rgba { theme().bg_row_hover }
-#[inline(always)]
 pub fn bg_row_selected() -> Rgba { theme().bg_row_selected }
-#[inline(always)]
 pub fn bg_nav_active() -> Rgba { theme().bg_nav_active }
-#[inline(always)]
 pub fn bg_overlay_panel() -> Rgba { theme().bg_overlay_panel }
-#[inline(always)]
 pub fn bg_control() -> Rgba { theme().bg_control }
-#[inline(always)]
 pub fn bg_control_alt() -> Rgba { theme().bg_control_alt }
-#[inline(always)]
 pub fn bg_chip() -> Rgba { theme().bg_chip }
-#[inline(always)]
 pub fn bg_key() -> Rgba { theme().bg_key }
 
-#[inline(always)]
 pub fn border_strong() -> Rgba { theme().border_strong }
-#[inline(always)]
 pub fn border_default() -> Rgba { theme().border_default }
-#[inline(always)]
 pub fn border_panel() -> Rgba { theme().border_panel }
-#[inline(always)]
 pub fn border_row() -> Rgba { theme().border_row }
-#[inline(always)]
 pub fn border_key() -> Rgba { theme().border_key }
-#[inline(always)]
 pub fn border_control_sel() -> Rgba { theme().border_control_sel }
-#[inline(always)]
 pub fn border_danger() -> Rgba { theme().border_danger }
-#[inline(always)]
 pub fn border_danger_btn() -> Rgba { theme().border_danger_btn }
-#[inline(always)]
 pub fn border_danger_sel() -> Rgba { theme().border_danger_sel }
 
-#[inline(always)]
 pub fn text_max() -> Rgba { theme().text_max }
-#[inline(always)]
 pub fn text_primary() -> Rgba { theme().text_primary }
-#[inline(always)]
 pub fn text_secondary() -> Rgba { theme().text_secondary }
-#[inline(always)]
 pub fn text_tertiary() -> Rgba { theme().text_tertiary }
-#[inline(always)]
 pub fn text_muted() -> Rgba { theme().text_muted }
-#[inline(always)]
 pub fn text_dim() -> Rgba { theme().text_dim }
-#[inline(always)]
 pub fn text_dimmer() -> Rgba { theme().text_dimmer }
-#[inline(always)]
 pub fn text_faint() -> Rgba { theme().text_faint }
-#[inline(always)]
 pub fn text_fainter() -> Rgba { theme().text_fainter }
-#[inline(always)]
 pub fn text_ghost() -> Rgba { theme().text_ghost }
-#[inline(always)]
 pub fn text_chrome() -> Rgba { theme().text_chrome }
-#[inline(always)]
 pub fn text_chrome_muted() -> Rgba { theme().text_chrome_muted }
-#[inline(always)]
 pub fn text_chrome_dim() -> Rgba { theme().text_chrome_dim }
 
-#[inline(always)]
 pub fn ok() -> Rgba { theme().ok }
-#[inline(always)]
 pub fn warn() -> Rgba { theme().warn }
-#[inline(always)]
 pub fn crit() -> Rgba { theme().crit }
 
-#[inline(always)]
 pub fn ok_bg() -> Rgba { theme().ok_bg }
-#[inline(always)]
 pub fn warn_bg() -> Rgba { theme().warn_bg }
-#[inline(always)]
 pub fn crit_bg() -> Rgba { theme().crit_bg }
-#[inline(always)]
 pub fn crit_row_bg() -> Rgba { theme().crit_row_bg }
-#[inline(always)]
 pub fn crit_log_bg() -> Rgba { theme().crit_log_bg }
-#[inline(always)]
 pub fn crit_strip_bg() -> Rgba { theme().crit_strip_bg }
-#[inline(always)]
 pub fn crit_ink() -> Rgba { theme().crit_ink }
-#[inline(always)]
 pub fn crit_ink_dim() -> Rgba { theme().crit_ink_dim }
-#[inline(always)]
 pub fn warn_ink() -> Rgba { theme().warn_ink }
-#[inline(always)]
 pub fn ok_ink() -> Rgba { theme().ok_ink }
 
-#[inline(always)]
 pub fn diff_del_bg() -> Rgba { theme().diff_del_bg }
-#[inline(always)]
 pub fn diff_add_bg() -> Rgba { theme().diff_add_bg }
-#[inline(always)]
 pub fn diff_hunk_bg() -> Rgba { theme().diff_hunk_bg }
 
-#[inline(always)]
 pub fn accent() -> Rgba { theme().accent }
-#[inline(always)]
 pub fn accent_bg() -> Rgba { theme().accent_bg }
-#[inline(always)]
 pub fn accent_border() -> Rgba { theme().accent_border }
-#[inline(always)]
 pub fn accent_ink() -> Rgba { theme().accent_ink }
 
-#[inline(always)]
 pub fn syntax_key() -> Rgba { theme().syntax_key }
-#[inline(always)]
 pub fn syntax_header() -> Rgba { theme().syntax_header }
-#[inline(always)]
 pub fn syntax_string() -> Rgba { theme().syntax_string }
-#[inline(always)]
 pub fn syntax_number() -> Rgba { theme().syntax_number }
-#[inline(always)]
 pub fn syntax_boolean() -> Rgba { theme().syntax_boolean }
-#[inline(always)]
 pub fn syntax_keyword() -> Rgba { theme().syntax_keyword }
-#[inline(always)]
 pub fn syntax_comment() -> Rgba { theme().syntax_comment }
-#[inline(always)]
 pub fn syntax_operator() -> Rgba { theme().syntax_operator }
-#[inline(always)]
 pub fn syntax_ip() -> Rgba { theme().syntax_ip }
-#[inline(always)]
 pub fn syntax_special() -> Rgba { theme().syntax_special }
 
 pub fn left_indicator(color: Rgba) -> impl IntoElement {
