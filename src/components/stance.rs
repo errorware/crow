@@ -26,6 +26,11 @@ pub fn stance_badge(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
         Stance::Open => crate::components::icons::TablerIcon::AlertCircle,
         Stance::Locked => crate::components::icons::TablerIcon::Lock,
     };
+    let (badge_bg, badge_border, badge_hover) = if theme().is_dark {
+        (color.opacity(0.08), color.opacity(0.6), color.opacity(0.16))
+    } else {
+        (bg_panel(), border_strong(), bg_control())
+    };
     div()
         .id("stance-badge")
         .flex()
@@ -34,10 +39,10 @@ pub fn stance_badge(report: &StanceReport, app: Entity<CrowApp>) -> impl IntoEle
         .px(px(7.0))
         .py(px(2.0))
         .border_1()
-        .border_color(color.opacity(0.6))
-        .bg(color.opacity(0.08))
+        .border_color(badge_border)
+        .bg(badge_bg)
         .cursor_pointer()
-        .hover(|s| s.bg(color.opacity(0.16)))
+        .hover(move |s| s.bg(badge_hover))
         .occlude() // Windows: keeps it out of the titlebar's drag area
         .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation()) // not a window drag
         .on_click(move |_ev, _window, cx| app.update(cx, |this, cx| this.toggle_stance_panel(cx)))

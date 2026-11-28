@@ -126,7 +126,7 @@ pub fn titlebar(
 
     // 2. Interactive Burger Menu + CROW Mark
     let app_burger = app.clone();
-    let menu_ink = if menu_open { text_max() } else { text_primary() };
+    let menu_ink = if menu_open { text_max() } else { text_chrome() };
     let menu_bg = if menu_open { bg_overlay_panel() } else { hex_rgba(0, 0.0) };
 
     bar = bar.child(
@@ -199,7 +199,7 @@ pub fn titlebar(
                             .font_family(FONT_MONO)
                             .text_size(font_px(11.0))
                             .font_weight(if is_fleet_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                            .text_color(if is_fleet_active { text_primary() } else { text_muted() })
+                            .text_color(if is_fleet_active { text_primary() } else { text_chrome_muted() })
                             .child(t!("titlebar-fleet")),
                     ),
             )
@@ -234,7 +234,7 @@ pub fn titlebar(
                             .font_family(FONT_MONO)
                             .text_size(font_px(11.0))
                             .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                            .text_color(if is_active { text_max() } else { text_muted() })
+                            .text_color(if is_active { text_max() } else { text_chrome_muted() })
                             .child(page.label()),
                     )
                     .child(
@@ -251,7 +251,7 @@ pub fn titlebar(
                                 cx.stop_propagation();
                                 app_close.update(cx, |this, cx| this.close_page_tab(page, cx));
                             })
-                            .child(tabler_icon(TablerIcon::X).size(px(11.0)).text_color(rgb(0x6b7280))),
+                            .child(tabler_icon(TablerIcon::X).size(px(11.0)).text_color(if is_active { text_muted() } else { text_chrome_dim() })),
                     )
             }))
             // Server Tabs (each with drag reordering and close affordance)
@@ -333,7 +333,7 @@ pub fn titlebar(
                             .font_family(FONT_MONO)
                             .text_size(font_px(11.0))
                             .font_weight(if is_active { FontWeight::SEMIBOLD } else { FontWeight::NORMAL })
-                            .text_color(if is_active { text_max() } else { text_muted() })
+                            .text_color(if is_active { text_max() } else { text_chrome_muted() })
                             .child(tab.name.clone()),
                     )
                     .child(
@@ -358,7 +358,7 @@ pub fn titlebar(
                             .child(
                                 tabler_icon(TablerIcon::X)
                                     .size(px(11.0))
-                                    .text_color(rgb(0x6b7280)),
+                                    .text_color(if is_active { text_muted() } else { text_chrome_dim() }),
                             ),
                     )
             }))
@@ -379,7 +379,7 @@ pub fn titlebar(
                     .child(
                         tabler_icon(TablerIcon::Plus)
                             .size(px(13.0))
-                            .text_color(hex_rgb(0x4ade80)),
+                            .text_color(theme().ok),
                     ),
             )
             .child(
@@ -409,7 +409,7 @@ pub fn titlebar(
             .px(px(14.0))
             .font_family(FONT_MONO)
             .text_size(font_px(10.5))
-            .text_color(text_faint())
+            .text_color(text_chrome_muted())
             .border_l_1()
             .border_color(border_panel())
             .window_control_area(WindowControlArea::Drag)
@@ -432,10 +432,10 @@ pub fn titlebar(
                     .occlude()
                     .on_mouse_down(MouseButton::Left, |_ev, _window, cx| cx.stop_propagation())
                     .on_click(move |_ev, _window, cx| app_clock.update(cx, |this, cx| this.toggle_clock_menu(cx)))
-                    .child(div().text_color(text_dimmer()).child(t!("titlebar-you")))
-                    .child(div().font_weight(FontWeight::SEMIBOLD).text_color(text_secondary()).child(clock.local_time))
-                    .child(div().text_color(text_dimmer()).child(clock.zone))
-                    .child(tabler_icon(TablerIcon::ChevronDown).size(px(10.0)).text_color(text_dimmer())),
+                    .child(div().text_color(text_chrome_dim()).child(t!("titlebar-you")))
+                    .child(div().font_weight(FontWeight::SEMIBOLD).text_color(text_chrome()).child(clock.local_time))
+                    .child(div().text_color(text_chrome_dim()).child(clock.zone))
+                    .child(tabler_icon(TablerIcon::ChevronDown).size(px(10.0)).text_color(text_chrome_dim())),
             )
             // Then the server's, with how far it is from you.
             .children(clock.server.filter(|_| current_screen == Screen::Server).map(|(time, abbr, delta)| {
@@ -443,9 +443,9 @@ pub fn titlebar(
                     .flex()
                     .items_center()
                     .gap(px(5.0))
-                    .child(div().text_color(text_dimmer()).child(t!("titlebar-srv")))
-                    .child(div().font_weight(FontWeight::SEMIBOLD).text_color(text_secondary()).child(time))
-                    .child(div().text_color(text_dimmer()).child(abbr))
+                    .child(div().text_color(text_chrome_dim()).child(t!("titlebar-srv")))
+                    .child(div().font_weight(FontWeight::SEMIBOLD).text_color(text_chrome()).child(time))
+                    .child(div().text_color(text_chrome_dim()).child(abbr))
                     .children(delta.map(|(d, ahead)| div().font_weight(FontWeight::SEMIBOLD).text_color(if ahead { theme().ok } else { theme().crit }).child(d)))
             })),
     );
@@ -475,7 +475,7 @@ pub fn titlebar(
                         .child(
                             tabler_icon(TablerIcon::Minus)
                                 .size(px(13.0))
-                                .text_color(text_muted()),
+                                .text_color(text_chrome_dim()),
                         ),
                 )
                 // Maximize / Restore
@@ -494,7 +494,7 @@ pub fn titlebar(
                         .child(
                             tabler_icon(TablerIcon::Square)
                                 .size(px(12.0))
-                                .text_color(text_muted()),
+                                .text_color(text_chrome_dim()),
                         ),
                 )
                 // Close
@@ -513,7 +513,7 @@ pub fn titlebar(
                         .child(
                             tabler_icon(TablerIcon::X)
                                 .size(px(13.0))
-                                .text_color(text_muted()),
+                                .text_color(text_chrome_dim()),
                         ),
                 ),
         );
@@ -869,7 +869,7 @@ pub fn burger_menu_overlay(
                                         .text_color(if item.is_danger {
                                             theme().crit
                                         } else if item.is_featured {
-                                            hex_rgb(0x4ade80)
+                                            theme().ok
                                         } else if is_active {
                                             text_primary()
                                         } else {
@@ -888,7 +888,7 @@ pub fn burger_menu_overlay(
                                 .text_color(if item.is_danger {
                                     theme().crit_ink_dim
                                 } else if item.is_featured {
-                                    hex_rgb(0x86efac)
+                                    theme().ok
                                 } else if is_active {
                                     text_max()
                                 } else {
@@ -901,12 +901,12 @@ pub fn burger_menu_overlay(
                                 div()
                                     .px(px(5.0))
                                     .py(px(1.0))
-                                    .bg(if item.is_featured { hex_rgba(0x22c55e, 0.16) } else { bg_key() })
+                                    .bg(if item.is_featured { theme().ok_bg } else { bg_key() })
                                     .border_1()
-                                    .border_color(if item.is_featured { hex_rgba(0x4ade80, 0.45) } else { border_key() })
+                                    .border_color(if item.is_featured { theme().ok } else { border_key() })
                                     .font_family(FONT_MONO)
                                     .text_size(font_px(10.0))
-                                    .text_color(if item.is_featured { hex_rgb(0x4ade80) } else { text_muted() })
+                                    .text_color(if item.is_featured { theme().ok } else { text_muted() })
                                     .child(item.shortcut),
                             )
                         } else {

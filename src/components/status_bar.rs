@@ -36,7 +36,7 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
         .border_color(border_panel())
         .font_family(FONT_MONO)
         .text_size(font_px(10.5))
-        .text_color(text_dim())
+        .text_color(text_chrome_dim())
         .child(
             div()
                 .id("status-alerts")
@@ -54,8 +54,8 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
                 .hover(|s| s.bg(bg_row_hover()))
                 .on_click(move |_ev, _window, cx| app_alerts.update(cx, |this, cx| this.set_screen(Screen::Fleet, cx)))
                 .child(div().size(px(6.0)).rounded_full().bg(dot).flex_none())
-                .child(div().flex_none().text_color(if open.is_empty() { text_dim() } else { text_secondary() }).child(summary))
-                .children(latest.map(|l| div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(text_dimmer()).child(l))),
+                .child(div().flex_none().text_color(if open.is_empty() { text_chrome_dim() } else { text_chrome() }).child(summary))
+                .children(latest.map(|l| div().min_w(px(0.0)).overflow_hidden().whitespace_nowrap().text_ellipsis().text_color(text_chrome_muted()).child(l))),
         )
         .child(
             div()
@@ -132,7 +132,7 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
             } else if counters.in_flight > 0 {
                 (theme().warn, theme().warn, t!("status-bar-wire-active", total = counters.total_calls, active = counters.in_flight))
             } else {
-                (theme().ok, text_secondary(), t!("status-bar-wire-calls", total = counters.total_calls))
+                (theme().ok, text_chrome_muted(), t!("status-bar-wire-calls", total = counters.total_calls))
             };
             div()
                 .id("status-wire")
@@ -162,7 +162,7 @@ pub fn status_bar(alerts: &[AlertLine], notice: Option<&str>, update: Option<Str
                 .px(px(12.0))
                 .border_l_1()
                 .border_color(border_panel())
-                .text_color(text_faint())
+                .text_color(text_chrome_dim())
                 .child(t!("status-bar-agentless-ssh"))
                 .child(concat!("crow v", env!("CARGO_PKG_VERSION")))
                 // A newer version (ERR-88): details in About.

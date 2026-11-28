@@ -62,6 +62,11 @@ pub struct ThemePalette {
     pub text_fainter: Rgba,
     pub text_ghost: Rgba,
 
+    // Chrome Text (Titlebar & Status Bar)
+    pub text_chrome: Rgba,
+    pub text_chrome_muted: Rgba,
+    pub text_chrome_dim: Rgba,
+
     // Semantic Signals
     pub ok: Rgba,
     pub warn: Rgba,
@@ -143,6 +148,10 @@ pub fn obsidian_edge_palette() -> ThemePalette {
         text_fainter: hex_rgb(0x4c4f58),
         text_ghost: hex_rgb(0x3b3c42),
 
+        text_chrome: hex_rgb(0xffffff),
+        text_chrome_muted: hex_rgb(0x9ca3af),
+        text_chrome_dim: hex_rgb(0x6b7280),
+
         ok: hex_rgb(0x3ecf6e),
         warn: hex_rgb(0xe0a020),
         crit: hex_rgb(0xe5484d),
@@ -223,6 +232,10 @@ pub fn obsidian_light_palette() -> ThemePalette {
         text_fainter: hex_rgb(0x526075),
         text_ghost: hex_rgb(0x64748b),
 
+        text_chrome: hex_rgb(0x0f172a),
+        text_chrome_muted: hex_rgb(0x334155),
+        text_chrome_dim: hex_rgb(0x475569),
+
         ok: hex_rgb(0x166534),
         warn: hex_rgb(0xb45309),
         crit: hex_rgb(0xb91c1c),
@@ -302,6 +315,10 @@ pub fn crow_cde_palette() -> ThemePalette {
         text_faint: hex_rgb(0x2E344A),
         text_fainter: hex_rgb(0x3A415C),
         text_ghost: hex_rgb(0x50546A),
+
+        text_chrome: hex_rgb(0xffffff),
+        text_chrome_muted: hex_rgb(0xF0F2F5),
+        text_chrome_dim: hex_rgb(0xD9DBE3),
 
         ok: hex_rgb(0x2F7A3A),
         warn: hex_rgb(0x9A5B00),
@@ -421,6 +438,12 @@ pub fn text_faint() -> Rgba { theme().text_faint }
 pub fn text_fainter() -> Rgba { theme().text_fainter }
 #[inline(always)]
 pub fn text_ghost() -> Rgba { theme().text_ghost }
+#[inline(always)]
+pub fn text_chrome() -> Rgba { theme().text_chrome }
+#[inline(always)]
+pub fn text_chrome_muted() -> Rgba { theme().text_chrome_muted }
+#[inline(always)]
+pub fn text_chrome_dim() -> Rgba { theme().text_chrome_dim }
 
 #[inline(always)]
 pub fn ok() -> Rgba { theme().ok }
@@ -804,6 +827,7 @@ mod palette_tests {
         assert_eq!(cde.bg_chrome, hex_rgb(0x75597A));
         assert_eq!(cde.bg_app, hex_rgb(0xAEB2C3));
         assert_eq!(cde.ok, hex_rgb(0x2F7A3A));
+        assert_eq!(cde.text_chrome, hex_rgb(0xffffff));
     }
 }
 
