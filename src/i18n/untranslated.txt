@@ -5,6 +5,7 @@ src/app/checks.rs | https://example.com/health · db.lan:5432 · app.example.com
 src/app/clankers.rs | https://api.openai.com/v1
 src/app/files.rs | new-folder-name
 src/app/keys.rs | ~/.ssh
+src/components/stat_strip.rs | df -h -P | grep -v tmpfs
 src/app/rollouts.rs | # runs with sh on each server, e.g.\nsystemctl reload nginx
 src/app/rollouts.rs | /etc/ssh/sshd_config.d/50-crow.conf
 src/views/config/cron_editor.rs | crontab

@@ -1,5 +1,6 @@
 use gpui_kit::*;
 use gpui_kit::prelude::FluentBuilder as _;
+use gpui_kit::component::scroll::ScrollableElement;
 use crate::theme::*;
 use crate::components::sparkline::dynamic_sparkline;
 use crate::metrics::{ServerMetrics, SurgeAlert};
@@ -11,6 +12,8 @@ pub fn stat_strip(
     metrics: Option<&ServerMetrics>,
     lag_secs: u64,
     surge_alert: Option<&SurgeAlert>,
+    disk_drawer_open: bool,
+    app_view: Option<Entity<crate::app::CrowApp>>,
 ) -> impl IntoElement {
     let default_m = ServerMetrics::default();
     let m = metrics.unwrap_or(&default_m);
@@ -295,11 +298,34 @@ pub fn stat_strip(
                 .justify_between()
                 .child(
                     div()
-                        .font_family(FONT_MONO)
-                        .text_size(font_px(9.5))
-                        .font_weight(FontWeight::SEMIBOLD)
-                        .text_color(text_dimmer())
-                        .child(t!("stat-strip-disk-nvme", disk_mount = m.disk_mount)),
+                        .flex()
+                        .items_center()
+                        .justify_between()
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(font_px(9.5))
+                                .font_weight(FontWeight::SEMIBOLD)
+                                .text_color(text_dimmer())
+                                .child(t!("stat-strip-disk-nvme", disk_mount = m.disk_mount)),
+                        )
+                        .children(app_view.clone().map(|app| {
+                            div()
+                                .id("disk-partition-toggle")
+                                .cursor_pointer()
+                                .px(px(4.0))
+                                .py(px(1.0))
+                                .font_family(FONT_MONO)
+                                .text_size(font_px(10.0))
+                                .text_color(if disk_drawer_open { text_primary() } else { text_dim() })
+                                .hover(|s| s.text_color(text_max()).bg(bg_row_hover()))
+                                .on_click(move |_ev, _window, cx| {
+                                    app.update(cx, |this, cx| {
+                                        this.toggle_disk_drawer(cx);
+                                    });
+                                })
+                                .child(if disk_drawer_open { "▴" } else { "▾" })
+                        })),
                 )
                 .child(
                     div()
@@ -531,4 +557,237 @@ pub fn stat_strip(
                 ),
         )
     )
+}
+
+/// Detailed disk partitions quick view drawer rendered beneath the stat strip.
+pub fn disk_partitions_drawer(
+    partitions: &[crate::metrics::DiskPartition],
+    is_loading: bool,
+    app_view: Entity<crate::app::CrowApp>,
+) -> impl IntoElement {
+    let app_refresh = app_view.clone();
+    div()
+        .w_full()
+        .flex()
+        .flex_col()
+        .bg(bg_panel())
+        .border_b_1()
+        .border_color(border_panel())
+        // Drawer Header Strip
+        .child(
+            div()
+                .h(px(STATUS_STRIP_HEIGHT))
+                .w_full()
+                .flex()
+                .items_center()
+                .justify_between()
+                .px(px(14.0))
+                .bg(bg_subhead())
+                .border_b_1()
+                .border_color(border_panel())
+                // Left: Title + command hint
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(8.0))
+                        .child(
+                            div()
+                                .size(px(6.0))
+                                .bg(theme().ok),
+                        )
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(font_px(10.0))
+                                .font_weight(FontWeight::BOLD)
+                                .text_color(text_primary())
+                                .child(t!("stat-strip-disk-partitions")),
+                        )
+                        .child(
+                            div()
+                                .font_family(FONT_MONO)
+                                .text_size(font_px(9.5))
+                                .text_color(text_faint())
+                                .child("df -h -P | grep -v tmpfs"),
+                        ),
+                )
+                // Right: Status / Refresh button
+                .child(
+                    div()
+                        .flex()
+                        .items_center()
+                        .gap(px(10.0))
+                        .children(if is_loading {
+                            Some(
+                                div()
+                                    .font_family(FONT_MONO)
+                                    .text_size(font_px(9.5))
+                                    .text_color(theme().warn)
+                                    .child(t!("stat-strip-disk-loading")),
+                            )
+                        } else {
+                            None
+                        })
+                        .child(
+                            div()
+                                .id("disk-partitions-refresh-btn")
+                                .cursor_pointer()
+                                .px(px(8.0))
+                                .py(px(2.0))
+                                .bg(bg_control())
+                                .border_1()
+                                .border_color(border_default())
+                                .font_family(FONT_MONO)
+                                .text_size(font_px(10.0))
+                                .text_color(text_primary())
+                                .hover(|s| s.bg(bg_row_hover()).text_color(text_max()))
+                                .on_click(move |_ev, _window, cx| {
+                                    app_refresh.update(cx, |this, cx| {
+                                        this.refresh_disk_partitions(cx);
+                                    });
+                                })
+                                .child(t!("stat-strip-disk-refresh")),
+                        ),
+                ),
+        )
+        // Table Header
+        .child(
+            div()
+                .flex()
+                .items_center()
+                .w_full()
+                .px(px(14.0))
+                .py(px(6.0))
+                .bg(bg_row_alt())
+                .border_b_1()
+                .border_color(border_panel())
+                .font_family(FONT_MONO)
+                .text_size(font_px(9.5))
+                .font_weight(FontWeight::SEMIBOLD)
+                .text_color(text_dimmer())
+                .child(div().w(px(160.0)).child(t!("stat-strip-disk-col-mount")))
+                .child(div().flex_1().min_w(px(120.0)).child(t!("stat-strip-disk-col-filesystem")))
+                .child(div().w(px(70.0)).text_align(TextAlign::Right).child(t!("stat-strip-disk-col-size")))
+                .child(div().w(px(70.0)).text_align(TextAlign::Right).child(t!("stat-strip-disk-col-used")))
+                .child(div().w(px(80.0)).text_align(TextAlign::Right).child(t!("stat-strip-disk-col-avail")))
+                .child(div().w(px(140.0)).pl(px(14.0)).child(t!("stat-strip-disk-col-use"))),
+        )
+        // Table Rows / Empty state
+        .child(
+            div()
+                .w_full()
+                .max_h(px(220.0))
+                .overflow_y_scrollbar()
+                .flex()
+                .flex_col()
+                .children(if partitions.is_empty() {
+                    let msg = if is_loading {
+                        t!("stat-strip-disk-querying")
+                    } else {
+                        t!("stat-strip-disk-empty")
+                    };
+                    vec![
+                        div()
+                            .w_full()
+                            .py(px(16.0))
+                            .px(px(14.0))
+                            .flex()
+                            .items_center()
+                            .justify_center()
+                            .font_family(FONT_MONO)
+                            .text_size(font_px(11.0))
+                            .text_color(text_muted())
+                            .child(msg)
+                            .into_any_element()
+                    ]
+                } else {
+                    partitions.iter().enumerate().map(|(i, p)| {
+                        let bar_color = if p.use_pct >= 85 {
+                            theme().crit
+                        } else if p.use_pct >= 70 {
+                            theme().warn
+                        } else {
+                            theme().ok
+                        };
+                        let ratio = (p.use_pct as f32 / 100.0).clamp(0.01, 1.0);
+                        div()
+                            .w_full()
+                            .flex()
+                            .items_center()
+                            .px(px(14.0))
+                            .py(px(5.0))
+                            .bg(if i % 2 == 1 { bg_row_alt() } else { bg_panel() })
+                            .hover(|s| s.bg(bg_row_hover()))
+                            .border_b_1()
+                            .border_color(border_row())
+                            .font_family(FONT_MONO)
+                            .text_size(font_px(11.0))
+                            .child(
+                                div()
+                                    .w(px(160.0))
+                                    .font_weight(FontWeight::MEDIUM)
+                                    .text_color(text_primary())
+                                    .child(p.mount.clone()),
+                            )
+                            .child(
+                                div()
+                                    .flex_1()
+                                    .min_w(px(120.0))
+                                    .text_color(text_dim())
+                                    .child(p.filesystem.clone()),
+                            )
+                            .child(
+                                div()
+                                    .w(px(70.0))
+                                    .text_align(TextAlign::Right)
+                                    .text_color(text_secondary())
+                                    .child(p.size.clone()),
+                            )
+                            .child(
+                                div()
+                                    .w(px(70.0))
+                                    .text_align(TextAlign::Right)
+                                    .text_color(text_secondary())
+                                    .child(p.used.clone()),
+                            )
+                            .child(
+                                div()
+                                    .w(px(80.0))
+                                    .text_align(TextAlign::Right)
+                                    .text_color(text_dim())
+                                    .child(p.avail.clone()),
+                            )
+                            .child(
+                                div()
+                                    .w(px(140.0))
+                                    .pl(px(14.0))
+                                    .flex()
+                                    .items_center()
+                                    .gap(px(8.0))
+                                    .child(
+                                        div()
+                                            .flex_1()
+                                            .h(px(4.0))
+                                            .bg(bg_control_alt())
+                                            .child(
+                                                div()
+                                                    .w(relative(ratio))
+                                                    .h_full()
+                                                    .bg(bar_color),
+                                            ),
+                                    )
+                                    .child(
+                                        div()
+                                            .w(px(34.0))
+                                            .text_align(TextAlign::Right)
+                                            .font_weight(FontWeight::BOLD)
+                                            .text_color(bar_color)
+                                            .child(format!("{}%", p.use_pct)),
+                                    ),
+                            )
+                            .into_any_element()
+                    }).collect()
+                }),
+        )
 }

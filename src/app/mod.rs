@@ -86,6 +86,7 @@ mod lab;
 pub mod groups;
 pub mod wire;
 pub mod agent;
+pub mod disk;
 
 use crate::views::fleet::lab_state::LocalLabState;
 use crate::views::fleet::FleetState;
@@ -298,6 +299,8 @@ pub struct CrowApp {
     /// Focus the current table page's search box on the next render (`/`).
     pub table_search_focus_pending: bool,
     pub overview: OverviewState,
+    pub disk_drawer_open: bool,
+    pub disk_drawer_loading: bool,
     pub journal: JournalState,
     pub configs: ConfigsState,
     /// Live editor for the selected plain-text config (see ConfigTextEditor).
@@ -530,6 +533,8 @@ impl CrowApp {
             active_view: "overview".to_string(),
             tab_views: std::collections::HashMap::new(),
             overview: OverviewState::new(initial_services, initial_processes, initial_sockets),
+            disk_drawer_open: false,
+            disk_drawer_loading: false,
             configs,
             config_text_editor: None,
             structured_field_edit: None,

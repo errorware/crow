@@ -3,7 +3,7 @@ use std::time::Instant;
 
 use crate::host::{host_for, Host, HostError, DEFAULT_TIMEOUT};
 use crate::vault::ServerRecord;
-use super::{format_uptime, LiveServiceStatus, ServerMetrics};
+use super::{format_uptime, DiskPartition, LiveServiceStatus, ServerMetrics};
 
 /// Holds previous tick state to compute rates (CPU delta, Net RX/TX delta) and cache slow checks.
 #[derive(Clone, Debug)]
@@ -19,6 +19,7 @@ pub struct CollectorPreviousState {
     pub cached_services: Vec<LiveServiceStatus>,
     pub cached_host_key: Option<i64>,
     pub cached_disk_mount: String,
+    pub cached_partitions: Vec<DiskPartition>,
 }
 
 impl Default for CollectorPreviousState {
@@ -35,6 +36,7 @@ impl Default for CollectorPreviousState {
             cached_services: Vec::new(),
             cached_host_key: None,
             cached_disk_mount: "/".into(),
+            cached_partitions: Vec::new(),
         }
     }
 }
@@ -58,7 +60,7 @@ cat /proc/loadavg; echo @@crow@@; cat /proc/uptime; echo @@crow@@; cat /proc/net
 const SLOW_PROBE: &str = "m=/; if awk '$2==\"/\"{o=$4} END{exit !(o ~ /^ro(,|$)/)}' /proc/mounts && [ -d /var ]; then m=/var; fi; \
 df -k \"$m\"; echo @@crow@@; df -i \"$m\"; echo @@crow@@; \
 systemctl list-units --type=service --all --no-legend --no-pager; echo @@crow@@; \
-stat -c '%Y %n' /etc/ssh/ssh_host_*_key.pub 2>/dev/null; echo @@crow@@; echo \"$m\"; true";
+stat -c '%Y %n' /etc/ssh/ssh_host_*_key.pub 2>/dev/null; echo @@crow@@; echo \"$m\"; echo @@crow@@; df -h -P | grep -v tmpfs; true";
 
 /// Real metrics for any reachable host, read from its /proc, df and systemctl.
 pub struct HostCollector;
@@ -147,6 +149,12 @@ impl HostCollector {
             if let Some(t) = sections.get(3).and_then(|s| parse_host_key_times(s)) {
                 prev_state.cached_host_key = Some(t);
             }
+            if let Some(sec5) = sections.get(5) {
+                let parts = parse_df_partitions(sec5);
+                if !parts.is_empty() {
+                    prev_state.cached_partitions = parts;
+                }
+            }
             prev_state.last_slow_sample = now;
         }
 
@@ -157,6 +165,7 @@ impl HostCollector {
             m.disk_mount = prev_state.cached_disk_mount.clone();
             m.inodes_pct = inodes_pct;
         }
+        m.disk_partitions = prev_state.cached_partitions.clone();
 
         if !prev_state.cached_services.is_empty() {
             m.services = prev_state.cached_services.clone();
@@ -292,6 +301,33 @@ pub fn parse_df_inodes_pct(text: &str) -> Option<f32> {
     })
 }
 
+/// Parses `df -h -P` output (e.g. from `df -h -P | grep -v tmpfs`) into structured `DiskPartition` rows.
+pub fn parse_df_partitions(text: &str) -> Vec<DiskPartition> {
+    text.lines()
+        .filter(|l| !l.trim().is_empty())
+        .filter_map(|line| {
+            let parts: Vec<&str> = line.split_whitespace().collect();
+            if parts.len() < 6 || parts[0] == "Filesystem" || parts[0].starts_with("tmpfs") {
+                return None;
+            }
+            let filesystem = parts[0].to_string();
+            let size = parts[1].to_string();
+            let used = parts[2].to_string();
+            let avail = parts[3].to_string();
+            let use_pct = parts[4].trim_end_matches('%').parse::<u8>().unwrap_or(0);
+            let mount = parts[5..].join(" ");
+            Some(DiskPartition {
+                filesystem,
+                size,
+                used,
+                avail,
+                use_pct,
+                mount,
+            })
+        })
+        .collect()
+}
+
 /// Parses `systemctl list-units --type=service ...` into the stat strip's
 /// first 20 units.
 pub fn parse_live_services(text: &str) -> Vec<LiveServiceStatus> {
@@ -392,6 +428,18 @@ mod tests {
         let units = "  sshd.service loaded active running OpenSSH server\n  foo.service loaded failed failed Foo\n";
         let svcs = parse_live_services(units);
         assert_eq!(svcs.iter().map(|s| s.status.as_str()).collect::<Vec<_>>(), vec!["ACTIVE", "FAILED"]);
+
+        let df_h = "Filesystem      Size  Used Avail Use% Mounted on\n\
+                    /dev/nvme0n1p3  475G  334G  137G  72% /var\n\
+                    /dev/nvme0n1p2  2.0G  491M  1.4G  27% /boot\n\
+                    tmpfs           1.0G     0  1.0G   0% /run\n";
+        let parts = parse_df_partitions(df_h);
+        assert_eq!(parts.len(), 2);
+        assert_eq!(parts[0].mount, "/var");
+        assert_eq!(parts[0].use_pct, 72);
+        assert_eq!(parts[0].size, "475G");
+        assert_eq!(parts[1].mount, "/boot");
+        assert_eq!(parts[1].use_pct, 27);
     }
 
 }

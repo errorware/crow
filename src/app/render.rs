@@ -382,7 +382,14 @@ impl Render for CrowApp {
                                                     .child(identity_bar(active_srv, jump.clone(), active_srv.is_some_and(|s| crate::app::bastions::is_bastion(s, &self.fleet.servers)), self.region_picker_open, self.active_provider_actions().is_some_and(|p| p.snapshots), self.local_lab.busy.is_some() || !self.plugin_enabled("multipass"), app_view.clone()))
                                                     .children(connection_banner(active_srv, jump.clone(), app_view.clone()))
                                                     // Server Stat Strip
-                                                    .child(stat_strip(active_mtr, self.fleet.metrics_lag_secs, self.fleet.active_surge_alert.as_ref()))
+                                                    .child(stat_strip(active_mtr, self.fleet.metrics_lag_secs, self.fleet.active_surge_alert.as_ref(), self.disk_drawer_open, Some(app_view.clone())))
+                                                    .children(if self.disk_drawer_open {
+                                                        let empty_partitions = Vec::new();
+                                                        let parts = active_mtr.map(|m| &m.disk_partitions).unwrap_or(&empty_partitions);
+                                                        Some(crate::components::stat_strip::disk_partitions_drawer(parts, self.disk_drawer_loading, app_view.clone()))
+                                                    } else {
+                                                        None
+                                                    })
                                                 // Main Server Body: Sidebar + Content
                                                 .child(
                                                     div()

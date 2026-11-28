@@ -11,7 +11,19 @@ pub mod bottlenecks;
 pub mod certs;
 pub mod chart;
 
+pub use collector::parse_df_partitions;
+
 pub const MAX_HISTORY_POINTS: usize = 20;
+
+#[derive(Clone, Debug, PartialEq, Eq, Default, Serialize, Deserialize)]
+pub struct DiskPartition {
+    pub filesystem: String,
+    pub size: String,
+    pub used: String,
+    pub avail: String,
+    pub use_pct: u8,
+    pub mount: String,
+}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct LiveServiceStatus {
@@ -57,6 +69,7 @@ pub struct ServerMetrics {
     pub disk_mount: String,
     pub inodes_pct: Option<f32>,
     pub iowait_pct: Option<f32>,
+    pub disk_partitions: Vec<DiskPartition>,
 
     // 4. Load Average
     pub load_1m: f32,
@@ -103,6 +116,7 @@ impl Default for ServerMetrics {
             disk_mount: "/".to_string(),
             inodes_pct: None,
             iowait_pct: None,
+            disk_partitions: Vec::new(),
             load_1m: 0.0,
             load_5m: 0.0,
             load_15m: 0.0,
