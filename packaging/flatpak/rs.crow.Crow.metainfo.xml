@@ -60,6 +60,17 @@
   </supports>
   <content_rating type="oars-1.1"/>
   <releases>
+    <release version="0.8.11" date="2026-11-28">
+      <description>
+        <p>Crow 0.8.11: Light mode, authentic DEC UNIX CDE retro theme, and disk partition drill-down quick view.</p>
+        <ul>
+          <li>Add light mode ("Obsidian Light") with clean high-contrast light surfaces for improved readability (GH#6)</li>
+          <li>Add authentic 1996 DEC UNIX 4.0 / CDE retro Motif palette theme ("DEC UNIX (CDE)") (GH#6)</li>
+          <li>Add disk partition drill-down drawer to server stat strip with per-partition usage bars and async refresh (GH#8)</li>
+          <li>Comprehensive semantic theme token audit eliminating hardcoded inline colors across 70+ views and components</li>
+        </ul>
+      </description>
+    </release>
     <release version="0.8.10" date="2026-11-26">
       <description>
         <p>Crow 0.8.10: Fix Windows titlebar dragging and double-click maximize/restore.</p>
