@@ -602,6 +602,16 @@ pub fn update_theme_font_size(gui_font_size: f32, cx: &mut App) {
     Theme::sync_base(cx);
 }
 
+/// The language pack's own font (its `### font:` line), tried after Crow's
+/// for the characters JetBrains Mono doesn't have: CJK, Arabic, Thai…
+/// Without one the system's fallback fonts are used.
+pub fn language_font<E: Styled>(mut element: E) -> E {
+    if let Some(font) = crate::i18n::current().info.font.clone() {
+        element.text_style().font_fallbacks = Some(FontFallbacks::from_fonts(vec![font]));
+    }
+    element
+}
+
 #[cfg(test)]
 mod scrollbar_guard {
     /// GPUI's `overflow_y_scroll` scrolls without drawing a scrollbar (ERR-17);
@@ -761,14 +771,4 @@ mod palette_tests {
         assert_eq!(cde.ok, hex_rgb(0x2F7A3A));
         assert_eq!(cde.text_chrome, hex_rgb(0xffffff));
     }
-}
-
-/// The language pack's own font (its `### font:` line), tried after Crow's
-/// for the characters JetBrains Mono doesn't have: CJK, Arabic, Thai…
-/// Without one the system's fallback fonts are used.
-pub fn language_font<E: Styled>(mut element: E) -> E {
-    if let Some(font) = crate::i18n::current().info.font.clone() {
-        element.text_style().font_fallbacks = Some(FontFallbacks::from_fonts(vec![font]));
-    }
-    element
 }
